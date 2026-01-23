@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LDAH - Option A: Warm & Nurturing</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+    :root {
+        --sunshine: #FFB347;
+        --sky-blue: #87CEEB;
+        --ocean-teal: #20B2AA;
+        --soft-coral: #FF8A80;
+        --lavender: #B39DDB;
+        --mint: #98D4BB;
+        --cream: #FFF8F0;
+        --warm-white: #FFFAF5;
+        --text-dark: #3D3D3D;
+        --text-soft: #666666;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    
+    body { 
+        font-family: 'Nunito', sans-serif; 
+        color: var(--text-dark); 
+        line-height: 1.7; 
+        background: var(--warm-white);
+        overflow-x: hidden;
+    }
+    
+    h1, h2, h3 { 
+        font-family: 'Quicksand', sans-serif; 
+        font-weight: 700; 
+        line-height: 1.3; 
+    }
+
+    /* Floating shapes animation */
+    @keyframes float {
+        0%, 100% { transform: translateY(0) rotate(0deg); }
+        50% { transform: translateY(-20px) rotate(5deg); }
+    }
+    
+    @keyframes floatReverse {
+        0%, 100% { transform: translateY(0) rotate(0deg); }
+        50% { transform: translateY(20px) rotate(-5deg); }
+    }
+    
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+    }
+
+    /* Navigation */
+    nav { 
+        position: fixed; 
+        top: 0; 
+        left: 0; 
+        right: 0; 
+        z-index: 1000; 
+        background: rgba(255, 250, 245, 0.95); 
+        backdrop-filter: blur(10px); 
+        box-shadow: 0 4px 20px rgba(255, 179, 71, 0.15);
+        border-bottom: 3px solid var(--sunshine);
+    }
+    
+    .nav-content { 
+        max-width: 1300px; 
+        margin: 0 auto; 
+        padding: 1rem 2rem; 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center; 
+    }
+    
+    .logo-container { 
+        display: flex; 
+        align-items: center; 
+        gap: 1rem; 
+        text-decoration: none; 
+    }
+    
+    .logo-img { 
+        width: 70px; 
+        height: 70px; 
+    }
+    
+    .logo-text { 
+        font-family: 'Quicksand', sans-serif;
+        font-size: 1.3rem; 
+        font-weight: 700; 
+        color: var(--ocean-teal); 
+    }
+    
+    .nav-links { 
+        display: flex; 
+        gap: 2rem; 
+        list-style: none; 
+        align-items: center; 
+    }
+    
+    .nav-links a { 
+        text-decoration: none; 
+        color: var(--text-dark); 
+        font-weight: 600; 
+        transition: all 0.3s;
+        position: relative;
+    }
+    
+    .nav-links a::after {
+        content: '';
+        position: absolute;
+        bottom: -4px;
+        left: 0;
+        width: 0;
+        height: 3px;
+        background: var(--sunshine);
+        border-radius: 2px;
+        transition: width 0.3s;
+    }
+    
+    .nav-links a:hover::after { width: 100%; }
+    
+    .nav-cta {
+        padding: 0.75rem 1.5rem;
+        background: linear-gradient(135deg, var(--sunshine), #FFA726);
+        color: white !important;
+        border-radius: 25px;
+        font-weight: 700;
+        box-shadow: 0 4px 15px rgba(255, 179, 71, 0.4);
+        transition: all 0.3s;
+    }
+    
+    .nav-cta:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(255, 179, 71, 0.5);
+    }
+    
+    .nav-cta::after { display: none !important; }
+
+    /* Hero Section */
+    .hero { 
+        margin-top: 90px; 
+        min-height: 85vh; 
+        background: linear-gradient(180deg, var(--cream) 0%, var(--warm-white) 100%);
+        display: flex; 
+        align-items: center; 
+        padding: 4rem 2rem; 
+        position: relative; 
+        overflow: hidden; 
+    }
+    
+    /* Decorative floating shapes */
+    .shape {
+        position: absolute;
+        border-radius: 50%;
+        opacity: 0.6;
+        z-index: 0;
+    }
+    
+    .shape-1 {
+        width: 300px;
+        height: 300px;
+        background: linear-gradient(135deg, var(--sky-blue), transparent);
+        top: 10%;
+        right: -5%;
+        animation: float 8s ease-in-out infinite;
+    }
+    
+    .shape-2 {
+        width: 200px;
+        height: 200px;
+        background: linear-gradient(135deg, var(--mint), transparent);
+        bottom: 20%;
+        left: -3%;
+        animation: floatReverse 7s ease-in-out infinite;
+    }
+    
+    .shape-3 {
+        width: 150px;
+        height: 150px;
+        background: linear-gradient(135deg, var(--lavender), transparent);
+        top: 30%;
+        left: 10%;
+        animation: float 9s ease-in-out infinite;
+    }
+    
+    .shape-4 {
+        width: 100px;
+        height: 100px;
+        background: linear-gradient(135deg, var(--soft-coral), transparent);
+        bottom: 30%;
+        right: 15%;
+        animation: floatReverse 6s ease-in-out infinite;
+    }
+    
+    .hero-content { 
+        max-width: 1300px; 
+        margin: 0 auto; 
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 4rem;
+        align-items: center;
+        position: relative; 
+        z-index: 1; 
+    }
+    
+    .hero-text h1 { 
+        font-size: 3.2rem; 
+        margin-bottom: 1.5rem; 
+        color: var(--text-dark);
+    }
+    
+    .hero-text .highlight { 
+        color: var(--ocean-teal);
+        position: relative;
+    }
+    
+    .hero-text .highlight::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 12px;
+        background: rgba(255, 179, 71, 0.3);
+        z-index: -1;
+        border-radius: 4px;
+    }
+    
+    .hero-text p { 
+        font-size: 1.2rem; 
+        margin-bottom: 2rem; 
+        color: var(--text-soft);
+        line-height: 1.8;
+    }
+    
+    .hero-buttons { 
+        display: flex; 
+        gap: 1rem; 
+        flex-wrap: wrap; 
+    }
+    
+    .btn-primary { 
+        padding: 1rem 2rem; 
+        background: linear-gradient(135deg, var(--ocean-teal), #17A589);
+        color: white; 
+        border-radius: 30px; 
+        font-weight: 700; 
+        text-decoration: none; 
+        transition: all 0.3s;
+        box-shadow: 0 4px 20px rgba(32, 178, 170, 0.3);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .btn-primary:hover { 
+        transform: translateY(-3px); 
+        box-shadow: 0 8px 25px rgba(32, 178, 170, 0.4);
+    }
+    
+    .btn-secondary { 
+        padding: 1rem 2rem; 
+        background: white;
+        color: var(--ocean-teal); 
+        border: 2px solid var(--ocean-teal);
+        border-radius: 30px; 
+        font-weight: 700; 
+        text-decoration: none; 
+        transition: all 0.3s; 
+    }
+    
+    .btn-secondary:hover { 
+        background: var(--ocean-teal); 
+        color: white; 
+    }
+    
+    /* Hero illustration area */
+    .hero-visual {
+        position: relative;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    
+    .family-illustration {
+        width: 100%;
+        max-width: 500px;
+        aspect-ratio: 1;
+        background: linear-gradient(135deg, var(--sky-blue) 0%, var(--mint) 100%);
+        border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: relative;
+        animation: pulse 4s ease-in-out infinite;
+    }
+    
+    .family-emoji {
+        font-size: 8rem;
+        filter: drop-shadow(0 10px 30px rgba(0,0,0,0.1));
+    }
+    
+    /* Floating icons around illustration */
+    .floating-icon {
+        position: absolute;
+        font-size: 2.5rem;
+        animation: float 5s ease-in-out infinite;
+    }
+    
+    .icon-1 { top: 10%; left: 0; animation-delay: 0s; }
+    .icon-2 { top: 5%; right: 10%; animation-delay: 1s; }
+    .icon-3 { bottom: 20%; left: -5%; animation-delay: 2s; }
+    .icon-4 { bottom: 10%; right: 0; animation-delay: 1.5s; }
+
+    /* Stats Section */
+    .stats-section { 
+        background: white;
+        padding: 5rem 2rem; 
+        position: relative;
+    }
+    
+    .stats-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 6px;
+        background: linear-gradient(90deg, var(--sunshine), var(--soft-coral), var(--lavender), var(--sky-blue), var(--mint));
+    }
+    
+    .stats-container { 
+        max-width: 1200px; 
+        margin: 0 auto; 
+        display: grid; 
+        grid-template-columns: repeat(4, 1fr); 
+        gap: 2rem; 
+    }
+    
+    .stat-card { 
+        text-align: center; 
+        padding: 2rem;
+    }
+    
+    .stat-icon { 
+        font-size: 3.5rem; 
+        margin-bottom: 1rem; 
+    }
+    
+    .stat-number { 
+        font-size: 3rem; 
+        font-weight: 800; 
+        color: var(--ocean-teal);
+        margin-bottom: 0.5rem; 
+        font-family: 'Quicksand', sans-serif;
+    }
+    
+    .stat-label { 
+        font-size: 1rem; 
+        color: var(--text-soft); 
+        font-weight: 600; 
+    }
+
+    /* Services Section */
+    .services-section { 
+        padding: 6rem 2rem; 
+        background: var(--cream);
+    }
+    
+    .section-header { 
+        text-align: center; 
+        max-width: 700px; 
+        margin: 0 auto 4rem; 
+    }
+    
+    .section-badge {
+        display: inline-block;
+        padding: 0.5rem 1.5rem;
+        background: linear-gradient(135deg, var(--sunshine), #FFA726);
+        color: white;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+    }
+    
+    .section-title { 
+        font-size: 2.5rem; 
+        color: var(--text-dark);
+        margin-bottom: 1rem; 
+    }
+    
+    .section-description { 
+        font-size: 1.1rem; 
+        color: var(--text-soft); 
+    }
+    
+    .services-grid { 
+        max-width: 1200px; 
+        margin: 0 auto; 
+        display: grid; 
+        grid-template-columns: repeat(3, 1fr); 
+        gap: 2rem; 
+    }
+    
+    .service-card { 
+        background: white;
+        border-radius: 24px; 
+        padding: 2.5rem;
+        text-align: center;
+        transition: all 0.4s;
+        border: 3px solid transparent;
+        cursor: pointer;
+    }
+    
+    .service-card:hover { 
+        transform: translateY(-10px); 
+        border-color: var(--sunshine);
+        box-shadow: 0 20px 50px rgba(255, 179, 71, 0.2);
+    }
+    
+    .service-icon { 
+        font-size: 4rem; 
+        margin-bottom: 1.5rem;
+    }
+    
+    .service-title { 
+        font-size: 1.3rem; 
+        color: var(--ocean-teal);
+        margin-bottom: 1rem; 
+        font-family: 'Quicksand', sans-serif;
+    }
+    
+    .service-description { 
+        color: var(--text-soft); 
+        line-height: 1.7; 
+        font-size: 0.95rem;
+    }
+
+    /* CTA Banner */
+    .cta-banner { 
+        background: linear-gradient(135deg, var(--ocean-teal) 0%, #17A589 50%, var(--sky-blue) 100%);
+        padding: 6rem 2rem; 
+        text-align: center; 
+        color: white; 
+        position: relative; 
+        overflow: hidden; 
+    }
+    
+    .cta-banner::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='30' cy='30' r='4' fill='rgba(255,255,255,0.1)'/%3E%3C/svg%3E");
+        opacity: 0.5;
+    }
+    
+    .cta-content { 
+        position: relative; 
+        z-index: 1;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    
+    .cta-content h2 { 
+        font-size: 2.5rem; 
+        margin-bottom: 1.5rem; 
+        font-family: 'Quicksand', sans-serif;
+    }
+    
+    .cta-content p { 
+        font-size: 1.2rem; 
+        margin-bottom: 2rem; 
+        opacity: 0.95; 
+    }
+    
+    .cta-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    
+    .btn-white {
+        padding: 1rem 2rem;
+        background: white;
+        color: var(--ocean-teal);
+        border-radius: 30px;
+        font-weight: 700;
+        text-decoration: none;
+        transition: all 0.3s;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    
+    .btn-white:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+    }
+    
+    .btn-outline {
+        padding: 1rem 2rem;
+        background: transparent;
+        color: white;
+        border: 2px solid white;
+        border-radius: 30px;
+        font-weight: 700;
+        text-decoration: none;
+        transition: all 0.3s;
+    }
+    
+    .btn-outline:hover {
+        background: white;
+        color: var(--ocean-teal);
+    }
+
+    /* Footer */
+    footer { 
+        background: var(--text-dark);
+        color: white; 
+        padding: 4rem 2rem 2rem; 
+    }
+    
+    .footer-content { 
+        max-width: 1200px; 
+        margin: 0 auto; 
+        text-align: center;
+    }
+    
+    .footer-logo {
+        font-family: 'Quicksand', sans-serif;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--sunshine);
+        margin-bottom: 1rem;
+    }
+    
+    .footer-tagline {
+        color: rgba(255,255,255,0.7);
+        margin-bottom: 2rem;
+    }
+    
+    .footer-links {
+        display: flex;
+        justify-content: center;
+        gap: 2rem;
+        flex-wrap: wrap;
+        margin-bottom: 2rem;
+    }
+    
+    .footer-links a {
+        color: rgba(255,255,255,0.8);
+        text-decoration: none;
+        transition: color 0.3s;
+    }
+    
+    .footer-links a:hover {
+        color: var(--sunshine);
+    }
+    
+    .footer-bottom {
+        padding-top: 2rem;
+        border-top: 1px solid rgba(255,255,255,0.1);
+        color: rgba(255,255,255,0.5);
+        font-size: 0.9rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+        .hero-content {
+            grid-template-columns: 1fr;
+            text-align: center;
+        }
+        
+        .hero-text h1 {
+            font-size: 2.5rem;
+        }
+        
+        .hero-buttons {
+            justify-content: center;
+        }
+        
+        .services-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        
+        .stats-container {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .nav-links { display: none; }
+        
+        .hero-text h1 {
+            font-size: 2rem;
+        }
+        
+        .family-illustration {
+            max-width: 300px;
+        }
+        
+        .family-emoji {
+            font-size: 5rem;
+        }
+        
+        .services-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .stats-container {
+            grid-template-columns: 1fr 1fr;
+        }
+        
+        .section-title {
+            font-size: 2rem;
+        }
+    }
+
+    /* Design Label */
+    .design-label {
+        position: fixed;
+        top: 100px;
+        right: 20px;
+        background: var(--sunshine);
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 700;
+        z-index: 1001;
+        box-shadow: 0 4px 20px rgba(255,179,71,0.4);
+    }
+    </style>
+</head>
+<body>
+    <div class="design-label">✨ Option A: Warm & Nurturing</div>
+    
+    <nav>
+        <div class="nav-content">
+            <a href="#" class="logo-container">
+                <img src="assets/logo_transparent.png" alt="LDAH" class="logo-img">
+                <span class="logo-text">LDAH</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="#">Who We Are</a></li>
+                <li><a href="#">Resources</a></li>
+                <li><a href="#">Events</a></li>
+                <li><a href="#">Volunteer</a></li>
+                <li><a href="#" class="nav-cta">Get Support</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <section class="hero">
+        <div class="shape shape-1"></div>
+        <div class="shape shape-2"></div>
+        <div class="shape shape-3"></div>
+        <div class="shape shape-4"></div>
+        
+        <div class="hero-content">
+            <div class="hero-text">
+                <h1>Supporting <span class="highlight">Every Family</span> on Their Journey</h1>
+                <p>For over 30 years, we've been helping Hawai'i families navigate the path to success for children with disabilities. You're not alone — we're here to help.</p>
+                <div class="hero-buttons">
+                    <a href="#" class="btn-primary">🤝 Get Support</a>
+                    <a href="#" class="btn-secondary">Learn About Us</a>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="family-illustration">
+                    <span class="family-emoji">👨‍👩‍👧‍👦</span>
+                </div>
+                <span class="floating-icon icon-1">💛</span>
+                <span class="floating-icon icon-2">🌺</span>
+                <span class="floating-icon icon-3">🌈</span>
+                <span class="floating-icon icon-4">⭐</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="stats-section">
+        <div class="stats-container">
+            <div class="stat-card">
+                <div class="stat-icon">👨‍👩‍👧</div>
+                <div class="stat-number">5,000+</div>
+                <div class="stat-label">Families Supported</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📚</div>
+                <div class="stat-number">30+</div>
+                <div class="stat-label">Years of Service</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🎓</div>
+                <div class="stat-number">200+</div>
+                <div class="stat-label">Workshops Yearly</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🏝️</div>
+                <div class="stat-number">8</div>
+                <div class="stat-label">Pacific Regions</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="services-section">
+        <div class="section-header">
+            <span class="section-badge">How We Help</span>
+            <h2 class="section-title">Programs & Resources</h2>
+            <p class="section-description">From education advocacy to community support, we're here for every step of your family's journey.</p>
+        </div>
+        
+        <div class="services-grid">
+            <div class="service-card">
+                <div class="service-icon">📖</div>
+                <h3 class="service-title">Special Education Support</h3>
+                <p class="service-description">Navigate IEPs, understand your rights, and advocate effectively for your child's education needs.</p>
+            </div>
+            <div class="service-card">
+                <div class="service-icon">🎖️</div>
+                <h3 class="service-title">Military Families</h3>
+                <p class="service-description">Specialized support for military families with children with disabilities, including transition assistance.</p>
+            </div>
+            <div class="service-card">
+                <div class="service-icon">🎯</div>
+                <h3 class="service-title">School Readiness</h3>
+                <p class="service-description">Prepare your child for kindergarten success with our comprehensive readiness programs.</p>
+            </div>
+            <div class="service-card">
+                <div class="service-icon">🌐</div>
+                <h3 class="service-title">Accessibility Resources</h3>
+                <p class="service-description">Information about accessibility rights, accommodations, and inclusive community resources.</p>
+            </div>
+            <div class="service-card">
+                <div class="service-icon">🏝️</div>
+                <h3 class="service-title">Pacific Islands Outreach</h3>
+                <p class="service-description">Extending support to families across American Samoa, CNMI, FSM, Guam, Marshall Islands, and Palau.</p>
+            </div>
+            <div class="service-card">
+                <div class="service-icon">💪</div>
+                <h3 class="service-title">Stand Up to Bullying</h3>
+                <p class="service-description">Resources and support to help prevent bullying and protect children in our community.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta-banner">
+        <div class="cta-content">
+            <h2>Ready to Connect?</h2>
+            <p>Whether you need support, want to volunteer, or are looking for resources — we're here for you. Reach out today and join our 'ohana.</p>
+            <div class="cta-buttons">
+                <a href="#" class="btn-white">🤝 Become a Volunteer</a>
+                <a href="#" class="btn-outline">💛 Support Our Mission</a>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-logo">LDAH</div>
+            <p class="footer-tagline">Leadership in Disabilities & Achievement of Hawai'i</p>
+            <div class="footer-links">
+                <a href="#">Who We Are</a>
+                <a href="#">Resources</a>
+                <a href="#">Events</a>
+                <a href="#">Volunteer</a>
+                <a href="#">Contact</a>
+            </div>
+            <div class="footer-bottom">
+                <p>© 2024 LDAH. All rights reserved. | A nonprofit 501(c)(3) organization</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="LDAH">
+  <meta name="theme-color" content="#004E7C">
+  <title>LDAH - Contact Us</title>
+  
+  <!-- Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-32PRRS0W85"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-32PRRS0W85');
+  </script>
+  
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json">
+  
+  <!-- iOS Icons -->
+  <link rel="apple-touch-icon" href="https://danpoahu.github.io/LDAH/icon-192.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="https://danpoahu.github.io/LDAH/icon-192.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="https://danpoahu.github.io/LDAH/icon-512.png">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --primary-blue: #004E7C;
+      --light-blue: #0066a1;
+      --accent-teal: #4DD0E1;
+      --text-dark: #1a1a1a;
+      --text-light: #666;
+      --bg-light: #f8f9fa;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    html {
+      scroll-behavior: smooth;
+    }
+    
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: var(--text-dark);
+      line-height: 1.6;
+      overflow-x: hidden;
+      background: white;
+    }
+    
+    h1, h2, h3 {
+      font-family: 'Poppins', sans-serif;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 2px 8px rgba(0, 78, 124, 0.1);
+    }
+    
+    .nav-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      text-decoration: none;
+    }
+    
+    .logo-img {
+      width: 80px;
+      height: 80px;
+      filter: brightness(1.1);
+    }
+    
+    .logo-text {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--primary-blue);
+    }
+    
+    .nav-links {
+      display: flex;
+      gap: 2rem;
+      list-style: none;
+      align-items: center;
+    }
+    
+    .nav-links a {
+      text-decoration: none;
+      color: var(--text-dark);
+      font-weight: 500;
+      transition: color 0.3s;
+    }
+    
+    .nav-links a:hover {
+      color: var(--primary-blue);
+    }
+    
+    /* Mobile Menu */
+    .hamburger {
+      display: none;
+      flex-direction: column;
+      cursor: pointer;
+      padding: 0.5rem;
+    }
+    
+    .hamburger span {
+      width: 25px;
+      height: 3px;
+      background: var(--primary-blue);
+      margin: 3px 0;
+      transition: 0.3s;
+    }
+    
+    @media (max-width: 768px) {
+      .nav-links {
+        position: fixed;
+        top: 88px;
+        left: 0;
+        right: 0;
+        background: white;
+        flex-direction: column;
+        padding: 2rem;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        gap: 1rem;
+        transform: translateY(-100%);
+        opacity: 0;
+        transition: transform 0.3s, opacity 0.3s;
+        pointer-events: none;
+      }
+      .nav-links.active {
+        transform: translateY(0);
+        opacity: 1;
+        pointer-events: all;
+      }
+      .hamburger {
+        display: flex;
+      }
+      .logo-img {
+        width: 60px;
+        height: 60px;
+      }
+      .logo-text {
+        font-size: 1.2rem;
+      }
+    }
+    
+    .cta-button {
+      padding: 0.75rem 1.5rem;
+      background: linear-gradient(135deg, #004E7C, #0066a1);
+      color: white;
+      border-radius: 50px;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    
+    .page-header {
+      margin-top: 88px;
+      padding: 4rem 2rem;
+      background: linear-gradient(135deg, #004E7C 0%, #0066a1 100%);
+      color: white;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .page-header::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      opacity: 1;
+      background-image:
+      linear-gradient(90deg, rgba(255, 255, 255, .08) 1px, transparent 1px), linear-gradient(rgba(255, 255, 255, .08) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .12) 1px, transparent 1px), linear-gradient(rgba(255, 255, 255, .12) 1px, transparent 1px);
+      background-size: 30px 30px, 30px 30px, 60px 60px, 60px 60px;
+      background-position: 0 0, 0 0, -15px -15px, -15px -15px;
+    }
+    
+    .page-header > * {
+      position: relative;
+      z-index: 1;
+    }
+    
+    .page-header h1 {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+    
+    .page-header p {
+      font-size: 1.25rem;
+      opacity: 0.9;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 4rem 2rem;
+    }
+    
+    .office-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+      margin-bottom: 3rem;
+    }
+    
+    .office-card {
+      background: white;
+      border-radius: 20px;
+      padding: 2rem;
+      box-shadow: 0 4px 16px rgba(0, 78, 124, 0.1);
+      transition: transform 0.3s, box-shadow 0.3s;
+      border: 2px solid var(--bg-light);
+      display: flex;
+      flex-direction: column;
+      min-height: 500px;
+    }
+    
+    .office-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 8px 32px rgba(0, 78, 124, 0.2);
+    }
+    
+    .office-card-content {
+      flex-grow: 1;
+    }
+    
+    .office-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+    
+    .office-title {
+      font-size: 1.5rem;
+      color: var(--primary-blue);
+      margin-bottom: 0.5rem;
+    }
+    
+    .office-subtitle {
+      font-size: 0.9rem;
+      color: var(--text-light);
+      font-style: italic;
+      margin-bottom: 1.5rem;
+    }
+    
+    .contact-info {
+      margin-bottom: 1rem;
+    }
+    
+    .contact-label {
+      font-weight: 600;
+      color: var(--primary-blue);
+      margin-bottom: 0.5rem;
+    }
+    
+    .contact-value {
+      color: var(--text-dark);
+      line-height: 1.6;
+    }
+    
+    .contact-value a {
+      color: var(--primary-blue);
+      text-decoration: none;
+      transition: color 0.3s;
+    }
+    
+    .contact-value a:hover {
+      color: var(--light-blue);
+      text-decoration: underline;
+    }
+    
+    .button-container {
+      margin-top: auto;
+      padding-top: 1rem;
+      text-align: center;
+    }
+    
+    .btn-directions {
+      display: inline-block;
+      padding: 0.75rem 1.5rem;
+      background: linear-gradient(135deg, #004E7C, #0066a1);
+      color: white;
+      border-radius: 50px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.3s;
+      cursor: pointer;
+      border: none;
+      margin-top: 1rem;
+    }
+    
+    .btn-directions:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 4px 12px rgba(0, 78, 124, 0.3);
+    }
+    
+    /* Map Modal */
+    .map-modal {
+      display: none;
+      position: fixed;
+      z-index: 2000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+      animation: fadeIn 0.3s;
+    }
+    
+    .map-modal.active {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .map-content {
+      background: white;
+      border-radius: 20px;
+      width: 90%;
+      max-width: 1000px;
+      height: 80vh;
+      max-height: 700px;
+      position: relative;
+      animation: slideUp 0.3s;
+      overflow: hidden;
+    }
+    
+    .map-header {
+      background: linear-gradient(135deg, #004E7C, #0066a1);
+      color: white;
+      padding: 1.5rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .map-header h3 {
+      margin: 0;
+      font-size: 1.5rem;
+    }
+    
+    .close-modal {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: white;
+      font-size: 2rem;
+      cursor: pointer;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.3s;
+    }
+    
+    .close-modal:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    
+    .map-frame {
+      width: 100%;
+      height: calc(100% - 80px);
+      border: none;
+    }
+    
+    /* External Link Modal */
+    .iframe-modal {
+      display: none;
+      position: fixed;
+      z-index: 3000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      animation: fadeIn 0.3s;
+    }
+    
+    .iframe-modal.active {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .iframe-content {
+      background: white;
+      border-radius: 20px;
+      width: 95%;
+      max-width: 1200px;
+      height: 90vh;
+      max-height: 800px;
+      position: relative;
+      animation: slideUp 0.3s;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .iframe-header {
+      background: linear-gradient(135deg, #004E7C, #0066a1);
+      color: white;
+      padding: 1.5rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    
+    .iframe-header h3 {
+      margin: 0;
+      font-size: 1.5rem;
+    }
+    
+    .close-iframe {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: white;
+      font-size: 2rem;
+      cursor: pointer;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.3s;
+    }
+    
+    .close-iframe:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    
+    .iframe-frame {
+      width: 100%;
+      flex: 1;
+      border: none;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    @keyframes slideUp {
+      from { transform: translateY(50px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    
+    .message-card {
+      background: var(--bg-light);
+      border-radius: 20px;
+      padding: 3rem;
+      text-align: center;
+    }
+    
+    .message-card h2 {
+      color: var(--primary-blue);
+      font-size: 2rem;
+      margin-bottom: 1rem;
+    }
+    
+    .message-card p {
+      color: var(--text-light);
+      margin-bottom: 2rem;
+      font-size: 1.1rem;
+    }
+    
+    /* CTA Banner */
+    .cta-banner {
+      background: linear-gradient(135deg, #004E7C, #0066a1);
+      padding: 4rem 2rem;
+      text-align: center;
+      color: white;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .cta-banner::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image:
+      radial-gradient(circle, transparent 0, transparent 22px, rgba(255, 255, 255, 0.15) 22px, rgba(255, 255, 255, 0.15) 24px, transparent 24px);
+      background-size: 48px 48px;
+      opacity: 1;
+    }
+    
+    .cta-banner > * {
+      position: relative;
+      z-index: 1;
+    }
+    
+    .cta-banner h2 {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+    }
+    
+    .cta-banner p {
+      font-size: 1.1rem;
+      margin-bottom: 1.5rem;
+      opacity: 0.95;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    
+    .cta-btn {
+      display: inline-block;
+      padding: 1rem 2rem;
+      background: white;
+      color: var(--primary-blue);
+      border-radius: 50px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+    
+    .cta-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    }
+    
+    footer {
+      background: var(--text-dark);
+      color: white;
+      padding: 3rem 2rem 2rem;
+    }
+    
+    .footer-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 2rem;
+      margin-bottom: 2rem;
+    }
+    
+    .footer-section h3 {
+      color: var(--accent-teal);
+      margin-bottom: 1rem;
+      font-size: 1.2rem;
+    }
+    
+    .footer-section p,
+    .footer-section a {
+      color: rgba(255, 255, 255, 0.8);
+      text-decoration: none;
+      display: block;
+      margin-bottom: 0.5rem;
+      transition: color 0.3s;
+    }
+    
+    .footer-section a:hover {
+      color: var(--accent-teal);
+    }
+    
+    .footer-bottom {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding-top: 2rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      text-align: center;
+      color: rgba(255, 255, 255, 0.6);
+    }
+  </style>
+    <script>
+        // LDAH Header/Footer Loader with ALL Modal Functions
+        
+        // Define ALL modal functions FIRST so all links work
+        
+        // Iframe Modal Functions (for footer links - Parent Talk Cafe, DP Consulting)
+        function openIframeModal(title, url) {
+            if (url.includes('facebook.com')) {
+                const modal = document.getElementById('iframeModal');
+                const titleEl = document.getElementById('iframeTitle');
+                const frame = document.getElementById('iframeFrame');
+                
+                titleEl.textContent = title;
+                frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">🌺 Join Our Facebook Community</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other Hawaii families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">📱 Open Parent Talk Cafe →</a></div>';
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            } else {
+                const modal = document.getElementById('iframeModal');
+                const titleEl = document.getElementById('iframeTitle');
+                const frame = document.getElementById('iframeFrame');
+                
+                titleEl.textContent = title;
+                frame.src = url;
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+        
+        function closeIframeModal(event) {
+            if (event && event.target !== event.currentTarget && !event.target.classList.contains('close-iframe')) {
+                return;
+            }
+            
+            const modal = document.getElementById('iframeModal');
+            const frameEl = document.getElementById('iframeFrame');
+            
+            modal.classList.remove('active');
+            
+            if (frameEl.tagName === 'IFRAME') {
+                frameEl.src = '';
+            } else {
+                frameEl.outerHTML = '<iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>';
+            }
+            
+            document.body.style.overflow = 'auto';
+        }
+        
+        // Map Modal Functions (for contact page directions buttons)
+        function openMapModal(officeName, mapUrl) {
+            const modal = document.getElementById('mapModal');
+            const title = document.getElementById('modalTitle');
+            const frame = document.getElementById('mapFrame');
+            
+            title.textContent = officeName + ' - Directions';
+            frame.src = mapUrl;
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+        
+        function closeMapModal(event) {
+            if (event && event.target !== event.currentTarget && !event.target.classList.contains('close-modal')) {
+                return;
+            }
+            
+            const modal = document.getElementById('mapModal');
+            const frame = document.getElementById('mapFrame');
+            
+            modal.classList.remove('active');
+            frame.src = '';
+            document.body.style.overflow = 'auto';
+        }
+        
+        // Header and Footer Loader - Fetches from external files
+        async function loadHeaderFooter() {
+            const headerContainer = document.getElementById('header-container');
+            const footerContainer = document.getElementById('footer-container');
+            
+            try {
+                // Try to fetch from external files first
+                const [headerResponse, footerResponse] = await Promise.all([
+                    fetch('header.html'),
+                    fetch('footer.html')
+                ]);
+                
+                if (headerResponse.ok && footerResponse.ok) {
+                    headerContainer.innerHTML = await headerResponse.text();
+                    footerContainer.innerHTML = await footerResponse.text();
+                    console.log('✅ Header and footer loaded from external files');
+                } else {
+                    throw new Error('Failed to fetch');
+                }
+                
+                // Load accessibility widget script
+                if (!document.getElementById('a11y-script')) {
+                    const script = document.createElement('script');
+                    script.id = 'a11y-script';
+                    script.src = 'accessibility.js';
+                    document.body.appendChild(script);
+                }
+            } catch (error) {
+                console.log('⚠️ Using inline fallback for header/footer');
+                // Fallback for file:// protocol or fetch failure
+                headerContainer.innerHTML = `<nav>
+    <div class="nav-content">
+        <a href="index.html" class="logo-container">
+            <img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH Logo" class="logo-img">
+            <span class="logo-text">LDAH</span>
+        </a>
+        <div class="hamburger" onclick="toggleMenu()">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+        <ul class="nav-links" id="navLinks">
+            <li><a href="index.html#services">What We Do</a></li>
+            <li><a href="events.html">Events</a></li>
+            <li><a href="volunteer.html">Volunteer</a></li>
+            <li><a href="resources.html">Resources</a></li>
+            <li><a href="contact.html">Contact</a></li>
+        </ul>
+    </div>
+</nav>`;
+                footerContainer.innerHTML = `<footer>
+    <div class="footer-content">
+        <div class="footer-section">
+            <h3>About LDAH</h3>
+            <p>Hawai'i & Pacific Island Parent Training & Information Center empowering families and children with disabilities.</p>
+        </div>
+        <div class="footer-section">
+            <h3>Quick Links</h3>
+            <a href="index.html#services">What We Do</a>
+            <a href="events.html">Events</a>
+            <a href="volunteer.html">Volunteer</a>
+            <a href="resources.html">Resources</a>
+            <a href="contact.html">Contact Us</a>
+        </div>
+        <div class="footer-section">
+            <h3>Honolulu Office</h3>
+            <p>
+                245 North Kukui Street, Suite 205<br>
+                Honolulu, HI 96817<br>
+                (808) 532-5364<br>
+                <a href="mailto:info@ldah.org">info@ldah.org</a>
+            </p>
+        </div>
+        <div class="footer-section">
+            <h3>Connect With Us</h3>
+            <a href="javascript:void(0)" onclick="openIframeModal('Parent Talk Cafe - Facebook Group', 'https://www.facebook.com/groups/2659334410969387')">Parent Talk Cafe</a>
+            <a href="install.html">Install Our App</a>
+        </div>
+    </div>
+    <div class="footer-bottom">
+        <p>&copy; 2025 Leadership in Disabilities and Achievement of Hawai'i. All rights reserved.</p>
+    </div>
+</footer>`;
+            }
+            
+            // Set active nav link after loading
+            setActiveNavLink();
+        }
+        
+        function setActiveNavLink() {
+            const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+            const navLinks = document.querySelectorAll('.nav-links a');
+            
+            navLinks.forEach(link => {
+                const href = link.getAttribute('href');
+                if (href === currentPage || 
+                    (currentPage === 'index.html' && href.includes('index.html')) ||
+                    (currentPage === '' && href.includes('index.html'))) {
+                    link.style.borderBottom = '3px solid #004E7C';
+                    link.style.color = '#004E7C';
+                    link.style.paddingBottom = '4px';
+                }
+            });
+        }
+        
+        function toggleMenu() {
+            const navLinks = document.getElementById('navLinks');
+            if (navLinks) {
+                navLinks.classList.toggle('active');
+            }
+        }
+        
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadHeaderFooter);
+        } else {
+            loadHeaderFooter();
+        }
+    </script>
+</head>
+<body>
+    <!-- Header Container - Auto-loaded -->
+    <div id="header-container"></div>
+
+
+  <div class="page-header">
+    <h1 id="contact-heroTitle">Contact Us</h1>
+    <p id="contact-heroSubtitle">We're here to help your family navigate special education and disability services</p>
+  </div>
+
+  <div class="container">
+    <div class="office-grid">
+      <!-- Honolulu Office -->
+      <div class="office-card">
+        <div class="office-card-content">
+          <div style="text-align: center;">
+            <div class="office-icon">🏢</div>
+            <h2 id="contact-honTitle" class="office-title">Honolulu Office</h2>
+            <p id="contact-honSubtitle" class="office-subtitle">Main Office</p>
+          </div>
+          
+          <div class="contact-info">
+            <div class="contact-label">Phone</div>
+            <div id="contact-honPhone" class="contact-value">
+              <a href="tel:8085325364">(808) 532-5364</a><br>
+              <strong>Toll Free:</strong> <a href="tel:18005339684">1-800-533-9684</a>
+            </div>
+          </div>
+
+          <div class="contact-info">
+            <div class="contact-label">Email</div>
+            <div id="contact-honEmail" class="contact-value">
+              <a href="mailto:info@ldahawaii.org">info@ldahawaii.org</a>
+            </div>
+          </div>
+
+          <div class="contact-info">
+            <div class="contact-label">Address</div>
+            <div id="contact-honAddress" class="contact-value">
+              Harry and Jeanette Weinberg Kukui Center<br>
+              245 North Kukui Street, Suite 205<br>
+              Honolulu, HI 96817
+            </div>
+          </div>
+        </div>
+
+        <div class="button-container">
+          <button 
+            onclick="openMapModal('Honolulu Office', 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3717.1!2d-157.86!3d21.31!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2s245%20North%20Kukui%20Street%20Suite%20205%20Honolulu%20HI%2096817!5e0!3m2!1sen!2sus!4v1234567890')"
+            class="btn-directions"
+          >
+            🗺️ Get Directions
+          </button>
+        </div>
+      </div>
+
+      <!-- Ma'ili Office -->
+      <div class="office-card">
+        <div class="office-card-content">
+          <div style="text-align: center;">
+            <div class="office-icon">🏫</div>
+            <h2 id="contact-mailiTitle" class="office-title">Ma'ili Office</h2>
+            <p id="contact-mailiSubtitle" class="office-subtitle">School Readiness Project</p>
+          </div>
+          
+          <div class="contact-info">
+            <div class="contact-label">Phone & Fax</div>
+            <div id="contact-mailiPhone" class="contact-value">
+              <strong>Phone:</strong> <a href="tel:8086965361">(808) 696-5361</a><br>
+              <strong>Fax:</strong> (808) 696-5371
+            </div>
+          </div>
+
+          <div class="contact-info">
+            <div class="contact-label">Hours</div>
+            <div id="contact-mailiHours" class="contact-value">
+              Monday to Friday<br>
+              8:00 AM – 5:00 PM
+            </div>
+          </div>
+
+          <div class="contact-info">
+            <div class="contact-label">Address</div>
+            <div id="contact-mailiAddress" class="contact-value">
+              Community Learning Center<br>
+              Kauhale Building<br>
+              87-790 Kulauku St., Suite A116<br>
+              Wai'anae, HI 96792
+            </div>
+          </div>
+        </div>
+
+        <div class="button-container">
+          <button 
+            onclick="openMapModal('Ma\'ili Office', 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3717.2!2d-158.18!3d21.43!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2s87-790%20Kulauku%20St%20Suite%20A116%20Waianae%20HI%2096792!5e0!3m2!1sen!2sus!4v1234567890')"
+            class="btn-directions"
+          >
+            🗺️ Get Directions
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- App Download Card -->
+    <div class="message-card">
+      <h2 id="contact-appTitle">24/7 Support at Your Fingertips</h2>
+      <p id="contact-appText">
+        Need answers anytime? Download our free app for instant access to resources, FAQs, and support—day or night!
+      </p>
+      <a href="install.html" class="btn-directions" style="display: inline-block;">
+        📱 Get the App
+      </a>
+    </div>
+  </div>
+
+    <!-- CTA Banner -->
+    <section class="cta-banner">
+      <h2 id="contact-ctaTitle">Join Our Community</h2>
+      <p id="contact-ctaSubtitle">Connect with other Hawaii families navigating special education and disabilities. Share experiences and find support.</p>
+      <a href="javascript:void(0)" onclick="openIframeModal('Parent Talk Cafe - Facebook Group', 'https://www.facebook.com/groups/2659334410969387')" class="cta-btn">Join Parent Talk Cafe</a>
+    </section>
+
+    <!-- Footer Container - Auto-loaded -->
+    <div id="footer-container"></div>
+
+  <!-- Map Modal -->
+  <div id="mapModal" class="map-modal" onclick="closeMapModal(event)">
+    <div class="map-content" onclick="event.stopPropagation()">
+      <div class="map-header">
+        <h3 id="modalTitle">Directions</h3>
+        <button class="close-modal" onclick="closeMapModal()">&times;</button>
+      </div>
+      <iframe id="mapFrame" class="map-frame" src="" allowfullscreen="" loading="lazy"></iframe>
+    </div>
+  </div>
+
+  <!-- External Link Modal -->
+  <div id="iframeModal" class="iframe-modal" onclick="closeIframeModal(event)">
+    <div class="iframe-content" onclick="event.stopPropagation()">
+      <div class="iframe-header">
+        <h3 id="iframeTitle">Loading...</h3>
+        <button class="close-iframe" onclick="closeIframeModal()">&times;</button>
+      </div>
+      <iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>
+    </div>
+  </div>
+
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+    function toggleMenu() {
+      document.getElementById('navLinks').classList.toggle('active');
+    }
+    
+    document.querySelectorAll('.nav-links a').forEach(link => {
+      link.addEventListener('click', () => {
+        document.getElementById('navLinks').classList.remove('active');
+      });
+    });
+    
+    function openMapModal(officeName, mapUrl) {
+      const modal = document.getElementById('mapModal');
+      const title = document.getElementById('modalTitle');
+      const frame = document.getElementById('mapFrame');
+      
+      title.textContent = officeName + ' - Directions';
+      frame.src = mapUrl;
+      modal.classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+    
+    function closeMapModal(event) {
+      if (event && event.target !== event.currentTarget && !event.target.classList.contains('close-modal')) {
+        return;
+      }
+      
+      const modal = document.getElementById('mapModal');
+      const frame = document.getElementById('mapFrame');
+      
+      modal.classList.remove('active');
+      frame.src = '';
+      document.body.style.overflow = 'auto';
+    }
+    
+    function openIframeModal(title, url) {
+      // Special handling for Facebook
+      if (url.includes('facebook.com')) {
+        const modal = document.getElementById('iframeModal');
+        const titleEl = document.getElementById('iframeTitle');
+        const frame = document.getElementById('iframeFrame');
+        
+        titleEl.textContent = title;
+        frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">🌺 Join Our Facebook Community</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other Hawaii families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">📱 Open Parent Talk Cafe →</a></div>';
+        modal.classList.add('active');
+          document.body.style.overflow = 'hidden';
+      } else {
+        const modal = document.getElementById('iframeModal');
+        const titleEl = document.getElementById('iframeTitle');
+        const frame = document.getElementById('iframeFrame');
+        
+        titleEl.textContent = title;
+        frame.src = url;
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      }
+    }
+    
+    function closeIframeModal(event) {
+      if (event && event.target !== event.currentTarget && !event.target.classList.contains('close-iframe')) {
+        return;
+      }
+      
+      const modal = document.getElementById('iframeModal');
+      const frameEl = document.getElementById('iframeFrame');
+      
+      modal.classList.remove('active');
+      
+      if (frameEl.tagName === 'IFRAME') {
+        frameEl.src = '';
+      } else {
+        frameEl.outerHTML = '<iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>';
+      }
+      
+      document.body.style.overflow = 'auto';
+    }
+  </script>
+  
+  <!-- Firebase Page Content Loader -->
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk",
+      authDomain: "ldah-932d5.firebaseapp.com",
+      projectId: "ldah-932d5"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    
+    async function loadPageContent() {
+      try {
+        const doc = await db.collection('pageContent').doc('contact').get();
+        if (doc.exists) {
+          const data = doc.data();
+          Object.keys(data).forEach(key => {
+            const el = document.getElementById('contact-' + key);
+            if (el && data[key]) el.innerHTML = data[key];
+          });
+        }
+      } catch (err) { console.error('Error loading page content:', err); }
+    }
+    loadPageContent();
+  </script>
+</body>
+</html>

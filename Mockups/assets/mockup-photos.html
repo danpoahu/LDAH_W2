@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LDAH - Option D: Hawaiian Heart (Photos Version)</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+    :root {
+        --ocean-deep: #0891B2;
+        --ocean-mid: #06B6D4;
+        --ocean-light: #22D3EE;
+        --sunset-coral: #F97316;
+        --sunset-warm: #FB923C;
+        --sunset-light: #FED7AA;
+        --sand: #FEF3C7;
+        --sand-light: #FFFBEB;
+        --palm: #65A30D;
+        --plumeria: #FBBF24;
+        --white: #FFFFFF;
+        --text-dark: #1E293B;
+        --text-soft: #64748B;
+        --bg-warm: #FEFDFB;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    
+    body { 
+        font-family: 'Source Sans 3', sans-serif; 
+        color: var(--text-dark); 
+        line-height: 1.7; 
+        background: var(--bg-warm);
+        overflow-x: hidden;
+    }
+    
+    h1, h2, h3 { 
+        font-family: 'Outfit', sans-serif; 
+        font-weight: 600; 
+        line-height: 1.3; 
+    }
+
+    /* Navigation */
+    nav { 
+        position: fixed; 
+        top: 0; 
+        left: 0; 
+        right: 0; 
+        z-index: 1000; 
+        background: rgba(255, 255, 255, 0.97);
+        backdrop-filter: blur(12px);
+        box-shadow: 0 1px 20px rgba(8, 145, 178, 0.08);
+        border-bottom: 1px solid rgba(8, 145, 178, 0.1);
+    }
+    
+    .nav-content { 
+        max-width: 1280px; 
+        margin: 0 auto; 
+        padding: 1rem 2rem; 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center; 
+    }
+    
+    .logo-container { 
+        display: flex; 
+        align-items: center; 
+        gap: 1rem; 
+        text-decoration: none; 
+    }
+    
+    .logo-img { 
+        width: 68px; 
+        height: 68px; 
+    }
+    
+    .logo-text { 
+        font-family: 'Outfit', sans-serif;
+        font-size: 1.3rem; 
+        font-weight: 600; 
+        color: var(--ocean-deep); 
+    }
+    
+    .nav-links { 
+        display: flex; 
+        gap: 0.5rem; 
+        list-style: none; 
+        align-items: center; 
+    }
+    
+    .nav-links a { 
+        text-decoration: none; 
+        color: var(--text-dark); 
+        font-weight: 500; 
+        padding: 0.6rem 1.1rem;
+        border-radius: 8px;
+        transition: all 0.25s ease;
+    }
+    
+    .nav-links a:hover {
+        background: var(--sand-light);
+        color: var(--ocean-deep);
+    }
+    
+    .nav-cta {
+        background: var(--ocean-deep) !important;
+        color: white !important;
+        padding: 0.7rem 1.5rem !important;
+        border-radius: 8px !important;
+    }
+    
+    .nav-cta:hover {
+        background: #0E7490 !important;
+        transform: translateY(-1px);
+    }
+
+    /* Hero Section */
+    .hero { 
+        margin-top: 88px; 
+        min-height: 85vh;
+        background: linear-gradient(180deg, var(--sand-light) 0%, var(--bg-warm) 100%);
+        display: flex; 
+        align-items: center; 
+        padding: 4rem 2rem; 
+        position: relative; 
+        overflow: hidden; 
+    }
+    
+    .hero-islands {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%) scaleY(-1);
+        width: 70%;
+        max-width: 900px;
+        color: var(--ocean-deep);
+        opacity: 0.12;
+        z-index: 0;
+    }
+    
+    .hero-content { 
+        max-width: 1280px; 
+        margin: 0 auto; 
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 4rem;
+        align-items: center;
+        position: relative; 
+        z-index: 1; 
+    }
+    
+    .hero-text h1 { 
+        font-size: 3rem; 
+        margin-bottom: 1.5rem; 
+        color: var(--text-dark);
+        letter-spacing: -0.5px;
+    }
+    
+    .hero-text .highlight { 
+        color: var(--ocean-deep);
+        position: relative;
+    }
+    
+    .hero-text .highlight::after {
+        content: '';
+        position: absolute;
+        bottom: 4px;
+        left: 0;
+        width: 100%;
+        height: 8px;
+        background: var(--plumeria);
+        opacity: 0.4;
+        z-index: -1;
+        border-radius: 2px;
+    }
+    
+    .hero-text p { 
+        font-size: 1.15rem; 
+        margin-bottom: 2rem; 
+        color: var(--text-soft);
+        line-height: 1.8;
+    }
+    
+    .hero-buttons { 
+        display: flex; 
+        gap: 1rem; 
+        flex-wrap: wrap; 
+    }
+    
+    .btn-primary { 
+        padding: 1rem 2rem; 
+        background: var(--ocean-deep);
+        color: white; 
+        border-radius: 10px; 
+        font-weight: 600; 
+        font-family: 'Outfit', sans-serif;
+        text-decoration: none; 
+        transition: all 0.25s ease;
+        box-shadow: 0 4px 14px rgba(8, 145, 178, 0.25);
+    }
+    
+    .btn-primary:hover { 
+        background: #0E7490;
+        transform: translateY(-2px); 
+        box-shadow: 0 6px 20px rgba(8, 145, 178, 0.3);
+    }
+    
+    .btn-secondary { 
+        padding: 1rem 2rem; 
+        background: transparent;
+        color: var(--ocean-deep); 
+        border: 2px solid var(--ocean-deep);
+        border-radius: 10px; 
+        font-weight: 600;
+        font-family: 'Outfit', sans-serif;
+        text-decoration: none; 
+        transition: all 0.25s ease; 
+    }
+    
+    .btn-secondary:hover { 
+        background: var(--ocean-deep); 
+        color: white; 
+    }
+    
+    /* Hero Photo Grid */
+    .hero-photos {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        grid-template-rows: repeat(2, 1fr);
+        gap: 0.75rem;
+        position: relative;
+        max-width: 320px;
+        margin-left: auto;
+    }
+    
+    .photo-card {
+        border-radius: 16px;
+        overflow: hidden;
+        position: relative;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .photo-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+    }
+    
+    .photo-card.large {
+        grid-row: span 2;
+    }
+    
+    .hero-accent {
+        position: absolute;
+        bottom: -20px;
+        right: -20px;
+        width: 120px;
+        height: 120px;
+        background: var(--plumeria);
+        border-radius: 50%;
+        opacity: 0.3;
+        z-index: -1;
+    }
+
+    /* Stats Section */
+    .stats-section {
+        background: var(--ocean-deep);
+        padding: 4rem 2rem;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .stats-islands {
+        position: absolute;
+        left: -10%;
+        top: 50%;
+        transform: translateY(-50%) scaleY(-1);
+        width: 40%;
+        color: white;
+        opacity: 0.08;
+    }
+    
+    .stats-container { 
+        max-width: 1100px; 
+        margin: 0 auto; 
+        display: grid; 
+        grid-template-columns: repeat(4, 1fr); 
+        gap: 2rem;
+        position: relative;
+        z-index: 1;
+    }
+    
+    .stat-card { 
+        text-align: center; 
+        color: white;
+        padding: 1rem;
+    }
+    
+    .photo-icon {
+        width: 70px;
+        height: 70px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin: 0 auto 1rem;
+        display: block;
+        border: 3px solid rgba(255,255,255,0.3);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    
+    .stat-number { 
+        font-size: 2.8rem; 
+        font-weight: 700; 
+        font-family: 'Outfit', sans-serif;
+        margin-bottom: 0.25rem;
+    }
+    
+    .stat-label { 
+        font-size: 1rem; 
+        opacity: 0.9;
+        font-weight: 500;
+    }
+
+    /* Mission Statement */
+    .mission-section {
+        padding: 5rem 2rem;
+        background: var(--white);
+        text-align: center;
+    }
+    
+    .mission-content {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    
+    .mission-photo {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin: 0 auto 1.5rem;
+        display: block;
+        border: 4px solid var(--ocean-light);
+        box-shadow: 0 8px 25px rgba(8, 145, 178, 0.2);
+    }
+    
+    .mission-content h2 {
+        font-size: 2rem;
+        color: var(--text-dark);
+        margin-bottom: 1rem;
+    }
+    
+    .mission-content p {
+        font-size: 1.2rem;
+        color: var(--text-soft);
+        line-height: 1.8;
+    }
+    
+    .mission-content .highlight-text {
+        color: var(--ocean-deep);
+        font-weight: 600;
+    }
+
+    /* Services Section */
+    .services-section { 
+        padding: 6rem 2rem; 
+        background: var(--sand-light);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .services-islands {
+        position: absolute;
+        right: -5%;
+        bottom: -10%;
+        width: 35%;
+        color: var(--sunset-coral);
+        opacity: 0.05;
+        transform: scaleY(-1);
+    }
+    
+    .section-header { 
+        text-align: center; 
+        max-width: 650px; 
+        margin: 0 auto 4rem;
+        position: relative;
+        z-index: 1;
+    }
+    
+    .section-tag {
+        display: inline-block;
+        padding: 0.5rem 1.25rem;
+        background: var(--white);
+        color: var(--sunset-coral);
+        border-radius: 6px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        font-family: 'Outfit', sans-serif;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    
+    .section-title { 
+        font-size: 2.5rem; 
+        color: var(--text-dark);
+        margin-bottom: 1rem; 
+    }
+    
+    .section-description { 
+        font-size: 1.1rem; 
+        color: var(--text-soft); 
+    }
+    
+    .services-grid { 
+        max-width: 1200px; 
+        margin: 0 auto; 
+        display: grid; 
+        grid-template-columns: repeat(3, 1fr); 
+        gap: 1.75rem;
+        position: relative;
+        z-index: 1;
+    }
+    
+    .service-card { 
+        background: var(--white);
+        border-radius: 16px; 
+        padding: 2.25rem;
+        transition: all 0.3s ease;
+        border: 1px solid rgba(8, 145, 178, 0.08);
+        cursor: pointer;
+        text-align: center;
+    }
+    
+    .service-card:hover { 
+        transform: translateY(-6px); 
+        box-shadow: 0 16px 40px rgba(8, 145, 178, 0.12);
+        border-color: var(--ocean-deep);
+    }
+    
+    .service-photo { 
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin: 0 auto 1.25rem;
+        display: block;
+        border: 3px solid var(--ocean-light);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    
+    .service-title { 
+        font-size: 1.2rem; 
+        color: var(--ocean-deep);
+        margin-bottom: 0.75rem; 
+        font-family: 'Outfit', sans-serif;
+    }
+    
+    .service-description { 
+        color: var(--text-soft); 
+        font-size: 0.95rem;
+        line-height: 1.7;
+    }
+
+    /* Photo Feature Section */
+    .photo-feature {
+        padding: 6rem 2rem;
+        background: var(--white);
+    }
+    
+    .photo-feature-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 4rem;
+        align-items: center;
+    }
+    
+    .photo-feature-images {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+    }
+    
+    .feature-photo {
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+    }
+    
+    .feature-photo.tall {
+        grid-row: span 2;
+    }
+    
+    .feature-photo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        min-height: 140px;
+    }
+    
+    .feature-photo.tall img {
+        min-height: 300px;
+    }
+    
+    .photo-feature-content h2 {
+        font-size: 2.2rem;
+        color: var(--text-dark);
+        margin-bottom: 1rem;
+    }
+    
+    .photo-feature-content p {
+        font-size: 1.1rem;
+        color: var(--text-soft);
+        margin-bottom: 1.5rem;
+        line-height: 1.8;
+    }
+    
+    .photo-feature-content ul {
+        list-style: none;
+        margin-bottom: 2rem;
+    }
+    
+    .photo-feature-content li {
+        padding: 0.5rem 0;
+        color: var(--text-soft);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    .photo-feature-content li::before {
+        content: '✓';
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        background: var(--ocean-deep);
+        color: white;
+        border-radius: 50%;
+        font-size: 0.8rem;
+        font-weight: 700;
+    }
+
+    /* Events Section */
+    .events-section {
+        padding: 6rem 2rem;
+        background: var(--bg-warm);
+    }
+    
+    .events-container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    
+    .events-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 3rem;
+    }
+    
+    .events-header h2 {
+        font-size: 2rem;
+        color: var(--text-dark);
+    }
+    
+    .view-all-link {
+        color: var(--ocean-deep);
+        text-decoration: none;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: gap 0.25s ease;
+    }
+    
+    .view-all-link:hover {
+        gap: 0.75rem;
+    }
+    
+    .events-placeholder {
+        background: var(--white);
+        border-radius: 16px;
+        padding: 3rem;
+        text-align: center;
+        border: 2px dashed rgba(8, 145, 178, 0.2);
+    }
+    
+    .events-photo {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin: 0 auto 1rem;
+        display: block;
+        border: 3px solid var(--ocean-light);
+    }
+    
+    .events-placeholder h3 {
+        color: var(--text-dark);
+        margin-bottom: 0.5rem;
+    }
+    
+    .events-placeholder p {
+        color: var(--text-soft);
+    }
+
+    /* CTA Banner */
+    .cta-banner { 
+        background: linear-gradient(135deg, var(--sunset-coral) 0%, var(--sunset-warm) 100%);
+        padding: 5rem 2rem; 
+        text-align: center; 
+        color: white; 
+        position: relative; 
+        overflow: hidden; 
+    }
+    
+    .cta-islands {
+        position: absolute;
+        right: 5%;
+        top: 50%;
+        transform: translateY(-50%) scaleY(-1);
+        width: 30%;
+        color: white;
+        opacity: 0.1;
+    }
+    
+    .cta-content { 
+        position: relative; 
+        z-index: 1;
+        max-width: 750px;
+        margin: 0 auto;
+    }
+    
+    .cta-content h2 { 
+        font-size: 2.5rem; 
+        margin-bottom: 1rem; 
+        font-family: 'Outfit', sans-serif;
+    }
+    
+    .cta-content p { 
+        font-size: 1.15rem; 
+        margin-bottom: 2rem; 
+        opacity: 0.95;
+        line-height: 1.7;
+    }
+    
+    .cta-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    
+    .btn-white {
+        padding: 1rem 2rem;
+        background: white;
+        color: var(--sunset-coral);
+        border-radius: 10px;
+        font-weight: 600;
+        font-family: 'Outfit', sans-serif;
+        text-decoration: none;
+        transition: all 0.25s ease;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    
+    .btn-white:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+    
+    .btn-outline-white {
+        padding: 1rem 2rem;
+        background: transparent;
+        color: white;
+        border: 2px solid white;
+        border-radius: 10px;
+        font-weight: 600;
+        font-family: 'Outfit', sans-serif;
+        text-decoration: none;
+        transition: all 0.25s ease;
+    }
+    
+    .btn-outline-white:hover {
+        background: white;
+        color: var(--sunset-coral);
+    }
+
+    /* Footer */
+    footer { 
+        background: var(--text-dark);
+        color: white; 
+        padding: 4rem 2rem 2rem;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .footer-islands {
+        position: absolute;
+        right: -5%;
+        bottom: -20%;
+        width: 40%;
+        color: white;
+        opacity: 0.03;
+        transform: scaleY(-1);
+    }
+    
+    .footer-content { 
+        max-width: 1200px; 
+        margin: 0 auto;
+        position: relative;
+        z-index: 1;
+    }
+    
+    .footer-main {
+        display: grid;
+        grid-template-columns: 1.5fr 1fr 1fr 1fr;
+        gap: 3rem;
+        margin-bottom: 3rem;
+    }
+    
+    .footer-brand h3 {
+        font-family: 'Outfit', sans-serif;
+        font-size: 1.4rem;
+        color: var(--plumeria);
+        margin-bottom: 1rem;
+    }
+    
+    .footer-brand p {
+        color: rgba(255,255,255,0.7);
+        line-height: 1.7;
+        font-size: 0.95rem;
+    }
+    
+    .footer-column h4 {
+        font-family: 'Outfit', sans-serif;
+        font-size: 1rem;
+        margin-bottom: 1.25rem;
+        color: white;
+    }
+    
+    .footer-column ul {
+        list-style: none;
+    }
+    
+    .footer-column li {
+        margin-bottom: 0.75rem;
+    }
+    
+    .footer-column a {
+        color: rgba(255,255,255,0.7);
+        text-decoration: none;
+        transition: color 0.25s ease;
+        font-size: 0.95rem;
+    }
+    
+    .footer-column a:hover {
+        color: var(--plumeria);
+    }
+    
+    .footer-bottom {
+        padding-top: 2rem;
+        border-top: 1px solid rgba(255,255,255,0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+        color: rgba(255,255,255,0.5);
+        font-size: 0.9rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+        .hero-content {
+            grid-template-columns: 1fr;
+            text-align: center;
+            gap: 3rem;
+        }
+        
+        .hero-text h1 { font-size: 2.5rem; }
+        .hero-buttons { justify-content: center; }
+        .hero-photos { max-width: 450px; margin: 0 auto; }
+        .services-grid { grid-template-columns: repeat(2, 1fr); }
+        .stats-container { grid-template-columns: repeat(2, 1fr); gap: 2rem; }
+        .photo-feature-container { grid-template-columns: 1fr; gap: 3rem; }
+        .footer-main { grid-template-columns: 1fr 1fr; }
+    }
+    
+    @media (max-width: 768px) {
+        .nav-links { display: none; }
+        .hero-text h1 { font-size: 2rem; }
+        .hero-photos { max-width: 350px; }
+        .services-grid { grid-template-columns: 1fr; }
+        .stats-container { grid-template-columns: 1fr 1fr; }
+        .section-title { font-size: 2rem; }
+        .photo-feature-images { max-width: 350px; margin: 0 auto; }
+        .footer-main { grid-template-columns: 1fr; text-align: center; }
+        .footer-bottom { flex-direction: column; text-align: center; }
+    }
+
+    .design-label {
+        position: fixed;
+        top: 98px;
+        right: 20px;
+        background: linear-gradient(135deg, var(--sunset-coral), var(--sunset-warm));
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 10px;
+        font-weight: 600;
+        font-family: 'Outfit', sans-serif;
+        z-index: 1001;
+        box-shadow: 0 4px 20px rgba(249, 115, 22, 0.35);
+    }
+    </style>
+</head>
+<body>
+    <div class="design-label">🏝️ Option D: Photos Version</div>
+    
+    <svg style="display: none;">
+        <defs>
+            <g id="hawaii-islands" fill="currentColor">
+                <path d="M542 2864 c-7 -13 -13 -14 -31 -5 -17 9 -27 9 -49 -2 -15 -8 -39 -19 -53 -25 -16 -6 -29 -21 -33 -37 -4 -15 -16 -40 -28 -55 -18 -25 -19 -31 -7 -56 8 -16 28 -35 44 -43 17 -9 47 -26 67 -39 23 -15 44 -21 57 -17 11 3 30 1 41 -5 29 -16 55 -5 90 40 26 33 29 42 20 65 -8 20 -7 32 5 48 41 58 -7 147 -79 147 -22 0 -38 -6 -44 -16z"/>
+                <path d="M107 2654 c-7 -14 -24 -31 -37 -37 -14 -7 -30 -23 -36 -36 -6 -12 -17 -28 -23 -34 -15 -15 -14 -33 5 -51 19 -20 34 -12 34 18 0 28 34 66 59 66 14 0 20 9 23 33 3 17 8 40 13 50 12 28 -22 21 -38 -9z"/>
+                <path d="M1599 2408 c-8 -7 -27 -30 -42 -50 -31 -42 -57 -54 -87 -38 -16 9 -25 8 -35 0 -12 -10 -10 -21 15 -67 17 -31 30 -60 30 -66 0 -6 7 -18 16 -28 9 -10 19 -33 23 -51 6 -30 10 -33 46 -36 22 -1 47 2 55 7 12 8 12 12 -3 29 -19 21 -23 37 -7 27 6 -4 18 -1 26 6 20 16 28 5 14 -20 -14 -28 -6 -39 24 -34 18 4 29 -2 41 -20 15 -23 22 -25 78 -24 76 2 82 16 37 82 -17 25 -29 49 -25 54 3 5 1 12 -5 16 -5 3 -10 -1 -10 -9 0 -19 -23 -21 -38 -3 -6 6 -13 29 -17 50 -4 20 -15 47 -25 60 -9 12 -20 34 -23 48 -8 32 -44 79 -61 79 -7 0 -19 -6 -27 -12z"/>
+                <path d="M2144 1984 c4 -9 -2 -23 -13 -32 -11 -10 -21 -26 -23 -37 -3 -19 3 -20 89 -22 65 -1 112 -8 158 -23 37 -12 76 -19 90 -16 33 8 85 54 85 75 0 26 -44 43 -77 30 -21 -8 -42 -7 -83 4 -53 15 -184 37 -216 37 -11 0 -14 -5 -10 -16z"/>
+                <path d="M2565 1797 c-17 -32 -17 -36 -1 -84 22 -65 44 -85 105 -91 56 -5 64 -17 54 -89 -5 -37 -2 -48 17 -68 30 -32 98 -35 125 -5 12 13 31 20 57 20 43 0 110 37 128 70 23 43 -26 121 -66 106 -7 -3 -18 3 -24 14 -6 11 -16 20 -22 20 -6 0 -28 16 -49 35 -43 39 -63 42 -116 20 -55 -23 -70 -19 -93 25 -35 68 -86 80 -115 27z"/>
+                <path d="M2313 1740 c-29 -12 -29 -27 -2 -56 12 -13 24 -37 28 -55 8 -38 29 -54 62 -46 37 10 46 19 53 54 14 60 -80 128 -141 103z"/>
+                <path d="M2576 1427 c-31 -26 -36 -35 -25 -44 9 -7 30 -8 54 -4 38 6 40 8 40 41 0 46 -20 48 -69 7z"/>
+                <path d="M3122 1158 c-21 -21 -13 -74 19 -134 21 -40 28 -66 24 -83 -9 -36 -62 -109 -84 -116 -27 -8 -71 -87 -71 -125 0 -33 15 -69 36 -85 7 -5 18 -28 23 -50 6 -22 20 -72 32 -112 22 -69 22 -77 10 -176 -11 -94 -11 -107 5 -140 12 -25 26 -38 46 -43 17 -3 50 -26 76 -50 25 -24 47 -44 49 -44 1 0 11 17 22 38 11 21 27 44 36 52 9 7 22 28 30 46 7 18 32 46 55 61 23 15 62 45 87 66 39 32 50 37 79 31 28 -5 46 1 114 41 85 50 170 135 170 170 0 10 -23 43 -51 71 -32 32 -54 64 -58 85 -5 26 -13 35 -38 41 -37 10 -48 34 -38 85 6 33 3 38 -58 97 -85 82 -219 166 -264 166 -26 0 -53 14 -115 60 -80 59 -113 71 -136 48z"/>
+            </g>
+        </defs>
+    </svg>
+    
+    <nav>
+        <div class="nav-content">
+            <a href="#" class="logo-container">
+                <img src="logo_transparent.png" alt="LDAH" class="logo-img">
+                <span class="logo-text">LDAH</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="#">Who We Are</a></li>
+                <li><a href="#">Resources</a></li>
+                <li><a href="#">Events</a></li>
+                <li><a href="#">Volunteer</a></li>
+                <li><a href="#" class="nav-cta">Get Support</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <section class="hero">
+        <svg class="hero-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
+        <div class="hero-content">
+            <div class="hero-text">
+                <h1>Supporting <span class="highlight">Hawai'i Families</span> Every Step of the Way</h1>
+                <p>For over 30 years, we've been the trusted partner for families navigating the journey with children with disabilities. You're not alone — our 'ohana is here to help.</p>
+                <div class="hero-buttons">
+                    <a href="#" class="btn-primary">Get Support</a>
+                    <a href="#" class="btn-secondary">Learn About Us</a>
+                </div>
+            </div>
+            <div class="hero-photos">
+                <div class="photo-card large">
+                    <img src="photo2.jpg" alt="Young person enjoying water activities" style="width: 100%; height: 100%; object-fit: cover; min-height: 200px;">
+                </div>
+                <div class="photo-card">
+                    <img src="photo1.jpg" alt="Community celebration" style="width: 100%; height: 100%; object-fit: cover; min-height: 95px;">
+                </div>
+                <div class="photo-card">
+                    <img src="photo3.jpg" alt="Live Aloha advocacy" style="width: 100%; height: 100%; object-fit: cover; min-height: 95px;">
+                </div>
+                <div class="hero-accent"></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="stats-section">
+        <svg class="stats-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
+        <div class="stats-container">
+            <div class="stat-card">
+                <img src="https://images.unsplash.com/photo-1511895426328-dc8714191300?w=150&h=150&fit=crop&crop=faces" alt="Family" class="photo-icon">
+                <div class="stat-number">5,000+</div>
+                <div class="stat-label">Families Supported</div>
+            </div>
+            <div class="stat-card">
+                <img src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=150&h=150&fit=crop&crop=faces" alt="Team member" class="photo-icon">
+                <div class="stat-number">30+</div>
+                <div class="stat-label">Years of Service</div>
+            </div>
+            <div class="stat-card">
+                <img src="https://images.unsplash.com/photo-1524069290683-0457abbd6426?w=150&h=150&fit=crop&crop=faces" alt="Workshop" class="photo-icon">
+                <div class="stat-number">200+</div>
+                <div class="stat-label">Workshops Yearly</div>
+            </div>
+            <div class="stat-card">
+                <img src="https://images.unsplash.com/photo-1598908314732-07f819e24783?w=150&h=150&fit=crop&crop=faces" alt="Pacific region" class="photo-icon">
+                <div class="stat-number">8</div>
+                <div class="stat-label">Pacific Regions</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="mission-section">
+        <div class="mission-content">
+            <img src="https://images.unsplash.com/photo-1594608661623-aa0bd3a69d98?w=200&h=200&fit=crop&crop=faces" alt="Child smiling" class="mission-photo">
+            <h2>Our Mission</h2>
+            <p>We empower families of children with disabilities through <span class="highlight-text">education, advocacy, and support</span> — helping every keiki reach their full potential across Hawai'i and the Pacific Islands.</p>
+        </div>
+    </section>
+
+    <section class="services-section">
+        <svg class="services-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
+        <div class="section-header">
+            <span class="section-tag">How We Help</span>
+            <h2 class="section-title">Programs & Resources</h2>
+            <p class="section-description">From education advocacy to community support, we provide the guidance and resources families need.</p>
+        </div>
+        
+        <div class="services-grid">
+            <div class="service-card">
+                <img src="https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=160&h=160&fit=crop&crop=faces" alt="Education" class="service-photo">
+                <h3 class="service-title">Special Education Support</h3>
+                <p class="service-description">Navigate IEPs, understand your rights, and advocate effectively for your child's educational needs.</p>
+            </div>
+            <div class="service-card">
+                <img src="https://images.unsplash.com/photo-1529390079861-591f12db5ea0?w=160&h=160&fit=crop&crop=faces" alt="Military" class="service-photo">
+                <h3 class="service-title">Military Families</h3>
+                <p class="service-description">Specialized support for military families with children with disabilities, including transition assistance.</p>
+            </div>
+            <div class="service-card">
+                <img src="https://images.unsplash.com/photo-1587654780291-39c9404d746b?w=160&h=160&fit=crop&crop=faces" alt="School" class="service-photo">
+                <h3 class="service-title">School Readiness</h3>
+                <p class="service-description">Prepare your keiki for kindergarten success with our comprehensive readiness programs.</p>
+            </div>
+            <div class="service-card">
+                <img src="https://images.unsplash.com/photo-1581579186913-45ac3e6efe93?w=160&h=160&fit=crop&crop=faces" alt="Accessibility" class="service-photo">
+                <h3 class="service-title">Accessibility Resources</h3>
+                <p class="service-description">Information about accessibility rights, accommodations, and inclusive community resources.</p>
+            </div>
+            <div class="service-card">
+                <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=160&h=160&fit=crop&crop=faces" alt="Pacific" class="service-photo">
+                <h3 class="service-title">Pacific Islands Outreach</h3>
+                <p class="service-description">Extending support to families across American Samoa, CNMI, FSM, Guam, Marshall Islands, and Palau.</p>
+            </div>
+            <div class="service-card">
+                <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=160&h=160&fit=crop&crop=faces" alt="Anti-bullying" class="service-photo">
+                <h3 class="service-title">Stand Up to Bullying</h3>
+                <p class="service-description">Resources and support to help prevent bullying and protect children in our community.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="photo-feature">
+        <div class="photo-feature-container">
+            <div class="photo-feature-images">
+                <div class="feature-photo tall">
+                    <img src="https://images.unsplash.com/photo-1491013516836-7db643ee125a?w=400&h=600&fit=crop" alt="Parent and child">
+                </div>
+                <div class="feature-photo">
+                    <img src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=400&h=280&fit=crop" alt="Training session">
+                </div>
+                <div class="feature-photo">
+                    <img src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=400&h=280&fit=crop" alt="Community event">
+                </div>
+            </div>
+            <div class="photo-feature-content">
+                <h2>Walking Alongside Families</h2>
+                <p>Every family's journey is unique. Our trained staff and volunteers provide personalized support to help you navigate systems, understand your rights, and connect with resources.</p>
+                <ul>
+                    <li>One-on-one family consultations</li>
+                    <li>IEP meeting support and advocacy</li>
+                    <li>Workshops and training sessions</li>
+                    <li>Connection to community resources</li>
+                </ul>
+                <a href="#" class="btn-primary">Connect With Us</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="events-section">
+        <div class="events-container">
+            <div class="events-header">
+                <h2>Upcoming Events</h2>
+                <a href="#" class="view-all-link">View All Events →</a>
+            </div>
+            <div class="events-placeholder">
+                <img src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=160&h=160&fit=crop" alt="Event" class="events-photo">
+                <h3>Events Load Here</h3>
+                <p>Workshops, training sessions, and community events will display in this section.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta-banner">
+        <svg class="cta-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
+        <div class="cta-content">
+            <h2>Ready to Make a Difference?</h2>
+            <p>Join our community of volunteers, supporters, and advocates working to create opportunities for children with disabilities across Hawai'i and the Pacific.</p>
+            <div class="cta-buttons">
+                <a href="#" class="btn-white">Become a Volunteer</a>
+                <a href="#" class="btn-outline-white">Support Our Mission</a>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
+        <div class="footer-content">
+            <div class="footer-main">
+                <div class="footer-brand">
+                    <h3>LDAH</h3>
+                    <p>Leadership in Disabilities & Achievement of Hawai'i. Supporting families and empowering children with disabilities since 1991.</p>
+                </div>
+                <div class="footer-column">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="#">Special Education</a></li>
+                        <li><a href="#">Military Families</a></li>
+                        <li><a href="#">School Readiness</a></li>
+                        <li><a href="#">Accessibility</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h4>Get Involved</h4>
+                    <ul>
+                        <li><a href="#">Volunteer</a></li>
+                        <li><a href="#">Donate</a></li>
+                        <li><a href="#">Events</a></li>
+                        <li><a href="#">Partner With Us</a></li>
+                    </ul>
+                </div>
+                <div class="footer-column">
+                    <h4>Contact</h4>
+                    <ul>
+                        <li><a href="#">Contact Us</a></li>
+                        <li><a href="#">Locations</a></li>
+                        <li><a href="#">808-536-9684</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>© 2024 LDAH. All rights reserved. A nonprofit 501(c)(3) organization.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

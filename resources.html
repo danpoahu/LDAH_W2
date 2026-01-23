@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resources - LDAH</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics-compat.js"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+    :root {
+        --primary-blue: #004E7C;
+        --light-blue: #0066a1;
+        --accent-teal: #4DD0E1;
+        --text-dark: #1a1a1a;
+        --text-light: #666;
+        --bg-light: #f8f9fa;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        color: var(--text-dark);
+        line-height: 1.6;
+        overflow-x: hidden;
+        background: var(--bg-light);
+    }
+
+    h1, h2, h3 {
+        font-family: 'Poppins', sans-serif;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+
+    /* Navigation */
+    nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 2px 8px rgba(0, 78, 124, 0.1);
+    }
+
+    .nav-content {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 1rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .logo-container {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        text-decoration: none;
+    }
+
+    .logo-img { width: 80px; height: 80px; filter: brightness(1.1); }
+    .logo-text { font-size: 1.4rem; font-weight: 700; color: var(--primary-blue); }
+
+    .nav-links {
+        display: flex;
+        gap: 2rem;
+        list-style: none;
+        align-items: center;
+    }
+
+    .nav-links a {
+        text-decoration: none;
+        color: var(--text-dark);
+        font-weight: 500;
+        transition: color 0.3s;
+    }
+
+    .nav-links a:hover { color: var(--primary-blue); }
+
+    .hamburger {
+        display: none;
+        flex-direction: column;
+        cursor: pointer;
+        padding: 0.5rem;
+    }
+
+    .hamburger span {
+        width: 25px;
+        height: 3px;
+        background: var(--primary-blue);
+        margin: 3px 0;
+        transition: 0.3s;
+    }
+
+    @media (max-width: 768px) {
+        .nav-links {
+            position: fixed;
+            top: 88px;
+            left: 0;
+            right: 0;
+            background: white;
+            flex-direction: column;
+            padding: 2rem;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            gap: 1rem;
+            transform: translateY(-100%);
+            opacity: 0;
+            transition: transform 0.3s, opacity 0.3s;
+            pointer-events: none;
+        }
+
+        .nav-links.active {
+            transform: translateY(0);
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .hamburger { display: flex; }
+        .logo-img { width: 60px; height: 60px; }
+        .logo-text { font-size: 1.2rem; }
+    }
+
+    /* Hero Section */
+    .hero-section {
+        margin-top: 88px;
+        background: linear-gradient(135deg, #004E7C 0%, #0066a1 100%);
+        color: white;
+        padding: 60px 20px 40px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .hero-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        opacity: 1;
+        background-image:
+        linear-gradient(90deg, rgba(255, 255, 255, .08) 1px, transparent 1px), linear-gradient(rgba(255, 255, 255, .08) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .12) 1px, transparent 1px), linear-gradient(rgba(255, 255, 255, .12) 1px, transparent 1px);
+        background-size: 30px 30px, 30px 30px, 60px 60px, 60px 60px;
+        background-position: 0 0, 0 0, -15px -15px, -15px -15px;
+    }
+
+    .hero-section > * {
+        position: relative;
+        z-index: 1;
+    }
+
+    .hero-section h1 {
+        font-size: 2.5em;
+        margin-bottom: 15px;
+        font-weight: 700;
+    }
+
+    .hero-section p {
+        font-size: 1.2em;
+        max-width: 800px;
+        margin: 0 auto;
+        line-height: 1.6;
+        opacity: 0.95;
+    }
+
+    /* Content Wrapper */
+    .content-wrapper {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 30px 20px 60px;
+    }
+
+    /* Filter Section */
+    .filter-section {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        margin-bottom: 30px;
+        box-shadow: 0 2px 12px rgba(0, 78, 124, 0.08);
+    }
+
+    .search-box {
+        width: 100%;
+        padding: 14px 20px;
+        border: 2px solid #e2e8f0;
+        border-radius: 50px;
+        font-size: 1rem;
+        margin-bottom: 20px;
+        transition: border-color 0.3s, box-shadow 0.3s;
+    }
+
+    .search-box:focus {
+        outline: none;
+        border-color: var(--primary-blue);
+        box-shadow: 0 0 0 3px rgba(0, 78, 124, 0.1);
+    }
+
+    .filter-group {
+        margin-bottom: 16px;
+    }
+
+    .filter-group:last-child {
+        margin-bottom: 0;
+    }
+
+    .filter-label {
+        font-weight: 600;
+        color: var(--text-dark);
+        margin-bottom: 10px;
+        display: block;
+        font-size: 0.9rem;
+    }
+
+    .filter-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .filter-btn {
+        padding: 8px 16px;
+        border: 2px solid #e2e8f0;
+        background: white;
+        border-radius: 50px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s;
+        color: var(--text-light);
+    }
+
+    .filter-btn:hover {
+        border-color: var(--primary-blue);
+        color: var(--primary-blue);
+    }
+
+    .filter-btn.active {
+        background: var(--primary-blue);
+        border-color: var(--primary-blue);
+        color: white;
+    }
+
+    /* Results Count */
+    .results-count {
+        color: var(--text-light);
+        font-size: 0.95rem;
+        margin-bottom: 20px;
+    }
+
+    .results-count strong {
+        color: var(--primary-blue);
+    }
+
+    /* Resource Cards */
+    .resource-card {
+        background: white;
+        border-radius: 16px;
+        margin-bottom: 16px;
+        box-shadow: 0 2px 12px rgba(0, 78, 124, 0.08);
+        overflow: hidden;
+        transition: box-shadow 0.3s, transform 0.3s;
+    }
+
+    .resource-card:hover {
+        box-shadow: 0 4px 20px rgba(0, 78, 124, 0.12);
+    }
+
+    .resource-header {
+        display: flex;
+        align-items: center;
+        padding: 20px;
+        cursor: pointer;
+        gap: 20px;
+    }
+
+    .resource-logo {
+        width: 80px;
+        height: 80px;
+        border-radius: 12px;
+        object-fit: contain;
+        background: #f8f9fa;
+        padding: 8px;
+        flex-shrink: 0;
+    }
+
+    .resource-logo-placeholder {
+        width: 80px;
+        height: 80px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, var(--primary-blue), var(--light-blue));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        flex-shrink: 0;
+    }
+
+    .resource-summary {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .resource-name {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: var(--primary-blue);
+        margin-bottom: 4px;
+    }
+
+    .resource-type-badge {
+        display: inline-block;
+        padding: 4px 10px;
+        background: #e0f2fe;
+        color: #0369a1;
+        border-radius: 50px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-bottom: 8px;
+    }
+
+    .resource-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        font-size: 0.85rem;
+        color: var(--text-light);
+    }
+
+    .resource-meta span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .expand-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: #f1f5f9;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.3s, background 0.3s;
+        flex-shrink: 0;
+    }
+
+    .resource-card.expanded .expand-icon {
+        transform: rotate(180deg);
+        background: var(--primary-blue);
+        color: white;
+    }
+
+    /* Resource Details (expandable) */
+    .resource-details {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.4s ease;
+        border-top: 0 solid #e2e8f0;
+    }
+
+    .resource-card.expanded .resource-details {
+        max-height: 1000px;
+        border-top-width: 1px;
+    }
+
+    .resource-details-inner {
+        padding: 20px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+
+    .detail-section h4 {
+        font-size: 0.8rem;
+        color: var(--text-light);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 6px;
+    }
+
+    .detail-section p {
+        color: var(--text-dark);
+        font-size: 0.95rem;
+        line-height: 1.6;
+    }
+
+    .detail-section a {
+        color: var(--primary-blue);
+        text-decoration: none;
+    }
+
+    .detail-section a:hover {
+        text-decoration: underline;
+    }
+
+    .services-section {
+        grid-column: 1 / -1;
+        background: #f8fafc;
+        padding: 16px;
+        border-radius: 12px;
+    }
+
+    .services-section h4 {
+        margin-bottom: 10px;
+    }
+
+    .contact-buttons {
+        grid-column: 1 / -1;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding-top: 10px;
+    }
+
+    .contact-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 18px;
+        border-radius: 50px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: transform 0.3s, box-shadow 0.3s;
+    }
+
+    .contact-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .contact-btn.phone {
+        background: #10b981;
+        color: white;
+    }
+
+    .contact-btn.email {
+        background: var(--primary-blue);
+        color: white;
+    }
+
+    .contact-btn.website {
+        background: #8b5cf6;
+        color: white;
+    }
+
+    /* No Results */
+    .no-results {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--text-light);
+    }
+
+    .no-results .icon {
+        font-size: 4rem;
+        margin-bottom: 16px;
+    }
+
+    /* CTA Banner Section */
+    .cta-banner {
+        background: linear-gradient(135deg, #004E7C, #0066a1);
+        padding: 4rem 2rem;
+        text-align: center;
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .cta-banner::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image:
+        radial-gradient(circle, transparent 0, transparent 22px, rgba(255, 255, 255, 0.15) 22px, rgba(255, 255, 255, 0.15) 24px, transparent 24px);
+        background-size: 48px 48px;
+        opacity: 1;
+    }
+
+    .cta-banner > * {
+        position: relative;
+        z-index: 1;
+    }
+
+    .cta-banner h2 {
+        font-size: 2rem;
+        margin-bottom: 1rem;
+    }
+
+    .cta-banner p {
+        font-size: 1.1rem;
+        margin-bottom: 1.5rem;
+        opacity: 0.95;
+        max-width: 600px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    /* Footer */
+    footer {
+        background: #1a1a1a;
+        color: white;
+        padding: 4rem 2rem 2rem;
+    }
+
+    .footer-content {
+        max-width: 1400px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 3rem;
+    }
+
+    .footer-section h3 {
+        font-size: 1.2rem;
+        margin-bottom: 1.5rem;
+        color: var(--accent-teal);
+    }
+
+    .footer-section p,
+    .footer-section a {
+        color: rgba(255, 255, 255, 0.8);
+        line-height: 1.8;
+        text-decoration: none;
+        display: block;
+        margin-bottom: 0.5rem;
+        transition: color 0.3s;
+    }
+
+    .footer-section a:hover { color: var(--accent-teal); }
+
+    .footer-bottom {
+        max-width: 1400px;
+        margin: 3rem auto 0;
+        padding-top: 2rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        text-align: center;
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    /* Modal */
+    .iframe-modal {
+        display: none;
+        position: fixed;
+        z-index: 3000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.8);
+        animation: fadeIn 0.3s;
+    }
+
+    .iframe-modal.active {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .iframe-content {
+        background: white;
+        border-radius: 20px;
+        width: 95%;
+        max-width: 1200px;
+        height: 90vh;
+        max-height: 800px;
+        position: relative;
+        animation: slideUp 0.3s;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .iframe-header {
+        background: linear-gradient(135deg, #004E7C, #0066a1);
+        color: white;
+        padding: 1.5rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-shrink: 0;
+    }
+
+    .iframe-header h3 { margin: 0; font-size: 1.5rem; }
+
+    .close-iframe {
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        color: white;
+        font-size: 2rem;
+        cursor: pointer;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.3s;
+    }
+
+    .close-iframe:hover { background: rgba(255, 255, 255, 0.3); }
+    .iframe-frame { width: 100%; flex: 1; border: none; }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+    @media (max-width: 768px) {
+        .hero-section h1 { font-size: 1.8em; }
+        .hero-section p { font-size: 1em; }
+        .resource-header { flex-wrap: wrap; }
+        .resource-logo, .resource-logo-placeholder { width: 60px; height: 60px; }
+        .resource-details-inner { grid-template-columns: 1fr; }
+        .filter-buttons { gap: 6px; }
+        .filter-btn { padding: 6px 12px; font-size: 0.8rem; }
+    }
+    </style>
+</head>
+<body>
+    <!-- Header Container -->
+    <div id="header-container"></div>
+
+    <!-- Hero Section -->
+    <section class="hero-section">
+        <h1 id="resources-heroTitle">📚 Resources</h1>
+        <p id="resources-heroSubtitle">Find helpful resources for families and children with disabilities throughout Hawaii and the Pacific Islands.</p>
+    </section>
+
+    <div class="content-wrapper">
+        <!-- Filter Section -->
+        <div class="filter-section">
+            <input type="text" class="search-box" id="searchBox" placeholder="🔍 Search resources by name, service, or keyword...">
+            
+            <div class="filter-group">
+                <span class="filter-label">Filter by Island</span>
+                <div class="filter-buttons" id="islandFilters">
+                    <button class="filter-btn active" data-filter="all">All Islands</button>
+                    <button class="filter-btn" data-filter="Oahu">Oahu</button>
+                    <button class="filter-btn" data-filter="Maui">Maui</button>
+                    <button class="filter-btn" data-filter="Hawaii">Big Island</button>
+                    <button class="filter-btn" data-filter="Kauai">Kauai</button>
+                    <button class="filter-btn" data-filter="Statewide">Statewide</button>
+                </div>
+            </div>
+            
+            <div class="filter-group">
+                <span class="filter-label">Filter by Resource Type</span>
+                <div class="filter-buttons" id="typeFilters">
+                    <button class="filter-btn active" data-filter="all">All Types</button>
+                    <button class="filter-btn" data-filter="Transition Resources">Transition</button>
+                    <button class="filter-btn" data-filter="Specialized Resources">Specialized</button>
+                    <button class="filter-btn" data-filter="Education">Education</button>
+                    <button class="filter-btn" data-filter="Healthcare">Healthcare</button>
+                    <button class="filter-btn" data-filter="Support Services">Support Services</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Count -->
+        <div class="results-count">
+            Showing <strong id="resultsCount">0</strong> resources
+        </div>
+
+        <!-- Resources List -->
+        <div id="resourcesList">
+            <!-- Cards will be generated by JavaScript -->
+        </div>
+    </div>
+
+    <!-- CTA Banner -->
+    <section class="cta-banner">
+        <h2 id="resources-ctaTitle">Need Help Finding the Right Resource?</h2>
+        <p id="resources-ctaSubtitle">Our team is here to guide you through options and connect you with the support your family needs.</p>
+        <a href="contact.html" class="btn-primary" style="display: inline-block; padding: 1rem 2rem; background: white; color: #004E7C; border-radius: 50px; font-weight: 600; text-decoration: none;">Contact Us Today</a>
+    </section>
+
+    <!-- Footer Container -->
+    <div id="footer-container"></div>
+
+    <!-- Modal for external links -->
+    <div id="iframeModal" class="iframe-modal" onclick="closeIframeModal(event)">
+        <div class="iframe-content" onclick="event.stopPropagation()">
+            <div class="iframe-header">
+                <img src="assets/logo_transparent.png" alt="LDAH" onclick="closeIframeModal()" style="width: 80px; height: 80px; cursor: pointer;" title="Close">
+                <h3 id="iframeTitle">Loading...</h3>
+                <button class="close-iframe" onclick="closeIframeModal()">&times;</button>
+            </div>
+            <iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>
+        </div>
+    </div>
+
+    <script>
+        // Resources data will be loaded from Firebase
+        let resourcesData = [];
+        let isLoading = true;
+
+        // Fallback data in case Firebase is empty or fails
+        const fallbackData = [
+            {
+                id: 1,
+                name: "Makaha Learning Center",
+                type: "Transition Resources",
+                person: "Danielle Irwin",
+                address: "84-1170 Farrington Hwy Bldg C2",
+                city: "Waianae",
+                state: "HI",
+                zip: "96792",
+                phone: "(808) 913-2399",
+                fax: "NA",
+                email: "info@makahalearning.org",
+                website: "www.makahalearning.org",
+                services: "Classes the Makaha Learning Center currently offers: Core Construction class - Get started in the industry by learning construction basics. Solar PV 101 class - Solar installation and preparation coursework.",
+                notes: "Rev. 7/8/24",
+                island: "Oahu",
+                logo: ""
+            }
+        ];
+
+        // State variables
+        let currentIslandFilter = 'all';
+        let currentTypeFilter = 'all';
+        let searchQuery = '';
+
+        // Initialize Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk",
+            authDomain: "ldah-932d5.firebaseapp.com",
+            projectId: "ldah-932d5",
+            storageBucket: "ldah-932d5.firebasestorage.app",
+            messagingSenderId: "662130454003",
+            appId: "1:662130454003:web:437576d5a5811ecd8df686"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const analytics = firebase.analytics();
+        
+        // Load page content from Firebase CMS
+        async function loadPageContent() {
+            try {
+                const doc = await db.collection('pageContent').doc('resources').get();
+                if (doc.exists) {
+                    const data = doc.data();
+                    Object.keys(data).forEach(key => {
+                        const el = document.getElementById('resources-' + key);
+                        if (el && data[key]) el.innerHTML = data[key];
+                    });
+                }
+            } catch (err) { console.error('Error loading page content:', err); }
+        }
+        loadPageContent();
+        
+        analytics.logEvent('page_view', {
+            page_title: 'Resources',
+            page_location: window.location.href,
+            page_path: '/resources.html'
+        });
+
+        // Load resources from Firebase
+        async function loadResources() {
+            const listContainer = document.getElementById('resourcesList');
+            listContainer.innerHTML = '<div class="no-results"><div class="icon">⏳</div><h3>Loading resources...</h3></div>';
+
+            try {
+                let snapshot;
+                try {
+                    snapshot = await db.collection('resources').orderBy('order').get();
+                } catch (indexError) {
+                    // Fallback if index doesn't exist
+                    console.log('Index not available, using unordered query');
+                    snapshot = await db.collection('resources').get();
+                }
+
+                if (snapshot.empty) {
+                    console.log('No resources in Firebase, using fallback data');
+                    resourcesData = fallbackData;
+                } else {
+                    resourcesData = snapshot.docs.map((doc, index) => ({
+                        id: doc.id,
+                        ...doc.data(),
+                        // Ensure all fields have defaults
+                        name: doc.data().name || '',
+                        type: doc.data().type || doc.data().types?.[0] || 'Specialized Resources',
+                        person: doc.data().person || '',
+                        address: doc.data().address || '',
+                        city: doc.data().city || '',
+                        state: doc.data().state || 'HI',
+                        zip: doc.data().zip || '',
+                        phone: doc.data().phone || '',
+                        fax: doc.data().fax || '',
+                        email: doc.data().email || '',
+                        website: doc.data().website || '',
+                        services: doc.data().services || '',
+                        notes: doc.data().notes || '',
+                        island: doc.data().island || '',
+                        logo: doc.data().logo || ''
+                    }));
+                    // Sort alphabetically by name
+                    resourcesData.sort((a, b) => a.name.localeCompare(b.name));
+                }
+
+                isLoading = false;
+                filterAndRender();
+                console.log(`✅ Loaded ${resourcesData.length} resources`);
+
+            } catch (error) {
+                console.error('Error loading resources:', error);
+                resourcesData = fallbackData;
+                isLoading = false;
+                filterAndRender();
+            }
+        }
+
+        // Render resource card
+        function renderResourceCard(resource) {
+            const logoHtml = resource.logo 
+                ? `<img src="${resource.logo}" alt="${resource.name}" class="resource-logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                   <div class="resource-logo-placeholder" style="display:none;">🏢</div>`
+                : `<div class="resource-logo-placeholder">🏢</div>`;
+            
+            const websiteUrl = resource.website && resource.website.startsWith('http') ? resource.website : `https://${resource.website}`;
+            const displayIsland = resource.island || 'Statewide';
+            const displayPhone = resource.phone || 'N/A';
+            
+            return `
+                <div class="resource-card" data-id="${resource.id}" data-island="${resource.island}" data-type="${resource.type}">
+                    <div class="resource-header" onclick="toggleCard('${resource.id}')">
+                        ${logoHtml}
+                        <div class="resource-summary">
+                            <div class="resource-type-badge">${resource.type}</div>
+                            <h3 class="resource-name">${resource.name}</h3>
+                            <div class="resource-meta">
+                                <span>📍 ${displayIsland}</span>
+                                ${resource.phone ? `<span>📞 ${resource.phone}</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="expand-icon">▼</div>
+                    </div>
+                    <div class="resource-details">
+                        <div class="resource-details-inner">
+                            ${resource.person ? `<div class="detail-section">
+                                <h4>Contact Person</h4>
+                                <p>${resource.person}</p>
+                            </div>` : ''}
+                            ${resource.address || resource.city ? `<div class="detail-section">
+                                <h4>Address</h4>
+                                <p>${resource.address ? resource.address + '<br>' : ''}${resource.city}${resource.state ? ', ' + resource.state : ''} ${resource.zip}</p>
+                            </div>` : ''}
+                            ${resource.phone ? `<div class="detail-section">
+                                <h4>Phone</h4>
+                                <p><a href="tel:${resource.phone.replace(/[^0-9+]/g, '')}">${resource.phone}</a></p>
+                            </div>` : ''}
+                            ${resource.email ? `<div class="detail-section">
+                                <h4>Email</h4>
+                                <p><a href="mailto:${resource.email}">${resource.email}</a></p>
+                            </div>` : ''}
+                            ${resource.services ? `<div class="services-section">
+                                <h4>Services Offered</h4>
+                                <p>${resource.services}</p>
+                            </div>` : ''}
+                            <div class="contact-buttons">
+                                ${resource.phone ? `<a href="tel:${resource.phone.replace(/[^0-9+]/g, '')}" class="contact-btn phone">📞 Call</a>` : ''}
+                                ${resource.email ? `<a href="mailto:${resource.email}" class="contact-btn email">✉️ Email</a>` : ''}
+                                ${resource.website ? `<button onclick="event.stopPropagation(); openIframeModal('${resource.name.replace(/'/g, "\\'")}', '${websiteUrl}')" class="contact-btn website">🌐 Website</button>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Toggle card expansion
+        function toggleCard(id) {
+            const card = document.querySelector(`.resource-card[data-id="${id}"]`);
+            if (card) card.classList.toggle('expanded');
+        }
+
+        // Filter and render resources
+        function filterAndRender() {
+            if (isLoading) return;
+
+            const filteredResources = resourcesData.filter(resource => {
+                const resourceIsland = (resource.island || '').toLowerCase();
+                const matchesIsland = currentIslandFilter === 'all' || 
+                    resourceIsland === currentIslandFilter.toLowerCase() ||
+                    (currentIslandFilter === 'Statewide' && !resource.island);
+                
+                const resourceType = (resource.type || '').toLowerCase();
+                const matchesType = currentTypeFilter === 'all' || 
+                    resourceType.includes(currentTypeFilter.toLowerCase());
+                
+                const searchLower = searchQuery.toLowerCase();
+                const matchesSearch = searchQuery === '' || 
+                    (resource.name || '').toLowerCase().includes(searchLower) ||
+                    (resource.services || '').toLowerCase().includes(searchLower) ||
+                    (resource.city || '').toLowerCase().includes(searchLower) ||
+                    (resource.person || '').toLowerCase().includes(searchLower);
+                
+                return matchesIsland && matchesType && matchesSearch;
+            });
+
+            const listContainer = document.getElementById('resourcesList');
+            
+            if (filteredResources.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="no-results">
+                        <div class="icon">🔍</div>
+                        <h3>No resources found</h3>
+                        <p>Try adjusting your filters or search terms</p>
+                    </div>
+                `;
+            } else {
+                listContainer.innerHTML = filteredResources.map(renderResourceCard).join('');
+            }
+
+            document.getElementById('resultsCount').textContent = filteredResources.length;
+        }
+
+        // Set up filter buttons
+        function setupFilters() {
+            // Island filters
+            document.querySelectorAll('#islandFilters .filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('#islandFilters .filter-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentIslandFilter = btn.dataset.filter;
+                    filterAndRender();
+                });
+            });
+
+            // Type filters
+            document.querySelectorAll('#typeFilters .filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('#typeFilters .filter-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentTypeFilter = btn.dataset.filter;
+                    filterAndRender();
+                });
+            });
+
+            // Search box
+            document.getElementById('searchBox').addEventListener('input', (e) => {
+                searchQuery = e.target.value.toLowerCase();
+                filterAndRender();
+            });
+        }
+
+        // Header and Footer Loader - Fetches from external files
+        async function loadHeaderFooter() {
+            const headerContainer = document.getElementById('header-container');
+            const footerContainer = document.getElementById('footer-container');
+            
+            try {
+                // Try to fetch from external files first
+                const [headerResponse, footerResponse] = await Promise.all([
+                    fetch('header.html'),
+                    fetch('footer.html')
+                ]);
+                
+                if (headerResponse.ok && footerResponse.ok) {
+                    headerContainer.innerHTML = await headerResponse.text();
+                    footerContainer.innerHTML = await footerResponse.text();
+                    console.log('✅ Header and footer loaded from external files');
+                } else {
+                    throw new Error('Failed to fetch');
+                }
+                
+                // Load accessibility widget script
+                if (!document.getElementById('a11y-script')) {
+                    const script = document.createElement('script');
+                    script.id = 'a11y-script';
+                    script.src = 'accessibility.js';
+                    document.body.appendChild(script);
+                }
+            } catch (error) {
+                console.log('⚠️ Using inline fallback for header/footer');
+                // Fallback for file:// protocol or fetch failure
+                headerContainer.innerHTML = `<nav>
+    <div class="nav-content">
+        <a href="index.html" class="logo-container">
+            <img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH Logo" class="logo-img">
+            <span class="logo-text">LDAH</span>
+        </a>
+        <div class="hamburger" onclick="toggleMenu()">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+        <ul class="nav-links" id="navLinks">
+            <li><a href="index.html#services">What We Do</a></li>
+            <li><a href="events.html">Events</a></li>
+            <li><a href="volunteer.html">Volunteer</a></li>
+            <li><a href="resources.html">Resources</a></li>
+            <li><a href="contact.html">Contact</a></li>
+        </ul>
+    </div>
+</nav>`;
+                footerContainer.innerHTML = `<footer>
+    <div class="footer-content">
+        <div class="footer-section">
+            <h3>About LDAH</h3>
+            <p>Hawai'i & Pacific Island Parent Training & Information Center empowering families and children with disabilities.</p>
+        </div>
+        <div class="footer-section">
+            <h3>Quick Links</h3>
+            <a href="index.html#services">What We Do</a>
+            <a href="events.html">Events</a>
+            <a href="volunteer.html">Volunteer</a>
+            <a href="resources.html">Resources</a>
+            <a href="contact.html">Contact Us</a>
+        </div>
+        <div class="footer-section">
+            <h3>Honolulu Office</h3>
+            <p>
+                245 North Kukui Street, Suite 205<br>
+                Honolulu, HI 96817<br>
+                (808) 532-5364<br>
+                <a href="mailto:info@ldah.org">info@ldah.org</a>
+            </p>
+        </div>
+        <div class="footer-section">
+            <h3>Connect With Us</h3>
+            <a href="javascript:void(0)" onclick="openIframeModal('Parent Talk Cafe - Facebook Group', 'https://www.facebook.com/groups/2659334410969387')">Parent Talk Cafe</a>
+            <a href="install.html">Install Our App</a>
+        </div>
+    </div>
+    <div class="footer-bottom">
+        <p>&copy; 2025 Leadership in Disabilities and Achievement of Hawai'i. All rights reserved.</p>
+        <p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal('DP Consulting', 'https://oahuappdesign.com')" style="color: var(--accent-teal); text-decoration: none; cursor: pointer;">DP Consulting</a></p>
+    </div>
+</footer>`;
+            }
+            
+            // Set active nav link after loading
+            setActiveNavLink();
+        }
+        
+        function setActiveNavLink() {
+            const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+            const navLinks = document.querySelectorAll('.nav-links a');
+            
+            navLinks.forEach(link => {
+                const href = link.getAttribute('href');
+                if (href === currentPage || 
+                    (currentPage === 'index.html' && href.includes('index.html')) ||
+                    (currentPage === '' && href.includes('index.html'))) {
+                    link.style.borderBottom = '3px solid #004E7C';
+                    link.style.color = '#004E7C';
+                    link.style.paddingBottom = '4px';
+                }
+            });
+        }
+        
+        function toggleMenu() {
+            const navLinks = document.getElementById('navLinks');
+            if (navLinks) navLinks.classList.toggle('active');
+        }
+
+        // Modal functions
+        function openIframeModal(title, url) {
+            const modal = document.getElementById('iframeModal');
+            const titleEl = document.getElementById('iframeTitle');
+            const frame = document.getElementById('iframeFrame');
+            
+            // Special handling for Facebook (blocks iframes entirely)
+            if (url.includes('facebook.com')) {
+                titleEl.textContent = title;
+                frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">🌺 Join Our Facebook Community</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other Hawaii families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">📱 Open Parent Talk Cafe →</a></div>';
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            } 
+            // Special handling for HR Symphony / Career pages (job links don't work in iframes)
+            else if (url.includes('hrsymphony.com') || url.includes('careers')) {
+                titleEl.textContent = title;
+                frame.outerHTML = `<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; flex-direction: column;">
+                    <div style="background: linear-gradient(135deg, #e0f2fe, #f0f9ff); padding: 1rem 2rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; border-bottom: 1px solid #bae6fd;">
+                        <p style="color: #0369a1; margin: 0; font-size: 0.95rem;">
+                            💼 <strong>Tip:</strong> Click job listings to view details. To apply, open in a new tab.
+                        </p>
+                        <a href="${url}" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1.25rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 0.9rem; white-space: nowrap;">
+                            Open in New Tab ↗
+                        </a>
+                    </div>
+                    <iframe src="${url}" style="flex: 1; width: 100%; border: none;" allowfullscreen loading="lazy"></iframe>
+                </div>`;
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+            // Standard iframe handling
+            else {
+                titleEl.textContent = title;
+                // Reset to iframe if it was replaced
+                if (frame.tagName !== 'IFRAME') {
+                    frame.outerHTML = '<iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>';
+                }
+                document.getElementById('iframeFrame').src = url;
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function closeIframeModal(event) {
+            if (event && event.target !== event.currentTarget && !event.target.classList.contains('close-iframe')) {
+                return;
+            }
+            const modal = document.getElementById('iframeModal');
+            const frameEl = document.getElementById('iframeFrame');
+            
+            modal.classList.remove('active');
+            
+            // Reset to standard iframe structure
+            if (frameEl) {
+                frameEl.outerHTML = '<iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>';
+            }
+            
+            document.body.style.overflow = 'auto';
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', () => {
+            loadHeaderFooter();
+            setupFilters();
+            loadResources(); // Load from Firebase
+        });
+    </script>
+    <script src="modal.js"></script>
+</body>
+</html>

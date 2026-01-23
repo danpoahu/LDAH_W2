@@ -1,0 +1,59 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return request.auth != null 
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    // Allow public read access to all content
+    match /{document=**} {
+      allow read: if true;
+    }
+    
+    // Website content - admin write only
+    match /website_content/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // Statistics - admin write only
+    match /stats/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // Services - admin write only
+    match /services/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // Events - admin write only
+    match /events/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // Volunteers - authenticated users can create, admins can manage
+    match /volunteers/{document} {
+      allow read: if isAdmin();
+      allow create: if request.auth != null;
+      allow update, delete: if isAdmin();
+    }
+    
+    // Users collection - admin only
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if isAdmin();
+    }
+    
+    // Settings - admin only
+    match /settings/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

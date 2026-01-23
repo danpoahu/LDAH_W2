@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LDAH Page Editor</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --primary: #004E7C; --teal: #4DD0E1; --light: #f8f9fa; --gray: #666; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; background: #f5f5f5; }
+        h1,h2,h3 { font-family: 'Poppins', sans-serif; }
+        .nav { background: #1a1a2e; padding: 0.75rem 1rem; position: sticky; top: 0; z-index: 100; }
+        .nav-inner { max-width: 1400px; margin: 0 auto; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+        .nav h1 { color: white; font-size: 1rem; margin-right: 1rem; }
+        .tab { background: rgba(255,255,255,0.1); color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+        .tab:hover { background: rgba(255,255,255,0.2); }
+        .tab.active { background: var(--primary); box-shadow: 0 0 0 2px var(--teal); }
+        .back { margin-left: auto; text-decoration: none; }
+        .panel { position: fixed; right: 0; top: 0; bottom: 0; width: 350px; background: white; box-shadow: -4px 0 20px rgba(0,0,0,0.15); transform: translateX(100%); transition: transform 0.3s; z-index: 1000; overflow-y: auto; }
+        .panel.open { transform: translateX(0); }
+        .panel-head { background: var(--primary); color: white; padding: 1rem; position: sticky; top: 0; }
+        .toggle { position: fixed; right: 20px; bottom: 20px; z-index: 999; padding: 12px 20px; background: var(--primary); color: white; border-radius: 50px; border: none; cursor: pointer; font-weight: 600; }
+        .edit { position: relative; border: 2px dashed transparent; cursor: pointer; border-radius: 6px; padding: 4px; margin: -4px; }
+        .edit:hover { border-color: var(--teal); background: rgba(77,208,225,0.1); }
+        .badge { position: absolute; top: -10px; right: 5px; background: var(--teal); color: var(--primary); padding: 2px 8px; font-size: 10px; border-radius: 4px; font-weight: 600; opacity: 0; }
+        .edit:hover .badge { opacity: 1; }
+        .page { display: none; }
+        .page.active { display: block; }
+        .preview { max-width: 1200px; margin: 0 auto; background: white; min-height: calc(100vh - 50px); }
+        .hero { background: linear-gradient(135deg, #004E7C, #0066a1); color: white; padding: 60px 20px; text-align: center; }
+        .hero h1 { font-size: 2.2rem; margin-bottom: 15px; }
+        .hero p { font-size: 1.1rem; max-width: 800px; margin: 0 auto; opacity: 0.95; }
+        .hl { color: var(--teal); }
+        .stats { background: var(--light); padding: 2rem; }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; max-width: 1000px; margin: 0 auto; }
+        .stat { background: white; padding: 1.5rem; border-radius: 12px; text-align: center; }
+        .stat-num { font-size: 1.8rem; font-weight: 700; color: var(--primary); }
+        .stat-lbl { font-size: 0.85rem; color: var(--gray); }
+        .sec { padding: 40px 20px; }
+        .sec-head { text-align: center; margin-bottom: 30px; }
+        .sec-head h2 { font-size: 1.6rem; color: var(--primary); margin-bottom: 8px; }
+        .sec-head p { color: var(--gray); max-width: 600px; margin: 0 auto; }
+        .sec-badge { display: inline-block; padding: 0.4rem 1rem; background: rgba(77,208,225,0.15); color: var(--primary); border-radius: 50px; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.75rem; }
+        .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; max-width: 1100px; margin: 0 auto; }
+        .card { background: var(--light); border-radius: 12px; padding: 1.5rem; }
+        .card-icon { font-size: 2rem; margin-bottom: 0.75rem; }
+        .card h3 { font-size: 1.1rem; color: var(--primary); margin-bottom: 0.5rem; }
+        .card p { color: var(--gray); font-size: 0.9rem; line-height: 1.6; }
+        .card ul { color: var(--gray); font-size: 0.9rem; padding-left: 1.2rem; line-height: 1.8; }
+        .pti { background: linear-gradient(135deg, rgba(0,78,124,0.05), rgba(77,208,225,0.1)); border-radius: 12px; padding: 1.5rem; max-width: 1100px; margin: 0 auto 2rem; }
+        .pti h3 { color: var(--primary); margin-bottom: 0.75rem; }
+        .pti p { color: var(--gray); line-height: 1.7; margin-bottom: 0.75rem; }
+        .cta { background: linear-gradient(135deg, #004E7C, #0066a1); color: white; padding: 50px 20px; text-align: center; }
+        .cta h2 { font-size: 1.8rem; margin-bottom: 12px; }
+        .cta p { font-size: 1rem; max-width: 550px; margin: 0 auto; opacity: 0.95; }
+        .ph { background: var(--light); padding: 2rem; border-radius: 10px; text-align: center; color: var(--gray); margin: 1rem auto; max-width: 800px; }
+        .form { padding: 1rem; display: none; }
+        .form.active { display: block; }
+        .form label { display: block; font-weight: 600; margin-bottom: 0.5rem; }
+        .form textarea { width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; margin-bottom: 1rem; min-height: 100px; resize: vertical; font-family: inherit; }
+        .btns { display: flex; gap: 0.5rem; }
+        .btn-save { flex: 1; background: var(--primary); color: white; border: none; padding: 0.7rem; border-radius: 8px; font-weight: 600; cursor: pointer; }
+        .btn-cancel { flex: 1; background: #e2e8f0; border: none; padding: 0.7rem; border-radius: 8px; font-weight: 600; cursor: pointer; }
+        .welcome { padding: 1.5rem; }
+        .welcome h3 { color: var(--primary); margin-bottom: 1rem; }
+        .welcome ul { list-style: none; margin-bottom: 1.5rem; }
+        .welcome li { padding: 0.3rem 0; color: var(--gray); }
+        .welcome li::before { content: "✓ "; color: var(--primary); }
+        .login { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 1rem; }
+        .login input { width: 100%; padding: 0.7rem; border: 2px solid #e2e8f0; border-radius: 6px; margin-bottom: 0.5rem; }
+        .login button { width: 100%; background: var(--primary); color: white; border: none; padding: 0.7rem; border-radius: 6px; font-weight: 600; cursor: pointer; }
+        .logged { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 1rem; display: none; }
+        .logged.active { display: block; }
+        .logout { width: 100%; background: #ef4444; color: white; border: none; padding: 0.7rem; border-radius: 6px; font-weight: 600; cursor: pointer; }
+        @media (max-width: 900px) { .stats-grid, .grid3 { grid-template-columns: 1fr 1fr; } }
+        @media (max-width: 600px) { .stats-grid, .grid3 { grid-template-columns: 1fr; } .tab { padding: 0.4rem 0.6rem; font-size: 0.7rem; } }
+    </style>
+</head>
+<body>
+    <nav class="nav"><div class="nav-inner">
+        <h1>📄 Page Editor</h1>
+        <button class="tab active" data-page="home">🏠 Home</button>
+        <button class="tab" data-page="whoweare">👥 Who We Are</button>
+        <button class="tab" data-page="events">📅 Events</button>
+        <button class="tab" data-page="volunteer">🤝 Volunteer</button>
+        <button class="tab" data-page="resources">📚 Resources</button>
+        <button class="tab" data-page="contact">📞 Contact</button>
+        <button class="tab" data-page="readiness">🎓 Readiness</button>
+        <button class="tab" data-page="specialed">⚖️ Special Ed</button>
+        <button class="tab" data-page="military">🇺🇸 Military</button>
+        <button class="tab" data-page="pacific">🏝️ Pacific</button>
+        <button class="tab" data-page="community">✊ Community</button>
+        <a href="cms.html" class="tab back">← CMS</a>
+    </div></nav>
+
+    <div class="panel" id="panel">
+        <div class="panel-head"><h2 style="font-size:1rem">✏️ Edit</h2></div>
+        <div class="form" id="form">
+            <label id="lbl">Editing...</label>
+            <input type="hidden" id="fld"><input type="hidden" id="pg">
+            <textarea id="txt"></textarea>
+            <div class="btns"><button class="btn-cancel" onclick="cancel()">Cancel</button><button class="btn-save" onclick="save()">💾 Save</button></div>
+        </div>
+        <div class="welcome" id="welcome">
+            <h3>👋 Welcome!</h3>
+            <ul><li>Click any text to edit</li><li>Changes save to Firebase</li><li>Updates appear on live site</li></ul>
+            <div class="login" id="loginBox">
+                <p style="font-size:0.8rem;color:#666;margin-bottom:0.5rem">🔐 Login:</p>
+                <input type="email" id="email" placeholder="Email">
+                <input type="password" id="pass" placeholder="Password" onkeypress="if(event.key==='Enter')login()">
+                <button onclick="login()">Login</button>
+            </div>
+            <div class="logged" id="loggedBox">
+                <p style="color:#166534">✅ Logged in as:</p>
+                <p id="user" style="font-size:0.85rem;color:#166534;margin-bottom:0.75rem"></p>
+                <button class="logout" onclick="logout()">🚪 Logout</button>
+            </div>
+        </div>
+    </div>
+    <button class="toggle" id="toggle" onclick="togglePanel()">📝 Edit</button>
+
+    <!-- HOME -->
+    <div class="page active" id="page-home"><div class="preview">
+        <section class="hero">
+            <div class="edit" onclick="ed('home','heroTitle','Hero Title')"><span class="badge">✏️</span><h1 id="home-heroTitle">Empowering Families, <span class="hl">Transforming Lives</span></h1></div>
+            <div class="edit" onclick="ed('home','heroSubtitle','Hero Subtitle')"><span class="badge">✏️</span><p id="home-heroSubtitle">Supporting children and youth with disabilities across Hawai'i and the Pacific Islands.</p></div>
+        </section>
+        <section class="stats"><div class="stats-grid">
+            <div class="stat"><div>👨‍👩‍👧‍👦</div><div class="edit" onclick="ed('home','stat1Number','Stat 1 Number')"><span class="badge">✏️</span><div class="stat-num" id="home-stat1Number">15,000+</div></div><div class="edit" onclick="ed('home','stat1Label','Stat 1 Label')"><span class="badge">✏️</span><div class="stat-lbl" id="home-stat1Label">Families Served</div></div></div>
+            <div class="stat"><div>📅</div><div class="edit" onclick="ed('home','stat2Number','Stat 2 Number')"><span class="badge">✏️</span><div class="stat-num" id="home-stat2Number">200+</div></div><div class="edit" onclick="ed('home','stat2Label','Stat 2 Label')"><span class="badge">✏️</span><div class="stat-lbl" id="home-stat2Label">Annual Events</div></div></div>
+            <div class="stat"><div>🏫</div><div class="edit" onclick="ed('home','stat3Number','Stat 3 Number')"><span class="badge">✏️</span><div class="stat-num" id="home-stat3Number">50+</div></div><div class="edit" onclick="ed('home','stat3Label','Stat 3 Label')"><span class="badge">✏️</span><div class="stat-lbl" id="home-stat3Label">Years of Service</div></div></div>
+            <div class="stat"><div>🌴</div><div class="edit" onclick="ed('home','stat4Number','Stat 4 Number')"><span class="badge">✏️</span><div class="stat-num" id="home-stat4Number">7</div></div><div class="edit" onclick="ed('home','stat4Label','Stat 4 Label')"><span class="badge">✏️</span><div class="stat-lbl" id="home-stat4Label">Pacific Islands</div></div></div>
+        </div></section>
+        <section class="sec">
+            <div class="sec-head">
+                <div class="edit" onclick="ed('home','servicesTitle','Services Title')"><span class="badge">✏️</span><h2 id="home-servicesTitle">Comprehensive Support Services</h2></div>
+                <div class="edit" onclick="ed('home','servicesSubtitle','Services Subtitle')"><span class="badge">✏️</span><p id="home-servicesSubtitle">We provide services to empower families and support children with disabilities.</p></div>
+            </div>
+            <div class="grid3">
+                <div class="card"><div class="card-icon">📚</div><div class="edit" onclick="ed('home','service1Title','Service 1')"><span class="badge">✏️</span><h3 id="home-service1Title">Parent Training</h3></div><div class="edit" onclick="ed('home','service1Desc','Service 1 Desc')"><span class="badge">✏️</span><p id="home-service1Desc">Training to help parents navigate special education.</p></div></div>
+                <div class="card"><div class="card-icon">🎓</div><div class="edit" onclick="ed('home','service2Title','Service 2')"><span class="badge">✏️</span><h3 id="home-service2Title">School Readiness</h3></div><div class="edit" onclick="ed('home','service2Desc','Service 2 Desc')"><span class="badge">✏️</span><p id="home-service2Desc">Early intervention for school preparation.</p></div></div>
+                <div class="card"><div class="card-icon">⚖️</div><div class="edit" onclick="ed('home','service3Title','Service 3')"><span class="badge">✏️</span><h3 id="home-service3Title">Special Ed Advocacy</h3></div><div class="edit" onclick="ed('home','service3Desc','Service 3 Desc')"><span class="badge">✏️</span><p id="home-service3Desc">Expert guidance on IEPs and education laws.</p></div></div>
+                <div class="card"><div class="card-icon">🇺🇸</div><div class="edit" onclick="ed('home','service4Title','Service 4')"><span class="badge">✏️</span><h3 id="home-service4Title">Military Support</h3></div><div class="edit" onclick="ed('home','service4Desc','Service 4 Desc')"><span class="badge">✏️</span><p id="home-service4Desc">Help for military families with IEP transitions.</p></div></div>
+                <div class="card"><div class="card-icon">🏝️</div><div class="edit" onclick="ed('home','service5Title','Service 5')"><span class="badge">✏️</span><h3 id="home-service5Title">Pacific Outreach</h3></div><div class="edit" onclick="ed('home','service5Desc','Service 5 Desc')"><span class="badge">✏️</span><p id="home-service5Desc">Support across Pacific Islands.</p></div></div>
+                <div class="card"><div class="card-icon">✊</div><div class="edit" onclick="ed('home','service6Title','Service 6')"><span class="badge">✏️</span><h3 id="home-service6Title">Anti-Bullying</h3></div><div class="edit" onclick="ed('home','service6Desc','Service 6 Desc')"><span class="badge">✏️</span><p id="home-service6Desc">Resources to prevent bullying.</p></div></div>
+            </div>
+        </section>
+        <section class="sec" style="background:white">
+            <div class="sec-head">
+                <span class="sec-badge">📅 What's Happening</span>
+                <div class="edit" onclick="ed('home','eventsTitle','Events Title')"><span class="badge">✏️</span><h2 id="home-eventsTitle">Upcoming Events</h2></div>
+                <div class="edit" onclick="ed('home','eventsSubtitle','Events Subtitle')"><span class="badge">✏️</span><p id="home-eventsSubtitle">Join us for workshops and events</p></div>
+            </div>
+            <div class="ph">📅 Events loaded from Firebase</div>
+        </section>
+        <section class="cta">
+            <div class="edit" onclick="ed('home','ctaTitle','CTA Title')"><span class="badge">✏️</span><h2 id="home-ctaTitle">Ready to Make a Difference?</h2></div>
+            <div class="edit" onclick="ed('home','ctaSubtitle','CTA Subtitle')"><span class="badge">✏️</span><p id="home-ctaSubtitle">Join our community of volunteers and advocates.</p></div>
+        </section>
+    </div></div>
+
+    <!-- WHO WE ARE -->
+    <div class="page" id="page-whoweare"><div class="preview">
+        <section class="hero">
+            <div class="edit" onclick="ed('whoweare','heroTitle','Hero Title')"><span class="badge">✏️</span><h1 id="whoweare-heroTitle">Who We Are</h1></div>
+            <div class="edit" onclick="ed('whoweare','heroSubtitle','Hero Subtitle')"><span class="badge">✏️</span><p id="whoweare-heroSubtitle">LDAH is a <span class="hl">501(c)(3) non-profit</span> serving families across Hawaii and the Pacific.</p></div>
+        </section>
+        <section class="sec">
+            <div class="sec-head">
+                <span class="sec-badge">🌺 Our Foundation</span>
+                <div class="edit" onclick="ed('whoweare','foundationTitle','Foundation Title')"><span class="badge">✏️</span><h2 id="whoweare-foundationTitle">Mission, Vision & Values</h2></div>
+                <div class="edit" onclick="ed('whoweare','foundationSubtitle','Foundation Subtitle')"><span class="badge">✏️</span><p id="whoweare-foundationSubtitle">Our guiding principles</p></div>
+            </div>
+            <div class="grid3">
+                <div class="card" style="text-align:center"><div class="card-icon">🎯</div><div class="edit" onclick="ed('whoweare','missionTitle','Mission Title')"><span class="badge">✏️</span><h3 id="whoweare-missionTitle">Our Mission</h3></div><div class="edit" onclick="ed('whoweare','missionText','Mission Text')"><span class="badge">✏️</span><p id="whoweare-missionText">To enhance opportunities for children with disabilities through empowerment and advocacy.</p></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon">🔭</div><div class="edit" onclick="ed('whoweare','visionTitle','Vision Title')"><span class="badge">✏️</span><h3 id="whoweare-visionTitle">Our Vision</h3></div><div class="edit" onclick="ed('whoweare','visionText','Vision Text')"><span class="badge">✏️</span><p id="whoweare-visionText">Access to opportunities regardless of disability.</p></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon">💎</div><div class="edit" onclick="ed('whoweare','valuesTitle','Values Title')"><span class="badge">✏️</span><h3 id="whoweare-valuesTitle">Core Values</h3></div><div class="edit" onclick="ed('whoweare','valuesList','Values (use li tags)')"><span class="badge">✏️</span><ul id="whoweare-valuesList"><li>Advocating for Rights</li><li>Families First</li><li>Partnerships</li><li>Accountability</li></ul></div></div>
+            </div>
+            <div class="pti">
+                <div class="card-icon">🏛️</div>
+                <div class="edit" onclick="ed('whoweare','ptiTitle','PTI Title')"><span class="badge">✏️</span><h3 id="whoweare-ptiTitle">Parent Training & Information Center</h3></div>
+                <div class="edit" onclick="ed('whoweare','ptiText1','PTI Text 1')"><span class="badge">✏️</span><p id="whoweare-ptiText1">LDAH has served as the PTI for Hawaii since 1990.</p></div>
+                <div class="edit" onclick="ed('whoweare','ptiText2','PTI Text 2')"><span class="badge">✏️</span><p id="whoweare-ptiText2">Most staff are parents of children with disabilities.</p></div>
+            </div>
+            <div class="sec-head">
+                <span class="sec-badge">👥 Our People</span>
+                <div class="edit" onclick="ed('whoweare','teamTitle','Team Title')"><span class="badge">✏️</span><h2 id="whoweare-teamTitle">The Team Behind LDAH</h2></div>
+                <div class="edit" onclick="ed('whoweare','teamSubtitle','Team Subtitle')"><span class="badge">✏️</span><p id="whoweare-teamSubtitle">Dedicated to supporting families</p></div>
+            </div>
+            <div class="ph">👥 Team managed in CMS</div>
+        </section>
+        <section class="sec" style="background:#f0f4f8">
+            <div class="sec-head">
+                <span class="sec-badge">📸 Community</span>
+                <div class="edit" onclick="ed('whoweare','galleryTitle','Gallery Title')"><span class="badge">✏️</span><h2 id="whoweare-galleryTitle">LDAH in Action</h2></div>
+                <div class="edit" onclick="ed('whoweare','gallerySubtitle','Gallery Subtitle')"><span class="badge">✏️</span><p id="whoweare-gallerySubtitle">Moments from our events</p></div>
+            </div>
+            <div class="ph">📸 Gallery managed separately</div>
+        </section>
+        <section class="cta">
+            <div class="edit" onclick="ed('whoweare','ctaTitle','CTA Title')"><span class="badge">✏️</span><h2 id="whoweare-ctaTitle">Have Questions?</h2></div>
+            <div class="edit" onclick="ed('whoweare','ctaSubtitle','CTA Subtitle')"><span class="badge">✏️</span><p id="whoweare-ctaSubtitle">We're here to help with special education and advocacy.</p></div>
+        </section>
+    </div></div>
+
+    <!-- EVENTS -->
+    <div class="page" id="page-events"><div class="preview">
+        <section class="hero">
+            <div class="edit" onclick="ed('events','heroTitle','Page Title')"><span class="badge">✏️</span><h1 id="events-heroTitle">📅 Events & Workshops</h1></div>
+            <div class="edit" onclick="ed('events','heroSubtitle','Page Subtitle')"><span class="badge">✏️</span><p id="events-heroSubtitle">Join us for training, workshops, and community events</p></div>
+        </section>
+        <section class="sec">
+            <div class="sec-head">
+                <span class="sec-badge">🎯 Upcoming</span>
+                <div class="edit" onclick="ed('events','currentTitle','Upcoming Events Title')"><span class="badge">✏️</span><h2 id="events-currentTitle">Upcoming Events</h2></div>
+            </div>
+            <div class="ph">📅 Events loaded from Firebase (CMS Events tab)</div>
+        </section>
+        <section class="sec" style="background: #f8f9fa;">
+            <div class="sec-head">
+                <span class="sec-badge">📚 Past</span>
+                <div class="edit" onclick="ed('events','pastTitle','Past Events Title')"><span class="badge">✏️</span><h2 id="events-pastTitle">Past Events</h2></div>
+            </div>
+            <div class="ph">📅 Past events loaded from Firebase</div>
+        </section>
+        <section class="sec">
+            <div class="sec-head">
+                <span class="sec-badge">📅 Calendar</span>
+                <div class="edit" onclick="ed('events','calendarTitle','Calendar Section Title')"><span class="badge">✏️</span><h2 id="events-calendarTitle">Event Calendar</h2></div>
+            </div>
+            <div class="ph">📅 Interactive calendar view</div>
+        </section>
+        <section class="cta">
+            <div class="edit" onclick="ed('events','ctaTitle','CTA Title')"><span class="badge">✏️</span><h2 id="events-ctaTitle">Can't Find What You're Looking For?</h2></div>
+            <div class="edit" onclick="ed('events','ctaSubtitle','CTA Subtitle')"><span class="badge">✏️</span><p id="events-ctaSubtitle">Contact us to learn about upcoming workshops, training sessions, and community events in your area.</p></div>
+            <div class="edit" onclick="ed('events','ctaButton','CTA Button Text')"><span class="badge">✏️</span><p id="events-ctaButton" style="display: inline-block; background: white; color: var(--primary); padding: 0.75rem 2rem; border-radius: 50px; font-weight: 600; margin-top: 1rem;">Get in Touch</p></div>
+        </section>
+    </div></div>
+
+    <!-- VOLUNTEER -->
+    <div class="page" id="page-volunteer"><div class="preview">
+        <section class="hero">
+            <div class="edit" onclick="ed('volunteer','heroTitle','Page Title')"><span class="badge">✏️</span><h1 id="volunteer-heroTitle">Volunteer Opportunities</h1></div>
+            <div class="edit" onclick="ed('volunteer','heroSubtitle','Page Subtitle')"><span class="badge">✏️</span><p id="volunteer-heroSubtitle">Make a difference in families' lives.</p></div>
+        </section>
+        <section class="sec">
+            <div class="sec-head">
+                <div class="edit" onclick="ed('volunteer','opportunitiesTitle','Opportunities Title')"><span class="badge">✏️</span><h2 id="volunteer-opportunitiesTitle">Current Opportunities</h2></div>
+                <div class="edit" onclick="ed('volunteer','opportunitiesSubtitle','Opportunities Subtitle')"><span class="badge">✏️</span><p id="volunteer-opportunitiesSubtitle">Contribute your time and skills</p></div>
+            </div>
+            <div class="ph">🤝 Opportunities loaded from Firebase (CMS Volunteers tab)</div>
+        </section>
+        <section class="cta">
+            <div class="edit" onclick="ed('volunteer','ctaTitle','CTA Title')"><span class="badge">✏️</span><h2 id="volunteer-ctaTitle">Make a Difference Today</h2></div>
+            <div class="edit" onclick="ed('volunteer','ctaSubtitle','CTA Subtitle')"><span class="badge">✏️</span><p id="volunteer-ctaSubtitle">Help families navigate special education.</p></div>
+        </section>
+    </div></div>
+
+    <!-- RESOURCES -->
+    <div class="page" id="page-resources"><div class="preview">
+        <section class="hero">
+            <div class="edit" onclick="ed('resources','heroTitle','Page Title')"><span class="badge">✏️</span><h1 id="resources-heroTitle">📚 Resources</h1></div>
+            <div class="edit" onclick="ed('resources','heroSubtitle','Page Subtitle')"><span class="badge">✏️</span><p id="resources-heroSubtitle">Resources for families throughout Hawaii and the Pacific.</p></div>
+        </section>
+        <section class="sec">
+            <div class="ph">📚 Resources loaded with search/filters (CMS Resources tab)</div>
+        </section>
+        <section class="cta">
+            <div class="edit" onclick="ed('resources','ctaTitle','CTA Title')"><span class="badge">✏️</span><h2 id="resources-ctaTitle">Need Help Finding Resources?</h2></div>
+            <div class="edit" onclick="ed('resources','ctaSubtitle','CTA Subtitle')"><span class="badge">✏️</span><p id="resources-ctaSubtitle">Our team can guide you to the right support.</p></div>
+        </section>
+    </div></div>
+
+    <!-- CONTACT -->
+    <div class="page" id="page-contact"><div class="preview">
+        <section class="hero">
+            <div class="edit" onclick="ed('contact','heroTitle','Page Title')"><span class="badge">✏️</span><h1 id="contact-heroTitle">Contact Us</h1></div>
+            <div class="edit" onclick="ed('contact','heroSubtitle','Page Subtitle')"><span class="badge">✏️</span><p id="contact-heroSubtitle">We're here to help your family navigate special education and disability services</p></div>
+        </section>
+        <section class="sec">
+            <div class="grid3" style="grid-template-columns: 1fr 1fr; margin-bottom: 2rem;">
+                <!-- Honolulu Office -->
+                <div class="card" style="text-align:center">
+                    <div class="card-icon">🏢</div>
+                    <div class="edit" onclick="ed('contact','honTitle','Honolulu Office Title')"><span class="badge">✏️</span><h3 id="contact-honTitle">Honolulu Office</h3></div>
+                    <div class="edit" onclick="ed('contact','honSubtitle','Honolulu Subtitle')"><span class="badge">✏️</span><p id="contact-honSubtitle" style="color:var(--primary);font-weight:600">Main Office</p></div>
+                    <div class="edit" onclick="ed('contact','honPhone','Honolulu Phone')"><span class="badge">✏️</span><p id="contact-honPhone" style="font-size:0.9rem;margin-top:1rem"><strong>Phone:</strong> (808) 532-5364<br><strong>Toll Free:</strong> 1-800-533-9684</p></div>
+                    <div class="edit" onclick="ed('contact','honEmail','Honolulu Email')"><span class="badge">✏️</span><p id="contact-honEmail" style="font-size:0.9rem"><strong>Email:</strong> <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="a6cfc8c0c9e6cac2c7cec7d1c7cfcf88c9d4c1">[email&#160;protected]</a></p></div>
+                    <div class="edit" onclick="ed('contact','honAddress','Honolulu Address')"><span class="badge">✏️</span><p id="contact-honAddress" style="font-size:0.9rem"><strong>Address:</strong><br>Harry and Jeanette Weinberg Kukui Center<br>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817</p></div>
+                </div>
+                <!-- Ma'ili Office -->
+                <div class="card" style="text-align:center">
+                    <div class="card-icon">🏫</div>
+                    <div class="edit" onclick="ed('contact','mailiTitle','Maili Office Title')"><span class="badge">✏️</span><h3 id="contact-mailiTitle">Ma'ili Office</h3></div>
+                    <div class="edit" onclick="ed('contact','mailiSubtitle','Maili Subtitle')"><span class="badge">✏️</span><p id="contact-mailiSubtitle" style="color:var(--primary);font-weight:600">School Readiness Project</p></div>
+                    <div class="edit" onclick="ed('contact','mailiPhone','Maili Phone')"><span class="badge">✏️</span><p id="contact-mailiPhone" style="font-size:0.9rem;margin-top:1rem"><strong>Phone:</strong> (808) 696-5361<br><strong>Fax:</strong> (808) 696-5371</p></div>
+                    <div class="edit" onclick="ed('contact','mailiHours','Maili Hours')"><span class="badge">✏️</span><p id="contact-mailiHours" style="font-size:0.9rem"><strong>Hours:</strong> Monday to Friday, 8:00 AM – 5:00 PM</p></div>
+                    <div class="edit" onclick="ed('contact','mailiAddress','Maili Address')"><span class="badge">✏️</span><p id="contact-mailiAddress" style="font-size:0.9rem"><strong>Address:</strong><br>Community Learning Center<br>Kauhale Building<br>87-790 Kulauku St., Suite A116<br>Wai'anae, HI 96792</p></div>
+                </div>
+            </div>
+            <!-- App Download Card -->
+            <div class="card" style="text-align: center; background: linear-gradient(135deg, rgba(0,78,124,0.05), rgba(77,208,225,0.1));">
+                <div class="card-icon">📱</div>
+                <div class="edit" onclick="ed('contact','appTitle','App Section Title')"><span class="badge">✏️</span><h3 id="contact-appTitle">24/7 Support at Your Fingertips</h3></div>
+                <div class="edit" onclick="ed('contact','appText','App Section Text')"><span class="badge">✏️</span><p id="contact-appText">Need answers anytime? Download our free app for instant access to resources, FAQs, and support—day or night!</p></div>
+            </div>
+        </section>
+        <section class="cta">
+            <div class="edit" onclick="ed('contact','ctaTitle','CTA Title')"><span class="badge">✏️</span><h2 id="contact-ctaTitle">Join Our Community</h2></div>
+            <div class="edit" onclick="ed('contact','ctaSubtitle','CTA Subtitle')"><span class="badge">✏️</span><p id="contact-ctaSubtitle">Connect with other Hawaii families navigating special education and disabilities. Share experiences and find support.</p></div>
+        </section>
+    </div></div>
+
+    <!-- READINESS -->
+    <div class="page" id="page-readiness"><div class="preview">
+        <section class="hero">
+            <div class="edit" onclick="ed('readiness','heroTitle','Page Title')"><span class="badge">✏️</span><h1 id="readiness-heroTitle">🎓 School Readiness Project</h1></div>
+            <div class="edit" onclick="ed('readiness','heroSubtitle','Page Subtitle')"><span class="badge">✏️</span><p id="readiness-heroSubtitle">Supporting children in gaining the skills to be successful in their education through developmental screenings, family support, and parent education.</p></div>
+        </section>
+        <section class="sec">
+            <div class="grid3" style="grid-template-columns: 1fr 1fr; margin-bottom: 2rem;">
+                <div class="card">
+                    <div class="edit" onclick="ed('readiness','aboutTitle','About Title')"><span class="badge">✏️</span><h3 id="readiness-aboutTitle">About the Program</h3></div>
+                    <div class="edit" onclick="ed('readiness','aboutText','About Text')"><span class="badge">✏️</span><p id="readiness-aboutText">The School Readiness Project (SRP) provides services for families of preschool aged children throughout O'ahu, Moloka'i, and Hawai'i Island. We provide developmental, social-emotional, hearing, vision, and autism screenings. SRP works to strengthen families through case management and parent education.</p></div>
+                </div>
+                <div class="card">
+                    <div class="edit" onclick="ed('readiness','partnersTitle','Partners Title')"><span class="badge">✏️</span><h3 id="readiness-partnersTitle">Our Partners</h3></div>
+                    <div class="edit" onclick="ed('readiness','partnersText','Partners Text')"><span class="badge">✏️</span><p id="readiness-partnersText">SRP is a collaborative project with: Aloha United Way, The Community Learning Center at Ma'ili, Harry & Jeanette Weinberg Kukui Center, and Kamehameha Schools.</p></div>
+                </div>
+            </div>
+            <div class="sec-head">
+                <div class="edit" onclick="ed('readiness','screeningsTitle','Screenings Section Title')"><span class="badge">✏️</span><h2 id="readiness-screeningsTitle">👁️ Childhood Screenings</h2></div>
+            </div>
+            <div class="grid3">
+                <div class="card"><div class="card-icon">👁️</div><div class="edit" onclick="ed('readiness','visionTitle','Vision Title')"><span class="badge">✏️</span><h3 id="readiness-visionTitle">Vision Screening</h3></div><div class="edit" onclick="ed('readiness','visionText','Vision Text')"><span class="badge">✏️</span><p id="readiness-visionText">We use the Plusoptix Digital Vision Screener to check your child's eyes. It is an accurate, non-invasive way to detect a variety of vision disorders in children.</p></div></div>
+                <div class="card"><div class="card-icon">👂</div><div class="edit" onclick="ed('readiness','hearingTitle','Hearing Title')"><span class="badge">✏️</span><h3 id="readiness-hearingTitle">Hearing Screening</h3></div><div class="edit" onclick="ed('readiness','hearingText','Hearing Text')"><span class="badge">✏️</span><p id="readiness-hearingText">Two methods can be used: Otoacoustic Emissions checks both the middle and inner ear, and Tympanometry checks for reduced eardrum movement caused by fluid, wax, or other problems.</p></div></div>
+                <div class="card"><div class="card-icon">📊</div><div class="edit" onclick="ed('readiness','devTitle','Developmental Title')"><span class="badge">✏️</span><h3 id="readiness-devTitle">Developmental Screening</h3></div><div class="edit" onclick="ed('readiness','devText','Developmental Text')"><span class="badge">✏️</span><p id="readiness-devText">Our qualified personnel use the Ages & Stages Questionnaire (ASQ-3) and ASQ-SE screening tools. Children with concerns are screened for autism using M-CHAT.</p></div></div>
+            </div>
+            <div class="sec-head" style="margin-top: 2rem;">
+                <div class="edit" onclick="ed('readiness','servicesTitle','Services Section Title')"><span class="badge">✏️</span><h2 id="readiness-servicesTitle">Our Services</h2></div>
+            </div>
+            <div class="grid3">
+                <div class="card"><div class="card-icon">📋</div><div class="edit" onclick="ed('readiness','caseTitle','Case Management Title')"><span class="badge">✏️</span><h3 id="readiness-caseTitle">Case Management</h3></div><div class="edit" onclick="ed('readiness','caseText','Case Management Text')"><span class="badge">✏️</span><p id="readiness-caseText">Case Management is provided for families of children identified with a specific need. Our staff will support you by explaining results, offering solutions, connecting you with resources, and following up on referrals.</p></div></div>
+                <div class="card"><div class="card-icon">🎓</div><div class="edit" onclick="ed('readiness','workshopsTitle','Workshops Title')"><span class="badge">✏️</span><h3 id="readiness-workshopsTitle">Parent Workshops</h3></div><div class="edit" onclick="ed('readiness','workshopsText','Workshops Text')"><span class="badge">✏️</span><p id="readiness-workshopsText">Trainings are designed to increase understanding of health, developmental, and school readiness needs of preschool aged children. Learn what development should look like and review possible signs of delays.</p></div></div>
+                <div class="card"><div class="card-icon">🤝</div><div class="edit" onclick="ed('readiness','providerTitle','Provider Title')"><span class="badge">✏️</span><h3 id="readiness-providerTitle">Provider Services</h3></div><div class="edit" onclick="ed('readiness','providerText','Provider Text')"><span class="badge">✏️</span><p id="readiness-providerText">If you are a provider and would like to add our screening services to your program or event, we can help! We offer vision, hearing, and developmental screenings, trainings, and resources.</p></div></div>
+            </div>
+        </section>
+        <section class="cta">
+            <div class="edit" onclick="ed('readiness','ctaTitle','CTA Title')"><span class="badge">✏️</span><h2 id="readiness-ctaTitle">Schedule a Screening</h2></div>
+            <div class="edit" onclick="ed('readiness','ctaSubtitle','CTA Subtitle')"><span class="badge">✏️</span><p id="readiness-ctaSubtitle">Contact LDAH to schedule a screening event in your community. Individual screenings are also available by appointment in both our Honolulu and Wai'anae offices.</p></div>
+        </section>
+    </div></div>
+
+    <!-- SPECIAL ED -->
+    <div class="page" id="page-specialed"><div class="preview">
+        <section class="hero">
+            <div class="edit" onclick="ed('specialed','heroTitle','Page Title')"><span class="badge">✏️</span><h1 id="specialed-heroTitle">⚖️ Special Education Advocacy</h1></div>
+            <div class="edit" onclick="ed('specialed','heroSubtitle','Page Subtitle')"><span class="badge">✏️</span><p id="specialed-heroSubtitle">Expert guidance on IEPs, IDEA, Chapter 60, and other education laws to ensure your child receives appropriate services.</p></div>
+        </section>
+        <section class="sec">
+            <div class="sec-head">
+                <div class="edit" onclick="ed('specialed','resourcesTitle','Resources Section Title')"><span class="badge">✏️</span><h2 id="specialed-resourcesTitle">📚 Resource Documents</h2></div>
+                <div class="edit" onclick="ed('specialed','resourcesSubtitle','Resources Section Subtitle')"><span class="badge">✏️</span><p id="specialed-resourcesSubtitle">Essential guides and regulations for understanding special education rights in Hawai'i</p></div>
+            </div>
+            <div class="grid3">
+                <div class="card"><div class="card-icon">📖</div><div class="edit" onclick="ed('specialed','res1Title','Resource 1 Title')"><span class="badge">✏️</span><h3 id="specialed-res1Title">Laws Regarding Education – General Overview</h3></div><div class="edit" onclick="ed('specialed','res1Desc','Resource 1 Description')"><span class="badge">✏️</span><p id="specialed-res1Desc">Learn about FERPA, IDEA and more in our general overview of laws regarding education. Updated July 2023.</p></div></div>
+                <div class="card"><div class="card-icon">⚖️</div><div class="edit" onclick="ed('specialed','res2Title','Resource 2 Title')"><span class="badge">✏️</span><h3 id="specialed-res2Title">Chapter 60 Information</h3></div><div class="edit" onclick="ed('specialed','res2Desc','Resource 2 Description')"><span class="badge">✏️</span><p id="specialed-res2Desc">A complete view of the Hawaii Administrative Rules, Chapter 60 Guidelines for special education.</p></div></div>
+                <div class="card"><div class="card-icon">🚌</div><div class="edit" onclick="ed('specialed','res3Title','Resource 3 Title')"><span class="badge">✏️</span><h3 id="specialed-res3Title">Transportation for Students – HAR 27 Title 8</h3></div><div class="edit" onclick="ed('specialed','res3Desc','Resource 3 Description')"><span class="badge">✏️</span><p id="specialed-res3Desc">Learn about Hawaii Administrative Rule 27, Title 8 regarding transportation services for students.</p></div></div>
+                <div class="card"><div class="card-icon">🏫</div><div class="edit" onclick="ed('specialed','res4Title','Resource 4 Title')"><span class="badge">✏️</span><h3 id="specialed-res4Title">Public Charter School IDEA Guidelines</h3></div><div class="edit" onclick="ed('specialed','res4Desc','Resource 4 Description')"><span class="badge">✏️</span><p id="specialed-res4Desc">Hawaii State Public Charter Schools guidelines for the implementation of IDEA 2004. Parents may enroll their child in any charter school regardless of special needs.</p></div></div>
+                <div class="card"><div class="card-icon">🎬</div><div class="edit" onclick="ed('specialed','res5Title','Resource 5 Title')"><span class="badge">✏️</span><h3 id="specialed-res5Title">Restraint & Seclusion Webinar</h3></div><div class="edit" onclick="ed('specialed','res5Desc','Resource 5 Description')"><span class="badge">✏️</span><p id="specialed-res5Desc">U.S. Department of Education webinar presentation on restraint and seclusion policies and best practices in schools.</p></div></div>
+                <div class="card"><div class="card-icon">🛡️</div><div class="edit" onclick="ed('specialed','res6Title','Resource 6 Title')"><span class="badge">✏️</span><h3 id="specialed-res6Title">Restraint & Seclusion Resource Document</h3></div><div class="edit" onclick="ed('specialed','res6Desc','Resource 6 Description')"><span class="badge">✏️</span><p id="specialed-res6Desc">U.S. Department of Education guidance on 15 principles for policies and procedures regarding restraint and seclusion in schools.</p></div></div>
+            </div>
+        </section>
+        <section class="cta">
+            <div class="edit" onclick="ed('specialed','ctaTitle','CTA Title')"><span class="badge">✏️</span><h2 id="specialed-ctaTitle">Need Advocacy Support?</h2></div>
+            <div class="edit" onclick="ed('specialed','ctaSubtitle','CTA Subtitle')"><span class="badge">✏️</span><p id="specialed-ctaSubtitle">Our team can help you understand your rights and navigate the special education system to ensure your child gets the services they deserve.</p></div>
+        </section>
+    </div></div>
+
+    <!-- MILITARY -->
+    <div class="page" id="page-military"><div class="preview">
+        <section class="hero">
+            <div class="edit" onclick="ed('military','heroTitle','Page Title')"><span class="badge">✏️</span><h1 id="military-heroTitle">Serving Military Families</h1></div>
+            <div class="edit" onclick="ed('military','heroSubtitle','Page Subtitle')"><span class="badge">✏️</span><p id="military-heroSubtitle">Supporting Hawaii's military families through transitions, education, and advocacy</p></div>
+        </section>
+        <section class="sec">
+            <div class="grid3" style="grid-template-columns: 1fr 1fr; margin-bottom: 2rem;">
+                <div class="card">
+                    <div class="edit" onclick="ed('military','videoTitle','Video Section Title')"><span class="badge">✏️</span><h3 id="military-videoTitle">Relocating With an IEP</h3></div>
+                    <div class="ph" style="margin: 1rem 0;">▶️ Video embed displayed here</div>
+                    <div class="edit" onclick="ed('military','videoDesc','Video Description')"><span class="badge">✏️</span><p id="military-videoDesc">Watch this helpful video about relocating with an IEP for military families.</p></div>
+                </div>
+                <div class="card">
+                    <div class="edit" onclick="ed('military','resourcesTitle','Resources Section Title')"><span class="badge">✏️</span><h3 id="military-resourcesTitle">Additional Military Resources</h3></div>
+                    <div class="edit" onclick="ed('military','armyTitle','Army Title')"><span class="badge">✏️</span><h4 id="military-armyTitle" style="color:var(--primary);margin-top:0.5rem">ARMY</h4></div>
+                    <div class="edit" onclick="ed('military','armyText','Army Contact Info')"><span class="badge">✏️</span><p id="military-armyText" style="font-size:0.85rem;color:var(--gray)">Family Advocacy: Schofield 433-8579, TAMC 433-6606<br>24/7 SAFE Line: 624-7233</p></div>
+                    <div class="edit" onclick="ed('military','navyTitle','Navy/Air Force Title')"><span class="badge">✏️</span><h4 id="military-navyTitle" style="color:var(--primary);margin-top:0.5rem">NAVY/AIR FORCE</h4></div>
+                    <div class="edit" onclick="ed('military','navyText','Navy Contact Info')"><span class="badge">✏️</span><p id="military-navyText" style="font-size:0.85rem;color:var(--gray)">Family Advocacy: 474-1999</p></div>
+                    <div class="edit" onclick="ed('military','marineTitle','Marine Corps Title')"><span class="badge">✏️</span><h4 id="military-marineTitle" style="color:var(--primary);margin-top:0.5rem">MARINE CORPS</h4></div>
+                    <div class="edit" onclick="ed('military','marineText','Marine Contact Info')"><span class="badge">✏️</span><p id="military-marineText" style="font-size:0.85rem;color:var(--gray)">Family Advocacy K-Bay: 254-7658</p></div>
+                    <div class="edit" onclick="ed('military','coastTitle','Coast Guard Title')"><span class="badge">✏️</span><h4 id="military-coastTitle" style="color:var(--primary);margin-top:0.5rem">COAST GUARD</h4></div>
+                    <div class="edit" onclick="ed('military','coastText','Coast Guard Contact Info')"><span class="badge">✏️</span><p id="military-coastText" style="font-size:0.85rem;color:var(--gray)">Work-Life: 842-2263</p></div>
+                </div>
+            </div>
+            <div class="grid3" style="grid-template-columns: 1fr 1fr;">
+                <div class="card"><div class="card-icon">📄</div><div class="edit" onclick="ed('military','pdf1Title','PDF 1 Title')"><span class="badge">✏️</span><h3 id="military-pdf1Title">Relocating With an IEP</h3></div><div class="edit" onclick="ed('military','pdf1Desc','PDF 1 Description')"><span class="badge">✏️</span><p id="military-pdf1Desc">Essential information and checklists for military families relocating with children who have IEPs. Learn what to do before, during, and after your move.</p></div></div>
+                <div class="card"><div class="card-icon">📋</div><div class="edit" onclick="ed('military','pdf2Title','PDF 2 Title')"><span class="badge">✏️</span><h3 id="military-pdf2Title">Forever Transitioning</h3></div><div class="edit" onclick="ed('military','pdf2Desc','PDF 2 Description')"><span class="badge">✏️</span><p id="military-pdf2Desc">A comprehensive checklist of must-do tasks for military families coming to or leaving Hawaii. Reduce the anxiety of unpredictable circumstances.</p></div></div>
+            </div>
+        </section>
+        <section class="cta">
+            <div class="edit" onclick="ed('military','ctaTitle','CTA Title')"><span class="badge">✏️</span><h2 id="military-ctaTitle">We're Here to Help</h2></div>
+            <div class="edit" onclick="ed('military','ctaSubtitle','CTA Subtitle')"><span class="badge">✏️</span><p id="military-ctaSubtitle">Whether you're PCSing to Hawaii or transitioning out, our team understands the unique challenges military families face with special education services.</p></div>
+        </section>
+    </div></div>
+
+    <!-- PACIFIC -->
+    <div class="page" id="page-pacific"><div class="preview">
+        <section class="hero">
+            <div class="edit" onclick="ed('pacific','heroTitle','Page Title')"><span class="badge">✏️</span><h1 id="pacific-heroTitle">🏝️ Pacific Islands Partnership</h1></div>
+            <div class="edit" onclick="ed('pacific','heroSubtitle','Page Subtitle')"><span class="badge">✏️</span><p id="pacific-heroSubtitle">LDAH provides support and resources to families across the Pacific Islands, partnering with local organizations to empower children with disabilities and their families.</p></div>
+        </section>
+        <section class="sec">
+            <div class="sec-head">
+                <div class="edit" onclick="ed('pacific','partnersTitle','Partners Section Title')"><span class="badge">✏️</span><h2 id="pacific-partnersTitle">🌺 Our Island Partners</h2></div>
+                <div class="edit" onclick="ed('pacific','partnersSubtitle','Partners Section Subtitle')"><span class="badge">✏️</span><p id="pacific-partnersSubtitle">Click on each island to learn more about our partnerships and the resources available for families in these communities.</p></div>
+            </div>
+            <div class="grid3">
+                <div class="card" style="text-align:center"><div class="card-icon">🇦🇸</div><div class="edit" onclick="ed('pacific','samoaTitle','Samoa Title')"><span class="badge">✏️</span><h3 id="pacific-samoaTitle">American Samoa</h3></div><div class="edit" onclick="ed('pacific','samoaPartner','Samoa Partner Name')"><span class="badge">✏️</span><p id="pacific-samoaPartner" style="font-weight:600;color:var(--primary)">Parents of Children with Special Needs Network</p></div><div class="edit" onclick="ed('pacific','samoaDesc','Samoa Description')"><span class="badge">✏️</span><p id="pacific-samoaDesc">Supporting families in American Samoa with resources for children with disabilities.</p></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon">🇲🇵</div><div class="edit" onclick="ed('pacific','cnmiTitle','CNMI Title')"><span class="badge">✏️</span><h3 id="pacific-cnmiTitle">Northern Mariana Islands</h3></div><div class="edit" onclick="ed('pacific','cnmiPartner','CNMI Partner Name')"><span class="badge">✏️</span><p id="pacific-cnmiPartner" style="font-weight:600;color:var(--primary)">Department of Youth Services</p></div><div class="edit" onclick="ed('pacific','cnmiDesc','CNMI Description')"><span class="badge">✏️</span><p id="pacific-cnmiDesc">Partnering with CNMI to provide family support and educational resources.</p></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon">🇫🇲</div><div class="edit" onclick="ed('pacific','fsmTitle','FSM Title')"><span class="badge">✏️</span><h3 id="pacific-fsmTitle">Federated States of Micronesia</h3></div><div class="edit" onclick="ed('pacific','fsmPartner','FSM Partner Name')"><span class="badge">✏️</span><p id="pacific-fsmPartner" style="font-weight:600;color:var(--primary)">Chuuk, Kosrae, Pohnpei & Yap</p></div><div class="edit" onclick="ed('pacific','fsmDesc','FSM Description')"><span class="badge">✏️</span><p id="pacific-fsmDesc">Working across four states to support families and children with disabilities.</p></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon">🇬🇺</div><div class="edit" onclick="ed('pacific','guamTitle','Guam Title')"><span class="badge">✏️</span><h3 id="pacific-guamTitle">Guam</h3></div><div class="edit" onclick="ed('pacific','guamPartner','Guam Partner Name')"><span class="badge">✏️</span><p id="pacific-guamPartner" style="font-weight:600;color:var(--primary)">Autism Community Together</p></div><div class="edit" onclick="ed('pacific','guamDesc','Guam Description')"><span class="badge">✏️</span><p id="pacific-guamDesc">Supporting the autism community and families of children with disabilities in Guam.</p></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon">🇲🇭</div><div class="edit" onclick="ed('pacific','marshallTitle','Marshall Islands Title')"><span class="badge">✏️</span><h3 id="pacific-marshallTitle">Republic of the Marshall Islands</h3></div><div class="edit" onclick="ed('pacific','marshallPartner','Marshall Partner Name')"><span class="badge">✏️</span><p id="pacific-marshallPartner" style="font-weight:600;color:var(--primary)">Marshall Island Special Parent Association</p></div><div class="edit" onclick="ed('pacific','marshallDesc','Marshall Description')"><span class="badge">✏️</span><p id="pacific-marshallDesc">Partnering with local organizations and the Public School System for family support.</p></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon">🇵🇼</div><div class="edit" onclick="ed('pacific','palauTitle','Palau Title')"><span class="badge">✏️</span><h3 id="pacific-palauTitle">Republic of Palau</h3></div><div class="edit" onclick="ed('pacific','palauPartner','Palau Partner Name')"><span class="badge">✏️</span><p id="pacific-palauPartner" style="font-weight:600;color:var(--primary)">Palau Parents Empowered</p></div><div class="edit" onclick="ed('pacific','palauDesc','Palau Description')"><span class="badge">✏️</span><p id="pacific-palauDesc">Empowering parents and families in Palau to advocate for their children.</p></div></div>
+            </div>
+        </section>
+        <section class="cta">
+            <div class="edit" onclick="ed('pacific','ctaTitle','CTA Title')"><span class="badge">✏️</span><h2 id="pacific-ctaTitle">Looking for Pacific Islands Support?</h2></div>
+            <div class="edit" onclick="ed('pacific','ctaSubtitle','CTA Subtitle')"><span class="badge">✏️</span><p id="pacific-ctaSubtitle">Whether you're a family in the Pacific Islands or an organization looking to partner with LDAH, we're here to help connect you with resources and support.</p></div>
+        </section>
+    </div></div>
+
+    <!-- COMMUNITY (Anti-Bullying) -->
+    <div class="page" id="page-community"><div class="preview">
+        <section class="hero">
+            <div class="edit" onclick="ed('community','heroTitle','Page Title')"><span class="badge">✏️</span><h1 id="community-heroTitle">✊ Stand Up to Bullying</h1></div>
+            <div class="edit" onclick="ed('community','heroSubtitle','Page Subtitle')"><span class="badge">✏️</span><p id="community-heroSubtitle">We can prevent bullying together! Take this pledge to help end bullying in our community. There should be zero tolerance for bullying in our community and schools.</p></div>
+        </section>
+        <section class="sec">
+            <div class="sec-head">
+                <div class="edit" onclick="ed('community','kitTitle','Response Kit Title')"><span class="badge">✏️</span><h2 id="community-kitTitle">🛠️ Build Your Bullying Response Kit</h2></div>
+                <div class="edit" onclick="ed('community','kitSubtitle','Response Kit Subtitle')"><span class="badge">✏️</span><p id="community-kitSubtitle">Download these resources to help you respond to and prevent bullying</p></div>
+            </div>
+            <div class="grid3" style="grid-template-columns: repeat(5, 1fr);">
+                <div class="card" style="text-align:center"><div class="card-icon">📝</div><div class="edit" onclick="ed('community','res1Title','Resource 1')"><span class="badge">✏️</span><h3 id="community-res1Title" style="font-size:0.9rem">IDEA Sample Letter to Principal</h3></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon">✅</div><div class="edit" onclick="ed('community','res2Title','Resource 2')"><span class="badge">✏️</span><h3 id="community-res2Title" style="font-size:0.9rem">Completed IDEA Sample Letter</h3></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon">📋</div><div class="edit" onclick="ed('community','res3Title','Resource 3')"><span class="badge">✏️</span><h3 id="community-res3Title" style="font-size:0.9rem">504 Sample Letter to Principal</h3></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon">✅</div><div class="edit" onclick="ed('community','res4Title','Resource 4')"><span class="badge">✏️</span><h3 id="community-res4Title" style="font-size:0.9rem">Completed 504 Sample Letter</h3></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon">📨</div><div class="edit" onclick="ed('community','res5Title','Resource 5')"><span class="badge">✏️</span><h3 id="community-res5Title" style="font-size:0.9rem">Follow Up Letter to Superintendent</h3></div></div>
+            </div>
+            <div class="grid3" style="grid-template-columns: repeat(5, 1fr); margin-top: 1rem;">
+                <div class="card" style="text-align:center"><div class="card-icon">☑️</div><div class="edit" onclick="ed('community','res6Title','Resource 6')"><span class="badge">✏️</span><h3 id="community-res6Title" style="font-size:0.9rem">Bullying Checklist</h3></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon">👥</div><div class="edit" onclick="ed('community','res7Title','Resource 7')"><span class="badge">✏️</span><h3 id="community-res7Title" style="font-size:0.9rem">Complex Area Superintendents</h3></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon">💻</div><div class="edit" onclick="ed('community','res8Title','Resource 8')"><span class="badge">✏️</span><h3 id="community-res8Title" style="font-size:0.9rem">Elementary Cyberbullying Prevention</h3></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon">🖥️</div><div class="edit" onclick="ed('community','res9Title','Resource 9')"><span class="badge">✏️</span><h3 id="community-res9Title" style="font-size:0.9rem">Middle/High School Cyberbullying</h3></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon">🪧</div><div class="edit" onclick="ed('community','res10Title','Resource 10')"><span class="badge">✏️</span><h3 id="community-res10Title" style="font-size:0.9rem">Bullying Postcard</h3></div></div>
+            </div>
+        </section>
+        <section class="cta">
+            <div class="edit" onclick="ed('community','ctaTitle','CTA Title')"><span class="badge">✏️</span><h2 id="community-ctaTitle">Need Help with a Bullying Situation?</h2></div>
+            <div class="edit" onclick="ed('community','ctaSubtitle','CTA Subtitle')"><span class="badge">✏️</span><p id="community-ctaSubtitle">Our team can help you understand your rights and guide you through the process of addressing bullying in schools. Every child deserves to feel safe.</p></div>
+        </section>
+    </div></div>
+
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+        const cfg = { apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk", authDomain: "ldah-932d5.firebaseapp.com", projectId: "ldah-932d5" };
+        firebase.initializeApp(cfg);
+        const db = firebase.firestore(), auth = firebase.auth();
+        let loggedIn = false;
+        const data = { home:{}, whoweare:{}, events:{}, volunteer:{}, resources:{}, contact:{}, readiness:{}, specialed:{}, military:{}, pacific:{}, community:{} };
+
+        auth.onAuthStateChanged(u => {
+            loggedIn = !!u;
+            document.getElementById('loginBox').style.display = u ? 'none' : 'block';
+            document.getElementById('loggedBox').classList.toggle('active', !!u);
+            if (u) document.getElementById('user').textContent = u.email;
+        });
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            document.querySelectorAll('.tab[data-page]').forEach(t => t.addEventListener('click', function() {
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+                document.getElementById('page-' + this.dataset.page).classList.add('active');
+                this.classList.add('active');
+                cancel();
+            }));
+            for (const p of Object.keys(data)) {
+                try {
+                    const doc = await db.collection('pageContent').doc(p).get();
+                    if (doc.exists) { data[p] = doc.data(); Object.keys(data[p]).forEach(k => { const el = document.getElementById(p + '-' + k); if (el && data[p][k]) el.innerHTML = data[p][k]; }); }
+                } catch (e) { console.error(e); }
+            }
+        });
+
+        function togglePanel() { const p = document.getElementById('panel'); p.classList.toggle('open'); document.getElementById('toggle').textContent = p.classList.contains('open') ? '✖️ Close' : '📝 Edit'; }
+        async function login() { const e = document.getElementById('email').value, p = document.getElementById('pass').value; if (!e||!p) return alert('Enter email & password'); try { await auth.signInWithEmailAndPassword(e,p); alert('✅ Logged in!'); } catch(err) { alert('❌ '+err.message); } }
+        async function logout() { await auth.signOut(); alert('👋 Logged out'); }
+        function ed(pg, fld, lbl) { if (!loggedIn) { alert('Login first'); togglePanel(); return; } document.getElementById('welcome').style.display='none'; document.getElementById('form').classList.add('active'); document.getElementById('lbl').textContent='Editing: '+lbl; document.getElementById('fld').value=fld; document.getElementById('pg').value=pg; document.getElementById('txt').value=(document.getElementById(pg+'-'+fld)?.innerHTML||'').trim(); if (!document.getElementById('panel').classList.contains('open')) togglePanel(); }
+        async function save() { const pg=document.getElementById('pg').value, fld=document.getElementById('fld').value, txt=document.getElementById('txt').value; try { await db.collection('pageContent').doc(pg).set({[fld]:txt,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}); const el=document.getElementById(pg+'-'+fld); if(el)el.innerHTML=txt; data[pg][fld]=txt; alert('✅ Saved!'); cancel(); } catch(err) { alert('❌ '+err.message); } }
+        function cancel() { document.getElementById('form').classList.remove('active'); document.getElementById('welcome').style.display='block'; document.getElementById('txt').value=''; }
+    </script>
+</body>
+</html>

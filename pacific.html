@@ -1,0 +1,1509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pacific Islands Outreach - LDAH</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics-compat.js"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+    :root {
+        --primary-blue: #004E7C;
+        --light-blue: #0066a1;
+        --accent-teal: #4DD0E1;
+        --text-dark: #1a1a1a;
+        --text-light: #666;
+        --bg-light: #f8f9fa;
+        --pacific-blue: #0077b6;
+        --pacific-teal: #00b4d8;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        color: var(--text-dark);
+        line-height: 1.6;
+        overflow-x: hidden;
+    }
+
+    h1, h2, h3 {
+        font-family: 'Poppins', sans-serif;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+
+    /* Navigation */
+    nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 2px 8px rgba(0, 78, 124, 0.1);
+    }
+
+    .nav-content {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 1rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .logo-container {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        text-decoration: none;
+    }
+
+    .logo-img { width: 80px; height: 80px; filter: brightness(1.1); }
+    .logo-text { font-size: 1.4rem; font-weight: 700; color: var(--primary-blue); }
+
+    .nav-links {
+        display: flex;
+        gap: 2rem;
+        list-style: none;
+        align-items: center;
+    }
+
+    .nav-links a {
+        text-decoration: none;
+        color: var(--text-dark);
+        font-weight: 500;
+        transition: color 0.3s;
+    }
+
+    .nav-links a:hover { color: var(--primary-blue); }
+
+    .hamburger {
+        display: none;
+        flex-direction: column;
+        cursor: pointer;
+        padding: 0.5rem;
+    }
+
+    .hamburger span {
+        width: 25px;
+        height: 3px;
+        background: var(--primary-blue);
+        margin: 3px 0;
+        transition: 0.3s;
+    }
+
+    @media (max-width: 768px) {
+        .nav-links {
+            position: fixed;
+            top: 88px;
+            left: 0;
+            right: 0;
+            background: white;
+            flex-direction: column;
+            padding: 2rem;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            gap: 1rem;
+            transform: translateY(-100%);
+            opacity: 0;
+            transition: transform 0.3s, opacity 0.3s;
+            pointer-events: none;
+        }
+
+        .nav-links.active {
+            transform: translateY(0);
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .hamburger { display: flex; }
+        .logo-img { width: 60px; height: 60px; }
+        .logo-text { font-size: 1.2rem; }
+    }
+
+    /* Hero Section */
+    .hero-section {
+        margin-top: 88px;
+        background: linear-gradient(135deg, #004E7C 0%, #0066a1 100%);
+        color: white;
+        padding: 80px 20px 60px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .hero-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        opacity: 1;
+        background-image:
+        linear-gradient(90deg, rgba(255, 255, 255, .08) 1px, transparent 1px), linear-gradient(rgba(255, 255, 255, .08) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .12) 1px, transparent 1px), linear-gradient(rgba(255, 255, 255, .12) 1px, transparent 1px);
+        background-size: 30px 30px, 30px 30px, 60px 60px, 60px 60px;
+        background-position: 0 0, 0 0, -15px -15px, -15px -15px;
+    }
+
+    .hero-section > * {
+        position: relative;
+        z-index: 1;
+    }
+
+    .hero-section h1 {
+        font-size: 2.8em;
+        margin-bottom: 20px;
+        font-weight: 700;
+    }
+
+    .hero-section p {
+        font-size: 1.3em;
+        max-width: 800px;
+        margin: 0 auto 30px;
+        line-height: 1.6;
+        opacity: 0.95;
+    }
+
+    .partner-logo {
+        max-width: 200px;
+        margin: 0 auto 20px;
+        display: block;
+    }
+
+    .facebook-btn {
+        display: inline-block;
+        padding: 14px 30px;
+        background: white;
+        color: var(--primary-blue);
+        text-decoration: none;
+        border-radius: 50px;
+        font-weight: 700;
+        font-size: 1.1em;
+        transition: transform 0.3s, box-shadow 0.3s;
+        border: none;
+        cursor: pointer;
+    }
+
+    .facebook-btn:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+
+    /* Content Wrapper */
+    .content-wrapper {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 60px 20px;
+    }
+
+    /* Section Header */
+    .section-header {
+        text-align: center;
+        margin-bottom: 50px;
+    }
+
+    .section-header h2 {
+        color: var(--primary-blue);
+        font-size: 2rem;
+        margin-bottom: 12px;
+    }
+
+    .section-header p {
+        color: var(--text-light);
+        font-size: 1.1rem;
+        max-width: 700px;
+        margin: 0 auto;
+    }
+
+    /* Island Cards Grid */
+    .islands-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 30px;
+        margin-bottom: 60px;
+    }
+
+    .island-card {
+        background: white;
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(0, 78, 124, 0.1);
+        transition: transform 0.3s, box-shadow 0.3s;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .island-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 12px 40px rgba(0, 119, 182, 0.2);
+    }
+
+    .island-card-image {
+        width: 100%;
+        height: 180px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 4rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    /* Individual island colors */
+    .island-samoa .island-card-image { background: linear-gradient(135deg, #003366 0%, #004080 100%); }
+    .island-cnmi .island-card-image { background: linear-gradient(135deg, #0066cc 0%, #0088ff 100%); }
+    .island-fsm .island-card-image { background: linear-gradient(135deg, #66b3ff 0%, #99ccff 100%); }
+    .island-guam .island-card-image { background: linear-gradient(135deg, #cc0000 0%, #ff3333 100%); }
+    .island-marshall .island-card-image { background: linear-gradient(135deg, #003399 0%, #ff6600 100%); }
+    .island-palau .island-card-image { background: linear-gradient(135deg, #00bfff 0%, #ffcc00 100%); }
+
+    .island-flag {
+        font-size: 5rem;
+        filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+    }
+
+    .island-card-content {
+        padding: 24px;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .island-card h3 {
+        color: var(--primary-blue);
+        font-size: 1.3rem;
+        margin-bottom: 8px;
+    }
+
+    .island-card .partner-name {
+        color: var(--pacific-teal);
+        font-size: 0.95rem;
+        font-weight: 600;
+        margin-bottom: 12px;
+    }
+
+    .island-card p {
+        color: var(--text-light);
+        font-size: 0.95rem;
+        flex: 1;
+        margin-bottom: 16px;
+    }
+
+    .learn-more-btn {
+        display: inline-block;
+        padding: 12px 24px;
+        background: linear-gradient(135deg, var(--pacific-blue), var(--pacific-teal));
+        color: white;
+        text-decoration: none;
+        border-radius: 50px;
+        font-weight: 600;
+        text-align: center;
+        transition: transform 0.3s, box-shadow 0.3s;
+        border: none;
+        cursor: pointer;
+        font-size: 0.95rem;
+    }
+
+    .learn-more-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0, 119, 182, 0.3);
+    }
+
+    /* Support Section */
+    .support-section {
+        background: linear-gradient(135deg, #004E7C 0%, #0066a1 100%);
+        color: white;
+        padding: 60px 40px;
+        border-radius: 20px;
+        text-align: center;
+        margin-top: 40px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .support-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image:
+        radial-gradient(circle, transparent 0, transparent 22px, rgba(255, 255, 255, 0.15) 22px, rgba(255, 255, 255, 0.15) 24px, transparent 24px);
+        background-size: 48px 48px;
+        opacity: 1;
+    }
+
+    .support-section > * {
+        position: relative;
+        z-index: 1;
+    }
+
+    .support-section h2 {
+        font-size: 2em;
+        margin-bottom: 20px;
+    }
+
+    .support-section p {
+        font-size: 1.1em;
+        max-width: 700px;
+        margin: 0 auto 30px;
+        opacity: 0.95;
+        line-height: 1.8;
+    }
+
+    .contact-btn {
+        display: inline-block;
+        padding: 15px 40px;
+        background: white;
+        color: var(--primary-blue);
+        text-decoration: none;
+        border-radius: 50px;
+        font-weight: 600;
+        font-size: 1.1em;
+        transition: transform 0.3s, box-shadow 0.3s;
+    }
+
+    .contact-btn:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+
+    /* Footer */
+    footer {
+        background: #1a1a1a;
+        color: white;
+        padding: 4rem 2rem 2rem;
+    }
+
+    .footer-content {
+        max-width: 1400px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 3rem;
+    }
+
+    .footer-section h3 {
+        font-size: 1.2rem;
+        margin-bottom: 1.5rem;
+        color: var(--accent-teal);
+    }
+
+    .footer-section p,
+    .footer-section a {
+        color: rgba(255, 255, 255, 0.8);
+        line-height: 1.8;
+        text-decoration: none;
+        display: block;
+        margin-bottom: 0.5rem;
+        transition: color 0.3s;
+    }
+
+    .footer-section a:hover { color: var(--accent-teal); }
+
+    .footer-bottom {
+        max-width: 1400px;
+        margin: 3rem auto 0;
+        padding-top: 2rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        text-align: center;
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    /* Iframe Modal */
+    .iframe-modal {
+        display: none;
+        position: fixed;
+        z-index: 3000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.8);
+        animation: fadeIn 0.3s;
+    }
+
+    .iframe-modal.active {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .iframe-content {
+        background: white;
+        border-radius: 20px;
+        width: 95%;
+        max-width: 1200px;
+        height: 90vh;
+        max-height: 800px;
+        position: relative;
+        animation: slideUp 0.3s;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .iframe-header {
+        background: linear-gradient(135deg, #0077b6, #00b4d8);
+        color: white;
+        padding: 1.5rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-shrink: 0;
+    }
+
+    .iframe-header h3 { margin: 0; font-size: 1.5rem; }
+
+    .close-iframe {
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        color: white;
+        font-size: 2rem;
+        cursor: pointer;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.3s;
+    }
+
+    .close-iframe:hover { background: rgba(255, 255, 255, 0.3); }
+    .iframe-frame { width: 100%; flex: 1; border: none; }
+
+    /* Island Detail Modal */
+    .island-modal {
+        display: none;
+        position: fixed;
+        z-index: 3000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.85);
+        animation: fadeIn 0.3s;
+    }
+
+    .island-modal.active {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+    .island-modal-content {
+        background: white;
+        border-radius: 20px;
+        width: 100%;
+        max-width: 900px;
+        max-height: 90vh;
+        overflow-y: auto;
+        position: relative;
+        animation: slideUp 0.3s;
+    }
+
+    .island-modal-header {
+        padding: 2rem;
+        color: white;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    .island-modal-header h2 {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        font-size: 1.8rem;
+    }
+
+    .island-modal-header .flag-icon {
+        font-size: 2.5rem;
+    }
+
+    .close-island-modal {
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        color: white;
+        font-size: 2rem;
+        cursor: pointer;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.3s;
+    }
+
+    .close-island-modal:hover { background: rgba(255, 255, 255, 0.3); }
+
+    .island-modal-body {
+        padding: 2rem;
+    }
+
+    .island-modal-body h3 {
+        color: var(--primary-blue);
+        margin: 1.5rem 0 1rem;
+        font-size: 1.3rem;
+    }
+
+    .island-modal-body h3:first-of-type {
+        margin-top: 0;
+    }
+
+    .island-modal-body h4 {
+        color: var(--primary-blue);
+        margin: 1rem 0 0.5rem;
+    }
+
+    .island-modal-body p {
+        color: var(--text-light);
+        line-height: 1.8;
+        margin-bottom: 0.75rem;
+    }
+
+    .island-modal-body a {
+        color: var(--pacific-blue);
+        text-decoration: none;
+    }
+
+    .island-modal-body a:hover {
+        text-decoration: underline;
+    }
+
+    /* Social Links */
+    .social-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 1.5rem;
+    }
+
+    .social-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 20px;
+        border-radius: 50px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: transform 0.3s, box-shadow 0.3s;
+    }
+
+    .social-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        text-decoration: none;
+    }
+
+    .social-btn.facebook {
+        background: #1877f2;
+        color: white;
+    }
+
+    .social-btn.youtube {
+        background: #ff0000;
+        color: white;
+    }
+
+    .social-btn.website {
+        background: linear-gradient(135deg, var(--primary-blue), var(--light-blue));
+        color: white;
+    }
+
+    /* Contact Card */
+    .contact-card {
+        background: #f0f9ff;
+        border-left: 4px solid var(--pacific-blue);
+        padding: 1.25rem;
+        border-radius: 0 12px 12px 0;
+        margin: 1rem 0;
+    }
+
+    .contact-card.secondary {
+        background: #f8fafc;
+        border-left-color: var(--accent-teal);
+    }
+
+    .contact-card h4 {
+        color: var(--primary-blue);
+        margin: 0 0 0.75rem 0;
+    }
+
+    .contact-card p {
+        margin-bottom: 0.5rem;
+    }
+
+    .contact-card p:last-child {
+        margin-bottom: 0;
+    }
+
+    /* Support Grid */
+    .support-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin: 1rem 0;
+    }
+
+    .support-person {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 1rem;
+    }
+
+    .support-person h4 {
+        color: var(--primary-blue);
+        margin: 0 0 0.25rem 0;
+        font-size: 1rem;
+    }
+
+    .support-person p {
+        font-size: 0.9rem;
+        margin-bottom: 0.25rem;
+    }
+
+    /* States Grid (for FSM) */
+    .states-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+        margin: 1.5rem 0;
+    }
+
+    .state-card {
+        background: white;
+        border: 2px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 1.25rem;
+        transition: border-color 0.3s, box-shadow 0.3s;
+    }
+
+    .state-card:hover {
+        border-color: var(--pacific-blue);
+        box-shadow: 0 4px 12px rgba(0, 119, 182, 0.1);
+    }
+
+    .state-card h4 {
+        color: var(--primary-blue);
+        margin: 0 0 1rem 0;
+        font-size: 1.1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #e2e8f0;
+    }
+
+    .state-card .contact-info p {
+        font-size: 0.9rem;
+        margin-bottom: 0.35rem;
+    }
+
+    .state-card .contact-info p strong {
+        color: var(--text-dark);
+    }
+
+    /* Island Map Section */
+    .island-map-section {
+        text-align: center;
+        margin: 1.5rem 0;
+    }
+
+    .island-map {
+        max-width: 100%;
+        height: auto;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Partner Logo in Modal */
+    .partner-logo-section {
+        text-align: center;
+        margin: 1.5rem 0;
+    }
+
+    .partner-logo-img {
+        max-width: 180px;
+        height: auto;
+    }
+
+    /* Photo Gallery */
+    .photo-gallery {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin: 1rem 0;
+    }
+
+    .gallery-photo {
+        width: 100%;
+        height: 180px;
+        object-fit: cover;
+        border-radius: 12px;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s, box-shadow 0.3s;
+        cursor: pointer;
+    }
+
+    .gallery-photo:hover {
+        transform: scale(1.03);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+    @media (max-width: 768px) {
+        .hero-section h1 { font-size: 2em; }
+        .hero-section p { font-size: 1.1em; }
+        .support-section { padding: 40px 20px; }
+        .islands-grid { grid-template-columns: 1fr; }
+        .island-card-image { height: 140px; }
+        .island-flag { font-size: 4rem; }
+        .social-links { flex-direction: column; }
+        .states-grid { grid-template-columns: 1fr; }
+        .support-grid { grid-template-columns: 1fr; }
+    }
+    </style>
+</head>
+<body>
+    <!-- Header Container -->
+    <div id="header-container"></div>
+
+    <!-- Hero Section -->
+    <section class="hero-section">
+        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Pacific-Island-Partners-Logo.png" alt="Pacific Island Partners" class="partner-logo">
+        <h1 id="pacific-heroTitle">🏝️ Pacific Islands Partnership</h1>
+        <p id="pacific-heroSubtitle">LDAH provides support and resources to families across the Pacific Islands, partnering with local organizations to empower children with disabilities and their families.</p>
+        <button class="facebook-btn" onclick="openIframeModal('PI Partners Facebook Group', 'https://www.facebook.com/groups/333501733848880')">📱 Join PI Partners on Facebook</button>
+    </section>
+
+    <div class="content-wrapper">
+        <!-- Section Header -->
+        <div class="section-header">
+            <h2 id="pacific-partnersTitle">🌺 Our Island Partners</h2>
+            <p id="pacific-partnersSubtitle">Click on each island to learn more about our partnerships and the resources available for families in these communities.</p>
+        </div>
+
+        <!-- Islands Grid -->
+        <div class="islands-grid">
+            <!-- American Samoa -->
+            <div class="island-card island-samoa" onclick="openIslandModal('samoa')">
+                <div class="island-card-image">
+                    <span class="island-flag">🇦🇸</span>
+                </div>
+                <div class="island-card-content">
+                    <h3 id="pacific-samoaTitle">American Samoa</h3>
+                    <div id="pacific-samoaPartner" class="partner-name">Parents of Children with Special Needs Network</div>
+                    <p id="pacific-samoaDesc">Supporting families in American Samoa with resources for children with disabilities.</p>
+                    <button class="learn-more-btn">Learn More →</button>
+                </div>
+            </div>
+
+            <!-- Commonwealth of the Northern Mariana Islands -->
+            <div class="island-card island-cnmi" onclick="openIslandModal('cnmi')">
+                <div class="island-card-image">
+                    <span class="island-flag">🇲🇵</span>
+                </div>
+                <div class="island-card-content">
+                    <h3 id="pacific-cnmiTitle">Northern Mariana Islands</h3>
+                    <div id="pacific-cnmiPartner" class="partner-name">Department of Youth Services</div>
+                    <p id="pacific-cnmiDesc">Partnering with CNMI to provide family support and educational resources.</p>
+                    <button class="learn-more-btn">Learn More →</button>
+                </div>
+            </div>
+
+            <!-- Federated States of Micronesia -->
+            <div class="island-card island-fsm" onclick="openIslandModal('fsm')">
+                <div class="island-card-image">
+                    <span class="island-flag">🇫🇲</span>
+                </div>
+                <div class="island-card-content">
+                    <h3 id="pacific-fsmTitle">Federated States of Micronesia</h3>
+                    <div id="pacific-fsmPartner" class="partner-name">Chuuk, Kosrae, Pohnpei & Yap</div>
+                    <p id="pacific-fsmDesc">Working across four states to support families and children with disabilities.</p>
+                    <button class="learn-more-btn">Learn More →</button>
+                </div>
+            </div>
+
+            <!-- Guam -->
+            <div class="island-card island-guam" onclick="openIslandModal('guam')">
+                <div class="island-card-image">
+                    <span class="island-flag">🇬🇺</span>
+                </div>
+                <div class="island-card-content">
+                    <h3 id="pacific-guamTitle">Guam</h3>
+                    <div id="pacific-guamPartner" class="partner-name">Autism Community Together</div>
+                    <p id="pacific-guamDesc">Supporting the autism community and families of children with disabilities in Guam.</p>
+                    <button class="learn-more-btn">Learn More →</button>
+                </div>
+            </div>
+
+            <!-- Republic of the Marshall Islands -->
+            <div class="island-card island-marshall" onclick="openIslandModal('marshall')">
+                <div class="island-card-image">
+                    <span class="island-flag">🇲🇭</span>
+                </div>
+                <div class="island-card-content">
+                    <h3 id="pacific-marshallTitle">Republic of the Marshall Islands</h3>
+                    <div id="pacific-marshallPartner" class="partner-name">Marshall Island Special Parent Association</div>
+                    <p id="pacific-marshallDesc">Partnering with local organizations and the Public School System for family support.</p>
+                    <button class="learn-more-btn">Learn More →</button>
+                </div>
+            </div>
+
+            <!-- Republic of Palau -->
+            <div class="island-card island-palau" onclick="openIslandModal('palau')">
+                <div class="island-card-image">
+                    <span class="island-flag">🇵🇼</span>
+                </div>
+                <div class="island-card-content">
+                    <h3 id="pacific-palauTitle">Republic of Palau</h3>
+                    <div id="pacific-palauPartner" class="partner-name">Palau Parents Empowered</div>
+                    <p id="pacific-palauDesc">Empowering parents and families in Palau to advocate for their children.</p>
+                    <button class="learn-more-btn">Learn More →</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- CTA Section -->
+        <section class="support-section">
+            <h2 id="pacific-ctaTitle">Looking for Pacific Islands Support?</h2>
+            <p id="pacific-ctaSubtitle">Whether you're a family in the Pacific Islands or an organization looking to partner with LDAH, we're here to help connect you with resources and support.</p>
+            <a href="contact.html" class="contact-btn">Contact Us Today</a>
+        </section>
+    </div>
+
+    <!-- Footer Container -->
+    <div id="footer-container"></div>
+
+    <!-- External Link Modal -->
+    <div id="iframeModal" class="iframe-modal" onclick="closeIframeModal(event)">
+        <div class="iframe-content" onclick="event.stopPropagation()">
+            <div class="iframe-header">
+                <img src="assets/logo_transparent.png" alt="LDAH" onclick="closeIframeModal()" style="width: 80px; height: 80px; cursor: pointer;" title="Close">
+                <h3 id="iframeTitle">Loading...</h3>
+                <button class="close-iframe" onclick="closeIframeModal()">&times;</button>
+            </div>
+            <iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>
+        </div>
+    </div>
+
+    <!-- Island Detail Modal -->
+    <div id="islandModal" class="island-modal" onclick="closeIslandModal(event)">
+        <div class="island-modal-content" onclick="event.stopPropagation()">
+            <div class="island-modal-header" id="islandModalHeader">
+                <h2><span class="flag-icon" id="islandFlag"></span><span id="islandName"></span></h2>
+                <button class="close-island-modal" onclick="closeIslandModal()">&times;</button>
+            </div>
+            <div class="island-modal-body" id="islandModalBody">
+                <!-- Content loaded dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase SDK - for page content
+        const firebaseConfig = { apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk", authDomain: "ldah-932d5.firebaseapp.com", projectId: "ldah-932d5" };
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        
+        // Load page content from Firebase
+        async function loadPageContent() {
+            try {
+                const doc = await db.collection('pageContent').doc('pacific').get();
+                if (doc.exists) {
+                    const data = doc.data();
+                    Object.keys(data).forEach(key => {
+                        const el = document.getElementById(`pacific-${key}`);
+                        if (el && data[key]) el.innerHTML = data[key];
+                    });
+                }
+            } catch (err) { console.error('Error loading page content:', err); }
+        }
+        loadPageContent();
+
+        // Modal functions - must be defined before footer loads
+        function openIframeModal(title, url) {
+            // Special handling for Facebook (blocks iframes)
+            if (url.includes('facebook.com')) {
+                const modal = document.getElementById('iframeModal');
+                const titleEl = document.getElementById('iframeTitle');
+                const frame = document.getElementById('iframeFrame');
+                
+                titleEl.textContent = title;
+                frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">🌺 Join ' + title + '</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">📱 Open Facebook Page →</a></div>';
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            } else {
+                const modal = document.getElementById('iframeModal');
+                const titleEl = document.getElementById('iframeTitle');
+                const frame = document.getElementById('iframeFrame');
+
+                titleEl.textContent = title;
+                frame.src = url;
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function closeIframeModal(event) {
+            if (event && event.target !== event.currentTarget && !event.target.classList.contains('close-iframe')) {
+                return;
+            }
+            const modal = document.getElementById('iframeModal');
+            const frameEl = document.getElementById('iframeFrame');
+            
+            modal.classList.remove('active');
+            
+            // Reset iframe (handles both iframe and div replacement)
+            if (frameEl.tagName === 'IFRAME') {
+                frameEl.src = '';
+            } else {
+                frameEl.outerHTML = '<iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>';
+            }
+            
+            document.body.style.overflow = 'auto';
+        }
+
+        // Island Modal functions
+        function openIslandModal(islandKey) {
+            const island = islandData[islandKey];
+            if (!island) return;
+            
+            const modal = document.getElementById('islandModal');
+            const header = document.getElementById('islandModalHeader');
+            const flag = document.getElementById('islandFlag');
+            const name = document.getElementById('islandName');
+            const body = document.getElementById('islandModalBody');
+            
+            header.style.background = island.color;
+            flag.textContent = island.flag;
+            name.textContent = island.name;
+            body.innerHTML = `<p class="partner-badge">Partner: ${island.partner}</p>${island.content}`;
+            
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeIslandModal(event) {
+            if (event && event.target !== event.currentTarget && !event.target.classList.contains('close-island-modal')) {
+                return;
+            }
+            const modal = document.getElementById('islandModal');
+            modal.classList.remove('active');
+            document.body.style.overflow = 'auto';
+        }
+
+        // Island data - Full standalone content with maps and photos
+        const islandData = {
+            samoa: {
+                name: 'American Samoa',
+                flag: '🇦🇸',
+                color: 'linear-gradient(135deg, #003366 0%, #004080 100%)',
+                partner: 'Parents of Children with Special Needs Network',
+                content: `
+                    <div class="social-links">
+                        <button onclick="event.stopPropagation(); openIframeModal('PCSN Facebook Page', 'https://www.facebook.com/PagoPagonetwork/')" class="social-btn facebook">📘 Facebook Page</button>
+                    </div>
+                    
+                    <div class="island-map-section">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-6-1024x512.png" alt="American Samoa Map" class="island-map">
+                    </div>
+                    
+                    <h3>About Our Partner</h3>
+                    <p><strong>Parents of Children with Special Needs Network (PCSN)</strong> is a Parent-to-Parent Support Group for children, youth, and young adults with disabilities. Co-sponsored by the Parent Training and Information Center and Leadership in Disabilities of Achievement of Hawaii, we support one another in areas of health care, education, inclusion, community activities, guidance, and emotional encouragement.</p>
+                    
+                    <div class="contact-card">
+                        <h4>📞 Sandra (Sandy) Scanlan</h4>
+                        <p><strong>Email:</strong> <a href="mailto:sandysamoa2@gmail.com">sandysamoa2@gmail.com</a></p>
+                        <p><strong>Cell:</strong> <a href="tel:+16847313959">(684) 731-3959</a></p>
+                        <p><strong>Address:</strong> P.O. Box 523, Pago Pago, American Samoa 96799</p>
+                    </div>
+                    
+                    <h3>Support Personnel</h3>
+                    <div class="support-grid">
+                        <div class="support-person">
+                            <h4>Dr. Herbert Boat</h4>
+                            <p>Assistant SPED Director</p>
+                            <p><a href="mailto:herbert.boat@doe.as">herbert.boat@doe.as</a></p>
+                        </div>
+                        <div class="support-person">
+                            <h4>Segia Ioane</h4>
+                            <p>Early Childhood Specialist</p>
+                            <p><a href="mailto:ioane_tuia@yahoo.com">ioane_tuia@yahoo.com</a></p>
+                        </div>
+                    </div>
+                    
+                    <h3>📸 Photo Gallery</h3>
+                    <div class="photo-gallery">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-30.jpg" alt="American Samoa Event" class="gallery-photo">
+                    </div>
+                `
+            },
+            cnmi: {
+                name: 'Commonwealth of the Northern Mariana Islands',
+                flag: '🇲🇵',
+                color: 'linear-gradient(135deg, #0066cc 0%, #0088ff 100%)',
+                partner: 'Department of Community and Cultural Affairs: Division of Youth Services',
+                content: `
+                    <div class="social-links">
+                        <button onclick="event.stopPropagation(); openIframeModal('Division of Youth Services', 'http://www.dys.gov.mp/')" class="social-btn website">🌐 Visit Website</button>
+                    </div>
+                    
+                    <div class="island-map-section">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-5-1024x512.png" alt="Northern Mariana Islands Map" class="island-map">
+                    </div>
+                    
+                    <h3>About Our Partner</h3>
+                    <p>LDAH partners with the <strong>Department of Community and Cultural Affairs: Division of Youth Services</strong> in the Commonwealth of the Northern Mariana Islands to provide family support and educational resources for children with disabilities.</p>
+                    
+                    <div class="contact-card">
+                        <h4>📞 Vivian T. Sablan</h4>
+                        <p><strong>Phone:</strong> <a href="tel:+16702771000">(670) 277-1000</a></p>
+                        <p><strong>Email:</strong> <a href="mailto:vtsablan@dys.gov.mp">vtsablan@dys.gov.mp</a></p>
+                        <p><strong>Address:</strong> P.O. Box 501000, Saipan, MP 96950</p>
+                    </div>
+                    
+                    <h3>Support Staff</h3>
+                    <div class="support-grid">
+                        <div class="support-person">
+                            <h4>Jennifer O. Tanaka</h4>
+                            <p><a href="mailto:jtanaka@dys.gov.mp">jtanaka@dys.gov.mp</a></p>
+                            <p><a href="tel:+16702371017">(670) 237-1017</a></p>
+                        </div>
+                        <div class="support-person">
+                            <h4>Maria L. Olopai</h4>
+                            <p><a href="mailto:mlolopai@dys.gov.mp">mlolopai@dys.gov.mp</a></p>
+                            <p><a href="tel:+16702371015">(670) 237-1015</a></p>
+                        </div>
+                    </div>
+                    
+                    <h3>📸 Photo Gallery</h3>
+                    <div class="photo-gallery">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-4-1024x683.jpeg" alt="CNMI Event" class="gallery-photo">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-1.gif" alt="CNMI Logo" class="gallery-photo">
+                    </div>
+                `
+            },
+            fsm: {
+                name: 'Federated States of Micronesia',
+                flag: '🇫🇲',
+                color: 'linear-gradient(135deg, #66b3ff 0%, #0066cc 100%)',
+                partner: 'Partner States: Chuuk, Kosrae, Yap & Pohnpei',
+                content: `
+                    <div class="island-map-section">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-4.png" alt="FSM Flag" class="island-map" style="max-width: 200px;">
+                    </div>
+                    
+                    <h3>About Our Partnership</h3>
+                    <p>LDAH works across all <strong>four states of FSM – Chuuk, Kosrae, Pohnpei, and Yap</strong> – to support families and children with disabilities through training, resources, and advocacy support.</p>
+                    
+                    <div class="island-map-section">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Micronesia_on_the_globe_%28small_islands_magnified%29_%28Polynesia_centered%29.svg/800px-Micronesia_on_the_globe_%28small_islands_magnified%29_%28Polynesia_centered%29.svg.png" alt="FSM Map" class="island-map">
+                    </div>
+                    
+                    <div class="states-grid">
+                        <div class="state-card">
+                            <h4>🏝️ Yap</h4>
+                            <div class="contact-info">
+                                <p><strong>Jacquelyn Lefagoyal</strong></p>
+                                <p><a href="mailto:jlefagoyal@gmail.com">jlefagoyal@gmail.com</a></p>
+                                <p>P.O. Box 692, Colonia, Yap 96943</p>
+                            </div>
+                        </div>
+                        
+                        <div class="state-card">
+                            <h4>🏝️ Chuuk</h4>
+                            <div class="contact-info">
+                                <p><strong>Ansina Kony</strong></p>
+                                <p>SPED Coordinator, Chuuk DOE</p>
+                                <p><a href="mailto:akony@dss.edu.fm">akony@dss.edu.fm</a></p>
+                                <p><a href="tel:+6913308910">(691) 330-8910</a></p>
+                            </div>
+                        </div>
+                        
+                        <div class="state-card">
+                            <h4>🏝️ Pohnpei</h4>
+                            <div class="contact-info">
+                                <p><strong>Arthur Albert</strong>, FSM SPED Director</p>
+                                <p><a href="mailto:aalber@dss.edu.fm">aalber@dss.edu.fm</a></p>
+                                <p><strong>Roddy Robert</strong></p>
+                                <p><a href="mailto:robertroddy1@gmail.com">robertroddy1@gmail.com</a></p>
+                                <p><strong>Salvador Jacob</strong></p>
+                                <p><a href="mailto:salvador.jacob@dofa.gov.fm">salvador.jacob@dofa.gov.fm</a></p>
+                                <p><strong>John Bugulrow</strong></p>
+                                <p><a href="mailto:bugulrow@yahoo.com">bugulrow@yahoo.com</a></p>
+                            </div>
+                        </div>
+                        
+                        <div class="state-card">
+                            <h4>🏝️ Kosrae</h4>
+                            <div class="contact-info">
+                                <p><strong>Aliksa Sigrah</strong></p>
+                                <p><a href="mailto:atsigrah@gmail.com">atsigrah@gmail.com</a></p>
+                                <p><a href="tel:+6913703063">(691) 370-3063</a></p>
+                                <p>P.O. Box 215, Tofol, Kosrae 96944</p>
+                                <p style="margin-top: 10px;"><strong>Barnabis Palsis</strong></p>
+                                <p><a href="mailto:palsisbarnabis@yahoo.com">palsisbarnabis@yahoo.com</a></p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h3>📸 Photo Gallery</h3>
+                    <div class="photo-gallery">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2025/11/Island-Lagoon-Chuuk-2_1600-1024x768.jpg" alt="Chuuk Lagoon" class="gallery-photo">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2025/11/Children-Chuuk_1600-1024x768.jpg" alt="Children in Chuuk" class="gallery-photo">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2025/11/Lelu-Elementary-Kindergarten-2_1600-1024x768.jpg" alt="Lelu Elementary" class="gallery-photo">
+                    </div>
+                `
+            },
+            guam: {
+                name: 'Guam',
+                flag: '🇬🇺',
+                color: 'linear-gradient(135deg, #cc0000 0%, #ff3333 100%)',
+                partner: 'Autism Community Together',
+                content: `
+                    <div class="social-links">
+                        <button onclick="event.stopPropagation(); openIframeModal('Autism Community Together Facebook', 'https://www.facebook.com/autismguam/')" class="social-btn facebook">📘 Facebook Page</button>
+                    </div>
+                    
+                    <div class="island-map-section">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-3.png" alt="Guam Map" class="island-map">
+                    </div>
+                    
+                    <h3>About Our Partner</h3>
+                    <p><strong>Autism Community Together (ACT)</strong> is a non-profit support group for individuals with autism, their families, and supporters on the island of Guam. ACT frequently hosts events where autistic individuals and their families can have fun together in their community.</p>
+                    
+                    <div class="partner-logo-section">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-1.png" alt="ACT Guam Logo" class="partner-logo-img">
+                    </div>
+                    
+                    <div class="contact-card">
+                        <h4>📞 Evelyn Claros</h4>
+                        <p><strong>Phone:</strong> <a href="tel:+16714881484">(671) 488-1484</a></p>
+                        <p><strong>Email:</strong> <a href="mailto:evelyn.claros1@gmail.com">evelyn.claros1@gmail.com</a></p>
+                        <p><strong>Address:</strong> DNA Building 238 Archbishop Flores St. Suite 304, Hagatna, Guam 96910</p>
+                    </div>
+                    
+                    <div class="contact-card secondary">
+                        <h4>Jo Blas</h4>
+                        <p><strong>Email:</strong> <a href="mailto:joblas67@gmail.com">joblas67@gmail.com</a></p>
+                    </div>
+                    
+                    <h3>Support Personnel</h3>
+                    <div class="support-grid">
+                        <div class="support-person">
+                            <h4>Laura Taisipic</h4>
+                            <p>Parent Services, Guam DOE</p>
+                            <p><a href="mailto:lktaisipic@gdoe.net">lktaisipic@gdoe.net</a></p>
+                        </div>
+                        <div class="support-person">
+                            <h4>June De Leon</h4>
+                            <p>Interim Director, University of Guam CEDDERS</p>
+                            <p><a href="tel:+16717352494">(671) 735-2494/5</a></p>
+                        </div>
+                    </div>
+                    
+                    <h3>📸 Photo Gallery</h3>
+                    <div class="photo-gallery">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-34-1024x461.jpg" alt="Guam Event" class="gallery-photo">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-1.webp" alt="ACT Guam" class="gallery-photo">
+                    </div>
+                `
+            },
+            marshall: {
+                name: 'Republic of the Marshall Islands',
+                flag: '🇲🇭',
+                color: 'linear-gradient(135deg, #003399 0%, #0066cc 100%)',
+                partner: 'Marshall Island Special Parent Association (MISPA) & Public School System',
+                content: `
+                    <div class="social-links">
+                        <button onclick="event.stopPropagation(); openIframeModal('RMI Public School System', 'https://pss.edu.mh/')" class="social-btn website">🌐 PSS Website</button>
+                    </div>
+                    
+                    <div class="island-map-section">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-2-1024x539.png" alt="Marshall Islands Map" class="island-map">
+                    </div>
+                    
+                    <h3>Marshall Island Special Parent Association (MISPA)</h3>
+                    
+                    <div class="contact-card">
+                        <h4>📞 Kilobar Lakmis</h4>
+                        <p>MISPA Secretary</p>
+                        <p><strong>Phone:</strong> <a href="tel:+6924574334">(692) 457-4334</a></p>
+                        <p><strong>Email:</strong> <a href="mailto:lakmiskilobar@gmail.com">lakmiskilobar@gmail.com</a></p>
+                        <p><strong>Address:</strong> P.O Box 1434, Majuro, MH 96960</p>
+                    </div>
+                    
+                    <h4>MISPA Support Personnel</h4>
+                    <div class="support-grid">
+                        <div class="support-person">
+                            <h4>Tony Komta</h4>
+                            <p>MISPA President</p>
+                            <p><a href="tel:+6924551617">(692) 455-1617</a></p>
+                        </div>
+                        <div class="support-person">
+                            <h4>Namar Nashon</h4>
+                            <p>MISPA Vice President</p>
+                            <p><a href="mailto:namarnashon@hotmail.com">namarnashon@hotmail.com</a></p>
+                        </div>
+                        <div class="support-person">
+                            <h4>Suewellynn Johannes</h4>
+                            <p>MISPA Treasurer</p>
+                            <p><a href="mailto:suejo0502@gmail.com">suejo0502@gmail.com</a></p>
+                        </div>
+                    </div>
+                    
+                    <h3>Public School System (PSS)</h3>
+                    
+                    <div class="partner-logo-section">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/OfficialPSSLogo.png" alt="PSS Logo" class="partner-logo-img" style="max-width: 150px;">
+                    </div>
+                    
+                    <div class="contact-card">
+                        <h4>📞 Frank Horiuchi</h4>
+                        <p>SPED Director, PSS</p>
+                        <p><strong>Phone:</strong> <a href="tel:+6926256023">(692) 625-6023</a></p>
+                        <p><strong>Email:</strong> <a href="mailto:fhoriuchi@pss.edu.mh">fhoriuchi@pss.edu.mh</a></p>
+                    </div>
+                    
+                    <h4>PSS Support Personnel</h4>
+                    <div class="support-grid">
+                        <div class="support-person">
+                            <h4>Janet Nemra</h4>
+                            <p>RMI Disability Coordinator</p>
+                            <p><a href="mailto:rmidisability@gmail.com">rmidisability@gmail.com</a></p>
+                        </div>
+                        <div class="support-person">
+                            <h4>Jayann Taala</h4>
+                            <p><a href="mailto:taalaj@pss.edu.mh">taalaj@pss.edu.mh</a></p>
+                        </div>
+                        <div class="support-person">
+                            <h4>Asmon Langidrik</h4>
+                            <p>Special Education Specialist</p>
+                            <p><a href="mailto:osmondlang@yahoo.com">osmondlang@yahoo.com</a></p>
+                        </div>
+                    </div>
+                    
+                    <div class="island-map-section" style="margin-top: 1.5rem;">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/political-map-of-marshall-islands-1024x911-1.png" alt="Marshall Islands Political Map" class="island-map">
+                    </div>
+                `
+            },
+            palau: {
+                name: 'Republic of Palau',
+                flag: '🇵🇼',
+                color: 'linear-gradient(135deg, #00bfff 0%, #0099cc 100%)',
+                partner: 'Palau Parents Empowered',
+                content: `
+                    <div class="social-links">
+                        <button onclick="event.stopPropagation(); openIframeModal('Palau Parents Empowered', 'https://sites.google.com/site/palauparents/')" class="social-btn website">🌐 Visit Website</button>
+                    </div>
+                    
+                    <div class="island-map-section">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-1.png" alt="Palau Map" class="island-map">
+                    </div>
+                    
+                    <h3>About Our Partner</h3>
+                    <p><strong>Palau Parents Empowered (PPE)</strong> is a non-profit organization in the Republic of Palau serving parents and families of children and youth with disabilities ages 0 to 26.</p>
+                    <p>The success of Palau Parents Empowered lies within each parent and families of all disabled children and youth in Palau. As a Community Parent Resource Center, our services are designed to enable parents and other family members of children with disabilities to better meet and understand the needs of individuals with disabilities.</p>
+                    <p>The ultimate goal is to prepare children with disabilities to lead productive, independent lives, to the fullest extent possible.</p>
+                    
+                    <div class="partner-logo-section">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-1.png" alt="PPE Logo" class="partner-logo-img">
+                    </div>
+                    
+                    <div class="contact-card">
+                        <h4>📞 Francesca (Cesca) Morei-Misech</h4>
+                        <p><strong>Email:</strong> <a href="mailto:moreimisech@gmail.com">moreimisech@gmail.com</a></p>
+                        <p><strong>Work:</strong> <a href="tel:+6804881432">(680) 488-1432</a></p>
+                        <p><strong>Mobile:</strong> <a href="tel:+18087751432">(808) 775-1432</a></p>
+                        <p><strong>Address:</strong> P.O. Box 96, Koror, Palau 96940</p>
+                    </div>
+                    
+                    <h3>Support Personnel</h3>
+                    <div class="support-grid">
+                        <div class="support-person">
+                            <h4>Nora Renguul</h4>
+                            <p>SPED Acting Director</p>
+                            <p><a href="mailto:norarenguul@palaumoe.net">norarenguul@palaumoe.net</a></p>
+                        </div>
+                    </div>
+                    
+                    <h3>📸 Photo Gallery</h3>
+                    <div class="photo-gallery">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-32.jpg" alt="Palau Event" class="gallery-photo">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-35.jpg" alt="Palau Community" class="gallery-photo">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-34.jpg" alt="Palau Families" class="gallery-photo">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-31.jpg" alt="Palau Activities" class="gallery-photo">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-28.jpg" alt="Palau Support" class="gallery-photo">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-25.jpg" alt="PPE Event" class="gallery-photo">
+                    </div>
+                `
+            }
+        };
+
+        // Header and Footer Loader - Fetches from external files
+        async function loadHeaderFooter() {
+            const headerContainer = document.getElementById('header-container');
+            const footerContainer = document.getElementById('footer-container');
+            
+            try {
+                // Try to fetch from external files first
+                const [headerResponse, footerResponse] = await Promise.all([
+                    fetch('header.html'),
+                    fetch('footer.html')
+                ]);
+                
+                if (headerResponse.ok && footerResponse.ok) {
+                    headerContainer.innerHTML = await headerResponse.text();
+                    footerContainer.innerHTML = await footerResponse.text();
+                    console.log('✅ Header and footer loaded from external files');
+                } else {
+                    throw new Error('Failed to fetch');
+                }
+                
+                // Load accessibility widget script
+                if (!document.getElementById('a11y-script')) {
+                    const script = document.createElement('script');
+                    script.id = 'a11y-script';
+                    script.src = 'accessibility.js';
+                    document.body.appendChild(script);
+                }
+            } catch (error) {
+                console.log('⚠️ Using inline fallback for header/footer');
+                // Fallback for file:// protocol or fetch failure
+                headerContainer.innerHTML = `<nav>
+    <div class="nav-content">
+        <a href="index.html" class="logo-container">
+            <img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH Logo" class="logo-img">
+            <span class="logo-text">LDAH</span>
+        </a>
+        <div class="hamburger" onclick="toggleMenu()">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+        <ul class="nav-links" id="navLinks">
+            <li><a href="index.html#services">What We Do</a></li>
+            <li><a href="events.html">Events</a></li>
+            <li><a href="volunteer.html">Volunteer</a></li>
+            <li><a href="resources.html">Resources</a></li>
+            <li><a href="contact.html">Contact</a></li>
+        </ul>
+    </div>
+</nav>`;
+                footerContainer.innerHTML = `<footer>
+    <div class="footer-content">
+        <div class="footer-section">
+            <h3>About LDAH</h3>
+            <p>Hawai'i & Pacific Island Parent Training & Information Center empowering families and children with disabilities.</p>
+        </div>
+        <div class="footer-section">
+            <h3>Quick Links</h3>
+            <a href="index.html#services">What We Do</a>
+            <a href="events.html">Events</a>
+            <a href="volunteer.html">Volunteer</a>
+            <a href="resources.html">Resources</a>
+            <a href="contact.html">Contact Us</a>
+        </div>
+        <div class="footer-section">
+            <h3>Honolulu Office</h3>
+            <p>
+                245 North Kukui Street, Suite 205<br>
+                Honolulu, HI 96817<br>
+                (808) 532-5364<br>
+                <a href="mailto:info@ldah.org">info@ldah.org</a>
+            </p>
+        </div>
+        <div class="footer-section">
+            <h3>Connect With Us</h3>
+            <a href="javascript:void(0)" onclick="openIframeModal('Parent Talk Cafe - Facebook Group', 'https://www.facebook.com/groups/2659334410969387')">Parent Talk Cafe</a>
+            <a href="install.html">Install Our App</a>
+        </div>
+    </div>
+    <div class="footer-bottom">
+        <p>&copy; 2025 Leadership in Disabilities and Achievement of Hawai'i. All rights reserved.</p>
+        <p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal('DP Consulting', 'https://oahuappdesign.com')" style="color: var(--accent-teal); text-decoration: none; cursor: pointer;">DP Consulting</a></p>
+    </div>
+</footer>`;
+            }
+            
+            // Set active nav link after loading
+            setActiveNavLink();
+        }
+        
+        function setActiveNavLink() {
+            const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+            const navLinks = document.querySelectorAll('.nav-links a');
+            
+            navLinks.forEach(link => {
+                const href = link.getAttribute('href');
+                if (href === currentPage || 
+                    (currentPage === 'index.html' && href.includes('index.html')) ||
+                    (currentPage === '' && href.includes('index.html'))) {
+                    link.style.borderBottom = '3px solid #004E7C';
+                    link.style.color = '#004E7C';
+                    link.style.paddingBottom = '4px';
+                }
+            });
+        }
+        
+        function toggleMenu() {
+            const navLinks = document.getElementById('navLinks');
+            if (navLinks) {
+                navLinks.classList.toggle('active');
+            }
+        }
+        
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadHeaderFooter);
+        } else {
+            loadHeaderFooter();
+        }
+    </script>
+    <script src="modal.js"></script>
+    <script>
+        // Override modal.js Facebook handling for this page
+        window.openIframeModal = function(title, url) {
+            if (url.includes('facebook.com')) {
+                const modal = document.getElementById('iframeModal');
+                const titleEl = document.getElementById('iframeTitle');
+                const frame = document.getElementById('iframeFrame');
+                
+                titleEl.textContent = title;
+                frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">🌺 Join ' + title + '</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">📱 Open Facebook Page →</a></div>';
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            } else {
+                const modal = document.getElementById('iframeModal');
+                const titleEl = document.getElementById('iframeTitle');
+                const frame = document.getElementById('iframeFrame');
+                titleEl.textContent = title;
+                frame.src = url;
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        };
+    </script>
+</body>
+</html>

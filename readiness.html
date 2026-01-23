@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>School Readiness Project - LDAH</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+    :root {
+        --primary-blue: #004E7C;
+        --light-blue: #0066a1;
+        --accent-teal: #4DD0E1;
+        --text-dark: #1a1a1a;
+        --text-light: #666;
+        --bg-light: #f8f9fa;
+    }
+
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        color: var(--text-dark);
+        line-height: 1.6;
+        overflow-x: hidden;
+    }
+
+    h1, h2, h3 {
+        font-family: 'Poppins', sans-serif;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+
+    /* Navigation */
+    nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 2px 8px rgba(0, 78, 124, 0.1);
+    }
+
+    .nav-content {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 1rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .logo-container {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        text-decoration: none;
+    }
+
+    .logo-img {
+        width: 80px;
+        height: 80px;
+        filter: brightness(1.1);
+    }
+
+    .logo-text {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: var(--primary-blue);
+    }
+
+    .nav-links {
+        display: flex;
+        gap: 2rem;
+        list-style: none;
+        align-items: center;
+    }
+
+    .nav-links a {
+        text-decoration: none;
+        color: var(--text-dark);
+        font-weight: 500;
+        transition: color 0.3s;
+    }
+
+    .nav-links a:hover {
+        color: var(--primary-blue);
+    }
+
+    .hamburger {
+        display: none;
+        flex-direction: column;
+        cursor: pointer;
+        padding: 0.5rem;
+    }
+
+    .hamburger span {
+        width: 25px;
+        height: 3px;
+        background: var(--primary-blue);
+        margin: 3px 0;
+        transition: 0.3s;
+    }
+
+    @media (max-width: 768px) {
+        .nav-links {
+            position: fixed;
+            top: 88px;
+            left: 0;
+            right: 0;
+            background: white;
+            flex-direction: column;
+            padding: 2rem;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            gap: 1rem;
+            transform: translateY(-100%);
+            opacity: 0;
+            transition: transform 0.3s, opacity 0.3s;
+            pointer-events: none;
+        }
+
+        .nav-links.active {
+            transform: translateY(0);
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .hamburger {
+            display: flex;
+        }
+
+        .logo-img {
+            width: 60px;
+            height: 60px;
+        }
+
+        .logo-text {
+            font-size: 1.2rem;
+        }
+    }
+
+    /* Hero Section */
+    .hero-section {
+        margin-top: 88px;
+        background: linear-gradient(135deg, #004E7C 0%, #0066a1 100%);
+        color: white;
+        padding: 80px 20px 60px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .hero-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        opacity: 1;
+        background-image:
+        linear-gradient(90deg, rgba(255, 255, 255, .08) 1px, transparent 1px), linear-gradient(rgba(255, 255, 255, .08) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .12) 1px, transparent 1px), linear-gradient(rgba(255, 255, 255, .12) 1px, transparent 1px);
+        background-size: 30px 30px, 30px 30px, 60px 60px, 60px 60px;
+        background-position: 0 0, 0 0, -15px -15px, -15px -15px;
+    }
+
+    .hero-section > * {
+        position: relative;
+        z-index: 1;
+    }
+
+    .hero-section h1 {
+        font-size: 2.8em;
+        margin-bottom: 20px;
+        font-weight: 700;
+    }
+
+    .hero-section p {
+        font-size: 1.3em;
+        max-width: 800px;
+        margin: 0 auto;
+        line-height: 1.6;
+        opacity: 0.95;
+    }
+
+    /* Content Wrapper */
+    .content-wrapper {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 60px 20px;
+    }
+
+    /* Top Cards Grid */
+    .top-cards-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 30px;
+        margin-bottom: 60px;
+    }
+
+    .card {
+        background: white;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    }
+
+    .card h2 {
+        color: var(--primary-blue);
+        font-size: 1.5em;
+        margin-bottom: 20px;
+        text-align: center;
+    }
+
+    .card p {
+        color: var(--text-light);
+        line-height: 1.8;
+    }
+
+    /* Screening Services */
+    .screening-item {
+        display: flex;
+        gap: 20px;
+        padding: 25px;
+        background: linear-gradient(135deg, rgba(0, 78, 124, 0.03), rgba(0, 102, 161, 0.03));
+        border-radius: 12px;
+        border-left: 4px solid var(--primary-blue);
+        margin-bottom: 20px;
+        align-items: flex-start;
+    }
+
+    .screening-icon {
+        font-size: 2.5rem;
+        flex-shrink: 0;
+    }
+
+    .screening-content h3 {
+        color: var(--primary-blue);
+        font-size: 1.3em;
+        margin-bottom: 10px;
+    }
+
+    .screening-content p {
+        color: var(--text-light);
+        line-height: 1.7;
+    }
+
+    /* Services Grid */
+    .services-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 30px;
+        margin-bottom: 60px;
+    }
+
+    .service-card {
+        background: white;
+        padding: 35px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        text-align: center;
+    }
+
+    .service-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    }
+
+    .service-card .icon {
+        font-size: 3rem;
+        margin-bottom: 20px;
+    }
+
+    .service-card h3 {
+        color: var(--primary-blue);
+        font-size: 1.4em;
+        margin-bottom: 15px;
+    }
+
+    .service-card p {
+        color: var(--text-light);
+        line-height: 1.7;
+    }
+
+    .provider-btn {
+        margin-top: 20px;
+        padding: 12px 24px;
+        background: linear-gradient(135deg, #004E7C, #0066a1);
+        color: white;
+        border: none;
+        border-radius: 50px;
+        font-weight: 600;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: transform 0.3s, box-shadow 0.3s;
+    }
+
+    .provider-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 78, 124, 0.3);
+    }
+
+    /* Provider Modal */
+    .provider-modal {
+        display: none;
+        position: fixed;
+        z-index: 3000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.8);
+        animation: fadeIn 0.3s;
+    }
+
+    .provider-modal.active {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .provider-modal-content {
+        background: white;
+        border-radius: 20px;
+        width: 95%;
+        max-width: 500px;
+        max-height: 90vh;
+        overflow-y: auto;
+        position: relative;
+        animation: slideUp 0.3s;
+    }
+
+    .provider-modal-header {
+        background: linear-gradient(135deg, #004E7C, #0066a1);
+        color: white;
+        padding: 1.5rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-radius: 20px 20px 0 0;
+    }
+
+    .provider-modal-header h3 {
+        margin: 0;
+        font-size: 1.4rem;
+    }
+
+    .close-provider-modal {
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        color: white;
+        font-size: 1.8rem;
+        cursor: pointer;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.3s;
+    }
+
+    .close-provider-modal:hover {
+        background: rgba(255, 255, 255, 0.3);
+    }
+
+    .provider-form {
+        padding: 2rem;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-group label {
+        display: block;
+        font-weight: 600;
+        color: var(--text-dark);
+        margin-bottom: 0.5rem;
+    }
+
+    .form-group label .required {
+        color: #e53e3e;
+    }
+
+    .form-group input,
+    .form-group textarea {
+        width: 100%;
+        padding: 12px 16px;
+        border: 2px solid #e2e8f0;
+        border-radius: 10px;
+        font-size: 1rem;
+        font-family: inherit;
+        transition: border-color 0.3s, box-shadow 0.3s;
+    }
+
+    .form-group input:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: var(--primary-blue);
+        box-shadow: 0 0 0 3px rgba(0, 78, 124, 0.1);
+    }
+
+    .form-group textarea {
+        min-height: 100px;
+        resize: vertical;
+    }
+
+    .name-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+    }
+
+    .submit-btn {
+        width: 100%;
+        padding: 14px 24px;
+        background: linear-gradient(135deg, #004E7C, #0066a1);
+        color: white;
+        border: none;
+        border-radius: 50px;
+        font-weight: 600;
+        font-size: 1.1rem;
+        cursor: pointer;
+        transition: transform 0.3s, box-shadow 0.3s;
+    }
+
+    .submit-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 78, 124, 0.3);
+    }
+
+    .submit-btn:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .thank-you-screen {
+        display: none;
+        text-align: center;
+        padding: 3rem 2rem;
+    }
+
+    .thank-you-screen.active {
+        display: block;
+    }
+
+    .thank-you-screen .icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+
+    .thank-you-screen h3 {
+        color: var(--primary-blue);
+        font-size: 1.8rem;
+        margin-bottom: 1rem;
+    }
+
+    .thank-you-screen p {
+        color: var(--text-light);
+        font-size: 1.1rem;
+        line-height: 1.7;
+    }
+
+    /* Partners Section */
+    .partners-section {
+        background: var(--bg-light);
+        padding: 40px;
+        border-radius: 12px;
+        text-align: center;
+        margin-bottom: 60px;
+    }
+
+    .partners-section h2 {
+        color: var(--primary-blue);
+        margin-bottom: 20px;
+    }
+
+    .partners-section p {
+        color: var(--text-light);
+        max-width: 800px;
+        margin: 0 auto;
+        line-height: 1.8;
+    }
+
+    /* Support Section */
+    .support-section {
+        background: linear-gradient(135deg, #004E7C 0%, #0066a1 100%);
+        color: white;
+        padding: 60px 40px;
+        border-radius: 12px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .support-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image:
+        radial-gradient(circle, transparent 0, transparent 22px, rgba(255, 255, 255, 0.15) 22px, rgba(255, 255, 255, 0.15) 24px, transparent 24px);
+        background-size: 48px 48px;
+        opacity: 1;
+    }
+
+    .support-section > * {
+        position: relative;
+        z-index: 1;
+    }
+
+    .support-section h2 {
+        font-size: 2em;
+        margin-bottom: 20px;
+    }
+
+    .support-section p {
+        font-size: 1.1em;
+        max-width: 700px;
+        margin: 0 auto 30px;
+        opacity: 0.95;
+        line-height: 1.8;
+    }
+
+    .contact-btn {
+        display: inline-block;
+        padding: 15px 40px;
+        background: white;
+        color: var(--primary-blue);
+        text-decoration: none;
+        border-radius: 50px;
+        font-weight: 600;
+        font-size: 1.1em;
+        transition: transform 0.3s, box-shadow 0.3s;
+    }
+
+    .contact-btn:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+
+    /* Footer */
+    footer {
+        background: #1a1a1a;
+        color: white;
+        padding: 4rem 2rem 2rem;
+    }
+
+    .footer-content {
+        max-width: 1400px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 3rem;
+    }
+
+    .footer-section h3 {
+        font-size: 1.2rem;
+        margin-bottom: 1.5rem;
+        color: var(--accent-teal);
+    }
+
+    .footer-section p,
+    .footer-section a {
+        color: rgba(255, 255, 255, 0.8);
+        line-height: 1.8;
+        text-decoration: none;
+        display: block;
+        margin-bottom: 0.5rem;
+        transition: color 0.3s;
+    }
+
+    .footer-section a:hover {
+        color: var(--accent-teal);
+    }
+
+    .footer-bottom {
+        max-width: 1400px;
+        margin: 3rem auto 0;
+        padding-top: 2rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        text-align: center;
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    /* Iframe Modal */
+    .iframe-modal {
+        display: none;
+        position: fixed;
+        z-index: 3000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.8);
+        animation: fadeIn 0.3s;
+    }
+
+    .iframe-modal.active {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .iframe-content {
+        background: white;
+        border-radius: 20px;
+        width: 95%;
+        max-width: 1200px;
+        height: 90vh;
+        max-height: 800px;
+        position: relative;
+        animation: slideUp 0.3s;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .iframe-header {
+        background: linear-gradient(135deg, #004E7C, #0066a1);
+        color: white;
+        padding: 1.5rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-shrink: 0;
+    }
+
+    .iframe-header h3 {
+        margin: 0;
+        font-size: 1.5rem;
+    }
+
+    .close-iframe {
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        color: white;
+        font-size: 2rem;
+        cursor: pointer;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.3s;
+    }
+
+    .close-iframe:hover {
+        background: rgba(255, 255, 255, 0.3);
+    }
+
+    .iframe-frame {
+        width: 100%;
+        flex: 1;
+        border: none;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    @keyframes slideUp {
+        from { transform: translateY(20px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .hero-section h1 {
+            font-size: 2em;
+        }
+
+        .hero-section p {
+            font-size: 1.1em;
+        }
+
+        .top-cards-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .screening-item {
+            flex-direction: column;
+            text-align: center;
+        }
+
+        .support-section {
+            padding: 40px 20px;
+        }
+    }
+    </style>
+</head>
+<body>
+    <!-- Header Container - Auto-loaded -->
+    <div id="header-container"></div>
+
+    <!-- Hero Section -->
+    <section class="hero-section">
+        <h1 id="readiness-heroTitle">🎓 School Readiness Project</h1>
+        <p id="readiness-heroSubtitle">Supporting children in gaining the skills to be successful in their education through developmental screenings, family support, and parent education.</p>
+    </section>
+
+    <div class="content-wrapper">
+        <!-- Top Cards Grid -->
+        <div class="top-cards-grid">
+            <div class="card">
+                <h2 id="readiness-aboutTitle">About the Program</h2>
+                <p id="readiness-aboutText">The School Readiness Project (SRP) provides services for families of preschool aged children throughout O'ahu, Moloka'i, and Hawai'i Island. We provide developmental, social-emotional, hearing, vision, and autism screenings. SRP works to strengthen families through case management and parent education. Let us be part of your family's medical home and support pediatricians to better meet the needs of your child.</p>
+            </div>
+
+            <div class="card">
+                <h2 id="readiness-partnersTitle">Our Partners</h2>
+                <p id="readiness-partnersText">SRP is a collaborative project with: Aloha United Way, The Community Learning Center at Ma'ili, Harry & Jeanette Weinberg Kukui Center, and Kamehameha Schools.</p>
+            </div>
+        </div>
+
+        <!-- Childhood Screenings Section -->
+        <h2 id="readiness-screeningsTitle" style="color: var(--primary-blue); text-align: center; font-size: 2em; margin-bottom: 30px;">👁️ Childhood Screenings</h2>
+        
+        <div class="screening-item">
+            <div class="screening-icon">👁️</div>
+            <div class="screening-content">
+                <h3 id="readiness-visionTitle">Vision Screening</h3>
+                <p id="readiness-visionText">We use the <strong>Plusoptix Digital Vision Screener</strong> to check your child's eyes. It is an accurate, non-invasive way to detect a variety of vision disorders in children. It takes moments for the device to screen your child's eyes and produce immediate results for your review.</p>
+            </div>
+        </div>
+
+        <div class="screening-item">
+            <div class="screening-icon">👂</div>
+            <div class="screening-content">
+                <h3 id="readiness-hearingTitle">Hearing Screening</h3>
+                <p id="readiness-hearingText">Two methods can be used to check your child's hearing. The first is called <strong>Otoacoustic Emissions</strong> — this method checks both the middle ear and inner ear and will quickly tell you if your child is hearing normally. The second is called <strong>Tympanometry</strong> — this method checks for reduced eardrum movement caused by fluid, wax, or other problems.</p>
+            </div>
+        </div>
+
+        <div class="screening-item">
+            <div class="screening-icon">📊</div>
+            <div class="screening-content">
+                <h3 id="readiness-devTitle">Developmental Screening</h3>
+                <p id="readiness-devText">Our qualified personnel use the Ages & Stages Questionnaire (ASQ-3) and ASQ-SE (Social-Emotional) screening tools. When developmental concerns are detected, children will be screened for autism using the Modified Checklist for Autism in Toddlers (M-CHAT).</p>
+            </div>
+        </div>
+
+        <!-- Services Grid -->
+        <h2 id="readiness-servicesTitle" style="color: var(--primary-blue); text-align: center; font-size: 2em; margin: 60px 0 30px;">Our Services</h2>
+        
+        <div class="services-grid">
+            <div class="service-card">
+                <div class="icon">📋</div>
+                <h3 id="readiness-caseTitle">Case Management</h3>
+                <p id="readiness-caseText">Case Management is provided for families of children identified with a specific need through the screening process. Our staff will support you by explaining results, offering next-step solutions, connecting you with community resources, and following up on referrals made to other systems of care.</p>
+            </div>
+
+            <div class="service-card">
+                <div class="icon">🎓</div>
+                <h3 id="readiness-workshopsTitle">Parent Workshops</h3>
+                <p id="readiness-workshopsText">Trainings are designed to increase understanding of health, developmental, and school readiness needs of preschool aged children. Participants will learn what development should look like, discuss milestones, and review possible signs of developmental delays along with solutions.</p>
+            </div>
+
+            <div class="service-card">
+                <div class="icon">🤝</div>
+                <h3 id="readiness-providerTitle">Provider Services</h3>
+                <p id="readiness-providerText">If you are a provider of services for children and would like to add our screening services to your program or event, we can help! We offer vision, hearing, and developmental screenings, staff and family trainings, outreach events, and resources.</p>
+                <button onclick="openProviderModal()" class="provider-btn">Request Services</button>
+            </div>
+        </div>
+
+        <!-- CTA Section -->
+        <section class="support-section">
+            <h2 id="readiness-ctaTitle">Schedule a Screening</h2>
+            <p id="readiness-ctaSubtitle">Contact LDAH to schedule a screening event in your community. Individual screenings are also available by appointment in both our Honolulu and Wai'anae offices.</p>
+            <a href="contact.html" class="contact-btn">Contact Us Today</a>
+        </section>
+    </div>
+
+    <!-- Footer Container - Auto-loaded -->
+    <div id="footer-container"></div>
+
+    <!-- External Link Modal -->
+    <div id="iframeModal" class="iframe-modal" onclick="closeIframeModal(event)">
+        <div class="iframe-content" onclick="event.stopPropagation()">
+            <div class="iframe-header">
+                <img src="assets/logo_transparent.png" alt="LDAH" onclick="closeIframeModal()" style="width: 80px; height: 80px; cursor: pointer;" title="Close">
+                <h3 id="iframeTitle">Loading...</h3>
+                <button class="close-iframe" onclick="closeIframeModal()">&times;</button>
+            </div>
+            <iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>
+        </div>
+    </div>
+
+    <!-- Provider Request Modal -->
+    <div id="providerModal" class="provider-modal" onclick="closeProviderModal(event)">
+        <div class="provider-modal-content" onclick="event.stopPropagation()">
+            <div class="provider-modal-header">
+                <h3>🤝 Provider Services Request</h3>
+                <button class="close-provider-modal" onclick="closeProviderModal()">&times;</button>
+            </div>
+            
+            <!-- Form -->
+            <form id="providerForm" class="provider-form">
+                <div class="form-group">
+                    <label>Organization Name <span class="required">*</span></label>
+                    <input type="text" id="organizationName" required placeholder="Enter your organization name">
+                </div>
+                
+                <label style="font-weight: 600; color: var(--text-dark); margin-bottom: 0.5rem; display: block;">Point of Contact <span class="required" style="color: #e53e3e;">*</span></label>
+                <div class="name-row" style="margin-bottom: 1.5rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <input type="text" id="firstName" required placeholder="First name">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <input type="text" id="lastName" required placeholder="Last name">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Email <span class="required">*</span></label>
+                    <input type="email" id="providerEmail" required placeholder="email@example.com">
+                </div>
+                
+                <div class="form-group">
+                    <label>Phone</label>
+                    <input type="tel" id="providerPhone" placeholder="(808) 000-0000">
+                </div>
+                
+                <div class="form-group">
+                    <label>Comment or Message</label>
+                    <textarea id="providerMessage" placeholder="Tell us about your program or event and what services you're interested in..."></textarea>
+                </div>
+                
+                <button type="submit" class="submit-btn" id="submitBtn">Submit Request</button>
+            </form>
+            
+            <!-- Thank You Screen -->
+            <div id="thankYouScreen" class="thank-you-screen">
+                <div class="icon">✅</div>
+                <h3>Mahalo!</h3>
+                <p>Your request has been submitted successfully. Our team will contact you soon to discuss how we can support your program.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Open iframe modal
+        function openIframeModal(title, url) {
+            if (url.includes('facebook.com')) {
+                const modal = document.getElementById('iframeModal');
+                const titleEl = document.getElementById('iframeTitle');
+                const frame = document.getElementById('iframeFrame');
+                
+                titleEl.textContent = title;
+                frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">🌺 Join Our Facebook Community</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other Hawaii families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">📱 Open Parent Talk Cafe →</a></div>';
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            } else {
+                const modal = document.getElementById('iframeModal');
+                const titleEl = document.getElementById('iframeTitle');
+                const frame = document.getElementById('iframeFrame');
+
+                titleEl.textContent = title;
+                frame.src = url;
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        // Close iframe modal
+        function closeIframeModal(event) {
+            if (event && event.target !== event.currentTarget && !event.target.classList.contains('close-iframe')) {
+                return;
+            }
+
+            const modal = document.getElementById('iframeModal');
+            const frameEl = document.getElementById('iframeFrame');
+            
+            modal.classList.remove('active');
+            
+            if (frameEl.tagName === 'IFRAME') {
+                frameEl.src = '';
+            } else {
+                frameEl.outerHTML = '<iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>';
+            }
+            
+            document.body.style.overflow = 'auto';
+        }
+
+        // Initialize Firebase
+        firebase.initializeApp({
+            apiKey: "AIzaSyAU3CQ07bCVKlJIqGak-i50kaJEyPKldLk",
+            authDomain: "ldah-932d5.firebaseapp.com",
+            projectId: "ldah-932d5",
+            storageBucket: "ldah-932d5.firebasestorage.app",
+            messagingSenderId: "662130454003",
+            appId: "1:662130454003:web:437576d5a5811ecd8df686"
+        });
+
+        // Initialize Analytics and Firestore
+        const analytics = firebase.analytics();
+        const db = firebase.firestore();
+        
+        // Load page content from Firebase
+        async function loadPageContent() {
+            try {
+                const doc = await db.collection('pageContent').doc('readiness').get();
+                if (doc.exists) {
+                    const data = doc.data();
+                    Object.keys(data).forEach(key => {
+                        const el = document.getElementById(`readiness-${key}`);
+                        if (el && data[key]) el.innerHTML = data[key];
+                    });
+                }
+            } catch (err) { console.error('Error loading page content:', err); }
+        }
+        loadPageContent();
+        
+        // Track page view
+        analytics.logEvent('page_view', {
+            page_title: 'School Readiness Project',
+            page_location: window.location.href,
+            page_path: '/readiness.html'
+        });
+
+        // Provider Modal Functions
+        function openProviderModal() {
+            document.getElementById('providerModal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+            // Reset form and show it
+            document.getElementById('providerForm').reset();
+            document.getElementById('providerForm').style.display = 'block';
+            document.getElementById('thankYouScreen').classList.remove('active');
+        }
+
+        function closeProviderModal(event) {
+            if (event && event.target !== event.currentTarget && !event.target.classList.contains('close-provider-modal')) {
+                return;
+            }
+            document.getElementById('providerModal').classList.remove('active');
+            document.body.style.overflow = 'auto';
+        }
+
+        // Handle form submission
+        document.getElementById('providerForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting...';
+
+            // Capitalize first letter of names
+            const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+
+            const formData = {
+                organizationName: document.getElementById('organizationName').value.trim(),
+                firstName: capitalize(document.getElementById('firstName').value.trim()),
+                lastName: capitalize(document.getElementById('lastName').value.trim()),
+                email: document.getElementById('providerEmail').value.trim().toLowerCase(),
+                phone: document.getElementById('providerPhone').value.trim(),
+                message: document.getElementById('providerMessage').value.trim(),
+                submittedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                status: 'new'
+            };
+
+            try {
+                await db.collection('providers').add(formData);
+                
+                // Log analytics event
+                analytics.logEvent('provider_request_submitted', {
+                    organization: formData.organizationName
+                });
+
+                // Show thank you screen
+                document.getElementById('providerForm').style.display = 'none';
+                document.getElementById('thankYouScreen').classList.add('active');
+
+                // Close modal after 3 seconds
+                setTimeout(() => {
+                    closeProviderModal();
+                }, 3000);
+
+            } catch (error) {
+                console.error('Error submitting form:', error);
+                alert('There was an error submitting your request. Please try again.');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Request';
+            }
+        });
+    </script>
+
+    <!-- Header/Footer Loader -->
+    <script>
+        // Header and Footer Loader - Fetches from external files
+        async function loadHeaderFooter() {
+            const headerContainer = document.getElementById('header-container');
+            const footerContainer = document.getElementById('footer-container');
+            
+            try {
+                // Try to fetch from external files first
+                const [headerResponse, footerResponse] = await Promise.all([
+                    fetch('header.html'),
+                    fetch('footer.html')
+                ]);
+                
+                if (headerResponse.ok && footerResponse.ok) {
+                    headerContainer.innerHTML = await headerResponse.text();
+                    footerContainer.innerHTML = await footerResponse.text();
+                    console.log('✅ Header and footer loaded from external files');
+                } else {
+                    throw new Error('Failed to fetch');
+                }
+                
+                // Load accessibility widget script
+                if (!document.getElementById('a11y-script')) {
+                    const script = document.createElement('script');
+                    script.id = 'a11y-script';
+                    script.src = 'accessibility.js';
+                    document.body.appendChild(script);
+                }
+            } catch (error) {
+                console.log('⚠️ Using inline fallback for header/footer');
+                // Fallback for file:// protocol or fetch failure
+                headerContainer.innerHTML = `<nav>
+    <div class="nav-content">
+        <a href="index.html" class="logo-container">
+            <img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH Logo" class="logo-img">
+            <span class="logo-text">LDAH</span>
+        </a>
+        <div class="hamburger" onclick="toggleMenu()">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+        <ul class="nav-links" id="navLinks">
+            <li><a href="index.html#services">What We Do</a></li>
+            <li><a href="events.html">Events</a></li>
+            <li><a href="volunteer.html">Volunteer</a></li>
+            <li><a href="resources.html">Resources</a></li>
+            <li><a href="contact.html">Contact</a></li>
+        </ul>
+    </div>
+</nav>`;
+                footerContainer.innerHTML = `<footer>
+    <div class="footer-content">
+        <div class="footer-section">
+            <h3>About LDAH</h3>
+            <p>Hawai'i & Pacific Island Parent Training & Information Center empowering families and children with disabilities.</p>
+        </div>
+        <div class="footer-section">
+            <h3>Quick Links</h3>
+            <a href="index.html#services">What We Do</a>
+            <a href="events.html">Events</a>
+            <a href="volunteer.html">Volunteer</a>
+            <a href="resources.html">Resources</a>
+            <a href="contact.html">Contact Us</a>
+        </div>
+        <div class="footer-section">
+            <h3>Honolulu Office</h3>
+            <p>
+                245 North Kukui Street, Suite 205<br>
+                Honolulu, HI 96817<br>
+                (808) 532-5364<br>
+                <a href="mailto:info@ldah.org">info@ldah.org</a>
+            </p>
+        </div>
+        <div class="footer-section">
+            <h3>Connect With Us</h3>
+            <a href="javascript:void(0)" onclick="openIframeModal('Parent Talk Cafe - Facebook Group', 'https://www.facebook.com/groups/2659334410969387')">Parent Talk Cafe</a>
+            <a href="install.html">Install Our App</a>
+        </div>
+    </div>
+    <div class="footer-bottom">
+        <p>&copy; 2025 Leadership in Disabilities and Achievement of Hawai'i. All rights reserved.</p>
+    </div>
+</footer>`;
+            }
+            
+            // Set active nav link after loading
+            setActiveNavLink();
+        }
+        
+        function setActiveNavLink() {
+            const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+            const navLinks = document.querySelectorAll('.nav-links a');
+            
+            navLinks.forEach(link => {
+                const href = link.getAttribute('href');
+                if (href === currentPage || 
+                    (currentPage === 'index.html' && href.includes('index.html')) ||
+                    (currentPage === '' && href.includes('index.html'))) {
+                    link.style.borderBottom = '3px solid #004E7C';
+                    link.style.color = '#004E7C';
+                    link.style.paddingBottom = '4px';
+                }
+            });
+        }
+        
+        function toggleMenu() {
+            const navLinks = document.getElementById('navLinks');
+            if (navLinks) {
+                navLinks.classList.toggle('active');
+            }
+        }
+        
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadHeaderFooter);
+        } else {
+            loadHeaderFooter();
+        }
+    </script>
+    <script src="modal.js"></script>
+</body>
+</html>
