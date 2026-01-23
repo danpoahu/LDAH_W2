@@ -82,7 +82,7 @@
         text-decoration: none; 
     }
     
-    .logo-img { width: 88px; height: 88px; }
+    .logo-img { width: 68px; height: 68px; }
     
     .nav-links { 
         display: flex; 
@@ -108,19 +108,19 @@
 
     @media (max-width: 768px) {
         .nav-links { 
-            position: fixed; top: 108px; left: 0; right: 0; background: white; 
+            position: fixed; top: 88px; left: 0; right: 0; background: white; 
             flex-direction: column; padding: 2rem; box-shadow: 0 4px 20px rgba(8, 145, 178, 0.1); 
             gap: 0.5rem; transform: translateY(-100%); opacity: 0; 
             transition: transform 0.3s, opacity 0.3s; pointer-events: none; 
         }
         .nav-links.active { transform: translateY(0); opacity: 1; pointer-events: all; }
         .hamburger { display: flex; }
-        .logo-img { width: 78px; height: 78px; }
+        .logo-img { width: 60px; height: 60px; }
     }
 
     /* Hero Section */
     .hero { 
-        margin-top: 108px; 
+        margin-top: 88px; 
         min-height: 85vh;
         background: linear-gradient(180deg, var(--sand-light) 0%, var(--bg-warm) 100%);
         display: flex; 
@@ -374,7 +374,7 @@
     /* Footer */
     footer { 
         background: var(--text-dark); color: white; 
-        padding: 1.75rem 2rem 1rem; position: relative; overflow: hidden;
+        padding: 2.5rem 2rem 1.5rem; position: relative; overflow: hidden;
     }
     
     .footer-islands {
@@ -384,22 +384,21 @@
     
     .footer-content { 
         max-width: 1200px; margin: 0 auto; 
-        display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
-        gap: 1.4rem; margin-bottom: 1rem; position: relative; z-index: 1;
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); 
+        gap: 2rem; margin-bottom: 1.5rem; position: relative; z-index: 1;
     }
     
-    .footer-section h3 { color: var(--plumeria); margin-bottom: 0.7rem; font-family: 'Outfit', sans-serif; font-size: 1rem; }
-    .footer-section p { color: rgba(255, 255, 255, 0.7); line-height: 1.5; font-size: 0.9rem; }
-    .footer-section a { color: rgba(255, 255, 255, 0.7); text-decoration: none; display: block; margin-bottom: 0.35rem; transition: color 0.25s ease; font-size: 0.9rem; }
+    .footer-section h3 { color: var(--plumeria); margin-bottom: 1rem; font-family: 'Outfit', sans-serif; font-size: 1.1rem; }
+    .footer-section p { color: rgba(255, 255, 255, 0.7); line-height: 1.6; font-size: 0.95rem; }
+    .footer-section a { color: rgba(255, 255, 255, 0.7); text-decoration: none; display: block; margin-bottom: 0.5rem; transition: color 0.25s ease; font-size: 0.95rem; }
     .footer-section a:hover { color: var(--plumeria); }
     
     .footer-bottom { 
-        max-width: 1200px; margin: 0 auto; padding-top: 1rem; 
+        max-width: 1200px; margin: 0 auto; padding-top: 1.5rem; 
         border-top: 1px solid rgba(255, 255, 255, 0.1); 
         text-align: center; color: rgba(255, 255, 255, 0.5); position: relative; z-index: 1;
-        font-size: 0.85rem;
+        font-size: 0.9rem;
     }
-    .footer-bottom p { margin: 0.25rem 0; }
 
     /* Modal */
     .iframe-modal { display: none; position: fixed; z-index: 3000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); animation: fadeIn 0.3s; }
@@ -455,7 +454,7 @@
                 if (!document.getElementById('a11y-script')) { const script = document.createElement('script'); script.id = 'a11y-script'; script.src = 'accessibility.js'; document.body.appendChild(script); }
             } catch (error) {
                 headerContainer.innerHTML = '<nav><div class="nav-content"><a href="index.html" class="logo-container"><img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH Logo" class="logo-img"></a><div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div><ul class="nav-links" id="navLinks"><li><a href="whoweare.html">Who We Are</a></li><li><a href="index.html#services">What We Do</a></li><li><a href="events.html">Events</a></li><li><a href="volunteer.html">Volunteer</a></li><li><a href="resources.html">Resources</a></li><li><a href="contact.html">Contact</a></li></ul></div></nav>';
-                footerContainer.innerHTML = '<footer><svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg><div class="footer-content"><div class="footer-section"><h3>About LDAH</h3><p>Hawai\'i & Pacific Island Parent Training & Information Center empowering families and children with disabilities.</p></div><div class="footer-section"><h3>Quick Links</h3><a href="whoweare.html">Who We Are</a><a href="index.html#services">What We Do</a><a href="events.html">Events</a><a href="volunteer.html">Volunteer</a><a href="resources.html">Resources</a><a href="contact.html">Contact Us</a></div><div class="footer-section"><h3>Honolulu Office</h3><p>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 532-5364<br>info@ldah.org</p></div><div class="footer-section"><h3>Connect With Us</h3><a href="javascript:void(0)" onclick="openIframeModal(\'Parent Talk Cafe\', \'https://www.facebook.com/groups/2659334410969387\')">Parent Talk Cafe</a><a href="javascript:void(0)" onclick="openIframeModal(\'Career Opportunities\', \'https://www.hrsymphony.com/hrs/careers/ldah\')">Career Opportunities</a><a href="install.html">Install Our App</a><form action="https://www.paypal.com/donate" method="post" target="_blank" style="margin-top: 8px;"><input type="hidden" name="hosted_button_id" value="F6F2DPC4D6RSA"><input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" title="PayPal - The safer, easier way to pay online!" alt="Donate with PayPal button"></form></div></div><div class="footer-bottom"><p>&copy; 2025 Leadership in Disabilities and Achievement of Hawai\'i. All rights reserved.</p><p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal(\'DP Consulting\', \'https://oahuappdesign.com\')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a> <a href="cms.html" style="margin-left: 12px; color: rgba(255,255,255,0.5); text-decoration: none; font-size: 1.1rem;" title="Admin CMS">⚙️</a></p></div></footer>';
+                footerContainer.innerHTML = '<footer><svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg><div class="footer-content"><div class="footer-section"><h3>About LDAH</h3><p>Hawai\'i & Pacific Island Parent Training & Information Center empowering families and children with disabilities.</p></div><div class="footer-section"><h3>Quick Links</h3><a href="whoweare.html">Who We Are</a><a href="index.html#services">What We Do</a><a href="events.html">Events</a><a href="volunteer.html">Volunteer</a><a href="resources.html">Resources</a><a href="contact.html">Contact Us</a></div><div class="footer-section"><h3>Honolulu Office</h3><p>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 532-5364<br><a href="mailto:info@ldah.org">info@ldah.org</a></p></div><div class="footer-section"><h3>Connect With Us</h3><a href="javascript:void(0)" onclick="openIframeModal(\'Parent Talk Cafe\', \'https://www.facebook.com/groups/2659334410969387\')">Parent Talk Cafe</a><a href="javascript:void(0)" onclick="openIframeModal(\'Career Opportunities\', \'https://www.hrsymphony.com/hrs/careers/ldah\')">Career Opportunities</a><a href="install.html">Install Our App</a></div></div><div class="footer-bottom"><p>&copy; 2025 Leadership in Disabilities and Achievement of Hawai\'i. All rights reserved.</p><p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal(\'DP Consulting\', \'https://oahuappdesign.com\')" style="color: var(--plumeria); text-decoration: none;">DP Consulting</a></p></div></footer>';
             }
             setupScrollDetection();
         }
@@ -527,22 +526,22 @@
         <svg class="stats-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
         <div class="stats-container">
             <div class="stat-card">
-                <img id="home-stat1Photo" src="https://images.unsplash.com/photo-1511895426328-dc8714191300?w=150&h=150&fit=crop&crop=faces" alt="Family" class="photo-icon">
+                <img src="https://images.unsplash.com/photo-1511895426328-dc8714191300?w=150&h=150&fit=crop&crop=faces" alt="Family" class="photo-icon">
                 <div class="stat-number" id="home-stat1Number">5,000+</div>
                 <div class="stat-label" id="home-stat1Label">Families Supported</div>
             </div>
             <div class="stat-card">
-                <img id="home-stat2Photo" src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=150&h=150&fit=crop" alt="Sunset over ocean" class="photo-icon">
+                <img src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=150&h=150&fit=crop" alt="Sunset over ocean" class="photo-icon">
                 <div class="stat-number" id="home-stat2Number">30+</div>
                 <div class="stat-label" id="home-stat2Label">Years of Service</div>
             </div>
             <div class="stat-card">
-                <img id="home-stat3Photo" src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=150&h=150&fit=crop&crop=faces" alt="People in workshop" class="photo-icon">
+                <img src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=150&h=150&fit=crop&crop=faces" alt="People in workshop" class="photo-icon">
                 <div class="stat-number" id="home-stat3Number">200+</div>
                 <div class="stat-label" id="home-stat3Label">Workshops Yearly</div>
             </div>
             <div class="stat-card">
-                <img id="home-stat4Photo" src="https://images.unsplash.com/photo-1559128010-7c1ad6e1b6a5?w=150&h=150&fit=crop" alt="Tropical island" class="photo-icon">
+                <img src="https://images.unsplash.com/photo-1559128010-7c1ad6e1b6a5?w=150&h=150&fit=crop" alt="Tropical island" class="photo-icon">
                 <div class="stat-number" id="home-stat4Number">8</div>
                 <div class="stat-label" id="home-stat4Label">Pacific Regions</div>
             </div>
@@ -558,32 +557,32 @@
         </div>
         <div class="services-grid">
             <div class="service-card" onclick="openIframeModal('Parent Training & Information Center', 'https://www.parentcenterhub.org/')">
-                <img id="home-service1Photo" src="https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=160&h=160&fit=crop&crop=faces" alt="Education" class="service-photo" onerror="this.outerHTML='<div class=\'service-icon-placeholder\'>📚</div>'">
+                <img src="https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=160&h=160&fit=crop&crop=faces" alt="Education" class="service-photo" onerror="this.outerHTML='<div class=\'service-icon-placeholder\'>📚</div>'">
                 <h3 class="service-title" id="home-service1Title">Special Education Support</h3>
                 <p class="service-description" id="home-service1Desc">Navigate IEPs, understand your rights, and advocate effectively for your child's educational needs.</p>
             </div>
             <div class="service-card" onclick="window.location.href='readiness.html'">
-                <img id="home-service2Photo" src="https://images.unsplash.com/photo-1587654780291-39c9404d746b?w=160&h=160&fit=crop&crop=faces" alt="School readiness" class="service-photo" onerror="this.outerHTML='<div class=\'service-icon-placeholder\'>🎒</div>'">
+                <img src="https://images.unsplash.com/photo-1587654780291-39c9404d746b?w=160&h=160&fit=crop&crop=faces" alt="School readiness" class="service-photo" onerror="this.outerHTML='<div class=\'service-icon-placeholder\'>🎒</div>'">
                 <h3 class="service-title" id="home-service2Title">School Readiness</h3>
                 <p class="service-description" id="home-service2Desc">Prepare your keiki for kindergarten success with our comprehensive readiness programs.</p>
             </div>
             <div class="service-card" onclick="window.location.href='specialed.html'">
-                <img id="home-service3Photo" src="https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=160&h=160&fit=crop&crop=faces" alt="Special education" class="service-photo" onerror="this.outerHTML='<div class=\'service-icon-placeholder\'>⚖️</div>'">
+                <img src="https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=160&h=160&fit=crop&crop=faces" alt="Special education" class="service-photo" onerror="this.outerHTML='<div class=\'service-icon-placeholder\'>⚖️</div>'">
                 <h3 class="service-title" id="home-service3Title">Special Education Advocacy</h3>
                 <p class="service-description" id="home-service3Desc">Expert guidance on IEPs, IDEA, Chapter 60, and other education laws to ensure your child receives appropriate services.</p>
             </div>
             <div class="service-card" onclick="window.location.href='military.html'">
-                <img id="home-service4Photo" src="https://images.unsplash.com/photo-1581579186913-45ac3e6efe93?w=160&h=160&fit=crop&crop=faces" alt="Military families" class="service-photo" onerror="this.outerHTML='<div class=\'service-icon-placeholder\'>🎖️</div>'">
+                <img src="https://images.unsplash.com/photo-1581579186913-45ac3e6efe93?w=160&h=160&fit=crop&crop=faces" alt="Military families" class="service-photo" onerror="this.outerHTML='<div class=\'service-icon-placeholder\'>🎖️</div>'">
                 <h3 class="service-title" id="home-service4Title">Military Family Support</h3>
                 <p class="service-description" id="home-service4Desc">Specialized assistance for military families navigating relocations and IEP transitions across installations.</p>
             </div>
             <div class="service-card" onclick="window.location.href='pacific.html'">
-                <img id="home-service5Photo" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=160&h=160&fit=crop&crop=faces" alt="Pacific" class="service-photo" onerror="this.outerHTML='<div class=\'service-icon-placeholder\'>🏝️</div>'">
+                <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=160&h=160&fit=crop&crop=faces" alt="Pacific" class="service-photo" onerror="this.outerHTML='<div class=\'service-icon-placeholder\'>🏝️</div>'">
                 <h3 class="service-title" id="home-service5Title">Pacific Islands Outreach</h3>
                 <p class="service-description" id="home-service5Desc">Extending support to families across American Samoa, CNMI, FSM, Guam, Marshall Islands, and Palau.</p>
             </div>
             <div class="service-card" onclick="window.location.href='community.html'">
-                <img id="home-service6Photo" src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=160&h=160&fit=crop&crop=faces" alt="Anti-bullying" class="service-photo" onerror="this.outerHTML='<div class=\'service-icon-placeholder\'>✊</div>'">
+                <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=160&h=160&fit=crop&crop=faces" alt="Anti-bullying" class="service-photo" onerror="this.outerHTML='<div class=\'service-icon-placeholder\'>✊</div>'">
                 <h3 class="service-title" id="home-service6Title">Stand Up to Bullying</h3>
                 <p class="service-description" id="home-service6Desc">Resources and support to help prevent bullying and protect children in our community.</p>
             </div>
@@ -668,14 +667,7 @@
                 const content = doc.data();
                 Object.keys(content).forEach(key => {
                     const el = document.getElementById('home-' + key);
-                    if (el && content[key]) {
-                        // For photo fields, update the src attribute instead of innerHTML
-                        if (key.includes('Photo') && el.tagName === 'IMG') {
-                            el.src = content[key];
-                        } else {
-                            el.innerHTML = content[key];
-                        }
-                    }
+                    if (el && content[key]) el.innerHTML = content[key];
                 });
             }
         } catch (err) { console.error('Error loading page content:', err); }

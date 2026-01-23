@@ -14,101 +14,109 @@
     gtag('config', 'G-32PRRS0W85');
   </script>
   
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
   
   <style>
     :root {
-      --primary-blue: #004E7C;
-      --light-blue: #0066a1;
-      --accent-teal: #4DD0E1;
-      --text-dark: #1a1a1a;
-      --text-light: #666;
-      --bg-light: #f8f9fa;
+      --ocean-deep: #0891B2;
+      --ocean-mid: #06B6D4;
+      --ocean-light: #22D3EE;
+      --sunset-coral: #F97316;
+      --sunset-warm: #FB923C;
+      --sunset-light: #FED7AA;
+      --sand: #FEF3C7;
+      --sand-light: #FFFBEB;
+      --palm: #65A30D;
+      --plumeria: #FBBF24;
+      --white: #FFFFFF;
+      --text-dark: #1E293B;
+      --text-soft: #64748B;
+      --bg-warm: #FEFDFB;
+      --primary-blue: #0891B2;
+      --light-blue: #06B6D4;
+      --accent-teal: #22D3EE;
+      --bg-light: #FFFBEB;
     }
     
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html { scroll-behavior: smooth; }
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       color: var(--text-dark);
-      line-height: 1.6;
+      line-height: 1.7;
       overflow-x: hidden;
+      background: var(--bg-warm);
     }
-    h1, h2, h3 { font-family: 'Poppins', sans-serif; font-weight: 700; line-height: 1.2; }
+    h1, h2, h3 { font-family: 'Outfit', sans-serif; font-weight: 600; line-height: 1.3; }
     
+    /* Navigation */
     nav {
       position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(10px);
-      box-shadow: 0 2px 8px rgba(0, 78, 124, 0.1);
+      background: rgba(255, 255, 255, 0.97);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 1px 20px rgba(8, 145, 178, 0.08);
+      border-bottom: 1px solid rgba(8, 145, 178, 0.1);
     }
     .nav-content {
-      max-width: 1400px; margin: 0 auto; padding: 1rem 2rem;
+      max-width: 1280px; margin: 0 auto; padding: 1rem 2rem;
       display: flex; justify-content: space-between; align-items: center;
     }
     .logo-container { display: flex; align-items: center; gap: 1rem; text-decoration: none; }
-    .logo-img { width: 80px; height: 80px; filter: brightness(1.1); }
-    .logo-text { font-size: 1.4rem; font-weight: 700; color: var(--primary-blue); }
-    .nav-links { display: flex; gap: 2rem; list-style: none; align-items: center; }
-    .nav-links a { text-decoration: none; color: var(--text-dark); font-weight: 500; transition: color 0.3s; }
-    .nav-links a:hover { color: var(--primary-blue); }
+    .logo-img { width: 88px; height: 88px; }
+    .nav-links { display: flex; gap: 0.5rem; list-style: none; align-items: center; }
+    .nav-links a { 
+      text-decoration: none; color: var(--text-dark); font-weight: 500; 
+      padding: 0.6rem 1.1rem; border-radius: 8px; transition: all 0.25s ease;
+    }
+    .nav-links a:hover { background: var(--sand-light); color: var(--ocean-deep); }
+    .nav-links a.active { background: var(--sand); color: var(--ocean-deep); }
     
-    /* Mobile Menu */
     .hamburger { display: none; flex-direction: column; cursor: pointer; padding: 0.5rem; }
-    .hamburger span { width: 25px; height: 3px; background: var(--primary-blue); margin: 3px 0; transition: 0.3s; }
+    .hamburger span { width: 25px; height: 3px; background: var(--ocean-deep); margin: 3px 0; transition: 0.3s; border-radius: 2px; }
     
     @media (max-width: 768px) {
-      .nav-links { 
-        position: fixed; top: 88px; left: 0; right: 0;
+      .nav-links { position: fixed; top: 108px; left: 0; right: 0;
         background: white; flex-direction: column; padding: 2rem;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1); gap: 1rem;
+        box-shadow: 0 4px 20px rgba(8, 145, 178, 0.1); gap: 0.5rem;
         transform: translateY(-100%); opacity: 0;
-        transition: transform 0.3s, opacity 0.3s;
-        pointer-events: none;
+        transition: transform 0.3s, opacity 0.3s; pointer-events: none;
       }
       .nav-links.active { transform: translateY(0); opacity: 1; pointer-events: all; }
       .hamburger { display: flex; }
-      .logo-img { width: 60px; height: 60px; }
-      .logo-text { font-size: 1.2rem; }
+      .logo-img { width: 78px; height: 78px; }
     }
     
-    .cta-button {
-      padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #004E7C, #0066a1);
-      color: white; border-radius: 50px; font-weight: 600; text-decoration: none;
-    }
-    
+    /* Page Header - Compact 2" for subpages */
     .page-header {
-      margin-top: 88px; padding: 4rem 2rem;
-      background: linear-gradient(135deg, #004E7C 0%, #0066a1 100%);
+      margin-top: 88px; padding: 2rem;
+      background: linear-gradient(135deg, #0891B2 0%, #06B6D4 100%);
       color: white; text-align: center;
-      position: relative; overflow: hidden;
+      position: relative;
+      height: 180px;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
     }
-    
-    .page-header::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      opacity: 1;
-      background-image:
-      linear-gradient(90deg, rgba(255, 255, 255, .08) 1px, transparent 1px), linear-gradient(rgba(255, 255, 255, .08) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .12) 1px, transparent 1px), linear-gradient(rgba(255, 255, 255, .12) 1px, transparent 1px);
-      background-size: 30px 30px, 30px 30px, 60px 60px, 60px 60px;
-      background-position: 0 0, 0 0, -15px -15px, -15px -15px;
+    .page-header-islands {
+      position: absolute; left: 75%; top: 50%;
+      transform: translate(-50%, -50%) scaleY(-1);
+      width: 49%; max-width: 420px;
+      color: white; opacity: 0.15; z-index: 0;
     }
-    
     .page-header > * { position: relative; z-index: 1; }
+    .page-header > svg { position: absolute; z-index: 0; }
+    .page-header h1 { font-size: 2.2rem; margin-bottom: 0.5rem; font-family: 'Outfit', sans-serif; font-weight: 600; letter-spacing: -0.5px; }
+    .page-header p { font-size: 1.05rem; opacity: 0.95; max-width: 550px; margin: 0 auto; line-height: 1.5; }
     
-    .page-header h1 { font-size: 3rem; margin-bottom: 1rem; }
-    .page-header p { font-size: 1.25rem; opacity: 0.9; }
+    .container { max-width: 1280px; margin: 0 auto; padding: 4rem 2rem; }
     
-    .container { max-width: 1400px; margin: 0 auto; padding: 4rem 2rem; }
-    
+    /* Opportunities Grid */
     .opportunities-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
@@ -117,49 +125,50 @@
     }
     
     .opportunity-card {
-      background: white; border-radius: 20px; padding: 2rem;
-      box-shadow: 0 4px 16px rgba(0, 78, 124, 0.1);
+      background: white; border-radius: 16px; padding: 2rem;
+      box-shadow: 0 4px 20px rgba(8, 145, 178, 0.08);
       transition: transform 0.3s, box-shadow 0.3s;
-      border: 2px solid var(--bg-light);
-      display: flex;
-      flex-direction: column;
-      min-height: 400px;
+      border: 1px solid rgba(8, 145, 178, 0.1);
+      display: flex; flex-direction: column; min-height: 400px;
     }
     .opportunity-card:hover {
-      transform: translateY(-8px);
-      box-shadow: 0 8px 32px rgba(0, 78, 124, 0.2);
+      transform: translateY(-6px);
+      box-shadow: 0 12px 40px rgba(8, 145, 178, 0.15);
     }
     .opportunity-image {
       width: 100%; height: 200px; object-fit: cover;
       border-radius: 12px; margin-bottom: 1rem;
     }
     .opportunity-title {
-      font-size: 1.5rem; color: var(--primary-blue); margin-bottom: 0.5rem;
+      font-size: 1.4rem; color: var(--ocean-deep); margin-bottom: 0.5rem;
     }
     .opportunity-description {
-      color: var(--text-light); margin-bottom: 1rem; line-height: 1.6;
+      color: var(--text-soft); margin-bottom: 1rem; line-height: 1.7;
       flex-grow: 1;
     }
     .opportunity-dates {
       display: inline-block; padding: 0.5rem 1rem;
-      background: rgba(77, 208, 225, 0.1); border-radius: 20px;
-      font-size: 0.9rem; font-weight: 600; color: var(--primary-blue);
+      background: var(--sand-light); border-radius: 8px;
+      font-size: 0.9rem; font-weight: 600; color: var(--ocean-deep);
       margin-bottom: 1rem;
     }
     .btn-apply {
-      display: inline-block; padding: 0.75rem 1.5rem;
-      background: linear-gradient(135deg, #004E7C, #0066a1);
-      color: white; border-radius: 50px; font-weight: 600;
-      text-decoration: none; transition: all 0.3s;
+      display: inline-block; padding: 0.85rem 1.75rem;
+      background: var(--ocean-deep);
+      color: white; border-radius: 10px; font-weight: 600;
+      text-decoration: none; transition: all 0.25s ease;
       border: none; cursor: pointer; font-size: 1rem;
-      align-self: flex-start;
-      margin-top: auto;
+      font-family: 'Outfit', sans-serif;
+      align-self: flex-start; margin-top: auto;
+      box-shadow: 0 4px 14px rgba(8, 145, 178, 0.25);
     }
     .btn-apply:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 4px 12px rgba(0, 78, 124, 0.3);
+      background: #0E7490;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(8, 145, 178, 0.3);
     }
     
+    /* Modal */
     .modal {
       display: none; position: fixed; z-index: 10000;
       left: 0; top: 0; width: 100%; height: 100%;
@@ -171,606 +180,357 @@
       justify-content: center; padding: 20px;
     }
     .modal-content {
-      background-color: white; border-radius: 24px;
+      background-color: white; border-radius: 20px;
       padding: 32px; max-width: 600px; width: 100%;
       max-height: 90vh; overflow-y: auto;
-      border: 3px solid var(--primary-blue);
+      border: 3px solid var(--ocean-deep);
     }
     
     /* CTA Banner */
     .cta-banner {
-      background: linear-gradient(135deg, #004E7C, #0066a1);
-      padding: 4rem 2rem;
-      text-align: center;
-      color: white;
-      position: relative;
-      overflow: hidden;
+      background: linear-gradient(135deg, var(--sunset-coral) 0%, var(--sunset-warm) 100%);
+      padding: 1rem 2rem; text-align: center; color: white;
+      position: relative; overflow: hidden;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
     }
-    
-    .cta-banner::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-image:
-      radial-gradient(circle, transparent 0, transparent 22px, rgba(255, 255, 255, 0.15) 22px, rgba(255, 255, 255, 0.15) 24px, transparent 24px);
-      background-size: 48px 48px;
-      opacity: 1;
+    .cta-islands {
+      position: absolute; right: 8%; bottom: 15%;
+      transform: scaleY(-1);
+      width: 12%; color: white; opacity: 0.1;
     }
-    
-    .cta-banner > * {
-      position: relative;
-      z-index: 1;
-    }
-    
-    .cta-banner h2 {
-      font-size: 2rem;
-      margin-bottom: 1rem;
-    }
-    
+    .cta-banner > * { position: relative; z-index: 1; }
+    .cta-banner h2 { font-size: 1.6rem; margin-bottom: 0.4rem; }
     .cta-banner p {
-      font-size: 1.1rem;
-      margin-bottom: 1.5rem;
-      opacity: 0.95;
-      max-width: 600px;
-      margin-left: auto;
-      margin-right: auto;
+      font-size: 0.95rem; margin-bottom: 0.75rem; opacity: 0.95;
+      max-width: 550px; margin-left: auto; margin-right: auto; line-height: 1.4;
     }
-    
     .cta-btn {
-      display: inline-block;
-      padding: 1rem 2rem;
-      background: white;
-      color: var(--primary-blue);
-      border-radius: 50px;
-      font-weight: 600;
-      text-decoration: none;
-      transition: transform 0.3s, box-shadow 0.3s;
+      display: inline-block; padding: 1rem 2rem;
+      background: white; color: var(--sunset-coral);
+      border-radius: 10px; font-weight: 600; text-decoration: none;
+      font-family: 'Outfit', sans-serif;
+      transition: all 0.25s ease; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }
-    
     .cta-btn:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
     }
     
-    footer {
-      background: var(--text-dark); color: white; padding: 3rem 2rem 2rem;
+    /* Footer */
+    footer { 
+      background: var(--text-dark); color: white; 
+      padding: 1.75rem 2rem 1rem; position: relative; overflow: hidden;
+    }
+    .footer-islands {
+      position: absolute; right: -5%; bottom: -20%;
+      width: 40%; color: white; opacity: 0.03; transform: scaleY(-1);
     }
     .footer-content {
-      max-width: 1400px; margin: 0 auto;
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 2rem; margin-bottom: 2rem;
+      max-width: 1200px; margin: 0 auto;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.4rem; margin-bottom: 1rem; position: relative; z-index: 1;
     }
-    .footer-section h3 {
-      color: var(--accent-teal); margin-bottom: 1rem; font-size: 1.2rem;
-    }
-    .footer-section p, .footer-section a {
-      color: rgba(255, 255, 255, 0.8); text-decoration: none;
-      display: block; margin-bottom: 0.5rem; transition: color 0.3s;
-    }
-    .footer-section a:hover { color: var(--accent-teal); }
+    .footer-section h3 { color: var(--plumeria); margin-bottom: 0.7rem; font-family: 'Outfit', sans-serif; font-size: 1rem; }
+    .footer-section p { color: rgba(255, 255, 255, 0.7); line-height: 1.5; font-size: 0.9rem; }
+    .footer-section a { color: rgba(255, 255, 255, 0.7); text-decoration: none; display: block; margin-bottom: 0.35rem; transition: color 0.25s ease; font-size: 0.9rem; }
+    .footer-section a:hover { color: var(--plumeria); }
     .footer-bottom {
-      max-width: 1400px; margin: 0 auto; padding-top: 2rem;
+      max-width: 1200px; margin: 0 auto; padding-top: 1rem;
       border-top: 1px solid rgba(255, 255, 255, 0.1);
-      text-align: center; color: rgba(255, 255, 255, 0.6);
+      text-align: center; color: rgba(255, 255, 255, 0.5);
+      position: relative; z-index: 1; font-size: 0.85rem;
     }
+    .footer-bottom p { margin: 0.25rem 0; }
     
     .loading { text-align: center; padding: 4rem 2rem; }
     .loading-spinner {
       display: inline-block; width: 50px; height: 50px;
-      border: 4px solid rgba(0, 78, 124, 0.1);
-      border-top-color: var(--primary-blue);
+      border: 4px solid rgba(8, 145, 178, 0.1);
+      border-top-color: var(--ocean-deep);
       border-radius: 50%; animation: spin 1s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* Gallery Section */
     .gallery-section {
-      background: var(--bg-light);
-      padding: 60px 20px;
+      background: var(--sand-light);
+      padding: 4rem 2rem;
     }
-
     .gallery-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap: 1rem;
-      max-width: 1400px;
+      max-width: 1280px;
       margin: 0 auto;
     }
-
     .gallery-item {
-      position: relative;
-      aspect-ratio: 1;
-      border-radius: 12px;
-      overflow: hidden;
-      cursor: pointer;
-      transition: transform 0.3s;
+      position: relative; aspect-ratio: 1;
+      border-radius: 12px; overflow: hidden;
+      cursor: pointer; transition: transform 0.3s;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }
-
-    .gallery-item:hover {
-      transform: scale(1.03);
-    }
-
+    .gallery-item:hover { transform: scale(1.03); }
     .gallery-item img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
+      width: 100%; height: 100%; object-fit: cover;
       transition: transform 0.3s;
     }
+    .gallery-item:hover img { transform: scale(1.1); }
 
-    .gallery-item:hover img {
-      transform: scale(1.1);
-    }
-
-    .section-header {
-      text-align: center;
-      margin-bottom: 2rem;
-    }
-
+    .section-header { text-align: center; margin-bottom: 2rem; }
     .section-badge {
       display: inline-block;
-      background: rgba(0, 78, 124, 0.1);
-      color: var(--primary-blue);
-      padding: 0.5rem 1rem;
-      border-radius: 50px;
-      font-size: 0.9rem;
-      font-weight: 600;
-      margin-bottom: 1rem;
+      background: var(--white); color: var(--sunset-coral);
+      padding: 0.5rem 1.25rem; border-radius: 6px;
+      font-size: 0.9rem; font-weight: 600; margin-bottom: 1rem;
+      box-shadow: 0 2px 8px rgba(249, 115, 22, 0.1);
     }
-
     .section-header h2 {
-      color: var(--primary-blue);
-      font-size: 2rem;
-      margin-bottom: 0.5rem;
+      color: var(--text-dark); font-size: 2rem; margin-bottom: 0.5rem;
     }
+    .section-header p { color: var(--text-soft); font-size: 1.1rem; }
 
-    .section-header p {
-      color: var(--text-light);
-      font-size: 1.1rem;
-    }
-
-    /* Lightbox for gallery with carousel */
+    /* Lightbox */
     .lightbox {
-      display: none;
-      position: fixed;
-      z-index: 4000;
-      left: 0;
-      top: 0;
-      width: 100%;
-      height: 100%;
+      display: none; position: fixed; z-index: 4000;
+      left: 0; top: 0; width: 100%; height: 100%;
       background-color: rgba(0, 0, 0, 0.95);
       animation: fadeIn 0.3s;
     }
-
     .lightbox.active {
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
     }
-
     .lightbox img {
-      max-width: 85%;
-      max-height: 85%;
-      border-radius: 8px;
-      animation: slideUp 0.3s;
+      max-width: 85%; max-height: 85%;
+      border-radius: 8px; animation: slideUp 0.3s;
     }
-
     .lightbox .close-lightbox {
-      position: absolute;
-      top: 20px;
-      right: 30px;
-      color: white;
-      font-size: 3rem;
-      cursor: pointer;
-      transition: transform 0.3s;
-      z-index: 4001;
+      position: absolute; top: 20px; right: 30px;
+      color: white; font-size: 3rem; cursor: pointer;
+      transition: transform 0.3s; z-index: 4001;
     }
-
-    .lightbox .close-lightbox:hover {
-      transform: scale(1.2);
+    .lightbox .close-lightbox:hover { transform: scale(1.2); }
+    .lightbox-prev, .lightbox-next {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      background: rgba(255, 255, 255, 0.15); color: white;
+      border: none; font-size: 2.5rem; padding: 1rem 1.25rem;
+      cursor: pointer; border-radius: 50%; transition: all 0.3s; z-index: 4001;
     }
-
-    .lightbox-prev,
-    .lightbox-next {
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      background: rgba(255, 255, 255, 0.15);
-      color: white;
-      border: none;
-      font-size: 2.5rem;
-      padding: 1rem 1.25rem;
-      cursor: pointer;
-      border-radius: 50%;
-      transition: all 0.3s;
-      z-index: 4001;
-    }
-
-    .lightbox-prev:hover,
-    .lightbox-next:hover {
+    .lightbox-prev:hover, .lightbox-next:hover {
       background: rgba(255, 255, 255, 0.3);
       transform: translateY(-50%) scale(1.1);
     }
-
     .lightbox-prev { left: 20px; }
     .lightbox-next { right: 20px; }
-
     .lightbox-counter {
-      position: absolute;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      color: white;
-      font-size: 1rem;
-      background: rgba(0, 0, 0, 0.5);
-      padding: 0.5rem 1.5rem;
-      border-radius: 20px;
+      position: absolute; bottom: 20px; left: 50%;
+      transform: translateX(-50%); color: white;
+      font-size: 1rem; background: rgba(0,0,0,0.5);
+      padding: 0.5rem 1rem; border-radius: 20px;
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-
-    @keyframes slideUp {
-      from { transform: translateY(50px); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
-    }
-
-    @media (max-width: 768px) {
-      .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
-      .lightbox-prev, .lightbox-next {
-        font-size: 1.5rem;
-        padding: 0.75rem 1rem;
-      }
-      .lightbox-prev { left: 10px; }
-      .lightbox-next { right: 10px; }
-      .lightbox img {
-        max-width: 95%;
-        max-height: 70%;
-      }
-    }
-  
-    /* External Link Modal */
+    /* Iframe Modal */
     .iframe-modal {
-      display: none;
-      position: fixed;
-      z-index: 3000;
-      left: 0;
-      top: 0;
-      width: 100%;
-      height: 100%;
+      display: none; position: fixed; z-index: 3000;
+      left: 0; top: 0; width: 100%; height: 100%;
       background-color: rgba(0, 0, 0, 0.8);
       animation: fadeIn 0.3s;
     }
-    
     .iframe-modal.active {
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
     }
-    
     .iframe-content {
-      background: white;
-      border-radius: 20px;
-      width: 95%;
-      max-width: 1200px;
-      height: 90vh;
-      max-height: 800px;
-      position: relative;
-      animation: slideUp 0.3s;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
+      background: white; border-radius: 20px;
+      width: 95%; max-width: 1200px; height: 90vh; max-height: 800px;
+      position: relative; animation: slideUp 0.3s;
+      overflow: hidden; display: flex; flex-direction: column;
     }
-    
     .iframe-header {
-      background: linear-gradient(135deg, #004E7C, #0066a1);
-      color: white;
-      padding: 1.5rem 2rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-shrink: 0;
+      background: var(--ocean-deep); color: white;
+      padding: 1.5rem 2rem; display: flex;
+      justify-content: space-between; align-items: center; flex-shrink: 0;
     }
-    
-    .iframe-header h3 {
-      margin: 0;
-      font-size: 1.5rem;
-    }
-    
+    .iframe-header h3 { margin: 0; font-size: 1.5rem; font-family: 'Outfit', sans-serif; }
     .close-iframe {
-      background: rgba(255, 255, 255, 0.2);
-      border: none;
-      color: white;
-      font-size: 2rem;
-      cursor: pointer;
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      background: rgba(255, 255, 255, 0.2); border: none;
+      color: white; font-size: 2rem; cursor: pointer;
+      width: 40px; height: 40px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
       transition: background 0.3s;
     }
-    
-    .close-iframe:hover {
-      background: rgba(255, 255, 255, 0.3);
-    }
-    
-    .iframe-frame {
-      width: 100%;
-      flex: 1;
-      border: none;
-    }
-    
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-    
-    @keyframes slideUp {
-      from { transform: translateY(50px); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
-    }
+    .close-iframe:hover { background: rgba(255, 255, 255, 0.3); }
+    .iframe-frame { width: 100%; flex: 1; border: none; }
 
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+    /* Form Styles */
+    .form-group { margin-bottom: 1.25rem; }
+    .form-group label {
+      display: block; margin-bottom: 0.5rem;
+      font-weight: 600; color: var(--text-dark);
+    }
+    .form-group input, .form-group textarea, .form-group select {
+      width: 100%; padding: 0.85rem 1rem;
+      border: 2px solid rgba(8, 145, 178, 0.2);
+      border-radius: 10px; font-size: 1rem;
+      font-family: 'Source Sans 3', sans-serif;
+      transition: border-color 0.25s, box-shadow 0.25s;
+    }
+    .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+      outline: none; border-color: var(--ocean-deep);
+      box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.1);
+    }
+    .form-group textarea { resize: vertical; min-height: 100px; }
   </style>
-    <script>
-        // LDAH Header/Footer Loader with ALL Modal Functions
-        
-        // Define ALL modal functions FIRST so all links work
-        
-        // Iframe Modal Functions (for footer links - Parent Talk Cafe, DP Consulting)
-        function openIframeModal(title, url) {
-            if (url.includes('facebook.com')) {
-                const modal = document.getElementById('iframeModal');
-                const titleEl = document.getElementById('iframeTitle');
-                const frame = document.getElementById('iframeFrame');
-                
-                titleEl.textContent = title;
-                frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">🌺 Join Our Facebook Community</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other Hawaii families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">📱 Open Parent Talk Cafe →</a></div>';
-                modal.classList.add('active');
-                document.body.style.overflow = 'hidden';
-            } else {
-                const modal = document.getElementById('iframeModal');
-                const titleEl = document.getElementById('iframeTitle');
-                const frame = document.getElementById('iframeFrame');
-                
-                titleEl.textContent = title;
-                frame.src = url;
-                modal.classList.add('active');
-                document.body.style.overflow = 'hidden';
-            }
+  
+  <!-- Hawaii Islands SVG Definition -->
+  <svg style="display: none;">
+    <defs>
+      <g id="hawaii-islands" fill="currentColor">
+        <path d="M542 2864 c-7 -13 -13 -14 -31 -5 -17 9 -27 9 -49 -2 -15 -8 -39 -19 -53 -25 -16 -6 -29 -21 -33 -37 -4 -15 -16 -40 -28 -55 -18 -25 -19 -31 -7 -56 8 -16 28 -35 44 -43 17 -9 47 -26 67 -39 23 -15 44 -21 57 -17 11 3 30 1 41 -5 29 -16 55 -5 90 40 26 33 29 42 20 65 -8 20 -7 32 5 48 41 58 -7 147 -79 147 -22 0 -38 -6 -44 -16z"/>
+        <path d="M107 2654 c-7 -14 -24 -31 -37 -37 -14 -7 -30 -23 -36 -36 -6 -12 -17 -28 -23 -34 -15 -15 -14 -33 5 -51 19 -20 34 -12 34 18 0 28 34 66 59 66 14 0 20 9 23 33 3 17 8 40 13 50 12 28 -22 21 -38 -9z"/>
+        <path d="M1599 2408 c-8 -7 -27 -30 -42 -50 -31 -42 -57 -54 -87 -38 -16 9 -25 8 -35 0 -12 -10 -10 -21 15 -67 17 -31 30 -60 30 -66 0 -6 7 -18 16 -28 9 -10 19 -33 23 -51 6 -30 10 -33 46 -36 22 -1 47 2 55 7 12 8 12 12 -3 29 -19 21 -23 37 -7 27 6 -4 18 -1 26 6 20 16 28 5 14 -20 -14 -28 -6 -39 24 -34 18 4 29 -2 41 -20 15 -23 22 -25 78 -24 76 2 82 16 37 82 -17 25 -29 49 -25 54 3 5 1 12 -5 16 -5 3 -10 -1 -10 -9 0 -19 -23 -21 -38 -3 -6 6 -13 29 -17 50 -4 20 -15 47 -25 60 -9 12 -20 34 -23 48 -8 32 -44 79 -61 79 -7 0 -19 -6 -27 -12z"/>
+        <path d="M2144 1984 c4 -9 -2 -23 -13 -32 -11 -10 -21 -26 -23 -37 -3 -19 3 -20 89 -22 65 -1 112 -8 158 -23 37 -12 76 -19 90 -16 33 8 85 54 85 75 0 26 -44 43 -77 30 -21 -8 -42 -7 -83 4 -53 15 -184 37 -216 37 -11 0 -14 -5 -10 -16z"/>
+        <path d="M2565 1797 c-17 -32 -17 -36 -1 -84 22 -65 44 -85 105 -91 56 -5 64 -17 54 -89 -5 -37 -2 -48 17 -68 30 -32 98 -35 125 -5 12 13 31 20 57 20 43 0 110 37 128 70 23 43 -26 121 -66 106 -7 -3 -18 3 -24 14 -6 11 -16 20 -22 20 -6 0 -28 16 -49 35 -43 39 -63 42 -116 20 -55 -23 -70 -19 -93 25 -35 68 -86 80 -115 27z"/>
+        <path d="M2313 1740 c-29 -12 -29 -27 -2 -56 12 -13 24 -37 28 -55 8 -38 29 -54 62 -46 37 10 46 19 53 54 14 60 -80 128 -141 103z"/>
+        <path d="M2576 1427 c-31 -26 -36 -35 -25 -44 9 -7 30 -8 54 -4 38 6 40 8 40 41 0 46 -20 48 -69 7z"/>
+        <path d="M3122 1158 c-21 -21 -13 -74 19 -134 21 -40 28 -66 24 -83 -9 -36 -62 -109 -84 -116 -27 -8 -71 -87 -71 -125 0 -33 15 -69 36 -85 7 -5 18 -28 23 -50 6 -22 20 -72 32 -112 22 -69 22 -77 10 -176 -11 -94 -11 -107 5 -140 12 -25 26 -38 46 -43 17 -3 50 -26 76 -50 25 -24 47 -44 49 -44 1 0 11 17 22 38 11 21 27 44 36 52 9 7 22 28 30 46 7 18 32 46 55 61 23 15 62 45 87 66 39 32 50 37 79 31 28 -5 46 1 114 41 85 50 170 135 170 170 0 10 -23 43 -51 71 -32 32 -54 64 -58 85 -5 26 -13 35 -38 41 -37 10 -48 34 -38 85 6 33 3 38 -58 97 -85 82 -219 166 -264 166 -26 0 -53 14 -115 60 -80 59 -113 71 -136 48z"/>
+      </g>
+    </defs>
+  </svg>
+
+  <script>
+    // Modal functions
+    function openIframeModal(title, url) {
+      if (url.includes('facebook.com')) {
+        const modal = document.getElementById('iframeModal');
+        const titleEl = document.getElementById('iframeTitle');
+        const frame = document.getElementById('iframeFrame');
+        titleEl.textContent = title;
+        frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: var(--ocean-deep); font-size: 1.5rem; margin-bottom: 1rem;">🌺 Join Our Facebook Community</h4><p style="font-size: 1.1rem; line-height: 1.8; color: var(--text-soft); margin-bottom: 2rem; max-width: 500px;">Connect with other Hawaii families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: var(--ocean-deep); color: white; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">📱 Open Parent Talk Cafe →</a></div>';
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      } else {
+        const modal = document.getElementById('iframeModal');
+        const titleEl = document.getElementById('iframeTitle');
+        const frame = document.getElementById('iframeFrame');
+        titleEl.textContent = title;
+        frame.src = url;
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      }
+    }
+    
+    function closeIframeModal(event) {
+      if (event && event.target !== event.currentTarget && !event.target.classList.contains('close-iframe')) return;
+      const modal = document.getElementById('iframeModal');
+      const frameEl = document.getElementById('iframeFrame');
+      modal.classList.remove('active');
+      if (frameEl.tagName === 'IFRAME') {
+        frameEl.src = '';
+      } else {
+        frameEl.outerHTML = '<iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>';
+      }
+      document.body.style.overflow = 'auto';
+    }
+    
+    async function loadHeaderFooter() {
+      const headerContainer = document.getElementById('header-container');
+      const footerContainer = document.getElementById('footer-container');
+      try {
+        const [headerResponse, footerResponse] = await Promise.all([fetch('header.html'), fetch('footer.html')]);
+        if (headerResponse.ok && footerResponse.ok) {
+          headerContainer.innerHTML = await headerResponse.text();
+          footerContainer.innerHTML = await footerResponse.text();
+        } else { throw new Error('Failed to fetch'); }
+      } catch (error) {
+        headerContainer.innerHTML = '<nav><div class="nav-content"><a href="index.html" class="logo-container"><img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH Logo" class="logo-img"></a><div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div><ul class="nav-links" id="navLinks"><li><a href="whoweare.html">Who We Are</a></li><li><a href="index.html#services">What We Do</a></li><li><a href="events.html">Events</a></li><li><a href="volunteer.html" class="active">Volunteer</a></li><li><a href="resources.html">Resources</a></li><li><a href="contact.html">Contact</a></li></ul></div></nav>';
+        footerContainer.innerHTML = '<footer><svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg><div class="footer-content"><div class="footer-section"><h3>About LDAH</h3><p>Hawai\'i & Pacific Island Parent Training & Information Center empowering families and children with disabilities.</p></div><div class="footer-section"><h3>Quick Links</h3><a href="whoweare.html">Who We Are</a><a href="index.html#services">What We Do</a><a href="events.html">Events</a><a href="volunteer.html">Volunteer</a><a href="resources.html">Resources</a><a href="contact.html">Contact Us</a></div><div class="footer-section"><h3>Honolulu Office</h3><p>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 532-5364<br>info@ldah.org</p></div><div class="footer-section"><h3>Connect With Us</h3><a href="javascript:void(0)" onclick="openIframeModal(\'Parent Talk Cafe\', \'https://www.facebook.com/groups/2659334410969387\')">Parent Talk Cafe</a><a href="javascript:void(0)" onclick="openIframeModal(\'Career Opportunities\', \'https://www.hrsymphony.com/hrs/careers/ldah\')">Career Opportunities</a><a href="install.html">Install Our App</a><form action="https://www.paypal.com/donate" method="post" target="_blank" style="margin-top: 8px;"><input type="hidden" name="hosted_button_id" value="F6F2DPC4D6RSA"><input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" alt="Donate with PayPal button"></form></div></div><div class="footer-bottom"><p>&copy; 2025 Leadership in Disabilities and Achievement of Hawai\'i. All rights reserved.</p><p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal(\'DP Consulting\', \'https://oahuappdesign.com\')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a> <a href="cms.html" style="margin-left: 12px; color: rgba(255,255,255,0.5); text-decoration: none; font-size: 1.1rem;" title="Admin CMS">⚙️</a></p></div></footer>';
+      }
+      setActiveNavLink();
+    }
+    
+    function setActiveNavLink() {
+      const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+      const navLinks = document.querySelectorAll('.nav-links a');
+      navLinks.forEach(link => {
+        const href = link.getAttribute('href');
+        if (href === currentPage || href === 'volunteer.html') {
+          link.classList.add('active');
         }
-        
-        function closeIframeModal(event) {
-            if (event && event.target !== event.currentTarget && !event.target.classList.contains('close-iframe')) {
-                return;
-            }
-            
-            const modal = document.getElementById('iframeModal');
-            const frameEl = document.getElementById('iframeFrame');
-            
-            modal.classList.remove('active');
-            
-            if (frameEl.tagName === 'IFRAME') {
-                frameEl.src = '';
-            } else {
-                frameEl.outerHTML = '<iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>';
-            }
-            
-            document.body.style.overflow = 'auto';
-        }
-        
-        // Map Modal Functions (for contact page directions buttons)
-        function openMapModal(officeName, mapUrl) {
-            const modal = document.getElementById('mapModal');
-            const title = document.getElementById('modalTitle');
-            const frame = document.getElementById('mapFrame');
-            
-            title.textContent = officeName + ' - Directions';
-            frame.src = mapUrl;
-            modal.classList.add('active');
-            document.body.style.overflow = 'hidden';
-        }
-        
-        function closeMapModal(event) {
-            if (event && event.target !== event.currentTarget && !event.target.classList.contains('close-modal')) {
-                return;
-            }
-            
-            const modal = document.getElementById('mapModal');
-            const frame = document.getElementById('mapFrame');
-            
-            modal.classList.remove('active');
-            frame.src = '';
-            document.body.style.overflow = 'auto';
-        }
-        
-        // Header and Footer Loader - Fetches from external files
-        async function loadHeaderFooter() {
-            const headerContainer = document.getElementById('header-container');
-            const footerContainer = document.getElementById('footer-container');
-            
-            try {
-                // Try to fetch from external files first
-                const [headerResponse, footerResponse] = await Promise.all([
-                    fetch('header.html'),
-                    fetch('footer.html')
-                ]);
-                
-                if (headerResponse.ok && footerResponse.ok) {
-                    headerContainer.innerHTML = await headerResponse.text();
-                    footerContainer.innerHTML = await footerResponse.text();
-                    console.log('✅ Header and footer loaded from external files');
-                } else {
-                    throw new Error('Failed to fetch');
-                }
-                
-                // Load accessibility widget script
-                if (!document.getElementById('a11y-script')) {
-                    const script = document.createElement('script');
-                    script.id = 'a11y-script';
-                    script.src = 'accessibility.js';
-                    document.body.appendChild(script);
-                }
-            } catch (error) {
-                console.log('⚠️ Using inline fallback for header/footer');
-                // Fallback for file:// protocol or fetch failure
-                headerContainer.innerHTML = `<nav>
-    <div class="nav-content">
-        <a href="index.html" class="logo-container">
-            <img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH Logo" class="logo-img">
-            <span class="logo-text">LDAH</span>
-        </a>
-        <div class="hamburger" onclick="toggleMenu()">
-            <span></span>
-            <span></span>
-            <span></span>
-        </div>
-        <ul class="nav-links" id="navLinks">
-            <li><a href="index.html#services">What We Do</a></li>
-            <li><a href="events.html">Events</a></li>
-            <li><a href="volunteer.html">Volunteer</a></li>
-            <li><a href="resources.html">Resources</a></li>
-            <li><a href="contact.html">Contact</a></li>
-        </ul>
-    </div>
-</nav>`;
-                footerContainer.innerHTML = `<footer>
-    <div class="footer-content">
-        <div class="footer-section">
-            <h3>About LDAH</h3>
-            <p>Hawai'i & Pacific Island Parent Training & Information Center empowering families and children with disabilities.</p>
-        </div>
-        <div class="footer-section">
-            <h3>Quick Links</h3>
-            <a href="index.html#services">What We Do</a>
-            <a href="events.html">Events</a>
-            <a href="volunteer.html">Volunteer</a>
-            <a href="resources.html">Resources</a>
-            <a href="contact.html">Contact Us</a>
-        </div>
-        <div class="footer-section">
-            <h3>Honolulu Office</h3>
-            <p>
-                245 North Kukui Street, Suite 205<br>
-                Honolulu, HI 96817<br>
-                (808) 532-5364<br>
-                <a href="mailto:info@ldah.org">info@ldah.org</a>
-            </p>
-        </div>
-        <div class="footer-section">
-            <h3>Connect With Us</h3>
-            <a href="javascript:void(0)" onclick="openIframeModal('Parent Talk Cafe - Facebook Group', 'https://www.facebook.com/groups/2659334410969387')">Parent Talk Cafe</a>
-            <a href="install.html">Install Our App</a>
-        </div>
-    </div>
-    <div class="footer-bottom">
-        <p>&copy; 2025 Leadership in Disabilities and Achievement of Hawai'i. All rights reserved.</p>
-    </div>
-</footer>`;
-            }
-            
-            // Set active nav link after loading
-            setActiveNavLink();
-        }
-        
-        function setActiveNavLink() {
-            const currentPage = window.location.pathname.split('/').pop() || 'index.html';
-            const navLinks = document.querySelectorAll('.nav-links a');
-            
-            navLinks.forEach(link => {
-                const href = link.getAttribute('href');
-                if (href === currentPage || 
-                    (currentPage === 'index.html' && href.includes('index.html')) ||
-                    (currentPage === '' && href.includes('index.html'))) {
-                    link.style.borderBottom = '3px solid #004E7C';
-                    link.style.color = '#004E7C';
-                    link.style.paddingBottom = '4px';
-                }
-            });
-        }
-        
-        function toggleMenu() {
-            const navLinks = document.getElementById('navLinks');
-            if (navLinks) {
-                navLinks.classList.toggle('active');
-            }
-        }
-        
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', loadHeaderFooter);
-        } else {
-            loadHeaderFooter();
-        }
-    </script>
+      });
+    }
+    
+    function toggleMenu() {
+      const navLinks = document.getElementById('navLinks');
+      if (navLinks) navLinks.classList.toggle('active');
+    }
+    
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', loadHeaderFooter);
+    } else {
+      loadHeaderFooter();
+    }
+  </script>
 </head>
 <body>
-    <!-- Header Container - Auto-loaded -->
-    <div id="header-container"></div>
+  <div id="header-container"></div>
 
-
-  <div class="page-header">
+  <header class="page-header">
+    <svg class="page-header-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
     <h1>Volunteer Opportunities</h1>
-    <p>Make a difference in the lives of families and children with disabilities</p>
-  </div>
+    <p>Join our 'ohana and make a difference in the lives of Hawai'i families and children with disabilities.</p>
+  </header>
 
-  <div class="container">
+  <main class="container">
     <div id="opportunities-container">
       <div class="loading">
         <div class="loading-spinner"></div>
-        <p style="margin-top: 1rem; color: var(--text-light);">Loading opportunities...</p>
+        <p style="margin-top: 1rem; color: var(--text-soft);">Loading opportunities...</p>
       </div>
     </div>
-  </div>
+  </main>
+
+  <!-- Gallery Section -->
+  <section class="gallery-section">
+    <div class="section-header">
+      <span class="section-badge">Our Community</span>
+      <h2>Volunteer Gallery</h2>
+      <p>See our amazing volunteers in action!</p>
+    </div>
+    <div class="gallery-grid" id="gallery2Grid">
+      <div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: var(--text-soft);">Loading gallery...</div>
+    </div>
+  </section>
+
+  <!-- CTA Banner -->
+  <section class="cta-banner">
+    <svg class="cta-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
+    <h2>Can't Find a Match?</h2>
+    <p>We're always looking for passionate volunteers! Contact us to discuss how your skills can help our community.</p>
+    <a href="contact.html" class="cta-btn">Contact Us</a>
+  </section>
+
+  <div id="footer-container"></div>
 
   <!-- Application Modal -->
   <div id="application-modal" class="modal">
-    <div class="modal-content" onclick="event.stopPropagation()">
+    <div class="modal-content">
       <div id="modal-body"></div>
     </div>
   </div>
 
-    <!-- Gallery Section -->
-    <section class="gallery-section">
-      <div class="content-wrapper" style="padding-top: 0; padding-bottom: 0; max-width: 1400px; margin: 0 auto;">
-        <div class="section-header">
-          <span class="section-badge">📸 Our Volunteers</span>
-          <h2 id="volunteer-galleryTitle">Volunteers in Action</h2>
-          <p id="volunteer-gallerySubtitle">Our amazing volunteers making a difference in the community</p>
-        </div>
-      </div>
+  <!-- Lightbox for Gallery -->
+  <div id="lightbox2" class="lightbox" onclick="closeLightbox2(event)">
+    <span class="close-lightbox" onclick="closeLightbox2(event)">&times;</span>
+    <button class="lightbox-prev" onclick="prevImage2(event)">&#10094;</button>
+    <img id="lightbox2Img" src="" alt="Gallery Image">
+    <button class="lightbox-next" onclick="nextImage2(event)">&#10095;</button>
+    <div class="lightbox-counter" id="lightbox2Counter">1 / 1</div>
+  </div>
 
-      <div class="gallery-grid" id="gallery2Grid">
-        <div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: var(--text-light);">
-          Loading gallery...
-        </div>
-      </div>
-    </section>
-
-    <!-- Lightbox for Gallery -->
-    <div id="lightbox2" class="lightbox" onclick="closeLightbox2(event)">
-      <span class="close-lightbox" onclick="closeLightbox2()">&times;</span>
-      <button class="lightbox-prev" onclick="prevImage2(event)">&#10094;</button>
-      <img id="lightbox2Img" src="" alt="Gallery Image">
-      <button class="lightbox-next" onclick="nextImage2(event)">&#10095;</button>
-      <div id="lightbox2Counter" class="lightbox-counter">1 / 1</div>
-    </div>
-
-    <!-- CTA Banner -->
-    <section class="cta-banner">
-      <h2>Make a Difference Today</h2>
-      <p>Your time and skills can help families across Hawaii navigate special education and disability services.</p>
-      <a href="contact.html" class="cta-btn">Contact Us to Get Started</a>
-    </section>
-
-    <!-- Footer Container - Auto-loaded -->
-    <div id="footer-container"></div>
-
-  <!-- External Link Modal -->
+  <!-- Iframe Modal -->
   <div id="iframeModal" class="iframe-modal" onclick="closeIframeModal(event)">
     <div class="iframe-content" onclick="event.stopPropagation()">
       <div class="iframe-header">
@@ -781,142 +541,107 @@
     </div>
   </div>
 
-
-  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-    // Firebase configuration
-    const firebaseConfig = {
-      apiKey: "AIzaSyAU3CQ07bCVKlJIqGak-i50kaJEyPKldLk",
-      authDomain: "ldah-932d5.firebaseapp.com",
-      projectId: "ldah-932d5",
-      storageBucket: "ldah-932d5.firebasestorage.app",
-      messagingSenderId: "662130454003",
-      appId: "1:662130454003:web:437576d5a5811ecd8df686"
-    };
-
-    if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
+  <script>
+    // Firebase initialization
+    console.log('🔥 Starting Firebase initialization...');
+    try {
+      firebase.initializeApp({
+        apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk",
+        authDomain: "ldah-932d5.firebaseapp.com",
+        projectId: "ldah-932d5",
+        storageBucket: "ldah-932d5.firebasestorage.app",
+        messagingSenderId: "662130454003",
+        appId: "1:662130454003:web:437576d5a5811ecd8df686"
+      });
+      console.log('✅ Firebase initialized successfully');
+    } catch (e) {
+      console.error('❌ Firebase init error:', e);
     }
-
     const db = firebase.firestore();
-    const auth = firebase.auth();
+    console.log('✅ Firestore db reference created');
 
-    // Sign in anonymously
-    auth.signInAnonymously().catch(error => {
-      console.error('Anonymous auth failed:', error);
-    });
+    let opportunitiesData = {};
 
-    // Load volunteer opportunities
-    async function loadOpportunities() {
-      const container = document.getElementById('opportunities-container');
-      const now = new Date();
-
+    async function loadOpportunitiesData() {
       try {
-        const snapshot = await db.collection('volunteerOpportunities').get();
-        
-        if (snapshot.empty) {
-          container.innerHTML = '<div style="text-align: center; padding: 4rem;"><h3 style="color: var(--primary-blue); margin-bottom: 1rem;">No opportunities available</h3><p style="color: var(--text-light);">Check back soon for new volunteer opportunities!</p></div>';
-          return;
+        const doc = await db.collection('content').doc('volunteer').get();
+        if (doc.exists) {
+          opportunitiesData = doc.data();
         }
-
-        const opportunities = snapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter(opp => {
-            if (opp.alwaysPost) return true;
-            if (!opp.startDate || !opp.endDate) return false;
-            const startDate = new Date(opp.startDate);
-            const endDate = new Date(opp.endDate);
-            return now >= startDate && now <= endDate;
-          })
-          .sort((a, b) => (a.order || 0) - (b.order || 0));
-
-        if (opportunities.length === 0) {
-          container.innerHTML = '<div style="text-align: center; padding: 4rem;"><h3 style="color: var(--primary-blue); margin-bottom: 1rem;">No opportunities available</h3><p style="color: var(--text-light);">Check back soon for new volunteer opportunities!</p></div>';
-          return;
-        }
-
-        container.innerHTML = `<div class="opportunities-grid">${opportunities.map(opp => `
-          <div class="opportunity-card" onclick="openApplication('${opp.id}')">
-            ${opp.imageUrl ? `<img src="${opp.imageUrl}" alt="${opp.title}" class="opportunity-image">` : ''}
-            <h3 class="opportunity-title">${opp.title}</h3>
-            <p class="opportunity-description">${opp.description || ''}</p>
-            ${!opp.alwaysPost && opp.startDate && opp.endDate ? 
-              `<div class="opportunity-dates">📅 ${new Date(opp.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(opp.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>` : 
-              ''}
-            <button class="btn-apply" onclick="event.stopPropagation(); openApplication('${opp.id}')">
-              Apply Now
-            </button>
-          </div>
-        `).join('')}</div>`;
-
       } catch (error) {
-        console.error('Error loading opportunities:', error);
-        container.innerHTML = '<div style="text-align: center; padding: 4rem;"><h3 style="color: var(--primary-blue); margin-bottom: 1rem;">Error loading opportunities</h3><p style="color: var(--text-light);">Please try again later.</p></div>';
+        console.error('Error loading opportunities data:', error);
       }
     }
 
-    // Store opportunities for modal
-    let allOpportunities = [];
-    async function loadOpportunitiesData() {
-      const snapshot = await db.collection('volunteerOpportunities').get();
-      allOpportunities = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    async function loadOpportunities() {
+      const container = document.getElementById('opportunities-container');
+      try {
+        // Get all opportunities and filter client-side
+        const snapshot = await db.collection('volunteerOpportunities').get();
+        
+        console.log('Firebase snapshot:', snapshot.size, 'documents');
+        
+        // Filter and sort client-side to avoid composite index requirement
+        const opportunities = snapshot.docs
+          .map(doc => {
+            const data = doc.data();
+            console.log('Opportunity:', doc.id, data);
+            return { id: doc.id, ...data };
+          })
+          .filter(opp => opp.alwaysPost === true)
+          .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+        if (opportunities.length === 0) {
+          container.innerHTML = '<div style="text-align: center; padding: 3rem; background: white; border-radius: 16px; border: 2px dashed rgba(8, 145, 178, 0.2);"><div style="font-size: 4rem; margin-bottom: 1rem;">🤝</div><h3 style="color: var(--ocean-deep); margin-bottom: 0.5rem;">No Current Openings</h3><p style="color: var(--text-soft);">Check back soon for new volunteer opportunities!</p></div>';
+          return;
+        }
+        
+        container.innerHTML = '<div class="opportunities-grid">' + opportunities.map(opp => `
+          <div class="opportunity-card">
+            ${opp.imageUrl ? `<img src="${opp.imageUrl}" alt="${opp.title}" class="opportunity-image">` : ''}
+            <h3 class="opportunity-title">${opp.title}</h3>
+            <p class="opportunity-description">${opp.description}</p>
+            ${opp.dates ? `<div class="opportunity-dates">📅 ${opp.dates}</div>` : ''}
+            <button class="btn-apply" onclick="openApplicationModal('${opp.id}', '${opp.title.replace(/'/g, "\\'")}')">Apply Now</button>
+          </div>
+        `).join('') + '</div>';
+      } catch (error) {
+        console.error('Error loading opportunities:', error);
+        container.innerHTML = '<div style="text-align: center; padding: 3rem;"><p style="color: var(--text-soft);">Unable to load opportunities. Please try again later.</p></div>';
+      }
     }
 
-    function openApplication(opportunityId) {
-      const opportunity = allOpportunities.find(opp => opp.id === opportunityId);
-      if (!opportunity) return;
-
+    function openApplicationModal(opportunityId, opportunityTitle) {
       const modal = document.getElementById('application-modal');
       const modalBody = document.getElementById('modal-body');
 
       modalBody.innerHTML = `
-        <button onclick="closeModal()" style="position: absolute; top: 16px; right: 16px; background: transparent; border: none; color: var(--primary-blue); cursor: pointer; font-size: 24px; padding: 8px;">✕</button>
-        
-        <h2 style="color: var(--primary-blue); font-size: 24px; font-weight: bold; margin-bottom: 8px; padding-right: 40px;">
-          Apply for ${opportunity.title}
-        </h2>
-        <p style="color: var(--text-light); font-size: 14px; margin-bottom: 24px;">
-          * Indicates required question
-        </p>
-
-        <form id="application-form" onsubmit="submitApplication(event, '${opportunityId}', '${opportunity.title}')">
-          <div style="margin-bottom: 20px;">
-            <label style="display: block; color: var(--primary-blue); font-weight: bold; margin-bottom: 8px; font-size: 14px;">
-              First Name *
-            </label>
-            <input type="text" required id="app-firstName" placeholder="Your answer" style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+          <h2 style="color: var(--ocean-deep); font-size: 1.5rem;">Apply: ${opportunityTitle}</h2>
+          <button onclick="closeModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-soft);">&times;</button>
+        </div>
+        <form onsubmit="submitApplication(event, '${opportunityId}', '${opportunityTitle}')">
+          <div class="form-group">
+            <label>First Name *</label>
+            <input type="text" id="app-firstName" required>
           </div>
-
-          <div style="margin-bottom: 20px;">
-            <label style="display: block; color: var(--primary-blue); font-weight: bold; margin-bottom: 8px; font-size: 14px;">
-              Last Name *
-            </label>
-            <input type="text" required id="app-lastName" placeholder="Your answer" style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">
+          <div class="form-group">
+            <label>Last Name *</label>
+            <input type="text" id="app-lastName" required>
           </div>
-
-          <div style="margin-bottom: 20px;">
-            <label style="display: block; color: var(--primary-blue); font-weight: bold; margin-bottom: 8px; font-size: 14px;">
-              Email Address *
-            </label>
-            <input type="email" required id="app-email" placeholder="Your answer" style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">
+          <div class="form-group">
+            <label>Email *</label>
+            <input type="email" id="app-email" required>
           </div>
-
-          <div style="margin-bottom: 20px;">
-            <label style="display: block; color: var(--primary-blue); font-weight: bold; margin-bottom: 8px; font-size: 14px;">
-              Subject *
-            </label>
-            <input type="text" required id="app-subject" value="Volunteer - ${opportunity.title}" readonly style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px; background-color: #f9fafb; color: #6b7280;">
+          <div class="form-group">
+            <label>Why are you interested? *</label>
+            <textarea id="app-subject" rows="3" required></textarea>
           </div>
-
-          <div style="margin-bottom: 20px;">
-            <label style="display: block; color: var(--primary-blue); font-weight: bold; margin-bottom: 8px; font-size: 14px;">
-              Notes / Additional Information
-            </label>
-            <textarea id="app-notes" placeholder="Tell us more about your interest and availability" rows="4" style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px; font-family: inherit; resize: vertical;"></textarea>
+          <div class="form-group">
+            <label>Additional Notes</label>
+            <textarea id="app-notes" rows="2"></textarea>
           </div>
-
-          <button type="submit" class="btn-apply" style="width: 100%; padding: 16px; font-size: 16px;">
-            Submit Application
-          </button>
+          <button type="submit" class="btn-apply" style="width: 100%; padding: 1rem; font-size: 1rem;">Submit Application</button>
         </form>
       `;
 
@@ -944,36 +669,11 @@
       try {
         await db.collection('volunteers').add(formData);
 
-        // Track analytics
-        try {
-          await db.collection('analytics').add({
-            eventType: 'volunteer_application',
-            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-            page: window.location.pathname,
-            opportunityId: opportunityId,
-            opportunityTitle: opportunityTitle
-          });
-
-          if (typeof gtag !== 'undefined') {
-            gtag('event', 'volunteer_application', {
-              event_category: 'engagement',
-              event_label: opportunityTitle
-            });
-          }
-        } catch (analyticsError) {
-          console.error('Analytics error:', analyticsError);
-        }
-
-        // Show success
         document.getElementById('modal-body').innerHTML = `
           <div style="text-align: center; padding: 40px;">
             <div style="font-size: 64px; margin-bottom: 20px;">✅</div>
-            <h2 style="color: var(--primary-blue); font-size: 24px; font-weight: bold; margin-bottom: 12px;">
-              Thank You!
-            </h2>
-            <p style="color: var(--text-light); font-size: 16px;">
-              Your application has been received. We'll contact you soon!
-            </p>
+            <h2 style="color: var(--ocean-deep); font-size: 1.5rem; margin-bottom: 12px;">Mahalo!</h2>
+            <p style="color: var(--text-soft); font-size: 1rem;">Your application has been received. We'll contact you soon!</p>
           </div>
         `;
 
@@ -984,34 +684,23 @@
       }
     }
 
-    // Close modal on background click
     document.getElementById('application-modal').addEventListener('click', function(e) {
       if (e.target === this) closeModal();
     });
 
-    // Gallery 2 (Volunteer Gallery) - loads from Firebase gallery2 collection
+    // Gallery 2
     let gallery2Images = [];
     let currentImage2Index = 0;
 
-    // Fallback gallery images for volunteer page
-    const fallbackGallery2Images = [
-      { imageUrl: 'assets/gallery/volunteer1.jpg', caption: 'Volunteer Event' },
-      { imageUrl: 'assets/gallery/volunteer2.jpg', caption: 'Community Outreach' }
-    ];
-
     async function loadGallery2() {
       const grid = document.getElementById('gallery2Grid');
-      
       try {
         const snapshot = await db.collection('gallery2').orderBy('order').get();
-        
         if (snapshot.empty) {
-          console.log('📷 Gallery2 is empty, showing placeholder');
           gallery2Images = [];
           renderGallery2();
         } else {
           gallery2Images = snapshot.docs.map(doc => doc.data());
-          console.log('📷 Loaded', gallery2Images.length, 'gallery2 images from Firebase');
           renderGallery2();
         }
       } catch (error) {
@@ -1023,12 +712,10 @@
 
     function renderGallery2() {
       const grid = document.getElementById('gallery2Grid');
-      
       if (gallery2Images.length === 0) {
-        grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: var(--text-light);">No photos in gallery yet. Add photos through the CMS.</div>';
+        grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: var(--text-soft);">No photos in gallery yet. Add photos through the CMS.</div>';
         return;
       }
-      
       grid.innerHTML = gallery2Images.map((photo, index) => `
         <div class="gallery-item" onclick="openLightbox2(${index})">
           <img src="${photo.imageUrl}" alt="${photo.caption || 'Volunteer Gallery Photo'}">
@@ -1036,7 +723,6 @@
       `).join('');
     }
 
-    // Lightbox for Gallery 2
     function openLightbox2(index) {
       currentImage2Index = index;
       updateLightbox2Image();
@@ -1068,60 +754,21 @@
       document.body.style.overflow = 'auto';
     }
 
-    // Load opportunities on page load
+    // Load on page ready
+    console.log('📄 Setting up DOMContentLoaded listener...');
     document.addEventListener('DOMContentLoaded', async () => {
-      await loadOpportunitiesData();
-      await loadOpportunities();
-      await loadGallery2();
+      console.log('📄 DOMContentLoaded fired, loading data...');
+      try {
+        await loadOpportunitiesData();
+        console.log('✅ Opportunities data loaded');
+        await loadOpportunities();
+        console.log('✅ Opportunities rendered');
+        await loadGallery2();
+        console.log('✅ Gallery loaded');
+      } catch (e) {
+        console.error('❌ Error in DOMContentLoaded:', e);
+      }
     });
-  
-
-  
-    function openIframeModal(title, url) {
-      // Special handling for Facebook
-      if (url.includes('facebook.com')) {
-        const modal = document.getElementById('iframeModal');
-        const titleEl = document.getElementById('iframeTitle');
-        const frame = document.getElementById('iframeFrame');
-        
-        titleEl.textContent = title;
-        frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">🌺 Join Our Facebook Community</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other Hawaii families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">📱 Open Parent Talk Cafe →</a></div>';
-        modal.classList.add('active');
-        document.body.style.overflow = 'hidden';
-      } else {
-        const modal = document.getElementById('iframeModal');
-        const titleEl = document.getElementById('iframeTitle');
-        const frame = document.getElementById('iframeFrame');
-        
-        titleEl.textContent = title;
-        frame.src = url;
-        modal.classList.add('active');
-        document.body.style.overflow = 'hidden';
-      }
-    }
-    
-    function closeIframeModal(event) {
-      if (event && event.target !== event.currentTarget && !event.target.classList.contains('close-iframe')) {
-        return;
-      }
-      
-      const modal = document.getElementById('iframeModal');
-      const frameEl = document.getElementById('iframeFrame');
-      
-      modal.classList.remove('active');
-      
-      // Reset iframe
-      if (frameEl.tagName === 'IFRAME') {
-        frameEl.src = '';
-      } else {
-        frameEl.outerHTML = '<iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>';
-      }
-      
-      document.body.style.overflow = 'auto';
-    }
   </script>
-  <script>
-    function toggleMenu() {
-      document.getElementById('navLinks').classList.toggle('active');
-    }
-    // Close menu when cl
+</body>
+</html>
