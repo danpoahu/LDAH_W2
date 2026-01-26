@@ -603,7 +603,7 @@
         <div class="office-card-content">
           <div style="text-align: center;">
             <div class="office-icon">
-              <img src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=200&h=200&fit=crop" alt="Office building">
+              <img id="contact-honPhoto" src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=200&h=200&fit=crop" alt="Office building">
             </div>
             <h2 id="contact-honTitle" class="office-title">Honolulu Office</h2>
             <p id="contact-honSubtitle" class="office-subtitle">Main Office</p>
@@ -620,7 +620,7 @@
           <div class="contact-info">
             <div class="contact-label">Email</div>
             <div id="contact-honEmail" class="contact-value">
-              <a href="mailto:info@ldah.org">info@ldah.org</a>
+              <a href="/cdn-cgi/l/email-protection#9ef7f0f8f1def2fafff6b0f1ecf9"><span class="__cf_email__" data-cfemail="82ebece4edc2eee6e3eaacedf0e5">[email&#160;protected]</span></a>
             </div>
           </div>
 
@@ -649,7 +649,7 @@
         <div class="office-card-content">
           <div style="text-align: center;">
             <div class="office-icon">
-              <img src="https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=200&h=200&fit=crop" alt="School building">
+              <img id="contact-mailiPhoto" src="https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=200&h=200&fit=crop" alt="School building">
             </div>
             <h2 id="contact-mailiTitle" class="office-title">Ma'ili Office</h2>
             <p id="contact-mailiSubtitle" class="office-subtitle">School Readiness Project</p>
@@ -695,6 +695,9 @@
 
     <!-- App Download Card -->
     <div class="message-card">
+      <div class="office-icon" style="margin-bottom: 1.5rem;">
+        <img id="contact-appPhoto" src="https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=200&h=200&fit=crop" alt="Mobile App">
+      </div>
       <h2 id="contact-appTitle">24/7 Support at Your Fingertips</h2>
       <p id="contact-appText">
         Need answers anytime? Download our free app for instant access to resources, FAQs, and support—day or night!
@@ -738,7 +741,7 @@
     </div>
   </div>
 
-  <script>
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
     function openMapModal(officeName, mapUrl) {
       const modal = document.getElementById('mapModal');
       const title = document.getElementById('modalTitle');
@@ -821,16 +824,4 @@
         if (doc.exists) {
           const data = doc.data();
           Object.keys(data).forEach(key => {
-            const el = document.getElementById(key);
-            if (el) el.innerHTML = data[key];
-          });
-        }
-      } catch (error) {
-        console.log('Using default content');
-      }
-    }
-    
-    loadPageContent();
-  </script>
-</body>
-</html>
+            const el = document.

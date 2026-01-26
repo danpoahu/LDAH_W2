@@ -12,26 +12,38 @@
     <style>
         :root { --primary: #004E7C; --teal: #4DD0E1; --light: #f8f9fa; --gray: #666; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Inter', sans-serif; background: #f5f5f5; }
+        body { font-family: 'Inter', sans-serif; background: #f5f5f5; display: flex; height: 100vh; overflow: hidden; }
         h1,h2,h3 { font-family: 'Poppins', sans-serif; }
-        .nav { background: #1a1a2e; padding: 0.75rem 1rem; position: sticky; top: 0; z-index: 100; }
-        .nav-inner { max-width: 1400px; margin: 0 auto; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-        .nav h1 { color: white; font-size: 1rem; margin-right: 1rem; }
-        .tab { background: rgba(255,255,255,0.1); color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
-        .tab:hover { background: rgba(255,255,255,0.2); }
-        .tab.active { background: var(--primary); box-shadow: 0 0 0 2px var(--teal); }
-        .back { margin-left: auto; text-decoration: none; }
-        .panel { position: fixed; right: 0; top: 0; bottom: 0; width: 350px; background: white; box-shadow: -4px 0 20px rgba(0,0,0,0.15); transform: translateX(100%); transition: transform 0.3s; z-index: 1000; overflow-y: auto; }
+        
+        /* Left Sidebar Navigation */
+        .sidebar { width: 220px; background: #1a1a2e; color: white; display: flex; flex-direction: column; overflow-y: auto; flex-shrink: 0; }
+        .sidebar-header { padding: 1.25rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-header h1 { font-size: 1.1rem; color: white; }
+        .sidebar-nav { flex: 1; padding: 0.5rem 0; }
+        .tab { background: transparent; color: rgba(255,255,255,0.7); border: none; padding: 0.75rem 1rem; cursor: pointer; font-size: 0.9rem; text-align: left; width: 100%; transition: all 0.2s; border-left: 3px solid transparent; display: flex; align-items: center; gap: 0.5rem; }
+        .tab:hover { background: rgba(255,255,255,0.05); color: white; }
+        .tab.active { background: rgba(0,78,124,0.3); color: white; border-left-color: var(--teal); font-weight: 600; }
+        .sidebar-footer { padding: 0.5rem; border-top: 1px solid rgba(255,255,255,0.1); }
+        .back { background: rgba(255,255,255,0.1); color: white; padding: 0.75rem 1rem; border-radius: 6px; text-decoration: none; display: block; text-align: center; font-size: 0.85rem; transition: all 0.2s; }
+        .back:hover { background: rgba(255,255,255,0.2); }
+        
+        /* Main Content Area */
+        .main-content { flex: 1; display: flex; overflow: hidden; position: relative; }
+        .preview-area { flex: 1; overflow-y: auto; background: #e5e7eb; }
+        
+        /* Right Editor Panel */
+        .panel { width: 400px; background: white; box-shadow: -4px 0 20px rgba(0,0,0,0.15); transform: translateX(100%); transition: transform 0.3s; z-index: 100; overflow-y: auto; flex-shrink: 0; }
         .panel.open { transform: translateX(0); }
-        .panel-head { background: var(--primary); color: white; padding: 1rem; position: sticky; top: 0; }
-        .toggle { position: fixed; right: 20px; bottom: 20px; z-index: 999; padding: 12px 20px; background: var(--primary); color: white; border-radius: 50px; border: none; cursor: pointer; font-weight: 600; }
+        .panel-head { background: var(--primary); color: white; padding: 1rem; position: sticky; top: 0; z-index: 10; }
+        .toggle { position: fixed; right: 20px; bottom: 20px; z-index: 999; padding: 12px 20px; background: var(--primary); color: white; border-radius: 50px; border: none; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        
         .edit { position: relative; border: 2px dashed transparent; cursor: pointer; border-radius: 6px; padding: 4px; margin: -4px; }
         .edit:hover { border-color: var(--teal); background: rgba(77,208,225,0.1); }
         .badge { position: absolute; top: -10px; right: 5px; background: var(--teal); color: var(--primary); padding: 2px 8px; font-size: 10px; border-radius: 4px; font-weight: 600; opacity: 0; }
         .edit:hover .badge { opacity: 1; }
         .page { display: none; }
         .page.active { display: block; }
-        .preview { max-width: 1200px; margin: 0 auto; background: white; min-height: calc(100vh - 50px); }
+        .preview { max-width: 1200px; margin: 0 auto; background: white; min-height: 100%; }
         .hero { background: linear-gradient(135deg, #004E7C, #0066a1); color: white; padding: 60px 20px; text-align: center; }
         .hero h1 { font-size: 2.2rem; margin-bottom: 15px; }
         .hero p { font-size: 1.1rem; max-width: 800px; margin: 0 auto; opacity: 0.95; }
@@ -55,7 +67,7 @@
         .pti { background: linear-gradient(135deg, rgba(0,78,124,0.05), rgba(77,208,225,0.1)); border-radius: 12px; padding: 1.5rem; max-width: 1100px; margin: 0 auto 2rem; }
         .pti h3 { color: var(--primary); margin-bottom: 0.75rem; }
         .pti p { color: var(--gray); line-height: 1.7; margin-bottom: 0.75rem; }
-        .cta { background: linear-gradient(135deg, #004E7C, #0066a1); color: white; padding: 50px 20px; text-align: center; }
+        .cta { background: linear-gradient(135deg, #F97316, #FB923C); color: white; padding: 50px 20px; text-align: center; }
         .cta h2 { font-size: 1.8rem; margin-bottom: 12px; }
         .cta p { font-size: 1rem; max-width: 550px; margin: 0 auto; opacity: 0.95; }
         .ph { background: var(--light); padding: 2rem; border-radius: 10px; text-align: center; color: var(--gray); margin: 1rem auto; max-width: 800px; }
@@ -78,79 +90,36 @@
         .logged.active { display: block; }
         .logout { width: 100%; background: #ef4444; color: white; border: none; padding: 0.7rem; border-radius: 6px; font-weight: 600; cursor: pointer; }
         @media (max-width: 900px) { .stats-grid, .grid3 { grid-template-columns: 1fr 1fr; } }
-        @media (max-width: 600px) { .stats-grid, .grid3 { grid-template-columns: 1fr; } .tab { padding: 0.4rem 0.6rem; font-size: 0.7rem; } }
+        @media (max-width: 600px) { .stats-grid, .grid3 { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
-    <nav class="nav"><div class="nav-inner">
-        <h1>📄 Page Editor</h1>
-        <button class="tab active" data-page="home">🏠 Home</button>
-        <button class="tab" data-page="whoweare">👥 Who We Are</button>
-        <button class="tab" data-page="events">📅 Events</button>
-        <button class="tab" data-page="volunteer">🤝 Volunteer</button>
-        <button class="tab" data-page="resources">📚 Resources</button>
-        <button class="tab" data-page="contact">📞 Contact</button>
-        <button class="tab" data-page="readiness">🎓 Readiness</button>
-        <button class="tab" data-page="specialed">⚖️ Special Ed</button>
-        <button class="tab" data-page="military">🇺🇸 Military</button>
-        <button class="tab" data-page="pacific">🏝️ Pacific</button>
-        <button class="tab" data-page="community">✊ Community</button>
-        <a href="cms.html" class="tab back">← CMS</a>
-    </div></nav>
-
-    <div class="panel" id="panel">
-        <div class="panel-head"><h2 style="font-size:1rem">✏️ Edit</h2></div>
-        <div class="form" id="form">
-            <label id="lbl">Editing...</label>
-            <input type="hidden" id="fld"><input type="hidden" id="pg">
-            
-            <!-- Text editing (default) -->
-            <div id="textEditSection">
-                <textarea id="txt"></textarea>
-            </div>
-            
-            <!-- Photo editing (shown for photo fields) -->
-            <div id="photoEditSection" style="display:none;">
-                <div style="margin-bottom: 1rem;">
-                    <p style="font-size: 0.85rem; color: #666; margin-bottom: 0.5rem;">Current image:</p>
-                    <img id="photoPreview" src="" style="width: 100%; max-width: 200px; height: auto; border-radius: 12px; border: 2px solid #e2e8f0; margin-bottom: 1rem;">
-                </div>
-                <div style="background: #f0f9ff; border: 2px dashed #0891B2; border-radius: 8px; padding: 1rem; text-align: center; margin-bottom: 1rem;">
-                    <p style="font-size: 0.9rem; color: #0891B2; font-weight: 600; margin-bottom: 0.5rem;">📷 Upload New Photo</p>
-                    <p style="font-size: 0.75rem; color: #666; margin-bottom: 0.75rem;">Max 500KB • Auto-compressed to ~160×160px</p>
-                    <input type="file" id="photoFile" accept="image/*" onchange="handlePhotoSelect(event)" style="font-size: 0.85rem;">
-                    <div id="uploadProgress" style="display: none; margin-top: 0.75rem;">
-                        <div style="background: #e2e8f0; border-radius: 4px; height: 8px; overflow: hidden;">
-                            <div id="progressBar" style="background: linear-gradient(90deg, #0891B2, #06B6D4); height: 100%; width: 0%; transition: width 0.3s;"></div>
-                        </div>
-                        <p id="progressText" style="font-size: 0.75rem; color: #666; margin-top: 0.25rem;">Uploading...</p>
-                    </div>
-                </div>
-                <p style="font-size: 0.75rem; color: #666; margin-bottom: 0.5rem;">Or paste an image URL:</p>
-                <input type="text" id="photoUrl" placeholder="https://images.unsplash.com/..." style="width: 100%; padding: 0.5rem; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 0.85rem;">
-            </div>
-            
-            <div class="btns" style="margin-top: 1rem;"><button class="btn-cancel" onclick="cancel()">Cancel</button><button class="btn-save" onclick="save()">💾 Save</button></div>
+    <!-- Left Sidebar Navigation -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h1>📄 Page Editor</h1>
         </div>
-        <div class="welcome" id="welcome">
-            <h3>👋 Welcome!</h3>
-            <ul><li>Click any text to edit</li><li>Click photos (📷) to upload or change images</li><li>Photos auto-compress to save storage</li><li>Changes save to Firebase</li></ul>
-            <p style="font-size: 0.8rem; color: #666; margin: 1rem 0; padding: 0.75rem; background: #fff7ed; border-radius: 6px; border-left: 3px solid #f97316;">💡 <strong>Tip:</strong> This client prefers photos over emoji icons. Upload photos directly or use Unsplash URLs.</p>
-            <div class="login" id="loginBox">
-                <p style="font-size:0.8rem;color:#666;margin-bottom:0.5rem">🔐 Login:</p>
-                <input type="email" id="email" placeholder="Email">
-                <input type="password" id="pass" placeholder="Password" onkeypress="if(event.key==='Enter')login()">
-                <button onclick="login()">Login</button>
-            </div>
-            <div class="logged" id="loggedBox">
-                <p style="color:#166534">✅ Logged in as:</p>
-                <p id="user" style="font-size:0.85rem;color:#166534;margin-bottom:0.75rem"></p>
-                <button class="logout" onclick="logout()">🚪 Logout</button>
-            </div>
+        <nav class="sidebar-nav">
+            <button class="tab active" data-page="home">🏠 Home</button>
+            <button class="tab" data-page="whoweare">👥 Who We Are</button>
+            <button class="tab" data-page="events">📅 Events</button>
+            <button class="tab" data-page="volunteer">🤝 Volunteer</button>
+            <button class="tab" data-page="resources">📚 Resources</button>
+            <button class="tab" data-page="contact">📞 Contact</button>
+            <button class="tab" data-page="readiness">🎓 Readiness</button>
+            <button class="tab" data-page="specialed">⚖️ Special Ed</button>
+            <button class="tab" data-page="military">🇺🇸 Military</button>
+            <button class="tab" data-page="pacific">🏝️ Pacific</button>
+            <button class="tab" data-page="community">✊ Community</button>
+        </nav>
+        <div class="sidebar-footer">
+            <a href="cms.html" class="back">← Back to CMS</a>
         </div>
-    </div>
-    <button class="toggle" id="toggle" onclick="togglePanel()">📝 Edit</button>
+    </aside>
 
+    <!-- Main Content Area -->
+    <div class="main-content">
+        <div class="preview-area">
     <!-- HOME -->
     <div class="page active" id="page-home"><div class="preview">
         <section class="hero">
@@ -217,9 +186,9 @@
                 <div class="edit" onclick="ed('whoweare','foundationSubtitle','Foundation Subtitle')"><span class="badge">✏️</span><p id="whoweare-foundationSubtitle">Our guiding principles</p></div>
             </div>
             <div class="grid3">
-                <div class="card" style="text-align:center"><div class="card-icon">🎯</div><div class="edit" onclick="ed('whoweare','missionTitle','Mission Title')"><span class="badge">✏️</span><h3 id="whoweare-missionTitle">Our Mission</h3></div><div class="edit" onclick="ed('whoweare','missionText','Mission Text')"><span class="badge">✏️</span><p id="whoweare-missionText">To enhance opportunities for children with disabilities through empowerment and advocacy.</p></div></div>
-                <div class="card" style="text-align:center"><div class="card-icon">🔭</div><div class="edit" onclick="ed('whoweare','visionTitle','Vision Title')"><span class="badge">✏️</span><h3 id="whoweare-visionTitle">Our Vision</h3></div><div class="edit" onclick="ed('whoweare','visionText','Vision Text')"><span class="badge">✏️</span><p id="whoweare-visionText">Access to opportunities regardless of disability.</p></div></div>
-                <div class="card" style="text-align:center"><div class="card-icon">💎</div><div class="edit" onclick="ed('whoweare','valuesTitle','Values Title')"><span class="badge">✏️</span><h3 id="whoweare-valuesTitle">Core Values</h3></div><div class="edit" onclick="ed('whoweare','valuesList','Values (use li tags)')"><span class="badge">✏️</span><ul id="whoweare-valuesList"><li>Advocating for Rights</li><li>Families First</li><li>Partnerships</li><li>Accountability</li></ul></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon" style="width:80px;height:80px;margin:0 auto 1rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('whoweare','missionPhoto','Mission Photo 📷')"><span class="badge">✏️</span><img id="whoweare-missionPhoto-preview" src="https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a?w=200&h=200&fit=crop" alt="Mission" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('whoweare','missionTitle','Mission Title')"><span class="badge">✏️</span><h3 id="whoweare-missionTitle">Our Mission</h3></div><div class="edit" onclick="ed('whoweare','missionText','Mission Text')"><span class="badge">✏️</span><p id="whoweare-missionText">To enhance opportunities for children with disabilities through empowerment and advocacy.</p></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon" style="width:80px;height:80px;margin:0 auto 1rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('whoweare','visionPhoto','Vision Photo 📷')"><span class="badge">✏️</span><img id="whoweare-visionPhoto-preview" src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=200&h=200&fit=crop" alt="Vision" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('whoweare','visionTitle','Vision Title')"><span class="badge">✏️</span><h3 id="whoweare-visionTitle">Our Vision</h3></div><div class="edit" onclick="ed('whoweare','visionText','Vision Text')"><span class="badge">✏️</span><p id="whoweare-visionText">Access to opportunities regardless of disability.</p></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon" style="width:80px;height:80px;margin:0 auto 1rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('whoweare','valuesPhoto','Values Photo 📷')"><span class="badge">✏️</span><img id="whoweare-valuesPhoto-preview" src="https://images.unsplash.com/photo-1609220136736-443140cffec6?w=200&h=200&fit=crop" alt="Values" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('whoweare','valuesTitle','Values Title')"><span class="badge">✏️</span><h3 id="whoweare-valuesTitle">Core Values</h3></div><div class="edit" onclick="ed('whoweare','valuesList','Values (use li tags)')"><span class="badge">✏️</span><ul id="whoweare-valuesList"><li>Advocating for Rights</li><li>Families First</li><li>Partnerships</li><li>Accountability</li></ul></div></div>
             </div>
             <div class="pti">
                 <div class="card-icon">🏛️</div>
@@ -232,7 +201,10 @@
                 <div class="edit" onclick="ed('whoweare','teamTitle','Team Title')"><span class="badge">✏️</span><h2 id="whoweare-teamTitle">The Team Behind LDAH</h2></div>
                 <div class="edit" onclick="ed('whoweare','teamSubtitle','Team Subtitle')"><span class="badge">✏️</span><p id="whoweare-teamSubtitle">Dedicated to supporting families</p></div>
             </div>
-            <div class="ph">👥 Team managed in CMS</div>
+            <div class="grid3" style="grid-template-columns:repeat(2,1fr);max-width:800px">
+                <div class="card" style="text-align:center"><div class="card-icon" style="width:80px;height:80px;margin:0 auto 1rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('whoweare','teamPhoto','Team Photo 📷')"><span class="badge">✏️</span><img id="whoweare-teamPhoto-preview" src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=200&h=200&fit=crop" alt="Our Team" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('whoweare','teamCardTitle','Team Card Title')"><span class="badge">✏️</span><h3 id="whoweare-teamCardTitle">Our Team</h3></div><div class="edit" onclick="ed('whoweare','teamCardText','Team Card Text')"><span class="badge">✏️</span><p id="whoweare-teamCardText">Meet the dedicated staff members who work directly with families every day to provide support, training, and advocacy services.</p></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon" style="width:80px;height:80px;margin:0 auto 1rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('whoweare','boardPhoto','Board Photo 📷')"><span class="badge">✏️</span><img id="whoweare-boardPhoto-preview" src="https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200&h=200&fit=crop" alt="Board of Directors" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('whoweare','boardCardTitle','Board Card Title')"><span class="badge">✏️</span><h3 id="whoweare-boardCardTitle">Board of Directors</h3></div><div class="edit" onclick="ed('whoweare','boardCardText','Board Card Text')"><span class="badge">✏️</span><p id="whoweare-boardCardText">Our volunteer board provides leadership and governance to ensure LDAH fulfills its mission to serve Hawaii's families.</p></div></div>
+            </div>
         </section>
         <section class="sec" style="background:#f0f4f8">
             <div class="sec-head">
@@ -326,7 +298,7 @@
             <div class="grid3" style="grid-template-columns: 1fr 1fr; margin-bottom: 2rem;">
                 <!-- Honolulu Office -->
                 <div class="card" style="text-align:center">
-                    <div class="card-icon">🏢</div>
+                    <div class="card-icon" style="width:80px;height:80px;margin:0 auto 1rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('contact','honPhoto','Honolulu Photo 📷')"><span class="badge">✏️</span><img id="contact-honPhoto-preview" src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=200&h=200&fit=crop" alt="Honolulu Office" style="width:100%;height:100%;object-fit:cover"></div></div>
                     <div class="edit" onclick="ed('contact','honTitle','Honolulu Office Title')"><span class="badge">✏️</span><h3 id="contact-honTitle">Honolulu Office</h3></div>
                     <div class="edit" onclick="ed('contact','honSubtitle','Honolulu Subtitle')"><span class="badge">✏️</span><p id="contact-honSubtitle" style="color:var(--primary);font-weight:600">Main Office</p></div>
                     <div class="edit" onclick="ed('contact','honPhone','Honolulu Phone')"><span class="badge">✏️</span><p id="contact-honPhone" style="font-size:0.9rem;margin-top:1rem"><strong>Phone:</strong> (808) 532-5364<br><strong>Toll Free:</strong> 1-800-533-9684</p></div>
@@ -335,7 +307,7 @@
                 </div>
                 <!-- Ma'ili Office -->
                 <div class="card" style="text-align:center">
-                    <div class="card-icon">🏫</div>
+                    <div class="card-icon" style="width:80px;height:80px;margin:0 auto 1rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('contact','mailiPhoto','Maili Photo 📷')"><span class="badge">✏️</span><img id="contact-mailiPhoto-preview" src="https://images.unsplash.com/photo-1562564055-71e051d33c19?w=200&h=200&fit=crop" alt="Maili Office" style="width:100%;height:100%;object-fit:cover"></div></div>
                     <div class="edit" onclick="ed('contact','mailiTitle','Maili Office Title')"><span class="badge">✏️</span><h3 id="contact-mailiTitle">Ma'ili Office</h3></div>
                     <div class="edit" onclick="ed('contact','mailiSubtitle','Maili Subtitle')"><span class="badge">✏️</span><p id="contact-mailiSubtitle" style="color:var(--primary);font-weight:600">School Readiness Project</p></div>
                     <div class="edit" onclick="ed('contact','mailiPhone','Maili Phone')"><span class="badge">✏️</span><p id="contact-mailiPhone" style="font-size:0.9rem;margin-top:1rem"><strong>Phone:</strong> (808) 696-5361<br><strong>Fax:</strong> (808) 696-5371</p></div>
@@ -345,7 +317,7 @@
             </div>
             <!-- App Download Card -->
             <div class="card" style="text-align: center; background: linear-gradient(135deg, rgba(0,78,124,0.05), rgba(77,208,225,0.1));">
-                <div class="card-icon">📱</div>
+                <div class="card-icon" style="width:80px;height:80px;margin:0 auto 1rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('contact','appPhoto','App Photo 📷')"><span class="badge">✏️</span><img id="contact-appPhoto-preview" src="https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=200&h=200&fit=crop" alt="Mobile App" style="width:100%;height:100%;object-fit:cover"></div></div>
                 <div class="edit" onclick="ed('contact','appTitle','App Section Title')"><span class="badge">✏️</span><h3 id="contact-appTitle">24/7 Support at Your Fingertips</h3></div>
                 <div class="edit" onclick="ed('contact','appText','App Section Text')"><span class="badge">✏️</span><p id="contact-appText">Need answers anytime? Download our free app for instant access to resources, FAQs, and support—day or night!</p></div>
             </div>
@@ -377,17 +349,17 @@
                 <div class="edit" onclick="ed('readiness','screeningsTitle','Screenings Section Title')"><span class="badge">✏️</span><h2 id="readiness-screeningsTitle">👁️ Childhood Screenings</h2></div>
             </div>
             <div class="grid3">
-                <div class="card"><div class="card-icon">👁️</div><div class="edit" onclick="ed('readiness','visionTitle','Vision Title')"><span class="badge">✏️</span><h3 id="readiness-visionTitle">Vision Screening</h3></div><div class="edit" onclick="ed('readiness','visionText','Vision Text')"><span class="badge">✏️</span><p id="readiness-visionText">We use the Plusoptix Digital Vision Screener to check your child's eyes. It is an accurate, non-invasive way to detect a variety of vision disorders in children.</p></div></div>
-                <div class="card"><div class="card-icon">👂</div><div class="edit" onclick="ed('readiness','hearingTitle','Hearing Title')"><span class="badge">✏️</span><h3 id="readiness-hearingTitle">Hearing Screening</h3></div><div class="edit" onclick="ed('readiness','hearingText','Hearing Text')"><span class="badge">✏️</span><p id="readiness-hearingText">Two methods can be used: Otoacoustic Emissions checks both the middle and inner ear, and Tympanometry checks for reduced eardrum movement caused by fluid, wax, or other problems.</p></div></div>
-                <div class="card"><div class="card-icon">📊</div><div class="edit" onclick="ed('readiness','devTitle','Developmental Title')"><span class="badge">✏️</span><h3 id="readiness-devTitle">Developmental Screening</h3></div><div class="edit" onclick="ed('readiness','devText','Developmental Text')"><span class="badge">✏️</span><p id="readiness-devText">Our qualified personnel use the Ages & Stages Questionnaire (ASQ-3) and ASQ-SE screening tools. Children with concerns are screened for autism using M-CHAT.</p></div></div>
+                <div class="card"><div class="card-icon" style="width:80px;height:80px;margin:0 auto 1rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('readiness','visionPhoto','Vision Photo 📷')"><span class="badge">✏️</span><img id="readiness-visionPhoto-preview" src="https://images.unsplash.com/photo-1585421514738-01798e348b17?w=200&h=200&fit=crop" alt="Vision Screening" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('readiness','visionTitle','Vision Title')"><span class="badge">✏️</span><h3 id="readiness-visionTitle">Vision Screening</h3></div><div class="edit" onclick="ed('readiness','visionText','Vision Text')"><span class="badge">✏️</span><p id="readiness-visionText">We use the Plusoptix Digital Vision Screener to check your child's eyes. It is an accurate, non-invasive way to detect a variety of vision disorders in children.</p></div></div>
+                <div class="card"><div class="card-icon" style="width:80px;height:80px;margin:0 auto 1rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('readiness','hearingPhoto','Hearing Photo 📷')"><span class="badge">✏️</span><img id="readiness-hearingPhoto-preview" src="https://images.unsplash.com/photo-1590602846989-e9e13cc6c161?w=200&h=200&fit=crop" alt="Hearing Screening" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('readiness','hearingTitle','Hearing Title')"><span class="badge">✏️</span><h3 id="readiness-hearingTitle">Hearing Screening</h3></div><div class="edit" onclick="ed('readiness','hearingText','Hearing Text')"><span class="badge">✏️</span><p id="readiness-hearingText">Two methods can be used: Otoacoustic Emissions checks both the middle and inner ear, and Tympanometry checks for reduced eardrum movement caused by fluid, wax, or other problems.</p></div></div>
+                <div class="card"><div class="card-icon" style="width:80px;height:80px;margin:0 auto 1rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('readiness','devPhoto','Developmental Photo 📷')"><span class="badge">✏️</span><img id="readiness-devPhoto-preview" src="https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=200&h=200&fit=crop" alt="Developmental Screening" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('readiness','devTitle','Developmental Title')"><span class="badge">✏️</span><h3 id="readiness-devTitle">Developmental Screening</h3></div><div class="edit" onclick="ed('readiness','devText','Developmental Text')"><span class="badge">✏️</span><p id="readiness-devText">Our qualified personnel use the Ages & Stages Questionnaire (ASQ-3) and ASQ-SE screening tools. Children with concerns are screened for autism using M-CHAT.</p></div></div>
             </div>
             <div class="sec-head" style="margin-top: 2rem;">
                 <div class="edit" onclick="ed('readiness','servicesTitle','Services Section Title')"><span class="badge">✏️</span><h2 id="readiness-servicesTitle">Our Services</h2></div>
             </div>
             <div class="grid3">
-                <div class="card"><div class="card-icon">📋</div><div class="edit" onclick="ed('readiness','caseTitle','Case Management Title')"><span class="badge">✏️</span><h3 id="readiness-caseTitle">Case Management</h3></div><div class="edit" onclick="ed('readiness','caseText','Case Management Text')"><span class="badge">✏️</span><p id="readiness-caseText">Case Management is provided for families of children identified with a specific need. Our staff will support you by explaining results, offering solutions, connecting you with resources, and following up on referrals.</p></div></div>
-                <div class="card"><div class="card-icon">🎓</div><div class="edit" onclick="ed('readiness','workshopsTitle','Workshops Title')"><span class="badge">✏️</span><h3 id="readiness-workshopsTitle">Parent Workshops</h3></div><div class="edit" onclick="ed('readiness','workshopsText','Workshops Text')"><span class="badge">✏️</span><p id="readiness-workshopsText">Trainings are designed to increase understanding of health, developmental, and school readiness needs of preschool aged children. Learn what development should look like and review possible signs of delays.</p></div></div>
-                <div class="card"><div class="card-icon">🤝</div><div class="edit" onclick="ed('readiness','providerTitle','Provider Title')"><span class="badge">✏️</span><h3 id="readiness-providerTitle">Provider Services</h3></div><div class="edit" onclick="ed('readiness','providerText','Provider Text')"><span class="badge">✏️</span><p id="readiness-providerText">If you are a provider and would like to add our screening services to your program or event, we can help! We offer vision, hearing, and developmental screenings, trainings, and resources.</p></div></div>
+                <div class="card"><div class="card-icon" style="width:80px;height:80px;margin:0 auto 1rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('readiness','casePhoto','Case Management Photo 📷')"><span class="badge">✏️</span><img id="readiness-casePhoto-preview" src="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=200&h=200&fit=crop" alt="Case Management" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('readiness','caseTitle','Case Management Title')"><span class="badge">✏️</span><h3 id="readiness-caseTitle">Case Management</h3></div><div class="edit" onclick="ed('readiness','caseText','Case Management Text')"><span class="badge">✏️</span><p id="readiness-caseText">Case Management is provided for families of children identified with a specific need. Our staff will support you by explaining results, offering solutions, connecting you with resources, and following up on referrals.</p></div></div>
+                <div class="card"><div class="card-icon" style="width:80px;height:80px;margin:0 auto 1rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('readiness','workshopsPhoto','Workshops Photo 📷')"><span class="badge">✏️</span><img id="readiness-workshopsPhoto-preview" src="https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=200&h=200&fit=crop" alt="Parent Workshops" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('readiness','workshopsTitle','Workshops Title')"><span class="badge">✏️</span><h3 id="readiness-workshopsTitle">Parent Workshops</h3></div><div class="edit" onclick="ed('readiness','workshopsText','Workshops Text')"><span class="badge">✏️</span><p id="readiness-workshopsText">Trainings are designed to increase understanding of health, developmental, and school readiness needs of preschool aged children. Learn what development should look like and review possible signs of delays.</p></div></div>
+                <div class="card"><div class="card-icon" style="width:80px;height:80px;margin:0 auto 1rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('readiness','providerPhoto','Provider Photo 📷')"><span class="badge">✏️</span><img id="readiness-providerPhoto-preview" src="https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?w=200&h=200&fit=crop" alt="Provider Services" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('readiness','providerTitle','Provider Title')"><span class="badge">✏️</span><h3 id="readiness-providerTitle">Provider Services</h3></div><div class="edit" onclick="ed('readiness','providerText','Provider Text')"><span class="badge">✏️</span><p id="readiness-providerText">If you are a provider and would like to add our screening services to your program or event, we can help! We offer vision, hearing, and developmental screenings, trainings, and resources.</p></div></div>
             </div>
         </section>
         <section class="cta">
@@ -408,12 +380,12 @@
                 <div class="edit" onclick="ed('specialed','resourcesSubtitle','Resources Section Subtitle')"><span class="badge">✏️</span><p id="specialed-resourcesSubtitle">Essential guides and regulations for understanding special education rights in Hawai'i</p></div>
             </div>
             <div class="grid3">
-                <div class="card"><div class="card-icon">📖</div><div class="edit" onclick="ed('specialed','res1Title','Resource 1 Title')"><span class="badge">✏️</span><h3 id="specialed-res1Title">Laws Regarding Education – General Overview</h3></div><div class="edit" onclick="ed('specialed','res1Desc','Resource 1 Description')"><span class="badge">✏️</span><p id="specialed-res1Desc">Learn about FERPA, IDEA and more in our general overview of laws regarding education. Updated July 2023.</p></div></div>
-                <div class="card"><div class="card-icon">⚖️</div><div class="edit" onclick="ed('specialed','res2Title','Resource 2 Title')"><span class="badge">✏️</span><h3 id="specialed-res2Title">Chapter 60 Information</h3></div><div class="edit" onclick="ed('specialed','res2Desc','Resource 2 Description')"><span class="badge">✏️</span><p id="specialed-res2Desc">A complete view of the Hawaii Administrative Rules, Chapter 60 Guidelines for special education.</p></div></div>
-                <div class="card"><div class="card-icon">🚌</div><div class="edit" onclick="ed('specialed','res3Title','Resource 3 Title')"><span class="badge">✏️</span><h3 id="specialed-res3Title">Transportation for Students – HAR 27 Title 8</h3></div><div class="edit" onclick="ed('specialed','res3Desc','Resource 3 Description')"><span class="badge">✏️</span><p id="specialed-res3Desc">Learn about Hawaii Administrative Rule 27, Title 8 regarding transportation services for students.</p></div></div>
-                <div class="card"><div class="card-icon">🏫</div><div class="edit" onclick="ed('specialed','res4Title','Resource 4 Title')"><span class="badge">✏️</span><h3 id="specialed-res4Title">Public Charter School IDEA Guidelines</h3></div><div class="edit" onclick="ed('specialed','res4Desc','Resource 4 Description')"><span class="badge">✏️</span><p id="specialed-res4Desc">Hawaii State Public Charter Schools guidelines for the implementation of IDEA 2004. Parents may enroll their child in any charter school regardless of special needs.</p></div></div>
-                <div class="card"><div class="card-icon">🎬</div><div class="edit" onclick="ed('specialed','res5Title','Resource 5 Title')"><span class="badge">✏️</span><h3 id="specialed-res5Title">Restraint & Seclusion Webinar</h3></div><div class="edit" onclick="ed('specialed','res5Desc','Resource 5 Description')"><span class="badge">✏️</span><p id="specialed-res5Desc">U.S. Department of Education webinar presentation on restraint and seclusion policies and best practices in schools.</p></div></div>
-                <div class="card"><div class="card-icon">🛡️</div><div class="edit" onclick="ed('specialed','res6Title','Resource 6 Title')"><span class="badge">✏️</span><h3 id="specialed-res6Title">Restraint & Seclusion Resource Document</h3></div><div class="edit" onclick="ed('specialed','res6Desc','Resource 6 Description')"><span class="badge">✏️</span><p id="specialed-res6Desc">U.S. Department of Education guidance on 15 principles for policies and procedures regarding restraint and seclusion in schools.</p></div></div>
+                <div class="card"><div class="card-icon" style="width:80px;height:80px;margin:0 auto 1rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('specialed','res1Photo','Resource 1 Photo 📷')"><span class="badge">✏️</span><img id="specialed-res1Photo-preview" src="https://images.unsplash.com/photo-1505664194779-8beaceb93744?w=200&h=200&fit=crop" alt="Laws Overview" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('specialed','res1Title','Resource 1 Title')"><span class="badge">✏️</span><h3 id="specialed-res1Title">Laws Regarding Education – General Overview</h3></div><div class="edit" onclick="ed('specialed','res1Desc','Resource 1 Description')"><span class="badge">✏️</span><p id="specialed-res1Desc">Learn about FERPA, IDEA and more in our general overview of laws regarding education. Updated July 2023.</p></div></div>
+                <div class="card"><div class="card-icon" style="width:80px;height:80px;margin:0 auto 1rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('specialed','res2Photo','Resource 2 Photo 📷')"><span class="badge">✏️</span><img id="specialed-res2Photo-preview" src="https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=200&h=200&fit=crop" alt="Chapter 60" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('specialed','res2Title','Resource 2 Title')"><span class="badge">✏️</span><h3 id="specialed-res2Title">Chapter 60 Information</h3></div><div class="edit" onclick="ed('specialed','res2Desc','Resource 2 Description')"><span class="badge">✏️</span><p id="specialed-res2Desc">A complete view of the Hawaii Administrative Rules, Chapter 60 Guidelines for special education.</p></div></div>
+                <div class="card"><div class="card-icon" style="width:80px;height:80px;margin:0 auto 1rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('specialed','res3Photo','Resource 3 Photo 📷')"><span class="badge">✏️</span><img id="specialed-res3Photo-preview" src="https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=200&h=200&fit=crop" alt="Transportation" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('specialed','res3Title','Resource 3 Title')"><span class="badge">✏️</span><h3 id="specialed-res3Title">Transportation for Students – HAR 27 Title 8</h3></div><div class="edit" onclick="ed('specialed','res3Desc','Resource 3 Description')"><span class="badge">✏️</span><p id="specialed-res3Desc">Learn about Hawaii Administrative Rule 27, Title 8 regarding transportation services for students.</p></div></div>
+                <div class="card"><div class="card-icon" style="width:80px;height:80px;margin:0 auto 1rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('specialed','res4Photo','Resource 4 Photo 📷')"><span class="badge">✏️</span><img id="specialed-res4Photo-preview" src="https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=200&h=200&fit=crop" alt="Charter Schools" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('specialed','res4Title','Resource 4 Title')"><span class="badge">✏️</span><h3 id="specialed-res4Title">Public Charter School IDEA Guidelines</h3></div><div class="edit" onclick="ed('specialed','res4Desc','Resource 4 Description')"><span class="badge">✏️</span><p id="specialed-res4Desc">Hawaii State Public Charter Schools guidelines for the implementation of IDEA 2004. Parents may enroll their child in any charter school regardless of special needs.</p></div></div>
+                <div class="card"><div class="card-icon" style="width:80px;height:80px;margin:0 auto 1rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('specialed','res5Photo','Resource 5 Photo 📷')"><span class="badge">✏️</span><img id="specialed-res5Photo-preview" src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=200&h=200&fit=crop" alt="Webinar" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('specialed','res5Title','Resource 5 Title')"><span class="badge">✏️</span><h3 id="specialed-res5Title">Restraint & Seclusion Webinar</h3></div><div class="edit" onclick="ed('specialed','res5Desc','Resource 5 Description')"><span class="badge">✏️</span><p id="specialed-res5Desc">U.S. Department of Education webinar presentation on restraint and seclusion policies and best practices in schools.</p></div></div>
+                <div class="card"><div class="card-icon" style="width:80px;height:80px;margin:0 auto 1rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('specialed','res6Photo','Resource 6 Photo 📷')"><span class="badge">✏️</span><img id="specialed-res6Photo-preview" src="https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=200&h=200&fit=crop" alt="Resource Document" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('specialed','res6Title','Resource 6 Title')"><span class="badge">✏️</span><h3 id="specialed-res6Title">Restraint & Seclusion Resource Document</h3></div><div class="edit" onclick="ed('specialed','res6Desc','Resource 6 Description')"><span class="badge">✏️</span><p id="specialed-res6Desc">U.S. Department of Education guidance on 15 principles for policies and procedures regarding restraint and seclusion in schools.</p></div></div>
             </div>
         </section>
         <section class="cta">
@@ -448,8 +420,8 @@
                 </div>
             </div>
             <div class="grid3" style="grid-template-columns: 1fr 1fr;">
-                <div class="card"><div class="card-icon">📄</div><div class="edit" onclick="ed('military','pdf1Title','PDF 1 Title')"><span class="badge">✏️</span><h3 id="military-pdf1Title">Relocating With an IEP</h3></div><div class="edit" onclick="ed('military','pdf1Desc','PDF 1 Description')"><span class="badge">✏️</span><p id="military-pdf1Desc">Essential information and checklists for military families relocating with children who have IEPs. Learn what to do before, during, and after your move.</p></div></div>
-                <div class="card"><div class="card-icon">📋</div><div class="edit" onclick="ed('military','pdf2Title','PDF 2 Title')"><span class="badge">✏️</span><h3 id="military-pdf2Title">Forever Transitioning</h3></div><div class="edit" onclick="ed('military','pdf2Desc','PDF 2 Description')"><span class="badge">✏️</span><p id="military-pdf2Desc">A comprehensive checklist of must-do tasks for military families coming to or leaving Hawaii. Reduce the anxiety of unpredictable circumstances.</p></div></div>
+                <div class="card"><div class="card-icon" style="width:80px;height:80px;margin:0 auto 1rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('military','pdf1Photo','PDF 1 Photo 📷')"><span class="badge">✏️</span><img id="military-pdf1Photo-preview" src="https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=200&h=200&fit=crop" alt="Relocating IEP" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('military','pdf1Title','PDF 1 Title')"><span class="badge">✏️</span><h3 id="military-pdf1Title">Relocating With an IEP</h3></div><div class="edit" onclick="ed('military','pdf1Desc','PDF 1 Description')"><span class="badge">✏️</span><p id="military-pdf1Desc">Essential information and checklists for military families relocating with children who have IEPs. Learn what to do before, during, and after your move.</p></div></div>
+                <div class="card"><div class="card-icon" style="width:80px;height:80px;margin:0 auto 1rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('military','pdf2Photo','PDF 2 Photo 📷')"><span class="badge">✏️</span><img id="military-pdf2Photo-preview" src="https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?w=200&h=200&fit=crop" alt="Forever Transitioning" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('military','pdf2Title','PDF 2 Title')"><span class="badge">✏️</span><h3 id="military-pdf2Title">Forever Transitioning</h3></div><div class="edit" onclick="ed('military','pdf2Desc','PDF 2 Description')"><span class="badge">✏️</span><p id="military-pdf2Desc">A comprehensive checklist of must-do tasks for military families coming to or leaving Hawaii. Reduce the anxiety of unpredictable circumstances.</p></div></div>
             </div>
         </section>
         <section class="cta">
@@ -496,18 +468,18 @@
                 <div class="edit" onclick="ed('community','kitSubtitle','Response Kit Subtitle')"><span class="badge">✏️</span><p id="community-kitSubtitle">Download these resources to help you respond to and prevent bullying</p></div>
             </div>
             <div class="grid3" style="grid-template-columns: repeat(5, 1fr);">
-                <div class="card" style="text-align:center"><div class="card-icon">📝</div><div class="edit" onclick="ed('community','res1Title','Resource 1')"><span class="badge">✏️</span><h3 id="community-res1Title" style="font-size:0.9rem">IDEA Sample Letter to Principal</h3></div></div>
-                <div class="card" style="text-align:center"><div class="card-icon">✅</div><div class="edit" onclick="ed('community','res2Title','Resource 2')"><span class="badge">✏️</span><h3 id="community-res2Title" style="font-size:0.9rem">Completed IDEA Sample Letter</h3></div></div>
-                <div class="card" style="text-align:center"><div class="card-icon">📋</div><div class="edit" onclick="ed('community','res3Title','Resource 3')"><span class="badge">✏️</span><h3 id="community-res3Title" style="font-size:0.9rem">504 Sample Letter to Principal</h3></div></div>
-                <div class="card" style="text-align:center"><div class="card-icon">✅</div><div class="edit" onclick="ed('community','res4Title','Resource 4')"><span class="badge">✏️</span><h3 id="community-res4Title" style="font-size:0.9rem">Completed 504 Sample Letter</h3></div></div>
-                <div class="card" style="text-align:center"><div class="card-icon">📨</div><div class="edit" onclick="ed('community','res5Title','Resource 5')"><span class="badge">✏️</span><h3 id="community-res5Title" style="font-size:0.9rem">Follow Up Letter to Superintendent</h3></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon" style="width:60px;height:60px;margin:0 auto 0.75rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('community','res1Photo','Resource 1 Photo 📷')"><span class="badge">✏️</span><img id="community-res1Photo-preview" src="https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=200&h=200&fit=crop" alt="IDEA Letter" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('community','res1Title','Resource 1')"><span class="badge">✏️</span><h3 id="community-res1Title" style="font-size:0.9rem">IDEA Sample Letter to Principal</h3></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon" style="width:60px;height:60px;margin:0 auto 0.75rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('community','res2Photo','Resource 2 Photo 📷')"><span class="badge">✏️</span><img id="community-res2Photo-preview" src="https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=200&h=200&fit=crop" alt="Completed IDEA" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('community','res2Title','Resource 2')"><span class="badge">✏️</span><h3 id="community-res2Title" style="font-size:0.9rem">Completed IDEA Sample Letter</h3></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon" style="width:60px;height:60px;margin:0 auto 0.75rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('community','res3Photo','Resource 3 Photo 📷')"><span class="badge">✏️</span><img id="community-res3Photo-preview" src="https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?w=200&h=200&fit=crop" alt="504 Letter" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('community','res3Title','Resource 3')"><span class="badge">✏️</span><h3 id="community-res3Title" style="font-size:0.9rem">504 Sample Letter to Principal</h3></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon" style="width:60px;height:60px;margin:0 auto 0.75rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('community','res4Photo','Resource 4 Photo 📷')"><span class="badge">✏️</span><img id="community-res4Photo-preview" src="https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=200&h=200&fit=crop" alt="Completed 504" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('community','res4Title','Resource 4')"><span class="badge">✏️</span><h3 id="community-res4Title" style="font-size:0.9rem">Completed 504 Sample Letter</h3></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon" style="width:60px;height:60px;margin:0 auto 0.75rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('community','res5Photo','Resource 5 Photo 📷')"><span class="badge">✏️</span><img id="community-res5Photo-preview" src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=200&h=200&fit=crop" alt="Follow Up Letter" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('community','res5Title','Resource 5')"><span class="badge">✏️</span><h3 id="community-res5Title" style="font-size:0.9rem">Follow Up Letter to Superintendent</h3></div></div>
             </div>
             <div class="grid3" style="grid-template-columns: repeat(5, 1fr); margin-top: 1rem;">
-                <div class="card" style="text-align:center"><div class="card-icon">☑️</div><div class="edit" onclick="ed('community','res6Title','Resource 6')"><span class="badge">✏️</span><h3 id="community-res6Title" style="font-size:0.9rem">Bullying Checklist</h3></div></div>
-                <div class="card" style="text-align:center"><div class="card-icon">👥</div><div class="edit" onclick="ed('community','res7Title','Resource 7')"><span class="badge">✏️</span><h3 id="community-res7Title" style="font-size:0.9rem">Complex Area Superintendents</h3></div></div>
-                <div class="card" style="text-align:center"><div class="card-icon">💻</div><div class="edit" onclick="ed('community','res8Title','Resource 8')"><span class="badge">✏️</span><h3 id="community-res8Title" style="font-size:0.9rem">Elementary Cyberbullying Prevention</h3></div></div>
-                <div class="card" style="text-align:center"><div class="card-icon">🖥️</div><div class="edit" onclick="ed('community','res9Title','Resource 9')"><span class="badge">✏️</span><h3 id="community-res9Title" style="font-size:0.9rem">Middle/High School Cyberbullying</h3></div></div>
-                <div class="card" style="text-align:center"><div class="card-icon">🪧</div><div class="edit" onclick="ed('community','res10Title','Resource 10')"><span class="badge">✏️</span><h3 id="community-res10Title" style="font-size:0.9rem">Bullying Postcard</h3></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon" style="width:60px;height:60px;margin:0 auto 0.75rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('community','res6Photo','Resource 6 Photo 📷')"><span class="badge">✏️</span><img id="community-res6Photo-preview" src="https://images.unsplash.com/photo-1507925921958-8a62f3d1a50d?w=200&h=200&fit=crop" alt="Checklist" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('community','res6Title','Resource 6')"><span class="badge">✏️</span><h3 id="community-res6Title" style="font-size:0.9rem">Bullying Checklist</h3></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon" style="width:60px;height:60px;margin:0 auto 0.75rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('community','res7Photo','Resource 7 Photo 📷')"><span class="badge">✏️</span><img id="community-res7Photo-preview" src="https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200&h=200&fit=crop" alt="Superintendents" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('community','res7Title','Resource 7')"><span class="badge">✏️</span><h3 id="community-res7Title" style="font-size:0.9rem">Complex Area Superintendents</h3></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon" style="width:60px;height:60px;margin:0 auto 0.75rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('community','res8Photo','Resource 8 Photo 📷')"><span class="badge">✏️</span><img id="community-res8Photo-preview" src="https://images.unsplash.com/photo-1588196749597-9ff075ee6b5b?w=200&h=200&fit=crop" alt="Elementary Cyber" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('community','res8Title','Resource 8')"><span class="badge">✏️</span><h3 id="community-res8Title" style="font-size:0.9rem">Elementary Cyberbullying Prevention</h3></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon" style="width:60px;height:60px;margin:0 auto 0.75rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('community','res9Photo','Resource 9 Photo 📷')"><span class="badge">✏️</span><img id="community-res9Photo-preview" src="https://images.unsplash.com/photo-1499951360447-b19be8fe80f5?w=200&h=200&fit=crop" alt="Middle/High Cyber" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('community','res9Title','Resource 9')"><span class="badge">✏️</span><h3 id="community-res9Title" style="font-size:0.9rem">Middle/High School Cyberbullying</h3></div></div>
+                <div class="card" style="text-align:center"><div class="card-icon" style="width:60px;height:60px;margin:0 auto 0.75rem;border-radius:50%;overflow:hidden"><div class="edit" onclick="ed('community','res10Photo','Resource 10 Photo 📷')"><span class="badge">✏️</span><img id="community-res10Photo-preview" src="https://images.unsplash.com/photo-1555421689-d68471e189f2?w=200&h=200&fit=crop" alt="Postcard" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('community','res10Title','Resource 10')"><span class="badge">✏️</span><h3 id="community-res10Title" style="font-size:0.9rem">Bullying Postcard</h3></div></div>
             </div>
         </section>
         <section class="cta">
@@ -516,8 +488,66 @@
         </section>
     </div></div>
 
+        </div><!-- End preview-area -->
+
+        <!-- Right Editor Panel -->
+        <div class="panel" id="panel">
+            <div class="panel-head"><h2 style="font-size:1rem">✏️ Edit</h2></div>
+            <div class="form" id="form">
+                <label id="lbl">Editing...</label>
+                <input type="hidden" id="fld"><input type="hidden" id="pg">
+                
+                <!-- Text editing (default) -->
+                <div id="textEditSection">
+                    <textarea id="txt"></textarea>
+                </div>
+                
+                <!-- Photo editing (shown for photo fields) -->
+                <div id="photoEditSection" style="display:none;">
+                    <div style="margin-bottom: 1rem;">
+                        <p style="font-size: 0.85rem; color: #666; margin-bottom: 0.5rem;">Current image:</p>
+                        <img id="photoPreview" src="" style="width: 100%; max-width: 200px; height: auto; border-radius: 12px; border: 2px solid #e2e8f0; margin-bottom: 1rem;">
+                    </div>
+                    <div style="background: #f0f9ff; border: 2px dashed #0891B2; border-radius: 8px; padding: 1rem; text-align: center; margin-bottom: 1rem;">
+                        <p style="font-size: 0.9rem; color: #0891B2; font-weight: 600; margin-bottom: 0.5rem;">📷 Upload New Photo</p>
+                        <p style="font-size: 0.75rem; color: #666; margin-bottom: 0.75rem;">Max 500KB • Auto-compressed to ~160×160px</p>
+                        <input type="file" id="photoFile" accept="image/*" onchange="handlePhotoSelect(event)" style="font-size: 0.85rem;">
+                        <div id="uploadProgress" style="display: none; margin-top: 0.75rem;">
+                            <div style="background: #e2e8f0; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div id="progressBar" style="background: linear-gradient(90deg, #0891B2, #06B6D4); height: 100%; width: 0%; transition: width 0.3s;"></div>
+                            </div>
+                            <p id="progressText" style="font-size: 0.75rem; color: #666; margin-top: 0.25rem;">Uploading...</p>
+                        </div>
+                    </div>
+                    <p style="font-size: 0.75rem; color: #666; margin-bottom: 0.5rem;">Or paste an image URL:</p>
+                    <input type="text" id="photoUrl" placeholder="https://images.unsplash.com/..." style="width: 100%; padding: 0.5rem; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 0.85rem;">
+                </div>
+                
+                <div class="btns" style="margin-top: 1rem;"><button class="btn-cancel" onclick="cancel()">Cancel</button><button class="btn-save" onclick="save()">💾 Save</button></div>
+            </div>
+            <div class="welcome" id="welcome">
+                <h3>👋 Welcome!</h3>
+                <ul><li>Click any text to edit</li><li>Click photos (📷) to upload or change images</li><li>Photos auto-compress to save storage</li><li>Changes save to Firebase</li></ul>
+                <p style="font-size: 0.8rem; color: #666; margin: 1rem 0; padding: 0.75rem; background: #fff7ed; border-radius: 6px; border-left: 3px solid #f97316;">💡 <strong>Tip:</strong> This client prefers photos over emoji icons. Upload photos directly or use Unsplash URLs.</p>
+                <div class="login" id="loginBox">
+                    <p style="font-size:0.8rem;color:#666;margin-bottom:0.5rem">🔐 Login:</p>
+                    <input type="email" id="email" placeholder="Email">
+                    <input type="password" id="pass" placeholder="Password" onkeypress="if(event.key==='Enter')login()">
+                    <button onclick="login()">Login</button>
+                </div>
+                <div class="logged" id="loggedBox">
+                    <p style="color:#166534">✅ Logged in as:</p>
+                    <p id="user" style="font-size:0.85rem;color:#166534;margin-bottom:0.75rem"></p>
+                    <button class="logout" onclick="logout()">🚪 Logout</button>
+                </div>
+            </div>
+        </div>
+
+        <button class="toggle" id="toggle" onclick="togglePanel()">📝 Edit</button>
+    </div><!-- End main-content -->
+
     <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-        const cfg = { apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk", authDomain: "ldah-932d5.firebaseapp.com", projectId: "ldah-932d5" };
+        const cfg = { apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk", authDomain: "ldah-932d5.firebaseapp.com", projectId: "ldah-932d5", storageBucket: "ldah-932d5.firebasestorage.app" };
         firebase.initializeApp(cfg);
         const db = firebase.firestore(), auth = firebase.auth();
         let loggedIn = false;
@@ -645,7 +675,7 @@
                 document.getElementById('progressText').textContent = `Uploading (${(compressedBlob.size / 1024).toFixed(1)}KB)...`;
                 
                 // Upload to Firebase Storage
-                const filename = `page-photos/${pg}/${fld}_${Date.now()}.jpg`;
+                const filename = `gallery/${pg}_${fld}_${Date.now()}.jpg`;
                 const storageRef = storage.ref(filename);
                 const uploadTask = storageRef.put(compressedBlob);
                 
