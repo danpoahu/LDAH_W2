@@ -736,9 +736,6 @@
         <!-- Bottom Row: PDF Resource Cards -->
         <div class="resources-grid">
             <div class="resource-card">
-                <div class="office-icon" style="margin-bottom: 1rem;">
-                    <img id="military-pdf1Photo" src="https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=200&h=200&fit=crop" alt="Relocating IEP">
-                </div>
                 <div class="resource-content">
                     <h3 id="military-pdf1Title">Relocating With an IEP</h3>
                     <p id="military-pdf1Desc">Essential information and checklists for military families relocating with children who have IEPs. Learn what to do before, during, and after your move.</p>
@@ -747,9 +744,6 @@
             </div>
 
             <div class="resource-card">
-                <div class="office-icon" style="margin-bottom: 1rem;">
-                    <img id="military-pdf2Photo" src="https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?w=200&h=200&fit=crop" alt="Forever Transitioning">
-                </div>
                 <div class="resource-content">
                     <h3 id="military-pdf2Title">Forever Transitioning</h3>
                     <p id="military-pdf2Desc">A comprehensive checklist of must-do tasks for military families coming to or leaving Hawaii. Reduce the anxiety of unpredictable circumstances.</p>
@@ -808,7 +802,14 @@
                     const data = doc.data();
                     Object.keys(data).forEach(key => {
                         const el = document.getElementById(`military-${key}`);
-                        if (el && data[key]) el.innerHTML = data[key];
+                        if (el && data[key]) {
+                            // For photo fields, update the src attribute instead of innerHTML
+                            if (key.includes('Photo') && el.tagName === 'IMG') {
+                                el.src = data[key];
+                            } else {
+                                el.innerHTML = data[key];
+                            }
+                        }
                     });
                 }
             } catch (err) { console.error('Error loading page content:', err); }

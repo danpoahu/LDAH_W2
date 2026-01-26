@@ -781,7 +781,14 @@
                     const data = doc.data();
                     Object.keys(data).forEach(key => {
                         const el = document.getElementById('resources-' + key);
-                        if (el && data[key]) el.innerHTML = data[key];
+                        if (el && data[key]) {
+                            // For photo fields, update the src attribute instead of innerHTML
+                            if (key.includes('Photo') && el.tagName === 'IMG') {
+                                el.src = data[key];
+                            } else {
+                                el.innerHTML = data[key];
+                            }
+                        }
                     });
                 }
             } catch (err) { console.error('Error loading page content:', err); }
