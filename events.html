@@ -2159,12 +2159,18 @@
                       Select the Dates you are Available to Participate *
                     </label>
                     <div style="display: flex; flex-direction: column; gap: 8px;">
-                      ${event.signupDates.map((date, idx) => `
+                      ${event.signupDates.map((date, idx) => {
+                        // Parse the date to check if it's expired
+                        const parsedDate = parseSignupDateString(date);
+                        const isExpired = parsedDate ? (new Date(parsedDate + 'T23:59:59') < new Date()) : false;
+                        
+                        return `
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                           <input type="checkbox" class="signup-date-checkbox" value="${date}" style="width: 18px; height: 18px; cursor: pointer;">
-                          <span style="font-size: 14px; color: #374151;">${date}</span>
+                          <span style="font-size: 14px; color: #374151; ${isExpired ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${date}</span>
                         </label>
-                      `).join('')}
+                      `;
+                      }).join('')}
                     </div>
                     <p id="dateError" style="color: #DC2626; font-size: 12px; margin-top: 4px; display: none;">
                       Please select at least one date
