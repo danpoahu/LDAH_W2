@@ -103,7 +103,7 @@
           <div class="event-card">
             ${event.imageUrl ? `<img src="${event.imageUrl}" alt="${event.title}" class="event-image">` : ''}
             <div class="event-content">
-              <span class="event-date">📅 ${formattedDate}</span>
+              <span class="event-date">${formattedDate}</span>
               <h3 class="event-title">${event.title}</h3>
               <p class="event-description">${event.description || ''}</p>
               <div class="event-footer">

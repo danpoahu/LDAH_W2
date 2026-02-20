@@ -8,6 +8,12 @@
   <!-- Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-32PRRS0W85"></script>
   <script>
+
+        // Strip emoji from text content loaded from Firebase
+        function stripEmoji(text) {
+            if (!text) return text;
+            return text.replace(/[\u{1F300}-\u{1FFFF}\u{2600}-\u{27FF}\u{FE00}-\u{FEFF}]|[\u{1F1E0}-\u{1F1FF}]{2}/gu, '').replace(/  +/g, ' ').trim();
+        }
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
@@ -408,7 +414,7 @@
         const titleEl = document.getElementById('iframeTitle');
         const frame = document.getElementById('iframeFrame');
         titleEl.textContent = title;
-        frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: var(--ocean-deep); font-size: 1.5rem; margin-bottom: 1rem;">🌺 Join Our Facebook Community</h4><p style="font-size: 1.1rem; line-height: 1.8; color: var(--text-soft); margin-bottom: 2rem; max-width: 500px;">Connect with other Hawaii families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: var(--ocean-deep); color: white; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">📱 Open Parent Talk Cafe →</a></div>';
+        frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: var(--ocean-deep); font-size: 1.5rem; margin-bottom: 1rem;">Join Our Facebook Community</h4><p style="font-size: 1.1rem; line-height: 1.8; color: var(--text-soft); margin-bottom: 2rem; max-width: 500px;">Connect with other Hawaii families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: var(--ocean-deep); color: white; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">Open Parent Talk Cafe →</a></div>';
         modal.classList.add('active');
         document.body.style.overflow = 'hidden';
       } else {
@@ -446,7 +452,7 @@
         } else { throw new Error('Failed to fetch'); }
       } catch (error) {
         headerContainer.innerHTML = '<nav><div class="nav-content"><a href="index.html" class="logo-container"><img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH Logo" class="logo-img"></a><div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div><ul class="nav-links" id="navLinks"><li><a href="whoweare.html">Who We Are</a></li><li><a href="index.html#services">What We Do</a></li><li><a href="events.html">Events</a></li><li><a href="volunteer.html" class="active">Volunteer</a></li><li><a href="resources.html">Resources</a></li><li><a href="contact.html">Contact</a></li></ul></div></nav>';
-        footerContainer.innerHTML = '<footer><svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg><div class="footer-content"><div class="footer-section"><h3>About LDAH</h3><p>Hawai\'i & Pacific Island Parent Training & Information Center empowering families and children with disabilities.</p></div><div class="footer-section"><h3>Quick Links</h3><a href="whoweare.html">Who We Are</a><a href="index.html#services">What We Do</a><a href="events.html">Events</a><a href="volunteer.html">Volunteer</a><a href="resources.html">Resources</a><a href="contact.html">Contact Us</a></div><div class="footer-section"><h3>Honolulu Office</h3><p>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 532-5364<br>info@ldah.org</p></div><div class="footer-section"><h3>Connect With Us</h3><a href="javascript:void(0)" onclick="openIframeModal(\'Parent Talk Cafe\', \'https://www.facebook.com/groups/2659334410969387\')">Parent Talk Cafe</a><a href="javascript:void(0)" onclick="openIframeModal(\'Career Opportunities\', \'https://www.hrsymphony.com/hrs/careers/ldah\')">Career Opportunities</a><a href="install.html">Install Our App</a><form action="https://www.paypal.com/donate" method="post" target="_blank" style="margin-top: 8px;"><input type="hidden" name="hosted_button_id" value="F6F2DPC4D6RSA"><input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" alt="Donate with PayPal button"></form></div></div><div class="footer-bottom"><p>&copy; 2025 Leadership in Disabilities and Achievement of Hawai\'i. All rights reserved.</p><p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal(\'DP Consulting\', \'https://oahuappdesign.com\')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a> <a href="cms.html" style="margin-left: 12px; color: rgba(255,255,255,0.5); text-decoration: none; font-size: 1.1rem;" title="Admin CMS">⚙️</a></p></div></footer>';
+        footerContainer.innerHTML = '<footer><svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg><div class="footer-content"><div class="footer-section"><h3>About LDAH</h3><p>Hawai\'i & Pacific Island Parent Training & Information Center empowering families and children with disabilities.</p></div><div class="footer-section"><h3>Quick Links</h3><a href="whoweare.html">Who We Are</a><a href="index.html#services">What We Do</a><a href="events.html">Events</a><a href="volunteer.html">Volunteer</a><a href="resources.html">Resources</a><a href="contact.html">Contact Us</a></div><div class="footer-section"><h3>Honolulu Office</h3><p>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 536-7684<br>rrowe@ldah.org</p></div><div class="footer-section"><h3>Connect With Us</h3><a href="javascript:void(0)" onclick="openIframeModal(\'Parent Talk Cafe\', \'https://www.facebook.com/groups/2659334410969387\')">Parent Talk Cafe</a><a href="javascript:void(0)" onclick="openIframeModal(\'Career Opportunities\', \'https://www.hrsymphony.com/hrs/careers/ldah\')">Career Opportunities</a><a href="install.html">Install Our App</a><form action="https://www.paypal.com/donate" method="post" target="_blank" style="margin-top: 8px;"><input type="hidden" name="hosted_button_id" value="F6F2DPC4D6RSA"><input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" alt="Donate with PayPal button"></form></div></div><div class="footer-bottom"><p>&copy; 2025 Leadership in Disabilities and Achievement of Hawai\'i. All rights reserved.</p><p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal(\'DP Consulting\', \'https://oahuappdesign.com\')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a></p></div></footer>';
       }
       setActiveNavLink();
     }
@@ -553,12 +559,12 @@
         messagingSenderId: "662130454003",
         appId: "1:662130454003:web:437576d5a5811ecd8df686"
       });
-      console.log('✅ Firebase initialized successfully');
+      console.log('Firebase initialized successfully');
     } catch (e) {
       console.error('❌ Firebase init error:', e);
     }
     const db = firebase.firestore();
-    console.log('✅ Firestore db reference created');
+    console.log('Firestore db reference created');
 
     let opportunitiesData = {};
 
@@ -592,7 +598,7 @@
           .sort((a, b) => (a.order || 0) - (b.order || 0));
 
         if (opportunities.length === 0) {
-          container.innerHTML = '<div style="text-align: center; padding: 3rem; background: white; border-radius: 16px; border: 2px dashed rgba(8, 145, 178, 0.2);"><div style="font-size: 4rem; margin-bottom: 1rem;">🤝</div><h3 style="color: var(--ocean-deep); margin-bottom: 0.5rem;">No Current Openings</h3><p style="color: var(--text-soft);">Check back soon for new volunteer opportunities!</p></div>';
+          container.innerHTML = '<div style="text-align: center; padding: 3rem; background: white; border-radius: 16px; border: 2px dashed rgba(8, 145, 178, 0.2);"><h3 style="color: var(--ocean-deep); margin-bottom: 0.5rem;">No Current Openings</h3><p style="color: var(--text-soft);">Check back soon for new volunteer opportunities!</p></div>';
           return;
         }
         
@@ -601,7 +607,7 @@
             ${opp.imageUrl ? `<img src="${opp.imageUrl}" alt="${opp.title}" class="opportunity-image">` : ''}
             <h3 class="opportunity-title">${opp.title}</h3>
             <p class="opportunity-description">${opp.description}</p>
-            ${opp.dates ? `<div class="opportunity-dates">📅 ${opp.dates}</div>` : ''}
+            ${opp.dates ? `<div class="opportunity-dates">${opp.dates}</div>` : ''}
             <button class="btn-apply" onclick="openApplicationModal('${opp.id}', '${opp.title.replace(/'/g, "\\'")}')">Apply Now</button>
           </div>
         `).join('') + '</div>';
@@ -671,7 +677,6 @@
 
         document.getElementById('modal-body').innerHTML = `
           <div style="text-align: center; padding: 40px;">
-            <div style="font-size: 64px; margin-bottom: 20px;">✅</div>
             <h2 style="color: var(--ocean-deep); font-size: 1.5rem; margin-bottom: 12px;">Mahalo!</h2>
             <p style="color: var(--text-soft); font-size: 1rem;">Your application has been received. We'll contact you soon!</p>
           </div>
@@ -760,11 +765,11 @@
       console.log('📄 DOMContentLoaded fired, loading data...');
       try {
         await loadOpportunitiesData();
-        console.log('✅ Opportunities data loaded');
+        console.log('Opportunities data loaded');
         await loadOpportunities();
-        console.log('✅ Opportunities rendered');
+        console.log('Opportunities rendered');
         await loadGallery2();
-        console.log('✅ Gallery loaded');
+        console.log('Gallery loaded');
       } catch (e) {
         console.error('❌ Error in DOMContentLoaded:', e);
       }

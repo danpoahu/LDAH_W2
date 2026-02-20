@@ -13,7 +13,7 @@ async function loadHeaderFooter() {
         const footerHtml = await footerResponse.text();
         document.getElementById('footer-container').innerHTML = footerHtml;
         
-        console.log('✅ Header and footer loaded successfully');
+        console.log('Header and footer loaded successfully');
     } catch (error) {
         console.error('❌ Error loading header/footer:', error);
     }

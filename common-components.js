@@ -39,8 +39,7 @@ const footerHTML = `
                     245 North Kukui Street, Suite 205<br>
                     Honolulu, HI 96817<br>
                     <br>
-                    Phone: (808) 536-9684<br>
-                    Fax: (808) 537-6780<br>
+                    Phone: (808) 536-7684<br>
                     <br>
                     Monday to Friday – 8am to 5pm
                 </address>
@@ -56,7 +55,6 @@ const footerHTML = `
                     Wai'anae, HI 96792<br>
                     <br>
                     Phone: (808) 696-5361<br>
-                    Fax: (808) 696-5371<br>
                     <br>
                     Monday to Friday – 8am to 5pm
                 </address>

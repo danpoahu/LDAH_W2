@@ -473,7 +473,7 @@
                 const frame = document.getElementById('iframeFrame');
                 
                 titleEl.textContent = title;
-                frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">🌺 Join Our Facebook Community</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other Hawaii families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">📱 Open Parent Talk Cafe →</a></div>';
+                frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">Join Our Facebook Community</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other Hawaii families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">Open Parent Talk Cafe →</a></div>';
                 modal.classList.add('active');
                 document.body.style.overflow = 'hidden';
             } else {
@@ -547,7 +547,7 @@
                 if (headerResponse.ok && footerResponse.ok) {
                     headerContainer.innerHTML = await headerResponse.text();
                     footerContainer.innerHTML = await footerResponse.text();
-                    console.log('✅ Header and footer loaded from external files');
+                    console.log('Header and footer loaded from external files');
                 } else {
                     throw new Error('Failed to fetch');
                 }
@@ -562,7 +562,7 @@
             } catch (error) {
                 console.log('⚠️ Using inline fallback for header/footer');
                 headerContainer.innerHTML = '<nav><div class="nav-content"><a href="index.html" class="logo-container"><img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH Logo" class="logo-img"></a><div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div><ul class="nav-links" id="navLinks"><li><a href="whoweare.html">Who We Are</a></li><li><a href="index.html#services">What We Do</a></li><li><a href="events.html">Events</a></li><li><a href="volunteer.html">Volunteer</a></li><li><a href="resources.html">Resources</a></li><li><a href="contact.html">Contact</a></li></ul></div></nav>';
-                footerContainer.innerHTML = '<footer><svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg><div class="footer-content"><div class="footer-section"><h3>About LDAH</h3><p>Hawai\'i & Pacific Island Parent Training & Information Center empowering families and children with disabilities.</p></div><div class="footer-section"><h3>Quick Links</h3><a href="whoweare.html">Who We Are</a><a href="index.html#services">What We Do</a><a href="events.html">Events</a><a href="volunteer.html">Volunteer</a><a href="resources.html">Resources</a><a href="contact.html">Contact Us</a></div><div class="footer-section"><h3>Honolulu Office</h3><p>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 532-5364<br>info@ldah.org</p></div><div class="footer-section"><h3>Connect With Us</h3><a href="javascript:void(0)" onclick="openIframeModal(\'Parent Talk Cafe\', \'https://www.facebook.com/groups/2659334410969387\')">Parent Talk Cafe</a><a href="javascript:void(0)" onclick="openIframeModal(\'Career Opportunities\', \'https://www.hrsymphony.com/hrs/careers/ldah\')">Career Opportunities</a><a href="install.html">Install Our App</a><form action="https://www.paypal.com/donate" method="post" target="_blank" style="margin-top: 8px;"><input type="hidden" name="hosted_button_id" value="F6F2DPC4D6RSA"><input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" title="PayPal - The safer, easier way to pay online!" alt="Donate with PayPal button"></form></div></div><div class="footer-bottom"><p>&copy; 2025 Leadership in Disabilities and Achievement of Hawai\'i. All rights reserved.</p><p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal(\'DP Consulting\', \'https://oahuappdesign.com\')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a> <a href="cms.html" style="margin-left: 12px; color: rgba(255,255,255,0.5); text-decoration: none; font-size: 1.1rem;" title="Admin CMS">⚙️</a></p></div></footer>';
+                footerContainer.innerHTML = '<footer><svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg><div class="footer-content"><div class="footer-section"><h3>About LDAH</h3><p>Hawai\'i & Pacific Island Parent Training & Information Center empowering families and children with disabilities.</p></div><div class="footer-section"><h3>Quick Links</h3><a href="whoweare.html">Who We Are</a><a href="index.html#services">What We Do</a><a href="events.html">Events</a><a href="volunteer.html">Volunteer</a><a href="resources.html">Resources</a><a href="contact.html">Contact Us</a></div><div class="footer-section"><h3>Honolulu Office</h3><p>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 536-7684<br>rrowe@ldah.org</p></div><div class="footer-section"><h3>Connect With Us</h3><a href="javascript:void(0)" onclick="openIframeModal(\'Parent Talk Cafe\', \'https://www.facebook.com/groups/2659334410969387\')">Parent Talk Cafe</a><a href="javascript:void(0)" onclick="openIframeModal(\'Career Opportunities\', \'https://www.hrsymphony.com/hrs/careers/ldah\')">Career Opportunities</a><a href="install.html">Install Our App</a><form action="https://www.paypal.com/donate" method="post" target="_blank" style="margin-top: 8px;"><input type="hidden" name="hosted_button_id" value="F6F2DPC4D6RSA"><input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" title="PayPal - The safer, easier way to pay online!" alt="Donate with PayPal button"></form></div></div><div class="footer-bottom"><p>&copy; 2025 Leadership in Disabilities and Achievement of Hawai\'i. All rights reserved.</p><p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal(\'DP Consulting\', \'https://oahuappdesign.com\')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a></p></div></footer>';
             }
             
             // Set active nav link after loading
@@ -627,10 +627,10 @@
     <!-- Device Toggle -->
     <div class="device-toggle">
       <button class="device-btn active" onclick="showInstructions('iphone')" id="iphone-btn">
-        📱 iPhone
+        iPhone
       </button>
       <button class="device-btn" onclick="showInstructions('android')" id="android-btn">
-        📱 Android
+        Android
       </button>
     </div>
 
@@ -650,7 +650,7 @@
           <h3>Tap the Share Button</h3>
           <p style="margin-bottom: 1rem;">Look at the bottom of your screen and tap the share button:</p>
           <div class="visual-demo">
-            <div class="icon">⬆️</div>
+            
             <p style="color: var(--text-light); font-size: 0.9rem;">Share button (square with arrow)</p>
           </div>
         </div>
@@ -662,7 +662,7 @@
           <h3>Find "Add to Home Screen"</h3>
           <p style="margin-bottom: 1rem;">Scroll down in the menu and tap:</p>
           <div class="visual-demo">
-            <p style="font-weight: bold; color: var(--primary-blue); font-size: 1.1rem;">➕ Add to Home Screen</p>
+            <p style="font-weight: bold; color: var(--primary-blue); font-size: 1.1rem;">Add to Home Screen</p>
           </div>
         </div>
       </div>
@@ -673,7 +673,7 @@
           <h3>Tap "Add"</h3>
           <p style="margin-bottom: 1rem;">You'll see the app name and icon. Tap the blue "Add" button in the top right.</p>
           <div class="success-box">
-            <div class="icon">✅</div>
+            
             <p>Done! Check your home screen!</p>
           </div>
         </div>
@@ -708,9 +708,9 @@
           <h3>Choose "Add to Home screen" or "Install app"</h3>
           <p style="margin-bottom: 1rem;">Look for one of these options:</p>
           <div class="visual-demo" style="display: flex; flex-direction: column; gap: 0.5rem;">
-            <p style="font-weight: bold; color: var(--primary-blue);">📱 Add to Home screen</p>
+            <p style="font-weight: bold; color: var(--primary-blue);">Add to Home screen</p>
             <p style="color: var(--text-light); font-size: 0.9rem;">or</p>
-            <p style="font-weight: bold; color: var(--primary-blue);">📲 Install app</p>
+            <p style="font-weight: bold; color: var(--primary-blue);">Install app</p>
           </div>
         </div>
       </div>
@@ -721,7 +721,7 @@
           <h3>Tap "Add" or "Install"</h3>
           <p style="margin-bottom: 1rem;">Confirm by tapping the button.</p>
           <div class="success-box">
-            <div class="icon">✅</div>
+            
             <p>Done! Check your home screen!</p>
           </div>
         </div>
@@ -770,7 +770,7 @@
         const frame = document.getElementById('iframeFrame');
         
         titleEl.textContent = title;
-        frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">🌺 Join Our Facebook Community</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other Hawaii families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">📱 Open Parent Talk Cafe →</a></div>';
+        frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">Join Our Facebook Community</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other Hawaii families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">Open Parent Talk Cafe →</a></div>';
         modal.classList.add('active');
         document.body.style.overflow = 'hidden';
       } else {

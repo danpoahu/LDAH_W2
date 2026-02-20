@@ -295,7 +295,7 @@
     .island-palau .island-card-image { background: linear-gradient(135deg, #00bfff 0%, #ffcc00 100%); }
 
     .island-flag {
-        font-size: 5rem;
+        font-size: 10rem;
         filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
     }
 
@@ -782,7 +782,7 @@
         .support-section { padding: 40px 20px; }
         .islands-grid { grid-template-columns: 1fr; }
         .island-card-image { height: 140px; }
-        .island-flag { font-size: 4rem; }
+        .island-flag { font-size: 8rem; }
         .social-links { flex-direction: column; }
         .states-grid { grid-template-columns: 1fr; }
         .support-grid { grid-template-columns: 1fr; }
@@ -812,7 +812,6 @@
     <!-- Hero Section -->
     <header class="hero-section">
         <svg class="hero-section-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
-        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Pacific-Island-Partners-Logo.png" alt="Pacific Island Partners" class="partner-logo">
         <h1 id="pacific-heroTitle">Pacific Islands Partnership</h1>
         <p id="pacific-heroSubtitle">Supporting families across the Pacific Islands with resources for children with disabilities.</p>
         <button class="facebook-btn" onclick="openIframeModal('PI Partners Facebook Group', 'https://www.facebook.com/groups/333501733848880')">Join PI Partners on Facebook</button>
@@ -821,7 +820,7 @@
     <div class="content-wrapper">
         <!-- Section Header -->
         <div class="section-header">
-            <h2 id="pacific-partnersTitle">🌺 Our Island Partners</h2>
+            <h2 id="pacific-partnersTitle">Our Island Partners</h2>
             <p id="pacific-partnersSubtitle">Click on each island to learn more about our partnerships and the resources available for families in these communities.</p>
         </div>
 
@@ -830,7 +829,7 @@
             <!-- American Samoa -->
             <div class="island-card island-samoa" onclick="openIslandModal('samoa')">
                 <div class="island-card-image">
-                    <span class="island-flag">🇦🇸</span>
+                    <div class="island-flag">🇦🇸</div>
                 </div>
                 <div class="island-card-content">
                     <h3 id="pacific-samoaTitle">American Samoa</h3>
@@ -843,7 +842,7 @@
             <!-- Commonwealth of the Northern Mariana Islands -->
             <div class="island-card island-cnmi" onclick="openIslandModal('cnmi')">
                 <div class="island-card-image">
-                    <span class="island-flag">🇲🇵</span>
+                    <div class="island-flag">🇲🇵</div>
                 </div>
                 <div class="island-card-content">
                     <h3 id="pacific-cnmiTitle">Northern Mariana Islands</h3>
@@ -856,7 +855,7 @@
             <!-- Federated States of Micronesia -->
             <div class="island-card island-fsm" onclick="openIslandModal('fsm')">
                 <div class="island-card-image">
-                    <span class="island-flag">🇫🇲</span>
+                    <div class="island-flag">🇫🇲</div>
                 </div>
                 <div class="island-card-content">
                     <h3 id="pacific-fsmTitle">Federated States of Micronesia</h3>
@@ -869,7 +868,7 @@
             <!-- Guam -->
             <div class="island-card island-guam" onclick="openIslandModal('guam')">
                 <div class="island-card-image">
-                    <span class="island-flag">🇬🇺</span>
+                    <div class="island-flag">🇬🇺</div>
                 </div>
                 <div class="island-card-content">
                     <h3 id="pacific-guamTitle">Guam</h3>
@@ -882,7 +881,7 @@
             <!-- Republic of the Marshall Islands -->
             <div class="island-card island-marshall" onclick="openIslandModal('marshall')">
                 <div class="island-card-image">
-                    <span class="island-flag">🇲🇭</span>
+                    <div class="island-flag">🇲🇭</div>
                 </div>
                 <div class="island-card-content">
                     <h3 id="pacific-marshallTitle">Republic of the Marshall Islands</h3>
@@ -895,7 +894,7 @@
             <!-- Republic of Palau -->
             <div class="island-card island-palau" onclick="openIslandModal('palau')">
                 <div class="island-card-image">
-                    <span class="island-flag">🇵🇼</span>
+                    <div class="island-flag">🇵🇼</div>
                 </div>
                 <div class="island-card-content">
                     <h3 id="pacific-palauTitle">Republic of Palau</h3>
@@ -944,6 +943,12 @@
     </div>
 
     <script>
+
+        // Strip emoji from text content loaded from Firebase
+        function stripEmoji(text) {
+            if (!text) return text;
+            return text.replace(/[\u{1F300}-\u{1FFFF}\u{2600}-\u{27FF}\u{FE00}-\u{FEFF}]|[\u{1F1E0}-\u{1F1FF}]{2}/gu, '').replace(/  +/g, ' ').trim();
+        }
         // Firebase SDK - for page content
         const firebaseConfig = { apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk", authDomain: "ldah-932d5.firebaseapp.com", projectId: "ldah-932d5" };
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
@@ -962,7 +967,7 @@
                             if (key.includes('Photo') && el.tagName === 'IMG') {
                                 el.src = data[key];
                             } else {
-                                el.innerHTML = data[key];
+                                el.innerHTML = stripEmoji(data[key]);
                             }
                         }
                     });
@@ -980,7 +985,7 @@
                 const frame = document.getElementById('iframeFrame');
                 
                 titleEl.textContent = title;
-                frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">🌺 Join ' + title + '</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">📱 Open Facebook Page →</a></div>';
+                frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">Join ' + title + '</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">Open Facebook Page →</a></div>';
                 modal.classList.add('active');
                 document.body.style.overflow = 'hidden';
             } else {
@@ -1052,7 +1057,7 @@
                 partner: 'Parents of Children with Special Needs Network',
                 content: `
                     <div class="social-links">
-                        <button onclick="event.stopPropagation(); openIframeModal('PCSN Facebook Page', 'https://www.facebook.com/PagoPagonetwork/')" class="social-btn facebook">📘 Facebook Page</button>
+                        <button onclick="event.stopPropagation(); openIframeModal('PCSN Facebook Page', 'https://www.facebook.com/PagoPagonetwork/')" class="social-btn facebook">Facebook Page</button>
                     </div>
                     
                     <div class="island-map-section">
@@ -1063,7 +1068,7 @@
                     <p><strong>Parents of Children with Special Needs Network (PCSN)</strong> is a Parent-to-Parent Support Group for children, youth, and young adults with disabilities. Co-sponsored by the Parent Training and Information Center and Leadership in Disabilities of Achievement of Hawaii, we support one another in areas of health care, education, inclusion, community activities, guidance, and emotional encouragement.</p>
                     
                     <div class="contact-card">
-                        <h4>📞 Sandra (Sandy) Scanlan</h4>
+                        <h4>Sandra (Sandy) Scanlan</h4>
                         <p><strong>Email:</strong> <a href="mailto:sandysamoa2@gmail.com">sandysamoa2@gmail.com</a></p>
                         <p><strong>Cell:</strong> <a href="tel:+16847313959">(684) 731-3959</a></p>
                         <p><strong>Address:</strong> P.O. Box 523, Pago Pago, American Samoa 96799</p>
@@ -1083,7 +1088,7 @@
                         </div>
                     </div>
                     
-                    <h3>📸 Photo Gallery</h3>
+                    <h3>Photo Gallery</h3>
                     <div class="photo-gallery">
                         <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-30.jpg" alt="American Samoa Event" class="gallery-photo">
                     </div>
@@ -1096,7 +1101,7 @@
                 partner: 'Department of Community and Cultural Affairs: Division of Youth Services',
                 content: `
                     <div class="social-links">
-                        <button onclick="event.stopPropagation(); openIframeModal('Division of Youth Services', 'http://www.dys.gov.mp/')" class="social-btn website">🌐 Visit Website</button>
+                        <button onclick="event.stopPropagation(); openIframeModal('Division of Youth Services', 'http://www.dys.gov.mp/')" class="social-btn website">Visit Website</button>
                     </div>
                     
                     <div class="island-map-section">
@@ -1107,7 +1112,7 @@
                     <p>LDAH partners with the <strong>Department of Community and Cultural Affairs: Division of Youth Services</strong> in the Commonwealth of the Northern Mariana Islands to provide family support and educational resources for children with disabilities.</p>
                     
                     <div class="contact-card">
-                        <h4>📞 Vivian T. Sablan</h4>
+                        <h4>Vivian T. Sablan</h4>
                         <p><strong>Phone:</strong> <a href="tel:+16702771000">(670) 277-1000</a></p>
                         <p><strong>Email:</strong> <a href="mailto:vtsablan@dys.gov.mp">vtsablan@dys.gov.mp</a></p>
                         <p><strong>Address:</strong> P.O. Box 501000, Saipan, MP 96950</p>
@@ -1127,7 +1132,7 @@
                         </div>
                     </div>
                     
-                    <h3>📸 Photo Gallery</h3>
+                    <h3>Photo Gallery</h3>
                     <div class="photo-gallery">
                         <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-4-1024x683.jpeg" alt="CNMI Event" class="gallery-photo">
                         <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-1.gif" alt="CNMI Logo" class="gallery-photo">
@@ -1153,7 +1158,7 @@
                     
                     <div class="states-grid">
                         <div class="state-card">
-                            <h4>🏝️ Yap</h4>
+                            <h4>Yap</h4>
                             <div class="contact-info">
                                 <p><strong>Jacquelyn Lefagoyal</strong></p>
                                 <p><a href="mailto:jlefagoyal@gmail.com">jlefagoyal@gmail.com</a></p>
@@ -1162,7 +1167,7 @@
                         </div>
                         
                         <div class="state-card">
-                            <h4>🏝️ Chuuk</h4>
+                            <h4>Chuuk</h4>
                             <div class="contact-info">
                                 <p><strong>Ansina Kony</strong></p>
                                 <p>SPED Coordinator, Chuuk DOE</p>
@@ -1172,7 +1177,7 @@
                         </div>
                         
                         <div class="state-card">
-                            <h4>🏝️ Pohnpei</h4>
+                            <h4>Pohnpei</h4>
                             <div class="contact-info">
                                 <p><strong>Arthur Albert</strong>, FSM SPED Director</p>
                                 <p><a href="mailto:aalber@dss.edu.fm">aalber@dss.edu.fm</a></p>
@@ -1186,7 +1191,7 @@
                         </div>
                         
                         <div class="state-card">
-                            <h4>🏝️ Kosrae</h4>
+                            <h4>Kosrae</h4>
                             <div class="contact-info">
                                 <p><strong>Aliksa Sigrah</strong></p>
                                 <p><a href="mailto:atsigrah@gmail.com">atsigrah@gmail.com</a></p>
@@ -1198,7 +1203,7 @@
                         </div>
                     </div>
                     
-                    <h3>📸 Photo Gallery</h3>
+                    <h3>Photo Gallery</h3>
                     <div class="photo-gallery">
                         <img src="https://www.ldahawaii.org/wp-content/uploads/2025/11/Island-Lagoon-Chuuk-2_1600-1024x768.jpg" alt="Chuuk Lagoon" class="gallery-photo">
                         <img src="https://www.ldahawaii.org/wp-content/uploads/2025/11/Children-Chuuk_1600-1024x768.jpg" alt="Children in Chuuk" class="gallery-photo">
@@ -1213,7 +1218,7 @@
                 partner: 'Autism Community Together',
                 content: `
                     <div class="social-links">
-                        <button onclick="event.stopPropagation(); openIframeModal('Autism Community Together Facebook', 'https://www.facebook.com/autismguam/')" class="social-btn facebook">📘 Facebook Page</button>
+                        <button onclick="event.stopPropagation(); openIframeModal('Autism Community Together Facebook', 'https://www.facebook.com/autismguam/')" class="social-btn facebook">Facebook Page</button>
                     </div>
                     
                     <div class="island-map-section">
@@ -1228,7 +1233,7 @@
                     </div>
                     
                     <div class="contact-card">
-                        <h4>📞 Evelyn Claros</h4>
+                        <h4>Evelyn Claros</h4>
                         <p><strong>Phone:</strong> <a href="tel:+16714881484">(671) 488-1484</a></p>
                         <p><strong>Email:</strong> <a href="mailto:evelyn.claros1@gmail.com">evelyn.claros1@gmail.com</a></p>
                         <p><strong>Address:</strong> DNA Building 238 Archbishop Flores St. Suite 304, Hagatna, Guam 96910</p>
@@ -1253,7 +1258,7 @@
                         </div>
                     </div>
                     
-                    <h3>📸 Photo Gallery</h3>
+                    <h3>Photo Gallery</h3>
                     <div class="photo-gallery">
                         <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-34-1024x461.jpg" alt="Guam Event" class="gallery-photo">
                         <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-1.webp" alt="ACT Guam" class="gallery-photo">
@@ -1267,7 +1272,7 @@
                 partner: 'Marshall Island Special Parent Association (MISPA) & Public School System',
                 content: `
                     <div class="social-links">
-                        <button onclick="event.stopPropagation(); openIframeModal('RMI Public School System', 'https://pss.edu.mh/')" class="social-btn website">🌐 PSS Website</button>
+                        <button onclick="event.stopPropagation(); openIframeModal('RMI Public School System', 'https://pss.edu.mh/')" class="social-btn website">PSS Website</button>
                     </div>
                     
                     <div class="island-map-section">
@@ -1277,7 +1282,7 @@
                     <h3>Marshall Island Special Parent Association (MISPA)</h3>
                     
                     <div class="contact-card">
-                        <h4>📞 Kilobar Lakmis</h4>
+                        <h4>Kilobar Lakmis</h4>
                         <p>MISPA Secretary</p>
                         <p><strong>Phone:</strong> <a href="tel:+6924574334">(692) 457-4334</a></p>
                         <p><strong>Email:</strong> <a href="mailto:lakmiskilobar@gmail.com">lakmiskilobar@gmail.com</a></p>
@@ -1310,7 +1315,7 @@
                     </div>
                     
                     <div class="contact-card">
-                        <h4>📞 Frank Horiuchi</h4>
+                        <h4>Frank Horiuchi</h4>
                         <p>SPED Director, PSS</p>
                         <p><strong>Phone:</strong> <a href="tel:+6926256023">(692) 625-6023</a></p>
                         <p><strong>Email:</strong> <a href="mailto:fhoriuchi@pss.edu.mh">fhoriuchi@pss.edu.mh</a></p>
@@ -1346,7 +1351,7 @@
                 partner: 'Palau Parents Empowered',
                 content: `
                     <div class="social-links">
-                        <button onclick="event.stopPropagation(); openIframeModal('Palau Parents Empowered', 'https://sites.google.com/site/palauparents/')" class="social-btn website">🌐 Visit Website</button>
+                        <button onclick="event.stopPropagation(); openIframeModal('Palau Parents Empowered', 'https://sites.google.com/site/palauparents/')" class="social-btn website">Visit Website</button>
                     </div>
                     
                     <div class="island-map-section">
@@ -1363,7 +1368,7 @@
                     </div>
                     
                     <div class="contact-card">
-                        <h4>📞 Francesca (Cesca) Morei-Misech</h4>
+                        <h4>Francesca (Cesca) Morei-Misech</h4>
                         <p><strong>Email:</strong> <a href="mailto:moreimisech@gmail.com">moreimisech@gmail.com</a></p>
                         <p><strong>Work:</strong> <a href="tel:+6804881432">(680) 488-1432</a></p>
                         <p><strong>Mobile:</strong> <a href="tel:+18087751432">(808) 775-1432</a></p>
@@ -1379,7 +1384,7 @@
                         </div>
                     </div>
                     
-                    <h3>📸 Photo Gallery</h3>
+                    <h3>Photo Gallery</h3>
                     <div class="photo-gallery">
                         <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-32.jpg" alt="Palau Event" class="gallery-photo">
                         <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-35.jpg" alt="Palau Community" class="gallery-photo">
@@ -1406,7 +1411,7 @@
                 if (headerResponse.ok && footerResponse.ok) {
                     headerContainer.innerHTML = await headerResponse.text();
                     footerContainer.innerHTML = await footerResponse.text();
-                    console.log('✅ Header and footer loaded from external files');
+                    console.log('Header and footer loaded from external files');
                 } else {
                     throw new Error('Failed to fetch');
                 }
@@ -1420,7 +1425,7 @@
             } catch (error) {
                 console.log('⚠️ Using inline fallback for header/footer');
                 headerContainer.innerHTML = '<nav><div class="nav-content"><a href="index.html" class="logo-container"><img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH Logo" class="logo-img"></a><div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div><ul class="nav-links" id="navLinks"><li><a href="whoweare.html">Who We Are</a></li><li><a href="index.html#services">What We Do</a></li><li><a href="events.html">Events</a></li><li><a href="volunteer.html">Volunteer</a></li><li><a href="resources.html">Resources</a></li><li><a href="contact.html">Contact</a></li></ul></div></nav>';
-                footerContainer.innerHTML = '<footer><svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg><div class="footer-content"><div class="footer-section"><h3>About LDAH</h3><p>Hawai\'i & Pacific Island Parent Training & Information Center empowering families and children with disabilities.</p></div><div class="footer-section"><h3>Quick Links</h3><a href="whoweare.html">Who We Are</a><a href="index.html#services">What We Do</a><a href="events.html">Events</a><a href="volunteer.html">Volunteer</a><a href="resources.html">Resources</a><a href="contact.html">Contact Us</a></div><div class="footer-section"><h3>Honolulu Office</h3><p>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 532-5364<br>info@ldah.org</p></div><div class="footer-section"><h3>Connect With Us</h3><a href="javascript:void(0)" onclick="openIframeModal(\'Parent Talk Cafe\', \'https://www.facebook.com/groups/2659334410969387\')">Parent Talk Cafe</a><a href="javascript:void(0)" onclick="openIframeModal(\'Career Opportunities\', \'https://www.hrsymphony.com/hrs/careers/ldah\')">Career Opportunities</a><a href="install.html">Install Our App</a><form action="https://www.paypal.com/donate" method="post" target="_blank" style="margin-top: 8px;"><input type="hidden" name="hosted_button_id" value="F6F2DPC4D6RSA"><input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" title="PayPal - The safer, easier way to pay online!" alt="Donate with PayPal button"></form></div></div><div class="footer-bottom"><p>&copy; 2025 Leadership in Disabilities and Achievement of Hawai\'i. All rights reserved.</p><p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal(\'DP Consulting\', \'https://oahuappdesign.com\')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a> <a href="cms.html" style="margin-left: 12px; color: rgba(255,255,255,0.5); text-decoration: none; font-size: 1.1rem;" title="Admin CMS">⚙️</a></p></div></footer>';
+                footerContainer.innerHTML = '<footer><svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg><div class="footer-content"><div class="footer-section"><h3>About LDAH</h3><p>Hawai\'i & Pacific Island Parent Training & Information Center empowering families and children with disabilities.</p></div><div class="footer-section"><h3>Quick Links</h3><a href="whoweare.html">Who We Are</a><a href="index.html#services">What We Do</a><a href="events.html">Events</a><a href="volunteer.html">Volunteer</a><a href="resources.html">Resources</a><a href="contact.html">Contact Us</a></div><div class="footer-section"><h3>Honolulu Office</h3><p>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 536-7684<br>rrowe@ldah.org</p></div><div class="footer-section"><h3>Connect With Us</h3><a href="javascript:void(0)" onclick="openIframeModal(\'Parent Talk Cafe\', \'https://www.facebook.com/groups/2659334410969387\')">Parent Talk Cafe</a><a href="javascript:void(0)" onclick="openIframeModal(\'Career Opportunities\', \'https://www.hrsymphony.com/hrs/careers/ldah\')">Career Opportunities</a><a href="install.html">Install Our App</a><form action="https://www.paypal.com/donate" method="post" target="_blank" style="margin-top: 8px;"><input type="hidden" name="hosted_button_id" value="F6F2DPC4D6RSA"><input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" title="PayPal - The safer, easier way to pay online!" alt="Donate with PayPal button"></form></div></div><div class="footer-bottom"><p>&copy; 2025 Leadership in Disabilities and Achievement of Hawai\'i. All rights reserved.</p><p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal(\'DP Consulting\', \'https://oahuappdesign.com\')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a></p></div></footer>';
             }
             
             setActiveNavLink();
@@ -1461,7 +1466,7 @@
                 const frame = document.getElementById('iframeFrame');
                 
                 titleEl.textContent = title;
-                frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">🌺 Join ' + title + '</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">📱 Open Facebook Page →</a></div>';
+                frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">Join ' + title + '</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">Open Facebook Page →</a></div>';
                 modal.classList.add('active');
                 document.body.style.overflow = 'hidden';
             } else {

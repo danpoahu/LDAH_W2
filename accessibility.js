@@ -584,5 +584,5 @@ html.a11y-reduce-motion *::after {
     // Apply saved settings on load
     applySettings();
     
-    console.log('✅ Accessibility widget loaded');
+    console.log('Accessibility widget loaded');
 })();

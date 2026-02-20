@@ -13,6 +13,12 @@
   <!-- Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-32PRRS0W85"></script>
   <script>
+
+        // Strip emoji from text content loaded from Firebase
+        function stripEmoji(text) {
+            if (!text) return text;
+            return text.replace(/[\u{1F300}-\u{1FFFF}\u{2600}-\u{27FF}\u{FE00}-\u{FEFF}]|[\u{1F1E0}-\u{1F1FF}]{2}/gu, '').replace(/  +/g, ' ').trim();
+        }
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
@@ -543,7 +549,7 @@
         if (headerResponse.ok && footerResponse.ok) {
           headerContainer.innerHTML = await headerResponse.text();
           footerContainer.innerHTML = await footerResponse.text();
-          console.log('✅ Header and footer loaded from external files');
+          console.log('Header and footer loaded from external files');
         } else {
           throw new Error('Failed to fetch');
         }
@@ -557,7 +563,7 @@
       } catch (error) {
         console.log('⚠️ Using inline fallback for header/footer');
         headerContainer.innerHTML = '<nav><div class="nav-content"><a href="index.html" class="logo-container"><img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH Logo" class="logo-img"></a><div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div><ul class="nav-links" id="navLinks"><li><a href="whoweare.html">Who We Are</a></li><li><a href="index.html#services">What We Do</a></li><li><a href="events.html">Events</a></li><li><a href="volunteer.html">Volunteer</a></li><li><a href="resources.html">Resources</a></li><li><a href="contact.html">Contact</a></li></ul></div></nav>';
-        footerContainer.innerHTML = '<footer><svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg><div class="footer-content"><div class="footer-section"><h3>About LDAH</h3><p>Hawai\'i & Pacific Island Parent Training & Information Center empowering families and children with disabilities.</p></div><div class="footer-section"><h3>Quick Links</h3><a href="whoweare.html">Who We Are</a><a href="index.html#services">What We Do</a><a href="events.html">Events</a><a href="volunteer.html">Volunteer</a><a href="resources.html">Resources</a><a href="contact.html">Contact Us</a></div><div class="footer-section"><h3>Honolulu Office</h3><p>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 532-5364<br>info@ldah.org</p></div><div class="footer-section"><h3>Connect With Us</h3><a href="javascript:void(0)" onclick="openIframeModal(\'Parent Talk Cafe\', \'https://www.facebook.com/groups/2659334410969387\')">Parent Talk Cafe</a><a href="javascript:void(0)" onclick="openIframeModal(\'Career Opportunities\', \'https://www.hrsymphony.com/hrs/careers/ldah\')">Career Opportunities</a><a href="install.html">Install Our App</a><form action="https://www.paypal.com/donate" method="post" target="_blank" style="margin-top: 8px;"><input type="hidden" name="hosted_button_id" value="F6F2DPC4D6RSA"><input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" title="PayPal - The safer, easier way to pay online!" alt="Donate with PayPal button"></form></div></div><div class="footer-bottom"><p>&copy; 2025 Leadership in Disabilities and Achievement of Hawai\'i. All rights reserved.</p><p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal(\'DP Consulting\', \'https://oahuappdesign.com\')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a> <a href="cms.html" style="margin-left: 12px; color: rgba(255,255,255,0.5); text-decoration: none; font-size: 1.1rem;" title="Admin CMS">⚙️</a></p></div></footer>';
+        footerContainer.innerHTML = '<footer><svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg><div class="footer-content"><div class="footer-section"><h3>About LDAH</h3><p>Hawai\'i & Pacific Island Parent Training & Information Center empowering families and children with disabilities.</p></div><div class="footer-section"><h3>Quick Links</h3><a href="whoweare.html">Who We Are</a><a href="index.html#services">What We Do</a><a href="events.html">Events</a><a href="volunteer.html">Volunteer</a><a href="resources.html">Resources</a><a href="contact.html">Contact Us</a></div><div class="footer-section"><h3>Honolulu Office</h3><p>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 536-7684<br>rrowe@ldah.org</p></div><div class="footer-section"><h3>Connect With Us</h3><a href="javascript:void(0)" onclick="openIframeModal(\'Parent Talk Cafe\', \'https://www.facebook.com/groups/2659334410969387\')">Parent Talk Cafe</a><a href="javascript:void(0)" onclick="openIframeModal(\'Career Opportunities\', \'https://www.hrsymphony.com/hrs/careers/ldah\')">Career Opportunities</a><a href="install.html">Install Our App</a><form action="https://www.paypal.com/donate" method="post" target="_blank" style="margin-top: 8px;"><input type="hidden" name="hosted_button_id" value="F6F2DPC4D6RSA"><input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" title="PayPal - The safer, easier way to pay online!" alt="Donate with PayPal button"></form></div></div><div class="footer-bottom"><p>&copy; 2025 Leadership in Disabilities and Achievement of Hawai\'i. All rights reserved.</p><p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal(\'DP Consulting\', \'https://oahuappdesign.com\')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a></p></div></footer>';
       }
       
       setActiveNavLink();
@@ -602,9 +608,6 @@
       <div class="office-card">
         <div class="office-card-content">
           <div style="text-align: center;">
-            <div class="office-icon">
-              <img src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=200&h=200&fit=crop" alt="Office building">
-            </div>
             <h2 id="contact-honTitle" class="office-title">Honolulu Office</h2>
             <p id="contact-honSubtitle" class="office-subtitle">Main Office</p>
           </div>
@@ -612,15 +615,14 @@
           <div class="contact-info">
             <div class="contact-label">Phone</div>
             <div id="contact-honPhone" class="contact-value">
-              <a href="tel:8085325364">(808) 532-5364</a><br>
-              <strong>Toll Free:</strong> <a href="tel:18005339684">1-800-533-9684</a>
+              <a href="tel:8085367684">(808) 536-7684</a>
             </div>
           </div>
 
           <div class="contact-info">
             <div class="contact-label">Email</div>
             <div id="contact-honEmail" class="contact-value">
-              <a href="/cdn-cgi/l/email-protection#8ae3e4ece5cae6eeebe2a4e5f8ed"><span class="__cf_email__" data-cfemail="99f0f7fff6d9f5fdf8f1b7f6ebfe">[email&#160;protected]</span></a>
+              <a href="mailto:rrowe@ldah.org">rrowe@ldah.org</a>
             </div>
           </div>
 
@@ -648,18 +650,14 @@
       <div class="office-card">
         <div class="office-card-content">
           <div style="text-align: center;">
-            <div class="office-icon">
-              <img src="https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=200&h=200&fit=crop" alt="School building">
-            </div>
             <h2 id="contact-mailiTitle" class="office-title">Ma'ili Office</h2>
             <p id="contact-mailiSubtitle" class="office-subtitle">School Readiness Project</p>
           </div>
           
           <div class="contact-info">
-            <div class="contact-label">Phone & Fax</div>
+            <div class="contact-label">Phone</div>
             <div id="contact-mailiPhone" class="contact-value">
-              <strong>Phone:</strong> <a href="tel:8086965361">(808) 696-5361</a><br>
-              <strong>Fax:</strong> (808) 696-3693
+              <strong>Phone:</strong> <a href="tel:8086965361">(808) 696-5361</a>
             </div>
           </div>
 
@@ -827,7 +825,7 @@
               if (key.includes('Photo') && el.tagName === 'IMG') {
                 el.src = data[key];
               } else {
-                el.innerHTML = data[key];
+                el.innerHTML = stripEmoji(data[key]);
               }
             }
           });

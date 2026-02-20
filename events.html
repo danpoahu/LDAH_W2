@@ -13,6 +13,12 @@
   <!-- Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-32PRRS0W85"></script>
   <script>
+
+        // Strip emoji from text content loaded from Firebase
+        function stripEmoji(text) {
+            if (!text) return text;
+            return text.replace(/[\u{1F300}-\u{1FFFF}\u{2600}-\u{27FF}\u{FE00}-\u{FEFF}]|[\u{1F1E0}-\u{1F1FF}]{2}/gu, '').replace(/  +/g, ' ').trim();
+        }
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
@@ -944,7 +950,7 @@
                 const frame = document.getElementById('iframeFrame');
                 
                 titleEl.textContent = title;
-                frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">🌺 Join Our Facebook Community</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other Hawaii families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">📱 Open Parent Talk Cafe →</a></div>';
+                frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">Join Our Facebook Community</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other Hawaii families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">Open Parent Talk Cafe →</a></div>';
                 modal.classList.add('active');
                 document.body.style.overflow = 'hidden';
             } else {
@@ -1017,7 +1023,7 @@
                 if (headerResponse.ok && footerResponse.ok) {
                     headerContainer.innerHTML = await headerResponse.text();
                     footerContainer.innerHTML = await footerResponse.text();
-                    console.log('✅ Header and footer loaded from external files');
+                    console.log('Header and footer loaded from external files');
                 } else {
                     throw new Error('Failed to fetch');
                 }
@@ -1031,7 +1037,7 @@
             } catch (error) {
                 console.log('⚠️ Using inline fallback for header/footer');
                 headerContainer.innerHTML = '<nav><div class="nav-content"><a href="index.html" class="logo-container"><img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH Logo" class="logo-img"></a><div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div><ul class="nav-links" id="navLinks"><li><a href="whoweare.html">Who We Are</a></li><li><a href="index.html#services">What We Do</a></li><li><a href="events.html">Events</a></li><li><a href="volunteer.html">Volunteer</a></li><li><a href="resources.html">Resources</a></li><li><a href="contact.html">Contact</a></li></ul></div></nav>';
-                footerContainer.innerHTML = '<footer><svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg><div class="footer-content"><div class="footer-section"><h3>About LDAH</h3><p>Hawai\'i & Pacific Island Parent Training & Information Center empowering families and children with disabilities.</p></div><div class="footer-section"><h3>Quick Links</h3><a href="whoweare.html">Who We Are</a><a href="index.html#services">What We Do</a><a href="events.html">Events</a><a href="volunteer.html">Volunteer</a><a href="resources.html">Resources</a><a href="contact.html">Contact Us</a></div><div class="footer-section"><h3>Honolulu Office</h3><p>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 532-5364<br>info@ldah.org</p></div><div class="footer-section"><h3>Connect With Us</h3><a href="javascript:void(0)" onclick="openIframeModal(\'Parent Talk Cafe\', \'https://www.facebook.com/groups/2659334410969387\')">Parent Talk Cafe</a><a href="javascript:void(0)" onclick="openIframeModal(\'Career Opportunities\', \'https://www.hrsymphony.com/hrs/careers/ldah\')">Career Opportunities</a><a href="install.html">Install Our App</a><form action="https://www.paypal.com/donate" method="post" target="_blank" style="margin-top: 8px;"><input type="hidden" name="hosted_button_id" value="F6F2DPC4D6RSA"><input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" title="PayPal - The safer, easier way to pay online!" alt="Donate with PayPal button"></form></div></div><div class="footer-bottom"><p>&copy; 2025 Leadership in Disabilities and Achievement of Hawai\'i. All rights reserved.</p><p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal(\'DP Consulting\', \'https://oahuappdesign.com\')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a> <a href="cms.html" style="margin-left: 12px; color: rgba(255,255,255,0.5); text-decoration: none; font-size: 1.1rem;" title="Admin CMS">⚙️</a></p></div></footer>';
+                footerContainer.innerHTML = '<footer><svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg><div class="footer-content"><div class="footer-section"><h3>About LDAH</h3><p>Hawai\'i & Pacific Island Parent Training & Information Center empowering families and children with disabilities.</p></div><div class="footer-section"><h3>Quick Links</h3><a href="whoweare.html">Who We Are</a><a href="index.html#services">What We Do</a><a href="events.html">Events</a><a href="volunteer.html">Volunteer</a><a href="resources.html">Resources</a><a href="contact.html">Contact Us</a></div><div class="footer-section"><h3>Honolulu Office</h3><p>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 536-7684<br>rrowe@ldah.org</p></div><div class="footer-section"><h3>Connect With Us</h3><a href="javascript:void(0)" onclick="openIframeModal(\'Parent Talk Cafe\', \'https://www.facebook.com/groups/2659334410969387\')">Parent Talk Cafe</a><a href="javascript:void(0)" onclick="openIframeModal(\'Career Opportunities\', \'https://www.hrsymphony.com/hrs/careers/ldah\')">Career Opportunities</a><a href="install.html">Install Our App</a><form action="https://www.paypal.com/donate" method="post" target="_blank" style="margin-top: 8px;"><input type="hidden" name="hosted_button_id" value="F6F2DPC4D6RSA"><input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" title="PayPal - The safer, easier way to pay online!" alt="Donate with PayPal button"></form></div></div><div class="footer-bottom"><p>&copy; 2025 Leadership in Disabilities and Achievement of Hawai\'i. All rights reserved.</p><p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal(\'DP Consulting\', \'https://oahuappdesign.com\')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a></p></div></footer>';
             }
             
             setActiveNavLink();
@@ -1079,7 +1085,6 @@
     <!-- Current Events Section -->
     <div class="section" id="currentEventsSection">
       <div class="section-header">
-        <span class="section-icon">🎯</span>
         <h2 class="section-title" id="events-currentTitle">Upcoming Events</h2>
         <span class="section-count" id="currentCount">0</span>
       </div>
@@ -1095,7 +1100,6 @@
     <!-- Past Events Section -->
     <div class="section" id="pastEventsSection">
       <div class="section-header">
-        <span class="section-icon">📚</span>
         <h2 class="section-title" id="events-pastTitle">Past Events</h2>
         <span class="section-count" id="pastCount">0</span>
       </div>
@@ -1133,7 +1137,7 @@
           fields.forEach(field => {
             const el = document.getElementById('events-' + field);
             if (el && data[field]) {
-              el.innerHTML = data[field];
+              el.innerHTML = stripEmoji(data[field]);
             }
           });
         }
@@ -1192,14 +1196,14 @@
                 ...data
               });
               
-              console.log('✅ Loaded event:', data.title);
+              console.log('Loaded event:', data.title);
             } catch (err) {
               console.error('❌ Error processing document:', doc.id, err);
               // Skip this document and continue
             }
           });
           
-          console.log('📋 Valid events loaded:', allEvents.length);
+          console.log('Valid events loaded:', allEvents.length);
           
           // Make events accessible globally for signup modal
           window.allEventsData = allEvents;
@@ -1221,7 +1225,7 @@
               }
               
               const isCurrent = now >= startDate && now < moveToPastDate;
-              console.log(`  📅 ${event.title}: startDate=${startDate.toDateString()}, moveToPast=${moveToPastDate.toDateString()}, isCurrent=${isCurrent}`);
+              console.log(`  ${event.title}: startDate=${startDate.toDateString()}, moveToPast=${moveToPastDate.toDateString()}, isCurrent=${isCurrent}`);
               return isCurrent;
             } catch (err) {
               console.error('❌ Error filtering event:', event.title, err);
@@ -1229,7 +1233,7 @@
             }
           }).sort((a, b) => new Date(a.eventDate + 'T00:00:00') - new Date(b.eventDate + 'T00:00:00'));
           
-          console.log('🎯 Current events found:', upcomingEvents.length);
+          console.log('Current events found:', upcomingEvents.length);
           
           // Filter past events (between moveToPastDate and removeDate)
           const pastEvents = allEvents.filter(event => {
@@ -1249,7 +1253,7 @@
             }
           }).sort((a, b) => new Date(b.moveToPastDate) - new Date(a.moveToPastDate));
           
-          console.log('📚 Past events found:', pastEvents.length);
+          console.log('Past events found:', pastEvents.length);
           
           // Render events
           renderCurrentEvents(upcomingEvents);
@@ -1283,7 +1287,7 @@
         if (events.length === 0) {
           container.innerHTML = `
             <div class="empty-state">
-              <div class="empty-icon">📅</div>
+              
               <h3 class="empty-title">No Upcoming Events</h3>
               <p class="empty-text">Check back soon for new workshops and training sessions!</p>
             </div>
@@ -1336,7 +1340,7 @@
         if (events.length === 0) {
           container.innerHTML = `
             <div class="empty-state">
-              <div class="empty-icon">📚</div>
+              
               <h3 class="empty-title">No Past Events</h3>
               <p class="empty-text">Past events will appear here after they've concluded.</p>
             </div>
@@ -1396,14 +1400,7 @@
                 `<div class="event-image"></div>`
               }
               <div class="event-content">
-                <div class="event-date-badge">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                    <line x1="16" y1="2" x2="16" y2="6"></line>
-                    <line x1="8" y1="2" x2="8" y2="6"></line>
-                    <line x1="3" y1="10" x2="21" y2="10"></line>
-                  </svg>
-                  ${formattedDate}
+                <div class="event-date-badge">${formattedDate}
                 </div>
                 
                 <h3 class="event-title">${event.title}</h3>
@@ -1416,17 +1413,13 @@
                 <div class="event-meta">
                   ${event.location ? 
                     `<div class="event-meta-item">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                        <circle cx="12" cy="10" r="3"></circle>
-                      </svg>
                       ${event.location}
                     </div>` : 
                     ''
                   }
                   
                   <span class="event-status status-${type}">
-                    ${type === 'upcoming' ? '🎯 Upcoming' : '✅ Completed'}
+                    ${type === 'upcoming' ? 'Upcoming' : 'Completed'}
                   </span>
                 </div>
                 
@@ -1449,7 +1442,7 @@
                     onmouseover="this.style.transform='translateY(-2px)'"
                     onmouseout="this.style.transform='translateY(0)'"
                   >
-                    📝 Sign Up for This Event
+                    Sign Up for This Event
                   </button>` : 
                   ''
                 }
@@ -1485,7 +1478,7 @@
         const container = document.getElementById(containerId);
         container.innerHTML = `
           <div class="empty-state">
-            <div class="empty-icon">⚠️</div>
+            
             <h3 class="empty-title">Oops!</h3>
             <p class="empty-text">${message}</p>
           </div>
@@ -1507,7 +1500,7 @@
     
     // Load approved/scheduled event requests from Firebase
     async function loadApprovedEventRequests() {
-      console.log('📅 Starting to load approved event requests...');
+      console.log('Starting to load approved event requests...');
       try {
         // Check if db is available
         if (typeof db === 'undefined') {
@@ -1518,18 +1511,18 @@
         // Sign in anonymously to get read access
         const auth = firebase.auth();
         if (!auth.currentUser) {
-          console.log('📅 Signing in anonymously for eventRequests access...');
+          console.log('Signing in anonymously for eventRequests access...');
           await auth.signInAnonymously();
         }
         
         // Get all event requests and filter client-side (avoids needing composite index)
         const snapshot = await db.collection('eventRequests').get();
-        console.log('📅 Total event requests in collection:', snapshot.size);
+        console.log('Total event requests in collection:', snapshot.size);
         
         // Log all docs for debugging
         snapshot.docs.forEach(doc => {
           const data = doc.data();
-          console.log('📋 Event request:', doc.id, 'status:', data.status, 'date:', data.preferredDate);
+          console.log('Event request:', doc.id, 'status:', data.status, 'date:', data.preferredDate);
         });
         
         window.approvedEventRequests = snapshot.docs
@@ -1550,8 +1543,8 @@
           })
           .filter(request => request.status === 'approved' || request.status === 'scheduled' || request.status === 'completed');
         
-        console.log('📅 Filtered approved/scheduled event requests:', window.approvedEventRequests.length);
-        console.log('📅 Event requests:', window.approvedEventRequests);
+        console.log('Filtered approved/scheduled event requests:', window.approvedEventRequests.length);
+        console.log('Event requests:', window.approvedEventRequests);
       } catch (error) {
         console.error('Error loading approved event requests:', error);
         window.approvedEventRequests = [];
@@ -1658,7 +1651,7 @@
             
             // Debug logging (can remove later)
             if (parsedDate) {
-              console.log(`📅 Parsed "${signupDateStr}" → ${parsedDate}`);
+              console.log(`Parsed "${signupDateStr}" → ${parsedDate}`);
             }
             
             if (parsedDate === dateStr) {
@@ -1792,7 +1785,7 @@
       if (isEventRequest) {
         bodyHtml += `
           <div style="display: inline-block; padding: 0.5rem 1rem; background: linear-gradient(135deg, #4DD0E1, #26C6DA); color: #004E7C; border-radius: 20px; font-size: 0.85rem; font-weight: 600; margin-bottom: 1rem;">
-            📋 Community Requested Event
+            Community Requested Event
           </div>
         `;
       }
@@ -1807,26 +1800,20 @@
       }
       
       bodyHtml += `
-        <div class="event-detail-item">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          <div><strong>Date:</strong> ${formattedDate}</div>
+        <div class="event-detail-item"><div><strong>Date:</strong> ${formattedDate}</div>
         </div>
       `;
       
       if (event.time) {
         bodyHtml += `
-          <div class="event-detail-item">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            <div><strong>Time:</strong> ${event.time}</div>
+          <div class="event-detail-item"><div><strong>Time:</strong> ${event.time}</div>
           </div>
         `;
       }
       
       if (event.location) {
         bodyHtml += `
-          <div class="event-detail-item">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-            <div><strong>Location:</strong> ${event.location}</div>
+          <div class="event-detail-item"><div><strong>Location:</strong> ${event.location}</div>
           </div>
         `;
       }
@@ -1874,7 +1861,7 @@
           bodyHtml += `
             <div style="margin-top: ${event.enableSignup || event.registrationUrl ? '0.75rem' : '1.5rem'}; text-align: center;">
               <a href="${event.imageUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 0.5rem 1.5rem; background: white; color: #004E7C; text-decoration: none; border-radius: 50px; font-weight: 600; border: 2px solid #004E7C; font-size: 0.9rem;">
-                ${isPDF ? '📄 View Event PDF' : '🖼️ View Full Poster'}
+                ${isPDF ? 'View Event PDF' : 'View Full Poster'}
               </a>
             </div>
           `;
@@ -1962,7 +1949,7 @@
       // Show loading
       document.getElementById('requestEventFormContent').innerHTML = `
         <div style="text-align: center; padding: 3rem;">
-          <div style="font-size: 3rem; margin-bottom: 1rem;">⏳</div>
+          
           <p style="color: var(--primary-blue); font-weight: 600;">Submitting your request...</p>
         </div>
       `;
@@ -1991,7 +1978,6 @@
         // Show success
         document.getElementById('requestEventFormContent').innerHTML = `
           <div style="text-align: center; padding: 3rem;">
-            <div style="font-size: 4rem; margin-bottom: 1rem;">✅</div>
             <h3 style="color: var(--primary-blue); font-size: 1.5rem; margin-bottom: 0.75rem;">Thank You!</h3>
             <p style="color: var(--text-light); font-size: 1rem;">Your event request has been submitted. We'll review it and get back to you soon!</p>
           </div>
@@ -2003,7 +1989,7 @@
         console.error('Error submitting event request:', error);
         document.getElementById('requestEventFormContent').innerHTML = `
           <div style="text-align: center; padding: 3rem;">
-            <div style="font-size: 4rem; margin-bottom: 1rem;">❌</div>
+            
             <h3 style="color: #c2185b; font-size: 1.5rem; margin-bottom: 0.75rem;">Oops!</h3>
             <p style="color: var(--text-light); font-size: 1rem; margin-bottom: 1.5rem;">There was an error submitting your request. Please try again.</p>
             <button onclick="closeRequestEventModal()" style="padding: 0.75rem 2rem; background: var(--primary-blue); color: white; border: none; border-radius: 50px; font-weight: 600; cursor: pointer;">Close</button>
@@ -2378,7 +2364,7 @@
       // Show loading
       document.getElementById('signupFormContent').innerHTML = `
         <div style="text-align: center; padding: 40px;">
-          <div style="font-size: 48px; margin-bottom: 16px;">⏳</div>
+          
           <p style="color: #004E7C; font-weight: 600;">Submitting...</p>
         </div>
       `;
@@ -2414,7 +2400,6 @@
         // Show success
         document.getElementById('signupFormContent').innerHTML = `
           <div style="text-align: center; padding: 40px;">
-            <div style="font-size: 64px; margin-bottom: 20px;">✅</div>
             <h2 style="color: #004E7C; font-size: 24px; font-weight: bold; margin-bottom: 12px;">
               Thank You!
             </h2>
@@ -2450,7 +2435,7 @@
         const frame = document.getElementById('iframeFrame');
         
         titleEl.textContent = title;
-        frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">🌺 Join Our Facebook Community</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other Hawaii families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">📱 Open Parent Talk Cafe →</a></div>';
+        frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">Join Our Facebook Community</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other Hawaii families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">Open Parent Talk Cafe →</a></div>';
         modal.classList.add('active');
         document.body.style.overflow = 'hidden';
       } else {
@@ -2490,7 +2475,6 @@
   <section class="calendar-section">
     <div class="calendar-container">
       <div class="section-header" style="justify-content: center; margin-bottom: 1.5rem;">
-        <span class="section-icon">📅</span>
         <h2 class="section-title" id="events-calendarTitle">Event Calendar</h2>
       </div>
       <div class="calendar-header">
@@ -2539,7 +2523,7 @@
   <div id="requestEventModal" class="event-detail-modal" onclick="closeRequestEventModal(event)">
     <div class="event-detail-content" style="max-width: 550px;" onclick="event.stopPropagation()">
       <div class="event-detail-header">
-        <h3>📅 Request an Event</h3>
+        <h3>Request an Event</h3>
         <button class="close-event-detail" onclick="closeRequestEventModal()">&times;</button>
       </div>
       <div class="event-detail-body" id="requestEventFormContent">
