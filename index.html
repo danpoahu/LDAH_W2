@@ -291,36 +291,6 @@
     @media (max-width: 1024px) { .services-grid { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 768px) { .services-grid { grid-template-columns: 1fr; } }
 
-    /* Photo Feature Section */
-    .photo-feature { padding: 6rem 2rem; background: var(--white); }
-    
-    .photo-feature-container {
-        max-width: 1200px; margin: 0 auto;
-        display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center;
-    }
-    
-    .photo-feature-images { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-    
-    .feature-photo { border-radius: 12px; overflow: hidden; box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
-    .feature-photo.tall { grid-row: span 2; }
-    .feature-photo img { width: 100%; height: 100%; object-fit: cover; min-height: 140px; }
-    .feature-photo.tall img { min-height: 300px; }
-    
-    .photo-feature-content h2 { font-size: 2.2rem; color: var(--text-dark); margin-bottom: 1rem; }
-    .photo-feature-content p { font-size: 1.1rem; color: var(--text-soft); margin-bottom: 1.5rem; line-height: 1.8; }
-    .photo-feature-content ul { list-style: none; margin-bottom: 2rem; }
-    .photo-feature-content li { padding: 0.5rem 0; color: var(--text-soft); display: flex; align-items: center; gap: 0.75rem; }
-    .photo-feature-content li::before {
-        content: '✓'; display: inline-flex; align-items: center; justify-content: center;
-        width: 24px; height: 24px; background: var(--ocean-deep); color: white;
-        border-radius: 50%; font-size: 0.8rem; font-weight: 700;
-    }
-
-    @media (max-width: 1024px) {
-        .photo-feature-container { grid-template-columns: 1fr; gap: 3rem; }
-        .photo-feature-images { max-width: 450px; margin: 0 auto; }
-    }
-    @media (max-width: 768px) { .photo-feature-images { max-width: 350px; } }
 
     /* Events Section */
     .events-section { padding: 6rem 2rem; background: var(--bg-warm); }
@@ -516,13 +486,13 @@
             </div>
             <div class="hero-photos">
                 <div class="photo-card large">
-                    <img src="photo2.jpg" alt="Young person enjoying water activities">
+                    <img id="home-heroPhoto1" src="photo2.jpg" alt="Young person enjoying water activities">
                 </div>
                 <div class="photo-card">
-                    <img src="photo1.jpg" alt="Community celebration with balloons">
+                    <img id="home-heroPhoto2" src="photo1.jpg" alt="Community celebration with balloons">
                 </div>
                 <div class="photo-card">
-                    <img src="photo3.jpg" alt="Live Aloha - Bully Free Zone advocacy">
+                    <img id="home-heroPhoto3" src="photo3.jpg" alt="Live Aloha - Bully Free Zone advocacy">
                 </div>
                 <div class="hero-accent"></div>
             </div>
@@ -592,33 +562,6 @@
                 <img id="home-service6Photo" src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=160&h=160&fit=crop&crop=faces" alt="Anti-bullying" class="service-photo" onerror="this.style.display='none'">
                 <h3 class="service-title" id="home-service6Title">Stand Up to Bullying</h3>
                 <p class="service-description" id="home-service6Desc">Resources and support to help prevent bullying and protect children in our community.</p>
-            </div>
-        </div>
-    </section>
-
-    <section class="photo-feature">
-        <div class="photo-feature-container">
-            <div class="photo-feature-images">
-                <div class="feature-photo tall">
-                    <img src="https://images.unsplash.com/photo-1491013516836-7db643ee125a?w=400&h=600&fit=crop" alt="Parent and child">
-                </div>
-                <div class="feature-photo">
-                    <img src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=400&h=280&fit=crop" alt="Training session">
-                </div>
-                <div class="feature-photo">
-                    <img src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=400&h=280&fit=crop" alt="Community event">
-                </div>
-            </div>
-            <div class="photo-feature-content">
-                <h2 id="home-featureTitle">Walking Alongside Families</h2>
-                <p id="home-featureDesc">Every family's journey is unique. Our trained staff and volunteers provide personalized support to help you navigate systems, understand your rights, and connect with resources.</p>
-                <ul>
-                    <li id="home-featureItem1">One-on-one family consultations</li>
-                    <li id="home-featureItem2">IEP meeting support and advocacy</li>
-                    <li id="home-featureItem3">Workshops and training sessions</li>
-                    <li id="home-featureItem4">Connection to community resources</li>
-                </ul>
-                <a href="contact.html" class="btn-primary">Connect With Us</a>
             </div>
         </div>
     </section>
