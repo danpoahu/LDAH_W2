@@ -1,0 +1,8 @@
+# Claude Code worktrees and session data
+.claude/
+
+# macOS
+.DS_Store
+
+# Node
+node_modules/
