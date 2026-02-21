@@ -914,19 +914,19 @@
 
         <div class="cards-grid">
             <div class="info-card">
-                <div class="card-icon"><img src="https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a?w=200&h=200&fit=crop" alt="Mission"></div>
+                <div class="card-icon"><img id="whoweare-missionPhoto" src="https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a?w=200&h=200&fit=crop" alt="Mission"></div>
                 <h3 id="whoweare-missionTitle">Our Mission</h3>
                 <p id="whoweare-missionText">To enhance educational, work and life opportunities for children and youth with or at risk of disabilities by empowering them and their families through screening, identification, information, training, and mentoring, and by public outreach and advocacy.</p>
             </div>
 
             <div class="info-card">
-                <div class="card-icon"><img src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=200&h=200&fit=crop" alt="Vision"></div>
+                <div class="card-icon"><img id="whoweare-visionPhoto" src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=200&h=200&fit=crop" alt="Vision"></div>
                 <h3 id="whoweare-visionTitle">Our Vision</h3>
                 <p id="whoweare-visionText">Individuals have choice and access to educational, work and life opportunities to be successful regardless of their disabilities.</p>
             </div>
 
             <div class="info-card">
-                <div class="card-icon"><img src="https://images.unsplash.com/photo-1609220136736-443140cffec6?w=200&h=200&fit=crop" alt="Values"></div>
+                <div class="card-icon"><img id="whoweare-valuesPhoto" src="https://images.unsplash.com/photo-1609220136736-443140cffec6?w=200&h=200&fit=crop" alt="Values"></div>
                 <h3 id="whoweare-valuesTitle">Core Values</h3>
                 <ul id="whoweare-valuesList">
                     <li>Advocating for the Rights of Children with Disabilities</li>
@@ -941,7 +941,7 @@
 
         <!-- About PTI -->
         <div class="info-card" style="max-width: 900px; margin: 0 auto 60px;">
-            <div class="card-icon"><img src="https://images.unsplash.com/photo-1577896851231-70ef18881754?w=200&h=200&fit=crop" alt="Parent Training"></div>
+            <div class="card-icon"><img id="whoweare-ptiPhoto" src="https://images.unsplash.com/photo-1577896851231-70ef18881754?w=200&h=200&fit=crop" alt="Parent Training"></div>
             <h3 id="whoweare-ptiTitle">Parent Training & Information Center</h3>
             <p id="whoweare-ptiText1">Through a contract with the United States Department of Education, Office of Special Education Programs (OSEP), LDAH has operated and served as The Parent Training and Information Center (PTI) for the State of Hawaii since 1990. As the PTI, LDAH provides education and training to parents, children, professionals and community members.</p>
             <p style="margin-top: 1rem;" id="whoweare-ptiText2">The majority of Parent Center staff and board are parents of children with disabilities, bringing personal experience and expertise when working with families.</p>
@@ -956,16 +956,16 @@
 
         <div class="team-cards-grid">
             <div class="team-card" onclick="openTeamModal()">
-                <div class="card-icon"><img src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=200&h=200&fit=crop" alt="Our Team"></div>
-                <h3>Our Team</h3>
-                <p>Meet the dedicated staff members who work directly with families every day to provide support, training, and advocacy services.</p>
+                <div class="card-icon"><img id="whoweare-teamPhoto" src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=200&h=200&fit=crop" alt="Our Team"></div>
+                <h3 id="whoweare-teamCardTitle">Our Team</h3>
+                <p id="whoweare-teamCardText">Meet the dedicated staff members who work directly with families every day to provide support, training, and advocacy services.</p>
                 <span class="view-btn">View Team →</span>
             </div>
 
             <div class="team-card" onclick="openBoardModal()">
-                <div class="card-icon"><img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200&h=200&fit=crop" alt="Board of Directors"></div>
-                <h3>Board of Directors</h3>
-                <p>Our volunteer board provides leadership and governance to ensure LDAH fulfills its mission to serve Hawaii's families.</p>
+                <div class="card-icon"><img id="whoweare-boardPhoto" src="https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200&h=200&fit=crop" alt="Board of Directors"></div>
+                <h3 id="whoweare-boardCardTitle">Board of Directors</h3>
+                <p id="whoweare-boardCardText">Our volunteer board provides leadership and governance to ensure LDAH fulfills its mission to serve Hawaii's families.</p>
                 <span class="view-btn">View Board →</span>
             </div>
         </div>
@@ -1102,7 +1102,12 @@
                     Object.keys(content).forEach(key => {
                         const el = document.getElementById(`whoweare-${key}`);
                         if (el && content[key]) {
-                            el.innerHTML = stripEmoji(content[key]);
+                            // For photo fields, update src attribute instead of innerHTML
+                            if (key.includes('Photo') && el.tagName === 'IMG') {
+                                el.src = content[key];
+                            } else {
+                                el.innerHTML = stripEmoji(content[key]);
+                            }
                         }
                     });
                 }
