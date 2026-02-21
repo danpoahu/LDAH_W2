@@ -485,8 +485,8 @@
 
   <header class="page-header">
     <svg class="page-header-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
-    <h1>Volunteer Opportunities</h1>
-    <p>Join our 'ohana and make a difference in the lives of Hawai'i families and children with disabilities.</p>
+    <h1 id="volunteer-heroTitle">Volunteer Opportunities</h1>
+    <p id="volunteer-heroSubtitle">Join our 'ohana and make a difference in the lives of Hawai'i families and children with disabilities.</p>
   </header>
 
   <main class="container">
@@ -502,8 +502,8 @@
   <section class="gallery-section">
     <div class="section-header">
       <span class="section-badge">Our Community</span>
-      <h2>Volunteer Gallery</h2>
-      <p>See our amazing volunteers in action!</p>
+      <h2 id="volunteer-galleryTitle">Volunteer Gallery</h2>
+      <p id="volunteer-gallerySubtitle">See our amazing volunteers in action!</p>
     </div>
     <div class="gallery-grid" id="gallery2Grid">
       <div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: var(--text-soft);">Loading gallery...</div>
@@ -513,8 +513,8 @@
   <!-- CTA Banner -->
   <section class="cta-banner">
     <svg class="cta-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
-    <h2>Can't Find a Match?</h2>
-    <p>We're always looking for passionate volunteers! Contact us to discuss how your skills can help our community.</p>
+    <h2 id="volunteer-ctaTitle">Can't Find a Match?</h2>
+    <p id="volunteer-ctaSubtitle">We're always looking for passionate volunteers! Contact us to discuss how your skills can help our community.</p>
     <a href="contact.html" class="cta-btn">Contact Us</a>
   </section>
 
@@ -567,6 +567,23 @@
     console.log('Firestore db reference created');
 
     let opportunitiesData = {};
+
+    async function loadPageContent() {
+      try {
+        const doc = await db.collection('pageContent').doc('volunteer').get();
+        if (doc.exists) {
+          const content = doc.data();
+          Object.keys(content).forEach(key => {
+            const el = document.getElementById(`volunteer-${key}`);
+            if (el && content[key]) {
+              el.innerHTML = content[key];
+            }
+          });
+        }
+      } catch (err) {
+        console.error('Error loading volunteer page content:', err);
+      }
+    }
 
     async function loadOpportunitiesData() {
       try {
@@ -764,6 +781,7 @@
     document.addEventListener('DOMContentLoaded', async () => {
       console.log('📄 DOMContentLoaded fired, loading data...');
       try {
+        await loadPageContent();
         await loadOpportunitiesData();
         console.log('Opportunities data loaded');
         await loadOpportunities();

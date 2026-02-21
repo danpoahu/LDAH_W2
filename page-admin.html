@@ -191,7 +191,7 @@
                 <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:120px;margin:0 0 1rem;border-radius:10px;overflow:hidden"><div class="edit" onclick="ed('whoweare','valuesPhoto','Values Photo 📷')"><span class="badge">✏️</span><img id="whoweare-valuesPhoto-preview" src="https://images.unsplash.com/photo-1609220136736-443140cffec6?w=200&h=200&fit=crop" alt="Values" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('whoweare','valuesTitle','Values Title')"><span class="badge">✏️</span><h3 id="whoweare-valuesTitle">Core Values</h3></div><div class="edit" onclick="ed('whoweare','valuesList','Values (use li tags)')"><span class="badge">✏️</span><ul id="whoweare-valuesList"><li>Advocating for Rights</li><li>Families First</li><li>Partnerships</li><li>Accountability</li></ul></div></div>
             </div>
             <div class="pti">
-                <div class="card-icon">🏛️</div>
+                <div class="card-icon" style="width:100%;height:120px;margin:0 0 1rem;border-radius:10px;overflow:hidden"><div class="edit" onclick="ed('whoweare','ptiPhoto','PTI Photo 📷')"><span class="badge">✏️</span><img id="whoweare-ptiPhoto-preview" src="https://images.unsplash.com/photo-1577896851231-70ef18881754?w=200&h=200&fit=crop" alt="PTI" style="width:100%;height:100%;object-fit:cover"></div></div>
                 <div class="edit" onclick="ed('whoweare','ptiTitle','PTI Title')"><span class="badge">✏️</span><h3 id="whoweare-ptiTitle">Parent Training & Information Center</h3></div>
                 <div class="edit" onclick="ed('whoweare','ptiText1','PTI Text 1')"><span class="badge">✏️</span><p id="whoweare-ptiText1">LDAH has served as the PTI for Hawaii since 1990.</p></div>
                 <div class="edit" onclick="ed('whoweare','ptiText2','PTI Text 2')"><span class="badge">✏️</span><p id="whoweare-ptiText2">Most staff are parents of children with disabilities.</p></div>
@@ -258,18 +258,21 @@
     <div class="page" id="page-volunteer"><div class="preview">
         <section class="hero">
             <div class="edit" onclick="ed('volunteer','heroTitle','Page Title')"><span class="badge">✏️</span><h1 id="volunteer-heroTitle">Volunteer Opportunities</h1></div>
-            <div class="edit" onclick="ed('volunteer','heroSubtitle','Page Subtitle')"><span class="badge">✏️</span><p id="volunteer-heroSubtitle">Make a difference in families' lives.</p></div>
+            <div class="edit" onclick="ed('volunteer','heroSubtitle','Page Subtitle')"><span class="badge">✏️</span><p id="volunteer-heroSubtitle">Join our 'ohana and make a difference in the lives of Hawai'i families and children with disabilities.</p></div>
         </section>
         <section class="sec">
-            <div class="sec-head">
-                <div class="edit" onclick="ed('volunteer','opportunitiesTitle','Opportunities Title')"><span class="badge">✏️</span><h2 id="volunteer-opportunitiesTitle">Current Opportunities</h2></div>
-                <div class="edit" onclick="ed('volunteer','opportunitiesSubtitle','Opportunities Subtitle')"><span class="badge">✏️</span><p id="volunteer-opportunitiesSubtitle">Contribute your time and skills</p></div>
-            </div>
             <div class="ph">Opportunities loaded from Firebase (CMS Volunteers tab)</div>
         </section>
+        <section class="sec" style="background:#f0f4f8">
+            <div class="sec-head">
+                <div class="edit" onclick="ed('volunteer','galleryTitle','Gallery Title')"><span class="badge">✏️</span><h2 id="volunteer-galleryTitle">Volunteer Gallery</h2></div>
+                <div class="edit" onclick="ed('volunteer','gallerySubtitle','Gallery Subtitle')"><span class="badge">✏️</span><p id="volunteer-gallerySubtitle">See our amazing volunteers in action!</p></div>
+            </div>
+            <div class="ph">Gallery loaded from Firebase (gallery2 collection)</div>
+        </section>
         <section class="cta">
-            <div class="edit" onclick="ed('volunteer','ctaTitle','CTA Title')"><span class="badge">✏️</span><h2 id="volunteer-ctaTitle">Make a Difference Today</h2></div>
-            <div class="edit" onclick="ed('volunteer','ctaSubtitle','CTA Subtitle')"><span class="badge">✏️</span><p id="volunteer-ctaSubtitle">Help families navigate special education.</p></div>
+            <div class="edit" onclick="ed('volunteer','ctaTitle','CTA Title')"><span class="badge">✏️</span><h2 id="volunteer-ctaTitle">Can't Find a Match?</h2></div>
+            <div class="edit" onclick="ed('volunteer','ctaSubtitle','CTA Subtitle')"><span class="badge">✏️</span><p id="volunteer-ctaSubtitle">We're always looking for passionate volunteers! Contact us to discuss how your skills can help our community.</p></div>
         </section>
     </div></div>
 
@@ -297,27 +300,24 @@
         <section class="sec">
             <div class="grid3" style="grid-template-columns: 1fr 1fr; margin-bottom: 2rem;">
                 <!-- Honolulu Office -->
-                <div class="card" style="text-align:center">
-                    <div class="card-icon" style="width:100%;height:120px;margin:0 0 1rem;border-radius:10px;overflow:hidden"><div class="edit" onclick="ed('contact','honPhoto','Honolulu Photo 📷')"><span class="badge">✏️</span><img id="contact-honPhoto-preview" src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=200&h=200&fit=crop" alt="Honolulu Office" style="width:100%;height:100%;object-fit:cover"></div></div>
+                <div class="card">
                     <div class="edit" onclick="ed('contact','honTitle','Honolulu Office Title')"><span class="badge">✏️</span><h3 id="contact-honTitle">Honolulu Office</h3></div>
                     <div class="edit" onclick="ed('contact','honSubtitle','Honolulu Subtitle')"><span class="badge">✏️</span><p id="contact-honSubtitle" style="color:var(--primary);font-weight:600">Main Office</p></div>
-                    <div class="edit" onclick="ed('contact','honPhone','Honolulu Phone')"><span class="badge">✏️</span><p id="contact-honPhone" style="font-size:0.9rem;margin-top:1rem"><strong>Phone:</strong> (808) 536-7684</p></div>
-                    <div class="edit" onclick="ed('contact','honEmail','Honolulu Email')"><span class="badge">✏️</span><p id="contact-honEmail" style="font-size:0.9rem"><strong>Email:</strong> <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="a6cfc8c0c9e6cac2c7cec7d1c7cfcf88c9d4c1">[email&#160;protected]</a></p></div>
+                    <div class="edit" onclick="ed('contact','honPhone','Honolulu Phone')"><span class="badge">✏️</span><p id="contact-honPhone" style="font-size:0.9rem;margin-top:0.5rem"><strong>Phone:</strong> (808) 536-7684</p></div>
+                    <div class="edit" onclick="ed('contact','honEmail','Honolulu Email')"><span class="badge">✏️</span><p id="contact-honEmail" style="font-size:0.9rem"><strong>Email:</strong> rrowe@ldah.org</p></div>
                     <div class="edit" onclick="ed('contact','honAddress','Honolulu Address')"><span class="badge">✏️</span><p id="contact-honAddress" style="font-size:0.9rem"><strong>Address:</strong><br>Harry and Jeanette Weinberg Kukui Center<br>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817</p></div>
                 </div>
                 <!-- Ma'ili Office -->
-                <div class="card" style="text-align:center">
-                    <div class="card-icon" style="width:100%;height:120px;margin:0 0 1rem;border-radius:10px;overflow:hidden"><div class="edit" onclick="ed('contact','mailiPhoto','Maili Photo 📷')"><span class="badge">✏️</span><img id="contact-mailiPhoto-preview" src="https://images.unsplash.com/photo-1562564055-71e051d33c19?w=200&h=200&fit=crop" alt="Maili Office" style="width:100%;height:100%;object-fit:cover"></div></div>
+                <div class="card">
                     <div class="edit" onclick="ed('contact','mailiTitle','Maili Office Title')"><span class="badge">✏️</span><h3 id="contact-mailiTitle">Ma'ili Office</h3></div>
                     <div class="edit" onclick="ed('contact','mailiSubtitle','Maili Subtitle')"><span class="badge">✏️</span><p id="contact-mailiSubtitle" style="color:var(--primary);font-weight:600">School Readiness Project</p></div>
-                    <div class="edit" onclick="ed('contact','mailiPhone','Maili Phone')"><span class="badge">✏️</span><p id="contact-mailiPhone" style="font-size:0.9rem;margin-top:1rem"><strong>Phone:</strong> (808) 696-5361</p></div>
+                    <div class="edit" onclick="ed('contact','mailiPhone','Maili Phone')"><span class="badge">✏️</span><p id="contact-mailiPhone" style="font-size:0.9rem;margin-top:0.5rem"><strong>Phone:</strong> (808) 696-5361</p></div>
                     <div class="edit" onclick="ed('contact','mailiHours','Maili Hours')"><span class="badge">✏️</span><p id="contact-mailiHours" style="font-size:0.9rem"><strong>Hours:</strong> Monday to Friday, 8:00 AM – 5:00 PM</p></div>
                     <div class="edit" onclick="ed('contact','mailiAddress','Maili Address')"><span class="badge">✏️</span><p id="contact-mailiAddress" style="font-size:0.9rem"><strong>Address:</strong><br>Community Learning Center<br>Kauhale Building<br>87-790 Kulauku St., Suite A116<br>Wai'anae, HI 96792</p></div>
                 </div>
             </div>
             <!-- App Download Card -->
-            <div class="card" style="text-align: center; background: linear-gradient(135deg, rgba(0,78,124,0.05), rgba(77,208,225,0.1));">
-                <div class="card-icon" style="width:100%;height:120px;margin:0 0 1rem;border-radius:10px;overflow:hidden"><div class="edit" onclick="ed('contact','appPhoto','App Photo 📷')"><span class="badge">✏️</span><img id="contact-appPhoto-preview" src="https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=200&h=200&fit=crop" alt="Mobile App" style="width:100%;height:100%;object-fit:cover"></div></div>
+            <div class="card" style="background: linear-gradient(135deg, rgba(0,78,124,0.05), rgba(77,208,225,0.1));">
                 <div class="edit" onclick="ed('contact','appTitle','App Section Title')"><span class="badge">✏️</span><h3 id="contact-appTitle">24/7 Support at Your Fingertips</h3></div>
                 <div class="edit" onclick="ed('contact','appText','App Section Text')"><span class="badge">✏️</span><p id="contact-appText">Need answers anytime? Download our free app for instant access to resources, FAQs, and support—day or night!</p></div>
             </div>
@@ -420,8 +420,8 @@
                 </div>
             </div>
             <div class="grid3" style="grid-template-columns: 1fr 1fr;">
-                <div class="card"><div class="card-icon" style="width:100%;height:120px;margin:0 0 1rem;border-radius:10px;overflow:hidden"><div class="edit" onclick="ed('military','pdf1Photo','PDF 1 Photo 📷')"><span class="badge">✏️</span><img id="military-pdf1Photo-preview" src="https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=200&h=200&fit=crop" alt="Relocating IEP" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('military','pdf1Title','PDF 1 Title')"><span class="badge">✏️</span><h3 id="military-pdf1Title">Relocating With an IEP</h3></div><div class="edit" onclick="ed('military','pdf1Desc','PDF 1 Description')"><span class="badge">✏️</span><p id="military-pdf1Desc">Essential information and checklists for military families relocating with children who have IEPs. Learn what to do before, during, and after your move.</p></div></div>
-                <div class="card"><div class="card-icon" style="width:100%;height:120px;margin:0 0 1rem;border-radius:10px;overflow:hidden"><div class="edit" onclick="ed('military','pdf2Photo','PDF 2 Photo 📷')"><span class="badge">✏️</span><img id="military-pdf2Photo-preview" src="https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?w=200&h=200&fit=crop" alt="Forever Transitioning" style="width:100%;height:100%;object-fit:cover"></div></div><div class="edit" onclick="ed('military','pdf2Title','PDF 2 Title')"><span class="badge">✏️</span><h3 id="military-pdf2Title">Forever Transitioning</h3></div><div class="edit" onclick="ed('military','pdf2Desc','PDF 2 Description')"><span class="badge">✏️</span><p id="military-pdf2Desc">A comprehensive checklist of must-do tasks for military families coming to or leaving Hawaii. Reduce the anxiety of unpredictable circumstances.</p></div></div>
+                <div class="card"><div class="edit" onclick="ed('military','pdf1Title','PDF 1 Title')"><span class="badge">✏️</span><h3 id="military-pdf1Title">Relocating With an IEP</h3></div><div class="edit" onclick="ed('military','pdf1Desc','PDF 1 Description')"><span class="badge">✏️</span><p id="military-pdf1Desc">Essential information and checklists for military families relocating with children who have IEPs. Learn what to do before, during, and after your move.</p></div></div>
+                <div class="card"><div class="edit" onclick="ed('military','pdf2Title','PDF 2 Title')"><span class="badge">✏️</span><h3 id="military-pdf2Title">Forever Transitioning</h3></div><div class="edit" onclick="ed('military','pdf2Desc','PDF 2 Description')"><span class="badge">✏️</span><p id="military-pdf2Desc">A comprehensive checklist of must-do tasks for military families coming to or leaving Hawaii. Reduce the anxiety of unpredictable circumstances.</p></div></div>
             </div>
         </section>
         <section class="cta">
