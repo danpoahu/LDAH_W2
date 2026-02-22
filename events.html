@@ -1281,6 +1281,8 @@
       }
 
       function renderCurrentEvents(events) {
+        // Destroy old Swiper before replacing DOM to avoid orphaned instances
+        if (currentSwiper) { try { currentSwiper.destroy(true, true); } catch(e) {} currentSwiper = null; }
         const container = document.getElementById('currentEventsCarousel');
         const countBadge = document.getElementById('currentCount');
         

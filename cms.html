@@ -1947,7 +1947,7 @@
         <div class="content-section">
           <!-- Sub-mode toggle -->
           <div style="display:flex;gap:0.5rem;margin-bottom:1.5rem;border-bottom:2px solid #e2e8f0;padding-bottom:0.75rem;">
-            <button id="eventsSubBtn" onclick="switchEventsSubTab('events')" style="padding:0.5rem 1.25rem;border-radius:8px 8px 0 0;border:none;font-weight:600;font-size:0.9rem;cursor:pointer;background:var(--primary);color:white;">One-Time Events</button>
+            <button id="eventsSubBtn" onclick="switchEventsSubTab('events')" style="padding:0.5rem 1.25rem;border-radius:8px 8px 0 0;border:none;font-weight:600;font-size:0.9rem;cursor:pointer;background:var(--primary-blue);color:white;">One-Time Events</button>
             <button id="ongoingSubBtn" onclick="switchEventsSubTab('ongoing')" style="padding:0.5rem 1.25rem;border-radius:8px 8px 0 0;border:none;font-weight:600;font-size:0.9rem;cursor:pointer;background:#e2e8f0;color:#555;">On-Going Programs</button>
           </div>
 
@@ -2958,7 +2958,7 @@
         </div>
 
         <hr style="margin:1.5rem 0;border-color:#e2e8f0;">
-        <h4 style="color:var(--primary);margin-bottom:1rem;">Schedules</h4>
+        <h4 style="color:var(--primary-blue);margin-bottom:1rem;">Schedules</h4>
         <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:1rem;">Add one row per location/time slot. Each schedule generates its own checkboxes in the signup modal.</p>
 
         <div id="recurringSchedulesList" style="display:flex;flex-direction:column;gap:0.75rem;margin-bottom:1rem;"></div>
@@ -5923,9 +5923,9 @@
     function switchEventsSubTab(tab) {
       document.getElementById('eventsSubPanel').style.display  = tab === 'events'  ? 'block' : 'none';
       document.getElementById('ongoingSubPanel').style.display = tab === 'ongoing' ? 'block' : 'none';
-      document.getElementById('eventsSubBtn').style.background  = tab === 'events'  ? 'var(--primary)' : '#e2e8f0';
+      document.getElementById('eventsSubBtn').style.background  = tab === 'events'  ? 'var(--primary-blue)' : '#e2e8f0';
       document.getElementById('eventsSubBtn').style.color       = tab === 'events'  ? 'white' : '#555';
-      document.getElementById('ongoingSubBtn').style.background = tab === 'ongoing' ? 'var(--primary)' : '#e2e8f0';
+      document.getElementById('ongoingSubBtn').style.background = tab === 'ongoing' ? 'var(--primary-blue)' : '#e2e8f0';
       document.getElementById('ongoingSubBtn').style.color      = tab === 'ongoing' ? 'white' : '#555';
       if (tab === 'ongoing') loadRecurringPrograms();
     }
@@ -5965,7 +5965,7 @@
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;">
               <div style="flex:1;">
                 <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.25rem;">
-                  <strong style="color:var(--primary);font-size:1.05rem;">${p.title}</strong>
+                  <strong style="color:var(--primary-blue);font-size:1.05rem;">${p.title}</strong>
                   <span style="padding:2px 10px;border-radius:50px;font-size:11px;font-weight:700;background:${p.active ? 'linear-gradient(135deg,#4DD0E1,#0891B2)' : '#e2e8f0'};color:${p.active ? 'white' : '#555'};">${p.active ? 'Active' : 'Inactive'}</span>
                 </div>
                 <p style="color:var(--text-light);font-size:0.85rem;margin-bottom:0.5rem;">${p.description || ''}</p>
@@ -6011,17 +6011,17 @@
           <button type="button" onclick="removeRecurringScheduleRow(${idx})" style="position:absolute;top:8px;right:8px;background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer;line-height:1;">&times;</button>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
             <div>
-              <label style="font-size:0.8rem;font-weight:600;color:var(--primary);display:block;margin-bottom:3px;">Location Name *</label>
+              <label style="font-size:0.8rem;font-weight:600;color:var(--primary-blue);display:block;margin-bottom:3px;">Location Name *</label>
               <input type="text" value="${s.location}" placeholder="e.g., Oahu" oninput="currentRecurringSchedules[${idx}].location=this.value" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">
             </div>
             <div>
-              <label style="font-size:0.8rem;font-weight:600;color:var(--primary);display:block;margin-bottom:3px;">Venue / Address</label>
+              <label style="font-size:0.8rem;font-weight:600;color:var(--primary-blue);display:block;margin-bottom:3px;">Venue / Address</label>
               <input type="text" value="${s.venue}" placeholder="e.g., Easter Seals - Hilo" oninput="currentRecurringSchedules[${idx}].venue=this.value" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">
             </div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0.75rem;align-items:end;">
             <div>
-              <label style="font-size:0.8rem;font-weight:600;color:var(--primary);display:block;margin-bottom:3px;">Frequency</label>
+              <label style="font-size:0.8rem;font-weight:600;color:var(--primary-blue);display:block;margin-bottom:3px;">Frequency</label>
               <select onchange="currentRecurringSchedules[${idx}].frequency=this.value; renderRecurringScheduleRows();" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">
                 <option value="weekly" ${s.frequency==='weekly'?'selected':''}>Every Week</option>
                 <option value="monthly-nth" ${s.frequency==='monthly-nth'?'selected':''}>Monthly (nth day)</option>
@@ -6029,24 +6029,24 @@
             </div>
             ${s.frequency==='monthly-nth' ? `
             <div>
-              <label style="font-size:0.8rem;font-weight:600;color:var(--primary);display:block;margin-bottom:3px;">Which Week</label>
+              <label style="font-size:0.8rem;font-weight:600;color:var(--primary-blue);display:block;margin-bottom:3px;">Which Week</label>
               <select onchange="currentRecurringSchedules[${idx}].weekOfMonth=parseInt(this.value)" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">
                 ${[1,2,3,4].map(n=>`<option value="${n}" ${s.weekOfMonth===n?'selected':''}>${ORDINAL[n]}</option>`).join('')}
               </select>
             </div>` : '<div></div>'}
             <div>
-              <label style="font-size:0.8rem;font-weight:600;color:var(--primary);display:block;margin-bottom:3px;">Day of Week</label>
+              <label style="font-size:0.8rem;font-weight:600;color:var(--primary-blue);display:block;margin-bottom:3px;">Day of Week</label>
               <select onchange="currentRecurringSchedules[${idx}].dayOfWeek=parseInt(this.value)" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">
                 ${DAY_NAMES.map((d,i)=>`<option value="${i}" ${s.dayOfWeek===i?'selected':''}>${d}</option>`).join('')}
               </select>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;">
               <div>
-                <label style="font-size:0.8rem;font-weight:600;color:var(--primary);display:block;margin-bottom:3px;">Start</label>
+                <label style="font-size:0.8rem;font-weight:600;color:var(--primary-blue);display:block;margin-bottom:3px;">Start</label>
                 <input type="time" value="${s.startTime}" onchange="currentRecurringSchedules[${idx}].startTime=this.value" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">
               </div>
               <div>
-                <label style="font-size:0.8rem;font-weight:600;color:var(--primary);display:block;margin-bottom:3px;">End</label>
+                <label style="font-size:0.8rem;font-weight:600;color:var(--primary-blue);display:block;margin-bottom:3px;">End</label>
                 <input type="time" value="${s.endTime}" onchange="currentRecurringSchedules[${idx}].endTime=this.value" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">
               </div>
             </div>
@@ -6171,7 +6171,7 @@
           : `${dateStr ? new Date(dateStr+'T00:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) : ''} · ${locationStr||''} · ${timeStr||''}`;
         return `
           <div style="margin-bottom:1.5rem;">
-            <h4 style="color:var(--primary);font-size:0.95rem;margin-bottom:0.75rem;padding:0.4rem 0.75rem;background:#e0f2fe;border-radius:6px;">${heading} (${list.length})</h4>
+            <h4 style="color:var(--primary-blue);font-size:0.95rem;margin-bottom:0.75rem;padding:0.4rem 0.75rem;background:#e0f2fe;border-radius:6px;">${heading} (${list.length})</h4>
             ${list.map(s => `
               <div style="border:1px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.5rem;">
