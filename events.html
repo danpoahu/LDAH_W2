@@ -1176,99 +1176,92 @@
         try {
           console.log('🔍 Starting to load events...');
           const now = new Date();
-          
-          // Fetch ALL events (no filtering in query)
-          const allEventsSnapshot = await db.collection('events').get();
-          console.log('📊 Total documents in events collection:', allEventsSnapshot.size);
-          
+
+          // Fetch regular events AND recurring programs simultaneously
+          const [allEventsSnapshot, recurringSnapshot] = await Promise.all([
+            db.collection('events').get(),
+            db.collection('recurringEvents').where('active', '==', true).get()
+          ]);
+          console.log('📊 Events:', allEventsSnapshot.size, '| Recurring programs:', recurringSnapshot.size);
+
           const allEvents = [];
-          
+
           // Process each document with error handling
           allEventsSnapshot.docs.forEach(doc => {
             try {
               const data = doc.data();
-              
+
               // Skip documents without required fields
               if (!data.title) {
                 console.warn('⚠️ Skipping document without title:', doc.id);
                 return;
               }
-              
+
               // Skip documents with invalid IDs (corrupted)
               if (doc.id.length > 30) {
                 console.warn('⚠️ Skipping corrupted document:', doc.id.substring(0, 20) + '...');
                 return;
               }
-              
-              allEvents.push({
-                id: doc.id,
-                ...data
-              });
-              
+
+              allEvents.push({ id: doc.id, ...data });
               console.log('Loaded event:', data.title);
             } catch (err) {
               console.error('❌ Error processing document:', doc.id, err);
-              // Skip this document and continue
             }
           });
-          
+
           console.log('Valid events loaded:', allEvents.length);
-          
-          // Make events accessible globally for signup modal
           window.allEventsData = allEvents;
-          
+
           // Filter current events (between startDate and moveToPastDate)
           const upcomingEvents = allEvents.filter(event => {
             try {
-              if (!event.startDate || !event.moveToPastDate) {
-                console.log('⭕ Skipping event without dates:', event.title);
-                return false;
-              }
+              if (!event.startDate || !event.moveToPastDate) return false;
               const startDate = new Date(event.startDate + 'T00:00:00');
               const moveToPastDate = new Date(event.moveToPastDate + 'T00:00:00');
-              
-              // Check if dates are valid
-              if (isNaN(startDate.getTime()) || isNaN(moveToPastDate.getTime())) {
-                console.log('⚠️ Invalid dates for:', event.title);
-                return false;
-              }
-              
-              const isCurrent = now >= startDate && now < moveToPastDate;
-              console.log(`  ${event.title}: startDate=${startDate.toDateString()}, moveToPast=${moveToPastDate.toDateString()}, isCurrent=${isCurrent}`);
-              return isCurrent;
-            } catch (err) {
-              console.error('❌ Error filtering event:', event.title, err);
-              return false;
-            }
+              if (isNaN(startDate.getTime()) || isNaN(moveToPastDate.getTime())) return false;
+              return now >= startDate && now < moveToPastDate;
+            } catch (err) { return false; }
           }).sort((a, b) => new Date(a.eventDate + 'T00:00:00') - new Date(b.eventDate + 'T00:00:00'));
-          
-          console.log('Current events found:', upcomingEvents.length);
-          
+
           // Filter past events (between moveToPastDate and removeDate)
           const pastEvents = allEvents.filter(event => {
             try {
               if (!event.moveToPastDate || !event.removeDate) return false;
               const moveToPastDate = new Date(event.moveToPastDate);
               const removeDate = new Date(event.removeDate);
-              
-              if (isNaN(moveToPastDate.getTime()) || isNaN(removeDate.getTime())) {
-                return false;
-              }
-              
-              const isPast = now >= moveToPastDate && now < removeDate;
-              return isPast;
-            } catch (err) {
-              return false;
-            }
+              if (isNaN(moveToPastDate.getTime()) || isNaN(removeDate.getTime())) return false;
+              return now >= moveToPastDate && now < removeDate;
+            } catch (err) { return false; }
           }).sort((a, b) => new Date(b.moveToPastDate) - new Date(a.moveToPastDate));
-          
-          console.log('Past events found:', pastEvents.length);
-          
-          // Render events
+
+          // Build recurring synthetic cards from the already-fetched snapshot
+          window._recurringPrograms = {};
+          const syntheticEvents = [];
+          recurringSnapshot.docs.forEach(doc => {
+            const data = { id: doc.id, ...doc.data() };
+            window._recurringPrograms[doc.id] = data;
+            const occurrences = getOccurrencesInNext30Days(data.schedules);
+            if (occurrences.length === 0) return;
+            const nextOcc = occurrences[0];
+            const nextDateLabel = nextOcc.date.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+            const locations = [...new Set((data.schedules || []).map(s => s.location))].join(', ');
+            syntheticEvents.push({
+              id: doc.id,
+              title: data.title,
+              description: data.description,
+              imageUrl: data.imageUrl,
+              eventDate: nextOcc.date.toISOString().slice(0, 10),
+              location: locations,
+              isRecurring: true,
+              _nextDateLabel: `Next: ${nextDateLabel}`,
+            });
+          });
+
+          // Render — recurring programs first, then one-time events
           window._upcomingEvents = upcomingEvents;
-          renderCurrentEvents(upcomingEvents);
+          renderCurrentEvents([...syntheticEvents, ...upcomingEvents]);
           renderPastEvents(pastEvents);
-          loadRecurringEvents();
           
           // Load approved event requests and merge with events for calendar
           // Use setTimeout to ensure the global function is available
