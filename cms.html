@@ -1945,21 +1945,39 @@
       <!-- Events Tab -->
       <div class="tab-content" id="events-tab">
         <div class="content-section">
-          <h2>Manage Events</h2>
-          <p style="color: var(--text-light); margin-bottom: 1.5rem;">
-            Create and manage events. View signups for each event.
-          </p>
-          
-          <div class="success-message" id="eventsSuccess">Changes saved successfully!</div>
-          
-          <button class="btn-add-person" onclick="openEventModal()">+ Add Event</button>
-          
-          <div id="eventsLoading" class="loading-spinner">Loading events...</div>
-          <div id="eventsEmpty" class="empty-state" style="display:none;">
-            <p>No events yet.</p>
+          <!-- Sub-mode toggle -->
+          <div style="display:flex;gap:0.5rem;margin-bottom:1.5rem;border-bottom:2px solid #e2e8f0;padding-bottom:0.75rem;">
+            <button id="eventsSubBtn" onclick="switchEventsSubTab('events')" style="padding:0.5rem 1.25rem;border-radius:8px 8px 0 0;border:none;font-weight:600;font-size:0.9rem;cursor:pointer;background:var(--primary);color:white;">One-Time Events</button>
+            <button id="ongoingSubBtn" onclick="switchEventsSubTab('ongoing')" style="padding:0.5rem 1.25rem;border-radius:8px 8px 0 0;border:none;font-weight:600;font-size:0.9rem;cursor:pointer;background:#e2e8f0;color:#555;">On-Going Programs</button>
           </div>
-          <div id="eventsCount" style="color: var(--text-light); margin-bottom: 1rem;"></div>
-          <div class="events-list" id="eventsList"></div>
+
+          <!-- One-Time Events Panel -->
+          <div id="eventsSubPanel">
+            <h2>Manage Events</h2>
+            <p style="color: var(--text-light); margin-bottom: 1.5rem;">
+              Create and manage one-time events. View signups for each event.
+            </p>
+            <div class="success-message" id="eventsSuccess">Changes saved successfully!</div>
+            <button class="btn-add-person" onclick="openEventModal()">+ Add Event</button>
+            <div id="eventsLoading" class="loading-spinner">Loading events...</div>
+            <div id="eventsEmpty" class="empty-state" style="display:none;"><p>No events yet.</p></div>
+            <div id="eventsCount" style="color: var(--text-light); margin-bottom: 1rem;"></div>
+            <div class="events-list" id="eventsList"></div>
+          </div>
+
+          <!-- On-Going Programs Panel -->
+          <div id="ongoingSubPanel" style="display:none;">
+            <h2>On-Going Programs</h2>
+            <p style="color: var(--text-light); margin-bottom: 1.5rem;">
+              Recurring programs (e.g. Next Gen Connect) with auto-computed session dates. Parents see the next 30 days of sessions when signing up.
+            </p>
+            <div class="success-message" id="ongoingSuccess">Changes saved successfully!</div>
+            <button class="btn-add-person" onclick="openRecurringEventModal()">+ Add On-Going Program</button>
+            <div id="ongoingLoading" class="loading-spinner" style="display:none;">Loading programs...</div>
+            <div id="ongoingEmpty" class="empty-state" style="display:none;"><p>No on-going programs yet.</p></div>
+            <div id="ongoingCount" style="color: var(--text-light); margin-bottom: 1rem;"></div>
+            <div class="events-list" id="ongoingList"></div>
+          </div>
         </div>
       </div>
       
@@ -2899,6 +2917,87 @@
       </div>
       <div class="modal-footer">
         <button class="btn-cancel" onclick="closeSignupsModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recurring Event Editor Modal -->
+  <div class="modal-overlay" id="recurringEventModal">
+    <div class="modal-box" style="max-width: 700px;">
+      <div class="modal-header" style="background: linear-gradient(135deg, #0891B2, #0066a1);">
+        <h3 id="recurringEventModalTitle" style="color:white;">Add On-Going Program</h3>
+        <button class="modal-close" onclick="closeRecurringEventModal()" style="color:white;">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height: 72vh; overflow-y: auto;">
+        <input type="hidden" id="recurringEventId">
+
+        <div class="form-group">
+          <label>Program Title *</label>
+          <input type="text" id="recurringTitle" placeholder="e.g., Next Gen Connect">
+        </div>
+
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="recurringDescription" rows="3" placeholder="Brief description shown on the events page..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Program Image / Flyer</label>
+          <input type="hidden" id="recurringImageUrl">
+          <div id="recurringImagePreview" style="margin-bottom:0.5rem;"></div>
+          <input type="file" id="recurringImageInput" accept="image/*" onchange="handleRecurringImageUpload(event)">
+          <div class="upload-progress" id="recurringUploadProgress" style="display:none;">
+            <div class="upload-progress-bar" id="recurringUploadProgressBar"></div>
+          </div>
+          <p style="font-size:0.8rem;color:var(--text-light);margin-top:0.5rem;">Max 10MB. PNG, JPG, or WebP.</p>
+        </div>
+
+        <div class="form-group" style="display:flex;align-items:center;gap:0.75rem;">
+          <input type="checkbox" id="recurringActive" checked style="width:18px;height:18px;cursor:pointer;">
+          <label for="recurringActive" style="margin:0;cursor:pointer;">Program is Active (shown on Events page)</label>
+        </div>
+
+        <hr style="margin:1.5rem 0;border-color:#e2e8f0;">
+        <h4 style="color:var(--primary);margin-bottom:1rem;">Schedules</h4>
+        <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:1rem;">Add one row per location/time slot. Each schedule generates its own checkboxes in the signup modal.</p>
+
+        <div id="recurringSchedulesList" style="display:flex;flex-direction:column;gap:0.75rem;margin-bottom:1rem;"></div>
+        <button type="button" class="btn-edit" onclick="addRecurringScheduleRow()" style="background:#0891B2;margin-bottom:1.5rem;">+ Add Schedule</button>
+
+        <hr style="margin:1.5rem 0;border-color:#e2e8f0;">
+        <div class="form-group">
+          <label>Custom Questions (optional)</label>
+          <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem;">
+            <input type="text" id="newRecurringQuestion" placeholder="e.g., Does your child have an IEP?" style="flex:1;">
+            <button type="button" class="btn-edit" style="background:#10b981;" onclick="addRecurringQuestion()">Add</button>
+          </div>
+          <div id="recurringQuestionsList" style="display:flex;flex-direction:column;gap:0.5rem;"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" onclick="closeRecurringEventModal()">Cancel</button>
+        <button class="btn-save" onclick="saveRecurringEvent()">Save Program</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recurring Program Signups Modal -->
+  <div class="modal-overlay" id="recurringSignupsModal">
+    <div class="modal-box" style="max-width: 700px;">
+      <div class="modal-header" style="background: linear-gradient(135deg, #0891B2, #0066a1);">
+        <h3 id="recurringSignupsModalTitle" style="color:white;">Program Signups</h3>
+        <button class="modal-close" onclick="closeRecurringSignupsModal()" style="color:white;">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+          <span id="recurringSignupsCount" style="color:var(--text-light);"></span>
+          <button class="btn-export" onclick="exportRecurringSignupsToCSV()">&#128229; Export CSV</button>
+        </div>
+        <input type="hidden" id="recurringSignupsProgramId">
+        <div id="recurringSignupsList"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" onclick="closeRecurringSignupsModal()">Close</button>
       </div>
     </div>
   </div>
@@ -5809,6 +5908,330 @@
         ];
       });
       downloadCSV(`${event.title.replace(/[^a-z0-9]/gi, '_')}_signups.csv`, headers, rows);
+    }
+
+    // ===== On-Going / Recurring Events =====
+
+    let recurringPrograms = [];
+    let recurringSignups = {};
+    let currentRecurringSchedules = [];
+    let currentRecurringQuestions = [];
+    const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const DAY_SHORT  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const ORDINAL    = ['','1st','2nd','3rd','4th','5th'];
+
+    function switchEventsSubTab(tab) {
+      document.getElementById('eventsSubPanel').style.display  = tab === 'events'  ? 'block' : 'none';
+      document.getElementById('ongoingSubPanel').style.display = tab === 'ongoing' ? 'block' : 'none';
+      document.getElementById('eventsSubBtn').style.background  = tab === 'events'  ? 'var(--primary)' : '#e2e8f0';
+      document.getElementById('eventsSubBtn').style.color       = tab === 'events'  ? 'white' : '#555';
+      document.getElementById('ongoingSubBtn').style.background = tab === 'ongoing' ? 'var(--primary)' : '#e2e8f0';
+      document.getElementById('ongoingSubBtn').style.color      = tab === 'ongoing' ? 'white' : '#555';
+      if (tab === 'ongoing') loadRecurringPrograms();
+    }
+
+    async function loadRecurringPrograms() {
+      const loading = document.getElementById('ongoingLoading');
+      const empty   = document.getElementById('ongoingEmpty');
+      const list    = document.getElementById('ongoingList');
+      const countEl = document.getElementById('ongoingCount');
+      loading.style.display = 'block'; empty.style.display = 'none'; list.innerHTML = '';
+      try {
+        const snap = await db.collection('recurringEvents').get();
+        recurringPrograms = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        recurringSignups = {};
+        for (const p of recurringPrograms) {
+          const sSnap = await db.collection('recurringEvents').doc(p.id).collection('signups').get();
+          recurringSignups[p.id] = sSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        }
+        loading.style.display = 'none';
+        if (recurringPrograms.length === 0) { empty.style.display = 'block'; countEl.textContent = ''; return; }
+        countEl.textContent = `${recurringPrograms.length} program(s)`;
+        renderRecurringPrograms();
+      } catch (err) { console.error(err); loading.style.display = 'none'; }
+    }
+
+    function renderRecurringPrograms() {
+      const list = document.getElementById('ongoingList');
+      list.innerHTML = recurringPrograms.map(p => {
+        const signups = recurringSignups[p.id] || [];
+        const pending = signups.filter(s => s.status === 'pending' && !s.archived).length;
+        const schedulesSummary = (p.schedules || []).map(s => {
+          if (s.frequency === 'weekly') return `${DAY_NAMES[s.dayOfWeek]}s ${fmt12cms(s.startTime)}–${fmt12cms(s.endTime)} @ ${s.location}${s.venue ? ' ('+s.venue+')' : ''}`;
+          return `${ORDINAL[s.weekOfMonth]} ${DAY_NAMES[s.dayOfWeek]} of month ${fmt12cms(s.startTime)}–${fmt12cms(s.endTime)} @ ${s.location}${s.venue ? ' ('+s.venue+')' : ''}`;
+        }).join('<br>');
+        return `
+          <div style="background:white;border:1px solid #e2e8f0;border-radius:12px;padding:1.25rem;margin-bottom:1rem;${p.active ? '' : 'opacity:0.6;'}">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;">
+              <div style="flex:1;">
+                <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.25rem;">
+                  <strong style="color:var(--primary);font-size:1.05rem;">${p.title}</strong>
+                  <span style="padding:2px 10px;border-radius:50px;font-size:11px;font-weight:700;background:${p.active ? 'linear-gradient(135deg,#4DD0E1,#0891B2)' : '#e2e8f0'};color:${p.active ? 'white' : '#555'};">${p.active ? 'Active' : 'Inactive'}</span>
+                </div>
+                <p style="color:var(--text-light);font-size:0.85rem;margin-bottom:0.5rem;">${p.description || ''}</p>
+                <p style="font-size:0.8rem;color:#555;line-height:1.6;">${schedulesSummary || '<em>No schedules defined</em>'}</p>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:0.4rem;flex-shrink:0;align-items:flex-end;">
+                <button class="btn-edit" onclick="openRecurringSignupsModal('${p.id}')">
+                  Signups ${pending > 0 ? `<span style="background:#ef4444;color:white;border-radius:50%;padding:1px 6px;font-size:10px;margin-left:4px;">${pending}</span>` : `(${signups.length})`}
+                </button>
+                <button class="btn-edit" onclick="openRecurringEventModal('${p.id}')">Edit</button>
+                <button class="btn-delete" onclick="toggleRecurringActive('${p.id}',${!p.active})">${p.active ? 'Deactivate' : 'Activate'}</button>
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function fmt12cms(time24) {
+      if (!time24) return '';
+      const [h, m] = time24.split(':').map(Number);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const hour = h % 12 || 12;
+      return `${hour}:${String(m).padStart(2,'0')} ${ampm}`;
+    }
+
+    function addRecurringScheduleRow(sch = null) {
+      const idx = currentRecurringSchedules.length;
+      const id = sch?.id || `sch_${Date.now()}_${idx}`;
+      const s = sch || { id, location:'', venue:'', frequency:'weekly', dayOfWeek:1, weekOfMonth:1, startTime:'09:00', endTime:'11:00' };
+      currentRecurringSchedules.push(s);
+      renderRecurringScheduleRows();
+    }
+
+    function removeRecurringScheduleRow(idx) {
+      currentRecurringSchedules.splice(idx,1);
+      renderRecurringScheduleRows();
+    }
+
+    function renderRecurringScheduleRows() {
+      const container = document.getElementById('recurringSchedulesList');
+      container.innerHTML = currentRecurringSchedules.map((s, idx) => `
+        <div style="background:#f8f9fa;border:1px solid #e2e8f0;border-radius:10px;padding:1rem;position:relative;" id="schedRow_${idx}">
+          <button type="button" onclick="removeRecurringScheduleRow(${idx})" style="position:absolute;top:8px;right:8px;background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer;line-height:1;">&times;</button>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
+            <div>
+              <label style="font-size:0.8rem;font-weight:600;color:var(--primary);display:block;margin-bottom:3px;">Location Name *</label>
+              <input type="text" value="${s.location}" placeholder="e.g., Oahu" oninput="currentRecurringSchedules[${idx}].location=this.value" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">
+            </div>
+            <div>
+              <label style="font-size:0.8rem;font-weight:600;color:var(--primary);display:block;margin-bottom:3px;">Venue / Address</label>
+              <input type="text" value="${s.venue}" placeholder="e.g., Easter Seals - Hilo" oninput="currentRecurringSchedules[${idx}].venue=this.value" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0.75rem;align-items:end;">
+            <div>
+              <label style="font-size:0.8rem;font-weight:600;color:var(--primary);display:block;margin-bottom:3px;">Frequency</label>
+              <select onchange="currentRecurringSchedules[${idx}].frequency=this.value; renderRecurringScheduleRows();" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">
+                <option value="weekly" ${s.frequency==='weekly'?'selected':''}>Every Week</option>
+                <option value="monthly-nth" ${s.frequency==='monthly-nth'?'selected':''}>Monthly (nth day)</option>
+              </select>
+            </div>
+            ${s.frequency==='monthly-nth' ? `
+            <div>
+              <label style="font-size:0.8rem;font-weight:600;color:var(--primary);display:block;margin-bottom:3px;">Which Week</label>
+              <select onchange="currentRecurringSchedules[${idx}].weekOfMonth=parseInt(this.value)" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">
+                ${[1,2,3,4].map(n=>`<option value="${n}" ${s.weekOfMonth===n?'selected':''}>${ORDINAL[n]}</option>`).join('')}
+              </select>
+            </div>` : '<div></div>'}
+            <div>
+              <label style="font-size:0.8rem;font-weight:600;color:var(--primary);display:block;margin-bottom:3px;">Day of Week</label>
+              <select onchange="currentRecurringSchedules[${idx}].dayOfWeek=parseInt(this.value)" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">
+                ${DAY_NAMES.map((d,i)=>`<option value="${i}" ${s.dayOfWeek===i?'selected':''}>${d}</option>`).join('')}
+              </select>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;">
+              <div>
+                <label style="font-size:0.8rem;font-weight:600;color:var(--primary);display:block;margin-bottom:3px;">Start</label>
+                <input type="time" value="${s.startTime}" onchange="currentRecurringSchedules[${idx}].startTime=this.value" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">
+              </div>
+              <div>
+                <label style="font-size:0.8rem;font-weight:600;color:var(--primary);display:block;margin-bottom:3px;">End</label>
+                <input type="time" value="${s.endTime}" onchange="currentRecurringSchedules[${idx}].endTime=this.value" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;">
+              </div>
+            </div>
+          </div>
+        </div>`).join('');
+    }
+
+    function addRecurringQuestion() {
+      const input = document.getElementById('newRecurringQuestion');
+      if (input.value.trim()) {
+        currentRecurringQuestions.push(input.value.trim());
+        input.value = '';
+        renderRecurringQuestions();
+      }
+    }
+
+    function renderRecurringQuestions() {
+      document.getElementById('recurringQuestionsList').innerHTML = currentRecurringQuestions.map((q,i) => `
+        <div style="display:flex;align-items:center;gap:0.5rem;padding:0.5rem;background:#f8f9fa;border-radius:6px;">
+          <span style="flex:1;font-size:0.85rem;">${q}</span>
+          <button type="button" class="btn-delete" style="padding:2px 8px;" onclick="currentRecurringQuestions.splice(${i},1);renderRecurringQuestions()">×</button>
+        </div>`).join('');
+    }
+
+    function openRecurringEventModal(programId = null) {
+      currentRecurringSchedules = [];
+      currentRecurringQuestions = [];
+      const program = programId ? recurringPrograms.find(p => p.id === programId) : null;
+      document.getElementById('recurringEventId').value = programId || '';
+      document.getElementById('recurringEventModalTitle').textContent = program ? 'Edit On-Going Program' : 'Add On-Going Program';
+      document.getElementById('recurringTitle').value = program?.title || '';
+      document.getElementById('recurringDescription').value = program?.description || '';
+      document.getElementById('recurringImageUrl').value = program?.imageUrl || '';
+      document.getElementById('recurringActive').checked = program ? !!program.active : true;
+      document.getElementById('recurringImagePreview').innerHTML = program?.imageUrl
+        ? `<img src="${program.imageUrl}" style="width:100px;height:100px;object-fit:cover;border-radius:8px;"><button type="button" class="btn-delete" style="margin-left:0.5rem;" onclick="document.getElementById('recurringImageUrl').value='';document.getElementById('recurringImagePreview').innerHTML='';">Remove</button>`
+        : '';
+      if (program?.schedules) program.schedules.forEach(s => { currentRecurringSchedules.push({...s}); });
+      if (program?.customQuestions) currentRecurringQuestions = [...program.customQuestions];
+      renderRecurringScheduleRows();
+      renderRecurringQuestions();
+      document.getElementById('recurringEventModal').classList.add('active');
+    }
+
+    function closeRecurringEventModal() {
+      document.getElementById('recurringEventModal').classList.remove('active');
+    }
+
+    async function handleRecurringImageUpload(e) {
+      const file = e.target.files[0]; if (!file) return;
+      if (file.size > 10 * 1024 * 1024) { alert('File must be less than 10MB'); return; }
+      const progress = document.getElementById('recurringUploadProgress');
+      const bar = document.getElementById('recurringUploadProgressBar');
+      progress.style.display = 'block';
+      try {
+        const ref = storage.ref(`event-images/${Date.now()}_${file.name}`);
+        const task = ref.put(file);
+        task.on('state_changed',
+          snap => { bar.style.width = (snap.bytesTransferred/snap.totalBytes*100)+'%'; },
+          err => { alert('Upload failed'); progress.style.display='none'; },
+          async () => {
+            const url = await task.snapshot.ref.getDownloadURL();
+            document.getElementById('recurringImageUrl').value = url;
+            document.getElementById('recurringImagePreview').innerHTML = `<img src="${url}" style="width:100px;height:100px;object-fit:cover;border-radius:8px;"><button type="button" class="btn-delete" style="margin-left:0.5rem;" onclick="document.getElementById('recurringImageUrl').value='';document.getElementById('recurringImagePreview').innerHTML='';">Remove</button>`;
+            progress.style.display = 'none';
+          });
+      } catch(err) { console.error(err); progress.style.display='none'; }
+    }
+
+    async function saveRecurringEvent() {
+      const id = document.getElementById('recurringEventId').value;
+      const title = document.getElementById('recurringTitle').value.trim();
+      if (!title) { alert('Program title is required'); return; }
+      const data = {
+        title,
+        description: document.getElementById('recurringDescription').value.trim(),
+        imageUrl: document.getElementById('recurringImageUrl').value.trim(),
+        active: document.getElementById('recurringActive').checked,
+        schedules: currentRecurringSchedules,
+        customQuestions: currentRecurringQuestions,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      try {
+        if (id) {
+          await db.collection('recurringEvents').doc(id).update(data);
+        } else {
+          data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+          await db.collection('recurringEvents').add(data);
+        }
+        closeRecurringEventModal();
+        await loadRecurringPrograms();
+        document.getElementById('ongoingSuccess').style.display = 'block';
+        setTimeout(() => { document.getElementById('ongoingSuccess').style.display='none'; }, 3000);
+      } catch(err) { console.error(err); alert('Error saving program'); }
+    }
+
+    async function toggleRecurringActive(id, active) {
+      try {
+        await db.collection('recurringEvents').doc(id).update({ active, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+        await loadRecurringPrograms();
+      } catch(err) { console.error(err); }
+    }
+
+    async function openRecurringSignupsModal(programId) {
+      const program = recurringPrograms.find(p => p.id === programId);
+      if (!program) return;
+      document.getElementById('recurringSignupsProgramId').value = programId;
+      document.getElementById('recurringSignupsModalTitle').textContent = `${program.title} – Signups`;
+      const signups = (recurringSignups[programId] || []).filter(s => !s.archived);
+      document.getElementById('recurringSignupsCount').textContent = `${signups.length} signup(s)`;
+      // Group by first selected session date
+      const groups = {};
+      signups.forEach(s => {
+        const key = s.selectedSessions?.[0] || 'No Session Selected';
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(s);
+      });
+      const sorted = Object.entries(groups).sort(([a],[b]) => a.localeCompare(b));
+      document.getElementById('recurringSignupsList').innerHTML = sorted.map(([sessionKey, list]) => {
+        const [dateStr, locationStr, timeStr] = sessionKey.split('|');
+        const heading = sessionKey === 'No Session Selected' ? sessionKey
+          : `${dateStr ? new Date(dateStr+'T00:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) : ''} · ${locationStr||''} · ${timeStr||''}`;
+        return `
+          <div style="margin-bottom:1.5rem;">
+            <h4 style="color:var(--primary);font-size:0.95rem;margin-bottom:0.75rem;padding:0.4rem 0.75rem;background:#e0f2fe;border-radius:6px;">${heading} (${list.length})</h4>
+            ${list.map(s => `
+              <div style="border:1px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.5rem;">
+                  <div>
+                    <strong>${s.name}</strong>
+                    <span style="padding:2px 8px;border-radius:50px;font-size:11px;font-weight:600;margin-left:8px;background:${s.status==='confirmed'?'#d1fae5;color:#065f46':s.status==='cancelled'?'#fee2e2;color:#991b1b':'#fef3c7;color:#92400e'};">${s.status||'pending'}</span><br>
+                    <span style="font-size:0.85rem;color:var(--text-light);">${s.email||''} &bull; ${s.phone||''} &bull; ${s.preferredContact||''}</span>
+                    ${s.participationType==='Group'?`<br><span style="font-size:0.85rem;color:#555;">Group: ${s.groupName} (${s.groupSize})</span>`:''}
+                    ${(s.selectedSessions||[]).length>1?`<br><span style="font-size:0.8rem;color:#888;">Also attending: ${(s.selectedSessions||[]).slice(1).join(', ')}</span>`:''}
+                  </div>
+                  <div style="display:flex;gap:0.4rem;flex-shrink:0;">
+                    <select onchange="updateRecurringSignupStatus('${programId}','${s.id}',this.value)" style="padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.8rem;">
+                      <option value="pending" ${s.status==='pending'?'selected':''}>Pending</option>
+                      <option value="confirmed" ${s.status==='confirmed'?'selected':''}>Confirmed</option>
+                      <option value="cancelled" ${s.status==='cancelled'?'selected':''}>Cancelled</option>
+                    </select>
+                    <button class="btn-delete" style="padding:4px 8px;font-size:0.75rem;" onclick="archiveRecurringSignup('${programId}','${s.id}')">Archive</button>
+                  </div>
+                </div>
+                ${s.additionalComments?`<p style="margin-top:0.5rem;font-size:0.85rem;color:#555;font-style:italic;">"${s.additionalComments}"</p>`:''}
+              </div>`).join('')}
+          </div>`;
+      }).join('') || '<p style="color:var(--text-light);text-align:center;padding:2rem;">No signups yet.</p>';
+      document.getElementById('recurringSignupsModal').classList.add('active');
+    }
+
+    function closeRecurringSignupsModal() {
+      document.getElementById('recurringSignupsModal').classList.remove('active');
+    }
+
+    async function updateRecurringSignupStatus(programId, signupId, status) {
+      try {
+        await db.collection('recurringEvents').doc(programId).collection('signups').doc(signupId).update({ status });
+        const signup = (recurringSignups[programId]||[]).find(s=>s.id===signupId);
+        if (signup) signup.status = status;
+      } catch(err) { console.error(err); }
+    }
+
+    async function archiveRecurringSignup(programId, signupId) {
+      if (!confirm('Archive this signup?')) return;
+      try {
+        await db.collection('recurringEvents').doc(programId).collection('signups').doc(signupId).update({ archived:true });
+        await loadRecurringPrograms();
+        openRecurringSignupsModal(programId);
+      } catch(err) { console.error(err); }
+    }
+
+    function exportRecurringSignupsToCSV() {
+      const programId = document.getElementById('recurringSignupsProgramId').value;
+      const program = recurringPrograms.find(p=>p.id===programId);
+      const signups = (recurringSignups[programId]||[]).filter(s=>!s.archived);
+      const headers = ['Name','Email','Phone','Preferred Contact','Type','Group Name','Group Size','Selected Sessions','Status','Comments','Submitted'];
+      const rows = signups.map(s => {
+        const date = s.timestamp?.seconds ? new Date(s.timestamp.seconds*1000).toLocaleString() : '';
+        return [s.name||'', s.email||'', s.phone||'', s.preferredContact||'',
+          s.participationType||'Individual', s.groupName||'', s.groupSize||'',
+          (s.selectedSessions||[]).join('; '), s.status||'pending',
+          (s.additionalComments||'').replace(/"/g,'""'), date];
+      });
+      downloadCSV(`${(program?.title||'program').replace(/[^a-z0-9]/gi,'_')}_signups.csv`, headers, rows);
     }
 
     // ===== Volunteers Functions =====
