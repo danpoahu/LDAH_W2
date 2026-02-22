@@ -2989,9 +2989,16 @@
         <button class="modal-close" onclick="closeRecurringSignupsModal()" style="color:white;">&times;</button>
       </div>
       <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;">
           <span id="recurringSignupsCount" style="color:var(--text-light);"></span>
-          <button class="btn-export" onclick="exportRecurringSignupsToCSV()">&#128229; Export CSV</button>
+          <div style="display:flex;align-items:center;gap:0.5rem;">
+            <select id="csvPeriodFilter" style="padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;color:#374151;">
+              <option value="month">Current Month</option>
+              <option value="year">This Year (Audit)</option>
+              <option value="all">All Time</option>
+            </select>
+            <button class="btn-export" onclick="exportRecurringSignupsToCSV()">&#128229; Export CSV</button>
+          </div>
         </div>
         <input type="hidden" id="recurringSignupsProgramId">
         <div id="recurringSignupsList"></div>
@@ -6178,6 +6185,7 @@
                   <div>
                     <strong>${s.name}</strong>
                     <span style="padding:2px 8px;border-radius:50px;font-size:11px;font-weight:600;margin-left:8px;background:${s.status==='confirmed'?'#d1fae5;color:#065f46':s.status==='cancelled'?'#fee2e2;color:#991b1b':'#fef3c7;color:#92400e'};">${s.status||'pending'}</span><br>
+                    ${s.studentName?`<span style="font-size:0.85rem;font-weight:600;color:#0369a1;">Student: ${s.studentName}${s.studentGrade?' · Grade '+s.studentGrade:''}${s.studentSchool?' · '+s.studentSchool:''}</span><br>`:''}
                     <span style="font-size:0.85rem;color:var(--text-light);">${s.email||''} &bull; ${s.phone||''} &bull; ${s.preferredContact||''}</span>
                     ${s.participationType==='Group'?`<br><span style="font-size:0.85rem;color:#555;">Group: ${s.groupName} (${s.groupSize})</span>`:''}
                     ${(s.selectedSessions||[]).length>1?`<br><span style="font-size:0.8rem;color:#888;">Also attending: ${(s.selectedSessions||[]).slice(1).join(', ')}</span>`:''}
@@ -6221,17 +6229,99 @@
 
     function exportRecurringSignupsToCSV() {
       const programId = document.getElementById('recurringSignupsProgramId').value;
-      const program = recurringPrograms.find(p=>p.id===programId);
-      const signups = (recurringSignups[programId]||[]).filter(s=>!s.archived);
-      const headers = ['Name','Email','Phone','Preferred Contact','Type','Group Name','Group Size','Selected Sessions','Status','Comments','Submitted'];
-      const rows = signups.map(s => {
-        const date = s.timestamp?.seconds ? new Date(s.timestamp.seconds*1000).toLocaleString() : '';
-        return [s.name||'', s.email||'', s.phone||'', s.preferredContact||'',
-          s.participationType||'Individual', s.groupName||'', s.groupSize||'',
-          (s.selectedSessions||[]).join('; '), s.status||'pending',
-          (s.additionalComments||'').replace(/"/g,'""'), date];
+      const program   = recurringPrograms.find(p => p.id === programId);
+      const allSignups = (recurringSignups[programId] || []).filter(s => !s.archived);
+
+      // --- Time period filter ---
+      const period = document.getElementById('csvPeriodFilter').value;
+      const now = new Date();
+      const sessionInPeriod = (sessionKey) => {
+        const dateStr = (sessionKey || '').split('|')[0];
+        if (!dateStr) return true;
+        const d = new Date(dateStr + 'T00:00:00');
+        if (period === 'month') return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+        if (period === 'year')  return d.getFullYear() === now.getFullYear();
+        return true; // 'all'
+      };
+
+      // --- Build session → [signups] map (a signup appears under each session it selected) ---
+      const sessionMap = {};
+      allSignups.forEach(s => {
+        (s.selectedSessions || []).forEach(key => {
+          if (!sessionInPeriod(key)) return;
+          if (!sessionMap[key]) sessionMap[key] = [];
+          sessionMap[key].push(s);
+        });
       });
-      downloadCSV(`${(program?.title||'program').replace(/[^a-z0-9]/gi,'_')}_signups.csv`, headers, rows);
+
+      // Sort sessions newest → oldest (YYYY-MM-DD prefix sorts correctly as string)
+      const sortedSessions = Object.keys(sessionMap).sort((a, b) => b.localeCompare(a));
+
+      if (sortedSessions.length === 0) {
+        alert('No signups found for the selected time period.');
+        return;
+      }
+
+      // --- Column headers ---
+      const headers = [
+        'Name','Email','Phone','Preferred Contact','Type','Group Name','Group Size',
+        'Student Name','Date of Birth','ID #','Grade','Current School',
+        'IEP Annual Review Date','Reevaluation Date','Care Coordinator',
+        'Status','Comments','Submitted'
+      ];
+
+      // --- Build CSV content with group headers ---
+      const titleSlug = (program?.title || 'program').replace(/[^a-z0-9]/gi, '_');
+      const suffix = period === 'month' ? '_current-month' : period === 'year' ? '_this-year' : '_all-time';
+      const filename = `${titleSlug}_signups${suffix}.csv`;
+
+      // Helper: escape a CSV cell value
+      const esc = v => `"${String(v || '').replace(/"/g, '""')}"`;
+
+      const lines = [];
+      // File title row
+      lines.push(esc(`${program?.title || 'Program'} – Signup Export (${period === 'month' ? 'Current Month' : period === 'year' ? 'This Year' : 'All Time'})`));
+      lines.push(''); // blank line
+
+      sortedSessions.forEach(sessionKey => {
+        const list = sessionMap[sessionKey];
+        const [dateStr, locationStr, timeStr] = sessionKey.split('|');
+        // Format the session heading
+        let sessionHeading = sessionKey;
+        if (dateStr) {
+          try {
+            const d = new Date(dateStr + 'T00:00:00');
+            sessionHeading = `${d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'})} · ${locationStr || ''} · ${timeStr || ''}`;
+          } catch(e) { /* use raw key */ }
+        }
+        // Session group header row (merged label style)
+        lines.push(esc(`Session: ${sessionHeading}  (${list.length} attendee${list.length !== 1 ? 's' : ''})`));
+        // Column headers
+        lines.push(headers.map(esc).join(','));
+        // Data rows — sort by submitted timestamp descending (newest first within group)
+        const sorted = [...list].sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+        sorted.forEach(s => {
+          const submitted = s.timestamp?.seconds ? new Date(s.timestamp.seconds * 1000).toLocaleString() : '';
+          lines.push([
+            s.name || '', s.email || '', s.phone || '', s.preferredContact || '',
+            s.participationType || 'Individual', s.groupName || '', s.groupSize || '',
+            s.studentName || '', s.studentDOB || '', s.studentId || '',
+            s.studentGrade || '', s.studentSchool || '',
+            s.iepReviewDate || '', s.reevalDate || '', s.careCoordinator || '',
+            s.status || 'pending',
+            (s.additionalComments || '').replace(/"/g, '""'),
+            submitted
+          ].map(esc).join(','));
+        });
+        lines.push(''); // blank line between groups
+      });
+
+      // Trigger download
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
     }
 
     // ===== Volunteers Functions =====
