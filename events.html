@@ -1503,6 +1503,10 @@
       
       // Make allEvents accessible globally for signup
       window.allEventsData = [];
+
+      // Expose renderCurrentEvents globally so loadRecurringEvents() (outside this
+      // IIFE) can call it to merge recurring cards into the carousel
+      window.renderCurrentEvents = renderCurrentEvents;
     })();
     
     // ============================================
