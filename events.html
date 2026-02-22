@@ -2268,70 +2268,37 @@
                   ></textarea>
                 </div>
 
-                <!-- Participation Type -->
+                <!-- Participation Type (shown only if event has showGroupField enabled) -->
+                ${event.showGroupField !== false ? `
                 <div style="margin-bottom: 20px;">
                   <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
                     Are you participating as an individual or with a group? *
                   </label>
                   <div style="display: flex; flex-direction: column; gap: 8px;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                      <input
-                        type="radio"
-                        name="participation-type"
-                        value="Individual"
-                        required
-                        onchange="toggleGroupFields(false)"
-                        style="width: 18px; height: 18px; cursor: pointer;"
-                      />
+                      <input type="radio" name="participation-type" value="Individual" required
+                        onchange="toggleGroupFields(false)" style="width: 18px; height: 18px; cursor: pointer;">
                       <span style="font-size: 14px; color: #374151;">Individual</span>
                     </label>
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                      <input
-                        type="radio"
-                        name="participation-type"
-                        value="Group"
-                        required
-                        onchange="toggleGroupFields(true)"
-                        style="width: 18px; height: 18px; cursor: pointer;"
-                      />
+                      <input type="radio" name="participation-type" value="Group" required
+                        onchange="toggleGroupFields(true)" style="width: 18px; height: 18px; cursor: pointer;">
                       <span style="font-size: 14px; color: #374151;">Group</span>
                     </label>
                   </div>
                 </div>
-
-                <!-- Group Name & Size (conditional) -->
                 <div id="group-fields" style="display: none; margin-bottom: 20px; padding-left: 26px;">
                   <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
                     What is the name of your group, and number of participants? *
                   </label>
                   <div style="display: flex; gap: 12px;">
-                    <input
-                      type="text"
-                      id="group-name"
-                      placeholder="Group name"
-                      style="
-                        flex: 2;
-                        padding: 12px;
-                        border: 1px solid #D1D5DB;
-                        border-radius: 8px;
-                        font-size: 14px;
-                      "
-                    />
-                    <input
-                      type="number"
-                      id="group-size"
-                      min="1"
-                      placeholder="# of participants"
-                      style="
-                        flex: 1;
-                        padding: 12px;
-                        border: 1px solid #D1D5DB;
-                        border-radius: 8px;
-                        font-size: 14px;
-                      "
-                    />
+                    <input type="text" id="group-name" placeholder="Group name"
+                      style="flex: 2; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">
+                    <input type="number" id="group-size" min="1" placeholder="# of participants"
+                      style="flex: 1; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">
                   </div>
                 </div>
+                ` : ''}
                 
                 <button type="submit" style="
                   width: 100%;
@@ -2393,19 +2360,20 @@
         name: document.getElementById('signupName').value,
         email: document.getElementById('signupEmail').value,
         phone: document.getElementById('signupPhone').value,
-        preferredContact: document.querySelector('input[name="preferredContact"]:checked').value,
+        preferredContact: document.querySelector('input[name="preferredContact"]:checked')?.value || '',
         selectedDates: [],
         customAnswers: [],
         additionalComments: document.getElementById('special-accommodations').value,
-        participationType: document.querySelector('input[name="participation-type"]:checked').value
+        // Falls back to 'Individual' when the question is hidden (showGroupField: false)
+        participationType: document.querySelector('input[name="participation-type"]:checked')?.value || 'Individual'
       };
-      
-      // Add group fields if Group is selected
+
+      // Add group fields if Group is selected (inputs only exist when showGroupField is true)
       if (formData.participationType === 'Group') {
-        formData.groupName = document.getElementById('group-name').value;
-        formData.groupSize = document.getElementById('group-size').value;
+        formData.groupName = document.getElementById('group-name')?.value || '';
+        formData.groupSize = document.getElementById('group-size')?.value || '';
       }
-      
+
       // Get selected dates
       const dateCheckboxes = document.querySelectorAll('.signup-date-checkbox:checked');
       formData.selectedDates = Array.from(dateCheckboxes).map(cb => cb.value);
@@ -2676,6 +2644,7 @@
                   <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Any additional comments or special accommodations?</label>
                   <textarea id="special-accommodations" placeholder="Your answer" rows="4" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;"></textarea>
                 </div>
+                ${program.showGroupField ? `
                 <div style="margin-bottom:20px;">
                   <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Are you participating as an individual or with a group? *</label>
                   <div style="display:flex;flex-direction:column;gap:8px;">
@@ -2696,6 +2665,7 @@
                     <input type="number" id="group-size" min="1" placeholder="# of participants" style="flex:1;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
                   </div>
                 </div>
+                ` : ''}
                 <button type="submit" style="width:100%;padding:16px;background:linear-gradient(135deg,#004E7C,#0066a1);color:white;border:none;border-radius:12px;font-weight:bold;font-size:16px;cursor:pointer;transition:transform 0.2s;"
                   onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
                   Submit Signup
