@@ -716,6 +716,15 @@
       color: var(--primary-blue);
       font-weight: 700;
     }
+
+    .day-event.recurring-event {
+      background: linear-gradient(135deg, #4DD0E1, #0891B2);
+      border-left: 3px solid #0e7490;
+    }
+    .day-event.recurring-event.past-event {
+      background: linear-gradient(135deg, #9ca3af, #6b7280);
+      border-left: 3px solid #4b5563;
+    }
     
     @media (max-width: 768px) {
       .calendar-section {
@@ -1564,11 +1573,55 @@
       const approvedRequests = window.approvedEventRequests || [];
       return [...regularEvents, ...approvedRequests];
     }
+
+    // Compute recurring occurrences for a specific calendar month
+    function getRecurringDatesForMonth(year, month) {
+      const programs = window._recurringPrograms || {};
+      const items = [];
+      Object.values(programs).forEach(prog => {
+        (prog.schedules || []).forEach(sch => {
+          const dayNum = Number(sch.dayOfWeek);
+          if (sch.frequency === 'weekly') {
+            const firstOfMonth = new Date(year, month, 1);
+            const offset = (dayNum - firstOfMonth.getDay() + 7) % 7;
+            let d = new Date(year, month, 1 + offset);
+            while (d.getMonth() === month) {
+              items.push({
+                id: prog.id,
+                title: prog.title,
+                eventDate: d.toISOString().slice(0, 10),
+                isRecurring: true,
+                location: sch.location,
+                schedule: sch
+              });
+              d.setDate(d.getDate() + 7);
+            }
+          } else { // monthly-nth
+            const weekNum = Number(sch.weekOfMonth);
+            const firstOfMonth = new Date(year, month, 1);
+            const dayOffset = (dayNum - firstOfMonth.getDay() + 7) % 7;
+            const nth = new Date(year, month, 1 + dayOffset + (weekNum - 1) * 7);
+            if (nth.getMonth() === month) {
+              items.push({
+                id: prog.id,
+                title: prog.title,
+                eventDate: nth.toISOString().slice(0, 10),
+                isRecurring: true,
+                location: sch.location,
+                schedule: sch
+              });
+            }
+          }
+        });
+      });
+      return items;
+    }
     
     function renderCalendar() {
-      const allCalendarItems = getAllCalendarItems();
       const year = currentCalendarDate.getFullYear();
       const month = currentCalendarDate.getMonth();
+      // Merge regular events, approved requests, and computed recurring dates for this month
+      const allCalendarItems = [...getAllCalendarItems(), ...getRecurringDatesForMonth(year, month)];
       
       document.getElementById('calendarMonthYear').textContent = `${months[month]} ${year}`;
       
@@ -1608,18 +1661,20 @@
             const isPast = new Date(event.eventDate + 'T00:00:00') < today;
             const isRequest = event.isEventRequest === true;
             const isAdditional = event.isAdditionalDate === true;
-            
+            const isRecurring = event.isRecurring === true;
+
             // Build class string
             let eventClasses = 'day-event';
             if (isPast) eventClasses += ' past-event';
             if (isAdditional) eventClasses += ' additional-date';
             if (isRequest) eventClasses += ' event-request';
-            
+            if (isRecurring) eventClasses += ' recurring-event';
+
             if (isRequest) {
               // Event requests open modal
               html += `<div class="${eventClasses}" onclick="showCalendarEventDetail('${event.id}', true)" title="${event.title}">${event.title}</div>`;
             } else {
-              // Regular events scroll to current events section
+              // Regular and recurring events scroll to current events section
               html += `<div class="${eventClasses}" onclick="scrollToCurrentEvents()" title="${event.title}">${event.title}</div>`;
             }
           });
@@ -2499,8 +2554,11 @@
           });
         });
         if (syntheticEvents.length === 0) return;
-        const combined = [...(window._upcomingEvents || []), ...syntheticEvents];
+        // Recurring events always first in the carousel
+        const combined = [...syntheticEvents, ...(window._upcomingEvents || [])];
         renderCurrentEvents(combined);
+        // Also refresh calendar so recurring dots appear on the correct days
+        if (typeof renderCalendar === 'function') renderCalendar();
       } catch (err) {
         console.error('Error loading recurring events:', err);
       }
