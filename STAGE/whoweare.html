@@ -1362,7 +1362,7 @@
             
             grid.innerHTML = galleryImages.map((photo, index) => `
                 <div class="gallery-item" onclick="openLightbox(${index})">
-                    <img src="${photo.imageUrl}" alt="${photo.caption || 'LDAH Gallery Photo'}">
+                    <img src="${photo.imageUrl}" alt="${photo.caption || 'LDAH Gallery Photo'}" onerror="this.onerror=null;this.parentElement.style.display='none';">
                 </div>
             `).join('');
         }
