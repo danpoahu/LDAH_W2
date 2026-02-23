@@ -774,7 +774,7 @@
     .close-island-modal:hover { background: rgba(255, 255, 255, 0.3); }
 
     .island-modal-body {
-        padding: 2rem;
+        padding: 0;
     }
 
     .island-modal-body h3 {
@@ -963,6 +963,47 @@
     .partner-logo-img {
         max-width: 180px;
         height: auto;
+    }
+
+    /* Modal Hero Image */
+    .modal-hero-image {
+        width: 100%;
+        height: 220px;
+        object-fit: cover;
+        display: block;
+    }
+
+    /* Contact with Photo Layout */
+    .contact-with-photo {
+        display: flex;
+        gap: 1.5rem;
+        align-items: flex-start;
+    }
+
+    .contact-photo {
+        width: 140px;
+        height: 140px;
+        border-radius: 16px;
+        object-fit: cover;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        flex-shrink: 0;
+    }
+
+    .contact-with-photo .contact-card {
+        flex: 1;
+        margin: 0;
+    }
+
+    @media (max-width: 768px) {
+        .contact-with-photo {
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+        .contact-photo {
+            width: 120px;
+            height: 120px;
+        }
     }
 
     /* Photo Gallery */
@@ -1251,7 +1292,7 @@
             header.style.background = island.color;
             flag.textContent = island.flag;
             name.textContent = island.name;
-            body.innerHTML = `<p class="partner-badge">Partner: ${island.partner}</p>${island.content}`;
+            body.innerHTML = island.content;
             
             modal.classList.add('active');
             document.body.style.overflow = 'hidden';
@@ -1267,8 +1308,9 @@
         }
 
         // Island data - Standardized format for all 6 partners:
-        // 1. Social Links  2. Map  3. About Our Partner  4. Partner Logo (if available)
-        // 5. Primary Contact  6. Support Personnel  7. Photo Gallery
+        // 1. Hero Image (CMS)  2. Flag + Social Buttons  3. About Our Partner
+        // 4. Primary Contact w/ Photo  5. Support Personnel  6. Photo Gallery (6-9)
+        // All images use IDs for CMS editability via Firebase pageContent.pacific
         const islandData = {
             samoa: {
                 name: 'American Samoa',
@@ -1276,42 +1318,57 @@
                 color: 'linear-gradient(135deg, #003366 0%, #004080 100%)',
                 partner: 'Parents of Children with Special Needs Network (PCSN)',
                 content: `
-                    <div class="social-links">
-                        <button onclick="event.stopPropagation(); openIframeModal('PCSN Facebook Page', 'https://www.facebook.com/PagoPagonetwork/')" class="social-btn facebook">Facebook Page</button>
-                    </div>
+                    <img id="pacific-samoaHero" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-7-768x327.jpg" alt="American Samoa" class="modal-hero-image">
 
-                    <div class="island-map-section">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-6-1024x512.png" alt="American Samoa Map" class="island-map">
-                    </div>
-
-                    <h3>About Our Partner</h3>
-                    <p><strong>Parents of Children with Special Needs Network (PCSN)</strong> is a Parent-to-Parent Support Group for children, youth, and young adults with disabilities. Co-sponsored by the Parent Training and Information Center and Leadership in Disabilities of Achievement of Hawaii, we support one another in areas of health care, education, inclusion, community activities, guidance, and emotional encouragement.</p>
-
-                    <h3>Primary Contact</h3>
-                    <div class="contact-card">
-                        <h4>Sandra (Sandy) Scanlan</h4>
-                        <p><strong>Phone:</strong> <a href="tel:+16847313959">(684) 731-3959</a></p>
-                        <p><strong>Email:</strong> <a href="mailto:sandysamoa2@gmail.com">sandysamoa2@gmail.com</a></p>
-                        <p><strong>Address:</strong> P.O. Box 523, Pago Pago, American Samoa 96799</p>
-                    </div>
-
-                    <h3>Support Personnel</h3>
-                    <div class="support-grid">
-                        <div class="support-person">
-                            <h4>Dr. Herbert Boat</h4>
-                            <p>Assistant SPED Director</p>
-                            <p><a href="mailto:herbert.boat@doe.as">herbert.boat@doe.as</a></p>
+                    <div style="padding: 2rem;">
+                        <div class="island-map-section" style="margin-top: 0;">
+                            <img id="pacific-samoaFlag" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-6-1024x512.png" alt="American Samoa Flag" class="island-map">
                         </div>
-                        <div class="support-person">
-                            <h4>Segia Ioane</h4>
-                            <p>Early Childhood Specialist</p>
-                            <p><a href="mailto:ioane_tuia@yahoo.com">ioane_tuia@yahoo.com</a></p>
+                        <div class="social-links">
+                            <button onclick="event.stopPropagation(); openIframeModal('PCSN Facebook Page', 'https://www.facebook.com/PagoPagonetwork/')" class="social-btn facebook">Facebook Page</button>
+                            <button onclick="event.stopPropagation(); openIframeModal('PCSN YouTube', 'https://www.youtube.com/@pcsn')" class="social-btn youtube">YouTube Channel</button>
                         </div>
-                    </div>
 
-                    <h3>Photo Gallery</h3>
-                    <div class="photo-gallery">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-30.jpg" alt="American Samoa Event" class="gallery-photo">
+                        <h3>About Our Partner</h3>
+                        <p><strong>Parents of Children with Special Needs Network (PCSN)</strong> is a Parent-to-Parent Support Group for children, youth, and young adults with disabilities. Co-sponsored by the Parent Training and Information Center and Leadership in Disabilities of Achievement of Hawaii, we support one another in areas of health care, education, inclusion, community activities, guidance, and emotional encouragement.</p>
+
+                        <h3>Primary Contact</h3>
+                        <div class="contact-with-photo">
+                            <img id="pacific-samoaContactPhoto" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-30.jpg" alt="Sandra Scanlan" class="contact-photo">
+                            <div class="contact-card">
+                                <h4>Sandra (Sandy) Scanlan</h4>
+                                <p><strong>Phone:</strong> <a href="tel:+16847313959">(684) 731-3959</a></p>
+                                <p><strong>Email:</strong> <a href="mailto:sandysamoa2@gmail.com">sandysamoa2@gmail.com</a></p>
+                                <p><strong>Address:</strong> P.O. Box 523, Pago Pago, American Samoa 96799</p>
+                            </div>
+                        </div>
+
+                        <h3>Support Personnel</h3>
+                        <div class="support-grid">
+                            <div class="support-person">
+                                <h4>Dr. Herbert Boat</h4>
+                                <p>Assistant SPED Director</p>
+                                <p><a href="mailto:herbert.boat@doe.as">herbert.boat@doe.as</a></p>
+                            </div>
+                            <div class="support-person">
+                                <h4>Segia Ioane</h4>
+                                <p>Early Childhood Specialist</p>
+                                <p><a href="mailto:ioane_tuia@yahoo.com">ioane_tuia@yahoo.com</a></p>
+                            </div>
+                        </div>
+
+                        <h3>Photo Gallery</h3>
+                        <div class="photo-gallery">
+                            <img id="pacific-samoaPhoto1" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-5-768x576.jpg" alt="American Samoa" class="gallery-photo">
+                            <img id="pacific-samoaPhoto2" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-12-768x576.jpg" alt="American Samoa" class="gallery-photo">
+                            <img id="pacific-samoaPhoto3" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-13-768x576.jpg" alt="American Samoa" class="gallery-photo">
+                            <img id="pacific-samoaPhoto4" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-19-768x576.jpg" alt="American Samoa" class="gallery-photo">
+                            <img id="pacific-samoaPhoto5" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-20-768x509.jpg" alt="American Samoa" class="gallery-photo">
+                            <img id="pacific-samoaPhoto6" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-24-768x576.jpg" alt="American Samoa" class="gallery-photo">
+                            <img id="pacific-samoaPhoto7" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-25-768x576.jpg" alt="American Samoa" class="gallery-photo">
+                            <img id="pacific-samoaPhoto8" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-21-768x576.jpg" alt="American Samoa" class="gallery-photo">
+                            <img id="pacific-samoaPhoto9" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-14-768x576.jpg" alt="American Samoa" class="gallery-photo">
+                        </div>
                     </div>
                 `
             },
@@ -1321,43 +1378,50 @@
                 color: 'linear-gradient(135deg, #0066cc 0%, #0088ff 100%)',
                 partner: 'Department of Community and Cultural Affairs: Division of Youth Services',
                 content: `
-                    <div class="social-links">
-                        <button onclick="event.stopPropagation(); openIframeModal('Division of Youth Services', 'http://www.dys.gov.mp/')" class="social-btn website">Visit Website</button>
-                    </div>
+                    <img id="pacific-cnmiHero" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-4-1024x683.jpeg" alt="Northern Mariana Islands" class="modal-hero-image">
 
-                    <div class="island-map-section">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-5-1024x512.png" alt="Northern Mariana Islands Map" class="island-map">
-                    </div>
-
-                    <h3>About Our Partner</h3>
-                    <p>LDAH partners with the <strong>Department of Community and Cultural Affairs: Division of Youth Services</strong> in the Commonwealth of the Northern Mariana Islands to provide family support and educational resources for children with disabilities.</p>
-
-                    <h3>Primary Contact</h3>
-                    <div class="contact-card">
-                        <h4>Vivian T. Sablan</h4>
-                        <p><strong>Phone:</strong> <a href="tel:+16702771000">(670) 277-1000</a></p>
-                        <p><strong>Email:</strong> <a href="mailto:vtsablan@dys.gov.mp">vtsablan@dys.gov.mp</a></p>
-                        <p><strong>Address:</strong> P.O. Box 501000, Saipan, MP 96950</p>
-                    </div>
-
-                    <h3>Support Personnel</h3>
-                    <div class="support-grid">
-                        <div class="support-person">
-                            <h4>Jennifer O. Tanaka</h4>
-                            <p><a href="mailto:jtanaka@dys.gov.mp">jtanaka@dys.gov.mp</a></p>
-                            <p><a href="tel:+16702371017">(670) 237-1017</a></p>
+                    <div style="padding: 2rem;">
+                        <div class="island-map-section" style="margin-top: 0;">
+                            <img id="pacific-cnmiFlag" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-5-1024x512.png" alt="CNMI Flag" class="island-map">
                         </div>
-                        <div class="support-person">
-                            <h4>Maria L. Olopai</h4>
-                            <p><a href="mailto:mlolopai@dys.gov.mp">mlolopai@dys.gov.mp</a></p>
-                            <p><a href="tel:+16702371015">(670) 237-1015</a></p>
+                        <div class="social-links">
+                            <button onclick="event.stopPropagation(); openIframeModal('Division of Youth Services', 'http://www.dys.gov.mp/')" class="social-btn website">Visit Website</button>
                         </div>
-                    </div>
 
-                    <h3>Photo Gallery</h3>
-                    <div class="photo-gallery">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-4-1024x683.jpeg" alt="CNMI Event" class="gallery-photo">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-1.gif" alt="CNMI Partner Logo" class="gallery-photo">
+                        <h3>About Our Partner</h3>
+                        <p>LDAH partners with the <strong>Department of Community and Cultural Affairs: Division of Youth Services</strong> in the Commonwealth of the Northern Mariana Islands to provide family support and educational resources for children with disabilities.</p>
+
+                        <h3>Primary Contact</h3>
+                        <div class="contact-card">
+                            <h4>Vivian T. Sablan</h4>
+                            <p><strong>Phone:</strong> <a href="tel:+16702771000">(670) 277-1000</a></p>
+                            <p><strong>Email:</strong> <a href="mailto:vtsablan@dys.gov.mp">vtsablan@dys.gov.mp</a></p>
+                            <p><strong>Address:</strong> P.O. Box 501000, Saipan, MP 96950</p>
+                        </div>
+
+                        <h3>Support Personnel</h3>
+                        <div class="support-grid">
+                            <div class="support-person">
+                                <h4>Jennifer O. Tanaka</h4>
+                                <p><a href="mailto:jtanaka@dys.gov.mp">jtanaka@dys.gov.mp</a></p>
+                                <p><a href="tel:+16702371017">(670) 237-1017</a></p>
+                            </div>
+                            <div class="support-person">
+                                <h4>Maria L. Olopai</h4>
+                                <p><a href="mailto:mlolopai@dys.gov.mp">mlolopai@dys.gov.mp</a></p>
+                                <p><a href="tel:+16702371015">(670) 237-1015</a></p>
+                            </div>
+                        </div>
+
+                        <h3>Photo Gallery</h3>
+                        <div class="photo-gallery">
+                            <img id="pacific-cnmiPhoto1" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-1-768x373.jpeg" alt="CNMI" class="gallery-photo">
+                            <img id="pacific-cnmiPhoto2" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-2-768x576.jpeg" alt="CNMI" class="gallery-photo">
+                            <img id="pacific-cnmiPhoto3" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-3-768x373.jpeg" alt="CNMI" class="gallery-photo">
+                            <img id="pacific-cnmiPhoto4" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-5-768x373.jpeg" alt="CNMI" class="gallery-photo">
+                            <img id="pacific-cnmiPhoto5" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-1.gif" alt="CNMI Partner" class="gallery-photo">
+                            <img id="pacific-cnmiPhoto6" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-4-768x512.jpeg" alt="CNMI" class="gallery-photo">
+                        </div>
                     </div>
                 `
             },
@@ -1367,63 +1431,67 @@
                 color: 'linear-gradient(135deg, #66b3ff 0%, #0066cc 100%)',
                 partner: 'Partner States: Chuuk, Kosrae, Pohnpei & Yap',
                 content: `
-                    <div class="island-map-section">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-4.png" alt="FSM Flag" class="island-map">
-                    </div>
+                    <img id="pacific-fsmHero" src="https://www.ldahawaii.org/wp-content/uploads/2025/11/Island-Lagoon-Chuuk-2_1600-1024x768.jpg" alt="Federated States of Micronesia" class="modal-hero-image">
 
-                    <h3>About Our Partnership</h3>
-                    <p>LDAH works across all <strong>four states of FSM – Chuuk, Kosrae, Pohnpei, and Yap</strong> – to support families and children with disabilities through training, resources, and advocacy support.</p>
+                    <div style="padding: 2rem;">
+                        <div class="island-map-section" style="margin-top: 0;">
+                            <img id="pacific-fsmFlag" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-4.png" alt="FSM Flag" class="island-map">
+                        </div>
 
-                    <h3>State Contacts</h3>
-                    <div class="states-grid">
-                        <div class="state-card">
-                            <h4>Yap</h4>
-                            <div class="contact-info">
-                                <p><strong>Jacquelyn Lefagoyal</strong></p>
-                                <p><a href="mailto:jlefagoyal@gmail.com">jlefagoyal@gmail.com</a></p>
-                                <p>P.O. Box 692, Colonia, Yap 96943</p>
-                            </div>
-                        </div>
-                        <div class="state-card">
-                            <h4>Chuuk</h4>
-                            <div class="contact-info">
-                                <p><strong>Ansina Kony</strong></p>
-                                <p>SPED Coordinator, Chuuk DOE</p>
-                                <p><a href="mailto:akony@dss.edu.fm">akony@dss.edu.fm</a></p>
-                                <p><a href="tel:+6913308910">(691) 330-8910</a></p>
-                            </div>
-                        </div>
-                        <div class="state-card">
-                            <h4>Pohnpei</h4>
-                            <div class="contact-info">
-                                <p><strong>Arthur Albert</strong>, FSM SPED Director</p>
-                                <p><a href="mailto:aalber@dss.edu.fm">aalber@dss.edu.fm</a></p>
-                                <p><strong>Roddy Robert</strong></p>
-                                <p><a href="mailto:robertroddy1@gmail.com">robertroddy1@gmail.com</a></p>
-                                <p><strong>Salvador Jacob</strong></p>
-                                <p><a href="mailto:salvador.jacob@dofa.gov.fm">salvador.jacob@dofa.gov.fm</a></p>
-                                <p><strong>John Bugulrow</strong></p>
-                                <p><a href="mailto:bugulrow@yahoo.com">bugulrow@yahoo.com</a></p>
-                            </div>
-                        </div>
-                        <div class="state-card">
-                            <h4>Kosrae</h4>
-                            <div class="contact-info">
-                                <p><strong>Aliksa Sigrah</strong></p>
-                                <p><a href="mailto:atsigrah@gmail.com">atsigrah@gmail.com</a></p>
-                                <p><a href="tel:+6913703063">(691) 370-3063</a></p>
-                                <p>P.O. Box 215, Tofol, Kosrae 96944</p>
-                                <p style="margin-top: 10px;"><strong>Barnabis Palsis</strong></p>
-                                <p><a href="mailto:palsisbarnabis@yahoo.com">palsisbarnabis@yahoo.com</a></p>
-                            </div>
-                        </div>
-                    </div>
+                        <h3>About Our Partnership</h3>
+                        <p>LDAH works across all <strong>four states of FSM – Chuuk, Kosrae, Pohnpei, and Yap</strong> – to support families and children with disabilities through training, resources, and advocacy support.</p>
 
-                    <h3>Photo Gallery</h3>
-                    <div class="photo-gallery">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2025/11/Island-Lagoon-Chuuk-2_1600-1024x768.jpg" alt="Chuuk Lagoon" class="gallery-photo">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2025/11/Children-Chuuk_1600-1024x768.jpg" alt="Children in Chuuk" class="gallery-photo">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2025/11/Lelu-Elementary-Kindergarten-2_1600-1024x768.jpg" alt="Lelu Elementary" class="gallery-photo">
+                        <h3>State Contacts</h3>
+                        <div class="states-grid">
+                            <div class="state-card">
+                                <h4>Yap</h4>
+                                <div class="contact-info">
+                                    <p><strong>Jacquelyn Lefagoyal</strong></p>
+                                    <p><a href="mailto:jlefagoyal@gmail.com">jlefagoyal@gmail.com</a></p>
+                                    <p>P.O. Box 692, Colonia, Yap 96943</p>
+                                </div>
+                            </div>
+                            <div class="state-card">
+                                <h4>Chuuk</h4>
+                                <div class="contact-info">
+                                    <p><strong>Ansina Kony</strong></p>
+                                    <p>SPED Coordinator, Chuuk DOE</p>
+                                    <p><a href="mailto:akony@dss.edu.fm">akony@dss.edu.fm</a></p>
+                                    <p><a href="tel:+6913308910">(691) 330-8910</a></p>
+                                </div>
+                            </div>
+                            <div class="state-card">
+                                <h4>Pohnpei</h4>
+                                <div class="contact-info">
+                                    <p><strong>Arthur Albert</strong>, FSM SPED Director</p>
+                                    <p><a href="mailto:aalber@dss.edu.fm">aalber@dss.edu.fm</a></p>
+                                    <p><strong>Roddy Robert</strong></p>
+                                    <p><a href="mailto:robertroddy1@gmail.com">robertroddy1@gmail.com</a></p>
+                                    <p><strong>Salvador Jacob</strong></p>
+                                    <p><a href="mailto:salvador.jacob@dofa.gov.fm">salvador.jacob@dofa.gov.fm</a></p>
+                                    <p><strong>John Bugulrow</strong></p>
+                                    <p><a href="mailto:bugulrow@yahoo.com">bugulrow@yahoo.com</a></p>
+                                </div>
+                            </div>
+                            <div class="state-card">
+                                <h4>Kosrae</h4>
+                                <div class="contact-info">
+                                    <p><strong>Aliksa Sigrah</strong></p>
+                                    <p><a href="mailto:atsigrah@gmail.com">atsigrah@gmail.com</a></p>
+                                    <p><a href="tel:+6913703063">(691) 370-3063</a></p>
+                                    <p>P.O. Box 215, Tofol, Kosrae 96944</p>
+                                    <p style="margin-top: 10px;"><strong>Barnabis Palsis</strong></p>
+                                    <p><a href="mailto:palsisbarnabis@yahoo.com">palsisbarnabis@yahoo.com</a></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <h3>Photo Gallery</h3>
+                        <div class="photo-gallery">
+                            <img id="pacific-fsmPhoto1" src="https://www.ldahawaii.org/wp-content/uploads/2025/11/Children-Chuuk_1600-1024x768.jpg" alt="Children in Chuuk" class="gallery-photo">
+                            <img id="pacific-fsmPhoto2" src="https://www.ldahawaii.org/wp-content/uploads/2025/11/Lelu-Elementary-Kindergarten-2_1600-1024x768.jpg" alt="Lelu Elementary" class="gallery-photo">
+                            <img id="pacific-fsmPhoto3" src="https://www.ldahawaii.org/wp-content/uploads/2025/11/Island-Lagoon-Chuuk-2_1600-1024x768.jpg" alt="Chuuk Lagoon" class="gallery-photo">
+                        </div>
                     </div>
                 `
             },
@@ -1433,51 +1501,61 @@
                 color: 'linear-gradient(135deg, #cc0000 0%, #ff3333 100%)',
                 partner: 'Autism Community Together (ACT)',
                 content: `
-                    <div class="social-links">
-                        <button onclick="event.stopPropagation(); openIframeModal('Autism Community Together Facebook', 'https://www.facebook.com/autismguam/')" class="social-btn facebook">Facebook Page</button>
-                    </div>
+                    <img id="pacific-guamHero" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-34-1024x461.jpg" alt="Guam" class="modal-hero-image">
 
-                    <div class="island-map-section">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-3.png" alt="Guam Map" class="island-map">
-                    </div>
-
-                    <h3>About Our Partner</h3>
-                    <p><strong>Autism Community Together (ACT)</strong> is a non-profit support group for individuals with autism, their families, and supporters on the island of Guam. ACT frequently hosts events where autistic individuals and their families can have fun together in their community.</p>
-
-                    <div class="partner-logo-section">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-1.png" alt="ACT Guam Logo" class="partner-logo-img">
-                    </div>
-
-                    <h3>Primary Contact</h3>
-                    <div class="contact-card">
-                        <h4>Evelyn Claros</h4>
-                        <p><strong>Phone:</strong> <a href="tel:+16714881484">(671) 488-1484</a></p>
-                        <p><strong>Email:</strong> <a href="mailto:evelyn.claros1@gmail.com">evelyn.claros1@gmail.com</a></p>
-                        <p><strong>Address:</strong> DNA Building 238 Archbishop Flores St. Suite 304, Hagatna, Guam 96910</p>
-                    </div>
-                    <div class="contact-card secondary">
-                        <h4>Jo Blas</h4>
-                        <p><strong>Email:</strong> <a href="mailto:joblas67@gmail.com">joblas67@gmail.com</a></p>
-                    </div>
-
-                    <h3>Support Personnel</h3>
-                    <div class="support-grid">
-                        <div class="support-person">
-                            <h4>Laura Taisipic</h4>
-                            <p>Parent Services, Guam DOE</p>
-                            <p><a href="mailto:lktaisipic@gdoe.net">lktaisipic@gdoe.net</a></p>
+                    <div style="padding: 2rem;">
+                        <div class="island-map-section" style="margin-top: 0;">
+                            <img id="pacific-guamFlag" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-3.png" alt="Guam Flag" class="island-map">
                         </div>
-                        <div class="support-person">
-                            <h4>June De Leon</h4>
-                            <p>Interim Director, University of Guam CEDDERS</p>
-                            <p><a href="tel:+16717352494">(671) 735-2494/5</a></p>
+                        <div class="social-links">
+                            <button onclick="event.stopPropagation(); openIframeModal('Autism Community Together Facebook', 'https://www.facebook.com/autismguam/')" class="social-btn facebook">Facebook Page</button>
                         </div>
-                    </div>
 
-                    <h3>Photo Gallery</h3>
-                    <div class="photo-gallery">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-34-1024x461.jpg" alt="Guam Event" class="gallery-photo">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-1.webp" alt="ACT Guam" class="gallery-photo">
+                        <h3>About Our Partner</h3>
+                        <p><strong>Autism Community Together (ACT)</strong> is a non-profit support group for individuals with autism, their families, and supporters on the island of Guam. ACT frequently hosts events where autistic individuals and their families can have fun together in their community.</p>
+
+                        <div class="partner-logo-section">
+                            <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-1.png" alt="ACT Guam Logo" class="partner-logo-img">
+                        </div>
+
+                        <h3>Primary Contact</h3>
+                        <div class="contact-card">
+                            <h4>Evelyn Claros</h4>
+                            <p><strong>Phone:</strong> <a href="tel:+16714881484">(671) 488-1484</a></p>
+                            <p><strong>Email:</strong> <a href="mailto:evelyn.claros1@gmail.com">evelyn.claros1@gmail.com</a></p>
+                            <p><strong>Address:</strong> DNA Building 238 Archbishop Flores St. Suite 304, Hagatna, Guam 96910</p>
+                        </div>
+                        <div class="contact-card secondary">
+                            <h4>Jo Blas</h4>
+                            <p><strong>Email:</strong> <a href="mailto:joblas67@gmail.com">joblas67@gmail.com</a></p>
+                        </div>
+
+                        <h3>Support Personnel</h3>
+                        <div class="support-grid">
+                            <div class="support-person">
+                                <h4>Laura Taisipic</h4>
+                                <p>Parent Services, Guam DOE</p>
+                                <p><a href="mailto:lktaisipic@gdoe.net">lktaisipic@gdoe.net</a></p>
+                            </div>
+                            <div class="support-person">
+                                <h4>June De Leon</h4>
+                                <p>Interim Director, University of Guam CEDDERS</p>
+                                <p><a href="tel:+16717352494">(671) 735-2494/5</a></p>
+                            </div>
+                        </div>
+
+                        <h3>Photo Gallery</h3>
+                        <div class="photo-gallery">
+                            <img id="pacific-guamPhoto1" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-4-768x576.jpg" alt="Guam" class="gallery-photo">
+                            <img id="pacific-guamPhoto2" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-6-768x576.jpg" alt="Guam" class="gallery-photo">
+                            <img id="pacific-guamPhoto3" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-10-768x576.jpg" alt="Guam" class="gallery-photo">
+                            <img id="pacific-guamPhoto4" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-13-768x576.jpg" alt="Guam" class="gallery-photo">
+                            <img id="pacific-guamPhoto5" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-15-768x576.jpg" alt="Guam" class="gallery-photo">
+                            <img id="pacific-guamPhoto6" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-20-768x576.jpg" alt="Guam" class="gallery-photo">
+                            <img id="pacific-guamPhoto7" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-22-768x576.jpg" alt="Guam" class="gallery-photo">
+                            <img id="pacific-guamPhoto8" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-24-768x576.jpg" alt="Guam" class="gallery-photo">
+                            <img id="pacific-guamPhoto9" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-1.webp" alt="ACT Guam" class="gallery-photo">
+                        </div>
                     </div>
                 `
             },
@@ -1487,78 +1565,89 @@
                 color: 'linear-gradient(135deg, #003399 0%, #0066cc 100%)',
                 partner: 'Marshall Island Special Parent Association (MISPA) & Public School System',
                 content: `
-                    <div class="social-links">
-                        <button onclick="event.stopPropagation(); openIframeModal('RMI Public School System', 'https://pss.edu.mh/')" class="social-btn website">PSS Website</button>
-                    </div>
+                    <img id="pacific-marshallHero" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/rmi7-768x576.jpg" alt="Marshall Islands" class="modal-hero-image">
 
-                    <div class="island-map-section">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-2-1024x539.png" alt="Marshall Islands Map" class="island-map">
-                    </div>
-
-                    <h3>About Our Partners</h3>
-                    <p>LDAH partners with both the <strong>Marshall Island Special Parent Association (MISPA)</strong> and the <strong>Public School System (PSS)</strong> to provide comprehensive family support and special education services in the Republic of the Marshall Islands.</p>
-
-                    <h3>MISPA — Primary Contact</h3>
-                    <div class="contact-card">
-                        <h4>Kilobar Lakmis</h4>
-                        <p>MISPA Secretary</p>
-                        <p><strong>Phone:</strong> <a href="tel:+6924574334">(692) 457-4334</a></p>
-                        <p><strong>Email:</strong> <a href="mailto:lakmiskilobar@gmail.com">lakmiskilobar@gmail.com</a></p>
-                        <p><strong>Address:</strong> P.O Box 1434, Majuro, MH 96960</p>
-                    </div>
-
-                    <h3>MISPA Support Personnel</h3>
-                    <div class="support-grid">
-                        <div class="support-person">
-                            <h4>Tony Komta</h4>
-                            <p>MISPA President</p>
-                            <p><a href="tel:+6924551617">(692) 455-1617</a></p>
+                    <div style="padding: 2rem;">
+                        <div class="island-map-section" style="margin-top: 0;">
+                            <img id="pacific-marshallFlag" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-2-1024x539.png" alt="Marshall Islands Flag" class="island-map">
                         </div>
-                        <div class="support-person">
-                            <h4>Namar Nashon</h4>
-                            <p>MISPA Vice President</p>
-                            <p><a href="mailto:namarnashon@hotmail.com">namarnashon@hotmail.com</a></p>
+                        <div class="social-links">
+                            <button onclick="event.stopPropagation(); openIframeModal('RMI Public School System', 'https://pss.edu.mh/')" class="social-btn website">PSS Website</button>
                         </div>
-                        <div class="support-person">
-                            <h4>Suewellynn Johannes</h4>
-                            <p>MISPA Treasurer</p>
-                            <p><a href="mailto:suejo0502@gmail.com">suejo0502@gmail.com</a></p>
-                        </div>
-                    </div>
 
-                    <h3>Public School System (PSS)</h3>
-                    <div class="partner-logo-section">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/OfficialPSSLogo.png" alt="PSS Logo" class="partner-logo-img">
-                    </div>
+                        <h3>About Our Partners</h3>
+                        <p>LDAH partners with both the <strong>Marshall Island Special Parent Association (MISPA)</strong> and the <strong>Public School System (PSS)</strong> to provide comprehensive family support and special education services in the Republic of the Marshall Islands.</p>
 
-                    <div class="contact-card">
-                        <h4>Frank Horiuchi</h4>
-                        <p>SPED Director, PSS</p>
-                        <p><strong>Phone:</strong> <a href="tel:+6926256023">(692) 625-6023</a></p>
-                        <p><strong>Email:</strong> <a href="mailto:fhoriuchi@pss.edu.mh">fhoriuchi@pss.edu.mh</a></p>
-                    </div>
+                        <h3>MISPA — Primary Contact</h3>
+                        <div class="contact-card">
+                            <h4>Kilobar Lakmis</h4>
+                            <p>MISPA Secretary</p>
+                            <p><strong>Phone:</strong> <a href="tel:+6924574334">(692) 457-4334</a></p>
+                            <p><strong>Email:</strong> <a href="mailto:lakmiskilobar@gmail.com">lakmiskilobar@gmail.com</a></p>
+                            <p><strong>Address:</strong> P.O Box 1434, Majuro, MH 96960</p>
+                        </div>
 
-                    <h3>PSS Support Personnel</h3>
-                    <div class="support-grid">
-                        <div class="support-person">
-                            <h4>Janet Nemra</h4>
-                            <p>RMI Disability Coordinator</p>
-                            <p><a href="mailto:rmidisability@gmail.com">rmidisability@gmail.com</a></p>
+                        <h3>MISPA Support Personnel</h3>
+                        <div class="support-grid">
+                            <div class="support-person">
+                                <h4>Tony Komta</h4>
+                                <p>MISPA President</p>
+                                <p><a href="tel:+6924551617">(692) 455-1617</a></p>
+                            </div>
+                            <div class="support-person">
+                                <h4>Namar Nashon</h4>
+                                <p>MISPA Vice President</p>
+                                <p><a href="mailto:namarnashon@hotmail.com">namarnashon@hotmail.com</a></p>
+                            </div>
+                            <div class="support-person">
+                                <h4>Suewellynn Johannes</h4>
+                                <p>MISPA Treasurer</p>
+                                <p><a href="mailto:suejo0502@gmail.com">suejo0502@gmail.com</a></p>
+                            </div>
                         </div>
-                        <div class="support-person">
-                            <h4>Jayann Taala</h4>
-                            <p><a href="mailto:taalaj@pss.edu.mh">taalaj@pss.edu.mh</a></p>
-                        </div>
-                        <div class="support-person">
-                            <h4>Asmon Langidrik</h4>
-                            <p>Special Education Specialist</p>
-                            <p><a href="mailto:osmondlang@yahoo.com">osmondlang@yahoo.com</a></p>
-                        </div>
-                    </div>
 
-                    <h3>Photo Gallery</h3>
-                    <div class="photo-gallery">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/political-map-of-marshall-islands-1024x911-1.png" alt="Marshall Islands Political Map" class="gallery-photo">
+                        <h3>Public School System (PSS)</h3>
+                        <div class="partner-logo-section">
+                            <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/OfficialPSSLogo.png" alt="PSS Logo" class="partner-logo-img">
+                        </div>
+
+                        <div class="contact-card">
+                            <h4>Frank Horiuchi</h4>
+                            <p>SPED Director, PSS</p>
+                            <p><strong>Phone:</strong> <a href="tel:+6926256023">(692) 625-6023</a></p>
+                            <p><strong>Email:</strong> <a href="mailto:fhoriuchi@pss.edu.mh">fhoriuchi@pss.edu.mh</a></p>
+                        </div>
+
+                        <h3>PSS Support Personnel</h3>
+                        <div class="support-grid">
+                            <div class="support-person">
+                                <h4>Janet Nemra</h4>
+                                <p>RMI Disability Coordinator</p>
+                                <p><a href="mailto:rmidisability@gmail.com">rmidisability@gmail.com</a></p>
+                            </div>
+                            <div class="support-person">
+                                <h4>Jayann Taala</h4>
+                                <p><a href="mailto:taalaj@pss.edu.mh">taalaj@pss.edu.mh</a></p>
+                            </div>
+                            <div class="support-person">
+                                <h4>Asmon Langidrik</h4>
+                                <p>Special Education Specialist</p>
+                                <p><a href="mailto:osmondlang@yahoo.com">osmondlang@yahoo.com</a></p>
+                            </div>
+                        </div>
+
+                        <h3>Photo Gallery</h3>
+                        <div class="photo-gallery">
+                            <img id="pacific-marshallPhoto1" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/rmi4-768x576.jpg" alt="Marshall Islands" class="gallery-photo">
+                            <img id="pacific-marshallPhoto2" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/rmi13-768x576.jpg" alt="Marshall Islands" class="gallery-photo">
+                            <img id="pacific-marshallPhoto3" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/rmi14-768x576.jpg" alt="Marshall Islands" class="gallery-photo">
+                            <img id="pacific-marshallPhoto4" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/rmi20-768x576.jpg" alt="Marshall Islands" class="gallery-photo">
+                            <img id="pacific-marshallPhoto5" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/rmi21-768x576.jpg" alt="Marshall Islands" class="gallery-photo">
+                            <img id="pacific-marshallPhoto6" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/rmi23-768x576.jpg" alt="Marshall Islands" class="gallery-photo">
+                            <img id="pacific-marshallPhoto7" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/rmi26-768x576.jpg" alt="Marshall Islands" class="gallery-photo">
+                            <img id="pacific-marshallPhoto8" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/rmi28-768x576.jpg" alt="Marshall Islands" class="gallery-photo">
+                            <img id="pacific-marshallPhoto9" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/political-map-of-marshall-islands-1024x911-1.png" alt="Marshall Islands Map" class="gallery-photo">
+                        </div>
                     </div>
                 `
             },
@@ -1568,48 +1657,57 @@
                 color: 'linear-gradient(135deg, #00bfff 0%, #0099cc 100%)',
                 partner: 'Palau Parents Empowered (PPE)',
                 content: `
-                    <div class="social-links">
-                        <button onclick="event.stopPropagation(); openIframeModal('Palau Parents Empowered', 'https://sites.google.com/site/palauparents/')" class="social-btn website">Visit Website</button>
-                    </div>
+                    <img id="pacific-palauHero" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-18-768x336.jpg" alt="Republic of Palau" class="modal-hero-image">
 
-                    <div class="island-map-section">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-1.png" alt="Palau Map" class="island-map">
-                    </div>
-
-                    <h3>About Our Partner</h3>
-                    <p><strong>Palau Parents Empowered (PPE)</strong> is a non-profit organization in the Republic of Palau serving parents and families of children and youth with disabilities ages 0 to 26.</p>
-                    <p>As a Community Parent Resource Center, our services are designed to enable parents and other family members of children with disabilities to better meet and understand the needs of individuals with disabilities. The ultimate goal is to prepare children with disabilities to lead productive, independent lives, to the fullest extent possible.</p>
-
-                    <div class="partner-logo-section">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-1.png" alt="PPE Logo" class="partner-logo-img">
-                    </div>
-
-                    <h3>Primary Contact</h3>
-                    <div class="contact-card">
-                        <h4>Francesca (Cesca) Morei-Misech</h4>
-                        <p><strong>Email:</strong> <a href="mailto:moreimisech@gmail.com">moreimisech@gmail.com</a></p>
-                        <p><strong>Work:</strong> <a href="tel:+6804881432">(680) 488-1432</a></p>
-                        <p><strong>Mobile:</strong> <a href="tel:+18087751432">(808) 775-1432</a></p>
-                        <p><strong>Address:</strong> P.O. Box 96, Koror, Palau 96940</p>
-                    </div>
-
-                    <h3>Support Personnel</h3>
-                    <div class="support-grid">
-                        <div class="support-person">
-                            <h4>Nora Renguul</h4>
-                            <p>SPED Acting Director</p>
-                            <p><a href="mailto:norarenguul@palaumoe.net">norarenguul@palaumoe.net</a></p>
+                    <div style="padding: 2rem;">
+                        <div class="island-map-section" style="margin-top: 0;">
+                            <img id="pacific-palauFlag" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-1.png" alt="Palau Flag" class="island-map">
                         </div>
-                    </div>
+                        <div class="social-links">
+                            <button onclick="event.stopPropagation(); openIframeModal('Palau Parents Empowered', 'https://sites.google.com/site/palauparents/')" class="social-btn website">Visit Website</button>
+                        </div>
 
-                    <h3>Photo Gallery</h3>
-                    <div class="photo-gallery">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-32.jpg" alt="Palau Event" class="gallery-photo">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-35.jpg" alt="Palau Community" class="gallery-photo">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-34.jpg" alt="Palau Families" class="gallery-photo">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-31.jpg" alt="Palau Activities" class="gallery-photo">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-28.jpg" alt="Palau Support" class="gallery-photo">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-25.jpg" alt="PPE Event" class="gallery-photo">
+                        <h3>About Our Partner</h3>
+                        <p><strong>Palau Parents Empowered (PPE)</strong> is a non-profit organization in the Republic of Palau serving parents and families of children and youth with disabilities ages 0 to 26.</p>
+                        <p>As a Community Parent Resource Center, our services are designed to enable parents and other family members of children with disabilities to better meet and understand the needs of individuals with disabilities. The ultimate goal is to prepare children with disabilities to lead productive, independent lives, to the fullest extent possible.</p>
+
+                        <div class="partner-logo-section">
+                            <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-1.png" alt="PPE Logo" class="partner-logo-img">
+                        </div>
+
+                        <h3>Primary Contact</h3>
+                        <div class="contact-with-photo">
+                            <img id="pacific-palauContactPhoto" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-32.jpg" alt="Francesca Morei-Misech" class="contact-photo">
+                            <div class="contact-card">
+                                <h4>Francesca (Cesca) Morei-Misech</h4>
+                                <p><strong>Email:</strong> <a href="mailto:moreimisech@gmail.com">moreimisech@gmail.com</a></p>
+                                <p><strong>Work:</strong> <a href="tel:+6804881432">(680) 488-1432</a></p>
+                                <p><strong>Mobile:</strong> <a href="tel:+18087751432">(808) 775-1432</a></p>
+                                <p><strong>Address:</strong> P.O. Box 96, Koror, Palau 96940</p>
+                            </div>
+                        </div>
+
+                        <h3>Support Personnel</h3>
+                        <div class="support-grid">
+                            <div class="support-person">
+                                <h4>Nora Renguul</h4>
+                                <p>SPED Acting Director</p>
+                                <p><a href="mailto:norarenguul@palaumoe.net">norarenguul@palaumoe.net</a></p>
+                            </div>
+                        </div>
+
+                        <h3>Photo Gallery</h3>
+                        <div class="photo-gallery">
+                            <img id="pacific-palauPhoto1" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-35.jpg" alt="Palau" class="gallery-photo">
+                            <img id="pacific-palauPhoto2" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-34.jpg" alt="Palau" class="gallery-photo">
+                            <img id="pacific-palauPhoto3" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-31-768x576.jpg" alt="Palau" class="gallery-photo">
+                            <img id="pacific-palauPhoto4" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-28.jpg" alt="Palau" class="gallery-photo">
+                            <img id="pacific-palauPhoto5" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-25.jpg" alt="Palau" class="gallery-photo">
+                            <img id="pacific-palauPhoto6" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-20-768x576.jpg" alt="Palau" class="gallery-photo">
+                            <img id="pacific-palauPhoto7" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-22-768x576.jpg" alt="Palau" class="gallery-photo">
+                            <img id="pacific-palauPhoto8" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-14-768x576.jpg" alt="Palau" class="gallery-photo">
+                            <img id="pacific-palauPhoto9" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-10-768x576.jpg" alt="Palau" class="gallery-photo">
+                        </div>
                     </div>
                 `
             }
