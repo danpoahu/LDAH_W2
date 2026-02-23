@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="LDAH">
+  <meta name="theme-color" content="#0891B2">
+  <title>LDAH - Contact Us</title>
+  
+  <!-- Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-32PRRS0W85"></script>
+  <script>
+
+        // Strip emoji from text content loaded from Firebase
+        function stripEmoji(text) {
+            if (!text) return text;
+            return text.replace(/[\u{1F300}-\u{1FFFF}\u{2600}-\u{27FF}\u{FE00}-\u{FEFF}]|[\u{1F1E0}-\u{1F1FF}]{2}/gu, '').replace(/  +/g, ' ').trim();
+        }
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-32PRRS0W85');
+  </script>
+  
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json">
+  
+  <!-- iOS Icons -->
+  <link rel="apple-touch-icon" href="https://danpoahu.github.io/LDAH/icon-192.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="https://danpoahu.github.io/LDAH/icon-192.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="https://danpoahu.github.io/LDAH/icon-512.png">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --ocean-deep: #0891B2;
+      --ocean-mid: #06B6D4;
+      --ocean-light: #22D3EE;
+      --sunset-coral: #F97316;
+      --sunset-warm: #FB923C;
+      --sunset-light: #FED7AA;
+      --sand: #FEF3C7;
+      --sand-light: #FFFBEB;
+      --palm: #65A30D;
+      --plumeria: #FBBF24;
+      --white: #FFFFFF;
+      --text-dark: #1E293B;
+      --text-soft: #64748B;
+      --bg-warm: #FEFDFB;
+      --primary-blue: #0891B2;
+      --light-blue: #06B6D4;
+      --accent-teal: #22D3EE;
+      --bg-light: #FFFBEB;
+      --text-light: #64748B;
+    }
+    
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    
+    body {
+      font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: var(--text-dark);
+      line-height: 1.7;
+      background: var(--bg-warm);
+      overflow-x: hidden;
+    }
+    
+    h1, h2, h3 { font-family: 'Outfit', sans-serif; font-weight: 600; line-height: 1.3; }
+    
+    /* Navigation */
+    nav { 
+      position: fixed; 
+      top: 0; 
+      left: 0; 
+      right: 0; 
+      z-index: 1000; 
+      background: rgba(255, 255, 255, 0.97);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 1px 20px rgba(8, 145, 178, 0.08);
+      border-bottom: 1px solid rgba(8, 145, 178, 0.1);
+    }
+    
+    .nav-content { 
+      max-width: 1280px; 
+      margin: 0 auto; 
+      padding: 1rem 2rem; 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+    }
+    
+    .logo-container { 
+      display: flex; 
+      align-items: center; 
+      gap: 1rem; 
+      text-decoration: none; 
+    }
+    
+    .logo-img { width: 88px; height: 88px; }
+    
+    .nav-links { 
+      display: flex; 
+      gap: 0.5rem; 
+      list-style: none; 
+      align-items: center; 
+    }
+    
+    .nav-links a { 
+      text-decoration: none; 
+      color: var(--text-dark); 
+      font-weight: 500; 
+      padding: 0.6rem 1.1rem;
+      border-radius: 8px;
+      transition: all 0.25s ease;
+    }
+    
+    .nav-links a:hover { background: var(--sand-light); color: var(--ocean-deep); }
+    .nav-links a.active { background: var(--sand); color: var(--ocean-deep); }
+
+    .hamburger { display: none; flex-direction: column; cursor: pointer; padding: 0.5rem; }
+    .hamburger span { width: 25px; height: 3px; background: var(--ocean-deep); margin: 3px 0; transition: 0.3s; border-radius: 2px; }
+
+    @media (max-width: 768px) {
+      .nav-links { position: fixed; top: 108px; left: 0; right: 0; background: white; 
+        flex-direction: column; padding: 2rem; box-shadow: 0 4px 20px rgba(8, 145, 178, 0.1); 
+        gap: 0.5rem; transform: translateY(-100%); opacity: 0; 
+        transition: transform 0.3s, opacity 0.3s; pointer-events: none; 
+      }
+      .nav-links.active { transform: translateY(0); opacity: 1; pointer-events: all; }
+      .hamburger { display: flex; }
+      .logo-img { width: 78px; height: 78px; }
+    }
+    
+    /* Page Header */
+    .page-header {
+      margin-top: 88px;
+      padding: 2rem;
+      background: linear-gradient(135deg, #0891B2 0%, #06B6D4 100%);
+      color: white;
+      text-align: center;
+      position: relative;
+      height: 180px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .page-header-islands {
+      position: absolute; left: 75%; top: 50%;
+      transform: translate(-50%, -50%) scaleY(-1);
+      width: 49%; max-width: 420px;
+      color: white; opacity: 0.15; z-index: 0;
+    }
+
+    .page-header > * { position: relative; z-index: 1; }
+    .page-header > svg { position: absolute; z-index: 0; }
+    
+    .page-header h1 { font-size: 2.2rem; margin-bottom: 0.5rem; font-weight: 600; letter-spacing: -0.5px; }
+    .page-header p { font-size: 1.05rem; opacity: 0.95; max-width: 550px; margin: 0 auto; line-height: 1.5; }
+    
+    .container { max-width: 1200px; margin: 0 auto; padding: 4rem 2rem; }
+
+    /* Office Grid */
+    .office-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+      margin-bottom: 3rem;
+    }
+    
+    .office-card {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      box-shadow: 0 4px 20px rgba(8, 145, 178, 0.08);
+      transition: transform 0.3s, box-shadow 0.3s;
+      border: 1px solid rgba(8, 145, 178, 0.1);
+      display: flex;
+      flex-direction: column;
+      min-height: 480px;
+    }
+    
+    .office-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 12px 40px rgba(8, 145, 178, 0.15);
+    }
+    
+    .office-card-content { flex-grow: 1; }
+    
+    .office-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      overflow: hidden;
+      margin: 0 auto 1rem;
+    }
+    
+    .office-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    
+    .office-title {
+      font-size: 1.5rem;
+      color: var(--ocean-deep);
+      margin-bottom: 0.5rem;
+    }
+    
+    .office-subtitle {
+      font-size: 0.9rem;
+      color: var(--text-soft);
+      font-style: italic;
+      margin-bottom: 1.5rem;
+    }
+    
+    .contact-info { margin-bottom: 1rem; }
+    
+    .contact-label {
+      font-weight: 600;
+      color: var(--ocean-deep);
+      margin-bottom: 0.5rem;
+    }
+    
+    .contact-value {
+      color: var(--text-dark);
+      line-height: 1.6;
+    }
+    
+    .contact-value a {
+      color: var(--ocean-deep);
+      text-decoration: none;
+      transition: color 0.3s;
+    }
+    
+    .contact-value a:hover {
+      color: var(--ocean-mid);
+      text-decoration: underline;
+    }
+    
+    .button-container {
+      margin-top: auto;
+      padding-top: 1rem;
+      text-align: center;
+    }
+    
+    .btn-directions {
+      display: inline-block;
+      padding: 0.75rem 1.5rem;
+      background: linear-gradient(135deg, var(--ocean-deep), var(--ocean-mid));
+      color: white;
+      border-radius: 10px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.25s;
+      cursor: pointer;
+      border: none;
+      margin-top: 1rem;
+    }
+    
+    .btn-directions:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(8, 145, 178, 0.3);
+    }
+
+    /* Message Card */
+    .message-card {
+      background: var(--sand-light);
+      border-radius: 16px;
+      padding: 2.5rem;
+      text-align: center;
+      border: 1px solid rgba(8, 145, 178, 0.1);
+    }
+    
+    .message-card h2 {
+      color: var(--ocean-deep);
+      font-size: 1.8rem;
+      margin-bottom: 0.75rem;
+    }
+    
+    .message-card p {
+      color: var(--text-soft);
+      margin-bottom: 1.5rem;
+      font-size: 1.05rem;
+    }
+
+    /* Map Modal */
+    .map-modal {
+      display: none;
+      position: fixed;
+      z-index: 2000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+      animation: fadeIn 0.3s;
+    }
+    
+    .map-modal.active {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .map-content {
+      background: white;
+      border-radius: 16px;
+      width: 90%;
+      max-width: 1000px;
+      height: 80vh;
+      max-height: 700px;
+      position: relative;
+      animation: slideUp 0.3s;
+      overflow: hidden;
+    }
+    
+    .map-header {
+      background: linear-gradient(135deg, var(--ocean-deep), var(--ocean-mid));
+      color: white;
+      padding: 1.5rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .map-header h3 { margin: 0; font-size: 1.5rem; }
+    
+    .close-modal {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: white;
+      font-size: 2rem;
+      cursor: pointer;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.3s;
+    }
+    
+    .close-modal:hover { background: rgba(255, 255, 255, 0.3); }
+    
+    .map-frame {
+      width: 100%;
+      height: calc(100% - 80px);
+      border: none;
+    }
+
+    /* External Link Modal */
+    .iframe-modal {
+      display: none;
+      position: fixed;
+      z-index: 3000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      animation: fadeIn 0.3s;
+    }
+    
+    .iframe-modal.active {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .iframe-content {
+      background: white;
+      border-radius: 16px;
+      width: 95%;
+      max-width: 1200px;
+      height: 90vh;
+      max-height: 800px;
+      position: relative;
+      animation: slideUp 0.3s;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .iframe-header {
+      background: linear-gradient(135deg, var(--ocean-deep), var(--ocean-mid));
+      color: white;
+      padding: 1.5rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    
+    .iframe-header h3 { margin: 0; font-size: 1.5rem; }
+    
+    .close-iframe {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: white;
+      font-size: 2rem;
+      cursor: pointer;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.3s;
+    }
+    
+    .close-iframe:hover { background: rgba(255, 255, 255, 0.3); }
+    
+    .iframe-frame {
+      width: 100%;
+      flex: 1;
+      border: none;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    @keyframes slideUp {
+      from { transform: translateY(50px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    /* CTA Banner */
+    .cta-banner {
+      background: linear-gradient(135deg, var(--sunset-coral) 0%, var(--sunset-warm) 100%);
+      padding: 1rem 2rem;
+      text-align: center;
+      color: white;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .cta-banner-islands {
+      position: absolute; right: 8%; bottom: 15%;
+      transform: scaleY(-1);
+      width: 12%; color: white; opacity: 0.1;
+    }
+    
+    .cta-banner > * { position: relative; z-index: 1; }
+    .cta-banner > svg { position: absolute; z-index: 0; }
+    
+    .cta-banner h2 { font-size: 1.6rem; margin-bottom: 0.4rem; }
+    
+    .cta-banner p {
+      font-size: 0.95rem;
+      margin-bottom: 0.75rem;
+      opacity: 0.95;
+      max-width: 550px;
+      line-height: 1.4;
+    }
+    
+    .cta-btn {
+      display: inline-block;
+      padding: 0.75rem 1.5rem;
+      background: white;
+      color: var(--sunset-coral);
+      border-radius: 10px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: transform 0.25s, box-shadow 0.25s;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    
+    .cta-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    /* Footer */
+    footer { 
+      background: var(--text-dark); color: white; 
+      padding: 1.75rem 2rem 1rem; position: relative; overflow: hidden;
+    }
+    
+    .footer-islands {
+      position: absolute; right: -5%; bottom: -20%;
+      width: 40%; color: white; opacity: 0.03; transform: scaleY(-1);
+    }
+    
+    .footer-content { 
+      max-width: 1200px; margin: 0 auto; 
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+      gap: 1.4rem; margin-bottom: 1rem; position: relative; z-index: 1;
+    }
+    
+    .footer-section h3 { color: var(--plumeria); margin-bottom: 0.7rem; font-family: 'Outfit', sans-serif; font-size: 1rem; }
+    .footer-section p { color: rgba(255, 255, 255, 0.7); line-height: 1.5; font-size: 0.9rem; }
+    .footer-section a { color: rgba(255, 255, 255, 0.7); text-decoration: none; display: block; margin-bottom: 0.35rem; transition: color 0.25s ease; font-size: 0.9rem; }
+    .footer-section a:hover { color: var(--plumeria); }
+    
+    .footer-bottom { 
+      max-width: 1200px; margin: 0 auto; padding-top: 1rem; 
+      border-top: 1px solid rgba(255, 255, 255, 0.1); 
+      text-align: center; color: rgba(255, 255, 255, 0.5); position: relative; z-index: 1;
+      font-size: 0.85rem;
+    }
+    .footer-bottom p { margin: 0.25rem 0; }
+  </style>
+
+  <!-- Hawaii Islands SVG Definition -->
+  <svg style="display: none;">
+    <defs>
+      <g id="hawaii-islands" fill="currentColor">
+        <path d="M542 2864 c-7 -13 -13 -14 -31 -5 -17 9 -27 9 -49 -2 -15 -8 -39 -19 -53 -25 -16 -6 -29 -21 -33 -37 -4 -15 -16 -40 -28 -55 -18 -25 -19 -31 -7 -56 8 -16 28 -35 44 -43 17 -9 47 -26 67 -39 23 -15 44 -21 57 -17 11 3 30 1 41 -5 29 -16 55 -5 90 40 26 33 29 42 20 65 -8 20 -7 32 5 48 41 58 -7 147 -79 147 -22 0 -38 -6 -44 -16z"/>
+        <path d="M107 2654 c-7 -14 -24 -31 -37 -37 -14 -7 -30 -23 -36 -36 -6 -12 -17 -28 -23 -34 -15 -15 -14 -33 5 -51 19 -20 34 -12 34 18 0 28 34 66 59 66 14 0 20 9 23 33 3 17 8 40 13 50 12 28 -22 21 -38 -9z"/>
+        <path d="M1599 2408 c-8 -7 -27 -30 -42 -50 -31 -42 -57 -54 -87 -38 -16 9 -25 8 -35 0 -12 -10 -10 -21 15 -67 17 -31 30 -60 30 -66 0 -6 7 -18 16 -28 9 -10 19 -33 23 -51 6 -30 10 -33 46 -36 22 -1 47 2 55 7 12 8 12 12 -3 29 -19 21 -23 37 -7 27 6 -4 18 -1 26 6 20 16 28 5 14 -20 -14 -28 -6 -39 24 -34 18 4 29 -2 41 -20 15 -23 22 -25 78 -24 76 2 82 16 37 82 -17 25 -29 49 -25 54 3 5 1 12 -5 16 -5 3 -10 -1 -10 -9 0 -19 -23 -21 -38 -3 -6 6 -13 29 -17 50 -4 20 -15 47 -25 60 -9 12 -20 34 -23 48 -8 32 -44 79 -61 79 -7 0 -19 -6 -27 -12z"/>
+        <path d="M2144 1984 c4 -9 -2 -23 -13 -32 -11 -10 -21 -26 -23 -37 -3 -19 3 -20 89 -22 65 -1 112 -8 158 -23 37 -12 76 -19 90 -16 33 8 85 54 85 75 0 26 -44 43 -77 30 -21 -8 -42 -7 -83 4 -53 15 -184 37 -216 37 -11 0 -14 -5 -10 -16z"/>
+        <path d="M2565 1797 c-17 -32 -17 -36 -1 -84 22 -65 44 -85 105 -91 56 -5 64 -17 54 -89 -5 -37 -2 -48 17 -68 30 -32 98 -35 125 -5 12 13 31 20 57 20 43 0 110 37 128 70 23 43 -26 121 -66 106 -7 -3 -18 3 -24 14 -6 11 -16 20 -22 20 -6 0 -28 16 -49 35 -43 39 -63 42 -116 20 -55 -23 -70 -19 -93 25 -35 68 -86 80 -115 27z"/>
+        <path d="M2313 1740 c-29 -12 -29 -27 -2 -56 12 -13 24 -37 28 -55 8 -38 29 -54 62 -46 37 10 46 19 53 54 14 60 -80 128 -141 103z"/>
+        <path d="M2576 1427 c-31 -26 -36 -35 -25 -44 9 -7 30 -8 54 -4 38 6 40 8 40 41 0 46 -20 48 -69 7z"/>
+        <path d="M3122 1158 c-21 -21 -13 -74 19 -134 21 -40 28 -66 24 -83 -9 -36 -62 -109 -84 -116 -27 -8 -71 -87 -71 -125 0 -33 15 -69 36 -85 7 -5 18 -28 23 -50 6 -22 20 -72 32 -112 22 -69 22 -77 10 -176 -11 -94 -11 -107 5 -140 12 -25 26 -38 46 -43 17 -3 50 -26 76 -50 25 -24 47 -44 49 -44 1 0 11 17 22 38 11 21 27 44 36 52 9 7 22 28 30 46 7 18 32 46 55 61 23 15 62 45 87 66 39 32 50 37 79 31 28 -5 46 1 114 41 85 50 170 135 170 170 0 10 -23 43 -51 71 -32 32 -54 64 -58 85 -5 26 -13 35 -38 41 -37 10 -48 34 -38 85 6 33 3 38 -58 97 -85 82 -219 166 -264 166 -26 0 -53 14 -115 60 -80 59 -113 71 -136 48z"/>
+      </g>
+    </defs>
+  </svg>
+
+  <script>
+    // Header/Footer Loader
+    async function loadHeaderFooter() {
+      const headerContainer = document.getElementById('header-container');
+      const footerContainer = document.getElementById('footer-container');
+      
+      try {
+        const [headerResponse, footerResponse] = await Promise.all([
+          fetch('header.html'),
+          fetch('footer.html')
+        ]);
+        
+        if (headerResponse.ok && footerResponse.ok) {
+          headerContainer.innerHTML = await headerResponse.text();
+          footerContainer.innerHTML = await footerResponse.text();
+          console.log('Header and footer loaded from external files');
+        } else {
+          throw new Error('Failed to fetch');
+        }
+        
+        if (!document.getElementById('a11y-script')) {
+          const script = document.createElement('script');
+          script.id = 'a11y-script';
+          script.src = 'accessibility.js';
+          document.body.appendChild(script);
+        }
+      } catch (error) {
+        console.log('⚠️ Using inline fallback for header/footer');
+        headerContainer.innerHTML = '<nav><div class="nav-content"><a href="index.html" class="logo-container"><img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH Logo" class="logo-img"></a><div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div><ul class="nav-links" id="navLinks"><li><a href="whoweare.html">Who We Are</a></li><li><a href="index.html#services">What We Do</a></li><li><a href="events.html">Events</a></li><li><a href="volunteer.html">Volunteer</a></li><li><a href="resources.html">Resources</a></li><li><a href="contact.html">Contact</a></li></ul></div></nav>';
+        footerContainer.innerHTML = '<footer><svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg><div class="footer-content"><div class="footer-section"><h3>About LDAH</h3><p>Hawai\'i & Pacific Island Parent Training & Information Center &mdash; empowering families and children with disabilities.</p></div><div class="footer-section"><h3>Quick Links</h3><a href="whoweare.html">Who We Are</a><a href="index.html#services">What We Do</a><a href="events.html">Events</a><a href="volunteer.html">Volunteer</a><a href="resources.html">Resources</a><a href="contact.html">Contact Us</a></div><div class="footer-section"><h3>Honolulu Office</h3><p>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 536-7684<br>rrowe@ldah.org</p></div><div class="footer-section"><h3>Connect With Us</h3><a href="javascript:void(0)" onclick="openIframeModal(\'Parent Talk Cafe\', \'https://www.facebook.com/groups/2659334410969387\')">Parent Talk Cafe</a><a href="javascript:void(0)" onclick="openIframeModal(\'Career Opportunities\', \'https://www.hrsymphony.com/hrs/careers/ldah\')">Career Opportunities</a><a href="install.html">Install Our App</a><form action="https://www.paypal.com/donate" method="post" target="_blank" style="margin-top: 8px;"><input type="hidden" name="hosted_button_id" value="F6F2DPC4D6RSA"><input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" title="PayPal - The safer, easier way to pay online!" alt="Donate with PayPal button"></form></div></div><div class="footer-bottom"><p>&copy; 2025 Leadership in Disabilities and Achievement of Hawai\'i. All rights reserved.</p><p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal(\'DP Consulting\', \'https://oahuappdesign.com\')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a></p></div></footer>';
+      }
+      
+      setActiveNavLink();
+    }
+    
+    function setActiveNavLink() {
+      const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+      const navLinks = document.querySelectorAll('.nav-links a');
+      
+      navLinks.forEach(link => {
+        const href = link.getAttribute('href');
+        if (href === currentPage) {
+          link.classList.add('active');
+        }
+      });
+    }
+    
+    function toggleMenu() {
+      const navLinks = document.getElementById('navLinks');
+      if (navLinks) navLinks.classList.toggle('active');
+    }
+    
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', loadHeaderFooter);
+    } else {
+      loadHeaderFooter();
+    }
+  </script>
+</head>
+<body>
+  <div id="header-container"></div>
+
+  <header class="page-header">
+    <svg class="page-header-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
+    <h1 id="contact-heroTitle">Contact Us</h1>
+    <p id="contact-heroSubtitle">We're here to help your family navigate special education and disability services</p>
+  </header>
+
+  <div class="container">
+    <div class="office-grid">
+      <!-- Honolulu Office -->
+      <div class="office-card">
+        <div class="office-card-content">
+          <div style="text-align: center;">
+            <h2 id="contact-honTitle" class="office-title">Honolulu Office</h2>
+            <p id="contact-honSubtitle" class="office-subtitle">Main Office</p>
+          </div>
+          
+          <div class="contact-info">
+            <div class="contact-label">Phone</div>
+            <div id="contact-honPhone" class="contact-value">
+              <a href="tel:8085367684">(808) 536-7684</a>
+            </div>
+          </div>
+
+          <div class="contact-info">
+            <div class="contact-label">Email</div>
+            <div id="contact-honEmail" class="contact-value">
+              <a href="mailto:rrowe@ldah.org">rrowe@ldah.org</a>
+            </div>
+          </div>
+
+          <div class="contact-info">
+            <div class="contact-label">Address</div>
+            <div id="contact-honAddress" class="contact-value">
+              Harry and Jeanette Weinberg Kukui Center<br>
+              245 North Kukui Street, Suite 205<br>
+              Honolulu, HI 96817
+            </div>
+          </div>
+        </div>
+
+        <div class="button-container">
+          <button 
+            onclick="openMapModal('Honolulu Office', 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3717.1!2d-157.86!3d21.31!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2s245%20North%20Kukui%20Street%20Suite%20205%20Honolulu%20HI%2096817!5e0!3m2!1sen!2sus!4v1234567890')"
+            class="btn-directions"
+          >
+            Get Directions
+          </button>
+        </div>
+      </div>
+
+      <!-- Ma'ili Office -->
+      <div class="office-card">
+        <div class="office-card-content">
+          <div style="text-align: center;">
+            <h2 id="contact-mailiTitle" class="office-title">Ma'ili Office</h2>
+            <p id="contact-mailiSubtitle" class="office-subtitle">School Readiness Project</p>
+          </div>
+          
+          <div class="contact-info">
+            <div class="contact-label">Phone</div>
+            <div id="contact-mailiPhone" class="contact-value">
+              <strong>Phone:</strong> <a href="tel:8086965361">(808) 696-5361</a>
+            </div>
+          </div>
+
+          <div class="contact-info">
+            <div class="contact-label">Hours</div>
+            <div id="contact-mailiHours" class="contact-value">
+              Monday to Friday<br>
+              8:00 AM – 5:00 PM
+            </div>
+          </div>
+
+          <div class="contact-info">
+            <div class="contact-label">Address</div>
+            <div id="contact-mailiAddress" class="contact-value">
+              Community Learning Center<br>
+              Kauhale Building<br>
+              87-790 Kulauku St., Suite A116<br>
+              Wai'anae, HI 96792
+            </div>
+          </div>
+        </div>
+
+        <div class="button-container">
+          <button 
+            onclick="openMapModal('Ma\'ili Office', 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3717.2!2d-158.18!3d21.43!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2s87-790%20Kulauku%20St%20Suite%20A116%20Waianae%20HI%2096792!5e0!3m2!1sen!2sus!4v1234567890')"
+            class="btn-directions"
+          >
+            Get Directions
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- App Download Card -->
+    <div class="message-card">
+      <h2 id="contact-appTitle">24/7 Support at Your Fingertips</h2>
+      <p id="contact-appText">
+        Need answers anytime? Download our free app for instant access to resources, FAQs, and support—day or night!
+      </p>
+      <a href="install.html" class="btn-directions" style="display: inline-block;">
+        Get the App
+      </a>
+    </div>
+  </div>
+
+  <!-- CTA Banner -->
+  <section class="cta-banner">
+    <svg class="cta-banner-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
+    <h2 id="contact-ctaTitle">Join Our Community</h2>
+    <p id="contact-ctaSubtitle">Connect with other Hawaii families navigating special education and disabilities.</p>
+    <a href="javascript:void(0)" onclick="openIframeModal('Parent Talk Cafe', 'https://www.facebook.com/groups/2659334410969387')" class="cta-btn">Join Parent Talk Cafe</a>
+  </section>
+
+  <!-- Footer Container -->
+  <div id="footer-container"></div>
+
+  <!-- Map Modal -->
+  <div id="mapModal" class="map-modal" onclick="closeMapModal(event)">
+    <div class="map-content" onclick="event.stopPropagation()">
+      <div class="map-header">
+        <h3 id="modalTitle">Directions</h3>
+        <button class="close-modal" onclick="closeMapModal()">&times;</button>
+      </div>
+      <iframe id="mapFrame" class="map-frame" src="" allowfullscreen="" loading="lazy"></iframe>
+    </div>
+  </div>
+
+  <!-- External Link Modal -->
+  <div id="iframeModal" class="iframe-modal" onclick="closeIframeModal(event)">
+    <div class="iframe-content" onclick="event.stopPropagation()">
+      <div class="iframe-header">
+        <h3 id="iframeTitle">Loading...</h3>
+        <button class="close-iframe" onclick="closeIframeModal()">&times;</button>
+      </div>
+      <iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>
+    </div>
+  </div>
+
+  <script>
+    function openMapModal(officeName, mapUrl) {
+      const modal = document.getElementById('mapModal');
+      const title = document.getElementById('modalTitle');
+      const frame = document.getElementById('mapFrame');
+      
+      title.textContent = officeName + ' - Directions';
+      frame.src = mapUrl;
+      modal.classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+    
+    function closeMapModal(event) {
+      if (event && event.target !== event.currentTarget && !event.target.classList.contains('close-modal')) {
+        return;
+      }
+      
+      const modal = document.getElementById('mapModal');
+      const frame = document.getElementById('mapFrame');
+      
+      modal.classList.remove('active');
+      frame.src = '';
+      document.body.style.overflow = 'auto';
+    }
+    
+    function openIframeModal(title, url) {
+      if (url.includes('facebook.com')) {
+        const modal = document.getElementById('iframeModal');
+        const titleEl = document.getElementById('iframeTitle');
+        const frame = document.getElementById('iframeFrame');
+        
+        titleEl.textContent = title;
+        frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #0891B2; font-size: 1.5rem; margin-bottom: 1rem;">Join Our Facebook Community</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #64748B; margin-bottom: 2rem; max-width: 500px;">Connect with other Hawaii families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #0891B2, #06B6D4); color: white; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">Open Parent Talk Cafe →</a></div>';
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      } else {
+        const modal = document.getElementById('iframeModal');
+        const titleEl = document.getElementById('iframeTitle');
+        const frame = document.getElementById('iframeFrame');
+        
+        titleEl.textContent = title;
+        frame.src = url;
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      }
+    }
+    
+    function closeIframeModal(event) {
+      if (event && event.target !== event.currentTarget && !event.target.classList.contains('close-iframe')) {
+        return;
+      }
+      
+      const modal = document.getElementById('iframeModal');
+      const frameEl = document.getElementById('iframeFrame');
+      
+      modal.classList.remove('active');
+      
+      if (frameEl.tagName === 'IFRAME') {
+        frameEl.src = '';
+      } else {
+        frameEl.outerHTML = '<iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>';
+      }
+      
+      document.body.style.overflow = 'auto';
+    }
+  </script>
+  
+  <!-- Firebase Page Content Loader -->
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk",
+      authDomain: "ldah-932d5.firebaseapp.com",
+      projectId: "ldah-932d5"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    
+    async function loadPageContent() {
+      try {
+        const doc = await db.collection('pageContent').doc('contact').get();
+        if (doc.exists) {
+          const data = doc.data();
+          Object.keys(data).forEach(key => {
+            const el = document.getElementById('contact-' + key);
+            if (el && data[key]) {
+              // For photo fields, update the src attribute instead of innerHTML
+              if (key.includes('Photo') && el.tagName === 'IMG') {
+                el.src = data[key];
+              } else {
+                el.innerHTML = stripEmoji(data[key]);
+              }
+            }
+          });
+        }
+      } catch (error) {
+        console.log('Using default content');
+      }
+    }
+    
+    loadPageContent();
+  </script>
+</body>
+</html>

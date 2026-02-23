@@ -1,0 +1,3026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="LDAH">
+  <meta name="theme-color" content="#0891B2">
+  <title>LDAH - Events</title>
+  
+  <!-- Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-32PRRS0W85"></script>
+  <script>
+
+        // Strip emoji from text content loaded from Firebase
+        function stripEmoji(text) {
+            if (!text) return text;
+            return text.replace(/[\u{1F300}-\u{1FFFF}\u{2600}-\u{27FF}\u{FE00}-\u{FEFF}]|[\u{1F1E0}-\u{1F1FF}]{2}/gu, '').replace(/  +/g, ' ').trim();
+        }
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-32PRRS0W85');
+  </script>
+  
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Swiper for Carousel -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+  
+  <style>
+    :root {
+      --ocean-deep: #0891B2;
+      --ocean-mid: #06B6D4;
+      --ocean-light: #22D3EE;
+      --sunset-coral: #F97316;
+      --sunset-warm: #FB923C;
+      --sunset-light: #FED7AA;
+      --sand: #FEF3C7;
+      --sand-light: #FFFBEB;
+      --palm: #65A30D;
+      --plumeria: #FBBF24;
+      --white: #FFFFFF;
+      --text-dark: #1E293B;
+      --text-soft: #64748B;
+      --bg-warm: #FEFDFB;
+      --primary-blue: #0891B2;
+      --light-blue: #06B6D4;
+      --accent-teal: #22D3EE;
+      --bg-light: #FFFBEB;
+      --text-light: #64748B;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      background: var(--bg-warm);
+      color: var(--text-dark);
+      padding-top: 0;
+      line-height: 1.7;
+    }
+    
+    /* Navigation */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: rgba(255, 255, 255, 0.97);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 1px 20px rgba(8, 145, 178, 0.08);
+      border-bottom: 1px solid rgba(8, 145, 178, 0.1);
+      z-index: 1000;
+      padding: 1rem 2rem;
+    }
+    
+    .nav-content {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      text-decoration: none;
+    }
+    
+    .logo-img { width: 88px; height: 88px; }
+    
+    .nav-links {
+      display: flex;
+      gap: 0.5rem;
+      list-style: none;
+      align-items: center;
+    }
+    
+    .nav-links a {
+      text-decoration: none;
+      color: var(--text-dark);
+      font-weight: 500;
+      padding: 0.6rem 1.1rem;
+      border-radius: 8px;
+      transition: all 0.25s ease;
+    }
+    
+    .nav-links a:hover { background: var(--sand-light); color: var(--ocean-deep); }
+    .nav-links a.active { background: var(--sand); color: var(--ocean-deep); }
+
+    /* Mobile Menu */
+    .hamburger { display: none; flex-direction: column; cursor: pointer; padding: 0.5rem; }
+    .hamburger span { width: 25px; height: 3px; background: var(--ocean-deep); margin: 3px 0; transition: 0.3s; border-radius: 2px; }
+    
+    @media (max-width: 768px) {
+      .nav-links { position: fixed; top: 108px;
+        left: 0;
+        right: 0;
+        background: white;
+        flex-direction: column;
+        padding: 2rem;
+        box-shadow: 0 4px 20px rgba(8, 145, 178, 0.1);
+        gap: 0.5rem;
+        transform: translateY(-100%);
+        opacity: 0;
+        transition: transform 0.3s, opacity 0.3s;
+        pointer-events: none;
+      }
+      .nav-links.active {
+        transform: translateY(0);
+        opacity: 1;
+        pointer-events: all;
+      }
+      .hamburger { display: flex; }
+      .logo-img { width: 78px; height: 78px; }
+    }
+    
+    .back-btn {
+      padding: 0.5rem 1.5rem;
+      background: var(--ocean-deep);
+      color: white;
+      text-decoration: none;
+      border-radius: 10px;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+    
+    .back-btn:hover {
+      background: var(--ocean-mid);
+      transform: translateY(-2px);
+    }
+    
+    /* Main Content */
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 2rem 2rem;
+    }
+    
+    /* Page Header */
+    .page-header {
+      margin-top: 88px;
+      padding: 2rem;
+      background: linear-gradient(135deg, #0891B2 0%, #06B6D4 100%);
+      color: white;
+      text-align: center;
+      margin-bottom: 0;
+      position: relative;
+      height: 180px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .page-header-islands {
+      position: absolute; left: 75%; top: 50%;
+      transform: translate(-50%, -50%) scaleY(-1);
+      width: 49%; max-width: 420px;
+      color: white; opacity: 0.15; z-index: 0;
+    }
+
+    .page-header > * { position: relative; z-index: 1; }
+    .page-header > svg { position: absolute; z-index: 0; }
+    
+    .page-title {
+      font-size: 2.2rem;
+      color: white;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+      font-family: 'Outfit', sans-serif;
+      letter-spacing: -0.5px;
+    }
+    
+    .page-subtitle {
+      font-size: 1.05rem;
+      color: white;
+      opacity: 0.95;
+      max-width: 550px;
+      line-height: 1.5;
+    }
+    
+    /* Section Headers */
+    .section {
+      margin-bottom: 4rem;
+    }
+    
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    
+    .section-icon {
+      font-size: 2rem;
+    }
+    
+    .section-title {
+      font-size: 1.8rem;
+      color: var(--primary-blue);
+      font-weight: 700;
+    }
+    
+    .section-count {
+      background: var(--accent-teal);
+      color: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+    
+    /* Carousel Styles */
+    .swiper {
+      width: 100%;
+      padding-bottom: 3rem;
+    }
+    
+    .swiper-slide {
+      height: auto;
+    }
+    
+    /* Event Cards */
+    .event-card {
+      background: white;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 4px 16px rgba(0, 78, 124, 0.1);
+      transition: all 0.3s ease;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .event-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 8px 32px rgba(0, 78, 124, 0.2);
+    }
+    
+    .event-image {
+      width: 100%;
+      height: auto;
+      display: block;
+      background: linear-gradient(135deg, var(--primary-blue), var(--light-blue));
+    }
+    
+    .event-content {
+      padding: 1.5rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .event-date-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: rgba(77, 208, 225, 0.1);
+      border-radius: 20px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--primary-blue);
+      margin-bottom: 1rem;
+      width: fit-content;
+    }
+    
+    .event-title {
+      font-size: 1.3rem;
+      color: var(--primary-blue);
+      margin-bottom: 0.75rem;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+    
+    .event-description {
+      color: var(--text-light);
+      line-height: 1.6;
+      margin-bottom: 1rem;
+      flex: 1;
+    }
+    
+    .event-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-top: auto;
+      padding-top: 1rem;
+      border-top: 1px solid #eee;
+    }
+    
+    .event-meta-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-light);
+      font-size: 0.9rem;
+    }
+    
+    .event-meta-item svg {
+      color: var(--primary-blue);
+    }
+    
+    .event-status {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-top: 0.5rem;
+    }
+    
+    .status-upcoming {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    
+    .status-past {
+      background: #fce4ec;
+      color: #c2185b;
+    }
+    
+    /* Swiper Navigation */
+    .swiper-button-next,
+    .swiper-button-prev {
+      background: white;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      box-shadow: 0 4px 12px rgba(0, 78, 124, 0.15);
+    }
+    
+    .swiper-button-next:after,
+    .swiper-button-prev:after {
+      font-size: 1.2rem;
+      color: var(--primary-blue);
+      font-weight: 900;
+    }
+    
+    .swiper-pagination-bullet {
+      background: var(--primary-blue);
+      opacity: 0.3;
+      width: 12px;
+      height: 12px;
+    }
+    
+    .swiper-pagination-bullet-active {
+      opacity: 1;
+      background: var(--accent-teal);
+    }
+    
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 4px 16px rgba(0, 78, 124, 0.1);
+    }
+    
+    .empty-icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+    }
+    
+    .empty-title {
+      font-size: 1.5rem;
+      color: var(--primary-blue);
+      margin-bottom: 0.5rem;
+      font-weight: 700;
+    }
+    
+    .empty-text {
+      color: var(--text-light);
+      font-size: 1.1rem;
+    }
+    
+    /* Loading State */
+    .loading {
+      text-align: center;
+      padding: 4rem 2rem;
+    }
+    
+    .spinner {
+      border: 4px solid rgba(0, 78, 124, 0.1);
+      border-top: 4px solid var(--primary-blue);
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+      .page-title {
+        font-size: 2rem;
+      }
+      
+      .section-title {
+        font-size: 1.5rem;
+      }
+      
+      .swiper-button-next,
+      .swiper-button-prev {
+        display: none;
+      }
+    }
+  
+    /* External Link Modal */
+    .iframe-modal {
+      display: none;
+      position: fixed;
+      z-index: 3000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      animation: fadeIn 0.3s;
+    }
+    
+    .iframe-modal.active {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .iframe-content {
+      background: white;
+      border-radius: 20px;
+      width: 95%;
+      max-width: 1200px;
+      height: 90vh;
+      max-height: 800px;
+      position: relative;
+      animation: slideUp 0.3s;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .iframe-header {
+      background: linear-gradient(135deg, #004E7C, #0066a1);
+      color: white;
+      padding: 1.5rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    
+    .iframe-header h3 {
+      margin: 0;
+      font-size: 1.5rem;
+    }
+    
+    .close-iframe {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: white;
+      font-size: 2rem;
+      cursor: pointer;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.3s;
+    }
+    
+    .close-iframe:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    
+    .iframe-frame {
+      width: 100%;
+      flex: 1;
+      border: none;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    @keyframes slideUp {
+      from { transform: translateY(50px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    /* Calendar Section */
+    .calendar-section {
+      padding: 3rem 2rem;
+      background: var(--bg-light);
+    }
+    
+    .calendar-container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    
+    .calendar-nav {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    
+    .calendar-nav button {
+      background: white;
+      border: 2px solid var(--primary-blue);
+      color: var(--primary-blue);
+      padding: 0.5rem 1.25rem;
+      border-radius: 50px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-size: 0.95rem;
+    }
+    
+    .calendar-nav button:hover {
+      background: var(--primary-blue);
+      color: white;
+    }
+    
+    .calendar-month-year {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--primary-blue);
+      min-width: 220px;
+      text-align: center;
+    }
+    
+    .today-btn {
+      background: linear-gradient(135deg, var(--primary-blue), var(--light-blue)) !important;
+      color: white !important;
+      border: none !important;
+    }
+    
+    .calendar-grid {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 4px 16px rgba(0, 78, 124, 0.1);
+      overflow: hidden;
+    }
+    
+    .calendar-weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      background: var(--primary-blue);
+      color: white;
+    }
+    
+    .weekday {
+      padding: 0.75rem;
+      text-align: center;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+    
+    .calendar-days {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+    }
+    
+    .calendar-day {
+      min-height: 100px;
+      border: 1px solid #eee;
+      padding: 0.4rem;
+      position: relative;
+      transition: background 0.2s;
+      overflow: hidden;
+    }
+    
+    .calendar-day:hover {
+      background: rgba(0, 78, 124, 0.03);
+    }
+    
+    .calendar-day.other-month {
+      background: #fafafa;
+    }
+    
+    .calendar-day.other-month .day-number {
+      color: #ccc;
+    }
+    
+    .calendar-day.today {
+      background: rgba(77, 208, 225, 0.1);
+    }
+    
+    .calendar-day.today .day-number {
+      background: var(--primary-blue);
+      color: white;
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .day-number {
+      font-weight: 600;
+      color: var(--text-dark);
+      margin-bottom: 0.35rem;
+      font-size: 0.9rem;
+    }
+    
+    .day-events {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      overflow: hidden;
+      width: 100%;
+    }
+    
+    .day-event {
+      background: linear-gradient(135deg, var(--primary-blue), var(--light-blue));
+      color: white;
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+      display: block;
+    }
+    
+    .day-event:hover {
+      transform: scale(1.02);
+      box-shadow: 0 2px 8px rgba(0, 78, 124, 0.3);
+    }
+    
+    .day-event.past-event {
+      background: linear-gradient(135deg, #9ca3af, #6b7280);
+    }
+    
+    .day-event.additional-date {
+      background: linear-gradient(135deg, #9ca3af, #6b7280);
+    }
+    
+    .day-event.additional-date:hover {
+      background: linear-gradient(135deg, #6b7280, #4b5563);
+    }
+    
+    .day-event.event-request {
+      background: linear-gradient(135deg, #14b8a6, #0d9488);
+      border-left: 3px solid #0f766e;
+    }
+    
+    .day-event.event-request.past-event {
+      background: linear-gradient(135deg, #5eead4, #99f6e4);
+      color: #0f766e;
+    }
+    
+    .more-events {
+      background: var(--accent-teal);
+      color: var(--primary-blue);
+      font-weight: 700;
+    }
+
+    .day-event.recurring-event {
+      background: linear-gradient(135deg, #4DD0E1, #0891B2);
+      border-left: 3px solid #0e7490;
+    }
+    .day-event.recurring-event.past-event {
+      background: linear-gradient(135deg, #9ca3af, #6b7280);
+      border-left: 3px solid #4b5563;
+    }
+    
+    @media (max-width: 768px) {
+      .calendar-section {
+        padding: 2rem 1rem;
+      }
+      .calendar-day {
+        min-height: 70px;
+        padding: 0.2rem;
+      }
+      .weekday {
+        padding: 0.5rem 0.25rem;
+        font-size: 0.7rem;
+      }
+      .day-number {
+        font-size: 0.75rem;
+      }
+      .day-event {
+        font-size: 0.6rem;
+        padding: 2px 3px;
+      }
+      .calendar-month-year {
+        font-size: 1.2rem;
+        min-width: auto;
+      }
+      .calendar-nav button {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.85rem;
+      }
+    }
+    
+    /* Event Detail Modal for Calendar */
+    .event-detail-modal {
+      display: none;
+      position: fixed;
+      z-index: 3000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+      animation: fadeIn 0.3s;
+    }
+    
+    .event-detail-modal.active {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    
+    .event-detail-content {
+      background: white;
+      border-radius: 20px;
+      width: 100%;
+      max-width: 500px;
+      position: relative;
+      animation: slideUp 0.3s;
+      overflow: hidden;
+    }
+    
+    .event-detail-header {
+      background: linear-gradient(135deg, #004E7C, #0066a1);
+      color: white;
+      padding: 1.5rem 2rem;
+    }
+    
+    .event-detail-header h3 {
+      margin: 0;
+      font-size: 1.3rem;
+      padding-right: 2rem;
+    }
+    
+    .close-event-detail {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: white;
+      font-size: 1.5rem;
+      cursor: pointer;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.3s;
+    }
+    
+    .close-event-detail:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    
+    .event-detail-body {
+      padding: 2rem;
+    }
+    
+    .event-detail-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      color: var(--text-light);
+    }
+    
+    .event-detail-item svg {
+      flex-shrink: 0;
+      color: var(--primary-blue);
+      margin-top: 2px;
+    }
+    
+    .event-detail-item strong {
+      color: var(--text-dark);
+    }
+    
+    .event-detail-image {
+      width: 100%;
+      max-height: 200px;
+      object-fit: cover;
+      margin-bottom: 1rem;
+      border-radius: 12px;
+    }
+
+    /* CTA Banner */
+    /* CTA Banner */
+    .cta-banner {
+      background: linear-gradient(135deg, var(--sunset-coral) 0%, var(--sunset-warm) 100%);
+      padding: 1rem 2rem;
+      text-align: center;
+      color: white;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .cta-banner-islands {
+      position: absolute; right: 8%; bottom: 15%;
+      transform: scaleY(-1);
+      width: 12%; color: white; opacity: 0.1;
+    }
+    
+    .cta-banner > * { position: relative; z-index: 1; }
+    .cta-banner > svg { position: absolute; z-index: 0; }
+    
+    .cta-banner h2 { font-size: 1.6rem; margin-bottom: 0.4rem; font-family: 'Outfit', sans-serif; }
+    
+    .cta-banner p {
+      font-size: 0.95rem;
+      margin-bottom: 0.75rem;
+      opacity: 0.95;
+      max-width: 550px;
+      line-height: 1.4;
+    }
+    
+    .cta-btn {
+      display: inline-block;
+      padding: 0.75rem 1.5rem;
+      background: white;
+      color: var(--sunset-coral);
+      border-radius: 10px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: transform 0.25s, box-shadow 0.25s;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    
+    .cta-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    /* Footer */
+    footer { 
+      background: var(--text-dark); color: white; 
+      padding: 1.75rem 2rem 1rem; position: relative; overflow: hidden;
+    }
+    
+    .footer-islands {
+      position: absolute; right: -5%; bottom: -20%;
+      width: 40%; color: white; opacity: 0.03; transform: scaleY(-1);
+    }
+    
+    .footer-content { 
+      max-width: 1200px; margin: 0 auto; 
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+      gap: 1.4rem; margin-bottom: 1rem; position: relative; z-index: 1;
+    }
+    
+    .footer-section h3 { color: var(--plumeria); margin-bottom: 0.7rem; font-family: 'Outfit', sans-serif; font-size: 1rem; }
+    .footer-section p { color: rgba(255, 255, 255, 0.7); line-height: 1.5; font-size: 0.9rem; }
+    .footer-section a { color: rgba(255, 255, 255, 0.7); text-decoration: none; display: block; margin-bottom: 0.35rem; transition: color 0.25s ease; font-size: 0.9rem; }
+    .footer-section a:hover { color: var(--plumeria); }
+    
+    .footer-bottom { 
+      max-width: 1200px; margin: 0 auto; padding-top: 1rem; 
+      border-top: 1px solid rgba(255, 255, 255, 0.1); 
+      text-align: center; color: rgba(255, 255, 255, 0.5); position: relative; z-index: 1;
+      font-size: 0.85rem;
+    }
+    .footer-bottom p { margin: 0.25rem 0; }
+  </style>
+
+  <!-- Hawaii Islands SVG Definition -->
+  <svg style="display: none;">
+    <defs>
+      <g id="hawaii-islands" fill="currentColor">
+        <path d="M542 2864 c-7 -13 -13 -14 -31 -5 -17 9 -27 9 -49 -2 -15 -8 -39 -19 -53 -25 -16 -6 -29 -21 -33 -37 -4 -15 -16 -40 -28 -55 -18 -25 -19 -31 -7 -56 8 -16 28 -35 44 -43 17 -9 47 -26 67 -39 23 -15 44 -21 57 -17 11 3 30 1 41 -5 29 -16 55 -5 90 40 26 33 29 42 20 65 -8 20 -7 32 5 48 41 58 -7 147 -79 147 -22 0 -38 -6 -44 -16z"/>
+        <path d="M107 2654 c-7 -14 -24 -31 -37 -37 -14 -7 -30 -23 -36 -36 -6 -12 -17 -28 -23 -34 -15 -15 -14 -33 5 -51 19 -20 34 -12 34 18 0 28 34 66 59 66 14 0 20 9 23 33 3 17 8 40 13 50 12 28 -22 21 -38 -9z"/>
+        <path d="M1599 2408 c-8 -7 -27 -30 -42 -50 -31 -42 -57 -54 -87 -38 -16 9 -25 8 -35 0 -12 -10 -10 -21 15 -67 17 -31 30 -60 30 -66 0 -6 7 -18 16 -28 9 -10 19 -33 23 -51 6 -30 10 -33 46 -36 22 -1 47 2 55 7 12 8 12 12 -3 29 -19 21 -23 37 -7 27 6 -4 18 -1 26 6 20 16 28 5 14 -20 -14 -28 -6 -39 24 -34 18 4 29 -2 41 -20 15 -23 22 -25 78 -24 76 2 82 16 37 82 -17 25 -29 49 -25 54 3 5 1 12 -5 16 -5 3 -10 -1 -10 -9 0 -19 -23 -21 -38 -3 -6 6 -13 29 -17 50 -4 20 -15 47 -25 60 -9 12 -20 34 -23 48 -8 32 -44 79 -61 79 -7 0 -19 -6 -27 -12z"/>
+        <path d="M2144 1984 c4 -9 -2 -23 -13 -32 -11 -10 -21 -26 -23 -37 -3 -19 3 -20 89 -22 65 -1 112 -8 158 -23 37 -12 76 -19 90 -16 33 8 85 54 85 75 0 26 -44 43 -77 30 -21 -8 -42 -7 -83 4 -53 15 -184 37 -216 37 -11 0 -14 -5 -10 -16z"/>
+        <path d="M2565 1797 c-17 -32 -17 -36 -1 -84 22 -65 44 -85 105 -91 56 -5 64 -17 54 -89 -5 -37 -2 -48 17 -68 30 -32 98 -35 125 -5 12 13 31 20 57 20 43 0 110 37 128 70 23 43 -26 121 -66 106 -7 -3 -18 3 -24 14 -6 11 -16 20 -22 20 -6 0 -28 16 -49 35 -43 39 -63 42 -116 20 -55 -23 -70 -19 -93 25 -35 68 -86 80 -115 27z"/>
+        <path d="M2313 1740 c-29 -12 -29 -27 -2 -56 12 -13 24 -37 28 -55 8 -38 29 -54 62 -46 37 10 46 19 53 54 14 60 -80 128 -141 103z"/>
+        <path d="M2576 1427 c-31 -26 -36 -35 -25 -44 9 -7 30 -8 54 -4 38 6 40 8 40 41 0 46 -20 48 -69 7z"/>
+        <path d="M3122 1158 c-21 -21 -13 -74 19 -134 21 -40 28 -66 24 -83 -9 -36 -62 -109 -84 -116 -27 -8 -71 -87 -71 -125 0 -33 15 -69 36 -85 7 -5 18 -28 23 -50 6 -22 20 -72 32 -112 22 -69 22 -77 10 -176 -11 -94 -11 -107 5 -140 12 -25 26 -38 46 -43 17 -3 50 -26 76 -50 25 -24 47 -44 49 -44 1 0 11 17 22 38 11 21 27 44 36 52 9 7 22 28 30 46 7 18 32 46 55 61 23 15 62 45 87 66 39 32 50 37 79 31 28 -5 46 1 114 41 85 50 170 135 170 170 0 10 -23 43 -51 71 -32 32 -54 64 -58 85 -5 26 -13 35 -38 41 -37 10 -48 34 -38 85 6 33 3 38 -58 97 -85 82 -219 166 -264 166 -26 0 -53 14 -115 60 -80 59 -113 71 -136 48z"/>
+      </g>
+    </defs>
+  </svg>
+
+    <script>
+        // LDAH Header/Footer Loader with ALL Modal Functions
+        
+        // Define ALL modal functions FIRST so all links work
+        
+        // Iframe Modal Functions (for footer links - Parent Talk Cafe, DP Consulting)
+        function openIframeModal(title, url) {
+            if (url.includes('facebook.com')) {
+                const modal = document.getElementById('iframeModal');
+                const titleEl = document.getElementById('iframeTitle');
+                const frame = document.getElementById('iframeFrame');
+                
+                titleEl.textContent = title;
+                frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">Join Our Facebook Community</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other Hawaii families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">Open Parent Talk Cafe →</a></div>';
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            } else {
+                const modal = document.getElementById('iframeModal');
+                const titleEl = document.getElementById('iframeTitle');
+                const frame = document.getElementById('iframeFrame');
+                
+                titleEl.textContent = title;
+                frame.src = url;
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+        
+        function closeIframeModal(event) {
+            if (event && event.target !== event.currentTarget && !event.target.classList.contains('close-iframe')) {
+                return;
+            }
+            
+            const modal = document.getElementById('iframeModal');
+            const frameEl = document.getElementById('iframeFrame');
+            
+            modal.classList.remove('active');
+            
+            if (frameEl.tagName === 'IFRAME') {
+                frameEl.src = '';
+            } else {
+                frameEl.outerHTML = '<iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>';
+            }
+            
+            document.body.style.overflow = 'auto';
+        }
+        
+        // Map Modal Functions (for contact page directions buttons)
+        function openMapModal(officeName, mapUrl) {
+            const modal = document.getElementById('mapModal');
+            const title = document.getElementById('modalTitle');
+            const frame = document.getElementById('mapFrame');
+            
+            title.textContent = officeName + ' - Directions';
+            frame.src = mapUrl;
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+        
+        function closeMapModal(event) {
+            if (event && event.target !== event.currentTarget && !event.target.classList.contains('close-modal')) {
+                return;
+            }
+            
+            const modal = document.getElementById('mapModal');
+            const frame = document.getElementById('mapFrame');
+            
+            modal.classList.remove('active');
+            frame.src = '';
+            document.body.style.overflow = 'auto';
+        }
+        
+        // Header and Footer Loader - Fetches from external files
+        async function loadHeaderFooter() {
+            const headerContainer = document.getElementById('header-container');
+            const footerContainer = document.getElementById('footer-container');
+            
+            try {
+                const [headerResponse, footerResponse] = await Promise.all([
+                    fetch('header.html'),
+                    fetch('footer.html')
+                ]);
+                
+                if (headerResponse.ok && footerResponse.ok) {
+                    headerContainer.innerHTML = await headerResponse.text();
+                    footerContainer.innerHTML = await footerResponse.text();
+                    console.log('Header and footer loaded from external files');
+                } else {
+                    throw new Error('Failed to fetch');
+                }
+                
+                if (!document.getElementById('a11y-script')) {
+                    const script = document.createElement('script');
+                    script.id = 'a11y-script';
+                    script.src = 'accessibility.js';
+                    document.body.appendChild(script);
+                }
+            } catch (error) {
+                console.log('⚠️ Using inline fallback for header/footer');
+                headerContainer.innerHTML = '<nav><div class="nav-content"><a href="index.html" class="logo-container"><img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH Logo" class="logo-img"></a><div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div><ul class="nav-links" id="navLinks"><li><a href="whoweare.html">Who We Are</a></li><li><a href="index.html#services">What We Do</a></li><li><a href="events.html">Events</a></li><li><a href="volunteer.html">Volunteer</a></li><li><a href="resources.html">Resources</a></li><li><a href="contact.html">Contact</a></li></ul></div></nav>';
+                footerContainer.innerHTML = '<footer><svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg><div class="footer-content"><div class="footer-section"><h3>About LDAH</h3><p>Hawai\'i & Pacific Island Parent Training & Information Center &mdash; empowering families and children with disabilities.</p></div><div class="footer-section"><h3>Quick Links</h3><a href="whoweare.html">Who We Are</a><a href="index.html#services">What We Do</a><a href="events.html">Events</a><a href="volunteer.html">Volunteer</a><a href="resources.html">Resources</a><a href="contact.html">Contact Us</a></div><div class="footer-section"><h3>Honolulu Office</h3><p>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 536-7684<br>rrowe@ldah.org</p></div><div class="footer-section"><h3>Connect With Us</h3><a href="javascript:void(0)" onclick="openIframeModal(\'Parent Talk Cafe\', \'https://www.facebook.com/groups/2659334410969387\')">Parent Talk Cafe</a><a href="javascript:void(0)" onclick="openIframeModal(\'Career Opportunities\', \'https://www.hrsymphony.com/hrs/careers/ldah\')">Career Opportunities</a><a href="install.html">Install Our App</a><form action="https://www.paypal.com/donate" method="post" target="_blank" style="margin-top: 8px;"><input type="hidden" name="hosted_button_id" value="F6F2DPC4D6RSA"><input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" title="PayPal - The safer, easier way to pay online!" alt="Donate with PayPal button"></form></div></div><div class="footer-bottom"><p>&copy; 2025 Leadership in Disabilities and Achievement of Hawai\'i. All rights reserved.</p><p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal(\'DP Consulting\', \'https://oahuappdesign.com\')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a></p></div></footer>';
+            }
+            
+            setActiveNavLink();
+        }
+        
+        function setActiveNavLink() {
+            const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+            const navLinks = document.querySelectorAll('.nav-links a');
+            
+            navLinks.forEach(link => {
+                const href = link.getAttribute('href');
+                if (href === currentPage) {
+                    link.classList.add('active');
+                }
+            });
+        }
+        
+        function toggleMenu() {
+            const navLinks = document.getElementById('navLinks');
+            if (navLinks) {
+                navLinks.classList.toggle('active');
+            }
+        }
+        
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadHeaderFooter);
+        } else {
+            loadHeaderFooter();
+        }
+    </script>
+</head>
+<body>
+  <!-- Header Container - Auto-loaded -->
+  <div id="header-container"></div>
+
+  <!-- Page Header -->
+  <header class="page-header">
+    <svg class="page-header-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
+    <h1 class="page-title" id="events-heroTitle">Events & Workshops</h1>
+    <p class="page-subtitle" id="events-heroSubtitle">Join us for training, workshops, and community events</p>
+  </header>
+
+  <!-- Main Content -->
+  <div class="container">
+    <!-- Current Events Section -->
+    <div class="section" id="currentEventsSection">
+      <div class="section-header">
+        <h2 class="section-title" id="events-currentTitle">Upcoming Events</h2>
+        <span class="section-count" id="currentCount">0</span>
+      </div>
+      
+      <div id="currentEventsCarousel">
+        <div class="loading">
+          <div class="spinner"></div>
+          <p>Loading upcoming events...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Past Events Section -->
+    <div class="section" id="pastEventsSection">
+      <div class="section-header">
+        <h2 class="section-title" id="events-pastTitle">Past Events</h2>
+        <span class="section-count" id="pastCount">0</span>
+      </div>
+      
+      <div id="pastEventsCarousel">
+        <div class="loading">
+          <div class="spinner"></div>
+          <p>Loading past events...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase Init -->
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk",
+      authDomain: "ldah-932d5.firebaseapp.com",
+      projectId: "ldah-932d5",
+      storageBucket: "ldah-932d5.firebasestorage.app",
+      messagingSenderId: "662130454003",
+      appId: "1:662130454003:web:437576d5a5811ecd8df686"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    
+    // Load CMS page content
+    async function loadPageContent() {
+      try {
+        const doc = await db.collection('pageContent').doc('events').get();
+        if (doc.exists) {
+          const data = doc.data();
+          // Update each element if content exists
+          const fields = ['heroTitle', 'heroSubtitle', 'currentTitle', 'pastTitle', 'calendarTitle', 'ctaTitle', 'ctaSubtitle', 'ctaButton'];
+          fields.forEach(field => {
+            const el = document.getElementById('events-' + field);
+            if (el && data[field]) {
+              el.innerHTML = stripEmoji(data[field]);
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Error loading page content:', error);
+      }
+    }
+    
+    // Load page content on DOM ready
+    document.addEventListener('DOMContentLoaded', loadPageContent);
+  </script>
+  
+  <!-- Events Page Logic -->
+  <script>
+    (function() {
+      'use strict';
+
+      let currentSwiper = null;
+      let pastSwiper = null;
+
+      // Initialize when ready
+      document.addEventListener('DOMContentLoaded', function() {
+        loadEvents();
+      });
+
+      async function loadEvents() {
+        try {
+          console.log('🔍 Starting to load events...');
+          const now = new Date();
+
+          // Fetch regular events AND recurring programs simultaneously
+          const [allEventsSnapshot, recurringSnapshot] = await Promise.all([
+            db.collection('events').get(),
+            db.collection('recurringEvents').where('active', '==', true).get()
+          ]);
+          console.log('📊 Events:', allEventsSnapshot.size, '| Recurring programs:', recurringSnapshot.size);
+
+          const allEvents = [];
+
+          // Process each document with error handling
+          allEventsSnapshot.docs.forEach(doc => {
+            try {
+              const data = doc.data();
+
+              // Skip documents without required fields
+              if (!data.title) {
+                console.warn('⚠️ Skipping document without title:', doc.id);
+                return;
+              }
+
+              // Skip documents with invalid IDs (corrupted)
+              if (doc.id.length > 30) {
+                console.warn('⚠️ Skipping corrupted document:', doc.id.substring(0, 20) + '...');
+                return;
+              }
+
+              allEvents.push({ id: doc.id, ...data });
+              console.log('Loaded event:', data.title);
+            } catch (err) {
+              console.error('❌ Error processing document:', doc.id, err);
+            }
+          });
+
+          console.log('Valid events loaded:', allEvents.length);
+          window.allEventsData = allEvents;
+
+          // Filter current events (between startDate and moveToPastDate)
+          const upcomingEvents = allEvents.filter(event => {
+            try {
+              if (!event.startDate || !event.moveToPastDate) return false;
+              const startDate = new Date(event.startDate + 'T00:00:00');
+              const moveToPastDate = new Date(event.moveToPastDate + 'T00:00:00');
+              if (isNaN(startDate.getTime()) || isNaN(moveToPastDate.getTime())) return false;
+              return now >= startDate && now < moveToPastDate;
+            } catch (err) { return false; }
+          }).sort((a, b) => new Date(a.eventDate + 'T00:00:00') - new Date(b.eventDate + 'T00:00:00'));
+
+          // Filter past events (between moveToPastDate and removeDate)
+          const pastEvents = allEvents.filter(event => {
+            try {
+              if (!event.moveToPastDate || !event.removeDate) return false;
+              const moveToPastDate = new Date(event.moveToPastDate);
+              const removeDate = new Date(event.removeDate);
+              if (isNaN(moveToPastDate.getTime()) || isNaN(removeDate.getTime())) return false;
+              return now >= moveToPastDate && now < removeDate;
+            } catch (err) { return false; }
+          }).sort((a, b) => new Date(b.moveToPastDate) - new Date(a.moveToPastDate));
+
+          // Build recurring synthetic cards from the already-fetched snapshot
+          window._recurringPrograms = {};
+          const syntheticEvents = [];
+          recurringSnapshot.docs.forEach(doc => {
+            const data = { id: doc.id, ...doc.data() };
+            window._recurringPrograms[doc.id] = data;
+            const occurrences = getOccurrencesInNext30Days(data.schedules);
+            if (occurrences.length === 0) return;
+            const nextOcc = occurrences[0];
+            const nextDateLabel = nextOcc.date.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+            const locations = [...new Set((data.schedules || []).map(s => s.location))].join(', ');
+            syntheticEvents.push({
+              id: doc.id,
+              title: data.title,
+              description: data.description,
+              imageUrl: data.imageUrl,
+              eventDate: nextOcc.date.toISOString().slice(0, 10),
+              location: locations,
+              isRecurring: true,
+              _nextDateLabel: `Next: ${nextDateLabel}`,
+            });
+          });
+
+          // Render — recurring programs first, then one-time events
+          window._upcomingEvents = upcomingEvents;
+          renderCurrentEvents([...syntheticEvents, ...upcomingEvents]);
+          renderPastEvents(pastEvents);
+          
+          // Load approved event requests and merge with events for calendar
+          // Use setTimeout to ensure the global function is available
+          setTimeout(async () => {
+            try {
+              await loadApprovedEventRequests();
+              renderCalendar();
+            } catch (err) {
+              console.error('Error loading event requests for calendar:', err);
+              renderCalendar(); // Still render calendar even if requests fail
+            }
+          }, 100);
+          
+        } catch (error) {
+          console.error('❌ Error loading events:', error);
+          showError('currentEventsCarousel', 'Unable to load upcoming events');
+          showError('pastEventsCarousel', 'Unable to load past events');
+        }
+      }
+
+      function renderCurrentEvents(events) {
+        // Destroy old Swiper before replacing DOM to avoid orphaned instances
+        if (currentSwiper) { try { currentSwiper.destroy(true, true); } catch(e) {} currentSwiper = null; }
+        const container = document.getElementById('currentEventsCarousel');
+        const countBadge = document.getElementById('currentCount');
+        
+        countBadge.textContent = events.length;
+        
+        if (events.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              
+              <h3 class="empty-title">No Upcoming Events</h3>
+              <p class="empty-text">Check back soon for new workshops and training sessions!</p>
+            </div>
+          `;
+          return;
+        }
+        
+        container.innerHTML = `
+          <div class="swiper current-events-swiper">
+            <div class="swiper-wrapper">
+              ${events.map(event => createEventCard(event, 'upcoming')).join('')}
+            </div>
+            <div class="swiper-pagination"></div>
+            <div class="swiper-button-prev"></div>
+            <div class="swiper-button-next"></div>
+          </div>
+        `;
+        
+        // Initialize Swiper
+        currentSwiper = new Swiper('.current-events-swiper', {
+          slidesPerView: 1,
+          spaceBetween: 20,
+          pagination: {
+            el: '.swiper-pagination',
+            clickable: true,
+          },
+          navigation: {
+            nextEl: '.swiper-button-next',
+            prevEl: '.swiper-button-prev',
+          },
+          breakpoints: {
+            640: {
+              slidesPerView: 2,
+              spaceBetween: 20,
+            },
+            1024: {
+              slidesPerView: 3,
+              spaceBetween: 30,
+            },
+          },
+        });
+      }
+
+      function renderPastEvents(events) {
+        const container = document.getElementById('pastEventsCarousel');
+        const countBadge = document.getElementById('pastCount');
+        
+        countBadge.textContent = events.length;
+        
+        if (events.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              
+              <h3 class="empty-title">No Past Events</h3>
+              <p class="empty-text">Past events will appear here after they've concluded.</p>
+            </div>
+          `;
+          return;
+        }
+        
+        container.innerHTML = `
+          <div class="swiper past-events-swiper">
+            <div class="swiper-wrapper">
+              ${events.map(event => createEventCard(event, 'past')).join('')}
+            </div>
+            <div class="swiper-pagination"></div>
+            <div class="swiper-button-prev"></div>
+            <div class="swiper-button-next"></div>
+          </div>
+        `;
+        
+        // Initialize Swiper
+        pastSwiper = new Swiper('.past-events-swiper', {
+          slidesPerView: 1,
+          spaceBetween: 20,
+          pagination: {
+            el: '.past-events-swiper .swiper-pagination',
+            clickable: true,
+          },
+          navigation: {
+            nextEl: '.past-events-swiper .swiper-button-next',
+            prevEl: '.past-events-swiper .swiper-button-prev',
+          },
+          breakpoints: {
+            640: {
+              slidesPerView: 2,
+              spaceBetween: 20,
+            },
+            1024: {
+              slidesPerView: 3,
+              spaceBetween: 30,
+            },
+          },
+        });
+      }
+
+      function createEventCard(event, type) {
+        const eventDate = event.eventDate ? new Date(event.eventDate + 'T00:00:00') : new Date();
+        const formattedDate = formatEventDate(eventDate);
+        const isPDF = event.imageUrl && event.imageUrl.toLowerCase().includes('.pdf');
+        const hasSignupDates = event.signupDates && event.signupDates.length > 0;
+        const isRecurring = !!event.isRecurring;
+
+        return `
+          <div class="swiper-slide">
+            <div class="event-card" style="position:relative;">
+              ${event.imageUrl ?
+                (isPDF ?
+                  `<iframe src="${event.imageUrl}" style="width:100%; height:220px; display:block; border:none; overflow:hidden;"></iframe>` :
+                  `<img src="${event.imageUrl}" alt="${event.title}" style="width:100%; height:auto; display:block;">`) :
+                `<div class="event-image"></div>`
+              }
+              <div class="event-content">
+                <div class="event-date-badge">
+                  ${isRecurring ? (event._nextDateLabel || 'Multiple Schedules') : formattedDate}
+                </div>
+
+                <h3 class="event-title">${event.title}</h3>
+
+                ${event.description ?
+                  `<p class="event-description">${truncateText(event.description, 120)}</p>` :
+                  ''
+                }
+
+                <div class="event-meta">
+                  ${event.location ?
+                    `<div class="event-meta-item">
+                      ${event.location}
+                    </div>` :
+                    ''
+                  }
+
+                  <span class="event-status status-${type}" style="${isRecurring ? 'background:linear-gradient(135deg,#4DD0E1,#0891B2);color:white;' : ''}">
+                    ${isRecurring ? 'Ongoing' : (type === 'upcoming' ? 'Upcoming' : 'Completed')}
+                  </span>
+                </div>
+
+                ${type === 'upcoming' && (hasSignupDates || isRecurring) ?
+                  `<button
+                    onclick="${isRecurring ? `openRecurringSignupModal('${event.id}')` : `openSignupModal('${event.id}')`}"
+                    style="
+                      width: 100%;
+                      margin-top: 12px;
+                      padding: 12px;
+                      background: linear-gradient(135deg, #004E7C, #0066a1);
+                      color: white;
+                      border: none;
+                      border-radius: 12px;
+                      font-weight: 600;
+                      font-size: 14px;
+                      cursor: pointer;
+                      transition: transform 0.2s;
+                    "
+                    onmouseover="this.style.transform='translateY(-2px)'"
+                    onmouseout="this.style.transform='translateY(0)'"
+                  >
+                    ${isRecurring ? 'Sign Up for a Session' : 'Sign Up for This Event'}
+                  </button>` :
+                  ''
+                }
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      function formatEventDate(date) {
+        const options = { month: 'short', day: 'numeric', year: 'numeric' };
+        return date.toLocaleDateString('en-US', options);
+      }
+
+      function formatEventTime(date) {
+        const hours = date.getHours();
+        const minutes = date.getMinutes();
+        
+        if (hours === 0 && minutes === 0) {
+          return ''; // All-day event
+        }
+        
+        const options = { hour: 'numeric', minute: '2-digit', hour12: true };
+        return date.toLocaleTimeString('en-US', options);
+      }
+
+      function truncateText(text, maxLength) {
+        if (text.length <= maxLength) return text;
+        return text.substring(0, maxLength).trim() + '...';
+      }
+
+      function showError(containerId, message) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = `
+          <div class="empty-state">
+            
+            <h3 class="empty-title">Oops!</h3>
+            <p class="empty-text">${message}</p>
+          </div>
+        `;
+      }
+      
+      // Make allEvents accessible globally for signup
+      window.allEventsData = [];
+
+      // Expose renderCurrentEvents globally so loadRecurringEvents() (outside this
+      // IIFE) can call it to merge recurring cards into the carousel
+      window.renderCurrentEvents = renderCurrentEvents;
+    })();
+    
+    // ============================================
+    // CALENDAR FUNCTIONS (Global Scope)
+    // ============================================
+    let currentCalendarDate = new Date();
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    
+    // Store approved event requests separately
+    window.approvedEventRequests = [];
+    
+    // Load approved/scheduled event requests from Firebase
+    async function loadApprovedEventRequests() {
+      console.log('Starting to load approved event requests...');
+      try {
+        // Check if db is available
+        if (typeof db === 'undefined') {
+          console.error('❌ Firebase db is not defined!');
+          return;
+        }
+        
+        // Sign in anonymously to get read access
+        const auth = firebase.auth();
+        if (!auth.currentUser) {
+          console.log('Signing in anonymously for eventRequests access...');
+          await auth.signInAnonymously();
+        }
+        
+        // Get all event requests and filter client-side (avoids needing composite index)
+        const snapshot = await db.collection('eventRequests').get();
+        console.log('Total event requests in collection:', snapshot.size);
+        
+        // Log all docs for debugging
+        snapshot.docs.forEach(doc => {
+          const data = doc.data();
+          console.log('Event request:', doc.id, 'status:', data.status, 'date:', data.preferredDate);
+        });
+        
+        window.approvedEventRequests = snapshot.docs
+          .map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              title: data.eventInfo ? (data.eventInfo.substring(0, 50) + (data.eventInfo.length > 50 ? '...' : '')) : 'Community Event',
+              eventDate: data.preferredDate,
+              time: data.preferredTime,
+              description: data.eventInfo,
+              location: data.sponsor || 'TBD',
+              requesterName: data.name,
+              requesterEmail: data.email,
+              isEventRequest: true,
+              status: data.status
+            };
+          })
+          .filter(request => request.status === 'approved' || request.status === 'scheduled' || request.status === 'completed');
+        
+        console.log('Filtered approved/scheduled event requests:', window.approvedEventRequests.length);
+        console.log('Event requests:', window.approvedEventRequests);
+      } catch (error) {
+        console.error('Error loading approved event requests:', error);
+        window.approvedEventRequests = [];
+      }
+    }
+    
+    // Get all calendar items (events + approved requests)
+    function getAllCalendarItems() {
+      const regularEvents = window.allEventsData || [];
+      const approvedRequests = window.approvedEventRequests || [];
+      return [...regularEvents, ...approvedRequests];
+    }
+
+    // Compute recurring occurrences for a specific calendar month
+    function getRecurringDatesForMonth(year, month) {
+      const programs = window._recurringPrograms || {};
+      const items = [];
+      Object.values(programs).forEach(prog => {
+        (prog.schedules || []).forEach(sch => {
+          const dayNum = Number(sch.dayOfWeek);
+          if (sch.frequency === 'weekly') {
+            const firstOfMonth = new Date(year, month, 1);
+            const offset = (dayNum - firstOfMonth.getDay() + 7) % 7;
+            let d = new Date(year, month, 1 + offset);
+            while (d.getMonth() === month) {
+              items.push({
+                id: prog.id,
+                title: prog.title,
+                eventDate: d.toISOString().slice(0, 10),
+                isRecurring: true,
+                location: sch.location,
+                schedule: sch
+              });
+              d.setDate(d.getDate() + 7);
+            }
+          } else { // monthly-nth
+            const weekNum = Number(sch.weekOfMonth);
+            const firstOfMonth = new Date(year, month, 1);
+            const dayOffset = (dayNum - firstOfMonth.getDay() + 7) % 7;
+            const nth = new Date(year, month, 1 + dayOffset + (weekNum - 1) * 7);
+            if (nth.getMonth() === month) {
+              items.push({
+                id: prog.id,
+                title: prog.title,
+                eventDate: nth.toISOString().slice(0, 10),
+                isRecurring: true,
+                location: sch.location,
+                schedule: sch
+              });
+            }
+          }
+        });
+      });
+      return items;
+    }
+    
+    function renderCalendar() {
+      const year = currentCalendarDate.getFullYear();
+      const month = currentCalendarDate.getMonth();
+      // Merge regular events, approved requests, and computed recurring dates for this month
+      const allCalendarItems = [...getAllCalendarItems(), ...getRecurringDatesForMonth(year, month)];
+      
+      document.getElementById('calendarMonthYear').textContent = `${months[month]} ${year}`;
+      
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const startingDay = firstDay.getDay();
+      const totalDays = lastDay.getDate();
+      
+      const prevMonthLastDay = new Date(year, month, 0).getDate();
+      
+      let html = '';
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // Previous month days
+      for (let i = startingDay - 1; i >= 0; i--) {
+        const day = prevMonthLastDay - i;
+        html += `<div class="calendar-day other-month"><div class="day-number">${day}</div></div>`;
+      }
+      
+      // Current month days
+      for (let day = 1; day <= totalDays; day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const currentDayDate = new Date(year, month, day);
+        currentDayDate.setHours(0, 0, 0, 0);
+        
+        const isToday = currentDayDate.getTime() === today.getTime();
+        const dayEvents = getEventsForDate(dateStr, allCalendarItems);
+        
+        html += `<div class="calendar-day${isToday ? ' today' : ''}">`;
+        html += `<div class="day-number">${day}</div>`;
+        
+        if (dayEvents.length > 0) {
+          html += '<div class="day-events">';
+          const displayEvents = dayEvents.slice(0, 2);
+          displayEvents.forEach(event => {
+            const isPast = new Date(event.eventDate + 'T00:00:00') < today;
+            const isRequest = event.isEventRequest === true;
+            const isAdditional = event.isAdditionalDate === true;
+            const isRecurring = event.isRecurring === true;
+
+            // Build class string
+            let eventClasses = 'day-event';
+            if (isPast) eventClasses += ' past-event';
+            if (isAdditional) eventClasses += ' additional-date';
+            if (isRequest) eventClasses += ' event-request';
+            if (isRecurring) eventClasses += ' recurring-event';
+
+            if (isRequest) {
+              // Event requests open modal
+              html += `<div class="${eventClasses}" onclick="showCalendarEventDetail('${event.id}', true)" title="${event.title}">${event.title}</div>`;
+            } else {
+              // Regular and recurring events scroll to current events section
+              html += `<div class="${eventClasses}" onclick="scrollToCurrentEvents()" title="${event.title}">${event.title}</div>`;
+            }
+          });
+          if (dayEvents.length > 2) {
+            html += `<div class="day-event more-events" onclick="scrollToCurrentEvents()">+${dayEvents.length - 2} more</div>`;
+          }
+          html += '</div>';
+        }
+        
+        html += '</div>';
+      }
+      
+      // Next month days
+      const remainingDays = 42 - (startingDay + totalDays);
+      for (let day = 1; day <= remainingDays; day++) {
+        html += `<div class="calendar-day other-month"><div class="day-number">${day}</div></div>`;
+      }
+      
+      document.getElementById('calendarDays').innerHTML = html;
+    }
+    
+    function getEventsForDate(dateStr, allCalendarItems) {
+      const results = [];
+      
+      allCalendarItems.forEach(item => {
+        // Check primary eventDate
+        if (item.eventDate && item.eventDate === dateStr) {
+          results.push({ ...item, isAdditionalDate: false });
+        }
+        
+        // Check signupDates array for additional dates
+        if (item.signupDates && Array.isArray(item.signupDates)) {
+          item.signupDates.forEach(signupDateStr => {
+            // Parse the signup date string
+            const parsedDate = parseSignupDateString(signupDateStr);
+            
+            // Debug logging (can remove later)
+            if (parsedDate) {
+              console.log(`Parsed "${signupDateStr}" → ${parsedDate}`);
+            }
+            
+            if (parsedDate === dateStr) {
+              // Only add if not already added as primary date
+              const alreadyAdded = results.find(r => r.id === item.id && !r.isAdditionalDate);
+              if (!alreadyAdded) {
+                results.push({ ...item, isAdditionalDate: true, displayDate: signupDateStr });
+              }
+            }
+          });
+        }
+      });
+      
+      return results;
+    }
+    
+    // Helper function to parse signup date strings into "YYYY-MM-DD"
+    // Handles formats like:
+    // - "OAHU. Monday January 12th 3pm - 5pm"
+    // - "OAHU, Thursday January 15th 8am - 11am"
+    // - "Hawai'i, Thursday January 8th 9am - 11am. **HILO**"
+    // - "October 11, 2025 - 2:00 p.m."
+    function parseSignupDateString(dateStr) {
+      if (!dateStr) return null;
+      
+      const months = {
+        'january': 0, 'february': 1, 'march': 2, 'april': 3,
+        'may': 4, 'june': 5, 'july': 6, 'august': 7,
+        'september': 8, 'october': 9, 'november': 10, 'december': 11
+      };
+      
+      // Get current year for dates without year specified
+      const currentYear = new Date().getFullYear();
+      const currentMonth = new Date().getMonth();
+      
+      // Try to find month and day in the string
+      // Match patterns like "January 12th", "January 12", "January 8th"
+      const monthDayMatch = dateStr.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?\b/i);
+      
+      if (monthDayMatch) {
+        const monthName = monthDayMatch[1].toLowerCase();
+        const day = parseInt(monthDayMatch[2], 10);
+        const monthNum = months[monthName];
+        
+        if (monthNum !== undefined && day >= 1 && day <= 31) {
+          // Check if year is specified in the string
+          const yearMatch = dateStr.match(/\b(20\d{2})\b/);
+          let year = currentYear;
+          
+          if (yearMatch) {
+            year = parseInt(yearMatch[1], 10);
+          } else {
+            // If no year specified, assume current year
+            // But if the month is before current month, assume next year
+            if (monthNum < currentMonth) {
+              year = currentYear + 1;
+            }
+          }
+          
+          const monthStr = String(monthNum + 1).padStart(2, '0');
+          const dayStr = String(day).padStart(2, '0');
+          return `${year}-${monthStr}-${dayStr}`;
+        }
+      }
+      
+      // Fallback: Try "Month Day, Year" format (e.g., "October 11, 2025")
+      const fullDateMatch = dateStr.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2}),?\s+(\d{4})\b/i);
+      if (fullDateMatch) {
+        const monthName = fullDateMatch[1].toLowerCase();
+        const day = parseInt(fullDateMatch[2], 10);
+        const year = parseInt(fullDateMatch[3], 10);
+        const monthNum = months[monthName];
+        
+        if (monthNum !== undefined) {
+          const monthStr = String(monthNum + 1).padStart(2, '0');
+          const dayStr = String(day).padStart(2, '0');
+          return `${year}-${monthStr}-${dayStr}`;
+        }
+      }
+      
+      // Last resort: try native Date parsing
+      try {
+        // Clean up the string - remove location prefixes and time ranges
+        let cleanDate = dateStr
+          .replace(/^[A-Za-z']+[.,]\s*/i, '') // Remove location prefix like "OAHU. " or "Hawai'i, "
+          .replace(/\d{1,2}(?:am|pm)\s*-\s*\d{1,2}(?:am|pm)/i, '') // Remove time range
+          .replace(/\*\*.*?\*\*/g, '') // Remove **HILO** markers
+          .trim();
+        
+        const parsed = new Date(cleanDate);
+        if (!isNaN(parsed.getTime())) {
+          const year = parsed.getFullYear();
+          const month = String(parsed.getMonth() + 1).padStart(2, '0');
+          const dayParsed = String(parsed.getDate()).padStart(2, '0');
+          return `${year}-${month}-${dayParsed}`;
+        }
+      } catch (e) {
+        // Ignore parsing errors
+      }
+      
+      console.log('⚠️ Could not parse signup date:', dateStr);
+      return null;
+    }
+    
+    function showCalendarEventDetail(eventId, isEventRequest = false) {
+      let event;
+      
+      if (isEventRequest) {
+        // Find in approved event requests
+        event = window.approvedEventRequests.find(e => e.id === eventId);
+      } else {
+        // Find in regular events
+        event = window.allEventsData.find(e => e.id === eventId);
+      }
+      
+      if (!event) return;
+      
+      const eventDate = new Date(event.eventDate + 'T00:00:00');
+      const formattedDate = eventDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+      
+      document.getElementById('eventDetailTitle').textContent = isEventRequest ? 'Community Event Request' : event.title;
+      
+      let bodyHtml = '';
+      
+      // For regular events, show the image/poster
+      if (!isEventRequest && event.imageUrl && !event.imageUrl.toLowerCase().includes('.pdf')) {
+        bodyHtml += `<img src="${event.imageUrl}" alt="${event.title}" class="event-detail-image" style="cursor: pointer;" onclick="window.open('${event.imageUrl}', '_blank')">`;
+      }
+      
+      // Event request badge
+      if (isEventRequest) {
+        bodyHtml += `
+          <div style="display: inline-block; padding: 0.5rem 1rem; background: linear-gradient(135deg, #4DD0E1, #26C6DA); color: #004E7C; border-radius: 20px; font-size: 0.85rem; font-weight: 600; margin-bottom: 1rem;">
+            Community Requested Event
+          </div>
+        `;
+      }
+      
+      // Title for event requests (since we use a generic modal title)
+      if (isEventRequest && event.description) {
+        bodyHtml += `
+          <div class="event-detail-item" style="margin-bottom: 0.5rem;">
+            <div style="font-weight: 700; color: #004E7C; font-size: 1.1rem;">${event.description.substring(0, 100)}${event.description.length > 100 ? '...' : ''}</div>
+          </div>
+        `;
+      }
+      
+      bodyHtml += `
+        <div class="event-detail-item"><div><strong>Date:</strong> ${formattedDate}</div>
+        </div>
+      `;
+      
+      if (event.time) {
+        bodyHtml += `
+          <div class="event-detail-item"><div><strong>Time:</strong> ${event.time}</div>
+          </div>
+        `;
+      }
+      
+      if (event.location) {
+        bodyHtml += `
+          <div class="event-detail-item"><div><strong>Location:</strong> ${event.location}</div>
+          </div>
+        `;
+      }
+      
+      // Show full description for regular events
+      if (!isEventRequest && event.description) {
+        bodyHtml += `
+          <div class="event-detail-item" style="margin-top: 1rem;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>
+            <div>${event.description}</div>
+          </div>
+        `;
+      }
+      
+      // Show requester info for event requests
+      if (isEventRequest) {
+        bodyHtml += `
+          <div class="event-detail-item" style="margin-top: 1rem; padding: 0.75rem; background: #f0fdfa; border-radius: 8px;">
+            <div style="font-size: 0.9rem; color: #666;">
+              <strong>Requested by:</strong> ${event.requesterName || 'Community Member'}
+            </div>
+          </div>
+        `;
+      }
+      
+      // For regular events - add sign up or registration buttons
+      if (!isEventRequest) {
+        if (event.enableSignup) {
+          bodyHtml += `
+            <div style="margin-top: 1.5rem; text-align: center;">
+              <button onclick="closeEventDetailModal(); openSignupModal('${event.id}');" style="display: inline-block; padding: 0.75rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border: none; border-radius: 50px; font-weight: 600; cursor: pointer;">Sign Up →</button>
+            </div>
+          `;
+        } else if (event.registrationUrl) {
+          bodyHtml += `
+            <div style="margin-top: 1.5rem; text-align: center;">
+              <a href="${event.registrationUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 0.75rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; text-decoration: none; border-radius: 50px; font-weight: 600;">Register Now →</a>
+            </div>
+          `;
+        }
+        
+        // Add "View Full Poster" button for events with images
+        if (event.imageUrl) {
+          const isPDF = event.imageUrl.toLowerCase().includes('.pdf');
+          bodyHtml += `
+            <div style="margin-top: ${event.enableSignup || event.registrationUrl ? '0.75rem' : '1.5rem'}; text-align: center;">
+              <a href="${event.imageUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 0.5rem 1.5rem; background: white; color: #004E7C; text-decoration: none; border-radius: 50px; font-weight: 600; border: 2px solid #004E7C; font-size: 0.9rem;">
+                ${isPDF ? 'View Event PDF' : 'View Full Poster'}
+              </a>
+            </div>
+          `;
+        }
+      }
+      
+      document.getElementById('eventDetailBody').innerHTML = bodyHtml;
+      document.getElementById('eventDetailModal').classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+    
+    function closeEventDetailModal(e) {
+      if (e && e.target !== e.currentTarget) return;
+      document.getElementById('eventDetailModal').classList.remove('active');
+      document.body.style.overflow = '';
+    }
+    
+    function previousMonth() {
+      currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
+      renderCalendar();
+    }
+    
+    function nextMonth() {
+      currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
+      renderCalendar();
+    }
+    
+    function goToToday() {
+      currentCalendarDate = new Date();
+      renderCalendar();
+    }
+    
+    function scrollToCurrentEvents() {
+      const currentEventsSection = document.getElementById('currentEventsSection');
+      if (currentEventsSection) {
+        currentEventsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+    
+    // Close modal on escape key
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeEventDetailModal();
+        closeRequestEventModal();
+      }
+    });
+    
+    // ============================================
+    // REQUEST EVENT MODAL FUNCTIONS
+    // ============================================
+    function openRequestEventModal() {
+      // Set minimum date to today
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('requestDate').setAttribute('min', today);
+      
+      document.getElementById('requestEventModal').classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+    
+    function closeRequestEventModal(e) {
+      if (e && e.target !== e.currentTarget) return;
+      document.getElementById('requestEventModal').classList.remove('active');
+      document.body.style.overflow = '';
+      
+      // Reset form
+      document.getElementById('requestEventForm').reset();
+      document.getElementById('requestEventFormContent').innerHTML = document.getElementById('requestEventFormContent').innerHTML;
+    }
+    
+    async function submitEventRequest(e) {
+      e.preventDefault();
+      
+      const formData = {
+        name: document.getElementById('requestName').value,
+        email: document.getElementById('requestEmail').value,
+        phone: document.getElementById('requestPhone').value || '',
+        preferredDate: document.getElementById('requestDate').value,
+        preferredTime: document.getElementById('requestTime').value,
+        eventInfo: document.getElementById('requestEventInfo').value,
+        sponsor: document.getElementById('requestSponsor').value || '',
+        status: 'pending',
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      
+      // Show loading
+      document.getElementById('requestEventFormContent').innerHTML = `
+        <div style="text-align: center; padding: 3rem;">
+          
+          <p style="color: var(--primary-blue); font-weight: 600;">Submitting your request...</p>
+        </div>
+      `;
+      
+      try {
+        await db.collection('eventRequests').add(formData);
+        
+        // Track analytics
+        try {
+          await db.collection('analytics').add({
+            eventType: 'event_request',
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            page: window.location.pathname
+          });
+          
+          if (typeof gtag !== 'undefined') {
+            gtag('event', 'event_request', {
+              event_category: 'engagement',
+              event_label: 'Event Request Submitted'
+            });
+          }
+        } catch (analyticsError) {
+          console.error('Analytics error:', analyticsError);
+        }
+        
+        // Show success
+        document.getElementById('requestEventFormContent').innerHTML = `
+          <div style="text-align: center; padding: 3rem;">
+            <h3 style="color: var(--primary-blue); font-size: 1.5rem; margin-bottom: 0.75rem;">Mahalo!</h3>
+            <p style="color: var(--text-light); font-size: 1rem;">Your event request has been submitted. We'll review it and get back to you soon!</p>
+          </div>
+        `;
+        
+        setTimeout(() => closeRequestEventModal(), 3000);
+        
+      } catch (error) {
+        console.error('Error submitting event request:', error);
+        document.getElementById('requestEventFormContent').innerHTML = `
+          <div style="text-align: center; padding: 3rem;">
+            
+            <h3 style="color: #c2185b; font-size: 1.5rem; margin-bottom: 0.75rem;">Oops!</h3>
+            <p style="color: var(--text-light); font-size: 1rem; margin-bottom: 1.5rem;">There was an error submitting your request. Please try again.</p>
+            <button onclick="closeRequestEventModal()" style="padding: 0.75rem 2rem; background: var(--primary-blue); color: white; border: none; border-radius: 50px; font-weight: 600; cursor: pointer;">Close</button>
+          </div>
+        `;
+      }
+    }
+    // ============================================
+    
+    // URL conversion function (global scope for modal access)
+    function convertUrlsToLinks(text) {
+      // Regular expression to match URLs (http, https, www)
+      const urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)/gi;
+      return text.replace(urlRegex, function(url) {
+        let href = url;
+        // Add https:// if URL starts with www
+        if (url.startsWith('www.')) {
+          href = 'https://' + url;
+        }
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color: #0066a1; text-decoration: underline;">${url}</a>`;
+      });
+    }
+    
+    // Signup Modal Functions
+    let signupFormData = {
+      name: '',
+      email: '',
+      phone: '',
+      preferredContact: '',
+      selectedDates: [],
+      customAnswers: []
+    };
+    
+    function openSignupModal(eventId) {
+      const event = window.allEventsData.find(e => e.id === eventId);
+      if (!event) return;
+      
+      // Reset form
+      signupFormData = {
+        name: '',
+        email: '',
+        phone: '',
+        preferredContact: '',
+        selectedDates: [],
+        customAnswers: event.customQuestions ? event.customQuestions.map(() => '') : []
+      };
+      
+      // Build modal HTML
+      const modalHTML = `
+        <div id="signupModal" style="
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.8);
+          z-index: 10000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          overflow-y: auto;
+        " onclick="closeSignupModal(event)">
+          <div style="
+            background: white;
+            border-radius: 24px;
+            padding: 32px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+            border: 3px solid #004E7C;
+          " onclick="event.stopPropagation()">
+            <button onclick="closeSignupModal()" style="
+              position: absolute;
+              top: 16px;
+              right: 16px;
+              background: transparent;
+              border: none;
+              color: #004E7C;
+              cursor: pointer;
+              font-size: 24px;
+              padding: 8px;
+            ">✕</button>
+            
+            <div id="signupFormContent">
+              <h2 style="color: #004E7C; font-size: 24px; font-weight: bold; margin-bottom: 8px; padding-right: 40px;">
+                Sign Up for ${event.title}
+              </h2>
+              <p style="color: #666; font-size: 14px; margin-bottom: 24px;">
+                * Indicates required question
+              </p>
+              
+              <form id="signupForm" onsubmit="submitSignup(event, '${eventId}')">
+                <div style="margin-bottom: 20px;">
+                  <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
+                    Full Name *
+                  </label>
+                  <input type="text" required id="signupName" placeholder="Your answer" style="
+                    width: 100%;
+                    padding: 12px;
+                    border: 1px solid #D1D5DB;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    text-transform: capitalize;
+                  ">
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                  <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
+                    Email Address *
+                  </label>
+                  <input type="email" required id="signupEmail" placeholder="Your answer" style="
+                    width: 100%;
+                    padding: 12px;
+                    border: 1px solid #D1D5DB;
+                    border-radius: 8px;
+                    font-size: 14px;
+                  ">
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                  <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
+                    Phone Number (for calls or texts) *
+                  </label>
+                  <input type="tel" required id="signupPhone" placeholder="(808) 555-1234" style="
+                    width: 100%;
+                    padding: 12px;
+                    border: 1px solid #D1D5DB;
+                    border-radius: 8px;
+                    font-size: 14px;
+                  ">
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                  <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
+                    Preferred Method of Contact *
+                  </label>
+                  <div style="display: flex; flex-direction: column; gap: 8px;">
+                    ${['Email', 'Phone call', 'Text'].map(method => `
+                      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="radio" name="preferredContact" value="${method}" required style="width: 18px; height: 18px; cursor: pointer;">
+                        <span style="font-size: 14px; color: #374151;">${method}</span>
+                      </label>
+                    `).join('')}
+                  </div>
+                </div>
+                
+                ${event.signupDates && event.signupDates.length > 0 ? `
+                  <div style="margin-bottom: 20px;">
+                    <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
+                      Select the dates you're available to attend *
+                    </label>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                      ${event.signupDates.map((date, idx) => {
+                        // Parse the date to check if it's expired
+                        const parsedDate = parseSignupDateString(date);
+                        const isExpired = parsedDate ? (new Date(parsedDate + 'T23:59:59') < new Date()) : false;
+                        
+                        return `
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                          <input type="checkbox" class="signup-date-checkbox" value="${date}" style="width: 18px; height: 18px; cursor: pointer;">
+                          <span style="font-size: 14px; color: #374151; ${isExpired ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${date}</span>
+                        </label>
+                      `;
+                      }).join('')}
+                    </div>
+                    <p id="dateError" style="color: #DC2626; font-size: 12px; margin-top: 4px; display: none;">
+                      Please select at least one date
+                    </p>
+                  </div>
+                ` : ''}
+                
+                ${event.customQuestions && event.customQuestions.length > 0 ? 
+                  event.customQuestions.map((question, idx) => `
+                    <div style="margin-bottom: 20px;">
+                      <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px; line-height: 1.6;">
+                        ${convertUrlsToLinks(question)}
+                      </label>
+                      <textarea 
+                        class="custom-answer"
+                        data-index="${idx}"
+                        placeholder="Your answer"
+                        rows="3"
+                        style="
+                          width: 100%;
+                          padding: 12px;
+                          border: 1px solid #D1D5DB;
+                          border-radius: 8px;
+                          font-size: 14px;
+                          font-family: inherit;
+                          resize: vertical;
+                        "
+                      ></textarea>
+                    </div>
+                  `).join('') 
+                : ''}
+                
+                <!-- Special Accommodations -->
+                <div style="margin-bottom: 20px;">
+                  <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
+                    Any additional comments or special accommodations we should know about?
+                  </label>
+                  <textarea 
+                    id="special-accommodations"
+                    placeholder="Your answer"
+                    rows="4"
+                    style="
+                      width: 100%;
+                      padding: 12px;
+                      border: 1px solid #D1D5DB;
+                      border-radius: 8px;
+                      font-size: 14px;
+                      font-family: inherit;
+                      resize: vertical;
+                    "
+                  ></textarea>
+                </div>
+
+                <!-- Participation Type (shown only if event has showGroupField enabled) -->
+                ${event.showGroupField !== false ? `
+                <div style="margin-bottom: 20px;">
+                  <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
+                    Are you participating as an individual or with a group? *
+                  </label>
+                  <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                      <input type="radio" name="participation-type" value="Individual" required
+                        onchange="toggleGroupFields(false)" style="width: 18px; height: 18px; cursor: pointer;">
+                      <span style="font-size: 14px; color: #374151;">Individual</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                      <input type="radio" name="participation-type" value="Group" required
+                        onchange="toggleGroupFields(true)" style="width: 18px; height: 18px; cursor: pointer;">
+                      <span style="font-size: 14px; color: #374151;">Group</span>
+                    </label>
+                  </div>
+                </div>
+                <div id="group-fields" style="display: none; margin-bottom: 20px; padding-left: 26px;">
+                  <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
+                    What is your group name and number of participants? *
+                  </label>
+                  <div style="display: flex; gap: 12px;">
+                    <input type="text" id="group-name" placeholder="Group name"
+                      style="flex: 2; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">
+                    <input type="number" id="group-size" min="1" placeholder="# of participants"
+                      style="flex: 1; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">
+                  </div>
+                </div>
+                ` : ''}
+                
+                <button type="submit" style="
+                  width: 100%;
+                  padding: 16px;
+                  background: linear-gradient(135deg, #004E7C, #0066a1);
+                  color: white;
+                  border: none;
+                  border-radius: 12px;
+                  font-weight: bold;
+                  font-size: 16px;
+                  cursor: pointer;
+                  transition: transform 0.2s;
+                "
+                onmouseover="this.style.transform='translateY(-2px)'"
+                onmouseout="this.style.transform='translateY(0)'">
+                  Submit Signup
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      document.body.insertAdjacentHTML('beforeend', modalHTML);
+    }
+    
+    function closeSignupModal(event) {
+      if (event && event.target !== event.currentTarget) return;
+      const modal = document.getElementById('signupModal');
+      if (modal) modal.remove();
+    }
+    
+    function toggleGroupFields(show) {
+      const groupFields = document.getElementById('group-fields');
+      const groupName = document.getElementById('group-name');
+      const groupSize = document.getElementById('group-size');
+      
+      if (show) {
+        groupFields.style.display = 'block';
+        groupName.setAttribute('required', 'required');
+        groupSize.setAttribute('required', 'required');
+      } else {
+        groupFields.style.display = 'none';
+        groupName.removeAttribute('required');
+        groupSize.removeAttribute('required');
+        groupName.value = '';
+        groupSize.value = '';
+      }
+    }
+    
+    async function submitSignup(event, eventId) {
+      event.preventDefault();
+      
+      const eventData = window.allEventsData.find(e => e.id === eventId);
+      if (!eventData) return;
+      
+      // Get form values
+      const formData = {
+        name: document.getElementById('signupName').value,
+        email: document.getElementById('signupEmail').value,
+        phone: document.getElementById('signupPhone').value,
+        preferredContact: document.querySelector('input[name="preferredContact"]:checked')?.value || '',
+        selectedDates: [],
+        customAnswers: [],
+        additionalComments: document.getElementById('special-accommodations').value,
+        // Falls back to 'Individual' when the question is hidden (showGroupField: false)
+        participationType: document.querySelector('input[name="participation-type"]:checked')?.value || 'Individual'
+      };
+
+      // Add group fields if Group is selected (inputs only exist when showGroupField is true)
+      if (formData.participationType === 'Group') {
+        formData.groupName = document.getElementById('group-name')?.value || '';
+        formData.groupSize = document.getElementById('group-size')?.value || '';
+      }
+
+      // Get selected dates
+      const dateCheckboxes = document.querySelectorAll('.signup-date-checkbox:checked');
+      formData.selectedDates = Array.from(dateCheckboxes).map(cb => cb.value);
+      
+      if (eventData.signupDates && eventData.signupDates.length > 0 && formData.selectedDates.length === 0) {
+        document.getElementById('dateError').style.display = 'block';
+        return;
+      }
+      
+      // Get custom answers
+      const customAnswers = document.querySelectorAll('.custom-answer');
+      formData.customAnswers = Array.from(customAnswers).map(ta => ta.value);
+      
+      // Show loading
+      document.getElementById('signupFormContent').innerHTML = `
+        <div style="text-align: center; padding: 40px;">
+          
+          <p style="color: #004E7C; font-weight: 600;">Submitting...</p>
+        </div>
+      `;
+      
+      try {
+        await db.collection('events').doc(eventId).collection('signups').add({
+          ...formData,
+          status: 'pending',
+          timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+          eventTitle: eventData.title
+        });
+        
+        // Track analytics
+        try {
+          await db.collection('analytics').add({
+            eventType: 'event_signup',
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            page: window.location.pathname,
+            eventId: eventId,
+            eventTitle: eventData.title
+          });
+          
+          if (typeof gtag !== 'undefined') {
+            gtag('event', 'event_signup', {
+              event_category: 'engagement',
+              event_label: eventData.title
+            });
+          }
+        } catch (analyticsError) {
+          console.error('Analytics error:', analyticsError);
+        }
+        
+        // Show success
+        document.getElementById('signupFormContent').innerHTML = `
+          <div style="text-align: center; padding: 40px;">
+            <h2 style="color: #004E7C; font-size: 24px; font-weight: bold; margin-bottom: 12px;">
+              Mahalo!
+            </h2>
+            <p style="color: #666; font-size: 16px;">
+              Your signup has been received. We'll contact you soon!
+            </p>
+          </div>
+        `;
+        
+        setTimeout(() => closeSignupModal(), 2000);
+      } catch (error) {
+        console.error('Error submitting signup:', error);
+        alert('There was an error submitting your signup. Please try again.');
+        closeSignupModal();
+      }
+    }
+
+    // ===== RECURRING EVENTS =====
+
+    function fmt12(time24) {
+      if (!time24) return '';
+      const [h, m] = time24.split(':').map(Number);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const hour = h % 12 || 12;
+      return `${hour}:${String(m).padStart(2,'0')} ${ampm}`;
+    }
+
+    function getOccurrencesInNext30Days(schedules) {
+      const today = new Date(); today.setHours(0,0,0,0);
+      const end   = new Date(today); end.setDate(end.getDate() + 30);
+      const results = [];
+      (schedules || []).forEach(sch => {
+        if (sch.frequency === 'weekly') {
+          let d = new Date(today);
+          const diff = (sch.dayOfWeek - d.getDay() + 7) % 7;
+          d.setDate(d.getDate() + diff);
+          while (d <= end) {
+            results.push({ date: new Date(d), schedule: sch });
+            d.setDate(d.getDate() + 7);
+          }
+        } else { // monthly-nth
+          for (let mo = 0; mo <= 2; mo++) {
+            const ref = new Date(today.getFullYear(), today.getMonth() + mo, 1);
+            const firstDow = ref.getDay();
+            const dayOffset = (sch.dayOfWeek - firstDow + 7) % 7;
+            const nth = new Date(ref.getFullYear(), ref.getMonth(),
+                                 1 + dayOffset + (sch.weekOfMonth - 1) * 7);
+            if (nth.getMonth() === ref.getMonth() && nth >= today && nth <= end)
+              results.push({ date: nth, schedule: sch });
+          }
+        }
+      });
+      results.sort((a, b) => a.date - b.date);
+      return results;
+    }
+
+    function formatOccurrence(occ) {
+      const d = occ.date;
+      const label = d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+      const venue = occ.schedule.venue ? ` \u2013 ${occ.schedule.venue}` : '';
+      const timeRange = `${fmt12(occ.schedule.startTime)} \u2013 ${fmt12(occ.schedule.endTime)}`;
+      const key = `${d.toISOString().slice(0,10)}|${occ.schedule.location}${venue}|${timeRange}`;
+      const display = `${label} \u00b7 ${occ.schedule.location}${venue} \u00b7 ${timeRange}`;
+      return { key, display };
+    }
+
+    async function loadRecurringEvents() {
+      try {
+        const snapshot = await db.collection('recurringEvents').where('active','==',true).get();
+        if (snapshot.empty) return;
+        window._recurringPrograms = {};
+        const syntheticEvents = [];
+        snapshot.docs.forEach(doc => {
+          const data = { id: doc.id, ...doc.data() };
+          window._recurringPrograms[doc.id] = data;
+          const occurrences = getOccurrencesInNext30Days(data.schedules);
+          if (occurrences.length === 0) return;
+          const nextOcc = occurrences[0];
+          const nextDateLabel = nextOcc.date.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+          const locations = [...new Set((data.schedules || []).map(s => s.location))].join(', ');
+          syntheticEvents.push({
+            id: doc.id,
+            title: data.title,
+            description: data.description,
+            imageUrl: data.imageUrl,
+            eventDate: nextOcc.date.toISOString().slice(0,10),
+            location: locations,
+            isRecurring: true,
+            _nextDateLabel: `Next: ${nextDateLabel}`,
+          });
+        });
+        if (syntheticEvents.length === 0) return;
+        // Recurring events always first in the carousel
+        const combined = [...syntheticEvents, ...(window._upcomingEvents || [])];
+        renderCurrentEvents(combined);
+        // Also refresh calendar so recurring dots appear on the correct days
+        if (typeof renderCalendar === 'function') renderCalendar();
+      } catch (err) {
+        console.error('Error loading recurring events:', err);
+      }
+    }
+
+    function openRecurringSignupModal(programId) {
+      const program = window._recurringPrograms && window._recurringPrograms[programId];
+      if (!program) return;
+      const occurrences = getOccurrencesInNext30Days(program.schedules);
+      const occFormatted = occurrences.map(formatOccurrence);
+
+      const modalHTML = `
+        <div id="signupModal" style="
+          position:fixed;top:0;left:0;width:100%;height:100%;
+          background:rgba(0,0,0,0.8);z-index:10000;
+          display:flex;align-items:center;justify-content:center;
+          padding:20px;overflow-y:auto;
+        " onclick="closeSignupModal(event)">
+          <div style="
+            background:white;border-radius:24px;padding:32px;
+            max-width:600px;width:100%;max-height:90vh;overflow-y:auto;
+            position:relative;border:3px solid #004E7C;
+          " onclick="event.stopPropagation()">
+            <button onclick="closeSignupModal()" style="
+              position:absolute;top:16px;right:16px;background:transparent;
+              border:none;color:#004E7C;cursor:pointer;font-size:24px;padding:8px;
+            ">\u2715</button>
+            <div id="signupFormContent">
+              <span style="display:inline-block;background:linear-gradient(135deg,#4DD0E1,#0891B2);color:white;padding:4px 12px;border-radius:50px;font-size:12px;font-weight:700;margin-bottom:12px;">Ongoing Program</span>
+              <h2 style="color:#004E7C;font-size:24px;font-weight:bold;margin-bottom:8px;padding-right:40px;">
+                Sign Up for ${program.title}
+              </h2>
+              <p style="color:#666;font-size:14px;margin-bottom:24px;">
+                Select one or more upcoming sessions below. * Indicates required question.
+              </p>
+              <form id="signupForm" onsubmit="submitRecurringSignup(event,'${programId}')">
+                <div style="margin-bottom:20px;">
+                  <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Full Name *</label>
+                  <input type="text" required id="signupName" placeholder="Your answer" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;text-transform:capitalize;">
+                </div>
+                <div style="margin-bottom:20px;">
+                  <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Email Address *</label>
+                  <input type="email" required id="signupEmail" placeholder="Your answer" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
+                </div>
+                <div style="margin-bottom:20px;">
+                  <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Phone Number (for calls or texts) *</label>
+                  <input type="tel" required id="signupPhone" placeholder="(808) 555-1234" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
+                </div>
+                <div style="margin-bottom:20px;">
+                  <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Preferred Method of Contact *</label>
+                  <div style="display:flex;flex-direction:column;gap:8px;">
+                    ${['Email','Phone call','Text'].map(m => `
+                      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                        <input type="radio" name="preferredContact" value="${m}" required style="width:18px;height:18px;">
+                        <span style="font-size:14px;color:#374151;">${m}</span>
+                      </label>`).join('')}
+                  </div>
+                </div>
+                <div style="margin-bottom:20px;">
+                  <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">
+                    Select the Sessions You'd Like to Attend *
+                  </label>
+                  <div style="display:flex;flex-direction:column;gap:8px;">
+                    ${occFormatted.length > 0 ? occFormatted.map(occ => `
+                      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:10px 12px;background:#f0f9ff;border-radius:8px;border:1px solid #e0f2fe;">
+                        <input type="checkbox" class="signup-date-checkbox" value="${occ.key}" style="width:18px;height:18px;cursor:pointer;flex-shrink:0;margin-top:2px;">
+                        <span style="font-size:14px;color:#374151;line-height:1.5;">${occ.display}</span>
+                      </label>`).join('') :
+                      '<p style="color:#666;font-size:14px;">No sessions available in the next 30 days.</p>'
+                    }
+                  </div>
+                  <p id="dateError" style="color:#DC2626;font-size:12px;margin-top:4px;display:none;">Please select at least one session</p>
+                </div>
+                <!-- Student Information -->
+                <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:18px;margin-bottom:24px;">
+                  <h4 style="color:#0369a1;margin:0 0 16px;font-size:15px;font-weight:700;">Student Information</h4>
+                  <div style="display:flex;flex-wrap:wrap;gap:14px;">
+                    <div style="flex:1;min-width:220px;">
+                      <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:6px;font-size:13px;">Student's Name *</label>
+                      <input type="text" required id="studentName" placeholder="First and last name" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                    </div>
+                    <div style="flex:1;min-width:220px;">
+                      <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:6px;font-size:13px;">Date of Birth *</label>
+                      <input type="date" required id="studentDOB" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                    </div>
+                    <div style="flex:1;min-width:220px;">
+                      <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:6px;font-size:13px;">ID # *</label>
+                      <input type="text" required id="studentId" placeholder="Student ID number" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                    </div>
+                    <div style="flex:1;min-width:220px;">
+                      <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:6px;font-size:13px;">Grade *</label>
+                      <input type="text" required id="studentGrade" placeholder="e.g., 5th" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                    </div>
+                    <div style="flex:1;min-width:220px;">
+                      <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:6px;font-size:13px;">Current School *</label>
+                      <input type="text" required id="studentSchool" placeholder="School name" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                    </div>
+                    <div style="flex:1;min-width:220px;">
+                      <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:6px;font-size:13px;">IEP Annual Review Date</label>
+                      <input type="date" id="iepReviewDate" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                    </div>
+                    <div style="flex:1;min-width:220px;">
+                      <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:6px;font-size:13px;">Reevaluation Date</label>
+                      <input type="date" id="reevalDate" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                    </div>
+                    <div style="flex:1;min-width:220px;">
+                      <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:6px;font-size:13px;">Care Coordinator</label>
+                      <input type="text" id="careCoordinator" placeholder="Coordinator's name" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                    </div>
+                  </div>
+                </div>
+                ${program.customQuestions && program.customQuestions.length > 0 ?
+                  program.customQuestions.map((q, i) => `
+                    <div style="margin-bottom:20px;">
+                      <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">${q}</label>
+                      <textarea class="custom-answer" data-index="${i}" placeholder="Your answer" rows="3" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;"></textarea>
+                    </div>`).join('') : ''}
+                <div style="margin-bottom:20px;">
+                  <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Any additional comments or special accommodations?</label>
+                  <textarea id="special-accommodations" placeholder="Your answer" rows="4" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;"></textarea>
+                </div>
+                ${program.showGroupField ? `
+                <div style="margin-bottom:20px;">
+                  <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Are you participating as an individual or with a group? *</label>
+                  <div style="display:flex;flex-direction:column;gap:8px;">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                      <input type="radio" name="participation-type" value="Individual" required onchange="toggleGroupFields(false)" style="width:18px;height:18px;">
+                      <span style="font-size:14px;color:#374151;">Individual</span>
+                    </label>
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                      <input type="radio" name="participation-type" value="Group" required onchange="toggleGroupFields(true)" style="width:18px;height:18px;">
+                      <span style="font-size:14px;color:#374151;">Group</span>
+                    </label>
+                  </div>
+                </div>
+                <div id="group-fields" style="display:none;margin-bottom:20px;padding-left:26px;">
+                  <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Group name and number of participants? *</label>
+                  <div style="display:flex;gap:12px;">
+                    <input type="text" id="group-name" placeholder="Group name" style="flex:2;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
+                    <input type="number" id="group-size" min="1" placeholder="# of participants" style="flex:1;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
+                  </div>
+                </div>
+                ` : ''}
+                <button type="submit" style="width:100%;padding:16px;background:linear-gradient(135deg,#004E7C,#0066a1);color:white;border:none;border-radius:12px;font-weight:bold;font-size:16px;cursor:pointer;transition:transform 0.2s;"
+                  onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                  Submit Signup
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.insertAdjacentHTML('beforeend', modalHTML);
+    }
+
+    async function submitRecurringSignup(event, programId) {
+      event.preventDefault();
+      const program = window._recurringPrograms && window._recurringPrograms[programId];
+      if (!program) return;
+
+      const participationTypeEl = document.querySelector('input[name="participation-type"]:checked');
+      const formData = {
+        name: document.getElementById('signupName').value,
+        email: document.getElementById('signupEmail').value,
+        phone: document.getElementById('signupPhone').value,
+        preferredContact: document.querySelector('input[name="preferredContact"]:checked')?.value || '',
+        participationType: participationTypeEl?.value || 'Individual',
+        selectedSessions: [],
+        customAnswers: [],
+        additionalComments: document.getElementById('special-accommodations').value,
+        // Student information fields
+        studentName:     document.getElementById('studentName').value.trim(),
+        studentDOB:      document.getElementById('studentDOB').value,
+        studentId:       document.getElementById('studentId').value.trim(),
+        studentGrade:    document.getElementById('studentGrade').value.trim(),
+        studentSchool:   document.getElementById('studentSchool').value.trim(),
+        iepReviewDate:   document.getElementById('iepReviewDate').value,
+        reevalDate:      document.getElementById('reevalDate').value,
+        careCoordinator: document.getElementById('careCoordinator').value.trim()
+      };
+
+      if (formData.participationType === 'Group') {
+        formData.groupName = document.getElementById('group-name').value;
+        formData.groupSize = document.getElementById('group-size').value;
+      }
+
+      const checked = document.querySelectorAll('.signup-date-checkbox:checked');
+      formData.selectedSessions = Array.from(checked).map(cb => cb.value);
+
+      if (formData.selectedSessions.length === 0) {
+        document.getElementById('dateError').style.display = 'block';
+        return;
+      }
+
+      const customAnswerEls = document.querySelectorAll('.custom-answer');
+      formData.customAnswers = Array.from(customAnswerEls).map(ta => ta.value);
+
+      document.getElementById('signupFormContent').innerHTML = `
+        <div style="text-align:center;padding:40px;">
+          <p style="color:#004E7C;font-weight:600;">Submitting...</p>
+        </div>
+      `;
+
+      try {
+        await db.collection('recurringEvents').doc(programId).collection('signups').add({
+          ...formData,
+          status: 'pending',
+          archived: false,
+          timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+          eventTitle: program.title
+        });
+
+        try {
+          await db.collection('analytics').add({
+            eventType: 'recurring_signup',
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            page: window.location.pathname,
+            programId,
+            eventTitle: program.title
+          });
+        } catch(e) { /* analytics non-critical */ }
+
+        document.getElementById('signupFormContent').innerHTML = `
+          <div style="text-align:center;padding:40px;">
+            <h2 style="color:#004E7C;font-size:24px;font-weight:bold;margin-bottom:12px;">Mahalo!</h2>
+            <p style="color:#666;font-size:16px;">Your signup has been received. We'll contact you soon!</p>
+          </div>
+        `;
+        setTimeout(() => closeSignupModal(), 2000);
+      } catch (error) {
+        console.error('Error submitting recurring signup:', error);
+        alert('There was an error submitting your signup. Please try again.');
+        closeSignupModal();
+      }
+    }
+
+    function toggleMenu() {
+      document.getElementById('navLinks').classList.toggle('active');
+    }
+    
+    document.querySelectorAll('.nav-links a').forEach(link => {
+      link.addEventListener('click', () => {
+        document.getElementById('navLinks').classList.remove('active');
+      });
+    });
+
+    function openIframeModal(title, url) {
+      // Special handling for Facebook
+      if (url.includes('facebook.com')) {
+        const modal = document.getElementById('iframeModal');
+        const titleEl = document.getElementById('iframeTitle');
+        const frame = document.getElementById('iframeFrame');
+        
+        titleEl.textContent = title;
+        frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">Join Our Facebook Community</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other Hawaii families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">Open Parent Talk Cafe →</a></div>';
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      } else {
+        const modal = document.getElementById('iframeModal');
+        const titleEl = document.getElementById('iframeTitle');
+        const frame = document.getElementById('iframeFrame');
+        
+        titleEl.textContent = title;
+        frame.src = url;
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      }
+    }
+    
+    function closeIframeModal(event) {
+      if (event && event.target !== event.currentTarget && !event.target.classList.contains('close-iframe')) {
+        return;
+      }
+      
+      const modal = document.getElementById('iframeModal');
+      const frameEl = document.getElementById('iframeFrame');
+      
+      modal.classList.remove('active');
+      
+      // Reset iframe
+      if (frameEl.tagName === 'IFRAME') {
+        frameEl.src = '';
+      } else {
+        frameEl.outerHTML = '<iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>';
+      }
+      
+      document.body.style.overflow = 'auto';
+    }
+  </script>
+  
+  <!-- Calendar Section -->
+  <section class="calendar-section">
+    <div class="calendar-container">
+      <div class="section-header" style="justify-content: center; margin-bottom: 1.5rem;">
+        <h2 class="section-title" id="events-calendarTitle">Event Calendar</h2>
+      </div>
+      <div class="calendar-header">
+        <div class="calendar-nav">
+          <button onclick="previousMonth()">← Prev</button>
+          <button class="today-btn" onclick="goToToday()">Today</button>
+          <button onclick="nextMonth()">Next →</button>
+        </div>
+        <div class="calendar-month-year" id="calendarMonthYear">Loading...</div>
+        <button onclick="openRequestEventModal()" style="background: linear-gradient(135deg, #4DD0E1, #26C6DA); border: none; color: var(--primary-blue); padding: 0.5rem 1.25rem; border-radius: 50px; font-weight: 600; cursor: pointer; transition: all 0.3s; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 1.2rem;">+</span> Request an Event
+        </button>
+      </div>
+      <div class="calendar-grid">
+        <div class="calendar-weekdays">
+          <div class="weekday">Sun</div>
+          <div class="weekday">Mon</div>
+          <div class="weekday">Tue</div>
+          <div class="weekday">Wed</div>
+          <div class="weekday">Thu</div>
+          <div class="weekday">Fri</div>
+          <div class="weekday">Sat</div>
+        </div>
+        <div class="calendar-days" id="calendarDays">
+          <div class="loading">
+            <div class="spinner"></div>
+            <p>Loading calendar...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+    <!-- CTA Banner -->
+    <section class="cta-banner">
+      <svg class="cta-banner-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
+      <h2 id="events-ctaTitle">Can't Find What You're Looking For?</h2>
+      <p id="events-ctaSubtitle">Contact us to learn about upcoming workshops and community events.</p>
+      <a href="contact.html" class="cta-btn" id="events-ctaButton">Get in Touch</a>
+    </section>
+
+  <!-- Footer Container - Auto-loaded -->
+  <div id="footer-container"></div>
+
+  <!-- Request Event Modal -->
+  <div id="requestEventModal" class="event-detail-modal" onclick="closeRequestEventModal(event)">
+    <div class="event-detail-content" style="max-width: 550px;" onclick="event.stopPropagation()">
+      <div class="event-detail-header">
+        <h3>Request an Event</h3>
+        <button class="close-event-detail" onclick="closeRequestEventModal()">&times;</button>
+      </div>
+      <div class="event-detail-body" id="requestEventFormContent">
+        <p style="color: var(--text-light); margin-bottom: 1.5rem;">Have an idea for a workshop or training? Let us know and we'll work to make it happen!</p>
+        
+        <form id="requestEventForm" onsubmit="submitEventRequest(event)">
+          <!-- Contact Name -->
+          <div style="margin-bottom: 1.25rem;">
+            <label style="display: block; color: var(--primary-blue); font-weight: 600; margin-bottom: 0.5rem; font-size: 0.95rem;">
+              Your Name *
+            </label>
+            <input type="text" id="requestName" required placeholder="Your full name" style="
+              width: 100%;
+              padding: 12px;
+              border: 1px solid #D1D5DB;
+              border-radius: 8px;
+              font-size: 14px;
+              font-family: inherit;
+            ">
+          </div>
+          
+          <!-- Contact Email -->
+          <div style="margin-bottom: 1.25rem;">
+            <label style="display: block; color: var(--primary-blue); font-weight: 600; margin-bottom: 0.5rem; font-size: 0.95rem;">
+              Email Address *
+            </label>
+            <input type="email" id="requestEmail" required placeholder="your@email.com" style="
+              width: 100%;
+              padding: 12px;
+              border: 1px solid #D1D5DB;
+              border-radius: 8px;
+              font-size: 14px;
+              font-family: inherit;
+            ">
+          </div>
+          
+          <!-- Phone (Optional) -->
+          <div style="margin-bottom: 1.25rem;">
+            <label style="display: block; color: var(--primary-blue); font-weight: 600; margin-bottom: 0.5rem; font-size: 0.95rem;">
+              Phone Number
+            </label>
+            <input type="tel" id="requestPhone" placeholder="(808) 555-1234" style="
+              width: 100%;
+              padding: 12px;
+              border: 1px solid #D1D5DB;
+              border-radius: 8px;
+              font-size: 14px;
+              font-family: inherit;
+            ">
+          </div>
+          
+          <!-- Preferred Date -->
+          <div style="margin-bottom: 1.25rem;">
+            <label style="display: block; color: var(--primary-blue); font-weight: 600; margin-bottom: 0.5rem; font-size: 0.95rem;">
+              Preferred Date *
+            </label>
+            <input type="date" id="requestDate" required style="
+              width: 100%;
+              padding: 12px;
+              border: 1px solid #D1D5DB;
+              border-radius: 8px;
+              font-size: 14px;
+              font-family: inherit;
+            ">
+          </div>
+          
+          <!-- Preferred Time -->
+          <div style="margin-bottom: 1.25rem;">
+            <label style="display: block; color: var(--primary-blue); font-weight: 600; margin-bottom: 0.5rem; font-size: 0.95rem;">
+              Preferred Time *
+            </label>
+            <input type="time" id="requestTime" required style="
+              width: 100%;
+              padding: 12px;
+              border: 1px solid #D1D5DB;
+              border-radius: 8px;
+              font-size: 14px;
+              font-family: inherit;
+            ">
+          </div>
+          
+          <!-- Event Info -->
+          <div style="margin-bottom: 1.25rem;">
+            <label style="display: block; color: var(--primary-blue); font-weight: 600; margin-bottom: 0.5rem; font-size: 0.95rem;">
+              Event Information *
+            </label>
+            <textarea id="requestEventInfo" required placeholder="Describe the event, workshop, or training you'd like to see. Include topics, target audience, and any specific needs." rows="4" style="
+              width: 100%;
+              padding: 12px;
+              border: 1px solid #D1D5DB;
+              border-radius: 8px;
+              font-size: 14px;
+              font-family: inherit;
+              resize: vertical;
+            "></textarea>
+          </div>
+          
+          <!-- Sponsor/Organization -->
+          <div style="margin-bottom: 1.5rem;">
+            <label style="display: block; color: var(--primary-blue); font-weight: 600; margin-bottom: 0.5rem; font-size: 0.95rem;">
+              Sponsoring Organization
+            </label>
+            <input type="text" id="requestSponsor" placeholder="School, organization, or group name (if applicable)" style="
+              width: 100%;
+              padding: 12px;
+              border: 1px solid #D1D5DB;
+              border-radius: 8px;
+              font-size: 14px;
+              font-family: inherit;
+            ">
+          </div>
+          
+          <button type="submit" style="
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #004E7C, #0066a1);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s;
+          " onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+            Submit Request
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Event Detail Modal for Calendar -->
+  <div id="eventDetailModal" class="event-detail-modal" onclick="closeEventDetailModal(event)">
+    <div class="event-detail-content" onclick="event.stopPropagation()">
+      <div class="event-detail-header">
+        <h3 id="eventDetailTitle">Event Title</h3>
+        <button class="close-event-detail" onclick="closeEventDetailModal()">&times;</button>
+      </div>
+      <div class="event-detail-body" id="eventDetailBody">
+        <!-- Event details will be inserted here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- External Link Modal -->
+  <div id="iframeModal" class="iframe-modal" onclick="closeIframeModal(event)">
+    <div class="iframe-content" onclick="event.stopPropagation()">
+      <div class="iframe-header">
+        <h3 id="iframeTitle">Loading...</h3>
+        <button class="close-iframe" onclick="closeIframeModal()">&times;</button>
+      </div>
+      <iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>
+    </div>
+  </div>
+
+    <script src="modal.js"></script>
+</body>
+</html>

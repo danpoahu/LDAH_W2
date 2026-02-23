@@ -1,0 +1,1576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Who We Are - LDAH</title>
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+    :root {
+        --ocean-deep: #0891B2;
+        --ocean-mid: #06B6D4;
+        --ocean-light: #22D3EE;
+        --sunset-coral: #F97316;
+        --sunset-warm: #FB923C;
+        --sunset-light: #FED7AA;
+        --sand: #FEF3C7;
+        --sand-light: #FFFBEB;
+        --palm: #65A30D;
+        --plumeria: #FBBF24;
+        --white: #FFFFFF;
+        --text-dark: #1E293B;
+        --text-soft: #64748B;
+        --bg-warm: #FEFDFB;
+        --primary-blue: #0891B2;
+        --light-blue: #06B6D4;
+        --accent-teal: #22D3EE;
+        --bg-light: #FFFBEB;
+        --text-light: #64748B;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+        font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        color: var(--text-dark);
+        line-height: 1.7;
+        background: var(--bg-warm);
+        overflow-x: hidden;
+    }
+
+    h1, h2, h3 {
+        font-family: 'Outfit', sans-serif;
+        font-weight: 600;
+        line-height: 1.3;
+    }
+
+    /* Navigation */
+    nav { 
+        position: fixed; 
+        top: 0; 
+        left: 0; 
+        right: 0; 
+        z-index: 1000; 
+        background: rgba(255, 255, 255, 0.97);
+        backdrop-filter: blur(12px);
+        box-shadow: 0 1px 20px rgba(8, 145, 178, 0.08);
+        border-bottom: 1px solid rgba(8, 145, 178, 0.1);
+    }
+    
+    .nav-content { 
+        max-width: 1280px; 
+        margin: 0 auto; 
+        padding: 1rem 2rem; 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center; 
+    }
+    
+    .logo-container { 
+        display: flex; 
+        align-items: center; 
+        gap: 1rem; 
+        text-decoration: none; 
+    }
+    
+    .logo-img { width: 88px; height: 88px; }
+    
+    .nav-links { 
+        display: flex; 
+        gap: 0.5rem; 
+        list-style: none; 
+        align-items: center; 
+    }
+    
+    .nav-links a { 
+        text-decoration: none; 
+        color: var(--text-dark); 
+        font-weight: 500; 
+        padding: 0.6rem 1.1rem;
+        border-radius: 8px;
+        transition: all 0.25s ease;
+    }
+    
+    .nav-links a:hover { background: var(--sand-light); color: var(--ocean-deep); }
+    .nav-links a.active { background: var(--sand); color: var(--ocean-deep); }
+
+    .hamburger { display: none; flex-direction: column; cursor: pointer; padding: 0.5rem; }
+    .hamburger span { width: 25px; height: 3px; background: var(--ocean-deep); margin: 3px 0; transition: 0.3s; border-radius: 2px; }
+
+    @media (max-width: 768px) {
+        .nav-links { position: fixed; top: 108px; left: 0; right: 0; background: white; 
+            flex-direction: column; padding: 2rem; box-shadow: 0 4px 20px rgba(8, 145, 178, 0.1); 
+            gap: 0.5rem; transform: translateY(-100%); opacity: 0; 
+            transition: transform 0.3s, opacity 0.3s; pointer-events: none; 
+        }
+        .nav-links.active { transform: translateY(0); opacity: 1; pointer-events: all; }
+        .hamburger { display: flex; }
+        .logo-img { width: 78px; height: 78px; }
+    }
+
+    /* Hero Section */
+    .hero-section { margin-top: 108px;
+        padding: 2rem;
+        background: linear-gradient(135deg, #0891B2 0%, #06B6D4 100%);
+        color: white;
+        text-align: center;
+        position: relative;
+        height: 180px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .hero-section-islands {
+        position: absolute; left: 75%; top: 50%;
+        transform: translate(-50%, -50%) scaleY(-1);
+        width: 49%; max-width: 420px;
+        color: white; opacity: 0.15; z-index: 0;
+    }
+
+    .hero-section > * {
+        position: relative;
+        z-index: 1;
+    }
+
+    .hero-section > svg {
+        position: absolute;
+        z-index: 0;
+    }
+
+    .hero-section h1 {
+        font-size: 2.2rem;
+        margin-bottom: 0.5rem;
+        font-family: 'Outfit', sans-serif;
+        font-weight: 600;
+        letter-spacing: -0.5px;
+    }
+
+    .hero-section p {
+        font-size: 1.05rem;
+        max-width: 550px;
+        margin: 0 auto;
+        line-height: 1.5;
+        opacity: 0.95;
+    }
+
+    .highlight { color: var(--accent-teal); }
+
+    /* Content Wrapper */
+    .content-wrapper {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 60px 20px;
+    }
+
+    /* Section Header */
+    .section-header {
+        text-align: center;
+        margin-bottom: 40px;
+    }
+
+    .section-header h2 {
+        color: var(--primary-blue);
+        font-size: 2rem;
+        margin-bottom: 12px;
+    }
+
+    .section-header p {
+        color: var(--text-light);
+        font-size: 1.1rem;
+        max-width: 700px;
+        margin: 0 auto;
+    }
+
+    .section-badge {
+        display: inline-block;
+        padding: 0.5rem 1.5rem;
+        background: rgba(77, 208, 225, 0.1);
+        color: var(--primary-blue);
+        border-radius: 50px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+
+    /* Mission/Vision/Values Cards */
+    .cards-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 2rem;
+        margin-bottom: 60px;
+    }
+
+    .info-card {
+        background: var(--bg-light);
+        border-radius: 20px;
+        padding: 2.5rem;
+        transition: all 0.3s;
+    }
+
+    .info-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 8px 32px rgba(0, 78, 124, 0.2);
+    }
+
+    .info-card .card-icon {
+        width: 120px;
+        height: 80px;
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 0 auto 1.5rem;
+    }
+
+    .info-card .card-icon img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .info-card h3 {
+        font-size: 1.5rem;
+        color: var(--primary-blue);
+        margin-bottom: 1rem;
+    }
+
+    .info-card p {
+        color: var(--text-light);
+        line-height: 1.8;
+    }
+
+    .info-card ul {
+        list-style: none;
+        margin-top: 1rem;
+    }
+
+    .info-card ul li {
+        padding: 0.5rem 0;
+        color: var(--text-light);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .info-card ul li::before {
+        content: '✓';
+        color: var(--accent-teal);
+        font-weight: bold;
+    }
+
+    /* Team Cards */
+    .team-cards-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 2rem;
+        margin-top: 40px;
+    }
+
+    .team-card {
+        background: white;
+        border-radius: 20px;
+        padding: 2.5rem;
+        text-align: center;
+        box-shadow: 0 4px 20px rgba(0, 78, 124, 0.12);
+        transition: all 0.3s;
+        cursor: pointer;
+    }
+
+    .team-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 12px 40px rgba(0, 78, 124, 0.25);
+    }
+
+    .team-card .card-icon {
+        width: 140px;
+        height: 95px;
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 0 auto 1.5rem;
+    }
+
+    .team-card .card-icon img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .team-card h3 {
+        font-size: 1.4rem;
+        color: var(--primary-blue);
+        margin-bottom: 0.75rem;
+    }
+
+    .team-card p {
+        color: var(--text-light);
+        margin-bottom: 1.5rem;
+        line-height: 1.6;
+    }
+
+    .team-card .view-btn {
+        display: inline-block;
+        padding: 0.75rem 1.5rem;
+        background: linear-gradient(135deg, #004E7C, #0066a1);
+        color: white;
+        border-radius: 50px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.3s;
+    }
+
+    .team-card .view-btn:hover {
+        transform: scale(1.05);
+        box-shadow: 0 4px 16px rgba(0, 78, 124, 0.3);
+    }
+
+    /* Photo Gallery */
+    .gallery-section {
+        background: var(--bg-light);
+        padding: 60px 20px;
+    }
+
+    .gallery-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 1rem;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    .gallery-item {
+        position: relative;
+        aspect-ratio: 1;
+        border-radius: 12px;
+        overflow: hidden;
+        cursor: pointer;
+        transition: transform 0.3s;
+    }
+
+    .gallery-item:hover {
+        transform: scale(1.03);
+    }
+
+    .gallery-item img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.3s;
+    }
+
+    .gallery-item:hover img {
+        transform: scale(1.1);
+    }
+
+    /* CTA Section */
+    .cta-section {
+        background: linear-gradient(135deg, #F97316 0%, #FB923C 100%);
+        color: white;
+        padding: 1rem 2rem;
+        text-align: center;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .cta-section-islands {
+        position: absolute; right: 8%; bottom: 15%;
+        transform: scaleY(-1);
+        width: 12%; color: white; opacity: 0.1;
+    }
+
+    .cta-section > * {
+        position: relative;
+        z-index: 1;
+    }
+
+    .cta-section > svg {
+        position: absolute;
+        z-index: 0;
+    }
+
+    .cta-section h2 {
+        font-size: 1.6rem;
+        margin-bottom: 0.4rem;
+    }
+
+    .cta-section p {
+        font-size: 0.95rem;
+        max-width: 550px;
+        margin: 0 auto 0.75rem;
+        opacity: 0.95;
+        line-height: 1.4;
+    }
+
+    .cta-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .btn-primary {
+        padding: 0.75rem 1.5rem;
+        background: white;
+        color: #F97316;
+        border-radius: 10px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.25s;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .btn-secondary {
+        padding: 0.75rem 1.5rem;
+        background: transparent;
+        color: white;
+        border: 2px solid white;
+        border-radius: 10px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.3s;
+    }
+
+    .btn-secondary:hover {
+        background: white;
+        color: #F97316;
+    }
+
+    /* Footer */
+    footer { 
+        background: var(--text-dark); color: white; 
+        padding: 1.75rem 2rem 1rem; position: relative; overflow: hidden;
+    }
+    
+    .footer-islands {
+        position: absolute; right: -5%; bottom: -20%;
+        width: 40%; color: white; opacity: 0.03; transform: scaleY(-1);
+    }
+    
+    .footer-content { 
+        max-width: 1200px; margin: 0 auto; 
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+        gap: 1.4rem; margin-bottom: 1rem; position: relative; z-index: 1;
+    }
+    
+    .footer-section h3 { color: var(--plumeria); margin-bottom: 0.7rem; font-family: 'Outfit', sans-serif; font-size: 1rem; }
+    .footer-section p { color: rgba(255, 255, 255, 0.7); line-height: 1.5; font-size: 0.9rem; }
+    .footer-section a { color: rgba(255, 255, 255, 0.7); text-decoration: none; display: block; margin-bottom: 0.35rem; transition: color 0.25s ease; font-size: 0.9rem; }
+    .footer-section a:hover { color: var(--plumeria); }
+    
+    .footer-bottom { 
+        max-width: 1200px; margin: 0 auto; padding-top: 1rem; 
+        border-top: 1px solid rgba(255, 255, 255, 0.1); 
+        text-align: center; color: rgba(255, 255, 255, 0.5); position: relative; z-index: 1;
+        font-size: 0.85rem;
+    }
+    .footer-bottom p { margin: 0.25rem 0; }
+
+    /* Modal Styles */
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 3000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.8);
+        animation: fadeIn 0.3s;
+    }
+
+    .modal.active {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 20px;
+        width: 95%;
+        max-width: 900px;
+        max-height: 90vh;
+        position: relative;
+        animation: slideUp 0.3s;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .modal-header {
+        background: linear-gradient(135deg, #004E7C, #0066a1);
+        color: white;
+        padding: 1.5rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-shrink: 0;
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        font-size: 1.5rem;
+    }
+
+    .close-modal {
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        color: white;
+        font-size: 2rem;
+        cursor: pointer;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.3s;
+    }
+
+    .close-modal:hover {
+        background: rgba(255, 255, 255, 0.3);
+    }
+
+    .modal-body {
+        padding: 2rem;
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    /* Team Member Grid in Modal */
+    .team-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .team-member {
+        background: var(--bg-light);
+        border-radius: 16px;
+        padding: 1.5rem;
+        text-align: center;
+        transition: all 0.3s;
+        display: flex;
+        flex-direction: column;
+        min-height: 280px;
+    }
+
+    .team-member:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(0, 78, 124, 0.15);
+    }
+
+    .team-member img {
+        width: 130px;
+        height: 90px;
+        border-radius: 10px;
+        object-fit: cover;
+        margin: 0 auto 1rem;
+        border: 3px solid var(--accent-teal);
+    }
+
+    .team-member .member-icon {
+        width: 130px;
+        height: 90px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #e0e0e0, #f5f5f5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.5rem;
+        margin: 0 auto 1rem;
+        border: 3px solid var(--accent-teal);
+    }
+
+    .team-member h4 {
+        color: var(--primary-blue);
+        font-size: 1.1rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .team-member .role {
+        color: var(--text-light);
+        font-size: 0.9rem;
+        flex: 1;
+    }
+
+    .team-member .contact-links {
+        display: flex;
+        gap: 0.75rem;
+        justify-content: center;
+        margin-top: auto;
+        padding-top: 1rem;
+    }
+
+    .team-member .contact-links a {
+        padding: 0.4rem 0.8rem;
+        background: var(--primary-blue);
+        color: white;
+        border-radius: 20px;
+        text-decoration: none;
+        font-size: 0.8rem;
+        transition: all 0.3s;
+    }
+
+    .team-member .contact-links a:hover {
+        background: var(--light-blue);
+        transform: scale(1.05);
+    }
+
+    /* Board member style */
+    .board-member {
+        background: var(--bg-light);
+        border-radius: 16px;
+        padding: 1.5rem;
+        text-align: center;
+        transition: all 0.3s;
+    }
+
+    .board-member:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(0, 78, 124, 0.15);
+    }
+
+    .board-member img {
+        width: 130px;
+        height: 90px;
+        border-radius: 10px;
+        object-fit: cover;
+        margin: 0 auto 1rem;
+        border: 3px solid var(--accent-teal);
+    }
+
+    .board-member .member-icon {
+        width: 130px;
+        height: 90px;
+        background: linear-gradient(135deg, #004E7C, #0066a1);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1rem;
+        font-size: 2.5rem;
+    }
+
+    .board-member h4 {
+        color: var(--primary-blue);
+        font-size: 1.1rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .board-member .role {
+        color: var(--text-light);
+        font-size: 0.9rem;
+    }
+
+    /* Iframe Modal */
+    .iframe-modal {
+        display: none;
+        position: fixed;
+        z-index: 4000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.8);
+        animation: fadeIn 0.3s;
+    }
+
+    .iframe-modal.active {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .iframe-content {
+        background: white;
+        border-radius: 20px;
+        width: 95%;
+        max-width: 1200px;
+        height: 90vh;
+        max-height: 800px;
+        position: relative;
+        animation: slideUp 0.3s;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .iframe-header {
+        background: linear-gradient(135deg, #004E7C, #0066a1);
+        color: white;
+        padding: 1.5rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-shrink: 0;
+    }
+
+    .iframe-header h3 {
+        margin: 0;
+        font-size: 1.5rem;
+    }
+
+    .close-iframe {
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        color: white;
+        font-size: 2rem;
+        cursor: pointer;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.3s;
+    }
+
+    .close-iframe:hover {
+        background: rgba(255, 255, 255, 0.3);
+    }
+
+    .iframe-frame {
+        width: 100%;
+        flex: 1;
+        border: none;
+    }
+
+    /* Lightbox for gallery with carousel */
+    .lightbox {
+        display: none;
+        position: fixed;
+        z-index: 4000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.95);
+        animation: fadeIn 0.3s;
+    }
+
+    .lightbox.active {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .lightbox img {
+        max-width: 85%;
+        max-height: 85%;
+        border-radius: 8px;
+        animation: slideUp 0.3s;
+    }
+
+    .lightbox .close-lightbox {
+        position: absolute;
+        top: 20px;
+        right: 30px;
+        color: white;
+        font-size: 3rem;
+        cursor: pointer;
+        transition: transform 0.3s;
+        z-index: 4001;
+    }
+
+    .lightbox .close-lightbox:hover {
+        transform: scale(1.2);
+    }
+
+    .lightbox-prev,
+    .lightbox-next {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgba(255, 255, 255, 0.15);
+        color: white;
+        border: none;
+        font-size: 2.5rem;
+        padding: 1rem 1.25rem;
+        cursor: pointer;
+        border-radius: 50%;
+        transition: all 0.3s;
+        z-index: 4001;
+    }
+
+    .lightbox-prev:hover,
+    .lightbox-next:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-50%) scale(1.1);
+    }
+
+    .lightbox-prev {
+        left: 20px;
+    }
+
+    .lightbox-next {
+        right: 20px;
+    }
+
+    .lightbox-counter {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: white;
+        font-size: 1rem;
+        background: rgba(0, 0, 0, 0.5);
+        padding: 0.5rem 1.5rem;
+        border-radius: 20px;
+    }
+
+    @media (max-width: 768px) {
+        .lightbox-prev,
+        .lightbox-next {
+            font-size: 1.5rem;
+            padding: 0.75rem 1rem;
+        }
+        
+        .lightbox-prev {
+            left: 10px;
+        }
+        
+        .lightbox-next {
+            right: 10px;
+        }
+        
+        .lightbox img {
+            max-width: 95%;
+            max-height: 70%;
+        }
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    @keyframes slideUp {
+        from { transform: translateY(50px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
+
+    @media (max-width: 768px) {
+        .hero-section h1 { font-size: 1.8rem; }
+        .hero-section p { font-size: 0.95rem; }
+        .hero-section-islands { display: none; }
+        .section-header h2 { font-size: 1.6rem; }
+        .cta-section h2 { font-size: 1.8rem; }
+        .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+    }
+    </style>
+
+    <!-- Hawaii Islands SVG Definition -->
+    <svg style="display: none;">
+        <defs>
+            <g id="hawaii-islands" fill="currentColor">
+                <path d="M542 2864 c-7 -13 -13 -14 -31 -5 -17 9 -27 9 -49 -2 -15 -8 -39 -19 -53 -25 -16 -6 -29 -21 -33 -37 -4 -15 -16 -40 -28 -55 -18 -25 -19 -31 -7 -56 8 -16 28 -35 44 -43 17 -9 47 -26 67 -39 23 -15 44 -21 57 -17 11 3 30 1 41 -5 29 -16 55 -5 90 40 26 33 29 42 20 65 -8 20 -7 32 5 48 41 58 -7 147 -79 147 -22 0 -38 -6 -44 -16z"/>
+                <path d="M107 2654 c-7 -14 -24 -31 -37 -37 -14 -7 -30 -23 -36 -36 -6 -12 -17 -28 -23 -34 -15 -15 -14 -33 5 -51 19 -20 34 -12 34 18 0 28 34 66 59 66 14 0 20 9 23 33 3 17 8 40 13 50 12 28 -22 21 -38 -9z"/>
+                <path d="M1599 2408 c-8 -7 -27 -30 -42 -50 -31 -42 -57 -54 -87 -38 -16 9 -25 8 -35 0 -12 -10 -10 -21 15 -67 17 -31 30 -60 30 -66 0 -6 7 -18 16 -28 9 -10 19 -33 23 -51 6 -30 10 -33 46 -36 22 -1 47 2 55 7 12 8 12 12 -3 29 -19 21 -23 37 -7 27 6 -4 18 -1 26 6 20 16 28 5 14 -20 -14 -28 -6 -39 24 -34 18 4 29 -2 41 -20 15 -23 22 -25 78 -24 76 2 82 16 37 82 -17 25 -29 49 -25 54 3 5 1 12 -5 16 -5 3 -10 -1 -10 -9 0 -19 -23 -21 -38 -3 -6 6 -13 29 -17 50 -4 20 -15 47 -25 60 -9 12 -20 34 -23 48 -8 32 -44 79 -61 79 -7 0 -19 -6 -27 -12z"/>
+                <path d="M2144 1984 c4 -9 -2 -23 -13 -32 -11 -10 -21 -26 -23 -37 -3 -19 3 -20 89 -22 65 -1 112 -8 158 -23 37 -12 76 -19 90 -16 33 8 85 54 85 75 0 26 -44 43 -77 30 -21 -8 -42 -7 -83 4 -53 15 -184 37 -216 37 -11 0 -14 -5 -10 -16z"/>
+                <path d="M2565 1797 c-17 -32 -17 -36 -1 -84 22 -65 44 -85 105 -91 56 -5 64 -17 54 -89 -5 -37 -2 -48 17 -68 30 -32 98 -35 125 -5 12 13 31 20 57 20 43 0 110 37 128 70 23 43 -26 121 -66 106 -7 -3 -18 3 -24 14 -6 11 -16 20 -22 20 -6 0 -28 16 -49 35 -43 39 -63 42 -116 20 -55 -23 -70 -19 -93 25 -35 68 -86 80 -115 27z"/>
+                <path d="M2313 1740 c-29 -12 -29 -27 -2 -56 12 -13 24 -37 28 -55 8 -38 29 -54 62 -46 37 10 46 19 53 54 14 60 -80 128 -141 103z"/>
+                <path d="M2576 1427 c-31 -26 -36 -35 -25 -44 9 -7 30 -8 54 -4 38 6 40 8 40 41 0 46 -20 48 -69 7z"/>
+                <path d="M3122 1158 c-21 -21 -13 -74 19 -134 21 -40 28 -66 24 -83 -9 -36 -62 -109 -84 -116 -27 -8 -71 -87 -71 -125 0 -33 15 -69 36 -85 7 -5 18 -28 23 -50 6 -22 20 -72 32 -112 22 -69 22 -77 10 -176 -11 -94 -11 -107 5 -140 12 -25 26 -38 46 -43 17 -3 50 -26 76 -50 25 -24 47 -44 49 -44 1 0 11 17 22 38 11 21 27 44 36 52 9 7 22 28 30 46 7 18 32 46 55 61 23 15 62 45 87 66 39 32 50 37 79 31 28 -5 46 1 114 41 85 50 170 135 170 170 0 10 -23 43 -51 71 -32 32 -54 64 -58 85 -5 26 -13 35 -38 41 -37 10 -48 34 -38 85 6 33 3 38 -58 97 -85 82 -219 166 -264 166 -26 0 -53 14 -115 60 -80 59 -113 71 -136 48z"/>
+            </g>
+        </defs>
+    </svg>
+</head>
+<body>
+    <!-- Header Container -->
+    <div id="header-container"></div>
+
+    <!-- Hero Section -->
+    <section class="hero-section">
+        <svg class="hero-section-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
+        <h1 id="whoweare-heroTitle">Who We Are</h1>
+        <p id="whoweare-heroSubtitle">Leadership in Disabilities & Achievement of Hawai'i is a 501(c)(3) non-profit founded in 1968 by parents of children with learning disabilities.</p>
+    </section>
+
+    <!-- Mission, Vision, Values Cards -->
+    <div class="content-wrapper">
+        <div class="section-header">
+            <span class="section-badge">Our Foundation</span>
+            <h2 id="whoweare-foundationTitle">Mission, Vision & Values</h2>
+            <p id="whoweare-foundationSubtitle">Guiding principles that drive our commitment to families and children with disabilities</p>
+        </div>
+
+        <div class="cards-grid">
+            <div class="info-card">
+                <div class="card-icon"><img id="whoweare-missionPhoto" src="https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a?w=200&h=200&fit=crop" alt="Mission"></div>
+                <h3 id="whoweare-missionTitle">Our Mission</h3>
+                <p id="whoweare-missionText">To enhance educational, work and life opportunities for children and youth with or at risk of disabilities by empowering them and their families through screening, identification, information, training, and mentoring, and by public outreach and advocacy.</p>
+            </div>
+
+            <div class="info-card">
+                <div class="card-icon"><img id="whoweare-visionPhoto" src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=200&h=200&fit=crop" alt="Vision"></div>
+                <h3 id="whoweare-visionTitle">Our Vision</h3>
+                <p id="whoweare-visionText">Individuals have choice and access to educational, work and life opportunities to be successful regardless of their disabilities.</p>
+            </div>
+
+            <div class="info-card">
+                <div class="card-icon"><img id="whoweare-valuesPhoto" src="https://images.unsplash.com/photo-1609220136736-443140cffec6?w=200&h=200&fit=crop" alt="Values"></div>
+                <h3 id="whoweare-valuesTitle">Core Values</h3>
+                <ul id="whoweare-valuesList">
+                    <li>Advocating for the Rights of Children with Disabilities</li>
+                    <li>Putting Families First</li>
+                    <li>Creating Partnerships</li>
+                    <li>Improving Communication</li>
+                    <li>Implementing Best-Practices & Innovation</li>
+                    <li>Ensuring Accountability</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- About PTI -->
+        <div class="info-card" style="max-width: 900px; margin: 0 auto 60px;">
+            <div class="card-icon"><img id="whoweare-ptiPhoto" src="https://images.unsplash.com/photo-1577896851231-70ef18881754?w=200&h=200&fit=crop" alt="Parent Training"></div>
+            <h3 id="whoweare-ptiTitle">Parent Training & Information Center</h3>
+            <p id="whoweare-ptiText1">Through a contract with the United States Department of Education, Office of Special Education Programs (OSEP), LDAH has operated and served as The Parent Training and Information Center (PTI) for the State of Hawaii since 1990. As the PTI, LDAH provides education and training to parents, children, professionals and community members.</p>
+            <p style="margin-top: 1rem;" id="whoweare-ptiText2">The majority of Parent Center staff and board are parents of children with disabilities, bringing personal experience and expertise when working with families.</p>
+        </div>
+
+        <!-- Meet Our People -->
+        <div class="section-header">
+            <span class="section-badge">Meet Our People</span>
+            <h2 id="whoweare-teamTitle">The Team Behind LDAH</h2>
+            <p id="whoweare-teamSubtitle">Dedicated professionals and volunteers committed to supporting families</p>
+        </div>
+
+        <div class="team-cards-grid">
+            <div class="team-card" onclick="openTeamModal()">
+                <div class="card-icon"><img id="whoweare-teamPhoto" src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=200&h=200&fit=crop" alt="Our Team"></div>
+                <h3 id="whoweare-teamCardTitle">Our Team</h3>
+                <p id="whoweare-teamCardText">Meet the dedicated staff members who work directly with families every day to provide support, training, and advocacy services.</p>
+                <span class="view-btn">View Team →</span>
+            </div>
+
+            <div class="team-card" onclick="openBoardModal()">
+                <div class="card-icon"><img id="whoweare-boardPhoto" src="https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200&h=200&fit=crop" alt="Board of Directors"></div>
+                <h3 id="whoweare-boardCardTitle">Board of Directors</h3>
+                <p id="whoweare-boardCardText">Our volunteer board provides leadership and governance to ensure LDAH fulfills its mission to serve Hawaii's families.</p>
+                <span class="view-btn">View Board →</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Photo Gallery Section -->
+    <section class="gallery-section">
+        <div class="content-wrapper" style="padding-top: 0; padding-bottom: 0;">
+            <div class="section-header">
+                <span class="section-badge">Our Community</span>
+                <h2 id="whoweare-galleryTitle">LDAH in Action</h2>
+                <p id="whoweare-gallerySubtitle">Moments from our events, workshops, and community outreach</p>
+            </div>
+        </div>
+
+        <div class="gallery-grid" id="galleryGrid">
+            <!-- Gallery items will be loaded from Firebase -->
+            <div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: var(--text-light);">
+                Loading gallery...
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <svg class="cta-section-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
+        <h2 id="whoweare-ctaTitle">Have Questions? We're Here to Help</h2>
+        <p id="whoweare-ctaSubtitle">Our team is ready to assist you with information about special education, advocacy support, and navigating services for your child.</p>
+        <div class="cta-buttons">
+            <a href="contact.html" class="btn-primary">Contact Us</a>
+            <a href="volunteer.html" class="btn-secondary">Join Our Team</a>
+        </div>
+    </section>
+
+    <!-- Footer Container -->
+    <div id="footer-container"></div>
+
+    <!-- Team Modal -->
+    <div id="teamModal" class="modal" onclick="closeTeamModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>Our Team</h3>
+                <button class="close-modal" onclick="closeTeamModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="teamMembersGrid" class="team-grid">
+                    <!-- Team members will be loaded dynamically from Firebase -->
+                    <div class="loading-message" style="grid-column: 1/-1; text-align: center; padding: 2rem; color: var(--text-light);">
+                        Loading team members...
+                    </div>
+                </div>
+
+                <div style="text-align: center; margin-top: 2rem; padding: 1.5rem; background: var(--bg-light); border-radius: 12px;">
+                    <p style="color: var(--text-light); margin-bottom: 1rem;">Main Office: <strong>(808) 536-7684</strong></p>
+                    <p style="color: var(--text-light);">Interested in joining our team? <a href="javascript:void(0)" onclick="openIframeFromModal('Career Opportunities - LDAH', 'https://www.hrsymphony.com/hrs/careers/ldah');" style="color: var(--primary-blue); font-weight: 600;">View Career Opportunities →</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Board Modal -->
+    <div id="boardModal" class="modal" onclick="closeBoardModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>Board of Directors</h3>
+                <button class="close-modal" onclick="closeBoardModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="boardMembersGrid" class="team-grid">
+                    <!-- Board members will be loaded dynamically from Firebase -->
+                    <div class="loading-message" style="grid-column: 1/-1; text-align: center; padding: 2rem; color: var(--text-light);">
+                        Loading board members...
+                    </div>
+                </div>
+
+                <div style="text-align: center; margin-top: 2rem; padding: 1.5rem; background: var(--bg-light); border-radius: 12px;">
+                    <p style="color: var(--text-light);">Our board members volunteer their time and expertise to guide LDAH's mission of serving families across Hawai'i and the Pacific Islands.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lightbox with Carousel -->
+    <div id="lightbox" class="lightbox" onclick="closeLightbox(event)">
+        <span class="close-lightbox" onclick="closeLightbox()">&times;</span>
+        <button class="lightbox-prev" onclick="prevImage(event)">&#10094;</button>
+        <img id="lightboxImg" src="" alt="Gallery Image" onclick="event.stopPropagation()">
+        <button class="lightbox-next" onclick="nextImage(event)">&#10095;</button>
+        <div class="lightbox-counter"><span id="lightboxCounter">1 / 14</span></div>
+    </div>
+
+    <!-- External Link Modal -->
+    <div id="iframeModal" class="iframe-modal" onclick="closeIframeModal(event)">
+        <div class="iframe-content" onclick="event.stopPropagation()">
+            <div class="iframe-header">
+                <img src="assets/logo_transparent.png" alt="LDAH" onclick="closeIframeModal()" style="width: 80px; height: 80px; cursor: pointer;" title="Close">
+                <h3 id="iframeTitle">Loading...</h3>
+                <button class="close-iframe" onclick="closeIframeModal()">&times;</button>
+            </div>
+            <iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>
+        </div>
+    </div>
+
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+
+        // Strip emoji from text content loaded from Firebase
+        function stripEmoji(text) {
+            if (!text) return text;
+            return text.replace(/[\u{1F300}-\u{1FFFF}\u{2600}-\u{27FF}\u{FE00}-\u{FEFF}]|[\u{1F1E0}-\u{1F1FF}]{2}/gu, '').replace(/  +/g, ' ').trim();
+        }
+        // ===== Firebase Configuration =====
+        const firebaseConfig = {
+            apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk",
+            authDomain: "ldah-932d5.firebaseapp.com",
+            projectId: "ldah-932d5",
+            storageBucket: "ldah-932d5.firebasestorage.app",
+            messagingSenderId: "662130454003",
+            appId: "1:662130454003:web:437576d5a5811ecd8df686"
+        };
+
+        // Initialize Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+
+        // Load page content from Firebase
+        async function loadPageContent() {
+            try {
+                const doc = await db.collection('pageContent').doc('whoweare').get();
+                if (doc.exists) {
+                    const content = doc.data();
+                    // Update all elements that have matching IDs
+                    Object.keys(content).forEach(key => {
+                        const el = document.getElementById(`whoweare-${key}`);
+                        if (el && content[key]) {
+                            // For photo fields, update src attribute instead of innerHTML
+                            if (key.includes('Photo') && el.tagName === 'IMG') {
+                                el.src = content[key];
+                            } else {
+                                el.innerHTML = stripEmoji(content[key]);
+                            }
+                        }
+                    });
+                }
+            } catch (err) {
+                console.error('Error loading page content:', err);
+            }
+        }
+
+        // State for loaded data
+        let teamMembersLoaded = false;
+        let boardMembersLoaded = false;
+        let teamMembersData = [];
+        let boardMembersData = [];
+
+        // ===== Fallback Data (Original Team/Board) =====
+        const fallbackTeam = [
+            { name: 'Rosie Rowe', role: 'Executive Director', photoUrl: 'assets/RosieR.jpg', phone: '+18085369685', email: 'rrowe@ldah.org' },
+            { name: 'Leilani Kailiawa', role: 'Parent Consultant, Parent Training & Information', photoUrl: 'assets/LeilaniK.jpg', phone: '+18085367684', email: 'lkailiawa@ldah.org' },
+            { name: 'Teddy Mickelsen', role: 'Parent Consultant, Early Detection & Support', photoUrl: 'assets/TeddyM.jpg', phone: '+18085369685', email: 'tmickelsen@ldah.org' },
+            { name: 'Alexa Hurd', role: 'Parent Consultant, School Readiness Project', photoUrl: 'assets/AlexH.jpg', phone: '+18085369685', email: 'ahurd@ldah.org' },
+            { name: 'Chassidy Kruse', role: 'Program Coordinator, School Readiness Project & Malama Na Keiki', photoUrl: 'assets/ChassidyK.jpg', phone: '+18085369685', email: 'ckruse@ldah.org' },
+            { name: 'Veronica Silk', role: 'Pacific Islands Education and Training Coordinator', photoUrl: 'assets/VeronicaS.jpeg', phone: '+18085369685', email: 'vsilk@ldah.org' }
+        ];
+
+        const fallbackBoard = [
+            { name: 'Paul M. Young', role: 'President', photoUrl: 'assets/young-paul.png' },
+            { name: 'Carlos G. Penaloza, Ph.D.', role: 'Vice President/Treasurer', photoUrl: 'assets/Carlos-Penaloza.jpg' },
+            { name: 'Tamar deFries', role: 'Secretary', photoUrl: 'assets/Tamar_deFries.jpg' },
+            { name: 'Sam Yee, Esq.', role: 'Director', photoUrl: '' },
+            { name: 'Patricia Morrissey, Ph.D.', role: 'Director', photoUrl: 'assets/Patricia_M.jpg' },
+            { name: 'Linda Elento', role: 'Director', photoUrl: 'assets/Linda_Elento.jpg' }
+        ];
+
+        // ===== Load Team Members from Firebase =====
+        async function loadTeamMembers() {
+            if (teamMembersLoaded) {
+                renderTeamMembers(teamMembersData);
+                return;
+            }
+
+            const grid = document.getElementById('teamMembersGrid');
+            
+            try {
+                let snapshot;
+                try {
+                    snapshot = await db.collection('teamMembers').orderBy('order').get();
+                } catch (indexError) {
+                    // Fallback if index doesn't exist
+                    snapshot = await db.collection('teamMembers').get();
+                }
+                
+                if (snapshot.empty) {
+                    // No data in Firebase, use fallback
+                    console.log('No team members in Firebase, using fallback data');
+                    teamMembersData = fallbackTeam;
+                } else {
+                    teamMembersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    teamMembersData.sort((a, b) => (a.order || 0) - (b.order || 0));
+                }
+                
+                teamMembersLoaded = true;
+                renderTeamMembers(teamMembersData);
+                
+            } catch (error) {
+                console.error('Error loading team from Firebase:', error);
+                // Use fallback on any error
+                teamMembersData = fallbackTeam;
+                teamMembersLoaded = true;
+                renderTeamMembers(teamMembersData);
+            }
+        }
+
+        // ===== Load Board Members from Firebase =====
+        async function loadBoardMembers() {
+            if (boardMembersLoaded) {
+                renderBoardMembers(boardMembersData);
+                return;
+            }
+
+            const grid = document.getElementById('boardMembersGrid');
+            
+            try {
+                let snapshot;
+                try {
+                    snapshot = await db.collection('boardMembers').orderBy('order').get();
+                } catch (indexError) {
+                    // Fallback if index doesn't exist
+                    snapshot = await db.collection('boardMembers').get();
+                }
+                
+                if (snapshot.empty) {
+                    // No data in Firebase, use fallback
+                    console.log('No board members in Firebase, using fallback data');
+                    boardMembersData = fallbackBoard;
+                } else {
+                    boardMembersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    boardMembersData.sort((a, b) => (a.order || 0) - (b.order || 0));
+                }
+                
+                boardMembersLoaded = true;
+                renderBoardMembers(boardMembersData);
+                
+            } catch (error) {
+                console.error('Error loading board from Firebase:', error);
+                // Use fallback on any error
+                boardMembersData = fallbackBoard;
+                boardMembersLoaded = true;
+                renderBoardMembers(boardMembersData);
+            }
+        }
+
+        // ===== Render Team Members =====
+        function renderTeamMembers(members) {
+            const grid = document.getElementById('teamMembersGrid');
+            grid.innerHTML = '';
+            
+            members.forEach(member => {
+                const div = document.createElement('div');
+                div.className = 'team-member';
+                
+                const photoHtml = member.photoUrl 
+                    ? `<img src="${member.photoUrl}" alt="${member.name}">`
+                    : `<div class="member-icon"></div>`;
+                
+                const phoneLink = member.phone 
+                    ? `<a href="tel:${member.phone.replace(/[^+\d]/g, '')}">Call</a>` 
+                    : '';
+                const emailLink = member.email 
+                    ? `<a href="mailto:${member.email}">Email</a>` 
+                    : '';
+                
+                div.innerHTML = `
+                    ${photoHtml}
+                    <h4>${member.name}</h4>
+                    <div class="role">${member.role}</div>
+                    ${(phoneLink || emailLink) ? `<div class="contact-links">${phoneLink}${emailLink}</div>` : ''}
+                `;
+                
+                grid.appendChild(div);
+            });
+        }
+
+        // ===== Render Board Members =====
+        function renderBoardMembers(members) {
+            const grid = document.getElementById('boardMembersGrid');
+            grid.innerHTML = '';
+            
+            members.forEach(member => {
+                const div = document.createElement('div');
+                div.className = 'board-member';
+                
+                const photoHtml = member.photoUrl 
+                    ? `<img src="${member.photoUrl}" alt="${member.name}">`
+                    : `<div class="member-icon"></div>`;
+                
+                div.innerHTML = `
+                    ${photoHtml}
+                    <h4>${member.name}</h4>
+                    <div class="role">${member.role}</div>
+                `;
+                
+                grid.appendChild(div);
+            });
+        }
+
+        // Team Modal
+        function openTeamModal() {
+            document.getElementById('teamModal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+            // Load team members when modal opens
+            loadTeamMembers();
+        }
+
+        function closeTeamModal(event) {
+            if (event && event.target !== event.currentTarget && !event.target.classList.contains('close-modal')) {
+                return;
+            }
+            document.getElementById('teamModal').classList.remove('active');
+            document.body.style.overflow = 'auto';
+        }
+
+        // Board Modal
+        function openBoardModal() {
+            document.getElementById('boardModal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+            // Load board members when modal opens
+            loadBoardMembers();
+        }
+
+        function closeBoardModal(event) {
+            if (event && event.target !== event.currentTarget && !event.target.classList.contains('close-modal')) {
+                return;
+            }
+            document.getElementById('boardModal').classList.remove('active');
+            document.body.style.overflow = 'auto';
+        }
+
+        // Gallery images array - will be populated from Firebase or fallback
+        let galleryImages = [];
+        let currentImageIndex = 0;
+        
+        // Fallback gallery images (used if Firebase collection is empty)
+        const fallbackGalleryImages = [
+            { imageUrl: 'assets/gallery/384419106_773304831474792_822951070977656541_n.jpg', caption: 'LDAH Community Event' },
+            { imageUrl: 'assets/gallery/kosraekids.jpg', caption: 'Kosrae Kids' },
+            { imageUrl: 'assets/gallery/366308606_737851391686803_4056530556721101084_n.jpg', caption: 'LDAH Event' },
+            { imageUrl: 'assets/gallery/367978943_741945864610689_3526387872520216538_n.jpg', caption: 'Community Outreach' },
+            { imageUrl: 'assets/gallery/361967783_722383963233546_4251162667766617022_n.jpg', caption: 'LDAH Workshop' },
+            { imageUrl: 'assets/gallery/394705360_789016399903635_6323687903415276621_n.jpg', caption: 'Family Support Event' },
+            { imageUrl: 'assets/gallery/395813424_790817796390162_8833441711604382934_n.jpg', caption: 'Training Session' },
+            { imageUrl: 'assets/gallery/385815536_778018397670102_8084649761247443676_n.jpg', caption: 'Community Event' },
+            { imageUrl: 'assets/gallery/400979273_803779668427308_6105668977447761562_n.jpg', caption: 'LDAH Activity' },
+            { imageUrl: 'assets/gallery/tmc-kona-ldah.jpg', caption: 'Kona Event' },
+            { imageUrl: 'assets/gallery/Outreach-4-2-23.jpg', caption: 'Outreach Event' },
+            { imageUrl: 'assets/gallery/346633256_592880162814484_5264848762991946190_n.jpg', caption: 'LDAH Moment' },
+            { imageUrl: 'assets/gallery/sw3.jpg', caption: 'Special Event' },
+            { imageUrl: 'assets/gallery/20231207_175409.jpg', caption: 'December Event' }
+        ];
+        
+        // Load gallery from Firebase
+        async function loadGallery() {
+            const grid = document.getElementById('galleryGrid');
+            
+            try {
+                const snapshot = await db.collection('gallery').orderBy('order').get();
+                
+                if (snapshot.empty) {
+                    // Use fallback images if Firebase collection is empty
+                    console.log('📷 Using fallback gallery images');
+                    galleryImages = fallbackGalleryImages;
+                } else {
+                    galleryImages = snapshot.docs.map(doc => doc.data());
+                    console.log('📷 Loaded', galleryImages.length, 'gallery images from Firebase');
+                }
+                
+                renderGallery();
+            } catch (error) {
+                console.error('Error loading gallery:', error);
+                // Use fallback on error
+                galleryImages = fallbackGalleryImages;
+                renderGallery();
+            }
+        }
+        
+        function renderGallery() {
+            const grid = document.getElementById('galleryGrid');
+            
+            if (galleryImages.length === 0) {
+                grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: var(--text-light);">No photos in gallery yet.</div>';
+                return;
+            }
+            
+            grid.innerHTML = galleryImages.map((photo, index) => `
+                <div class="gallery-item" onclick="openLightbox(${index})">
+                    <img src="${photo.imageUrl}" alt="${photo.caption || 'LDAH Gallery Photo'}">
+                </div>
+            `).join('');
+        }
+
+        // Lightbox with carousel
+        function openLightbox(index) {
+            currentImageIndex = index;
+            updateLightboxImage();
+            document.getElementById('lightbox').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function updateLightboxImage() {
+            const photo = galleryImages[currentImageIndex];
+            document.getElementById('lightboxImg').src = photo.imageUrl;
+            document.getElementById('lightboxCounter').textContent = (currentImageIndex + 1) + ' / ' + galleryImages.length;
+        }
+
+        function nextImage(event) {
+            event.stopPropagation();
+            currentImageIndex = (currentImageIndex + 1) % galleryImages.length;
+            updateLightboxImage();
+        }
+
+        function prevImage(event) {
+            event.stopPropagation();
+            currentImageIndex = (currentImageIndex - 1 + galleryImages.length) % galleryImages.length;
+            updateLightboxImage();
+        }
+
+        function closeLightbox(event) {
+            if (event && event.target.tagName === 'IMG') return;
+            document.getElementById('lightbox').classList.remove('active');
+            document.body.style.overflow = 'auto';
+        }
+
+        // Iframe Modal (for footer links)
+        function openIframeModal(title, url) {
+            const modal = document.getElementById('iframeModal');
+            const titleEl = document.getElementById('iframeTitle');
+            const frame = document.getElementById('iframeFrame');
+            
+            // Special handling for Facebook (blocks iframes entirely)
+            if (url.includes('facebook.com')) {
+                titleEl.textContent = title;
+                frame.outerHTML = '<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;"><h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">Join Our Facebook Community</h4><p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other Hawaii families navigating special education and disabilities. Share experiences, ask questions, and find support.</p><a href="' + url + '" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">Open Parent Talk Cafe →</a></div>';
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            } 
+            // Special handling for HR Symphony / Career pages (job links don't work in iframes)
+            else if (url.includes('hrsymphony.com') || url.includes('careers')) {
+                titleEl.textContent = title;
+                frame.outerHTML = `<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; flex-direction: column;">
+                    <div style="background: linear-gradient(135deg, #e0f2fe, #f0f9ff); padding: 1rem 2rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; border-bottom: 1px solid #bae6fd;">
+                        <p style="color: #0369a1; margin: 0; font-size: 0.95rem;">
+                            <strong>Tip:</strong> Click job listings to view details. To apply, open in a new tab.
+                        </p>
+                        <a href="${url}" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1.25rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 0.9rem; white-space: nowrap;">
+                            Open in New Tab ↗
+                        </a>
+                    </div>
+                    <iframe src="${url}" style="flex: 1; width: 100%; border: none;" allowfullscreen loading="lazy"></iframe>
+                </div>`;
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+            // Standard iframe handling
+            else {
+                titleEl.textContent = title;
+                // Reset to iframe if it was replaced
+                if (frame.tagName !== 'IFRAME') {
+                    frame.outerHTML = '<iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>';
+                }
+                document.getElementById('iframeFrame').src = url;
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function closeIframeModal(event) {
+            if (event && event.target !== event.currentTarget && !event.target.classList.contains('close-iframe')) {
+                return;
+            }
+            const modal = document.getElementById('iframeModal');
+            const frameEl = document.getElementById('iframeFrame');
+            
+            modal.classList.remove('active');
+            
+            // Reset to standard iframe structure
+            if (frameEl) {
+                frameEl.outerHTML = '<iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>';
+            }
+            
+            document.body.style.overflow = 'auto';
+        }
+
+        // Close all modals helper
+        function closeAllModals() {
+            document.getElementById('teamModal').classList.remove('active');
+            document.getElementById('boardModal').classList.remove('active');
+            document.getElementById('iframeModal').classList.remove('active');
+            document.getElementById('lightbox').classList.remove('active');
+            
+            // Reset iframe if it exists
+            const frameEl = document.getElementById('iframeFrame');
+            if (frameEl && frameEl.tagName === 'IFRAME') {
+                frameEl.src = '';
+            } else if (frameEl) {
+                frameEl.outerHTML = '<iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>';
+            }
+            
+            document.body.style.overflow = 'auto';
+        }
+
+        // Open iframe modal from within another modal (closes first modal, opens iframe)
+        function openIframeFromModal(title, url) {
+            // Close any open modals first without resetting overflow
+            document.getElementById('teamModal').classList.remove('active');
+            document.getElementById('boardModal').classList.remove('active');
+            
+            // Small delay to allow CSS transition, then open iframe modal
+            setTimeout(() => {
+                openIframeModal(title, url);
+            }, 100);
+        }
+
+        // Keyboard support
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeAllModals();
+            }
+            // Arrow keys for lightbox navigation
+            if (document.getElementById('lightbox').classList.contains('active')) {
+                if (e.key === 'ArrowRight') {
+                    nextImage(e);
+                } else if (e.key === 'ArrowLeft') {
+                    prevImage(e);
+                }
+            }
+        });
+
+        // Header and Footer Loader
+        async function loadHeaderFooter() {
+            const headerContainer = document.getElementById('header-container');
+            const footerContainer = document.getElementById('footer-container');
+            
+            try {
+                const [headerResponse, footerResponse] = await Promise.all([
+                    fetch('header.html'),
+                    fetch('footer.html')
+                ]);
+                
+                if (headerResponse.ok && footerResponse.ok) {
+                    headerContainer.innerHTML = await headerResponse.text();
+                    footerContainer.innerHTML = await footerResponse.text();
+                    console.log('Header and footer loaded from external files');
+                } else {
+                    throw new Error('Failed to fetch');
+                }
+                
+                // Load accessibility widget script
+                if (!document.getElementById('a11y-script')) {
+                    const script = document.createElement('script');
+                    script.id = 'a11y-script';
+                    script.src = 'accessibility.js';
+                    document.body.appendChild(script);
+                }
+            } catch (error) {
+                console.log('⚠️ Using inline fallback for header/footer');
+                headerContainer.innerHTML = '<nav><div class="nav-content"><a href="index.html" class="logo-container"><img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH Logo" class="logo-img"></a><div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div><ul class="nav-links" id="navLinks"><li><a href="whoweare.html">Who We Are</a></li><li><a href="index.html#services">What We Do</a></li><li><a href="events.html">Events</a></li><li><a href="volunteer.html">Volunteer</a></li><li><a href="resources.html">Resources</a></li><li><a href="contact.html">Contact</a></li></ul></div></nav>';
+                footerContainer.innerHTML = '<footer><svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg><div class="footer-content"><div class="footer-section"><h3>About LDAH</h3><p>Hawai\'i & Pacific Island Parent Training & Information Center &mdash; empowering families and children with disabilities.</p></div><div class="footer-section"><h3>Quick Links</h3><a href="whoweare.html">Who We Are</a><a href="index.html#services">What We Do</a><a href="events.html">Events</a><a href="volunteer.html">Volunteer</a><a href="resources.html">Resources</a><a href="contact.html">Contact Us</a></div><div class="footer-section"><h3>Honolulu Office</h3><p>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 536-7684<br>rrowe@ldah.org</p></div><div class="footer-section"><h3>Connect With Us</h3><a href="javascript:void(0)" onclick="openIframeModal(\'Parent Talk Cafe\', \'https://www.facebook.com/groups/2659334410969387\')">Parent Talk Cafe</a><a href="javascript:void(0)" onclick="openIframeModal(\'Career Opportunities\', \'https://www.hrsymphony.com/hrs/careers/ldah\')">Career Opportunities</a><a href="install.html">Install Our App</a><form action="https://www.paypal.com/donate" method="post" target="_blank" style="margin-top: 8px;"><input type="hidden" name="hosted_button_id" value="F6F2DPC4D6RSA"><input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" title="PayPal - The safer, easier way to pay online!" alt="Donate with PayPal button"></form></div></div><div class="footer-bottom"><p>&copy; 2025 Leadership in Disabilities and Achievement of Hawai\'i. All rights reserved.</p><p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal(\'DP Consulting\', \'https://oahuappdesign.com\')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a></p></div></footer>';
+            }
+            
+            setActiveNavLink();
+        }
+        
+        function setActiveNavLink() {
+            const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+            const navLinks = document.querySelectorAll('.nav-links a');
+            
+            navLinks.forEach(link => {
+                const href = link.getAttribute('href');
+                if (href === currentPage || 
+                    (currentPage === 'whoweare.html' && href === 'whoweare.html')) {
+                    link.classList.add('active');
+                }
+            });
+        }
+        
+        function toggleMenu() {
+            const navLinks = document.getElementById('navLinks');
+            if (navLinks) {
+                navLinks.classList.toggle('active');
+            }
+        }
+        
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                loadPageContent();
+                loadHeaderFooter();
+                loadGallery();
+            });
+        } else {
+            loadPageContent();
+            loadHeaderFooter();
+            loadGallery();
+        }
+    </script>
+    <script src="modal.js"></script>
+</body>
+</html>

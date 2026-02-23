@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LDAH - Leadership in Disabilities & Achievement of Hawai'i</title>
+
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+    :root {
+        --ocean-deep: #0891B2;
+        --ocean-mid: #06B6D4;
+        --ocean-light: #22D3EE;
+        --sunset-coral: #F97316;
+        --sunset-warm: #FB923C;
+        --sunset-light: #FED7AA;
+        --sand: #FEF3C7;
+        --sand-light: #FFFBEB;
+        --palm: #65A30D;
+        --plumeria: #FBBF24;
+        --white: #FFFFFF;
+        --text-dark: #1E293B;
+        --text-soft: #64748B;
+        --bg-warm: #FEFDFB;
+        --primary-blue: #0891B2;
+        --light-blue: #06B6D4;
+        --accent-teal: #22D3EE;
+        --bg-light: #FFFBEB;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 120px; }
+    
+    body { 
+        font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+        color: var(--text-dark); 
+        line-height: 1.7; 
+        background: var(--bg-warm);
+        overflow-x: hidden;
+    }
+    
+    h1, h2, h3 { 
+        font-family: 'Outfit', sans-serif; 
+        font-weight: 600; 
+        line-height: 1.3; 
+    }
+
+    /* Navigation */
+    nav { 
+        position: fixed; 
+        top: 0; 
+        left: 0; 
+        right: 0; 
+        z-index: 1000; 
+        background: rgba(255, 255, 255, 0.97);
+        backdrop-filter: blur(12px);
+        box-shadow: 0 1px 20px rgba(8, 145, 178, 0.08);
+        border-bottom: 1px solid rgba(8, 145, 178, 0.1);
+    }
+    
+    .nav-content { 
+        max-width: 1280px; 
+        margin: 0 auto; 
+        padding: 1rem 2rem; 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center; 
+    }
+    
+    .logo-container { 
+        display: flex; 
+        align-items: center; 
+        gap: 1rem; 
+        text-decoration: none; 
+    }
+    
+    .logo-img { width: 68px; height: 68px; }
+    
+    .nav-links { 
+        display: flex; 
+        gap: 0.5rem; 
+        list-style: none; 
+        align-items: center; 
+    }
+    
+    .nav-links a { 
+        text-decoration: none; 
+        color: var(--text-dark); 
+        font-weight: 500; 
+        padding: 0.6rem 1.1rem;
+        border-radius: 8px;
+        transition: all 0.25s ease;
+    }
+    
+    .nav-links a:hover { background: var(--sand-light); color: var(--ocean-deep); }
+    .nav-links a.active { background: var(--sand); color: var(--ocean-deep); }
+
+    .hamburger { display: none; flex-direction: column; cursor: pointer; padding: 0.5rem; }
+    .hamburger span { width: 25px; height: 3px; background: var(--ocean-deep); margin: 3px 0; transition: 0.3s; border-radius: 2px; }
+
+    @media (max-width: 768px) {
+        .nav-links { 
+            position: fixed; top: 88px; left: 0; right: 0; background: white; 
+            flex-direction: column; padding: 2rem; box-shadow: 0 4px 20px rgba(8, 145, 178, 0.1); 
+            gap: 0.5rem; transform: translateY(-100%); opacity: 0; 
+            transition: transform 0.3s, opacity 0.3s; pointer-events: none; 
+        }
+        .nav-links.active { transform: translateY(0); opacity: 1; pointer-events: all; }
+        .hamburger { display: flex; }
+        .logo-img { width: 60px; height: 60px; }
+    }
+
+    /* Hero Section */
+    .hero { 
+        margin-top: 88px; 
+        min-height: 85vh;
+        background: linear-gradient(180deg, var(--sand-light) 0%, var(--bg-warm) 100%);
+        display: flex; 
+        align-items: center; 
+        padding: 4rem 2rem; 
+        position: relative; 
+        overflow: hidden; 
+    }
+    
+    .hero-islands {
+        position: absolute; left: 50%; top: 50%;
+        transform: translate(-50%, -50%) scaleY(-1);
+        width: 70%; max-width: 900px;
+        color: var(--ocean-deep); opacity: 0.12; z-index: 0;
+    }
+    
+    .hero-content { 
+        max-width: 1280px; margin: 0 auto; 
+        display: grid; grid-template-columns: 1fr 1fr; gap: 4rem;
+        align-items: center; position: relative; z-index: 1; width: 100%;
+    }
+    
+    .hero-text h1 { font-size: 3rem; margin-bottom: 1.5rem; color: var(--text-dark); letter-spacing: -0.5px; }
+    
+    .hero-text .highlight { color: var(--ocean-deep); position: relative; }
+    .hero-text .highlight::after {
+        content: ''; position: absolute; bottom: 4px; left: 0;
+        width: 100%; height: 8px; background: var(--plumeria);
+        opacity: 0.4; z-index: -1; border-radius: 2px;
+    }
+    
+    .hero-text p { font-size: 1.15rem; margin-bottom: 2rem; color: var(--text-soft); line-height: 1.8; }
+    .hero-buttons { display: flex; gap: 1rem; flex-wrap: wrap; }
+    
+    .btn-primary { 
+        padding: 1rem 2rem; background: var(--ocean-deep); color: white; 
+        border-radius: 10px; font-weight: 600; font-family: 'Outfit', sans-serif;
+        text-decoration: none; transition: all 0.25s ease;
+        box-shadow: 0 4px 14px rgba(8, 145, 178, 0.25);
+    }
+    .btn-primary:hover { background: #0E7490; transform: translateY(-2px); box-shadow: 0 6px 20px rgba(8, 145, 178, 0.3); }
+    
+    .btn-secondary { 
+        padding: 1rem 2rem; background: transparent; color: var(--ocean-deep); 
+        border: 2px solid var(--ocean-deep); border-radius: 10px; font-weight: 600;
+        font-family: 'Outfit', sans-serif; text-decoration: none; transition: all 0.25s ease; cursor: pointer;
+    }
+    .btn-secondary:hover { background: var(--ocean-deep); color: white; }
+
+    /* Hero Photo Grid */
+    .hero-photos {
+        display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr);
+        gap: 0.75rem; position: relative; max-width: 320px; margin-left: auto;
+    }
+    
+    .photo-card {
+        border-radius: 16px; overflow: hidden; position: relative;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.1); transition: transform 0.3s ease, box-shadow 0.3s ease;
+        background: linear-gradient(135deg, var(--ocean-deep) 0%, var(--ocean-mid) 100%);
+    }
+    .photo-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.15); }
+    .photo-card.large { grid-row: span 2; }
+    .photo-card img { width: 100%; height: 100%; object-fit: cover; min-height: 95px; }
+    .photo-card.large img { min-height: 200px; }
+    
+    .hero-accent {
+        position: absolute; bottom: -20px; right: -20px;
+        width: 120px; height: 120px; background: var(--plumeria);
+        border-radius: 50%; opacity: 0.3; z-index: -1;
+    }
+
+    /* Stats Section - Card Style */
+    .stats-section {
+        background: var(--bg-light); padding: 4rem 2rem;
+        position: relative; overflow: hidden;
+    }
+    
+    .stats-islands {
+        position: absolute; left: -10%; top: 50%;
+        transform: translateY(-50%) scaleY(-1);
+        width: 40%; color: var(--ocean-deep); opacity: 0.05;
+    }
+    
+    .stats-container { 
+        max-width: 1200px; margin: 0 auto; 
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem;
+        position: relative; z-index: 1;
+    }
+    
+    .stat-card { 
+        background: white; border-radius: 16px; padding: 2rem;
+        text-align: center; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .stat-card:hover { transform: translateY(-4px); box-shadow: 0 8px 30px rgba(8, 145, 178, 0.12); }
+    
+    .photo-icon {
+        width: 110px; height: 70px; border-radius: 10px; object-fit: cover;
+        margin: 0 auto 1rem; display: block;
+        border: 3px solid var(--ocean-light); box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    
+    .stat-icon-placeholder {
+        width: 110px; height: 70px; border-radius: 10px;
+        margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center;
+        font-size: 2rem; background: linear-gradient(135deg, var(--sand-light), var(--sand));
+        border: 3px solid var(--ocean-light);
+    }
+    
+    .stat-number { font-size: 2.5rem; font-weight: 700; font-family: 'Outfit', sans-serif; color: var(--ocean-deep); margin-bottom: 0.25rem; }
+    .stat-label { font-size: 1rem; color: var(--text-soft); font-weight: 500; }
+
+    @media (max-width: 1024px) { .stats-container { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 768px) { .stats-container { grid-template-columns: 1fr 1fr; } }
+
+    /* Services Section */
+    .services-section { 
+        padding: 6rem 2rem; background: var(--sand-light);
+        position: relative; overflow: hidden;
+    }
+    
+    .services-islands {
+        position: absolute; right: -5%; bottom: -10%;
+        width: 35%; color: var(--sunset-coral); opacity: 0.05; transform: scaleY(-1);
+    }
+    
+    .section-header { text-align: center; max-width: 650px; margin: 0 auto 4rem; position: relative; z-index: 1; }
+    
+    .section-tag {
+        display: inline-block; padding: 0.5rem 1.25rem;
+        background: var(--white); color: var(--sunset-coral);
+        border-radius: 6px; font-size: 0.9rem; font-weight: 600;
+        margin-bottom: 1rem; box-shadow: 0 2px 8px rgba(249, 115, 22, 0.1);
+    }
+    
+    .section-title { font-size: 2.2rem; color: var(--text-dark); margin-bottom: 1rem; }
+    .section-description { font-size: 1.1rem; color: var(--text-soft); line-height: 1.7; }
+    
+    .services-grid { 
+        max-width: 1200px; margin: 0 auto; 
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;
+        position: relative; z-index: 1;
+    }
+    
+    .service-card { 
+        background: var(--white); border-radius: 16px; padding: 2rem;
+        text-align: center; transition: all 0.3s ease;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04); cursor: pointer;
+    }
+    .service-card:hover { transform: translateY(-6px); box-shadow: 0 12px 40px rgba(8, 145, 178, 0.12); }
+    
+    .service-photo {
+        width: 120px; height: 80px; border-radius: 10px; object-fit: cover;
+        margin: 0 auto 1.25rem; display: block;
+        border: 3px solid var(--ocean-light); box-shadow: 0 4px 15px rgba(8, 145, 178, 0.15);
+    }
+    
+    .service-icon-placeholder {
+        width: 120px; height: 80px; border-radius: 10px;
+        margin: 0 auto 1.25rem; display: flex; align-items: center; justify-content: center;
+        font-size: 2.5rem; background: linear-gradient(135deg, var(--sand-light), var(--sand));
+        border: 3px solid var(--ocean-light);
+    }
+    
+    .service-title { font-size: 1.2rem; color: var(--ocean-deep); margin-bottom: 0.75rem; font-weight: 600; }
+    .service-description { color: var(--text-soft); line-height: 1.7; font-size: 0.95rem; }
+
+    @media (max-width: 1024px) { .services-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 768px) { .services-grid { grid-template-columns: 1fr; } }
+
+    /* Photo Feature Section */
+    .photo-feature { padding: 6rem 2rem; background: var(--white); }
+    
+    .photo-feature-container {
+        max-width: 1200px; margin: 0 auto;
+        display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center;
+    }
+    
+    .photo-feature-images { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    
+    .feature-photo { border-radius: 12px; overflow: hidden; box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+    .feature-photo.tall { grid-row: span 2; }
+    .feature-photo img { width: 100%; height: 100%; object-fit: cover; min-height: 140px; }
+    .feature-photo.tall img { min-height: 300px; }
+    
+    .photo-feature-content h2 { font-size: 2.2rem; color: var(--text-dark); margin-bottom: 1rem; }
+    .photo-feature-content p { font-size: 1.1rem; color: var(--text-soft); margin-bottom: 1.5rem; line-height: 1.8; }
+    .photo-feature-content ul { list-style: none; margin-bottom: 2rem; }
+    .photo-feature-content li { padding: 0.5rem 0; color: var(--text-soft); display: flex; align-items: center; gap: 0.75rem; }
+    .photo-feature-content li::before {
+        content: '✓'; display: inline-flex; align-items: center; justify-content: center;
+        width: 24px; height: 24px; background: var(--ocean-deep); color: white;
+        border-radius: 50%; font-size: 0.8rem; font-weight: 700;
+    }
+
+    @media (max-width: 1024px) {
+        .photo-feature-container { grid-template-columns: 1fr; gap: 3rem; }
+        .photo-feature-images { max-width: 450px; margin: 0 auto; }
+    }
+    @media (max-width: 768px) { .photo-feature-images { max-width: 350px; } }
+
+    /* Events Section */
+    .events-section { padding: 6rem 2rem; background: var(--bg-warm); }
+    .events-container { max-width: 1200px; margin: 0 auto; }
+    .events-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 3rem; }
+    .events-header h2 { font-size: 2rem; color: var(--text-dark); }
+    .view-all-link { color: var(--ocean-deep); font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 0.5rem; transition: gap 0.25s ease; }
+    .view-all-link:hover { gap: 0.75rem; }
+
+    .event-card { 
+        background: white; border-radius: 16px; overflow: hidden; 
+        box-shadow: 0 4px 20px rgba(8, 145, 178, 0.08); 
+        transition: all 0.3s ease; cursor: pointer; max-width: 380px; width: 100%; 
+    }
+    .event-card:hover { transform: translateY(-6px); box-shadow: 0 12px 40px rgba(8, 145, 178, 0.15); }
+
+    /* CTA Banner */
+    .cta-banner { 
+        background: linear-gradient(135deg, var(--sunset-coral) 0%, var(--sunset-warm) 100%);
+        padding: 5rem 2rem; text-align: center; color: white; 
+        position: relative; overflow: hidden; 
+    }
+    
+    .cta-islands {
+        position: absolute; right: 5%; top: 50%;
+        transform: translateY(-50%) scaleY(-1);
+        width: 30%; color: white; opacity: 0.1;
+    }
+    
+    .cta-content { position: relative; z-index: 1; max-width: 750px; margin: 0 auto; }
+    .cta-content h2 { font-size: 2.5rem; margin-bottom: 1rem; }
+    .cta-content p { font-size: 1.15rem; margin-bottom: 2rem; opacity: 0.95; line-height: 1.7; }
+    .cta-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    
+    .btn-white {
+        padding: 1rem 2rem; background: white; color: var(--sunset-coral);
+        border-radius: 10px; font-weight: 600; font-family: 'Outfit', sans-serif;
+        text-decoration: none; transition: all 0.25s ease;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    .btn-white:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.15); }
+    
+    .btn-outline-white {
+        padding: 1rem 2rem; background: transparent; color: white;
+        border: 2px solid white; border-radius: 10px; font-weight: 600;
+        font-family: 'Outfit', sans-serif; text-decoration: none; cursor: pointer;
+        transition: all 0.25s ease;
+    }
+    .btn-outline-white:hover { background: white; color: var(--sunset-coral); }
+
+    /* Footer */
+    footer { 
+        background: var(--text-dark); color: white; 
+        padding: 2.5rem 2rem 1.5rem; position: relative; overflow: hidden;
+    }
+    
+    .footer-islands {
+        position: absolute; right: -5%; bottom: -20%;
+        width: 40%; color: white; opacity: 0.03; transform: scaleY(-1);
+    }
+    
+    .footer-content { 
+        max-width: 1200px; margin: 0 auto; 
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); 
+        gap: 2rem; margin-bottom: 1.5rem; position: relative; z-index: 1;
+    }
+    
+    .footer-section h3 { color: var(--plumeria); margin-bottom: 1rem; font-family: 'Outfit', sans-serif; font-size: 1.1rem; }
+    .footer-section p { color: rgba(255, 255, 255, 0.7); line-height: 1.6; font-size: 0.95rem; }
+    .footer-section a { color: rgba(255, 255, 255, 0.7); text-decoration: none; display: block; margin-bottom: 0.5rem; transition: color 0.25s ease; font-size: 0.95rem; }
+    .footer-section a:hover { color: var(--plumeria); }
+    
+    .footer-bottom { 
+        max-width: 1200px; margin: 0 auto; padding-top: 1.5rem; 
+        border-top: 1px solid rgba(255, 255, 255, 0.1); 
+        text-align: center; color: rgba(255, 255, 255, 0.5); position: relative; z-index: 1;
+        font-size: 0.9rem;
+    }
+
+    /* Modal */
+    .iframe-modal { display: none; position: fixed; z-index: 3000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); animation: fadeIn 0.3s; }
+    .iframe-modal.active { display: flex; align-items: center; justify-content: center; }
+    .iframe-content { background: white; border-radius: 20px; width: 95%; max-width: 1200px; height: 90vh; max-height: 800px; position: relative; animation: slideUp 0.3s; overflow: hidden; display: flex; flex-direction: column; }
+    .iframe-header { background: var(--ocean-deep); color: white; padding: 1.5rem 2rem; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+    .iframe-header h3 { margin: 0; font-size: 1.5rem; font-family: 'Outfit', sans-serif; }
+    .close-iframe { background: rgba(255, 255, 255, 0.2); border: none; color: white; font-size: 2rem; cursor: pointer; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: background 0.3s; }
+    .close-iframe:hover { background: rgba(255, 255, 255, 0.3); }
+    .iframe-frame { width: 100%; flex: 1; border: none; }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    
+    @media (max-width: 1024px) {
+        .hero-content { grid-template-columns: 1fr; text-align: center; gap: 3rem; }
+        .hero-text h1 { font-size: 2.5rem; }
+        .hero-buttons { justify-content: center; }
+        .hero-photos { max-width: 400px; margin: 0 auto; }
+    }
+    @media (max-width: 768px) {
+        .hero-text h1 { font-size: 2rem; }
+        .hero-photos { max-width: 350px; }
+    }
+    </style>
+    
+    <svg style="display: none;">
+        <defs>
+            <g id="hawaii-islands" fill="currentColor">
+                <path d="M542 2864 c-7 -13 -13 -14 -31 -5 -17 9 -27 9 -49 -2 -15 -8 -39 -19 -53 -25 -16 -6 -29 -21 -33 -37 -4 -15 -16 -40 -28 -55 -18 -25 -19 -31 -7 -56 8 -16 28 -35 44 -43 17 -9 47 -26 67 -39 23 -15 44 -21 57 -17 11 3 30 1 41 -5 29 -16 55 -5 90 40 26 33 29 42 20 65 -8 20 -7 32 5 48 41 58 -7 147 -79 147 -22 0 -38 -6 -44 -16z"/>
+                <path d="M107 2654 c-7 -14 -24 -31 -37 -37 -14 -7 -30 -23 -36 -36 -6 -12 -17 -28 -23 -34 -15 -15 -14 -33 5 -51 19 -20 34 -12 34 18 0 28 34 66 59 66 14 0 20 9 23 33 3 17 8 40 13 50 12 28 -22 21 -38 -9z"/>
+                <path d="M1599 2408 c-8 -7 -27 -30 -42 -50 -31 -42 -57 -54 -87 -38 -16 9 -25 8 -35 0 -12 -10 -10 -21 15 -67 17 -31 30 -60 30 -66 0 -6 7 -18 16 -28 9 -10 19 -33 23 -51 6 -30 10 -33 46 -36 22 -1 47 2 55 7 12 8 12 12 -3 29 -19 21 -23 37 -7 27 6 -4 18 -1 26 6 20 16 28 5 14 -20 -14 -28 -6 -39 24 -34 18 4 29 -2 41 -20 15 -23 22 -25 78 -24 76 2 82 16 37 82 -17 25 -29 49 -25 54 3 5 1 12 -5 16 -5 3 -10 -1 -10 -9 0 -19 -23 -21 -38 -3 -6 6 -13 29 -17 50 -4 20 -15 47 -25 60 -9 12 -20 34 -23 48 -8 32 -44 79 -61 79 -7 0 -19 -6 -27 -12z"/>
+                <path d="M2144 1984 c4 -9 -2 -23 -13 -32 -11 -10 -21 -26 -23 -37 -3 -19 3 -20 89 -22 65 -1 112 -8 158 -23 37 -12 76 -19 90 -16 33 8 85 54 85 75 0 26 -44 43 -77 30 -21 -8 -42 -7 -83 4 -53 15 -184 37 -216 37 -11 0 -14 -5 -10 -16z"/>
+                <path d="M2565 1797 c-17 -32 -17 -36 -1 -84 22 -65 44 -85 105 -91 56 -5 64 -17 54 -89 -5 -37 -2 -48 17 -68 30 -32 98 -35 125 -5 12 13 31 20 57 20 43 0 110 37 128 70 23 43 -26 121 -66 106 -7 -3 -18 3 -24 14 -6 11 -16 20 -22 20 -6 0 -28 16 -49 35 -43 39 -63 42 -116 20 -55 -23 -70 -19 -93 25 -35 68 -86 80 -115 27z"/>
+                <path d="M2313 1740 c-29 -12 -29 -27 -2 -56 12 -13 24 -37 28 -55 8 -38 29 -54 62 -46 37 10 46 19 53 54 14 60 -80 128 -141 103z"/>
+                <path d="M2576 1427 c-31 -26 -36 -35 -25 -44 9 -7 30 -8 54 -4 38 6 40 8 40 41 0 46 -20 48 -69 7z"/>
+                <path d="M3122 1158 c-21 -21 -13 -74 19 -134 21 -40 28 -66 24 -83 -9 -36 -62 -109 -84 -116 -27 -8 -71 -87 -71 -125 0 -33 15 -69 36 -85 7 -5 18 -28 23 -50 6 -22 20 -72 32 -112 22 -69 22 -77 10 -176 -11 -94 -11 -107 5 -140 12 -25 26 -38 46 -43 17 -3 50 -26 76 -50 25 -24 47 -44 49 -44 1 0 11 17 22 38 11 21 27 44 36 52 9 7 22 28 30 46 7 18 32 46 55 61 23 15 62 45 87 66 39 32 50 37 79 31 28 -5 46 1 114 41 85 50 170 135 170 170 0 10 -23 43 -51 71 -32 32 -54 64 -58 85 -5 26 -13 35 -38 41 -37 10 -48 34 -38 85 6 33 3 38 -58 97 -85 82 -219 166 -264 166 -26 0 -53 14 -115 60 -80 59 -113 71 -136 48z"/>
+            </g>
+        </defs>
+    </svg>
+    
+    <script>
+
+        // Strip emoji from text content loaded from Firebase
+        function stripEmoji(text) {
+            if (!text) return text;
+            return text.replace(/[\u{1F300}-\u{1FFFF}\u{2600}-\u{27FF}\u{FE00}-\u{FEFF}]|[\u{1F1E0}-\u{1F1FF}]{2}/gu, '').replace(/  +/g, ' ').trim();
+        }
+        async function loadHeaderFooter() {
+            const headerContainer = document.getElementById('header-container');
+            const footerContainer = document.getElementById('footer-container');
+            try {
+                const [headerResponse, footerResponse] = await Promise.all([fetch('header.html'), fetch('footer.html')]);
+                if (headerResponse.ok && footerResponse.ok) {
+                    headerContainer.innerHTML = await headerResponse.text();
+                    footerContainer.innerHTML = await footerResponse.text();
+                } else { throw new Error('Failed to fetch'); }
+                if (!document.getElementById('a11y-script')) { const script = document.createElement('script'); script.id = 'a11y-script'; script.src = 'accessibility.js'; document.body.appendChild(script); }
+            } catch (error) {
+                headerContainer.innerHTML = '<nav><div class="nav-content"><a href="index.html" class="logo-container"><img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH Logo" class="logo-img"></a><div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div><ul class="nav-links" id="navLinks"><li><a href="whoweare.html">Who We Are</a></li><li><a href="index.html#services">What We Do</a></li><li><a href="events.html">Events</a></li><li><a href="volunteer.html">Volunteer</a></li><li><a href="resources.html">Resources</a></li><li><a href="contact.html">Contact</a></li></ul></div></nav>';
+                footerContainer.innerHTML = '<footer><svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg><div class="footer-content"><div class="footer-section"><h3>About LDAH</h3><p>Hawai\'i & Pacific Island Parent Training & Information Center &mdash; empowering families and children with disabilities.</p></div><div class="footer-section"><h3>Quick Links</h3><a href="whoweare.html">Who We Are</a><a href="index.html#services">What We Do</a><a href="events.html">Events</a><a href="volunteer.html">Volunteer</a><a href="resources.html">Resources</a><a href="contact.html">Contact Us</a></div><div class="footer-section"><h3>Honolulu Office</h3><p>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 536-7684<br><a href="mailto:rrowe@ldah.org">rrowe@ldah.org</a></p></div><div class="footer-section"><h3>Connect With Us</h3><a href="javascript:void(0)" onclick="openIframeModal(\'Parent Talk Cafe\', \'https://www.facebook.com/groups/2659334410969387\')">Parent Talk Cafe</a><a href="javascript:void(0)" onclick="openIframeModal(\'Career Opportunities\', \'https://www.hrsymphony.com/hrs/careers/ldah\')">Career Opportunities</a><a href="install.html">Install Our App</a></div></div><div class="footer-bottom"><p>&copy; 2025 Leadership in Disabilities and Achievement of Hawai\'i. All rights reserved.</p><p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal(\'DP Consulting\', \'https://oahuappdesign.com\')" style="color: var(--plumeria); text-decoration: none;">DP Consulting</a></p></div></footer>';
+            }
+            setupScrollDetection();
+        }
+        
+        function setupScrollDetection() {
+            const servicesSection = document.getElementById('services');
+            const eventsSection = document.querySelector('.events-section');
+            const whatWeDoLink = document.querySelector('.nav-links a[href="index.html#services"]');
+            if (!servicesSection || !whatWeDoLink) return;
+            
+            function checkScroll() {
+                const servicesRect = servicesSection.getBoundingClientRect();
+                const eventsRect = eventsSection ? eventsSection.getBoundingClientRect() : null;
+                const isInServices = servicesRect.top <= 150;
+                const isPastServices = eventsRect ? eventsRect.top <= 150 : false;
+                
+                if (isInServices && !isPastServices) {
+                    whatWeDoLink.classList.add('active');
+                } else {
+                    whatWeDoLink.classList.remove('active');
+                }
+            }
+            window.addEventListener('scroll', checkScroll);
+            checkScroll();
+        }
+        
+        function toggleMenu() { 
+            const navLinks = document.getElementById('navLinks'); 
+            if (navLinks) navLinks.classList.toggle('active'); 
+        }
+        
+        if (document.readyState === 'loading') { 
+            document.addEventListener('DOMContentLoaded', loadHeaderFooter); 
+        } else { 
+            loadHeaderFooter(); 
+        }
+    </script>
+</head>
+<body>
+    <div id="header-container"></div>
+
+    <section class="hero">
+        <svg class="hero-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
+        <div class="hero-content">
+            <div class="hero-text">
+                <h1 id="home-heroTitle">Supporting <span class="highlight">Hawai'i Families</span> Every Step of the Way</h1>
+                <p id="home-heroSubtitle">For over 30 years, we've been the trusted partner for families navigating the journey with children with disabilities. You're not alone — our 'ohana is here to help.</p>
+                <div class="hero-buttons">
+                    <a href="#services" class="btn-primary">Get Support</a>
+                    <a href="whoweare.html" class="btn-secondary">Learn About Us</a>
+                </div>
+            </div>
+            <div class="hero-photos">
+                <div class="photo-card large">
+                    <img src="photo2.jpg" alt="Young person enjoying water activities">
+                </div>
+                <div class="photo-card">
+                    <img src="photo1.jpg" alt="Community celebration with balloons">
+                </div>
+                <div class="photo-card">
+                    <img src="photo3.jpg" alt="Live Aloha - Bully Free Zone advocacy">
+                </div>
+                <div class="hero-accent"></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="stats-section">
+        <svg class="stats-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
+        <div class="stats-container">
+            <div class="stat-card">
+                <img src="https://images.unsplash.com/photo-1511895426328-dc8714191300?w=150&h=150&fit=crop&crop=faces" alt="Family" class="photo-icon">
+                <div class="stat-number" id="home-stat1Number">5,000+</div>
+                <div class="stat-label" id="home-stat1Label">Families Supported</div>
+            </div>
+            <div class="stat-card">
+                <img src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=150&h=150&fit=crop" alt="Sunset over ocean" class="photo-icon">
+                <div class="stat-number" id="home-stat2Number">30+</div>
+                <div class="stat-label" id="home-stat2Label">Years of Service</div>
+            </div>
+            <div class="stat-card">
+                <img src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=150&h=150&fit=crop&crop=faces" alt="People in workshop" class="photo-icon">
+                <div class="stat-number" id="home-stat3Number">200+</div>
+                <div class="stat-label" id="home-stat3Label">Workshops Yearly</div>
+            </div>
+            <div class="stat-card">
+                <img src="https://images.unsplash.com/photo-1559128010-7c1ad6e1b6a5?w=150&h=150&fit=crop" alt="Tropical island" class="photo-icon">
+                <div class="stat-number" id="home-stat4Number">8</div>
+                <div class="stat-label" id="home-stat4Label">Pacific Regions</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="services-section" id="services">
+        <svg class="services-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
+        <div class="section-header">
+            <span class="section-tag">How We Help</span>
+            <h2 class="section-title" id="home-servicesTitle">Programs & Resources</h2>
+            <p class="section-description" id="home-servicesSubtitle">From education advocacy to community support, we provide the guidance and resources families need.</p>
+        </div>
+        <div class="services-grid">
+            <div class="service-card" onclick="openIframeModal('Parent Training & Information Center', 'https://www.parentcenterhub.org/')">
+                <img src="https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=160&h=160&fit=crop&crop=faces" alt="Education" class="service-photo" onerror="this.outerHTML=''">
+                <h3 class="service-title" id="home-service1Title">Special Education Support</h3>
+                <p class="service-description" id="home-service1Desc">Navigate IEPs, understand your rights, and advocate effectively for your child's educational needs.</p>
+            </div>
+            <div class="service-card" onclick="window.location.href='readiness.html'">
+                <img src="https://images.unsplash.com/photo-1587654780291-39c9404d746b?w=160&h=160&fit=crop&crop=faces" alt="School readiness" class="service-photo" onerror="this.style.display='none'">
+                <h3 class="service-title" id="home-service2Title">School Readiness</h3>
+                <p class="service-description" id="home-service2Desc">Prepare your keiki for kindergarten success with our comprehensive readiness programs.</p>
+            </div>
+            <div class="service-card" onclick="window.location.href='specialed.html'">
+                <img src="https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=160&h=160&fit=crop&crop=faces" alt="Special education" class="service-photo" onerror="this.style.display='none'">
+                <h3 class="service-title" id="home-service3Title">Special Education Advocacy</h3>
+                <p class="service-description" id="home-service3Desc">Expert guidance on IEPs, IDEA, Chapter 60, and other education laws to ensure your child receives appropriate services.</p>
+            </div>
+            <div class="service-card" onclick="window.location.href='military.html'">
+                <img src="https://images.unsplash.com/photo-1581579186913-45ac3e6efe93?w=160&h=160&fit=crop&crop=faces" alt="Military families" class="service-photo" onerror="this.style.display='none'">
+                <h3 class="service-title" id="home-service4Title">Military Family Support</h3>
+                <p class="service-description" id="home-service4Desc">Specialized assistance for military families navigating relocations and IEP transitions across installations.</p>
+            </div>
+            <div class="service-card" onclick="window.location.href='pacific.html'">
+                <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=160&h=160&fit=crop&crop=faces" alt="Pacific" class="service-photo" onerror="this.style.display='none'">
+                <h3 class="service-title" id="home-service5Title">Pacific Islands Outreach</h3>
+                <p class="service-description" id="home-service5Desc">Extending support to families across American Samoa, CNMI, FSM, Guam, Marshall Islands, and Palau.</p>
+            </div>
+            <div class="service-card" onclick="window.location.href='community.html'">
+                <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=160&h=160&fit=crop&crop=faces" alt="Anti-bullying" class="service-photo" onerror="this.style.display='none'">
+                <h3 class="service-title" id="home-service6Title">Stand Up to Bullying</h3>
+                <p class="service-description" id="home-service6Desc">Resources and support to help prevent bullying and protect children in our community.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="photo-feature">
+        <div class="photo-feature-container">
+            <div class="photo-feature-images">
+                <div class="feature-photo tall">
+                    <img src="https://images.unsplash.com/photo-1491013516836-7db643ee125a?w=400&h=600&fit=crop" alt="Parent and child">
+                </div>
+                <div class="feature-photo">
+                    <img src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=400&h=280&fit=crop" alt="Training session">
+                </div>
+                <div class="feature-photo">
+                    <img src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=400&h=280&fit=crop" alt="Community event">
+                </div>
+            </div>
+            <div class="photo-feature-content">
+                <h2 id="home-featureTitle">Walking Alongside Families</h2>
+                <p id="home-featureDesc">Every family's journey is unique. Our trained staff and volunteers provide personalized support to help you navigate systems, understand your rights, and connect with resources.</p>
+                <ul>
+                    <li id="home-featureItem1">One-on-one family consultations</li>
+                    <li id="home-featureItem2">IEP meeting support and advocacy</li>
+                    <li id="home-featureItem3">Workshops and training sessions</li>
+                    <li id="home-featureItem4">Connection to community resources</li>
+                </ul>
+                <a href="contact.html" class="btn-primary">Connect With Us</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="events-section">
+        <div class="events-container">
+            <div class="events-header">
+                <h2 id="home-eventsTitle">Upcoming Events</h2>
+                <a href="events.html" class="view-all-link">View All Events →</a>
+            </div>
+            <div id="currentEventsGrid">
+                <div style="text-align: center; padding: 3rem;">
+                    <div style="display: inline-block; border: 4px solid rgba(8, 145, 178, 0.1); border-top-color: var(--ocean-deep); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite;"></div>
+                    <p style="margin-top: 1rem; color: var(--text-soft);">Loading events...</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta-banner">
+        <svg class="cta-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
+        <div class="cta-content">
+            <h2 id="home-ctaTitle">Ready to Make a Difference?</h2>
+            <p id="home-ctaSubtitle">Join our community of volunteers, supporters, and advocates working to create opportunities for children with disabilities across Hawai'i and the Pacific.</p>
+            <div class="cta-buttons">
+                <a href="volunteer.html" class="btn-white">Become a Volunteer</a>
+                <a href="https://www.paypal.com/donate?hosted_button_id=F6F2DPC4D6RSA" target="_blank" class="btn-outline-white">Support Our Mission</a>
+            </div>
+        </div>
+    </section>
+
+    <div id="footer-container"></div>
+
+    <div id="iframeModal" class="iframe-modal" onclick="closeIframeModal(event)">
+        <div class="iframe-content" onclick="event.stopPropagation()">
+            <div class="iframe-header">
+                <img src="assets/logo_transparent.png" alt="LDAH" onclick="closeIframeModal()" style="width: 60px; height: 60px; cursor: pointer;" title="Close">
+                <h3 id="iframeTitle">Loading...</h3>
+                <button class="close-iframe" onclick="closeIframeModal()">&times;</button>
+            </div>
+            <iframe id="iframeFrame" class="iframe-frame" src="" allowfullscreen loading="lazy"></iframe>
+        </div>
+    </div>
+
+    <script>
+    firebase.initializeApp({ apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk", authDomain: "ldah-932d5.firebaseapp.com", projectId: "ldah-932d5", storageBucket: "ldah-932d5.firebasestorage.app", messagingSenderId: "662130454003", appId: "1:662130454003:web:437576d5a5811ecd8df686" });
+    const db = firebase.firestore();
+    
+    async function loadPageContent() {
+        try {
+            const doc = await db.collection('pageContent').doc('home').get();
+            if (doc.exists) {
+                const content = doc.data();
+                Object.keys(content).forEach(key => {
+                    const el = document.getElementById('home-' + key);
+                    if (el && content[key]) el.innerHTML = stripEmoji(content[key]);
+                });
+            }
+        } catch (err) { console.error('Error loading page content:', err); }
+    }
+    
+    async function loadCurrentEvents() {
+        const container = document.getElementById('currentEventsGrid');
+        try {
+            const now = new Date();
+            const snapshot = await db.collection('events').get();
+            const currentEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(event => {
+                if (!event.startDate || !event.moveToPastDate) return false;
+                const startDate = new Date(event.startDate + 'T00:00:00');
+                const moveToPastDate = new Date(event.moveToPastDate + 'T00:00:00');
+                return now >= startDate && now < moveToPastDate;
+            }).sort((a, b) => new Date(a.eventDate + 'T00:00:00') - new Date(b.eventDate + 'T00:00:00')).slice(0, 3);
+            
+            if (currentEvents.length === 0) { 
+                container.innerHTML = '<div style="text-align: center; padding: 3rem; background: var(--white); border-radius: 16px; border: 2px dashed rgba(8, 145, 178, 0.2);"><img src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=160&h=160&fit=crop" alt="Event" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin: 0 auto 1rem; display: block; border: 3px solid var(--ocean-light);"><h3 style="color: var(--text-dark); margin-bottom: 0.5rem; font-family: Outfit, sans-serif;">Events Load Here</h3><p style="color: var(--text-soft);">Workshops, training sessions, and community events will display in this section.</p></div>'; 
+                return; 
+            }
+            
+            container.innerHTML = '<div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">' + currentEvents.map(event => { 
+                const eventDate = new Date(event.eventDate + 'T00:00:00'); 
+                const formattedDate = eventDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); 
+                const isPDF = event.imageUrl && event.imageUrl.toLowerCase().includes('.pdf'); 
+                return '<div class="event-card" onclick="window.location.href=\'events.html\'">' + (event.imageUrl ? (isPDF ? '<iframe src="' + event.imageUrl + '" style="width:100%; height:220px; display:block; border:none; overflow:hidden;"></iframe>' : '<img src="' + event.imageUrl + '" alt="' + event.title + '" style="width:100%; height:auto; display:block;">') : '<div style="width: 100%; height: 220px; background: linear-gradient(135deg, var(--ocean-deep) 0%, var(--ocean-mid) 100%);"></div>') + '<div style="padding: 2rem;"><div style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background: var(--sand-light); border-radius: 8px; font-size: 0.9rem; font-weight: 600; color: var(--ocean-deep); margin-bottom: 1rem;">' + formattedDate + '</div><h3 style="font-size: 1.4rem; color: var(--text-dark); margin-bottom: 1rem; font-weight: 600; line-height: 1.3; font-family: Outfit, sans-serif;">' + event.title + '</h3>' + (event.location ? '<div style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-soft); font-size: 0.95rem; margin-bottom: 0.75rem;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>' + event.location + '</div>' : '') + '<div style="display: inline-block; padding: 0.35rem 1rem; background: linear-gradient(135deg, #4ade80, #22c55e); color: white; border-radius: 8px; font-size: 0.85rem; font-weight: 600; margin-top: 1rem;">Upcoming</div></div></div>'; 
+            }).join('') + '</div>';
+        } catch (error) { 
+            container.innerHTML = '<div style="text-align: center; padding: 3rem;"><p style="color: var(--text-soft);">Unable to load events</p></div>'; 
+        }
+    }
+    
+    document.addEventListener('DOMContentLoaded', () => {
+        loadPageContent();
+        loadCurrentEvents();
+    });
+    </script>
+    <script src="modal.js"></script>
+</body>
+</html>
