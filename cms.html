@@ -1791,7 +1791,7 @@
         <div class="content-section">
           <h2>Manage Our Team</h2>
           <p style="color: var(--text-light); margin-bottom: 1.5rem;">
-            Add, edit, or remove team members. Drag cards to reorder. Changes appear on the Who We Are page.
+            Add, edit, or remove team members. Drag and drop cards to reorder. Changes appear on the Who We Are page.
           </p>
           
           <div class="success-message" id="teamSuccess">Changes saved successfully!</div>
@@ -1812,7 +1812,7 @@
         <div class="content-section">
           <h2>Manage Board of Directors</h2>
           <p style="color: var(--text-light); margin-bottom: 1.5rem;">
-            Add, edit, or remove board members. Drag cards to reorder. Changes appear on the Who We Are page.
+            Add, edit, or remove board members. Drag and drop cards to reorder. Changes appear on the Who We Are page.
           </p>
           
           <div class="success-message" id="boardSuccess">Changes saved successfully!</div>
@@ -1833,7 +1833,7 @@
         <div class="content-section">
           <h2>Manage Photo Gallery</h2>
           <p style="color: var(--text-light); margin-bottom: 1.5rem;">
-            Add, edit, or remove photos from the gallery. Drag cards to reorder. Changes appear on the Who We Are page.
+            Add, edit, or remove photos from the gallery. Drag and drop cards to reorder. Changes appear on the Who We Are page.
           </p>
           
           <div class="success-message" id="gallerySuccess">Changes saved successfully!</div>
@@ -1855,7 +1855,7 @@
         <div class="content-section">
           <h2>Manage Photo Gallery 2</h2>
           <p style="color: var(--text-light); margin-bottom: 1.5rem;">
-            Add, edit, or remove photos from gallery 2. Drag cards to reorder. Changes appear on the Volunteer page.
+            Add, edit, or remove photos from gallery 2. Drag and drop cards to reorder. Changes appear on the Volunteer page.
           </p>
           
           <div class="success-message" id="gallery2Success">Changes saved successfully!</div>
@@ -1948,7 +1948,7 @@
           <!-- Sub-mode toggle -->
           <div style="display:flex;gap:0.5rem;margin-bottom:1.5rem;border-bottom:2px solid #e2e8f0;padding-bottom:0.75rem;">
             <button id="eventsSubBtn" onclick="switchEventsSubTab('events')" style="padding:0.5rem 1.25rem;border-radius:8px 8px 0 0;border:none;font-weight:600;font-size:0.9rem;cursor:pointer;background:var(--primary-blue);color:white;">One-Time Events</button>
-            <button id="ongoingSubBtn" onclick="switchEventsSubTab('ongoing')" style="padding:0.5rem 1.25rem;border-radius:8px 8px 0 0;border:none;font-weight:600;font-size:0.9rem;cursor:pointer;background:#e2e8f0;color:#555;">On-Going Programs</button>
+            <button id="ongoingSubBtn" onclick="switchEventsSubTab('ongoing')" style="padding:0.5rem 1.25rem;border-radius:8px 8px 0 0;border:none;font-weight:600;font-size:0.9rem;cursor:pointer;background:#e2e8f0;color:#555;">Ongoing Programs</button>
           </div>
 
           <!-- One-Time Events Panel -->
@@ -1965,16 +1965,16 @@
             <div class="events-list" id="eventsList"></div>
           </div>
 
-          <!-- On-Going Programs Panel -->
+          <!-- Ongoing Programs Panel -->
           <div id="ongoingSubPanel" style="display:none;">
-            <h2>On-Going Programs</h2>
+            <h2>Ongoing Programs</h2>
             <p style="color: var(--text-light); margin-bottom: 1.5rem;">
               Recurring programs (e.g. Next Gen Connect) with auto-computed session dates. Parents see the next 30 days of sessions when signing up.
             </p>
             <div class="success-message" id="ongoingSuccess">Changes saved successfully!</div>
-            <button class="btn-add-person" onclick="openRecurringEventModal()">+ Add On-Going Program</button>
+            <button class="btn-add-person" onclick="openRecurringEventModal()">+ Add Ongoing Program</button>
             <div id="ongoingLoading" class="loading-spinner" style="display:none;">Loading programs...</div>
-            <div id="ongoingEmpty" class="empty-state" style="display:none;"><p>No on-going programs yet.</p></div>
+            <div id="ongoingEmpty" class="empty-state" style="display:none;"><p>No ongoing programs yet.</p></div>
             <div id="ongoingCount" style="color: var(--text-light); margin-bottom: 1rem;"></div>
             <div class="events-list" id="ongoingList"></div>
           </div>
@@ -2158,7 +2158,7 @@
           <div style="background: linear-gradient(135deg, var(--primary-blue), #1A8FC4); border-radius: 16px; padding: 2.5rem; color: white; text-align: center; margin-bottom: 2rem;">
             <h3 style="font-size: 1.5rem; margin-bottom: 1rem;">✨ Visual Page Editor</h3>
             <p style="opacity: 0.9; margin-bottom: 1.5rem; max-width: 500px; margin-left: auto; margin-right: auto;">
-              Edit pages visually - see exactly how they look while you edit. Click any text to change it instantly.
+              Edit pages visually — see exactly how they look while you edit. Click any text to change it instantly.
             </p>
             <a href="page-admin.html" class="btn-add-person" style="display: inline-block; background: white; color: var(--primary-blue); padding: 1rem 2rem; font-size: 1.1rem; text-decoration: none; border-radius: 12px; font-weight: 600;">
               🖥️ Open Page Editor
@@ -2930,7 +2930,7 @@
   <div class="modal-overlay" id="recurringEventModal">
     <div class="modal-box" style="max-width: 700px;">
       <div class="modal-header" style="background: linear-gradient(135deg, #0891B2, #0066a1);">
-        <h3 id="recurringEventModalTitle" style="color:white;">Add On-Going Program</h3>
+        <h3 id="recurringEventModalTitle" style="color:white;">Add Ongoing Program</h3>
         <button class="modal-close" onclick="closeRecurringEventModal()" style="color:white;">&times;</button>
       </div>
       <div class="modal-body" style="max-height: 72vh; overflow-y: auto;">
@@ -5931,7 +5931,7 @@
       downloadCSV(`${event.title.replace(/[^a-z0-9]/gi, '_')}_signups.csv`, headers, rows);
     }
 
-    // ===== On-Going / Recurring Events =====
+    // ===== Ongoing / Recurring Events =====
 
     let recurringPrograms = [];
     let recurringSignups = {};
@@ -6097,7 +6097,7 @@
       currentRecurringQuestions = [];
       const program = programId ? recurringPrograms.find(p => p.id === programId) : null;
       document.getElementById('recurringEventId').value = programId || '';
-      document.getElementById('recurringEventModalTitle').textContent = program ? 'Edit On-Going Program' : 'Add On-Going Program';
+      document.getElementById('recurringEventModalTitle').textContent = program ? 'Edit Ongoing Program' : 'Add Ongoing Program';
       document.getElementById('recurringTitle').value = program?.title || '';
       document.getElementById('recurringDescription').value = program?.description || '';
       document.getElementById('recurringImageUrl').value = program?.imageUrl || '';
