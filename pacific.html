@@ -455,7 +455,14 @@
         gap: 14px;
         flex-wrap: wrap;
         justify-content: center;
+        align-items: stretch;
+    }
+
+    .hero-buttons .facebook-btn,
+    .hero-buttons .membership-btn {
+        display: flex;
         align-items: center;
+        justify-content: center;
     }
 
     .login-modal {
@@ -1072,13 +1079,14 @@
         <p id="pacific-heroSubtitle">Supporting families across the Pacific Islands with resources for children with disabilities.</p>
         <div class="hero-buttons">
             <button class="facebook-btn" onclick="openIframeModal('PI Partners Facebook Group', 'https://www.facebook.com/groups/333501733848880')">Join PI Partners on Facebook</button>
-            <button class="membership-btn" onclick="openLoginModal()">🔐 Membership Login</button>
+            <button class="membership-btn" onclick="openLoginModal()">Membership Login</button>
         </div>
     </header>
 
     <div class="content-wrapper">
         <!-- Section Header -->
         <div class="section-header">
+            <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Pacific-Island-Partners-Logo.png" alt="Pacific Island Partners" style="max-width: 280px; margin-bottom: 1.5rem;">
             <h2 id="pacific-partnersTitle">Our Island Partners</h2>
             <p id="pacific-partnersSubtitle">Click on each island to learn more about our partnerships and the resources available for families in these communities.</p>
         </div>
@@ -1879,7 +1887,7 @@
     <div id="loginModal" class="login-modal" onclick="closeLoginModal(event)">
         <div class="login-modal-content" onclick="event.stopPropagation()">
             <div class="login-modal-header">
-                <h3>🔐 Partner Login</h3>
+                <h3>Partner Login</h3>
                 <button class="close-login" onclick="closeLoginModal()">&times;</button>
             </div>
             <div class="login-modal-body">
@@ -1914,7 +1922,7 @@
     <div id="resetModal" class="login-modal" onclick="closeResetModal(event)">
         <div class="login-modal-content" onclick="event.stopPropagation()">
             <div class="login-modal-header">
-                <h3>🔑 Reset Password</h3>
+                <h3>Reset Password</h3>
                 <button class="close-login" onclick="closeResetModal()">&times;</button>
             </div>
             <div class="login-modal-body">
