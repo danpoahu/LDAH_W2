@@ -2528,11 +2528,31 @@
       }
     }
 
-    function openRecurringSignupModal(programId) {
+    const RECURRING_SESSION_CAPACITY = 3;
+
+    async function openRecurringSignupModal(programId) {
       const program = window._recurringPrograms && window._recurringPrograms[programId];
       if (!program) return;
       const occurrences = getOccurrencesInNext30Days(program.schedules);
       const occFormatted = occurrences.map(formatOccurrence);
+
+      // Count confirmed (non-archived) signups per session
+      const sessionConfirmedCounts = {};
+      try {
+        const snap = await db.collection('recurringEvents').doc(programId)
+          .collection('signups')
+          .where('status', '==', 'confirmed')
+          .where('archived', '==', false)
+          .get();
+        snap.forEach(doc => {
+          const data = doc.data();
+          (data.selectedSessions || []).forEach(key => {
+            sessionConfirmedCounts[key] = (sessionConfirmedCounts[key] || 0) + 1;
+          });
+        });
+      } catch (err) {
+        console.error('Error fetching session counts:', err);
+      }
 
       const modalHTML = `
         <div id="signupModal" style="
@@ -2586,11 +2606,14 @@
                     Select the Sessions You'd Like to Attend *
                   </label>
                   <div style="display:flex;flex-direction:column;gap:8px;">
-                    ${occFormatted.length > 0 ? occFormatted.map(occ => `
-                      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:10px 12px;background:#f0f9ff;border-radius:8px;border:1px solid #e0f2fe;">
-                        <input type="checkbox" class="signup-date-checkbox" value="${occ.key}" style="width:18px;height:18px;cursor:pointer;flex-shrink:0;margin-top:2px;">
-                        <span style="font-size:14px;color:#374151;line-height:1.5;">${occ.display}</span>
-                      </label>`).join('') :
+                    ${occFormatted.length > 0 ? occFormatted.map(occ => {
+                      const isFull = (sessionConfirmedCounts[occ.key] || 0) >= RECURRING_SESSION_CAPACITY;
+                      return `
+                      <label style="display:flex;align-items:flex-start;gap:8px;${isFull ? 'cursor:not-allowed;opacity:0.6;' : 'cursor:pointer;'}padding:10px 12px;background:${isFull ? '#fef2f2' : '#f0f9ff'};border-radius:8px;border:1px solid ${isFull ? '#fecaca' : '#e0f2fe'};">
+                        <input type="checkbox" class="signup-date-checkbox" value="${occ.key}" ${isFull ? 'disabled' : ''} style="width:18px;height:18px;cursor:${isFull ? 'not-allowed' : 'pointer'};flex-shrink:0;margin-top:2px;">
+                        <span style="font-size:14px;color:${isFull ? '#991b1b' : '#374151'};line-height:1.5;">${occ.display}${isFull ? ' <strong style="color:#DC2626;"> — Full</strong>' : ''}</span>
+                      </label>`;
+                    }).join('') :
                       '<p style="color:#666;font-size:14px;">No sessions available in the next 30 days.</p>'
                     }
                   </div>
@@ -2727,6 +2750,33 @@
       `;
 
       try {
+        // Re-check capacity at submit time to prevent race conditions
+        const snap = await db.collection('recurringEvents').doc(programId)
+          .collection('signups')
+          .where('status', '==', 'confirmed')
+          .where('archived', '==', false)
+          .get();
+        const counts = {};
+        snap.forEach(doc => {
+          const d = doc.data();
+          (d.selectedSessions || []).forEach(key => { counts[key] = (counts[key] || 0) + 1; });
+        });
+        const fullSessions = formData.selectedSessions.filter(key => (counts[key] || 0) >= RECURRING_SESSION_CAPACITY);
+        if (fullSessions.length > 0) {
+          // Remove full sessions from selection
+          formData.selectedSessions = formData.selectedSessions.filter(key => !fullSessions.includes(key));
+          if (formData.selectedSessions.length === 0) {
+            document.getElementById('signupFormContent').innerHTML = `
+              <div style="text-align:center;padding:40px;">
+                <h2 style="color:#DC2626;font-size:20px;font-weight:bold;margin-bottom:12px;">Sessions Full</h2>
+                <p style="color:#666;font-size:16px;">All your selected sessions have reached capacity. Please try again with different sessions.</p>
+              </div>
+            `;
+            setTimeout(() => closeSignupModal(), 3000);
+            return;
+          }
+        }
+
         await db.collection('recurringEvents').doc(programId).collection('signups').add({
           ...formData,
           status: 'pending',
