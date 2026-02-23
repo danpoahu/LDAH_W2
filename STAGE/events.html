@@ -2528,11 +2528,26 @@
       }
     }
 
-    function openRecurringSignupModal(programId) {
+    async function openRecurringSignupModal(programId) {
       const program = window._recurringPrograms && window._recurringPrograms[programId];
       if (!program) return;
       const occurrences = getOccurrencesInNext30Days(program.schedules);
       const occFormatted = occurrences.map(formatOccurrence);
+
+      // Fetch signups to determine which sessions are full
+      const RECURRING_SESSION_CAPACITY = 3;
+      const sessionConfirmedCounts = {};
+      try {
+        const signupsSnap = await db.collection('recurringEvents').doc(programId).collection('signups').get();
+        signupsSnap.docs.forEach(doc => {
+          const s = doc.data();
+          if (s.status === 'confirmed' && !s.archived) {
+            (s.selectedSessions || []).forEach(sessionKey => {
+              sessionConfirmedCounts[sessionKey] = (sessionConfirmedCounts[sessionKey] || 0) + 1;
+            });
+          }
+        });
+      } catch (err) { console.error('Error fetching signups for capacity:', err); }
 
       const modalHTML = `
         <div id="signupModal" style="
@@ -2586,11 +2601,14 @@
                     Select the Sessions You'd Like to Attend *
                   </label>
                   <div style="display:flex;flex-direction:column;gap:8px;">
-                    ${occFormatted.length > 0 ? occFormatted.map(occ => `
-                      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:10px 12px;background:#f0f9ff;border-radius:8px;border:1px solid #e0f2fe;">
-                        <input type="checkbox" class="signup-date-checkbox" value="${occ.key}" style="width:18px;height:18px;cursor:pointer;flex-shrink:0;margin-top:2px;">
-                        <span style="font-size:14px;color:#374151;line-height:1.5;">${occ.display}</span>
-                      </label>`).join('') :
+                    ${occFormatted.length > 0 ? occFormatted.map(occ => {
+                      const isFull = (sessionConfirmedCounts[occ.key] || 0) >= RECURRING_SESSION_CAPACITY;
+                      return `
+                      <label style="display:flex;align-items:flex-start;gap:8px;${isFull ? 'cursor:not-allowed;opacity:0.6;' : 'cursor:pointer;'}padding:10px 12px;background:${isFull ? '#fee2e2' : '#f0f9ff'};border-radius:8px;border:1px solid ${isFull ? '#fecaca' : '#e0f2fe'};">
+                        <input type="checkbox" class="signup-date-checkbox" value="${occ.key}" ${isFull ? 'disabled' : ''} style="width:18px;height:18px;${isFull ? 'cursor:not-allowed;' : 'cursor:pointer;'}flex-shrink:0;margin-top:2px;">
+                        <span style="font-size:14px;color:${isFull ? '#991b1b' : '#374151'};line-height:1.5;">${occ.display}${isFull ? ' <span style="background:#DC2626;color:white;padding:1px 8px;border-radius:50px;font-size:11px;font-weight:700;margin-left:6px;">FULL</span>' : ''}</span>
+                      </label>`;
+                    }).join('') :
                       '<p style="color:#666;font-size:14px;">No sessions available in the next 30 days.</p>'
                     }
                   </div>

@@ -6193,13 +6193,16 @@
         groups[key].push(s);
       });
       const sorted = Object.entries(groups).sort(([a],[b]) => a.localeCompare(b));
+      const RECURRING_SESSION_CAPACITY = 3;
       document.getElementById('recurringSignupsList').innerHTML = sorted.map(([sessionKey, list]) => {
         const [dateStr, locationStr, timeStr] = sessionKey.split('|');
         const heading = sessionKey === 'No Session Selected' ? sessionKey
           : `${dateStr ? new Date(dateStr+'T00:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) : ''} · ${locationStr||''} · ${timeStr||''}`;
+        const confirmedCount = list.filter(s => s.status === 'confirmed').length;
+        const isFull = confirmedCount >= RECURRING_SESSION_CAPACITY;
         return `
           <div style="margin-bottom:1.5rem;">
-            <h4 style="color:var(--primary-blue);font-size:0.95rem;margin-bottom:0.75rem;padding:0.4rem 0.75rem;background:#e0f2fe;border-radius:6px;">${heading} (${list.length})</h4>
+            <h4 style="color:var(--primary-blue);font-size:0.95rem;margin-bottom:0.75rem;padding:0.4rem 0.75rem;background:${isFull?'#fee2e2':'#e0f2fe'};border-radius:6px;">${heading} (${list.length}) <span style="font-size:0.8rem;color:#666;font-weight:normal;">— ${confirmedCount}/${RECURRING_SESSION_CAPACITY} confirmed</span>${isFull?` <span style="background:#DC2626;color:white;padding:1px 8px;border-radius:50px;font-size:0.7rem;font-weight:700;margin-left:6px;">FULL</span>`:''}</h4>
             ${list.map(s => `
               <div style="border:1px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:0.75rem;">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.5rem;">
@@ -6236,6 +6239,8 @@
         await db.collection('recurringEvents').doc(programId).collection('signups').doc(signupId).update({ status });
         const signup = (recurringSignups[programId]||[]).find(s=>s.id===signupId);
         if (signup) signup.status = status;
+        // Refresh the modal so confirmed counts and FULL badges update
+        openRecurringSignupsModal(programId);
       } catch(err) { console.error(err); }
     }
 
