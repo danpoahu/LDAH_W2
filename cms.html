@@ -4566,7 +4566,7 @@
           <div class="gallery-drag-handle">⋮⋮</div>
           <div class="gallery-order-badge">${index + 1}</div>
           ${photo.imageUrl 
-            ? `<img src="${photo.imageUrl}" alt="${photo.caption || ''}" class="gallery-card-image">`
+            ? `<img src="${photo.imageUrl}" alt="${photo.caption || ''}" class="gallery-card-image" onerror="this.onerror=null; this.parentElement.innerHTML = this.parentElement.innerHTML.replace(/<img[^>]*>/, '<div class=\\'gallery-card-placeholder\\'>📷</div>');">`
             : `<div class="gallery-card-placeholder">📷</div>`
           }
           <div class="gallery-card-info">
@@ -5429,7 +5429,7 @@
           <div class="event-card" style="${isPast ? 'opacity: 0.7;' : ''}">
             <div class="event-card-header">
               ${event.imageUrl 
-                ? `<img src="${event.imageUrl}" alt="${event.title}" class="event-poster">`
+                ? `<img src="${event.imageUrl}" alt="${event.title}" class="event-poster" onerror="this.onerror=null;this.outerHTML='<div class=\\'event-poster-placeholder\\'>📅</div>';">`
                 : '<div class="event-poster-placeholder">📅</div>'
               }
               <div style="flex: 1;">
@@ -5985,7 +5985,7 @@
           <div style="background:white;border:1px solid #e2e8f0;border-radius:12px;padding:1.25rem;margin-bottom:1rem;${p.active ? '' : 'opacity:0.6;'}">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;">
               ${p.imageUrl
-                ? `<img src="${p.imageUrl}" alt="${p.title}" class="event-poster">`
+                ? `<img src="${p.imageUrl}" alt="${p.title}" class="event-poster" onerror="this.onerror=null;this.outerHTML='<div class=\\'event-poster-placeholder\\'>📅</div>';">`
                 : '<div class="event-poster-placeholder">🔄</div>'
               }
               <div style="flex:1;">

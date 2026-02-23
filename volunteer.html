@@ -621,7 +621,7 @@
         
         container.innerHTML = '<div class="opportunities-grid">' + opportunities.map(opp => `
           <div class="opportunity-card">
-            ${opp.imageUrl ? `<img src="${opp.imageUrl}" alt="${opp.title}" class="opportunity-image">` : ''}
+            ${opp.imageUrl ? `<img src="${opp.imageUrl}" alt="${opp.title}" class="opportunity-image" onerror="this.onerror=null;this.style.display='none';">` : ''}
             <h3 class="opportunity-title">${opp.title}</h3>
             <p class="opportunity-description">${opp.description}</p>
             ${opp.dates ? `<div class="opportunity-dates">${opp.dates}</div>` : ''}
@@ -740,7 +740,7 @@
       }
       grid.innerHTML = gallery2Images.map((photo, index) => `
         <div class="gallery-item" onclick="openLightbox2(${index})">
-          <img src="${photo.imageUrl}" alt="${photo.caption || 'Volunteer Gallery Photo'}">
+          <img src="${photo.imageUrl}" alt="${photo.caption || 'Volunteer Gallery Photo'}" onerror="this.onerror=null;this.parentElement.style.display='none';">
         </div>
       `).join('');
     }
