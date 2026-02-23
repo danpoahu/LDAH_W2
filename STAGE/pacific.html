@@ -428,6 +428,218 @@
     }
     .footer-bottom p { margin: 0.25rem 0; }
 
+    /* Membership Login Modal */
+    .membership-btn {
+        display: inline-block;
+        padding: 12px 28px;
+        background: rgba(255, 255, 255, 0.15);
+        color: white;
+        text-decoration: none;
+        border-radius: 50px;
+        font-weight: 600;
+        font-size: 1rem;
+        transition: transform 0.3s, box-shadow 0.3s, background 0.3s;
+        border: 2px solid rgba(255, 255, 255, 0.5);
+        cursor: pointer;
+        margin-top: 12px;
+    }
+
+    .membership-btn:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        background: rgba(255, 255, 255, 0.25);
+    }
+
+    .hero-buttons {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .login-modal {
+        display: none;
+        position: fixed;
+        z-index: 3000;
+        left: 0; top: 0;
+        width: 100%; height: 100%;
+        background-color: rgba(0, 0, 0, 0.7);
+        animation: fadeIn 0.3s;
+    }
+
+    .login-modal.active {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+    .login-modal-content {
+        background: white;
+        border-radius: 20px;
+        width: 100%;
+        max-width: 440px;
+        position: relative;
+        animation: slideUp 0.3s;
+        overflow: hidden;
+    }
+
+    .login-modal-header {
+        background: linear-gradient(135deg, var(--ocean-deep), var(--ocean-mid));
+        color: white;
+        padding: 1.5rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .login-modal-header h3 {
+        margin: 0;
+        font-size: 1.3rem;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .close-login {
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        color: white;
+        font-size: 1.8rem;
+        cursor: pointer;
+        width: 38px; height: 38px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.3s;
+    }
+
+    .close-login:hover { background: rgba(255, 255, 255, 0.3); }
+
+    .login-modal-body {
+        padding: 2rem;
+    }
+
+    .login-form-group {
+        margin-bottom: 1.25rem;
+    }
+
+    .login-form-group label {
+        display: block;
+        font-weight: 600;
+        color: var(--text-dark);
+        margin-bottom: 6px;
+        font-size: 0.95rem;
+    }
+
+    .login-form-group input {
+        width: 100%;
+        padding: 12px 16px;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        font-size: 1rem;
+        font-family: inherit;
+        transition: border-color 0.3s, box-shadow 0.3s;
+        outline: none;
+    }
+
+    .login-form-group input:focus {
+        border-color: var(--ocean-deep);
+        box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.15);
+    }
+
+    .login-submit-btn {
+        width: 100%;
+        padding: 14px;
+        background: linear-gradient(135deg, var(--ocean-deep), var(--ocean-mid));
+        color: white;
+        border: none;
+        border-radius: 12px;
+        font-size: 1.05rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        font-family: inherit;
+        margin-top: 0.5rem;
+    }
+
+    .login-submit-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(8, 145, 178, 0.3);
+    }
+
+    .login-links {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 1.25rem;
+        padding-top: 1.25rem;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .login-links a {
+        color: var(--ocean-deep);
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: color 0.3s;
+    }
+
+    .login-links a:hover {
+        color: var(--sunset-coral);
+        text-decoration: underline;
+    }
+
+    .login-error {
+        display: none;
+        background: #FEF2F2;
+        border: 1px solid #FECACA;
+        color: #DC2626;
+        padding: 10px 14px;
+        border-radius: 10px;
+        font-size: 0.9rem;
+        margin-bottom: 1rem;
+    }
+
+    .login-error.visible { display: block; }
+
+    .login-success {
+        display: none;
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .login-success.visible { display: block; }
+
+    .login-success h4 {
+        color: var(--ocean-deep);
+        font-size: 1.3rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .login-success p {
+        color: var(--text-soft);
+        margin-bottom: 1rem;
+    }
+
+    .partner-content-btn {
+        display: inline-block;
+        padding: 12px 24px;
+        background: linear-gradient(135deg, var(--ocean-deep), var(--ocean-mid));
+        color: white;
+        border-radius: 50px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: transform 0.2s;
+        border: none;
+        cursor: pointer;
+        font-size: 1rem;
+        font-family: inherit;
+    }
+
+    .partner-content-btn:hover { transform: translateY(-2px); }
+
     /* Iframe Modal */
     .iframe-modal {
         display: none;
@@ -814,7 +1026,10 @@
         <svg class="hero-section-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
         <h1 id="pacific-heroTitle">Pacific Islands Partnership</h1>
         <p id="pacific-heroSubtitle">Supporting families across the Pacific Islands with resources for children with disabilities.</p>
-        <button class="facebook-btn" onclick="openIframeModal('PI Partners Facebook Group', 'https://www.facebook.com/groups/333501733848880')">Join PI Partners on Facebook</button>
+        <div class="hero-buttons">
+            <button class="facebook-btn" onclick="openIframeModal('PI Partners Facebook Group', 'https://www.facebook.com/groups/333501733848880')">Join PI Partners on Facebook</button>
+            <button class="membership-btn" onclick="openLoginModal()">🔐 Membership Login</button>
+        </div>
     </header>
 
     <div class="content-wrapper">
@@ -1048,32 +1263,39 @@
             document.body.style.overflow = 'auto';
         }
 
-        // Island data - Full standalone content with maps and photos
+        // Island data - Standardized format for all 6 partners:
+        // 1. Social Links  2. Map  3. About Our Partner  4. Partner Logo (if available)
+        // 5. Primary Contact  6. Support Personnel  7. Photo Gallery
         const islandData = {
             samoa: {
                 name: 'American Samoa',
                 flag: '🇦🇸',
                 color: 'linear-gradient(135deg, #003366 0%, #004080 100%)',
-                partner: 'Parents of Children with Special Needs Network',
+                partner: 'Parents of Children with Special Needs Network (PCSN)',
                 content: `
                     <div class="social-links">
                         <button onclick="event.stopPropagation(); openIframeModal('PCSN Facebook Page', 'https://www.facebook.com/PagoPagonetwork/')" class="social-btn facebook">Facebook Page</button>
                     </div>
-                    
+
                     <div class="island-map-section">
                         <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-6-1024x512.png" alt="American Samoa Map" class="island-map">
                     </div>
-                    
+
                     <h3>About Our Partner</h3>
                     <p><strong>Parents of Children with Special Needs Network (PCSN)</strong> is a Parent-to-Parent Support Group for children, youth, and young adults with disabilities. Co-sponsored by the Parent Training and Information Center and Leadership in Disabilities of Achievement of Hawaii, we support one another in areas of health care, education, inclusion, community activities, guidance, and emotional encouragement.</p>
-                    
+
+                    <div class="partner-logo-section">
+                        <img src="https://ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-4.jpg" alt="PCSN Logo" class="partner-logo-img">
+                    </div>
+
+                    <h3>Primary Contact</h3>
                     <div class="contact-card">
                         <h4>Sandra (Sandy) Scanlan</h4>
+                        <p><strong>Phone:</strong> <a href="tel:+16847313959">(684) 731-3959</a></p>
                         <p><strong>Email:</strong> <a href="mailto:sandysamoa2@gmail.com">sandysamoa2@gmail.com</a></p>
-                        <p><strong>Cell:</strong> <a href="tel:+16847313959">(684) 731-3959</a></p>
                         <p><strong>Address:</strong> P.O. Box 523, Pago Pago, American Samoa 96799</p>
                     </div>
-                    
+
                     <h3>Support Personnel</h3>
                     <div class="support-grid">
                         <div class="support-person">
@@ -1087,7 +1309,7 @@
                             <p><a href="mailto:ioane_tuia@yahoo.com">ioane_tuia@yahoo.com</a></p>
                         </div>
                     </div>
-                    
+
                     <h3>Photo Gallery</h3>
                     <div class="photo-gallery">
                         <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-30.jpg" alt="American Samoa Event" class="gallery-photo">
@@ -1103,22 +1325,23 @@
                     <div class="social-links">
                         <button onclick="event.stopPropagation(); openIframeModal('Division of Youth Services', 'http://www.dys.gov.mp/')" class="social-btn website">Visit Website</button>
                     </div>
-                    
+
                     <div class="island-map-section">
                         <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-5-1024x512.png" alt="Northern Mariana Islands Map" class="island-map">
                     </div>
-                    
+
                     <h3>About Our Partner</h3>
                     <p>LDAH partners with the <strong>Department of Community and Cultural Affairs: Division of Youth Services</strong> in the Commonwealth of the Northern Mariana Islands to provide family support and educational resources for children with disabilities.</p>
-                    
+
+                    <h3>Primary Contact</h3>
                     <div class="contact-card">
                         <h4>Vivian T. Sablan</h4>
                         <p><strong>Phone:</strong> <a href="tel:+16702771000">(670) 277-1000</a></p>
                         <p><strong>Email:</strong> <a href="mailto:vtsablan@dys.gov.mp">vtsablan@dys.gov.mp</a></p>
                         <p><strong>Address:</strong> P.O. Box 501000, Saipan, MP 96950</p>
                     </div>
-                    
-                    <h3>Support Staff</h3>
+
+                    <h3>Support Personnel</h3>
                     <div class="support-grid">
                         <div class="support-person">
                             <h4>Jennifer O. Tanaka</h4>
@@ -1131,11 +1354,11 @@
                             <p><a href="tel:+16702371015">(670) 237-1015</a></p>
                         </div>
                     </div>
-                    
+
                     <h3>Photo Gallery</h3>
                     <div class="photo-gallery">
                         <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-4-1024x683.jpeg" alt="CNMI Event" class="gallery-photo">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-1.gif" alt="CNMI Logo" class="gallery-photo">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-1.gif" alt="CNMI Partner Logo" class="gallery-photo">
                     </div>
                 `
             },
@@ -1143,19 +1366,20 @@
                 name: 'Federated States of Micronesia',
                 flag: '🇫🇲',
                 color: 'linear-gradient(135deg, #66b3ff 0%, #0066cc 100%)',
-                partner: 'Partner States: Chuuk, Kosrae, Yap & Pohnpei',
+                partner: 'Partner States: Chuuk, Kosrae, Pohnpei & Yap',
                 content: `
-                    <div class="island-map-section">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-4.png" alt="FSM Flag" class="island-map" style="max-width: 200px;">
-                    </div>
-                    
-                    <h3>About Our Partnership</h3>
-                    <p>LDAH works across all <strong>four states of FSM – Chuuk, Kosrae, Pohnpei, and Yap</strong> – to support families and children with disabilities through training, resources, and advocacy support.</p>
-                    
                     <div class="island-map-section">
                         <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Micronesia_on_the_globe_%28small_islands_magnified%29_%28Polynesia_centered%29.svg/800px-Micronesia_on_the_globe_%28small_islands_magnified%29_%28Polynesia_centered%29.svg.png" alt="FSM Map" class="island-map">
                     </div>
-                    
+
+                    <h3>About Our Partnership</h3>
+                    <p>LDAH works across all <strong>four states of FSM – Chuuk, Kosrae, Pohnpei, and Yap</strong> – to support families and children with disabilities through training, resources, and advocacy support.</p>
+
+                    <div class="partner-logo-section">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-4.png" alt="FSM Flag" class="partner-logo-img" style="max-width: 200px;">
+                    </div>
+
+                    <h3>State Contacts</h3>
                     <div class="states-grid">
                         <div class="state-card">
                             <h4>Yap</h4>
@@ -1165,7 +1389,6 @@
                                 <p>P.O. Box 692, Colonia, Yap 96943</p>
                             </div>
                         </div>
-                        
                         <div class="state-card">
                             <h4>Chuuk</h4>
                             <div class="contact-info">
@@ -1175,7 +1398,6 @@
                                 <p><a href="tel:+6913308910">(691) 330-8910</a></p>
                             </div>
                         </div>
-                        
                         <div class="state-card">
                             <h4>Pohnpei</h4>
                             <div class="contact-info">
@@ -1189,7 +1411,6 @@
                                 <p><a href="mailto:bugulrow@yahoo.com">bugulrow@yahoo.com</a></p>
                             </div>
                         </div>
-                        
                         <div class="state-card">
                             <h4>Kosrae</h4>
                             <div class="contact-info">
@@ -1202,7 +1423,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <h3>Photo Gallery</h3>
                     <div class="photo-gallery">
                         <img src="https://www.ldahawaii.org/wp-content/uploads/2025/11/Island-Lagoon-Chuuk-2_1600-1024x768.jpg" alt="Chuuk Lagoon" class="gallery-photo">
@@ -1215,35 +1436,35 @@
                 name: 'Guam',
                 flag: '🇬🇺',
                 color: 'linear-gradient(135deg, #cc0000 0%, #ff3333 100%)',
-                partner: 'Autism Community Together',
+                partner: 'Autism Community Together (ACT)',
                 content: `
                     <div class="social-links">
                         <button onclick="event.stopPropagation(); openIframeModal('Autism Community Together Facebook', 'https://www.facebook.com/autismguam/')" class="social-btn facebook">Facebook Page</button>
                     </div>
-                    
+
                     <div class="island-map-section">
                         <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-3.png" alt="Guam Map" class="island-map">
                     </div>
-                    
+
                     <h3>About Our Partner</h3>
                     <p><strong>Autism Community Together (ACT)</strong> is a non-profit support group for individuals with autism, their families, and supporters on the island of Guam. ACT frequently hosts events where autistic individuals and their families can have fun together in their community.</p>
-                    
+
                     <div class="partner-logo-section">
                         <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-1.png" alt="ACT Guam Logo" class="partner-logo-img">
                     </div>
-                    
+
+                    <h3>Primary Contact</h3>
                     <div class="contact-card">
                         <h4>Evelyn Claros</h4>
                         <p><strong>Phone:</strong> <a href="tel:+16714881484">(671) 488-1484</a></p>
                         <p><strong>Email:</strong> <a href="mailto:evelyn.claros1@gmail.com">evelyn.claros1@gmail.com</a></p>
                         <p><strong>Address:</strong> DNA Building 238 Archbishop Flores St. Suite 304, Hagatna, Guam 96910</p>
                     </div>
-                    
                     <div class="contact-card secondary">
                         <h4>Jo Blas</h4>
                         <p><strong>Email:</strong> <a href="mailto:joblas67@gmail.com">joblas67@gmail.com</a></p>
                     </div>
-                    
+
                     <h3>Support Personnel</h3>
                     <div class="support-grid">
                         <div class="support-person">
@@ -1257,7 +1478,7 @@
                             <p><a href="tel:+16717352494">(671) 735-2494/5</a></p>
                         </div>
                     </div>
-                    
+
                     <h3>Photo Gallery</h3>
                     <div class="photo-gallery">
                         <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-34-1024x461.jpg" alt="Guam Event" class="gallery-photo">
@@ -1274,13 +1495,15 @@
                     <div class="social-links">
                         <button onclick="event.stopPropagation(); openIframeModal('RMI Public School System', 'https://pss.edu.mh/')" class="social-btn website">PSS Website</button>
                     </div>
-                    
+
                     <div class="island-map-section">
                         <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-2-1024x539.png" alt="Marshall Islands Map" class="island-map">
                     </div>
-                    
-                    <h3>Marshall Island Special Parent Association (MISPA)</h3>
-                    
+
+                    <h3>About Our Partners</h3>
+                    <p>LDAH partners with both the <strong>Marshall Island Special Parent Association (MISPA)</strong> and the <strong>Public School System (PSS)</strong> to provide comprehensive family support and special education services in the Republic of the Marshall Islands.</p>
+
+                    <h3>MISPA — Primary Contact</h3>
                     <div class="contact-card">
                         <h4>Kilobar Lakmis</h4>
                         <p>MISPA Secretary</p>
@@ -1288,8 +1511,8 @@
                         <p><strong>Email:</strong> <a href="mailto:lakmiskilobar@gmail.com">lakmiskilobar@gmail.com</a></p>
                         <p><strong>Address:</strong> P.O Box 1434, Majuro, MH 96960</p>
                     </div>
-                    
-                    <h4>MISPA Support Personnel</h4>
+
+                    <h3>MISPA Support Personnel</h3>
                     <div class="support-grid">
                         <div class="support-person">
                             <h4>Tony Komta</h4>
@@ -1307,21 +1530,20 @@
                             <p><a href="mailto:suejo0502@gmail.com">suejo0502@gmail.com</a></p>
                         </div>
                     </div>
-                    
+
                     <h3>Public School System (PSS)</h3>
-                    
                     <div class="partner-logo-section">
                         <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/OfficialPSSLogo.png" alt="PSS Logo" class="partner-logo-img" style="max-width: 150px;">
                     </div>
-                    
+
                     <div class="contact-card">
                         <h4>Frank Horiuchi</h4>
                         <p>SPED Director, PSS</p>
                         <p><strong>Phone:</strong> <a href="tel:+6926256023">(692) 625-6023</a></p>
                         <p><strong>Email:</strong> <a href="mailto:fhoriuchi@pss.edu.mh">fhoriuchi@pss.edu.mh</a></p>
                     </div>
-                    
-                    <h4>PSS Support Personnel</h4>
+
+                    <h3>PSS Support Personnel</h3>
                     <div class="support-grid">
                         <div class="support-person">
                             <h4>Janet Nemra</h4>
@@ -1338,9 +1560,10 @@
                             <p><a href="mailto:osmondlang@yahoo.com">osmondlang@yahoo.com</a></p>
                         </div>
                     </div>
-                    
-                    <div class="island-map-section" style="margin-top: 1.5rem;">
-                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/political-map-of-marshall-islands-1024x911-1.png" alt="Marshall Islands Political Map" class="island-map">
+
+                    <h3>Photo Gallery</h3>
+                    <div class="photo-gallery">
+                        <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/political-map-of-marshall-islands-1024x911-1.png" alt="Marshall Islands Political Map" class="gallery-photo">
                     </div>
                 `
             },
@@ -1348,25 +1571,25 @@
                 name: 'Republic of Palau',
                 flag: '🇵🇼',
                 color: 'linear-gradient(135deg, #00bfff 0%, #0099cc 100%)',
-                partner: 'Palau Parents Empowered',
+                partner: 'Palau Parents Empowered (PPE)',
                 content: `
                     <div class="social-links">
                         <button onclick="event.stopPropagation(); openIframeModal('Palau Parents Empowered', 'https://sites.google.com/site/palauparents/')" class="social-btn website">Visit Website</button>
                     </div>
-                    
+
                     <div class="island-map-section">
                         <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-1.png" alt="Palau Map" class="island-map">
                     </div>
-                    
+
                     <h3>About Our Partner</h3>
                     <p><strong>Palau Parents Empowered (PPE)</strong> is a non-profit organization in the Republic of Palau serving parents and families of children and youth with disabilities ages 0 to 26.</p>
-                    <p>The success of Palau Parents Empowered lies within each parent and families of all disabled children and youth in Palau. As a Community Parent Resource Center, our services are designed to enable parents and other family members of children with disabilities to better meet and understand the needs of individuals with disabilities.</p>
-                    <p>The ultimate goal is to prepare children with disabilities to lead productive, independent lives, to the fullest extent possible.</p>
-                    
+                    <p>As a Community Parent Resource Center, our services are designed to enable parents and other family members of children with disabilities to better meet and understand the needs of individuals with disabilities. The ultimate goal is to prepare children with disabilities to lead productive, independent lives, to the fullest extent possible.</p>
+
                     <div class="partner-logo-section">
                         <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-1.png" alt="PPE Logo" class="partner-logo-img">
                     </div>
-                    
+
+                    <h3>Primary Contact</h3>
                     <div class="contact-card">
                         <h4>Francesca (Cesca) Morei-Misech</h4>
                         <p><strong>Email:</strong> <a href="mailto:moreimisech@gmail.com">moreimisech@gmail.com</a></p>
@@ -1374,7 +1597,7 @@
                         <p><strong>Mobile:</strong> <a href="tel:+18087751432">(808) 775-1432</a></p>
                         <p><strong>Address:</strong> P.O. Box 96, Koror, Palau 96940</p>
                     </div>
-                    
+
                     <h3>Support Personnel</h3>
                     <div class="support-grid">
                         <div class="support-person">
@@ -1383,7 +1606,7 @@
                             <p><a href="mailto:norarenguul@palaumoe.net">norarenguul@palaumoe.net</a></p>
                         </div>
                     </div>
-                    
+
                     <h3>Photo Gallery</h3>
                     <div class="photo-gallery">
                         <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-32.jpg" alt="Palau Event" class="gallery-photo">
@@ -1396,6 +1619,109 @@
                 `
             }
         };
+
+        // === Membership Login Functions ===
+        function openLoginModal() {
+            const modal = document.getElementById('loginModal');
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('loginSuccess').classList.remove('visible');
+            document.getElementById('loginError').classList.remove('visible');
+            document.getElementById('loginEmail').value = '';
+            document.getElementById('loginPassword').value = '';
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+            setTimeout(() => document.getElementById('loginEmail').focus(), 300);
+        }
+
+        function closeLoginModal(event) {
+            if (event && event.target !== event.currentTarget) return;
+            document.getElementById('loginModal').classList.remove('active');
+            document.body.style.overflow = 'auto';
+        }
+
+        function handleLogin() {
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            const errorEl = document.getElementById('loginError');
+
+            if (!email || !password) {
+                errorEl.textContent = 'Please enter both email and password.';
+                errorEl.classList.add('visible');
+                return;
+            }
+
+            errorEl.classList.remove('visible');
+
+            // Check credentials against Firebase partners collection
+            db.collection('partners').where('email', '==', email.toLowerCase()).get()
+                .then(snapshot => {
+                    if (!snapshot.empty) {
+                        const partner = snapshot.docs[0].data();
+                        if (partner.password === password) {
+                            document.getElementById('loginForm').style.display = 'none';
+                            document.getElementById('loginSuccess').classList.add('visible');
+                        } else {
+                            errorEl.textContent = 'Incorrect password. Please try again.';
+                            errorEl.classList.add('visible');
+                        }
+                    } else {
+                        errorEl.textContent = 'No account found with this email.';
+                        errorEl.classList.add('visible');
+                    }
+                })
+                .catch(err => {
+                    console.error('Login error:', err);
+                    errorEl.textContent = 'Login error. Please try again later.';
+                    errorEl.classList.add('visible');
+                });
+        }
+
+        function showPasswordReset() {
+            closeLoginModal();
+            setTimeout(() => {
+                const modal = document.getElementById('resetModal');
+                document.getElementById('resetForm').style.display = 'block';
+                document.getElementById('resetSuccess').classList.remove('visible');
+                document.getElementById('resetError').classList.remove('visible');
+                document.getElementById('resetEmail').value = '';
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+                setTimeout(() => document.getElementById('resetEmail').focus(), 300);
+            }, 200);
+        }
+
+        function closeResetModal(event) {
+            if (event && event.target !== event.currentTarget) return;
+            document.getElementById('resetModal').classList.remove('active');
+            document.body.style.overflow = 'auto';
+        }
+
+        function handlePasswordReset() {
+            const email = document.getElementById('resetEmail').value.trim();
+            const errorEl = document.getElementById('resetError');
+
+            if (!email) {
+                errorEl.textContent = 'Please enter your email address.';
+                errorEl.classList.add('visible');
+                return;
+            }
+
+            errorEl.classList.remove('visible');
+            // Show success regardless (security best practice - don't reveal if account exists)
+            document.getElementById('resetForm').style.display = 'none';
+            document.getElementById('resetSuccess').classList.add('visible');
+        }
+
+        // Allow Enter key to submit login/reset forms
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                if (document.getElementById('loginModal').classList.contains('active')) {
+                    handleLogin();
+                } else if (document.getElementById('resetModal').classList.contains('active')) {
+                    handlePasswordReset();
+                }
+            }
+        });
 
         // Header and Footer Loader - Fetches from external files
         async function loadHeaderFooter() {
@@ -1456,6 +1782,70 @@
             loadHeaderFooter();
         }
     </script>
+    <!-- Membership Login Modal -->
+    <div id="loginModal" class="login-modal" onclick="closeLoginModal(event)">
+        <div class="login-modal-content" onclick="event.stopPropagation()">
+            <div class="login-modal-header">
+                <h3>🔐 Partner Login</h3>
+                <button class="close-login" onclick="closeLoginModal()">&times;</button>
+            </div>
+            <div class="login-modal-body">
+                <!-- Login Form -->
+                <div id="loginForm">
+                    <div class="login-error" id="loginError"></div>
+                    <div class="login-form-group">
+                        <label for="loginEmail">Email Address</label>
+                        <input type="email" id="loginEmail" placeholder="Enter your email" autocomplete="email">
+                    </div>
+                    <div class="login-form-group">
+                        <label for="loginPassword">Password</label>
+                        <input type="password" id="loginPassword" placeholder="Enter your password" autocomplete="current-password">
+                    </div>
+                    <button class="login-submit-btn" onclick="handleLogin()">Sign In</button>
+                    <div class="login-links">
+                        <a href="javascript:void(0)" onclick="showPasswordReset()">Forgot Password?</a>
+                        <a href="javascript:void(0)" onclick="openIframeModal('Partner Content', 'https://www.ldahawaii.org/membership-login/'); closeLoginModal();">Partner Content</a>
+                    </div>
+                </div>
+                <!-- Success State -->
+                <div id="loginSuccess" class="login-success">
+                    <h4>Welcome, Partner!</h4>
+                    <p>You are now logged in. Access partner resources below.</p>
+                    <button class="partner-content-btn" onclick="openIframeModal('Partner Content', 'https://www.ldahawaii.org/membership-login/'); closeLoginModal();">View Partner Content</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Password Reset Modal -->
+    <div id="resetModal" class="login-modal" onclick="closeResetModal(event)">
+        <div class="login-modal-content" onclick="event.stopPropagation()">
+            <div class="login-modal-header">
+                <h3>🔑 Reset Password</h3>
+                <button class="close-login" onclick="closeResetModal()">&times;</button>
+            </div>
+            <div class="login-modal-body">
+                <div id="resetForm">
+                    <p style="color: var(--text-soft); margin-bottom: 1.25rem;">Enter your email address and we'll help you reset your password.</p>
+                    <div class="login-error" id="resetError"></div>
+                    <div class="login-form-group">
+                        <label for="resetEmail">Email Address</label>
+                        <input type="email" id="resetEmail" placeholder="Enter your email" autocomplete="email">
+                    </div>
+                    <button class="login-submit-btn" onclick="handlePasswordReset()">Send Reset Link</button>
+                    <div class="login-links" style="justify-content: center;">
+                        <a href="javascript:void(0)" onclick="closeResetModal(); openLoginModal();">← Back to Login</a>
+                    </div>
+                </div>
+                <div id="resetSuccess" class="login-success">
+                    <h4>Check Your Email</h4>
+                    <p>If an account exists with that email, a password reset link has been sent.</p>
+                    <button class="partner-content-btn" onclick="closeResetModal()">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="modal.js"></script>
     <script>
         // Override modal.js Facebook handling for this page
