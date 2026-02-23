@@ -278,7 +278,7 @@
     
     .event-image {
       width: 100%;
-      height: 220px;
+      height: auto;
       display: block;
       background: linear-gradient(135deg, var(--primary-blue), var(--light-blue));
     }
@@ -1403,7 +1403,7 @@
               ${event.imageUrl ?
                 (isPDF ?
                   `<iframe src="${event.imageUrl}" style="width:100%; height:220px; display:block; border:none; overflow:hidden;"></iframe>` :
-                  `<img src="${event.imageUrl}" alt="${event.title}" style="width:100%; height:220px; object-fit:cover; display:block;" onerror="this.onerror=null;this.style.display='none';">`) :
+                  `<img src="${event.imageUrl}" alt="${event.title}" style="width:100%; height:auto; display:block;">`) :
                 `<div class="event-image"></div>`
               }
               <div class="event-content">
@@ -1836,7 +1836,7 @@
       
       // For regular events, show the image/poster
       if (!isEventRequest && event.imageUrl && !event.imageUrl.toLowerCase().includes('.pdf')) {
-        bodyHtml += `<img src="${event.imageUrl}" alt="${event.title}" class="event-detail-image" style="cursor: pointer;" onclick="window.open('${event.imageUrl}', '_blank')" onerror="this.onerror=null;this.style.display='none';">`;
+        bodyHtml += `<img src="${event.imageUrl}" alt="${event.title}" class="event-detail-image" style="cursor: pointer;" onclick="window.open('${event.imageUrl}', '_blank')">`;
       }
       
       // Event request badge
