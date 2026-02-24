@@ -2142,7 +2142,7 @@
               <span id="newPledgesBadge" class="badge" style="display: none;"></span>
             </button>
             <button class="sub-tab" data-subtab="eventRequests" onclick="switchDataSubTab('eventRequests')">
-              Event Requests
+              Calendar Requests
               <span id="newEventRequestsBadge" class="badge" style="display: none;"></span>
             </button>
             <button class="sub-tab" data-subtab="contacts" onclick="switchDataSubTab('contacts')">
@@ -2181,7 +2181,7 @@
                 <option value="viewed">Viewed</option>
                 <option value="acknowledged">Acknowledged</option>
               </select>
-              <button onclick="markAllPledgesViewed()" class="btn-add-person" style="padding: 0.5rem 1rem; background: #10b981;">✓ Mark All Viewed</button>
+              <button onclick="markAllPledgesViewed()" class="btn-export" style="background: #3b82f6;">✓ Mark All Viewed</button>
               <button onclick="exportPledgesToCSV()" class="btn-export">📥 Export CSV</button>
             </div>
             <div id="pledgesLoading" class="loading-spinner">Loading pledges...</div>
@@ -2192,7 +2192,7 @@
             <div class="data-list" id="pledgesList"></div>
           </div>
           
-          <!-- Event Requests Sub-tab -->
+          <!-- Calendar Requests Sub-tab -->
           <div id="eventRequests-subtab" class="subtab-content" style="display: none;">
             <div style="margin-bottom: 1rem; display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
               <select id="eventRequestStatusFilter" onchange="filterEventRequests()" style="padding: 0.5rem; border-radius: 8px; border: 2px solid #ddd;">
@@ -7211,26 +7211,31 @@
     }
     
     function exportProvidersToCSV() {
+      const exported = new Date().toLocaleDateString();
       const headers = ['First Name', 'Last Name', 'Organization', 'Email', 'Phone', 'Service Type', 'Category', 'Status', 'Message', 'Date'];
-      const rows = providers.map(p => {
+      const rows = [];
+      rows.push(['Provider Requests Report', '', '', '', '', '', '', '', '', '']);
+      rows.push([`Exported: ${exported}`, '', '', '', '', '', '', '', '', '']);
+      rows.push(['', '', '', '', '', '', '', '', '', '']);
+      providers.forEach(p => {
         let date = '';
         if (p.submittedAt?.seconds) {
           date = new Date(p.submittedAt.seconds * 1000).toLocaleDateString();
         } else if (p.timestamp?.seconds) {
           date = new Date(p.timestamp.seconds * 1000).toLocaleDateString();
         }
-        return [
-          p.firstName || '', 
-          p.lastName || '', 
-          p.organizationName || p.orgName || '', 
-          p.email || '', 
-          p.phone || '', 
-          p.serviceType || '', 
+        rows.push([
+          p.firstName || '',
+          p.lastName || '',
+          p.organizationName || p.orgName || '',
+          p.email || '',
+          p.phone || '',
+          p.serviceType || '',
           p.category || '',
-          p.status || 'new', 
-          (p.message || p.details || '').replace(/"/g, '""'), 
+          p.status || 'new',
+          (p.message || p.details || '').replace(/"/g, '""'),
           date
-        ];
+        ]);
       });
       downloadCSV('provider_requests.csv', headers, rows);
     }
@@ -7377,10 +7382,15 @@
     }
     
     function exportPledgesToCSV() {
+      const exported = new Date().toLocaleDateString();
       const headers = ['Name', 'Location', 'Date'];
-      const rows = pledges.map(p => {
+      const rows = [];
+      rows.push(['Anti-Bullying Pledges Report', '', '']);
+      rows.push([`Exported: ${exported}`, '', '']);
+      rows.push(['', '', '']);
+      pledges.forEach(p => {
         const date = p.timestamp?.seconds ? new Date(p.timestamp.seconds * 1000).toLocaleDateString() : '';
-        return [p.name || 'Anonymous', p.location || '', date];
+        rows.push([p.name || 'Anonymous', p.location || '', date]);
       });
       downloadCSV('anti_bullying_pledges.csv', headers, rows);
     }
@@ -7520,13 +7530,18 @@
     }
     
     function exportEventRequestsToCSV() {
+      const exported = new Date().toLocaleDateString();
       const headers = ['Name', 'Email', 'Phone', 'Preferred Date', 'Sponsor', 'Status', 'Event Info', 'Submitted'];
-      const rows = eventRequests.map(r => {
+      const rows = [];
+      rows.push(['Calendar Requests Report', '', '', '', '', '', '', '']);
+      rows.push([`Exported: ${exported}`, '', '', '', '', '', '', '']);
+      rows.push(['', '', '', '', '', '', '', '']);
+      eventRequests.forEach(r => {
         const timestamp = r.timestamp?.seconds ? r.timestamp.seconds * 1000 : r.timestamp;
         const date = timestamp ? new Date(timestamp).toLocaleDateString() : '';
-        return [r.name || '', r.email || '', r.phone || '', r.preferredDate || '', r.sponsor || '', r.status || 'pending', (r.eventInfo || '').replace(/"/g, '""'), date];
+        rows.push([r.name || '', r.email || '', r.phone || '', r.preferredDate || '', r.sponsor || '', r.status || 'pending', (r.eventInfo || '').replace(/"/g, '""'), date]);
       });
-      downloadCSV('event_requests.csv', headers, rows);
+      downloadCSV('calendar_requests.csv', headers, rows);
     }
     
     async function loadContacts() {
