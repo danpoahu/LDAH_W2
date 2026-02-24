@@ -8509,8 +8509,10 @@
       rows.push(['Phone Call Taps', saTotals.phoneCalls]);
       rows.push(['Email Link Clicks', saTotals.emailClicks]);
       rows.push(['Outbound Link Clicks', saTotals.outboundClicks]);
+      rows.push(['Document / PDF Views', saTotals.documentViews]);
       rows.push(['Modal / Popup Opens', saTotals.modalOpens]);
       rows.push(['Form Submissions', saTotals.formSubmits]);
+      rows.push(['Total Interactions', saTotals.totalInteractions]);
       rows.push([]);
 
       rows.push(['=== PAGE VIEWS BY PAGE (Last 30 Days) ===']);
@@ -8520,7 +8522,19 @@
         rows.push([pageLabelsCSV[page] || page, views]);
       });
       rows.push([]);
-      
+
+      // Document Views by Document
+      const sortedDocsCSV = Object.entries(saTotals.documentViewsByDoc).sort((a, b) => b[1] - a[1]);
+      if (sortedDocsCSV.length > 0) {
+        rows.push(['=== DOCUMENT / PDF VIEWS (Last 30 Days) ===']);
+        rows.push(['Document', 'Views']);
+        sortedDocsCSV.forEach(([docName, views]) => {
+          const label = docName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+          rows.push([escapeCSV(label), views]);
+        });
+        rows.push([]);
+      }
+
       // Content Overview
       rows.push(['=== CONTENT OVERVIEW ===']);
       rows.push(['Content Type', 'Count']);
@@ -9005,12 +9019,9 @@
 
       y += 28;
 
-      // ===== WEBSITE ANALYTICS =====
-      // Check if we need a new page
-      if (y > 230) {
-        doc.addPage();
-        y = margin;
-      }
+      // ===== WEBSITE ANALYTICS (new page) =====
+      doc.addPage();
+      y = margin;
 
       const saPdfTotals = getSiteAnalyticsTotals();
       doc.setFontSize(12);
