@@ -76,7 +76,28 @@
         .form { padding: 1rem; display: none; }
         .form.active { display: block; }
         .form label { display: block; font-weight: 600; margin-bottom: 0.5rem; }
-        .form textarea { width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; margin-bottom: 1rem; min-height: 100px; resize: vertical; font-family: inherit; }
+        .form textarea { width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 0 0 8px 8px; border-top: 1px solid #e2e8f0; margin-bottom: 0.25rem; min-height: 120px; resize: vertical; font-family: 'Courier New', monospace; font-size: 0.85rem; line-height: 1.5; }
+        .fmt-editor { width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-top: 1px solid #e2e8f0; border-radius: 0 0 8px 8px; margin-bottom: 0.25rem; min-height: 200px; max-height: 400px; overflow-y: auto; font-family: inherit; font-size: 0.9rem; line-height: 1.6; outline: none; background: white; cursor: text; }
+        .fmt-editor:focus { border-color: #0891B2; box-shadow: 0 0 0 3px rgba(8,145,178,0.1); }
+        .fmt-editor:empty::before { content: 'Click here and start typing...'; color: #9ca3af; font-style: italic; pointer-events: none; }
+        .fmt-toolbar { background: #f8fafc; border: 2px solid #e2e8f0; border-bottom: none; border-radius: 8px 8px 0 0; padding: 0.4rem; }
+        .fmt-row { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; padding: 2px 0; }
+        .fmt-btn { width: 32px; height: 30px; border: 1px solid #d1d5db; border-radius: 5px; background: white; cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; transition: all 0.15s; color: #374151; }
+        .fmt-btn:hover { background: #e0f2fe; border-color: #0891B2; color: #004E7C; }
+        .fmt-btn:active { background: #bae6fd; transform: scale(0.95); }
+        .fmt-btn.fmt-sm { width: auto; padding: 0 8px; font-size: 0.75rem; font-weight: 600; }
+        .fmt-sep { width: 1px; height: 22px; background: #d1d5db; margin: 0 4px; }
+        .fmt-row-label { font-size: 0.7rem; font-weight: 600; color: #64748b; margin-right: 2px; }
+        .fmt-swatch { width: 22px; height: 22px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 0 1px #d1d5db; cursor: pointer; transition: transform 0.15s; }
+        .fmt-swatch:hover { transform: scale(1.2); box-shadow: 0 0 0 2px #0891B2; }
+        .fmt-size-select { height: 30px; border: 1px solid #d1d5db; border-radius: 5px; background: white; font-size: 0.75rem; padding: 0 4px; cursor: pointer; color: #374151; }
+        .fmt-cheatsheet { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem; margin: 0.75rem 0; }
+        .fmt-cheatsheet-title { font-size: 0.75rem; font-weight: 600; color: #475569; margin-bottom: 0.5rem; }
+        .fmt-cheatsheet-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem; }
+        .fmt-cheatsheet-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.7rem; color: #64748b; line-height: 1.3; }
+        .fmt-cheatsheet-icon { width: 26px; height: 24px; background: white; border: 1px solid #d1d5db; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: #374151; flex-shrink: 0; }
+        .save-toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px); background: #166534; color: white; padding: 0.75rem 2rem; border-radius: 10px; font-weight: 600; font-size: 0.95rem; box-shadow: 0 4px 16px rgba(0,0,0,0.2); opacity: 0; transition: opacity 0.3s, transform 0.3s; z-index: 9999; pointer-events: none; }
+        .save-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
         .btns { display: flex; gap: 0.5rem; }
         .btn-save { flex: 1; background: var(--primary); color: white; border: none; padding: 0.7rem; border-radius: 8px; font-weight: 600; cursor: pointer; }
         .btn-cancel { flex: 1; background: #e2e8f0; border: none; padding: 0.7rem; border-radius: 8px; font-weight: 600; cursor: pointer; }
@@ -751,7 +772,49 @@
                 
                 <!-- Text editing (default) -->
                 <div id="textEditSection">
-                    <textarea id="txt"></textarea>
+                    <div class="fmt-toolbar" id="fmtToolbar">
+                        <div class="fmt-row">
+                            <button type="button" class="fmt-btn" onclick="fmtWrap('strong')" title="Bold"><b>B</b></button>
+                            <button type="button" class="fmt-btn" onclick="fmtWrap('em')" title="Italic"><i>I</i></button>
+                            <button type="button" class="fmt-btn" onclick="fmtWrap('u')" title="Underline"><u>U</u></button>
+                            <span class="fmt-sep"></span>
+                            <button type="button" class="fmt-btn" onclick="fmtWrap('h4')" title="Heading">H</button>
+                            <button type="button" class="fmt-btn fmt-sm" onclick="fmtWrap('p')" title="Paragraph">&para;</button>
+                            <button type="button" class="fmt-btn fmt-sm" onclick="fmtInsert('&lt;br&gt;')" title="Line Break">BR</button>
+                        </div>
+                        <div class="fmt-row">
+                            <span class="fmt-row-label">Color:</span>
+                            <button type="button" class="fmt-swatch" style="background:#1E293B" onclick="fmtApplyColor('#1E293B')" title="Dark (Headings)"></button>
+                            <button type="button" class="fmt-swatch" style="background:#64748B" onclick="fmtApplyColor('#64748B')" title="Grey (Body Text)"></button>
+                            <button type="button" class="fmt-swatch" style="background:#004E7C" onclick="fmtApplyColor('#004E7C')" title="Navy"></button>
+                            <button type="button" class="fmt-swatch" style="background:#0891B2" onclick="fmtApplyColor('#0891B2')" title="Ocean Teal"></button>
+                            <button type="button" class="fmt-swatch" style="background:#F97316" onclick="fmtApplyColor('#F97316')" title="Sunset Orange"></button>
+                            <button type="button" class="fmt-swatch" style="background:#DC2626" onclick="fmtApplyColor('#DC2626')" title="Red"></button>
+                            <span class="fmt-sep"></span>
+                            <select id="fmtSize" onchange="fmtApplySize(this.value)" class="fmt-size-select" title="Font Size">
+                                <option value="">Size</option>
+                                <option value="0.75rem">Small</option>
+                                <option value="0.9rem">Normal</option>
+                                <option value="1.1rem">Medium</option>
+                                <option value="1.3rem">Large</option>
+                                <option value="1.6rem">X-Large</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="txt" contenteditable="true" class="fmt-editor"></div>
+                    <div class="fmt-cheatsheet">
+                        <p class="fmt-cheatsheet-title">Formatting Guide — highlight text, then click:</p>
+                        <div class="fmt-cheatsheet-grid">
+                            <div class="fmt-cheatsheet-item"><span class="fmt-cheatsheet-icon"><b>B</b></span><span><strong>Bold</strong> — makes text thicker &amp; heavier</span></div>
+                            <div class="fmt-cheatsheet-item"><span class="fmt-cheatsheet-icon"><i>I</i></span><span><strong>Italic</strong> — slants text for emphasis</span></div>
+                            <div class="fmt-cheatsheet-item"><span class="fmt-cheatsheet-icon"><u>U</u></span><span><strong>Underline</strong> — adds a line under text</span></div>
+                            <div class="fmt-cheatsheet-item"><span class="fmt-cheatsheet-icon">H</span><span><strong>Heading</strong> — larger, bold section title</span></div>
+                            <div class="fmt-cheatsheet-item"><span class="fmt-cheatsheet-icon">&para;</span><span><strong>Paragraph</strong> — wraps text in its own block</span></div>
+                            <div class="fmt-cheatsheet-item"><span class="fmt-cheatsheet-icon">BR</span><span><strong>Line Break</strong> — starts a new line</span></div>
+                            <div class="fmt-cheatsheet-item"><span class="fmt-cheatsheet-icon" style="background:linear-gradient(135deg,#1E293B,#0891B2,#F97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700;">&#9679;</span><span><strong>Color</strong> — pick an approved brand color</span></div>
+                            <div class="fmt-cheatsheet-item"><span class="fmt-cheatsheet-icon" style="font-size:0.65rem;font-weight:600;">Size</span><span><strong>Font Size</strong> — Small through X-Large</span></div>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- Photo editing (shown for photo fields) -->
@@ -804,6 +867,41 @@
         const db = firebase.firestore(), auth = firebase.auth();
         let loggedIn = false;
         const data = { home:{}, whoweare:{}, events:{}, volunteer:{}, resources:{}, contact:{}, readiness:{}, specialed:{}, military:{}, pacific:{}, community:{} };
+
+        // --- Formatting toolbar helpers (WYSIWYG via contenteditable) ---
+        function fmtFocus() { document.getElementById('txt').focus(); }
+        function fmtWrap(tag) {
+            fmtFocus();
+            var sel = window.getSelection();
+            if (!sel.rangeCount || sel.isCollapsed) { alert('Select some text first, then click the button.'); return; }
+            if (tag === 'strong') { document.execCommand('bold', false, null); }
+            else if (tag === 'em') { document.execCommand('italic', false, null); }
+            else if (tag === 'u') { document.execCommand('underline', false, null); }
+            else if (tag === 'h4' || tag === 'p') { document.execCommand('formatBlock', false, '<' + tag + '>'); }
+        }
+        function fmtInsert(openTag) {
+            fmtFocus();
+            document.execCommand('insertHTML', false, '<br>');
+        }
+        function fmtApplyColor(color) {
+            fmtFocus();
+            var sel = window.getSelection();
+            if (!sel.rangeCount || sel.isCollapsed) { alert('Select some text first, then pick a color.'); return; }
+            document.execCommand('foreColor', false, color);
+        }
+        function fmtApplySize(size) {
+            if (!size) return;
+            fmtFocus();
+            var sel = window.getSelection();
+            if (!sel.rangeCount || sel.isCollapsed) { alert('Select some text first, then pick a size.'); document.getElementById('fmtSize').value = ''; return; }
+            // execCommand fontSize uses 1-7 scale; we use insertHTML with span for rem values
+            var range = sel.getRangeAt(0);
+            var span = document.createElement('span');
+            span.style.fontSize = size;
+            range.surroundContents(span);
+            sel.removeAllRanges();
+            document.getElementById('fmtSize').value = '';
+        }
 
         auth.onAuthStateChanged(u => {
             loggedIn = !!u;
@@ -863,7 +961,7 @@
                 document.getElementById('photoFile').value = '';
                 document.getElementById('uploadProgress').style.display = 'none';
             } else {
-                document.getElementById('txt').value=(document.getElementById(pg+'-'+fld)?.innerHTML||'').trim(); 
+                document.getElementById('txt').innerHTML=(document.getElementById(pg+'-'+fld)?.innerHTML||'').trim(); 
             }
             if (!document.getElementById('panel').classList.contains('open')) togglePanel(); 
         }
@@ -979,7 +1077,7 @@
                     return;
                 }
             } else {
-                txt = document.getElementById('txt').value;
+                txt = document.getElementById('txt').innerHTML;
             }
             
             try { 
@@ -992,16 +1090,22 @@
                     const el=document.getElementById(pg+'-'+fld); 
                     if(el) el.innerHTML=txt; 
                 }
-                data[pg][fld]=txt; 
-                alert('Saved!'); 
-                cancel(); 
+                data[pg][fld]=txt;
+                cancel();
+                // Show a non-blocking toast instead of alert (markup clears instantly)
+                var toast = document.createElement('div');
+                toast.className = 'save-toast';
+                toast.textContent = 'Saved!';
+                document.body.appendChild(toast);
+                setTimeout(function(){ toast.classList.add('show'); }, 10);
+                setTimeout(function(){ toast.classList.remove('show'); setTimeout(function(){ toast.remove(); }, 300); }, 1800); 
             } catch(err) { alert('❌ '+err.message); } 
         }
         
         function cancel() { 
             document.getElementById('form').classList.remove('active'); 
             document.getElementById('welcome').style.display='block'; 
-            document.getElementById('txt').value=''; 
+            document.getElementById('txt').innerHTML=''; 
             document.getElementById('photoUrl').value = '';
             document.getElementById('photoFile').value = '';
             document.getElementById('uploadProgress').style.display = 'none';
