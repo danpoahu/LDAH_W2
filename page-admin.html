@@ -23,8 +23,6 @@
         .tab { background: transparent; color: rgba(255,255,255,0.7); border: none; padding: 0.75rem 1rem; cursor: pointer; font-size: 0.9rem; text-align: left; width: 100%; transition: all 0.2s; border-left: 3px solid transparent; display: flex; align-items: center; gap: 0.5rem; }
         .tab:hover { background: rgba(255,255,255,0.05); color: white; }
         .tab.active { background: rgba(0,78,124,0.3); color: white; border-left-color: var(--teal); font-weight: 600; }
-        .tab.sub { padding-left: 2.2rem; font-size: 0.82rem; opacity: 0.85; }
-        .tab.sub::before { content: "↳ "; opacity: 0.5; }
         .sidebar-footer { padding: 0.5rem; border-top: 1px solid rgba(255,255,255,0.1); }
         .back { background: rgba(255,255,255,0.1); color: white; padding: 0.75rem 1rem; border-radius: 6px; text-decoration: none; display: block; text-align: center; font-size: 0.85rem; transition: all 0.2s; }
         .back:hover { background: rgba(255,255,255,0.2); }
@@ -112,12 +110,6 @@
             <button class="tab" data-page="specialed">Special Ed</button>
             <button class="tab" data-page="military">Military</button>
             <button class="tab" data-page="pacific">Pacific</button>
-            <button class="tab sub" data-page="pacific-samoa">Am. Samoa</button>
-            <button class="tab sub" data-page="pacific-cnmi">CNMI</button>
-            <button class="tab sub" data-page="pacific-fsm">FSM</button>
-            <button class="tab sub" data-page="pacific-guam">Guam</button>
-            <button class="tab sub" data-page="pacific-marshall">Marshall Is.</button>
-            <button class="tab sub" data-page="pacific-palau">Palau</button>
             <button class="tab" data-page="community">Community</button>
         </nav>
         <div class="sidebar-footer">
@@ -463,242 +455,6 @@
         </section>
     </div></div>
 
-    <!-- PACIFIC: AMERICAN SAMOA MODAL -->
-    <div class="page" id="page-pacific-samoa"><div class="preview">
-        <section class="hero" style="padding:30px 20px">
-            <h1 style="font-size:1.6rem">🇦🇸 American Samoa Modal</h1>
-            <p style="font-size:0.9rem;opacity:0.85">Edit the island detail modal for American Samoa</p>
-        </section>
-        <section class="sec" style="background:#f0f9ff">
-            <div class="sec-head"><span class="sec-badge">Modal Photos</span><h2 style="font-size:1.2rem">Hero & Partner Images</h2></div>
-            <div class="grid3">
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:120px;margin:0 0 1rem;border-radius:10px;overflow:hidden"><div class="edit" onclick="ed('pacific','samoaHero','Samoa Hero Photo')"><span class="badge">Photo</span><img id="pacific-samoaHero-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-31.jpg" alt="Samoa Hero" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.85rem;color:var(--gray)">Hero Image</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:120px;margin:0 0 1rem;border-radius:10px;overflow:hidden"><div class="edit" onclick="ed('pacific','samoaFlag','Samoa Flag/Logo')"><span class="badge">Photo</span><img id="pacific-samoaFlag-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-6-1024x512.png" alt="Samoa Flag" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.85rem;color:var(--gray)">Flag / Logo</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:120px;margin:0 0 1rem;border-radius:10px;overflow:hidden"><div class="edit" onclick="ed('pacific','samoaContactPhoto','Samoa Contact Photo')"><span class="badge">Photo</span><img id="pacific-samoaContactPhoto-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-30.jpg" alt="Contact" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.85rem;color:var(--gray)">Contact Photo</p></div>
-            </div>
-        </section>
-        <section class="sec">
-            <div class="sec-head"><span class="sec-badge">Modal Text</span><h2 style="font-size:1.2rem">About & Contact Info</h2></div>
-            <div class="card" style="max-width:800px;margin:0 auto 1rem">
-                <div class="edit" onclick="ed('pacific','samoaAbout','Samoa About Text')"><span class="badge">Edit</span><p id="pacific-samoaAbout"><strong>Parents of Children with Special Needs Network (PCSN)</strong> is a Parent-to-Parent Support Group for children, youth, and young adults with disabilities.</p></div>
-            </div>
-            <div class="card" style="max-width:800px;margin:0 auto 1rem">
-                <div class="edit" onclick="ed('pacific','samoaContact','Samoa Contact Info (HTML)')"><span class="badge">Edit</span><div id="pacific-samoaContact"><h4>Sandra (Sandy) Scanlan</h4><p><strong>Phone:</strong> (684) 731-3959</p><p><strong>Email:</strong> sandysamoa2@gmail.com</p><p><strong>Address:</strong> P.O. Box 523, Pago Pago, American Samoa 96799</p></div></div>
-            </div>
-            <div class="card" style="max-width:800px;margin:0 auto">
-                <div class="edit" onclick="ed('pacific','samoaSupport','Samoa Support Personnel (HTML)')"><span class="badge">Edit</span><div id="pacific-samoaSupport"><strong>Dr. Herbert Boat</strong> — Assistant SPED Director<br><strong>Segia Ioane</strong> — Early Childhood Specialist</div></div>
-            </div>
-        </section>
-        <section class="sec" style="background:#f0f9ff">
-            <div class="sec-head"><span class="sec-badge">Gallery</span><h2 style="font-size:1.2rem">Photo Gallery (9 photos)</h2></div>
-            <div class="grid3">
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','samoaPhoto1','Samoa Gallery 1')"><span class="badge">Photo</span><img id="pacific-samoaPhoto1-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-5-768x576.jpg" alt="Gallery 1" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 1</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','samoaPhoto2','Samoa Gallery 2')"><span class="badge">Photo</span><img id="pacific-samoaPhoto2-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-12-768x576.jpg" alt="Gallery 2" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 2</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','samoaPhoto3','Samoa Gallery 3')"><span class="badge">Photo</span><img id="pacific-samoaPhoto3-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-13-768x576.jpg" alt="Gallery 3" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 3</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','samoaPhoto4','Samoa Gallery 4')"><span class="badge">Photo</span><img id="pacific-samoaPhoto4-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-19-768x576.jpg" alt="Gallery 4" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 4</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','samoaPhoto5','Samoa Gallery 5')"><span class="badge">Photo</span><img id="pacific-samoaPhoto5-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-20-768x509.jpg" alt="Gallery 5" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 5</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','samoaPhoto6','Samoa Gallery 6')"><span class="badge">Photo</span><img id="pacific-samoaPhoto6-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-24-768x576.jpg" alt="Gallery 6" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 6</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','samoaPhoto7','Samoa Gallery 7')"><span class="badge">Photo</span><img id="pacific-samoaPhoto7-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-25-768x576.jpg" alt="Gallery 7" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 7</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','samoaPhoto8','Samoa Gallery 8')"><span class="badge">Photo</span><img id="pacific-samoaPhoto8-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-21-768x576.jpg" alt="Gallery 8" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 8</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','samoaPhoto9','Samoa Gallery 9')"><span class="badge">Photo</span><img id="pacific-samoaPhoto9-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-14-768x576.jpg" alt="Gallery 9" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 9</p></div>
-            </div>
-        </section>
-    </div></div>
-
-    <!-- PACIFIC: CNMI MODAL -->
-    <div class="page" id="page-pacific-cnmi"><div class="preview">
-        <section class="hero" style="padding:30px 20px">
-            <h1 style="font-size:1.6rem">🇲🇵 CNMI Modal</h1>
-            <p style="font-size:0.9rem;opacity:0.85">Edit the island detail modal for Northern Mariana Islands</p>
-        </section>
-        <section class="sec" style="background:#f0f9ff">
-            <div class="sec-head"><span class="sec-badge">Modal Photos</span><h2 style="font-size:1.2rem">Hero & Partner Images</h2></div>
-            <div class="grid3">
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:120px;margin:0 0 1rem;border-radius:10px;overflow:hidden"><div class="edit" onclick="ed('pacific','cnmiHero','CNMI Hero Photo')"><span class="badge">Photo</span><img id="pacific-cnmiHero-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-1.webp" alt="CNMI Hero" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.85rem;color:var(--gray)">Hero Image</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:120px;margin:0 0 1rem;border-radius:10px;overflow:hidden"><div class="edit" onclick="ed('pacific','cnmiFlag','CNMI Flag/Logo')"><span class="badge">Photo</span><img id="pacific-cnmiFlag-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-5-1024x512.png" alt="CNMI Flag" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.85rem;color:var(--gray)">Flag / Logo</p></div>
-            </div>
-        </section>
-        <section class="sec">
-            <div class="sec-head"><span class="sec-badge">Modal Text</span><h2 style="font-size:1.2rem">About & Contact Info</h2></div>
-            <div class="card" style="max-width:800px;margin:0 auto 1rem">
-                <div class="edit" onclick="ed('pacific','cnmiAbout','CNMI About Text')"><span class="badge">Edit</span><p id="pacific-cnmiAbout">LDAH partners with the <strong>Department of Community and Cultural Affairs: Division of Youth Services</strong> in the Commonwealth of the Northern Mariana Islands.</p></div>
-            </div>
-            <div class="card" style="max-width:800px;margin:0 auto 1rem">
-                <div class="edit" onclick="ed('pacific','cnmiContact','CNMI Contact Info (HTML)')"><span class="badge">Edit</span><div id="pacific-cnmiContact"><h4>Vivian T. Sablan</h4><p><strong>Phone:</strong> (670) 277-1000</p><p><strong>Email:</strong> vtsablan@dys.gov.mp</p><p><strong>Address:</strong> P.O. Box 501000, Saipan, MP 96950</p></div></div>
-            </div>
-            <div class="card" style="max-width:800px;margin:0 auto">
-                <div class="edit" onclick="ed('pacific','cnmiSupport','CNMI Support Personnel (HTML)')"><span class="badge">Edit</span><div id="pacific-cnmiSupport"><strong>Jennifer O. Tanaka</strong> — jtanaka@dys.gov.mp<br><strong>Maria L. Olopai</strong> — mlolopai@dys.gov.mp</div></div>
-            </div>
-        </section>
-        <section class="sec" style="background:#f0f9ff">
-            <div class="sec-head"><span class="sec-badge">Gallery</span><h2 style="font-size:1.2rem">Photo Gallery (6 photos)</h2></div>
-            <div class="grid3">
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','cnmiPhoto1','CNMI Gallery 1')"><span class="badge">Photo</span><img id="pacific-cnmiPhoto1-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-1-768x373.jpeg" alt="Gallery 1" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 1</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','cnmiPhoto2','CNMI Gallery 2')"><span class="badge">Photo</span><img id="pacific-cnmiPhoto2-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-2-768x576.jpeg" alt="Gallery 2" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 2</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','cnmiPhoto3','CNMI Gallery 3')"><span class="badge">Photo</span><img id="pacific-cnmiPhoto3-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-3-768x373.jpeg" alt="Gallery 3" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 3</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','cnmiPhoto4','CNMI Gallery 4')"><span class="badge">Photo</span><img id="pacific-cnmiPhoto4-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-5-768x373.jpeg" alt="Gallery 4" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 4</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','cnmiPhoto5','CNMI Gallery 5')"><span class="badge">Photo</span><img id="pacific-cnmiPhoto5-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-1.gif" alt="Gallery 5" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 5</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','cnmiPhoto6','CNMI Gallery 6')"><span class="badge">Photo</span><img id="pacific-cnmiPhoto6-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-4-768x512.jpeg" alt="Gallery 6" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 6</p></div>
-            </div>
-        </section>
-    </div></div>
-
-    <!-- PACIFIC: FSM MODAL -->
-    <div class="page" id="page-pacific-fsm"><div class="preview">
-        <section class="hero" style="padding:30px 20px">
-            <h1 style="font-size:1.6rem">🇫🇲 FSM Modal</h1>
-            <p style="font-size:0.9rem;opacity:0.85">Edit the island detail modal for Federated States of Micronesia</p>
-        </section>
-        <section class="sec" style="background:#f0f9ff">
-            <div class="sec-head"><span class="sec-badge">Modal Photos</span><h2 style="font-size:1.2rem">Hero & Partner Images</h2></div>
-            <div class="grid3">
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:120px;margin:0 0 1rem;border-radius:10px;overflow:hidden"><div class="edit" onclick="ed('pacific','fsmHero','FSM Hero Photo')"><span class="badge">Photo</span><img id="pacific-fsmHero-preview" src="https://www.ldahawaii.org/wp-content/uploads/2025/11/Kosrae-Sunrise-3_1600.jpg" alt="FSM Hero" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.85rem;color:var(--gray)">Hero Image</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:120px;margin:0 0 1rem;border-radius:10px;overflow:hidden"><div class="edit" onclick="ed('pacific','fsmFlag','FSM Flag/Logo')"><span class="badge">Photo</span><img id="pacific-fsmFlag-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-4.png" alt="FSM Flag" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.85rem;color:var(--gray)">Flag / Logo</p></div>
-            </div>
-        </section>
-        <section class="sec">
-            <div class="sec-head"><span class="sec-badge">Modal Text</span><h2 style="font-size:1.2rem">About & Contact Info</h2></div>
-            <div class="card" style="max-width:800px;margin:0 auto 1rem">
-                <div class="edit" onclick="ed('pacific','fsmAbout','FSM About Text')"><span class="badge">Edit</span><p id="pacific-fsmAbout">LDAH works across all <strong>four states of FSM – Chuuk, Kosrae, Pohnpei, and Yap</strong> – to support families and children with disabilities.</p></div>
-            </div>
-            <div class="card" style="max-width:800px;margin:0 auto">
-                <div class="edit" onclick="ed('pacific','fsmContacts','FSM State Contacts (HTML)')"><span class="badge">Edit</span><div id="pacific-fsmContacts"><strong>Yap:</strong> Jacquelyn Lefagoyal — jlefagoyal@gmail.com<br><strong>Chuuk:</strong> Ansina Kony — akony@dss.edu.fm<br><strong>Pohnpei:</strong> Arthur Albert, Roddy Robert, Salvador Jacob, John Bugulrow<br><strong>Kosrae:</strong> Aliksa Sigrah — atsigrah@gmail.com</div></div>
-            </div>
-        </section>
-        <section class="sec" style="background:#f0f9ff">
-            <div class="sec-head"><span class="sec-badge">Gallery</span><h2 style="font-size:1.2rem">Photo Gallery (3 photos)</h2></div>
-            <div class="grid3">
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','fsmPhoto1','FSM Gallery 1')"><span class="badge">Photo</span><img id="pacific-fsmPhoto1-preview" src="https://www.ldahawaii.org/wp-content/uploads/2025/11/Children-Chuuk_1600-1024x768.jpg" alt="Gallery 1" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 1</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','fsmPhoto2','FSM Gallery 2')"><span class="badge">Photo</span><img id="pacific-fsmPhoto2-preview" src="https://www.ldahawaii.org/wp-content/uploads/2025/11/Lelu-Elementary-Kindergarten-2_1600-1024x768.jpg" alt="Gallery 2" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 2</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','fsmPhoto3','FSM Gallery 3')"><span class="badge">Photo</span><img id="pacific-fsmPhoto3-preview" src="https://www.ldahawaii.org/wp-content/uploads/2025/11/Island-Lagoon-Chuuk-2_1600-1024x768.jpg" alt="Gallery 3" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 3</p></div>
-            </div>
-        </section>
-    </div></div>
-
-    <!-- PACIFIC: GUAM MODAL -->
-    <div class="page" id="page-pacific-guam"><div class="preview">
-        <section class="hero" style="padding:30px 20px">
-            <h1 style="font-size:1.6rem">🇬🇺 Guam Modal</h1>
-            <p style="font-size:0.9rem;opacity:0.85">Edit the island detail modal for Guam</p>
-        </section>
-        <section class="sec" style="background:#f0f9ff">
-            <div class="sec-head"><span class="sec-badge">Modal Photos</span><h2 style="font-size:1.2rem">Hero & Partner Images</h2></div>
-            <div class="grid3">
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:120px;margin:0 0 1rem;border-radius:10px;overflow:hidden"><div class="edit" onclick="ed('pacific','guamHero','Guam Hero Photo')"><span class="badge">Photo</span><img id="pacific-guamHero-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-35.jpg" alt="Guam Hero" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.85rem;color:var(--gray)">Hero Image</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:120px;margin:0 0 1rem;border-radius:10px;overflow:hidden"><div class="edit" onclick="ed('pacific','guamFlag','Guam Flag/Logo')"><span class="badge">Photo</span><img id="pacific-guamFlag-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-3.png" alt="Guam Flag" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.85rem;color:var(--gray)">Flag / Logo</p></div>
-            </div>
-        </section>
-        <section class="sec">
-            <div class="sec-head"><span class="sec-badge">Modal Text</span><h2 style="font-size:1.2rem">About & Contact Info</h2></div>
-            <div class="card" style="max-width:800px;margin:0 auto 1rem">
-                <div class="edit" onclick="ed('pacific','guamAbout','Guam About Text')"><span class="badge">Edit</span><p id="pacific-guamAbout"><strong>Autism Community Together (ACT)</strong> is a non-profit support group for individuals with autism, their families, and supporters on the island of Guam.</p></div>
-            </div>
-            <div class="card" style="max-width:800px;margin:0 auto 1rem">
-                <div class="edit" onclick="ed('pacific','guamContact','Guam Contact Info (HTML)')"><span class="badge">Edit</span><div id="pacific-guamContact"><h4>Evelyn Claros</h4><p><strong>Phone:</strong> (671) 488-1484</p><p><strong>Email:</strong> evelyn.claros1@gmail.com</p><p><strong>Address:</strong> DNA Building 238 Archbishop Flores St. Suite 304, Hagatna, Guam 96910</p></div></div>
-            </div>
-            <div class="card" style="max-width:800px;margin:0 auto">
-                <div class="edit" onclick="ed('pacific','guamSupport','Guam Support Personnel (HTML)')"><span class="badge">Edit</span><div id="pacific-guamSupport"><strong>Laura Taisipic</strong> — Parent Services, Guam DOE<br><strong>June De Leon</strong> — Interim Director, UOG CEDDERS</div></div>
-            </div>
-        </section>
-        <section class="sec" style="background:#f0f9ff">
-            <div class="sec-head"><span class="sec-badge">Gallery</span><h2 style="font-size:1.2rem">Photo Gallery (9 photos)</h2></div>
-            <div class="grid3">
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','guamPhoto1','Guam Gallery 1')"><span class="badge">Photo</span><img id="pacific-guamPhoto1-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-4-768x576.jpg" alt="Gallery 1" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 1</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','guamPhoto2','Guam Gallery 2')"><span class="badge">Photo</span><img id="pacific-guamPhoto2-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-6-768x576.jpg" alt="Gallery 2" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 2</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','guamPhoto3','Guam Gallery 3')"><span class="badge">Photo</span><img id="pacific-guamPhoto3-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-10-768x576.jpg" alt="Gallery 3" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 3</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','guamPhoto4','Guam Gallery 4')"><span class="badge">Photo</span><img id="pacific-guamPhoto4-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-13-768x576.jpg" alt="Gallery 4" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 4</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','guamPhoto5','Guam Gallery 5')"><span class="badge">Photo</span><img id="pacific-guamPhoto5-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-15-768x576.jpg" alt="Gallery 5" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 5</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','guamPhoto6','Guam Gallery 6')"><span class="badge">Photo</span><img id="pacific-guamPhoto6-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-20-768x576.jpg" alt="Gallery 6" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 6</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','guamPhoto7','Guam Gallery 7')"><span class="badge">Photo</span><img id="pacific-guamPhoto7-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-22-768x576.jpg" alt="Gallery 7" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 7</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','guamPhoto8','Guam Gallery 8')"><span class="badge">Photo</span><img id="pacific-guamPhoto8-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-24-768x576.jpg" alt="Gallery 8" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 8</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','guamPhoto9','Guam Gallery 9')"><span class="badge">Photo</span><img id="pacific-guamPhoto9-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-1.webp" alt="Gallery 9" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 9</p></div>
-            </div>
-        </section>
-    </div></div>
-
-    <!-- PACIFIC: MARSHALL ISLANDS MODAL -->
-    <div class="page" id="page-pacific-marshall"><div class="preview">
-        <section class="hero" style="padding:30px 20px">
-            <h1 style="font-size:1.6rem">🇲🇭 Marshall Islands Modal</h1>
-            <p style="font-size:0.9rem;opacity:0.85">Edit the island detail modal for Republic of the Marshall Islands</p>
-        </section>
-        <section class="sec" style="background:#f0f9ff">
-            <div class="sec-head"><span class="sec-badge">Modal Photos</span><h2 style="font-size:1.2rem">Hero & Partner Images</h2></div>
-            <div class="grid3">
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:120px;margin:0 0 1rem;border-radius:10px;overflow:hidden"><div class="edit" onclick="ed('pacific','marshallHero','Marshall Hero Photo')"><span class="badge">Photo</span><img id="pacific-marshallHero-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/Marshall-Islands-1875x1406-1-e1654118989430.jpg" alt="Marshall Hero" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.85rem;color:var(--gray)">Hero Image</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:120px;margin:0 0 1rem;border-radius:10px;overflow:hidden"><div class="edit" onclick="ed('pacific','marshallFlag','Marshall Flag/Logo')"><span class="badge">Photo</span><img id="pacific-marshallFlag-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-2-1024x539.png" alt="Marshall Flag" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.85rem;color:var(--gray)">Flag / Logo</p></div>
-            </div>
-        </section>
-        <section class="sec">
-            <div class="sec-head"><span class="sec-badge">Modal Text</span><h2 style="font-size:1.2rem">About & Contact Info</h2></div>
-            <div class="card" style="max-width:800px;margin:0 auto 1rem">
-                <div class="edit" onclick="ed('pacific','marshallAbout','Marshall About Text')"><span class="badge">Edit</span><p id="pacific-marshallAbout">LDAH partners with both the <strong>Marshall Island Special Parent Association (MISPA)</strong> and the <strong>Public School System (PSS)</strong> for family support and special education services.</p></div>
-            </div>
-            <div class="card" style="max-width:800px;margin:0 auto 1rem">
-                <div class="edit" onclick="ed('pacific','marshallContact','Marshall MISPA Contact (HTML)')"><span class="badge">Edit</span><div id="pacific-marshallContact"><h4>Kilobar Lakmis</h4><p>MISPA Secretary</p><p><strong>Phone:</strong> (692) 457-4334</p><p><strong>Email:</strong> lakmiskilobar@gmail.com</p><p><strong>Address:</strong> P.O Box 1434, Majuro, MH 96960</p></div></div>
-            </div>
-            <div class="card" style="max-width:800px;margin:0 auto 1rem">
-                <div class="edit" onclick="ed('pacific','marshallSupport','Marshall Support Personnel (HTML)')"><span class="badge">Edit</span><div id="pacific-marshallSupport"><strong>Tony Komta</strong> — MISPA President<br><strong>Namar Nashon</strong> — Vice President<br><strong>Suewellynn Johannes</strong> — Treasurer<br><strong>Frank Horiuchi</strong> — SPED Director, PSS<br><strong>Janet Nemra</strong> — RMI Disability Coordinator</div></div>
-            </div>
-        </section>
-        <section class="sec" style="background:#f0f9ff">
-            <div class="sec-head"><span class="sec-badge">Gallery</span><h2 style="font-size:1.2rem">Photo Gallery (9 photos)</h2></div>
-            <div class="grid3">
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','marshallPhoto1','Marshall Gallery 1')"><span class="badge">Photo</span><img id="pacific-marshallPhoto1-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/rmi4-768x576.jpg" alt="Gallery 1" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 1</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','marshallPhoto2','Marshall Gallery 2')"><span class="badge">Photo</span><img id="pacific-marshallPhoto2-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/rmi13-768x576.jpg" alt="Gallery 2" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 2</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','marshallPhoto3','Marshall Gallery 3')"><span class="badge">Photo</span><img id="pacific-marshallPhoto3-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/rmi14-768x576.jpg" alt="Gallery 3" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 3</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','marshallPhoto4','Marshall Gallery 4')"><span class="badge">Photo</span><img id="pacific-marshallPhoto4-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/rmi20-768x576.jpg" alt="Gallery 4" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 4</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','marshallPhoto5','Marshall Gallery 5')"><span class="badge">Photo</span><img id="pacific-marshallPhoto5-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/rmi21-768x576.jpg" alt="Gallery 5" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 5</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','marshallPhoto6','Marshall Gallery 6')"><span class="badge">Photo</span><img id="pacific-marshallPhoto6-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/rmi23-768x576.jpg" alt="Gallery 6" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 6</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','marshallPhoto7','Marshall Gallery 7')"><span class="badge">Photo</span><img id="pacific-marshallPhoto7-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/rmi26-768x576.jpg" alt="Gallery 7" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 7</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','marshallPhoto8','Marshall Gallery 8')"><span class="badge">Photo</span><img id="pacific-marshallPhoto8-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/rmi28-768x576.jpg" alt="Gallery 8" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 8</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','marshallPhoto9','Marshall Gallery 9')"><span class="badge">Photo</span><img id="pacific-marshallPhoto9-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/political-map-of-marshall-islands-1024x911-1.png" alt="Gallery 9" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 9</p></div>
-            </div>
-        </section>
-    </div></div>
-
-    <!-- PACIFIC: PALAU MODAL -->
-    <div class="page" id="page-pacific-palau"><div class="preview">
-        <section class="hero" style="padding:30px 20px">
-            <h1 style="font-size:1.6rem">🇵🇼 Palau Modal</h1>
-            <p style="font-size:0.9rem;opacity:0.85">Edit the island detail modal for Republic of Palau</p>
-        </section>
-        <section class="sec" style="background:#f0f9ff">
-            <div class="sec-head"><span class="sec-badge">Modal Photos</span><h2 style="font-size:1.2rem">Hero & Partner Images</h2></div>
-            <div class="grid3">
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:120px;margin:0 0 1rem;border-radius:10px;overflow:hidden"><div class="edit" onclick="ed('pacific','palauHero','Palau Hero Photo')"><span class="badge">Photo</span><img id="pacific-palauHero-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-33.jpg" alt="Palau Hero" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.85rem;color:var(--gray)">Hero Image</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:120px;margin:0 0 1rem;border-radius:10px;overflow:hidden"><div class="edit" onclick="ed('pacific','palauFlag','Palau Flag/Logo')"><span class="badge">Photo</span><img id="pacific-palauFlag-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-1.png" alt="Palau Flag" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.85rem;color:var(--gray)">Flag / Logo</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:120px;margin:0 0 1rem;border-radius:10px;overflow:hidden"><div class="edit" onclick="ed('pacific','palauContactPhoto','Palau Contact Photo')"><span class="badge">Photo</span><img id="pacific-palauContactPhoto-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-32.jpg" alt="Contact" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.85rem;color:var(--gray)">Contact Photo</p></div>
-            </div>
-        </section>
-        <section class="sec">
-            <div class="sec-head"><span class="sec-badge">Modal Text</span><h2 style="font-size:1.2rem">About & Contact Info</h2></div>
-            <div class="card" style="max-width:800px;margin:0 auto 1rem">
-                <div class="edit" onclick="ed('pacific','palauAbout','Palau About Text')"><span class="badge">Edit</span><p id="pacific-palauAbout"><strong>Palau Parents Empowered (PPE)</strong> is a non-profit organization in the Republic of Palau serving parents and families of children and youth with disabilities ages 0 to 26.</p></div>
-            </div>
-            <div class="card" style="max-width:800px;margin:0 auto 1rem">
-                <div class="edit" onclick="ed('pacific','palauContact','Palau Contact Info (HTML)')"><span class="badge">Edit</span><div id="pacific-palauContact"><h4>Francesca (Cesca) Morei-Misech</h4><p><strong>Email:</strong> moreimisech@gmail.com</p><p><strong>Work:</strong> (680) 488-1432</p><p><strong>Mobile:</strong> (808) 775-1432</p><p><strong>Address:</strong> P.O. Box 96, Koror, Palau 96940</p></div></div>
-            </div>
-            <div class="card" style="max-width:800px;margin:0 auto">
-                <div class="edit" onclick="ed('pacific','palauSupport','Palau Support Personnel (HTML)')"><span class="badge">Edit</span><div id="pacific-palauSupport"><strong>Nora Renguul</strong> — SPED Acting Director</div></div>
-            </div>
-        </section>
-        <section class="sec" style="background:#f0f9ff">
-            <div class="sec-head"><span class="sec-badge">Gallery</span><h2 style="font-size:1.2rem">Photo Gallery (9 photos)</h2></div>
-            <div class="grid3">
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','palauPhoto1','Palau Gallery 1')"><span class="badge">Photo</span><img id="pacific-palauPhoto1-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-35.jpg" alt="Gallery 1" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 1</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','palauPhoto2','Palau Gallery 2')"><span class="badge">Photo</span><img id="pacific-palauPhoto2-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-34.jpg" alt="Gallery 2" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 2</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','palauPhoto3','Palau Gallery 3')"><span class="badge">Photo</span><img id="pacific-palauPhoto3-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-31-768x576.jpg" alt="Gallery 3" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 3</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','palauPhoto4','Palau Gallery 4')"><span class="badge">Photo</span><img id="pacific-palauPhoto4-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-28.jpg" alt="Gallery 4" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 4</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','palauPhoto5','Palau Gallery 5')"><span class="badge">Photo</span><img id="pacific-palauPhoto5-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-25.jpg" alt="Gallery 5" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 5</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','palauPhoto6','Palau Gallery 6')"><span class="badge">Photo</span><img id="pacific-palauPhoto6-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-20-768x576.jpg" alt="Gallery 6" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 6</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','palauPhoto7','Palau Gallery 7')"><span class="badge">Photo</span><img id="pacific-palauPhoto7-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-22-768x576.jpg" alt="Gallery 7" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 7</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','palauPhoto8','Palau Gallery 8')"><span class="badge">Photo</span><img id="pacific-palauPhoto8-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-14-768x576.jpg" alt="Gallery 8" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 8</p></div>
-                <div class="card" style="text-align:center"><div class="card-icon" style="width:100%;height:100px;margin:0 0 0.5rem;border-radius:8px;overflow:hidden"><div class="edit" onclick="ed('pacific','palauPhoto9','Palau Gallery 9')"><span class="badge">Photo</span><img id="pacific-palauPhoto9-preview" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-10-768x576.jpg" alt="Gallery 9" style="width:100%;height:100%;object-fit:contain;background:#eef7fb"></div></div><p style="font-size:0.75rem;color:var(--gray)">Photo 9</p></div>
-            </div>
-        </section>
-    </div></div>
-
     <!-- COMMUNITY (Anti-Bullying) -->
     <div class="page" id="page-community"><div class="preview">
         <section class="hero">
@@ -842,7 +598,7 @@
             document.getElementById('pg').value=pg; 
             
             // Show appropriate edit section based on field type
-            const isPhoto = fld.includes('Photo') || /^[a-z]+Hero$/.test(fld) || /^[a-z]+Flag$/.test(fld);
+            const isPhoto = fld.includes('Photo');
             document.getElementById('textEditSection').style.display = isPhoto ? 'none' : 'block';
             document.getElementById('photoEditSection').style.display = isPhoto ? 'block' : 'none';
             
@@ -959,8 +715,8 @@
         async function save() { 
             const pg = document.getElementById('pg').value;
             const fld = document.getElementById('fld').value;
-            const isPhoto = fld.includes('Photo') || /^[a-z]+Hero$/.test(fld) || /^[a-z]+Flag$/.test(fld);
-
+            const isPhoto = fld.includes('Photo');
+            
             // Get the value based on field type
             let txt;
             if (isPhoto) {
@@ -1003,8 +759,7 @@
         function updatePhotoPreviews() {
             Object.keys(data).forEach(pg => {
                 Object.keys(data[pg]).forEach(fld => {
-                    const isImg = fld.includes('Photo') || /^[a-z]+Hero$/.test(fld) || /^[a-z]+Flag$/.test(fld);
-                    if (isImg && data[pg][fld]) {
+                    if (fld.includes('Photo') && data[pg][fld]) {
                         const img = document.getElementById(pg+'-'+fld+'-preview');
                         if (img) img.src = data[pg][fld];
                     }

@@ -1221,28 +1221,22 @@
         const db = firebase.firestore();
         
         // Load page content from Firebase
-        let cmsData = {};
-
-        function applyCmsToElements(data) {
-            Object.keys(data).forEach(key => {
-                if (key === 'updatedAt') return;
-                const el = document.getElementById(`pacific-${key}`);
-                if (el && data[key]) {
-                    if ((key.includes('Photo') || key.includes('Hero') || key.includes('Flag')) && el.tagName === 'IMG') {
-                        el.src = data[key];
-                    } else {
-                        el.innerHTML = stripEmoji(data[key]);
-                    }
-                }
-            });
-        }
-
         async function loadPageContent() {
             try {
                 const doc = await db.collection('pageContent').doc('pacific').get();
                 if (doc.exists) {
-                    cmsData = doc.data();
-                    applyCmsToElements(cmsData);
+                    const data = doc.data();
+                    Object.keys(data).forEach(key => {
+                        const el = document.getElementById(`pacific-${key}`);
+                        if (el && data[key]) {
+                            // For photo fields, update the src attribute instead of innerHTML
+                            if (key.includes('Photo') && el.tagName === 'IMG') {
+                                el.src = data[key];
+                            } else {
+                                el.innerHTML = stripEmoji(data[key]);
+                            }
+                        }
+                    });
                 }
             } catch (err) { console.error('Error loading page content:', err); }
         }
@@ -1306,10 +1300,7 @@
             flag.textContent = island.flag;
             name.textContent = island.name;
             body.innerHTML = island.content;
-
-            // Re-apply CMS data to newly created modal elements
-            if (Object.keys(cmsData).length) applyCmsToElements(cmsData);
-
+            
             modal.classList.add('active');
             document.body.style.overflow = 'hidden';
         }
@@ -1346,12 +1337,12 @@
                         </div>
 
                         <h3>About Our Partner</h3>
-                        <div id="pacific-samoaAbout"><p><strong>Parents of Children with Special Needs Network (PCSN)</strong> is a Parent-to-Parent Support Group for children, youth, and young adults with disabilities. Co-sponsored by the Parent Training and Information Center and Leadership in Disabilities of Achievement of Hawaii, we support one another in areas of health care, education, inclusion, community activities, guidance, and emotional encouragement.</p></div>
+                        <p><strong>Parents of Children with Special Needs Network (PCSN)</strong> is a Parent-to-Parent Support Group for children, youth, and young adults with disabilities. Co-sponsored by the Parent Training and Information Center and Leadership in Disabilities of Achievement of Hawaii, we support one another in areas of health care, education, inclusion, community activities, guidance, and emotional encouragement.</p>
 
                         <h3>Primary Contact</h3>
                         <div class="contact-with-photo">
                             <img id="pacific-samoaContactPhoto" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-American-Samoa-30.jpg" alt="Sandra Scanlan" class="contact-photo">
-                            <div id="pacific-samoaContact" class="contact-card">
+                            <div class="contact-card">
                                 <h4>Sandra (Sandy) Scanlan</h4>
                                 <p><strong>Phone:</strong> <a href="tel:+16847313959">(684) 731-3959</a></p>
                                 <p><strong>Email:</strong> <a href="mailto:sandysamoa2@gmail.com">sandysamoa2@gmail.com</a></p>
@@ -1360,7 +1351,7 @@
                         </div>
 
                         <h3>Support Personnel</h3>
-                        <div id="pacific-samoaSupport" class="support-grid">
+                        <div class="support-grid">
                             <div class="support-person">
                                 <h4>Dr. Herbert Boat</h4>
                                 <p>Assistant SPED Director</p>
@@ -1405,10 +1396,10 @@
                         </div>
 
                         <h3>About Our Partner</h3>
-                        <div id="pacific-cnmiAbout"><p>LDAH partners with the <strong>Department of Community and Cultural Affairs: Division of Youth Services</strong> in the Commonwealth of the Northern Mariana Islands to provide family support and educational resources for children with disabilities.</p></div>
+                        <p>LDAH partners with the <strong>Department of Community and Cultural Affairs: Division of Youth Services</strong> in the Commonwealth of the Northern Mariana Islands to provide family support and educational resources for children with disabilities.</p>
 
                         <h3>Primary Contact</h3>
-                        <div id="pacific-cnmiContact" class="contact-card">
+                        <div class="contact-card">
                             <h4>Vivian T. Sablan</h4>
                             <p><strong>Phone:</strong> <a href="tel:+16702771000">(670) 277-1000</a></p>
                             <p><strong>Email:</strong> <a href="mailto:vtsablan@dys.gov.mp">vtsablan@dys.gov.mp</a></p>
@@ -1416,7 +1407,7 @@
                         </div>
 
                         <h3>Support Personnel</h3>
-                        <div id="pacific-cnmiSupport" class="support-grid">
+                        <div class="support-grid">
                             <div class="support-person">
                                 <h4>Jennifer O. Tanaka</h4>
                                 <p><a href="mailto:jtanaka@dys.gov.mp">jtanaka@dys.gov.mp</a></p>
@@ -1455,10 +1446,10 @@
                         </div>
 
                         <h3>About Our Partnership</h3>
-                        <div id="pacific-fsmAbout"><p>LDAH works across all <strong>four states of FSM – Chuuk, Kosrae, Pohnpei, and Yap</strong> – to support families and children with disabilities through training, resources, and advocacy support.</p></div>
+                        <p>LDAH works across all <strong>four states of FSM – Chuuk, Kosrae, Pohnpei, and Yap</strong> – to support families and children with disabilities through training, resources, and advocacy support.</p>
 
                         <h3>State Contacts</h3>
-                        <div id="pacific-fsmContacts" class="states-grid">
+                        <div class="states-grid">
                             <div class="state-card">
                                 <h4>Yap</h4>
                                 <div class="contact-info">
@@ -1528,14 +1519,14 @@
                         </div>
 
                         <h3>About Our Partner</h3>
-                        <div id="pacific-guamAbout"><p><strong>Autism Community Together (ACT)</strong> is a non-profit support group for individuals with autism, their families, and supporters on the island of Guam. ACT frequently hosts events where autistic individuals and their families can have fun together in their community.</p></div>
+                        <p><strong>Autism Community Together (ACT)</strong> is a non-profit support group for individuals with autism, their families, and supporters on the island of Guam. ACT frequently hosts events where autistic individuals and their families can have fun together in their community.</p>
 
                         <div class="partner-logo-section">
                             <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-1.png" alt="ACT Guam Logo" class="partner-logo-img">
                         </div>
 
                         <h3>Primary Contact</h3>
-                        <div id="pacific-guamContact" class="contact-card">
+                        <div class="contact-card">
                             <h4>Evelyn Claros</h4>
                             <p><strong>Phone:</strong> <a href="tel:+16714881484">(671) 488-1484</a></p>
                             <p><strong>Email:</strong> <a href="mailto:evelyn.claros1@gmail.com">evelyn.claros1@gmail.com</a></p>
@@ -1547,7 +1538,7 @@
                         </div>
 
                         <h3>Support Personnel</h3>
-                        <div id="pacific-guamSupport" class="support-grid">
+                        <div class="support-grid">
                             <div class="support-person">
                                 <h4>Laura Taisipic</h4>
                                 <p>Parent Services, Guam DOE</p>
@@ -1592,10 +1583,10 @@
                         </div>
 
                         <h3>About Our Partners</h3>
-                        <div id="pacific-marshallAbout"><p>LDAH partners with both the <strong>Marshall Island Special Parent Association (MISPA)</strong> and the <strong>Public School System (PSS)</strong> to provide comprehensive family support and special education services in the Republic of the Marshall Islands.</p></div>
+                        <p>LDAH partners with both the <strong>Marshall Island Special Parent Association (MISPA)</strong> and the <strong>Public School System (PSS)</strong> to provide comprehensive family support and special education services in the Republic of the Marshall Islands.</p>
 
                         <h3>MISPA — Primary Contact</h3>
-                        <div id="pacific-marshallContact" class="contact-card">
+                        <div class="contact-card">
                             <h4>Kilobar Lakmis</h4>
                             <p>MISPA Secretary</p>
                             <p><strong>Phone:</strong> <a href="tel:+6924574334">(692) 457-4334</a></p>
@@ -1603,8 +1594,8 @@
                             <p><strong>Address:</strong> P.O Box 1434, Majuro, MH 96960</p>
                         </div>
 
-                        <h3>Support Personnel</h3>
-                        <div id="pacific-marshallSupport" class="support-grid">
+                        <h3>MISPA Support Personnel</h3>
+                        <div class="support-grid">
                             <div class="support-person">
                                 <h4>Tony Komta</h4>
                                 <p>MISPA President</p>
@@ -1684,8 +1675,8 @@
                         </div>
 
                         <h3>About Our Partner</h3>
-                        <div id="pacific-palauAbout"><p><strong>Palau Parents Empowered (PPE)</strong> is a non-profit organization in the Republic of Palau serving parents and families of children and youth with disabilities ages 0 to 26.</p>
-                        <p>As a Community Parent Resource Center, our services are designed to enable parents and other family members of children with disabilities to better meet and understand the needs of individuals with disabilities. The ultimate goal is to prepare children with disabilities to lead productive, independent lives, to the fullest extent possible.</p></div>
+                        <p><strong>Palau Parents Empowered (PPE)</strong> is a non-profit organization in the Republic of Palau serving parents and families of children and youth with disabilities ages 0 to 26.</p>
+                        <p>As a Community Parent Resource Center, our services are designed to enable parents and other family members of children with disabilities to better meet and understand the needs of individuals with disabilities. The ultimate goal is to prepare children with disabilities to lead productive, independent lives, to the fullest extent possible.</p>
 
                         <div class="partner-logo-section">
                             <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-1.png" alt="PPE Logo" class="partner-logo-img">
@@ -1694,7 +1685,7 @@
                         <h3>Primary Contact</h3>
                         <div class="contact-with-photo">
                             <img id="pacific-palauContactPhoto" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-32.jpg" alt="Francesca Morei-Misech" class="contact-photo">
-                            <div id="pacific-palauContact" class="contact-card">
+                            <div class="contact-card">
                                 <h4>Francesca (Cesca) Morei-Misech</h4>
                                 <p><strong>Email:</strong> <a href="mailto:moreimisech@gmail.com">moreimisech@gmail.com</a></p>
                                 <p><strong>Work:</strong> <a href="tel:+6804881432">(680) 488-1432</a></p>
@@ -1704,7 +1695,7 @@
                         </div>
 
                         <h3>Support Personnel</h3>
-                        <div id="pacific-palauSupport" class="support-grid">
+                        <div class="support-grid">
                             <div class="support-person">
                                 <h4>Nora Renguul</h4>
                                 <p>SPED Acting Director</p>
