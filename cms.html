@@ -9048,6 +9048,40 @@
         y += 5;
       }
 
+      y += 6;
+
+      // Interaction Breakdown
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      setColor(textDark);
+      doc.text('Interaction Breakdown', margin, y);
+      y += 5;
+
+      const saInteractions = [
+        { label: 'Phone Call Taps', value: saPdfTotals.phoneCalls },
+        { label: 'Email Link Clicks', value: saPdfTotals.emailClicks },
+        { label: 'Donation Clicks', value: saPdfTotals.donationClicks },
+        { label: 'Outbound Links', value: saPdfTotals.outboundClicks },
+        { label: 'Modal / Popup Opens', value: saPdfTotals.modalOpens },
+        { label: 'Form Submissions', value: saPdfTotals.formSubmits }
+      ];
+
+      doc.setFont('helvetica', 'normal');
+      saInteractions.forEach((item, i) => {
+        if (i % 2 === 0) {
+          doc.setFillColor(249, 250, 251);
+          doc.rect(margin, y - 3, 80, 5, 'F');
+        }
+        doc.setFontSize(8);
+        setColor(textDark);
+        doc.text(item.label, margin + 2, y);
+        setColor([34, 197, 94]);
+        doc.setFont('helvetica', 'bold');
+        doc.text(String(item.value), margin + 70, y);
+        doc.setFont('helvetica', 'normal');
+        y += 5;
+      });
+
       // ===== FOOTER =====
       doc.setFontSize(8);
       setColor(textLight);
