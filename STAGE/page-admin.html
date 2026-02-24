@@ -76,7 +76,21 @@
         .form { padding: 1rem; display: none; }
         .form.active { display: block; }
         .form label { display: block; font-weight: 600; margin-bottom: 0.5rem; }
-        .form textarea { width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; margin-bottom: 1rem; min-height: 100px; resize: vertical; font-family: inherit; }
+        .form textarea { width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 0 0 8px 8px; border-top: 1px solid #e2e8f0; margin-bottom: 0.25rem; min-height: 120px; resize: vertical; font-family: 'Courier New', monospace; font-size: 0.85rem; line-height: 1.5; }
+        .fmt-toolbar { background: #f8fafc; border: 2px solid #e2e8f0; border-bottom: none; border-radius: 8px 8px 0 0; padding: 0.4rem; }
+        .fmt-row { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; padding: 2px 0; }
+        .fmt-btn { width: 32px; height: 30px; border: 1px solid #d1d5db; border-radius: 5px; background: white; cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; transition: all 0.15s; color: #374151; }
+        .fmt-btn:hover { background: #e0f2fe; border-color: #0891B2; color: #004E7C; }
+        .fmt-btn:active { background: #bae6fd; transform: scale(0.95); }
+        .fmt-btn.fmt-sm { width: auto; padding: 0 8px; font-size: 0.75rem; font-weight: 600; }
+        .fmt-sep { width: 1px; height: 22px; background: #d1d5db; margin: 0 4px; }
+        .fmt-color-label { width: 32px; height: 30px; border: 1px solid #d1d5db; border-radius: 5px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; color: #374151; position: relative; transition: all 0.15s; }
+        .fmt-color-label:hover { background: #e0f2fe; border-color: #0891B2; }
+        .fmt-color-input { position: absolute; bottom: -2px; left: 50%; transform: translateX(-50%); width: 20px; height: 6px; border: none; padding: 0; cursor: pointer; border-radius: 0 0 3px 3px; }
+        .fmt-swatch { width: 22px; height: 22px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 0 1px #d1d5db; cursor: pointer; transition: transform 0.15s; }
+        .fmt-swatch:hover { transform: scale(1.2); box-shadow: 0 0 0 2px #0891B2; }
+        .fmt-size-select { height: 30px; border: 1px solid #d1d5db; border-radius: 5px; background: white; font-size: 0.75rem; padding: 0 4px; cursor: pointer; color: #374151; }
+        .fmt-hint { font-size: 0.7rem; color: #9ca3af; margin: 0.25rem 0 0.75rem; font-style: italic; }
         .btns { display: flex; gap: 0.5rem; }
         .btn-save { flex: 1; background: var(--primary); color: white; border: none; padding: 0.7rem; border-radius: 8px; font-weight: 600; cursor: pointer; }
         .btn-cancel { flex: 1; background: #e2e8f0; border: none; padding: 0.7rem; border-radius: 8px; font-weight: 600; cursor: pointer; }
@@ -751,7 +765,42 @@
                 
                 <!-- Text editing (default) -->
                 <div id="textEditSection">
+                    <div class="fmt-toolbar" id="fmtToolbar">
+                        <div class="fmt-row">
+                            <button type="button" class="fmt-btn" onclick="fmtWrap('strong')" title="Bold"><b>B</b></button>
+                            <button type="button" class="fmt-btn" onclick="fmtWrap('em')" title="Italic"><i>I</i></button>
+                            <button type="button" class="fmt-btn" onclick="fmtWrap('u')" title="Underline"><u>U</u></button>
+                            <span class="fmt-sep"></span>
+                            <button type="button" class="fmt-btn" onclick="fmtWrap('h4')" title="Heading">H</button>
+                            <button type="button" class="fmt-btn fmt-sm" onclick="fmtWrap('p')" title="Paragraph">&para;</button>
+                            <button type="button" class="fmt-btn fmt-sm" onclick="fmtInsert('&lt;br&gt;')" title="Line Break">BR</button>
+                            <span class="fmt-sep"></span>
+                            <button type="button" class="fmt-btn fmt-sm" onclick="fmtInsert('&lt;ul&gt;&lt;li&gt;','&lt;/li&gt;&lt;/ul&gt;')" title="Bullet List">&#8226; List</button>
+                            <button type="button" class="fmt-btn fmt-sm" onclick="fmtLink()" title="Insert Link">&#128279;</button>
+                        </div>
+                        <div class="fmt-row">
+                            <label class="fmt-color-label" title="Text Color">
+                                A
+                                <input type="color" id="fmtColor" value="#004E7C" onchange="fmtApplyColor(this.value)" class="fmt-color-input">
+                            </label>
+                            <button type="button" class="fmt-swatch" style="background:#004E7C" onclick="fmtApplyColor('#004E7C')" title="Navy"></button>
+                            <button type="button" class="fmt-swatch" style="background:#0891B2" onclick="fmtApplyColor('#0891B2')" title="Teal"></button>
+                            <button type="button" class="fmt-swatch" style="background:#F97316" onclick="fmtApplyColor('#F97316')" title="Orange"></button>
+                            <button type="button" class="fmt-swatch" style="background:#DC2626" onclick="fmtApplyColor('#DC2626')" title="Red"></button>
+                            <button type="button" class="fmt-swatch" style="background:#166534" onclick="fmtApplyColor('#166534')" title="Green"></button>
+                            <span class="fmt-sep"></span>
+                            <select id="fmtSize" onchange="fmtApplySize(this.value)" class="fmt-size-select" title="Font Size">
+                                <option value="">Size</option>
+                                <option value="0.75rem">Small</option>
+                                <option value="0.9rem">Normal</option>
+                                <option value="1.1rem">Medium</option>
+                                <option value="1.3rem">Large</option>
+                                <option value="1.6rem">X-Large</option>
+                            </select>
+                        </div>
+                    </div>
                     <textarea id="txt"></textarea>
+                    <p class="fmt-hint">Select text above, then click a button to format. HTML tags are applied automatically.</p>
                 </div>
                 
                 <!-- Photo editing (shown for photo fields) -->
@@ -804,6 +853,65 @@
         const db = firebase.firestore(), auth = firebase.auth();
         let loggedIn = false;
         const data = { home:{}, whoweare:{}, events:{}, volunteer:{}, resources:{}, contact:{}, readiness:{}, specialed:{}, military:{}, pacific:{}, community:{} };
+
+        // --- Formatting toolbar helpers ---
+        function fmtGetSelection() {
+            var ta = document.getElementById('txt');
+            var start = ta.selectionStart, end = ta.selectionEnd;
+            return { ta: ta, start: start, end: end, text: ta.value.substring(start, end) };
+        }
+        function fmtWrap(tag) {
+            var s = fmtGetSelection();
+            if (!s.text) { alert('Select some text first, then click the button.'); return; }
+            var open = '<' + tag + '>', close = '</' + tag + '>';
+            var v = s.ta.value;
+            s.ta.value = v.substring(0, s.start) + open + s.text + close + v.substring(s.end);
+            s.ta.focus();
+            s.ta.selectionStart = s.start + open.length;
+            s.ta.selectionEnd = s.start + open.length + s.text.length;
+        }
+        function fmtInsert(openTag, closeTag) {
+            var s = fmtGetSelection();
+            var v = s.ta.value;
+            var insert = openTag + s.text + (closeTag || '');
+            s.ta.value = v.substring(0, s.start) + insert + v.substring(s.end);
+            s.ta.focus();
+            var cursor = s.start + insert.length;
+            s.ta.selectionStart = cursor;
+            s.ta.selectionEnd = cursor;
+        }
+        function fmtApplyColor(color) {
+            var s = fmtGetSelection();
+            if (!s.text) { alert('Select some text first, then pick a color.'); return; }
+            var open = '<span style="color:' + color + '">';
+            var v = s.ta.value;
+            s.ta.value = v.substring(0, s.start) + open + s.text + '</span>' + v.substring(s.end);
+            s.ta.focus();
+            s.ta.selectionStart = s.start + open.length;
+            s.ta.selectionEnd = s.start + open.length + s.text.length;
+        }
+        function fmtApplySize(size) {
+            if (!size) return;
+            var s = fmtGetSelection();
+            if (!s.text) { alert('Select some text first, then pick a size.'); document.getElementById('fmtSize').value = ''; return; }
+            var open = '<span style="font-size:' + size + '">';
+            var v = s.ta.value;
+            s.ta.value = v.substring(0, s.start) + open + s.text + '</span>' + v.substring(s.end);
+            s.ta.focus();
+            s.ta.selectionStart = s.start + open.length;
+            s.ta.selectionEnd = s.start + open.length + s.text.length;
+            document.getElementById('fmtSize').value = '';
+        }
+        function fmtLink() {
+            var s = fmtGetSelection();
+            var url = prompt('Enter the URL:', 'https://');
+            if (!url || url === 'https://') return;
+            var linkText = s.text || url;
+            var tag = '<a href="' + url + '" target="_blank">' + linkText + '</a>';
+            var v = s.ta.value;
+            s.ta.value = v.substring(0, s.start) + tag + v.substring(s.end);
+            s.ta.focus();
+        }
 
         auth.onAuthStateChanged(u => {
             loggedIn = !!u;
