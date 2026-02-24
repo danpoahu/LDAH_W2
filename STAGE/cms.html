@@ -7698,16 +7698,23 @@
           day.visitorIds.forEach(function(vid) { uniqueVisitorIds.add(vid); });
         }
 
-        // Page views
+        // Page views — support both nested map and flat dot-notation keys
         if (day.totalPageviews) totalPageviews += day.totalPageviews;
         if (day.pageviews && typeof day.pageviews === 'object') {
           Object.keys(day.pageviews).forEach(function(page) {
             pageviewsByPage[page] = (pageviewsByPage[page] || 0) + (day.pageviews[page] || 0);
           });
         }
+        // Also check for flat "pageviews.xxx" keys (legacy data)
+        Object.keys(day).forEach(function(key) {
+          if (key.indexOf('pageviews.') === 0) {
+            var page = key.replace('pageviews.', '');
+            pageviewsByPage[page] = (pageviewsByPage[page] || 0) + (day[key] || 0);
+          }
+        });
 
-        // Events
-        if (day.events) {
+        // Events — support both nested map and flat dot-notation keys
+        if (day.events && typeof day.events === 'object') {
           donationClicks += day.events.donation_click || 0;
           phoneCalls += day.events.phone_call || 0;
           emailClicks += day.events.email_click || 0;
@@ -7715,6 +7722,13 @@
           modalOpens += day.events.modal_open_total || 0;
           formSubmits += day.events.form_submit_total || 0;
         }
+        // Also check for flat "events.xxx" keys (legacy data)
+        donationClicks += day['events.donation_click'] || 0;
+        phoneCalls += day['events.phone_call'] || 0;
+        emailClicks += day['events.email_click'] || 0;
+        outboundClicks += day['events.outbound_click'] || 0;
+        modalOpens += day['events.modal_open_total'] || 0;
+        formSubmits += day['events.form_submit_total'] || 0;
       });
 
       return {
