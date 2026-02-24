@@ -449,6 +449,7 @@
         if (headerResponse.ok && footerResponse.ok) {
           headerContainer.innerHTML = await headerResponse.text();
           footerContainer.innerHTML = await footerResponse.text();
+          if (!document.getElementById('a11y-script')) { const script = document.createElement('script'); script.id = 'a11y-script'; script.src = 'accessibility.js'; document.body.appendChild(script); }
         } else { throw new Error('Failed to fetch'); }
       } catch (error) {
         headerContainer.innerHTML = '<nav><div class="nav-content"><a href="index.html" class="logo-container"><img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH Logo" class="logo-img"></a><div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div><ul class="nav-links" id="navLinks"><li><a href="whoweare.html">Who We Are</a></li><li><a href="index.html#services">What We Do</a></li><li><a href="events.html">Events</a></li><li><a href="volunteer.html" class="active">Volunteer</a></li><li><a href="resources.html">Resources</a></li><li><a href="contact.html">Contact</a></li></ul></div></nav>';
