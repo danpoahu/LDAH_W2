@@ -4,7 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LDAH CMS - Content Management</title>
-  
+
+  <!-- Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-32PRRS0W85"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-32PRRS0W85');
+  </script>
+
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -1142,6 +1151,82 @@
     .kpi-success { border-left-color: #10b981; }
     .kpi-info { border-left-color: #8b5cf6; }
     .kpi-warning { border-left-color: #f59e0b; }
+    .kpi-analytics-purple { border-left-color: #a855f7; }
+    .kpi-analytics-teal { border-left-color: #0891b2; }
+    .kpi-analytics-coral { border-left-color: #f97316; }
+    .kpi-analytics-green { border-left-color: #22c55e; }
+
+    .website-analytics-section {
+      background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      border: 1px solid #ddd6fe;
+    }
+    .website-analytics-section h3 {
+      color: #7c3aed;
+      margin-bottom: 1rem;
+      font-size: 1.1rem;
+    }
+    .analytics-kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .analytics-kpi-card {
+      background: white;
+      padding: 1.25rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      border-left: 3px solid;
+      text-align: center;
+    }
+    .analytics-kpi-value {
+      font-size: 2rem;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+    .analytics-kpi-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-dark);
+      margin-top: 0.25rem;
+    }
+    .analytics-kpi-sub {
+      font-size: 0.75rem;
+      color: var(--text-light);
+    }
+    .analytics-details-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 700px) {
+      .analytics-details-grid { grid-template-columns: 1fr; }
+    }
+    .analytics-detail-card {
+      background: white;
+      padding: 1.25rem;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .analytics-detail-card h4 {
+      color: var(--primary-blue);
+      font-size: 0.95rem;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .analytics-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.4rem 0;
+      font-size: 0.85rem;
+      border-bottom: 1px solid #fafafa;
+    }
+    .analytics-row-label { color: var(--text-dark); }
+    .analytics-row-value { font-weight: 700; color: var(--primary-blue); }
     
     .kpi-header {
       display: flex;
@@ -2334,7 +2419,48 @@
               <div class="kpi-label">Provider Requests</div>
             </div>
           </div>
-          
+
+          <!-- Website Analytics Section -->
+          <div class="website-analytics-section">
+            <h3>🌐 Website Analytics <span style="font-size: 0.75rem; font-weight: 400; color: var(--text-light);">(Last 30 Days)</span></h3>
+            <div class="analytics-kpi-grid">
+              <div class="analytics-kpi-card kpi-analytics-purple">
+                <div class="analytics-kpi-value" id="analyticsUniqueVisitors" style="color: #a855f7;">-</div>
+                <div class="analytics-kpi-label">Unique Visitors</div>
+                <div class="analytics-kpi-sub">distinct browsers</div>
+              </div>
+              <div class="analytics-kpi-card kpi-analytics-teal">
+                <div class="analytics-kpi-value" id="analyticsPageViews" style="color: #0891b2;">-</div>
+                <div class="analytics-kpi-label">Page Views</div>
+                <div class="analytics-kpi-sub">total across all pages</div>
+              </div>
+              <div class="analytics-kpi-card kpi-analytics-coral">
+                <div class="analytics-kpi-value" id="analyticsDonationClicks" style="color: #f97316;">-</div>
+                <div class="analytics-kpi-label">Donation Clicks</div>
+                <div class="analytics-kpi-sub">PayPal button taps</div>
+              </div>
+              <div class="analytics-kpi-card kpi-analytics-green">
+                <div class="analytics-kpi-value" id="analyticsInteractions" style="color: #22c55e;">-</div>
+                <div class="analytics-kpi-label">Interactions</div>
+                <div class="analytics-kpi-sub">calls + emails + links</div>
+              </div>
+            </div>
+            <div class="analytics-details-grid">
+              <div class="analytics-detail-card">
+                <h4>📊 Top Pages</h4>
+                <div id="analyticsTopPages">
+                  <p style="color: var(--text-light); text-align: center; padding: 0.5rem;">Loading...</p>
+                </div>
+              </div>
+              <div class="analytics-detail-card">
+                <h4>📈 Interaction Breakdown</h4>
+                <div id="analyticsInteractionBreakdown">
+                  <p style="color: var(--text-light); text-align: center; padding: 0.5rem;">Loading...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Two Column Layout -->
           <div class="dashboard-two-col">
             <!-- Left Column -->
@@ -3262,7 +3388,8 @@
         loadPledges();
         loadEventRequests();
         loadContacts();
-        
+        loadSiteAnalytics();
+
         // Schedule dashboard refresh after data loads settle
         scheduleDashboardRefresh();
       } catch (error) {
@@ -7532,6 +7659,120 @@
       URL.revokeObjectURL(url);
     }
 
+    // ===== Website Analytics (siteAnalytics collection) =====
+    let siteAnalyticsData = []; // array of daily docs from siteAnalytics collection
+
+    async function loadSiteAnalytics() {
+      try {
+        // Load last 30 days of site analytics
+        const now = new Date();
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const startKey = thirtyDaysAgo.getFullYear() + '-' + String(thirtyDaysAgo.getMonth() + 1).padStart(2, '0') + '-' + String(thirtyDaysAgo.getDate()).padStart(2, '0');
+
+        const snapshot = await db.collection('siteAnalytics')
+          .where('date', '>=', startKey)
+          .get();
+
+        siteAnalyticsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        updateWebsiteAnalyticsDashboard();
+      } catch (err) {
+        console.warn('Could not load site analytics:', err.message);
+        updateWebsiteAnalyticsDashboard();
+      }
+    }
+
+    function getSiteAnalyticsTotals() {
+      let uniqueVisitorIds = new Set();
+      let totalPageviews = 0;
+      let donationClicks = 0;
+      let phoneCalls = 0;
+      let emailClicks = 0;
+      let outboundClicks = 0;
+      let modalOpens = 0;
+      let formSubmits = 0;
+      let pageviewsByPage = {};
+
+      siteAnalyticsData.forEach(function(day) {
+        // Unique visitors
+        if (day.visitorIds && Array.isArray(day.visitorIds)) {
+          day.visitorIds.forEach(function(vid) { uniqueVisitorIds.add(vid); });
+        }
+
+        // Page views
+        if (day.totalPageviews) totalPageviews += day.totalPageviews;
+        if (day.pageviews && typeof day.pageviews === 'object') {
+          Object.keys(day.pageviews).forEach(function(page) {
+            pageviewsByPage[page] = (pageviewsByPage[page] || 0) + (day.pageviews[page] || 0);
+          });
+        }
+
+        // Events
+        if (day.events) {
+          donationClicks += day.events.donation_click || 0;
+          phoneCalls += day.events.phone_call || 0;
+          emailClicks += day.events.email_click || 0;
+          outboundClicks += day.events.outbound_click || 0;
+          modalOpens += day.events.modal_open_total || 0;
+          formSubmits += day.events.form_submit_total || 0;
+        }
+      });
+
+      return {
+        uniqueVisitors: uniqueVisitorIds.size,
+        totalPageviews: totalPageviews,
+        donationClicks: donationClicks,
+        phoneCalls: phoneCalls,
+        emailClicks: emailClicks,
+        outboundClicks: outboundClicks,
+        modalOpens: modalOpens,
+        formSubmits: formSubmits,
+        totalInteractions: phoneCalls + emailClicks + outboundClicks + modalOpens,
+        pageviewsByPage: pageviewsByPage
+      };
+    }
+
+    function updateWebsiteAnalyticsDashboard() {
+      var totals = getSiteAnalyticsTotals();
+
+      // Update KPI cards
+      document.getElementById('analyticsUniqueVisitors').textContent = totals.uniqueVisitors.toLocaleString();
+      document.getElementById('analyticsPageViews').textContent = totals.totalPageviews.toLocaleString();
+      document.getElementById('analyticsDonationClicks').textContent = totals.donationClicks.toLocaleString();
+      document.getElementById('analyticsInteractions').textContent = totals.totalInteractions.toLocaleString();
+
+      // Top Pages
+      var topPagesEl = document.getElementById('analyticsTopPages');
+      var sortedPages = Object.entries(totals.pageviewsByPage).sort(function(a, b) { return b[1] - a[1]; });
+      if (sortedPages.length === 0) {
+        topPagesEl.innerHTML = '<p style="color: var(--text-light); text-align: center; padding: 0.5rem; font-size: 0.85rem;">No data yet — analytics will appear after site visitors are tracked.</p>';
+      } else {
+        var pageLabels = { home: 'Home', contact: 'Contact', volunteer: 'Volunteer', events: 'Events', whoweare: 'Who We Are', resources: 'Resources', readiness: 'Readiness', specialed: 'Special Ed', military: 'Military', pacific: 'Pacific', community: 'Community', install: 'Install App', cms: 'CMS', accessibility: 'Accessibility' };
+        topPagesEl.innerHTML = sortedPages.slice(0, 8).map(function(entry) {
+          var label = pageLabels[entry[0]] || entry[0];
+          return '<div class="analytics-row"><span class="analytics-row-label">' + label + '</span><span class="analytics-row-value">' + entry[1].toLocaleString() + '</span></div>';
+        }).join('');
+      }
+
+      // Interaction Breakdown
+      var breakdownEl = document.getElementById('analyticsInteractionBreakdown');
+      var interactions = [
+        { label: 'Phone Call Taps', value: totals.phoneCalls },
+        { label: 'Email Link Clicks', value: totals.emailClicks },
+        { label: 'Donation Clicks', value: totals.donationClicks },
+        { label: 'Outbound Links', value: totals.outboundClicks },
+        { label: 'Modal / Popup Opens', value: totals.modalOpens },
+        { label: 'Form Submissions', value: totals.formSubmits }
+      ];
+      var hasAny = interactions.some(function(i) { return i.value > 0; });
+      if (!hasAny) {
+        breakdownEl.innerHTML = '<p style="color: var(--text-light); text-align: center; padding: 0.5rem; font-size: 0.85rem;">No interactions tracked yet.</p>';
+      } else {
+        breakdownEl.innerHTML = interactions.map(function(item) {
+          return '<div class="analytics-row"><span class="analytics-row-label">' + item.label + '</span><span class="analytics-row-value">' + item.value.toLocaleString() + '</span></div>';
+        }).join('');
+      }
+    }
+
     // ===== Analytics Functions =====
     let allEventSignups = [];
     
@@ -7557,6 +7798,7 @@
       }
       
       calculateAnalytics();
+      updateWebsiteAnalyticsDashboard();
     }
     
     // Manual refresh button - only re-fetch if user explicitly asks
@@ -8208,6 +8450,28 @@
       
       rows.push(['Anti-Bullying Pledges', pledges.length, '']);
       rows.push([]);
+
+      // ===== WEBSITE ANALYTICS (Last 30 Days) =====
+      const saTotals = getSiteAnalyticsTotals();
+      rows.push(['=== WEBSITE ANALYTICS (Last 30 Days) ===']);
+      rows.push(['Metric', 'Count']);
+      rows.push(['Unique Visitors', saTotals.uniqueVisitors]);
+      rows.push(['Total Page Views', saTotals.totalPageviews]);
+      rows.push(['Donation Clicks', saTotals.donationClicks]);
+      rows.push(['Phone Call Taps', saTotals.phoneCalls]);
+      rows.push(['Email Link Clicks', saTotals.emailClicks]);
+      rows.push(['Outbound Link Clicks', saTotals.outboundClicks]);
+      rows.push(['Modal / Popup Opens', saTotals.modalOpens]);
+      rows.push(['Form Submissions', saTotals.formSubmits]);
+      rows.push([]);
+
+      rows.push(['=== PAGE VIEWS BY PAGE (Last 30 Days) ===']);
+      rows.push(['Page', 'Views']);
+      const pageLabelsCSV = { home: 'Home', contact: 'Contact', volunteer: 'Volunteer', events: 'Events', whoweare: 'Who We Are', resources: 'Resources', readiness: 'Readiness', specialed: 'Special Ed', military: 'Military', pacific: 'Pacific', community: 'Community', install: 'Install App', cms: 'CMS', accessibility: 'Accessibility' };
+      Object.entries(saTotals.pageviewsByPage).sort((a, b) => b[1] - a[1]).forEach(([page, views]) => {
+        rows.push([pageLabelsCSV[page] || page, views]);
+      });
+      rows.push([]);
       
       // Content Overview
       rows.push(['=== CONTENT OVERVIEW ===']);
@@ -8690,7 +8954,86 @@
       doc.setFontSize(9);
       setColor(textLight);
       doc.text(`${thisMonthPledges} new pledges this month`, margin + 58, y + 10);
-      
+
+      y += 28;
+
+      // ===== WEBSITE ANALYTICS =====
+      // Check if we need a new page
+      if (y > 230) {
+        doc.addPage();
+        y = margin;
+      }
+
+      const saPdfTotals = getSiteAnalyticsTotals();
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      setColor([124, 58, 237]); // purple
+      doc.text('Website Analytics (Last 30 Days)', margin, y);
+      y += 8;
+
+      // 4 mini KPI boxes
+      const saCardWidth = (pageWidth - margin * 2 - 15) / 4;
+      const saCardH = 20;
+      const saCards = [
+        { label: 'Unique Visitors', value: saPdfTotals.uniqueVisitors, color: [168, 85, 247] },
+        { label: 'Page Views', value: saPdfTotals.totalPageviews, color: [8, 145, 178] },
+        { label: 'Donation Clicks', value: saPdfTotals.donationClicks, color: [249, 115, 22] },
+        { label: 'Interactions', value: saPdfTotals.totalInteractions, color: [34, 197, 94] }
+      ];
+
+      saCards.forEach((card, i) => {
+        const x = margin + i * (saCardWidth + 5);
+        doc.setFillColor(255, 255, 255);
+        doc.setDrawColor(card.color[0], card.color[1], card.color[2]);
+        doc.setLineWidth(0.8);
+        doc.roundedRect(x, y, saCardWidth, saCardH, 2, 2, 'FD');
+
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(card.color[0], card.color[1], card.color[2]);
+        doc.text(String(card.value), x + saCardWidth / 2, y + 10, { align: 'center' });
+
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        setColor(textDark);
+        doc.text(card.label, x + saCardWidth / 2, y + 16, { align: 'center' });
+      });
+
+      y += saCardH + 6;
+
+      // Top 5 pages table
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      setColor(textDark);
+      doc.text('Top Pages', margin, y);
+      y += 5;
+
+      const saPageLabels = { home: 'Home', contact: 'Contact', volunteer: 'Volunteer', events: 'Events', whoweare: 'Who We Are', resources: 'Resources', readiness: 'Readiness', specialed: 'Special Ed', military: 'Military', pacific: 'Pacific', community: 'Community' };
+      const sortedPdfPages = Object.entries(saPdfTotals.pageviewsByPage).sort((a, b) => b[1] - a[1]);
+
+      doc.setFont('helvetica', 'normal');
+      sortedPdfPages.slice(0, 5).forEach((entry, i) => {
+        if (i % 2 === 0) {
+          doc.setFillColor(249, 250, 251);
+          doc.rect(margin, y - 3, 80, 5, 'F');
+        }
+        doc.setFontSize(8);
+        setColor(textDark);
+        doc.text(saPageLabels[entry[0]] || entry[0], margin + 2, y);
+        setColor([124, 58, 237]);
+        doc.setFont('helvetica', 'bold');
+        doc.text(String(entry[1]), margin + 70, y);
+        doc.setFont('helvetica', 'normal');
+        y += 5;
+      });
+
+      if (sortedPdfPages.length === 0) {
+        doc.setFontSize(8);
+        setColor(textLight);
+        doc.text('No page view data yet', margin + 2, y);
+        y += 5;
+      }
+
       // ===== FOOTER =====
       doc.setFontSize(8);
       setColor(textLight);
