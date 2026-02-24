@@ -1230,6 +1230,7 @@
                 if (el && data[key]) {
                     if ((key.includes('Photo') || key.includes('Hero') || key.includes('Flag')) && el.tagName === 'IMG') {
                         el.src = data[key];
+                        el.style.display = '';
                     } else {
                         el.innerHTML = stripEmoji(data[key]);
                     }
@@ -1437,6 +1438,9 @@
                             <img id="pacific-cnmiPhoto4" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-5-768x373.jpeg" alt="CNMI" class="gallery-photo">
                             <img id="pacific-cnmiPhoto5" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-1.gif" alt="CNMI Partner" class="gallery-photo">
                             <img id="pacific-cnmiPhoto6" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAHI-Commonwealth-of-the-Northern-Mariana-Islands-4-768x512.jpeg" alt="CNMI" class="gallery-photo">
+                            <img id="pacific-cnmiPhoto7" src="" alt="CNMI" class="gallery-photo" style="display:none">
+                            <img id="pacific-cnmiPhoto8" src="" alt="CNMI" class="gallery-photo" style="display:none">
+                            <img id="pacific-cnmiPhoto9" src="" alt="CNMI" class="gallery-photo" style="display:none">
                         </div>
                     </div>
                 `
@@ -1507,6 +1511,12 @@
                             <img id="pacific-fsmPhoto1" src="https://www.ldahawaii.org/wp-content/uploads/2025/11/Children-Chuuk_1600-1024x768.jpg" alt="Children in Chuuk" class="gallery-photo">
                             <img id="pacific-fsmPhoto2" src="https://www.ldahawaii.org/wp-content/uploads/2025/11/Lelu-Elementary-Kindergarten-2_1600-1024x768.jpg" alt="Lelu Elementary" class="gallery-photo">
                             <img id="pacific-fsmPhoto3" src="https://www.ldahawaii.org/wp-content/uploads/2025/11/Island-Lagoon-Chuuk-2_1600-1024x768.jpg" alt="Chuuk Lagoon" class="gallery-photo">
+                            <img id="pacific-fsmPhoto4" src="" alt="FSM" class="gallery-photo" style="display:none">
+                            <img id="pacific-fsmPhoto5" src="" alt="FSM" class="gallery-photo" style="display:none">
+                            <img id="pacific-fsmPhoto6" src="" alt="FSM" class="gallery-photo" style="display:none">
+                            <img id="pacific-fsmPhoto7" src="" alt="FSM" class="gallery-photo" style="display:none">
+                            <img id="pacific-fsmPhoto8" src="" alt="FSM" class="gallery-photo" style="display:none">
+                            <img id="pacific-fsmPhoto9" src="" alt="FSM" class="gallery-photo" style="display:none">
                         </div>
                     </div>
                 `
