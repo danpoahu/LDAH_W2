@@ -87,9 +87,7 @@
         .fmt-btn:active { background: #bae6fd; transform: scale(0.95); }
         .fmt-btn.fmt-sm { width: auto; padding: 0 8px; font-size: 0.75rem; font-weight: 600; }
         .fmt-sep { width: 1px; height: 22px; background: #d1d5db; margin: 0 4px; }
-        .fmt-color-label { width: 32px; height: 30px; border: 1px solid #d1d5db; border-radius: 5px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; color: #374151; position: relative; transition: all 0.15s; }
-        .fmt-color-label:hover { background: #e0f2fe; border-color: #0891B2; }
-        .fmt-color-input { position: absolute; bottom: -2px; left: 50%; transform: translateX(-50%); width: 20px; height: 6px; border: none; padding: 0; cursor: pointer; border-radius: 0 0 3px 3px; }
+        .fmt-row-label { font-size: 0.7rem; font-weight: 600; color: #64748b; margin-right: 2px; }
         .fmt-swatch { width: 22px; height: 22px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 0 1px #d1d5db; cursor: pointer; transition: transform 0.15s; }
         .fmt-swatch:hover { transform: scale(1.2); box-shadow: 0 0 0 2px #0891B2; }
         .fmt-size-select { height: 30px; border: 1px solid #d1d5db; border-radius: 5px; background: white; font-size: 0.75rem; padding: 0 4px; cursor: pointer; color: #374151; }
@@ -785,15 +783,13 @@
                             <button type="button" class="fmt-btn fmt-sm" onclick="fmtInsert('&lt;br&gt;')" title="Line Break">BR</button>
                         </div>
                         <div class="fmt-row">
-                            <label class="fmt-color-label" title="Text Color">
-                                A
-                                <input type="color" id="fmtColor" value="#004E7C" onchange="fmtApplyColor(this.value)" class="fmt-color-input">
-                            </label>
+                            <span class="fmt-row-label">Color:</span>
+                            <button type="button" class="fmt-swatch" style="background:#1E293B" onclick="fmtApplyColor('#1E293B')" title="Dark (Headings)"></button>
+                            <button type="button" class="fmt-swatch" style="background:#64748B" onclick="fmtApplyColor('#64748B')" title="Grey (Body Text)"></button>
                             <button type="button" class="fmt-swatch" style="background:#004E7C" onclick="fmtApplyColor('#004E7C')" title="Navy"></button>
-                            <button type="button" class="fmt-swatch" style="background:#0891B2" onclick="fmtApplyColor('#0891B2')" title="Teal"></button>
-                            <button type="button" class="fmt-swatch" style="background:#F97316" onclick="fmtApplyColor('#F97316')" title="Orange"></button>
+                            <button type="button" class="fmt-swatch" style="background:#0891B2" onclick="fmtApplyColor('#0891B2')" title="Ocean Teal"></button>
+                            <button type="button" class="fmt-swatch" style="background:#F97316" onclick="fmtApplyColor('#F97316')" title="Sunset Orange"></button>
                             <button type="button" class="fmt-swatch" style="background:#DC2626" onclick="fmtApplyColor('#DC2626')" title="Red"></button>
-                            <button type="button" class="fmt-swatch" style="background:#166534" onclick="fmtApplyColor('#166534')" title="Green"></button>
                             <span class="fmt-sep"></span>
                             <select id="fmtSize" onchange="fmtApplySize(this.value)" class="fmt-size-select" title="Font Size">
                                 <option value="">Size</option>
@@ -815,7 +811,7 @@
                             <div class="fmt-cheatsheet-item"><span class="fmt-cheatsheet-icon">H</span><span><strong>Heading</strong> — larger, bold section title</span></div>
                             <div class="fmt-cheatsheet-item"><span class="fmt-cheatsheet-icon">&para;</span><span><strong>Paragraph</strong> — wraps text in its own block</span></div>
                             <div class="fmt-cheatsheet-item"><span class="fmt-cheatsheet-icon">BR</span><span><strong>Line Break</strong> — starts a new line</span></div>
-                            <div class="fmt-cheatsheet-item"><span class="fmt-cheatsheet-icon" style="background:linear-gradient(135deg,#004E7C,#0891B2,#F97316,#DC2626,#166534);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700;">A</span><span><strong>Color</strong> — pick a swatch or use the color wheel</span></div>
+                            <div class="fmt-cheatsheet-item"><span class="fmt-cheatsheet-icon" style="background:linear-gradient(135deg,#1E293B,#0891B2,#F97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700;">&#9679;</span><span><strong>Color</strong> — pick an approved brand color</span></div>
                             <div class="fmt-cheatsheet-item"><span class="fmt-cheatsheet-icon" style="font-size:0.65rem;font-weight:600;">Size</span><span><strong>Font Size</strong> — Small through X-Large</span></div>
                         </div>
                     </div>
