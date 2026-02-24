@@ -101,6 +101,11 @@
         case 'outbound_click':
           update['events.outbound_click'] = increment(1);
           break;
+        case 'document_view':
+          var docKey = (evt.details.name || 'unknown').replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase().slice(0, 50);
+          update['events.document_view.' + docKey] = increment(1);
+          update['events.document_view_total'] = increment(1);
+          break;
         case 'modal_open':
           var modalKey = (evt.details.name || 'unknown').replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase().slice(0, 40);
           update['events.modal_open.' + modalKey] = increment(1);
@@ -131,6 +136,12 @@
             case 'phone_call': events['phone_call'] = (events['phone_call'] || 0) + 1; break;
             case 'email_click': events['email_click'] = (events['email_click'] || 0) + 1; break;
             case 'outbound_click': events['outbound_click'] = (events['outbound_click'] || 0) + 1; break;
+            case 'document_view':
+              if (!events['document_view']) events['document_view'] = {};
+              var dk = (evt.details.name || 'unknown').replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase().slice(0, 50);
+              events['document_view'][dk] = (events['document_view'][dk] || 0) + 1;
+              events['document_view_total'] = (events['document_view_total'] || 0) + 1;
+              break;
             case 'modal_open':
               if (!events['modal_open']) events['modal_open'] = {};
               var mk = (evt.details.name || 'unknown').replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase().slice(0, 40);
@@ -218,6 +229,12 @@
     fireGA4Event('modal_open', { modal_name: name });
   }
 
+  function trackDocumentView(docName) {
+    queueEvent('document_view', { name: docName });
+    fireGA4Event('document_view', { document_name: docName });
+    flushEvents();
+  }
+
   function trackFormSubmit(formName) {
     queueEvent('form_submit', { form: formName });
     fireGA4Event('form_submit', { form_name: formName });
@@ -266,12 +283,26 @@
 
   // --- Monkey-patch modal functions for tracking ---
   function patchModalFunctions() {
-    // Patch openIframeModal
+    // Patch openIframeModal — also detect PDF/document views
     if (typeof window.openIframeModal === 'function') {
       var originalIframe = window.openIframeModal;
       window.openIframeModal = function(title, url) {
         trackModalOpen(title || url || 'iframe');
+        // Track document/PDF views separately for dashboard reporting
+        if (url && url.match(/\.(pdf|doc|docx)(\?|$)/i)) {
+          trackDocumentView(title || url);
+        }
         return originalIframe.apply(this, arguments);
+      };
+    }
+
+    // Patch openVideoModal for webinar/video tracking
+    if (typeof window.openVideoModal === 'function') {
+      var originalVideo = window.openVideoModal;
+      window.openVideoModal = function(title, videoId) {
+        trackDocumentView(title || videoId || 'video');
+        trackModalOpen('video_' + (title || videoId || 'unknown'));
+        return originalVideo.apply(this, arguments);
       };
     }
 
@@ -289,6 +320,7 @@
   window.ldahAnalytics = {
     trackFormSubmit: trackFormSubmit,
     trackModalOpen: trackModalOpen,
+    trackDocumentView: trackDocumentView,
     trackDonationClick: trackDonationClick,
     trackPhoneCall: trackPhoneCall,
     trackEmailClick: trackEmailClick,

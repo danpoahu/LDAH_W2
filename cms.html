@@ -2561,6 +2561,12 @@
                   <p style="color: var(--text-light); text-align: center; padding: 0.5rem;">Loading...</p>
                 </div>
               </div>
+              <div class="analytics-detail-card">
+                <h4>📄 Document / PDF Views</h4>
+                <div id="analyticsDocumentViews">
+                  <p style="color: var(--text-light); text-align: center; padding: 0.5rem;">Loading...</p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -7690,6 +7696,8 @@
       let outboundClicks = 0;
       let modalOpens = 0;
       let formSubmits = 0;
+      let documentViews = 0;
+      let documentViewsByDoc = {};
       let pageviewsByPage = {};
 
       siteAnalyticsData.forEach(function(day) {
@@ -7721,6 +7729,14 @@
           outboundClicks += day.events.outbound_click || 0;
           modalOpens += day.events.modal_open_total || 0;
           formSubmits += day.events.form_submit_total || 0;
+          documentViews += day.events.document_view_total || 0;
+          if (day.events.document_view && typeof day.events.document_view === 'object') {
+            Object.keys(day.events.document_view).forEach(function(docName) {
+              if (docName !== 'total') {
+                documentViewsByDoc[docName] = (documentViewsByDoc[docName] || 0) + (day.events.document_view[docName] || 0);
+              }
+            });
+          }
         }
         // Also check for flat "events.xxx" keys (legacy data)
         donationClicks += day['events.donation_click'] || 0;
@@ -7729,6 +7745,7 @@
         outboundClicks += day['events.outbound_click'] || 0;
         modalOpens += day['events.modal_open_total'] || 0;
         formSubmits += day['events.form_submit_total'] || 0;
+        documentViews += day['events.document_view_total'] || 0;
       });
 
       return {
@@ -7740,7 +7757,9 @@
         outboundClicks: outboundClicks,
         modalOpens: modalOpens,
         formSubmits: formSubmits,
-        totalInteractions: phoneCalls + emailClicks + outboundClicks + modalOpens,
+        documentViews: documentViews,
+        documentViewsByDoc: documentViewsByDoc,
+        totalInteractions: phoneCalls + emailClicks + outboundClicks + modalOpens + documentViews,
         pageviewsByPage: pageviewsByPage
       };
     }
@@ -7774,6 +7793,7 @@
         { label: 'Email Link Clicks', value: totals.emailClicks },
         { label: 'Donation Clicks', value: totals.donationClicks },
         { label: 'Outbound Links', value: totals.outboundClicks },
+        { label: 'Document / PDF Views', value: totals.documentViews },
         { label: 'Modal / Popup Opens', value: totals.modalOpens },
         { label: 'Form Submissions', value: totals.formSubmits }
       ];
@@ -7784,6 +7804,20 @@
         breakdownEl.innerHTML = interactions.map(function(item) {
           return '<div class="analytics-row"><span class="analytics-row-label">' + item.label + '</span><span class="analytics-row-value">' + item.value.toLocaleString() + '</span></div>';
         }).join('');
+      }
+
+      // Document / PDF Views
+      var docViewsEl = document.getElementById('analyticsDocumentViews');
+      var sortedDocs = Object.entries(totals.documentViewsByDoc).sort(function(a, b) { return b[1] - a[1]; });
+      if (sortedDocs.length === 0) {
+        docViewsEl.innerHTML = '<p style="color: var(--text-light); text-align: center; padding: 0.5rem; font-size: 0.85rem;">No document views yet — views will appear when visitors open PDFs on Special Ed or Military pages.</p>';
+      } else {
+        var docHtml = '<div class="analytics-row" style="font-weight:600;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:4px;"><span class="analytics-row-label">Total Document Views</span><span class="analytics-row-value">' + totals.documentViews.toLocaleString() + '</span></div>';
+        docHtml += sortedDocs.map(function(entry) {
+          var label = entry[0].replace(/_/g, ' ').replace(/\b\w/g, function(l) { return l.toUpperCase(); });
+          return '<div class="analytics-row"><span class="analytics-row-label">' + label + '</span><span class="analytics-row-value">' + entry[1].toLocaleString() + '</span></div>';
+        }).join('');
+        docViewsEl.innerHTML = docHtml;
       }
     }
 
@@ -9061,6 +9095,7 @@
         { label: 'Phone Call Taps', value: saPdfTotals.phoneCalls },
         { label: 'Email Link Clicks', value: saPdfTotals.emailClicks },
         { label: 'Donation Clicks', value: saPdfTotals.donationClicks },
+        { label: 'Document / PDF Views', value: saPdfTotals.documentViews },
         { label: 'Outbound Links', value: saPdfTotals.outboundClicks },
         { label: 'Modal / Popup Opens', value: saPdfTotals.modalOpens },
         { label: 'Form Submissions', value: saPdfTotals.formSubmits }
@@ -9081,6 +9116,34 @@
         doc.setFont('helvetica', 'normal');
         y += 5;
       });
+
+      // Document Views breakdown
+      const sortedPdfDocs = Object.entries(saPdfTotals.documentViewsByDoc).sort((a, b) => b[1] - a[1]);
+      if (sortedPdfDocs.length > 0) {
+        y += 6;
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        setColor(textDark);
+        doc.text('Document / PDF Views', margin, y);
+        y += 5;
+
+        doc.setFont('helvetica', 'normal');
+        sortedPdfDocs.slice(0, 8).forEach((entry, i) => {
+          if (i % 2 === 0) {
+            doc.setFillColor(249, 250, 251);
+            doc.rect(margin, y - 3, 80, 5, 'F');
+          }
+          doc.setFontSize(8);
+          setColor(textDark);
+          var docLabel = entry[0].replace(/_/g, ' ').replace(/\b\w/g, function(l) { return l.toUpperCase(); });
+          doc.text(docLabel.substring(0, 40), margin + 2, y);
+          setColor([249, 115, 22]);
+          doc.setFont('helvetica', 'bold');
+          doc.text(String(entry[1]), margin + 70, y);
+          doc.setFont('helvetica', 'normal');
+          y += 5;
+        });
+      }
 
       // ===== FOOTER =====
       doc.setFontSize(8);
