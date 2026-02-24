@@ -286,6 +286,7 @@
         margin: 0 auto 1.25rem; display: block;
         border: 3px solid var(--ocean-light); box-shadow: 0 4px 15px rgba(8, 145, 178, 0.15);
     }
+    .service-photo[src=""], .photo-icon[src=""] { visibility: hidden; height: 0; margin: 0; border: none; }
     
     .service-icon-placeholder {
         width: 120px; height: 80px; border-radius: 10px;
@@ -543,32 +544,32 @@
         </div>
         <div class="services-grid">
             <div class="service-card" onclick="openIframeModal('Parent Training & Information Center', 'https://www.parentcenterhub.org/')">
-                <img id="home-service1Photo" src="" alt="Education" class="service-photo" onerror="this.outerHTML=''">
+                <img id="home-service1Photo" src="" alt="Education" class="service-photo">
                 <h3 class="service-title" id="home-service1Title">Special Education Support</h3>
                 <p class="service-description" id="home-service1Desc">Navigate IEPs, understand your rights, and advocate effectively for your child's educational needs.</p>
             </div>
             <div class="service-card" onclick="window.location.href='readiness.html'">
-                <img id="home-service2Photo" src="" alt="School readiness" class="service-photo" onerror="this.style.display='none'">
+                <img id="home-service2Photo" src="" alt="School readiness" class="service-photo">
                 <h3 class="service-title" id="home-service2Title">School Readiness</h3>
                 <p class="service-description" id="home-service2Desc">Prepare your keiki for kindergarten success with our comprehensive readiness programs.</p>
             </div>
             <div class="service-card" onclick="window.location.href='specialed.html'">
-                <img id="home-service3Photo" src="" alt="Special education" class="service-photo" onerror="this.style.display='none'">
+                <img id="home-service3Photo" src="" alt="Special education" class="service-photo">
                 <h3 class="service-title" id="home-service3Title">Special Education Advocacy</h3>
                 <p class="service-description" id="home-service3Desc">Expert guidance on IEPs, IDEA, Chapter 60, and other education laws to ensure your child receives appropriate services.</p>
             </div>
             <div class="service-card" onclick="window.location.href='military.html'">
-                <img id="home-service4Photo" src="" alt="Military families" class="service-photo" onerror="this.style.display='none'">
+                <img id="home-service4Photo" src="" alt="Military families" class="service-photo">
                 <h3 class="service-title" id="home-service4Title">Military Family Support</h3>
                 <p class="service-description" id="home-service4Desc">Specialized assistance for military families navigating relocations and IEP transitions across installations.</p>
             </div>
             <div class="service-card" onclick="window.location.href='pacific.html'">
-                <img id="home-service5Photo" src="" alt="Pacific" class="service-photo" onerror="this.style.display='none'">
+                <img id="home-service5Photo" src="" alt="Pacific" class="service-photo">
                 <h3 class="service-title" id="home-service5Title">Pacific Islands Outreach</h3>
                 <p class="service-description" id="home-service5Desc">Extending support to families across American Samoa, CNMI, FSM, Guam, Marshall Islands, and Palau.</p>
             </div>
             <div class="service-card" onclick="window.location.href='community.html'">
-                <img id="home-service6Photo" src="" alt="Anti-bullying" class="service-photo" onerror="this.style.display='none'">
+                <img id="home-service6Photo" src="" alt="Anti-bullying" class="service-photo">
                 <h3 class="service-title" id="home-service6Title">Stand Up to Bullying</h3>
                 <p class="service-description" id="home-service6Desc">Resources and support to help prevent bullying and protect children in our community.</p>
             </div>
