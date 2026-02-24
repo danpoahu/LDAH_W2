@@ -79,9 +79,9 @@
     const increment = firebase.firestore.FieldValue.increment;
     const arrayUnion = firebase.firestore.FieldValue.arrayUnion;
 
-    // Build the update object from pending events
-    const update = { date: dateKey };
+    // Build update with dot-notation keys (update() treats these as nested paths)
     const pageName = getPageName();
+    var update = {};
 
     pendingEvents.forEach(function(evt) {
       switch (evt.type) {
@@ -114,12 +114,46 @@
       }
     });
 
-    // Always register this visitor
     update['visitorIds'] = arrayUnion(visitorId);
 
-    // Use set with merge to create doc if it doesn't exist
-    docRef.set(update, { merge: true }).catch(function(err) {
-      console.warn('Analytics flush error:', err.message);
+    // Try update() first — dot-notation keys become nested paths with update()
+    // Fall back to set() with nested objects if doc doesn't exist yet
+    docRef.update(update).catch(function(err) {
+      if (err.code === 'not-found') {
+        // Doc doesn't exist yet today — create with properly nested structure
+        var pageviews = {};
+        var events = {};
+        var totalPV = 0;
+        pendingEvents.forEach(function(evt) {
+          switch (evt.type) {
+            case 'pageview': pageviews[pageName] = (pageviews[pageName] || 0) + 1; totalPV++; break;
+            case 'donation_click': events['donation_click'] = (events['donation_click'] || 0) + 1; break;
+            case 'phone_call': events['phone_call'] = (events['phone_call'] || 0) + 1; break;
+            case 'email_click': events['email_click'] = (events['email_click'] || 0) + 1; break;
+            case 'outbound_click': events['outbound_click'] = (events['outbound_click'] || 0) + 1; break;
+            case 'modal_open':
+              if (!events['modal_open']) events['modal_open'] = {};
+              var mk = (evt.details.name || 'unknown').replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase().slice(0, 40);
+              events['modal_open'][mk] = (events['modal_open'][mk] || 0) + 1;
+              events['modal_open_total'] = (events['modal_open_total'] || 0) + 1;
+              break;
+            case 'form_submit':
+              if (!events['form_submit']) events['form_submit'] = {};
+              var fk = (evt.details.form || 'unknown').replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+              events['form_submit'][fk] = (events['form_submit'][fk] || 0) + 1;
+              events['form_submit_total'] = (events['form_submit_total'] || 0) + 1;
+              break;
+          }
+        });
+        var setData = { date: dateKey, totalPageviews: totalPV, visitorIds: [visitorId] };
+        if (Object.keys(pageviews).length) setData.pageviews = pageviews;
+        if (Object.keys(events).length) setData.events = events;
+        docRef.set(setData).catch(function(e) {
+          console.warn('Analytics create error:', e.message);
+        });
+      } else {
+        console.warn('Analytics flush error:', err.message);
+      }
     });
 
     pendingEvents = [];
