@@ -77,6 +77,9 @@
         .form.active { display: block; }
         .form label { display: block; font-weight: 600; margin-bottom: 0.5rem; }
         .form textarea { width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 0 0 8px 8px; border-top: 1px solid #e2e8f0; margin-bottom: 0.25rem; min-height: 120px; resize: vertical; font-family: 'Courier New', monospace; font-size: 0.85rem; line-height: 1.5; }
+        .fmt-editor { width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-top: 1px solid #e2e8f0; border-radius: 0 0 8px 8px; margin-bottom: 0.25rem; min-height: 200px; max-height: 400px; overflow-y: auto; font-family: inherit; font-size: 0.9rem; line-height: 1.6; outline: none; background: white; cursor: text; }
+        .fmt-editor:focus { border-color: #0891B2; box-shadow: 0 0 0 3px rgba(8,145,178,0.1); }
+        .fmt-editor:empty::before { content: 'Click here and start typing...'; color: #9ca3af; font-style: italic; pointer-events: none; }
         .fmt-toolbar { background: #f8fafc; border: 2px solid #e2e8f0; border-bottom: none; border-radius: 8px 8px 0 0; padding: 0.4rem; }
         .fmt-row { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; padding: 2px 0; }
         .fmt-btn { width: 32px; height: 30px; border: 1px solid #d1d5db; border-radius: 5px; background: white; cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; transition: all 0.15s; color: #374151; }
@@ -802,7 +805,7 @@
                             </select>
                         </div>
                     </div>
-                    <textarea id="txt"></textarea>
+                    <div id="txt" contenteditable="true" class="fmt-editor"></div>
                     <div class="fmt-cheatsheet">
                         <p class="fmt-cheatsheet-title">Formatting Guide — highlight text, then click:</p>
                         <div class="fmt-cheatsheet-grid">
@@ -869,52 +872,38 @@
         let loggedIn = false;
         const data = { home:{}, whoweare:{}, events:{}, volunteer:{}, resources:{}, contact:{}, readiness:{}, specialed:{}, military:{}, pacific:{}, community:{} };
 
-        // --- Formatting toolbar helpers ---
-        function fmtGetSelection() {
-            var ta = document.getElementById('txt');
-            var start = ta.selectionStart, end = ta.selectionEnd;
-            return { ta: ta, start: start, end: end, text: ta.value.substring(start, end) };
-        }
+        // --- Formatting toolbar helpers (WYSIWYG via contenteditable) ---
+        function fmtFocus() { document.getElementById('txt').focus(); }
         function fmtWrap(tag) {
-            var s = fmtGetSelection();
-            if (!s.text) { alert('Select some text first, then click the button.'); return; }
-            var open = '<' + tag + '>', close = '</' + tag + '>';
-            var v = s.ta.value;
-            s.ta.value = v.substring(0, s.start) + open + s.text + close + v.substring(s.end);
-            s.ta.focus();
-            s.ta.selectionStart = s.start + open.length;
-            s.ta.selectionEnd = s.start + open.length + s.text.length;
+            fmtFocus();
+            var sel = window.getSelection();
+            if (!sel.rangeCount || sel.isCollapsed) { alert('Select some text first, then click the button.'); return; }
+            if (tag === 'strong') { document.execCommand('bold', false, null); }
+            else if (tag === 'em') { document.execCommand('italic', false, null); }
+            else if (tag === 'u') { document.execCommand('underline', false, null); }
+            else if (tag === 'h4' || tag === 'p') { document.execCommand('formatBlock', false, '<' + tag + '>'); }
         }
-        function fmtInsert(openTag, closeTag) {
-            var s = fmtGetSelection();
-            var v = s.ta.value;
-            var insert = openTag + s.text + (closeTag || '');
-            s.ta.value = v.substring(0, s.start) + insert + v.substring(s.end);
-            s.ta.focus();
-            var cursor = s.start + insert.length;
-            s.ta.selectionStart = cursor;
-            s.ta.selectionEnd = cursor;
+        function fmtInsert(openTag) {
+            fmtFocus();
+            document.execCommand('insertHTML', false, '<br>');
         }
         function fmtApplyColor(color) {
-            var s = fmtGetSelection();
-            if (!s.text) { alert('Select some text first, then pick a color.'); return; }
-            var open = '<span style="color:' + color + '">';
-            var v = s.ta.value;
-            s.ta.value = v.substring(0, s.start) + open + s.text + '</span>' + v.substring(s.end);
-            s.ta.focus();
-            s.ta.selectionStart = s.start + open.length;
-            s.ta.selectionEnd = s.start + open.length + s.text.length;
+            fmtFocus();
+            var sel = window.getSelection();
+            if (!sel.rangeCount || sel.isCollapsed) { alert('Select some text first, then pick a color.'); return; }
+            document.execCommand('foreColor', false, color);
         }
         function fmtApplySize(size) {
             if (!size) return;
-            var s = fmtGetSelection();
-            if (!s.text) { alert('Select some text first, then pick a size.'); document.getElementById('fmtSize').value = ''; return; }
-            var open = '<span style="font-size:' + size + '">';
-            var v = s.ta.value;
-            s.ta.value = v.substring(0, s.start) + open + s.text + '</span>' + v.substring(s.end);
-            s.ta.focus();
-            s.ta.selectionStart = s.start + open.length;
-            s.ta.selectionEnd = s.start + open.length + s.text.length;
+            fmtFocus();
+            var sel = window.getSelection();
+            if (!sel.rangeCount || sel.isCollapsed) { alert('Select some text first, then pick a size.'); document.getElementById('fmtSize').value = ''; return; }
+            // execCommand fontSize uses 1-7 scale; we use insertHTML with span for rem values
+            var range = sel.getRangeAt(0);
+            var span = document.createElement('span');
+            span.style.fontSize = size;
+            range.surroundContents(span);
+            sel.removeAllRanges();
             document.getElementById('fmtSize').value = '';
         }
 
@@ -976,7 +965,7 @@
                 document.getElementById('photoFile').value = '';
                 document.getElementById('uploadProgress').style.display = 'none';
             } else {
-                document.getElementById('txt').value=(document.getElementById(pg+'-'+fld)?.innerHTML||'').trim(); 
+                document.getElementById('txt').innerHTML=(document.getElementById(pg+'-'+fld)?.innerHTML||'').trim(); 
             }
             if (!document.getElementById('panel').classList.contains('open')) togglePanel(); 
         }
@@ -1092,7 +1081,7 @@
                     return;
                 }
             } else {
-                txt = document.getElementById('txt').value;
+                txt = document.getElementById('txt').innerHTML;
             }
             
             try { 
@@ -1120,7 +1109,7 @@
         function cancel() { 
             document.getElementById('form').classList.remove('active'); 
             document.getElementById('welcome').style.display='block'; 
-            document.getElementById('txt').value=''; 
+            document.getElementById('txt').innerHTML=''; 
             document.getElementById('photoUrl').value = '';
             document.getElementById('photoFile').value = '';
             document.getElementById('uploadProgress').style.display = 'none';
