@@ -7015,11 +7015,31 @@
     
     function exportApplicationsToCSV() {
       const headers = ['Name', 'Email', 'Phone', 'Opportunity', 'Status', 'Message', 'Admin Notes', 'Date'];
-      const rows = applications.map(a => {
-        const opp = opportunities.find(o => o.id === a.opportunityId);
-        const date = a.timestamp?.seconds ? new Date(a.timestamp.seconds * 1000).toLocaleDateString() : '';
-        return [`${a.firstName} ${a.lastName}`, a.email, a.phone || '', opp?.title || '', a.status || 'new', (a.message || '').replace(/"/g, '""'), (a.adminNotes || '').replace(/"/g, '""'), date];
+      const statusOrder = { new: 0, read: 1, contacted: 2, interviewing: 3, accepted: 4, declined: 5 };
+      const rows = [];
+
+      // Group by opportunity, sort by status within each group
+      const oppGroups = opportunities.map(opp => ({
+        title: opp.title || 'Untitled',
+        apps: applications.filter(a => a.opportunityId === opp.id)
+      })).filter(g => g.apps.length > 0);
+
+      // Orphan applications (opportunity deleted)
+      const knownIds = new Set(opportunities.map(o => o.id));
+      const orphans = applications.filter(a => !knownIds.has(a.opportunityId));
+      if (orphans.length) oppGroups.push({ title: 'Unknown Opportunity', apps: orphans });
+
+      oppGroups.forEach((group, i) => {
+        if (i > 0) rows.push(['', '', '', '', '', '', '', '']); // blank separator
+        rows.push([`--- ${group.title} (${group.apps.length}) ---`, '', '', '', '', '', '', '']);
+        group.apps
+          .sort((a, b) => (statusOrder[a.status || 'new'] ?? 99) - (statusOrder[b.status || 'new'] ?? 99))
+          .forEach(a => {
+            const date = a.timestamp?.seconds ? new Date(a.timestamp.seconds * 1000).toLocaleDateString() : '';
+            rows.push([`${a.firstName} ${a.lastName}`, a.email, a.phone || '', group.title, a.status || 'new', (a.message || '').replace(/"/g, '""'), (a.adminNotes || '').replace(/"/g, '""'), date]);
+          });
       });
+
       downloadCSV('volunteer_applications.csv', headers, rows);
     }
 
