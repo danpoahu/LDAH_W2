@@ -8075,6 +8075,17 @@
         { name: 'pageContent', label: 'Page' }
       ];
 
+      const changeIcons = {
+        'Team Member': '👤', 'Board Member': '🏛️', 'Gallery Photo': '🖼️',
+        'Gallery 2 Photo': '🖼️', 'Resource': '📄', 'FAQ Category': '❓',
+        'FAQ': '❓', 'Event': '📅', 'Volunteer Opportunity': '🤝', 'Page': '📝'
+      };
+      const changeBg = {
+        'Team Member': '#dbeafe', 'Board Member': '#e0e7ff', 'Gallery Photo': '#fce7f3',
+        'Gallery 2 Photo': '#fce7f3', 'Resource': '#fef3c7', 'FAQ Category': '#ede9fe',
+        'FAQ': '#ede9fe', 'Event': '#dbeafe', 'Volunteer Opportunity': '#d1fae5', 'Page': '#f0f9ff'
+      };
+
       try {
         for (const col of collections) {
           const snap = await db.collection(col.name)
@@ -8089,7 +8100,8 @@
                 what: col.label,
                 name: d.name || d.title || d.question || d.caption || doc.id,
                 when: d.updatedAt.toDate ? d.updatedAt.toDate() : new Date(d.updatedAt),
-                action: d.archived ? 'archived' : 'edited'
+                action: d.archived ? 'archived' : 'edited',
+                thumb: d.photoURL || d.imageUrl || d.image || d.photo || null
               });
             }
           });
@@ -8106,14 +8118,22 @@
 
         container.innerHTML = top.map(c => {
           const ago = timeAgo(c.when);
-          const actionColor = c.action === 'archived' ? '#e53e3e' : '#2b6cb0';
-          return '<div class="activity-item" style="padding: 0.5rem 0; border-bottom: 1px solid #f0f0f0;">'
-            + '<strong style="color: #333;">' + escapeHtml(c.who) + '</strong> '
-            + '<span style="color: ' + actionColor + ';">' + c.action + '</span> '
-            + '<span style="color: #666;">' + escapeHtml(c.what) + '</span> '
-            + '<em style="color: #888;">"' + escapeHtml(truncate(c.name, 30)) + '"</em>'
-            + '<span style="float: right; color: #aaa; font-size: 0.75rem;">' + ago + '</span>'
-            + '</div>';
+          const actionColor = c.action === 'archived' ? '#dc2626' : '#16a34a';
+          const actionLabel = c.action === 'archived' ? 'archived' : 'updated';
+          const icon = changeIcons[c.what] || '📝';
+          const bg = changeBg[c.what] || '#f0f0f0';
+          const thumbHtml = c.thumb
+            ? '<img src="' + c.thumb + '" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;" alt="">'
+            : '<div class="activity-icon" style="background:' + bg + ';">' + icon + '</div>';
+          return '<div class="activity-item">'
+            + thumbHtml
+            + '<div class="activity-content">'
+            + '<div class="activity-text"><strong>' + escapeHtml(c.who) + '</strong> '
+            + '<span style="color:' + actionColor + ';">' + actionLabel + '</span> '
+            + escapeHtml(c.what) + '</div>'
+            + '<div class="activity-detail">"' + escapeHtml(truncate(c.name, 40)) + '"</div>'
+            + '<div class="activity-time">' + ago + '</div>'
+            + '</div></div>';
         }).join('');
       } catch (err) {
         console.error('Error loading recent changes:', err);
