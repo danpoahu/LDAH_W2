@@ -1868,7 +1868,7 @@
     <div class="cms-header">
       <h1>📝 LDAH Content Management</h1>
       <div class="user-info">
-        <span id="cmsUserBadge" style="font-size: 0.8rem; color: #ccc;"></span>
+        <span id="cmsUserBadge" style="background:#004E7C;color:#fff;font-size:0.8rem;font-weight:600;padding:0.35rem 0.9rem;border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,0.15);"></span>
         <a href="index.html" class="preview-button" target="_blank">Preview Site</a>
         <button class="btn-logout" onclick="handleLogout()">Logout</button>
       </div>
@@ -8345,13 +8345,28 @@
     function updateEventPerformance() {
       const breakdownEl = document.getElementById('eventBreakdown');
       if (!breakdownEl) return;
-      
-      if (events.length === 0) {
+
+      if (events.length === 0 && recurringPrograms.length === 0) {
         breakdownEl.innerHTML = '<p style="color: var(--text-light); text-align: center; padding: 1rem;">No events yet.</p>';
         return;
       }
-      
-      // Build event data with signup counts
+
+      // Build ongoing programs (always on top)
+      const ongoingData = recurringPrograms.filter(p => p.active !== false).map(prog => {
+        const signups = recurringSignups[prog.id] || [];
+        const pendingCount = signups.filter(s => !s.status || s.status === 'new' || s.status === 'pending').length;
+        return {
+          id: prog.id,
+          title: prog.title || 'Untitled Program',
+          signupCount: signups.length,
+          pendingCount,
+          date: null,
+          image: prog.imageUrl || null,
+          ongoing: true
+        };
+      });
+
+      // Build regular event data
       const eventData = events.map(event => {
         const signups = eventSignups[event.id] || [];
         const totalParticipants = signups.reduce((sum, s) => sum + (parseInt(s.numVolunteers) || 1), 0);
@@ -8363,21 +8378,29 @@
           participantCount: totalParticipants,
           pendingCount,
           date: event.startDate || event.eventDate || event.date,
-          image: event.imageUrl || null
+          image: event.imageUrl || null,
+          ongoing: false
         };
       });
 
-      // Sort by signup count descending
-      eventData.sort((a, b) => b.signupCount - a.signupCount);
+      // Sort regular events by most recent date first
+      eventData.sort((a, b) => {
+        const dateA = a.date ? new Date(a.date).getTime() : 0;
+        const dateB = b.date ? new Date(b.date).getTime() : 0;
+        return dateB - dateA;
+      });
 
-      breakdownEl.innerHTML = eventData.slice(0, 8).map(e => `
+      // Ongoing on top, then regular events by date
+      const allData = [...ongoingData, ...eventData];
+
+      breakdownEl.innerHTML = allData.slice(0, 8).map(e => `
         <div class="activity-item" style="cursor: pointer;" onclick="navToTab('events')">
           ${e.image
             ? `<img src="${e.image}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex-shrink:0;" alt="" onerror="this.outerHTML='<div style=\\'width:48px;height:48px;border-radius:8px;background:linear-gradient(135deg,var(--primary-blue),var(--light-blue));display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;\\'>📅</div>'">`
             : '<div style="width:48px;height:48px;border-radius:8px;background:linear-gradient(135deg,var(--primary-blue),var(--light-blue));display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;">📅</div>'}
           <div class="activity-content">
             <div class="activity-text" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><strong>${e.title}</strong></div>
-            <div class="activity-detail">${e.date ? new Date(e.date).toLocaleDateString() : 'No date'}</div>
+            <div class="activity-detail">${e.ongoing ? '<span style="color:#16a34a;font-weight:600;">Ongoing</span>' : (e.date ? new Date(e.date).toLocaleDateString() : 'No date')}</div>
           </div>
           <div style="text-align: right; flex-shrink: 0;">
             <div style="font-weight: 700; font-size: 0.8rem; color: var(--primary-blue);">${e.signupCount} signups</div>
