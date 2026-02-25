@@ -1868,9 +1868,8 @@
     <div class="cms-header">
       <h1>📝 LDAH Content Management</h1>
       <div class="user-info">
-        <span id="cmsUserBadge" style="background:#004E7C;color:#fff;font-size:0.8rem;font-weight:600;padding:0.35rem 0.9rem;border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,0.15);"></span>
         <a href="index.html" class="preview-button" target="_blank">Preview Site</a>
-        <button class="btn-logout" onclick="handleLogout()">Logout</button>
+        <span id="cmsUserBadge" style="background:#004E7C;color:#fff;font-size:0.8rem;font-weight:600;padding:0.35rem 0.9rem;border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,0.15);display:inline-flex;align-items:center;gap:0.5rem;"></span>
       </div>
     </div>
     
@@ -3367,7 +3366,7 @@
         // Show CMS
         document.getElementById('loginScreen').style.display = 'none';
         document.getElementById('cmsPanel').style.display = 'block';
-        document.getElementById('cmsUserBadge').textContent = (currentRole.displayName || user.email) + ' (' + currentRole.role + ')';
+        document.getElementById('cmsUserBadge').innerHTML = (currentRole.displayName || user.email) + ' <button onclick="handleLogout()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;cursor:pointer;font-size:0.75rem;padding:0.15rem 0.5rem;border-radius:10px;">Logout</button>';
 
         // Apply role-based visibility
         applyRolePermissions();
@@ -8302,7 +8301,16 @@
       // Update action items banner
       updateActionItemsBanner();
       
-      // Event breakdown - show ALL events with signup counts
+      // Load ongoing programs for dashboard, then update event breakdown
+      try {
+        const recSnap = await db.collection('recurringEvents').get();
+        recurringPrograms = recSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        recurringSignups = {};
+        for (const p of recurringPrograms) {
+          const sSnap = await db.collection('recurringEvents').doc(p.id).collection('signups').get();
+          recurringSignups[p.id] = sSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        }
+      } catch (err) { console.error('Error loading recurring programs for dashboard:', err); }
       updateEventPerformance();
       
       // Volunteer opportunities breakdown
