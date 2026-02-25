@@ -2002,33 +2002,27 @@
         });
 
         function updateMembershipButton() {
-            const btn = document.querySelector('.membership-btn');
-            if (!btn) return;
-            if (currentUser) {
-                btn.textContent = 'My Island';
-                btn.onclick = () => {
-                    if (currentRole && currentRole.island) {
-                        openIslandModal(currentRole.island);
-                    } else {
-                        showToast('No island assigned to your account');
-                    }
-                };
-            } else {
-                btn.textContent = 'Membership Login';
-                btn.onclick = () => openLoginModal();
-            }
+            // Hero button always stays "Membership Login" — partners use the login modal flow
+        }
         }
 
         function openLoginModal() {
             const modal = document.getElementById('loginModal');
-            document.getElementById('loginForm').style.display = 'block';
-            document.getElementById('loginSuccess').classList.remove('visible');
-            document.getElementById('loginError').classList.remove('visible');
-            document.getElementById('loginEmail').value = '';
-            document.getElementById('loginPassword').value = '';
+            if (currentUser) {
+                // Already logged in — show success state directly
+                document.getElementById('loginForm').style.display = 'none';
+                document.getElementById('loginSuccess').classList.add('visible');
+                document.getElementById('loginError').classList.remove('visible');
+            } else {
+                document.getElementById('loginForm').style.display = 'block';
+                document.getElementById('loginSuccess').classList.remove('visible');
+                document.getElementById('loginError').classList.remove('visible');
+                document.getElementById('loginEmail').value = '';
+                document.getElementById('loginPassword').value = '';
+            }
             modal.classList.add('active');
             document.body.style.overflow = 'hidden';
-            setTimeout(() => document.getElementById('loginEmail').focus(), 300);
+            if (!currentUser) setTimeout(() => document.getElementById('loginEmail').focus(), 300);
         }
 
         function closeLoginModal(event) {
