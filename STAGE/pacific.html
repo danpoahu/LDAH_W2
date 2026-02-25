@@ -2004,7 +2004,21 @@
         });
 
         function updateMembershipButton() {
-            // Hero button always stays "Membership Login" — partners use the login modal flow
+            const btn = document.querySelector('.membership-btn');
+            if (!btn) return;
+            if (currentUser) {
+                btn.textContent = 'My Partner Island';
+                btn.onclick = function() {
+                    if (currentRole && currentRole.island) {
+                        openIslandModal(currentRole.island);
+                    } else {
+                        openLoginModal();
+                    }
+                };
+            } else {
+                btn.textContent = 'Membership Login';
+                btn.onclick = openLoginModal;
+            }
         }
 
         function openLoginModal() {
