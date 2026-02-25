@@ -2526,6 +2526,14 @@
                 </div>
               </div>
               
+              <!-- Recent CMS Changes (Audit Trail) -->
+              <div class="dashboard-card">
+                <h3 class="dashboard-card-title">📝 Recent CMS Changes</h3>
+                <div id="recentChangesLog" class="activity-feed">
+                  <p style="color: var(--text-light); text-align: center; padding: 1rem;">Loading...</p>
+                </div>
+              </div>
+
               <!-- Anti-Bullying Pledges -->
               <div class="dashboard-card" onclick="document.querySelector('[data-tab=data]').click(); setTimeout(() => switchDataSubTab('pledges'), 100);" style="cursor: pointer;">
                 <h3 class="dashboard-card-title">✊ Anti-Bullying Pledges</h3>
@@ -8057,8 +8065,96 @@
       
       calculateAnalytics();
       updateWebsiteAnalyticsDashboard();
+      loadRecentChanges();
     }
-    
+
+    // ===== Recent CMS Changes (Audit Trail) =====
+    async function loadRecentChanges() {
+      const container = document.getElementById('recentChangesLog');
+      if (!container) return;
+
+      const changes = [];
+      const collections = [
+        { name: 'teamMembers', label: 'Team Member' },
+        { name: 'boardMembers', label: 'Board Member' },
+        { name: 'gallery', label: 'Gallery Photo' },
+        { name: 'gallery2', label: 'Gallery 2 Photo' },
+        { name: 'resources', label: 'Resource' },
+        { name: 'categories', label: 'FAQ Category' },
+        { name: 'faqs', label: 'FAQ' },
+        { name: 'events', label: 'Event' },
+        { name: 'volunteerOpportunities', label: 'Volunteer Opportunity' },
+        { name: 'pageContent', label: 'Page' }
+      ];
+
+      try {
+        for (const col of collections) {
+          const snap = await db.collection(col.name)
+            .orderBy('updatedAt', 'desc')
+            .limit(5)
+            .get();
+          snap.docs.forEach(doc => {
+            const d = doc.data();
+            if (d.updatedAt && d.updatedByName) {
+              changes.push({
+                who: d.updatedByName,
+                what: col.label,
+                name: d.name || d.title || d.question || d.caption || doc.id,
+                when: d.updatedAt.toDate ? d.updatedAt.toDate() : new Date(d.updatedAt),
+                action: d.archived ? 'archived' : 'edited'
+              });
+            }
+          });
+        }
+
+        // Sort by most recent
+        changes.sort((a, b) => b.when - a.when);
+        const top = changes.slice(0, 15);
+
+        if (top.length === 0) {
+          container.innerHTML = '<p style="color: var(--text-light); text-align: center; padding: 1rem;">No recent changes recorded yet.</p>';
+          return;
+        }
+
+        container.innerHTML = top.map(c => {
+          const ago = timeAgo(c.when);
+          const actionColor = c.action === 'archived' ? '#e53e3e' : '#2b6cb0';
+          return '<div class="activity-item" style="padding: 0.5rem 0; border-bottom: 1px solid #f0f0f0;">'
+            + '<strong style="color: #333;">' + escapeHtml(c.who) + '</strong> '
+            + '<span style="color: ' + actionColor + ';">' + c.action + '</span> '
+            + '<span style="color: #666;">' + escapeHtml(c.what) + '</span> '
+            + '<em style="color: #888;">"' + escapeHtml(truncate(c.name, 30)) + '"</em>'
+            + '<span style="float: right; color: #aaa; font-size: 0.75rem;">' + ago + '</span>'
+            + '</div>';
+        }).join('');
+      } catch (err) {
+        console.error('Error loading recent changes:', err);
+        container.innerHTML = '<p style="color: var(--text-light); text-align: center; padding: 1rem;">Could not load changes.</p>';
+      }
+    }
+
+    function truncate(str, max) {
+      if (!str) return '';
+      return str.length > max ? str.substring(0, max) + '...' : str;
+    }
+
+    function timeAgo(date) {
+      const now = new Date();
+      const diff = Math.floor((now - date) / 1000);
+      if (diff < 60) return 'just now';
+      if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+      if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+      if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
+      return date.toLocaleDateString();
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
     // Manual refresh button - only re-fetch if user explicitly asks
     async function loadAnalytics() {
       const loading = document.getElementById('analyticsLoading');
