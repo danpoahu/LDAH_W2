@@ -1398,14 +1398,14 @@
         <div class="island-modal-content" onclick="event.stopPropagation()">
             <div class="island-modal-header" id="islandModalHeader">
                 <h2><span class="flag-icon" id="islandFlag"></span><span id="islandName"></span></h2>
-                <button id="editIslandBtn" class="edit-island-btn" onclick="toggleEditMode()" title="Edit this island's content">&#9998;</button>
+                <button type="button" id="editIslandBtn" class="edit-island-btn" onclick="toggleEditMode()" title="Edit this island's content">&#9998;</button>
                 <button class="close-island-modal" onclick="closeIslandModal()">&times;</button>
             </div>
             <div id="editToolbar" class="edit-toolbar">
                 <span class="edit-toolbar-label">Editing Mode</span>
                 <div class="edit-toolbar-actions">
-                    <button class="edit-btn-cancel" onclick="cancelEdit()">Cancel</button>
-                    <button id="editSaveBtn" class="edit-btn-save" onclick="saveIslandEdits()">Save Changes</button>
+                    <button type="button" class="edit-btn-cancel" onclick="cancelEdit()">Cancel</button>
+                    <button type="button" id="editSaveBtn" class="edit-btn-save" onclick="saveIslandEdits()">Save Changes</button>
                 </div>
             </div>
             <div class="island-modal-body" id="islandModalBody">
