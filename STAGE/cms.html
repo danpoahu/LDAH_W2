@@ -2370,7 +2370,7 @@
           
           <!-- Main KPI Cards -->
           <div class="dashboard-kpi-grid">
-            <div class="kpi-card kpi-primary" onclick="document.querySelector('[data-tab=events]').click()" style="cursor: pointer;">
+            <div class="kpi-card kpi-primary" onclick="navToTab('events')" style="cursor: pointer;">
               <div class="kpi-header">
                 <span class="kpi-icon">📅</span>
               </div>
@@ -2387,7 +2387,7 @@
               <div class="kpi-label">Event Signups</div>
             </div>
             
-            <div class="kpi-card kpi-success" onclick="document.querySelector('[data-tab=volunteers]').click()" style="cursor: pointer;">
+            <div class="kpi-card kpi-success" onclick="navToTab('volunteers')" style="cursor: pointer;">
               <div class="kpi-header">
                 <span class="kpi-icon">🤝</span>
               </div>
@@ -2404,7 +2404,7 @@
               <div class="kpi-label">Volunteer Applications</div>
             </div>
             
-            <div class="kpi-card kpi-info" onclick="document.querySelector('[data-tab=data]').click(); setTimeout(() => switchDataSubTab('contacts'), 100);" style="cursor: pointer;">
+            <div class="kpi-card kpi-info" onclick="navToTab('data', () => switchDataSubTab('contacts'))" style="cursor: pointer;">
               <div class="kpi-header">
                 <span class="kpi-icon">✉️</span>
               </div>
@@ -2421,7 +2421,7 @@
               <div class="kpi-label">Contact Messages</div>
             </div>
             
-            <div class="kpi-card kpi-warning" onclick="document.querySelector('[data-tab=data]').click(); setTimeout(() => switchDataSubTab('providers'), 100);" style="cursor: pointer;">
+            <div class="kpi-card kpi-warning" onclick="navToTab('data', () => switchDataSubTab('providers'))" style="cursor: pointer;">
               <div class="kpi-header">
                 <span class="kpi-icon">📋</span>
               </div>
@@ -2447,82 +2447,36 @@
               <div class="dashboard-card">
                 <h3 class="dashboard-card-title">📊 Content Overview</h3>
                 <div class="content-stats-grid">
-                  <div class="content-stat-item" onclick="document.querySelector('[data-tab=team]').click()">
+                  <div class="content-stat-item" onclick="navToTab('team')">
                     <span class="content-stat-icon">👥</span>
                     <span class="content-stat-value" id="contentTeamCount">-</span>
                     <span class="content-stat-label">Team Members</span>
                   </div>
-                  <div class="content-stat-item" onclick="document.querySelector('[data-tab=board]').click()">
+                  <div class="content-stat-item" onclick="navToTab('board')">
                     <span class="content-stat-icon">🏆</span>
                     <span class="content-stat-value" id="contentBoardCount">-</span>
                     <span class="content-stat-label">Board Members</span>
                   </div>
-                  <div class="content-stat-item" onclick="document.querySelector('[data-tab=resources]').click()">
+                  <div class="content-stat-item" onclick="navToTab('resources')">
                     <span class="content-stat-icon">📚</span>
                     <span class="content-stat-value" id="contentResourcesCount">-</span>
                     <span class="content-stat-label">Resources</span>
                   </div>
-                  <div class="content-stat-item" onclick="document.querySelector('[data-tab=events]').click()">
+                  <div class="content-stat-item" onclick="navToTab('events')">
                     <span class="content-stat-icon">📅</span>
                     <span class="content-stat-value" id="contentEventsCount">-</span>
                     <span class="content-stat-label">Active Events</span>
                   </div>
-                  <div class="content-stat-item" onclick="document.querySelector('[data-tab=volunteers]').click()">
+                  <div class="content-stat-item" onclick="navToTab('volunteers')">
                     <span class="content-stat-icon">💼</span>
                     <span class="content-stat-value" id="contentOpportunitiesCount">-</span>
                     <span class="content-stat-label">Volunteer Roles</span>
                   </div>
-                  <div class="content-stat-item" onclick="document.querySelector('[data-tab=faq]').click()">
+                  <div class="content-stat-item" onclick="navToTab('faq')">
                     <span class="content-stat-icon">❓</span>
                     <span class="content-stat-value" id="contentFaqCount">-</span>
                     <span class="content-stat-label">FAQs</span>
                   </div>
-                </div>
-              </div>
-              
-              <!-- Event Breakdown -->
-              <div class="dashboard-card">
-                <h3 class="dashboard-card-title">Event Performance</h3>
-                <div id="eventBreakdown" class="breakdown-list">
-                  <p style="color: var(--text-light); text-align: center; padding: 1rem;">Loading...</p>
-                </div>
-              </div>
-              
-              <!-- Volunteer Performance -->
-              <div class="dashboard-card">
-                <h3 class="dashboard-card-title">Volunteer Opportunities</h3>
-                <div id="volunteerBreakdown" class="breakdown-list">
-                  <p style="color: var(--text-light); text-align: center; padding: 1rem;">Loading...</p>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Right Column -->
-            <div class="dashboard-col">
-              <!-- Quick Actions -->
-              <div class="dashboard-card">
-                <h3 class="dashboard-card-title">🚀 Quick Actions</h3>
-                <div class="quick-actions-grid">
-                  <button class="quick-action-btn" onclick="document.querySelector('[data-tab=events]').click(); setTimeout(() => openEventModal(), 100);">
-                    <span>📅</span> Add Event
-                  </button>
-                  <button class="quick-action-btn" onclick="document.querySelector('[data-tab=volunteers]').click(); setTimeout(() => openOpportunityModal(), 100);">
-                    <span>💼</span> Add Volunteer Role
-                  </button>
-                  <button class="quick-action-btn" onclick="document.querySelector('[data-tab=team]').click(); setTimeout(() => openPersonModal('team'), 100);">
-                    <span>👤</span> Add Team Member
-                  </button>
-                  <button class="quick-action-btn" onclick="document.querySelector('[data-tab=resources]').click(); setTimeout(() => openResourceModal(), 100);">
-                    <span>📚</span> Add Resource
-                  </button>
-                </div>
-              </div>
-              
-              <!-- Recent Activity -->
-              <div class="dashboard-card">
-                <h3 class="dashboard-card-title">🕐 Recent Activity</h3>
-                <div id="recentActivityFeed" class="activity-feed">
-                  <p style="color: var(--text-light); text-align: center; padding: 1rem;">Loading...</p>
                 </div>
               </div>
               
@@ -2534,8 +2488,19 @@
                 </div>
               </div>
 
+              <!-- Event Breakdown -->
+              <div class="dashboard-card">
+                <h3 class="dashboard-card-title">Event Performance</h3>
+                <div id="eventBreakdown" class="breakdown-list">
+                  <p style="color: var(--text-light); text-align: center; padding: 1rem;">Loading...</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Column -->
+            <div class="dashboard-col">
               <!-- Anti-Bullying Pledges -->
-              <div class="dashboard-card" onclick="document.querySelector('[data-tab=data]').click(); setTimeout(() => switchDataSubTab('pledges'), 100);" style="cursor: pointer;">
+              <div class="dashboard-card" onclick="navToTab('data', () => switchDataSubTab('pledges'))" style="cursor: pointer;">
                 <h3 class="dashboard-card-title">✊ Anti-Bullying Pledges</h3>
                 <div class="pledge-stats">
                   <div class="pledge-stat-big">
@@ -2545,6 +2510,14 @@
                   <div class="pledge-stat-small" id="pledgesByMonth">
                     <p style="color: var(--text-light);">Loading pledge data...</p>
                   </div>
+                </div>
+              </div>
+
+              <!-- Recent Activity -->
+              <div class="dashboard-card">
+                <h3 class="dashboard-card-title">🕐 Recent Activity</h3>
+                <div id="recentActivityFeed" class="activity-feed">
+                  <p style="color: var(--text-light); text-align: center; padding: 1rem;">Loading...</p>
                 </div>
               </div>
             </div>
@@ -3470,6 +3443,15 @@
       } else {
         document.body.classList.remove('hide-archive');
       }
+    }
+
+    // ===== Role-Aware Navigation =====
+    function navToTab(tabName, callback) {
+      if (!currentRole) return;
+      const tab = document.querySelector('[data-tab="' + tabName + '"]');
+      if (!tab || tab.style.display === 'none') return; // Tab hidden for this role — do nothing
+      tab.click();
+      if (callback) setTimeout(callback, 100);
     }
 
     // ===== Audit Trail Helpers =====
