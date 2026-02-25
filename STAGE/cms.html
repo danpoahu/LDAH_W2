@@ -8302,15 +8302,19 @@
       updateActionItemsBanner();
       
       // Load ongoing programs for dashboard, then update event breakdown
-      try {
-        const recSnap = await db.collection('recurringEvents').get();
-        recurringPrograms = recSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        recurringSignups = {};
-        for (const p of recurringPrograms) {
-          const sSnap = await db.collection('recurringEvents').doc(p.id).collection('signups').get();
-          recurringSignups[p.id] = sSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        }
-      } catch (err) { console.error('Error loading recurring programs for dashboard:', err); }
+      (async function() {
+        try {
+          const recSnap = await db.collection('recurringEvents').get();
+          recurringPrograms = recSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          recurringSignups = {};
+          for (const p of recurringPrograms) {
+            const sSnap = await db.collection('recurringEvents').doc(p.id).collection('signups').get();
+            recurringSignups[p.id] = sSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          }
+        } catch (err) { console.error('Error loading recurring programs for dashboard:', err); }
+        updateEventPerformance();
+      })();
+      // Also run immediately with whatever data is available
       updateEventPerformance();
       
       // Volunteer opportunities breakdown
