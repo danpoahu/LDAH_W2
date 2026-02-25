@@ -692,6 +692,7 @@
 
       try {
         await db.collection('volunteers').add(formData);
+        if (window.ldahAnalytics) ldahAnalytics.trackFormSubmit('volunteer_application');
 
         document.getElementById('modal-body').innerHTML = `
           <div style="text-align: center; padding: 40px;">

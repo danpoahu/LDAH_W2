@@ -2014,7 +2014,8 @@
       
       try {
         await db.collection('eventRequests').add(formData);
-        
+        if (window.ldahAnalytics) ldahAnalytics.trackFormSubmit('event_request');
+
         // Track analytics
         try {
           await db.collection('analytics').add({
@@ -2402,7 +2403,8 @@
           timestamp: firebase.firestore.FieldValue.serverTimestamp(),
           eventTitle: eventData.title
         });
-        
+        if (window.ldahAnalytics) ldahAnalytics.trackFormSubmit('event_signup');
+
         // Track analytics
         try {
           await db.collection('analytics').add({
@@ -2752,6 +2754,7 @@
           timestamp: firebase.firestore.FieldValue.serverTimestamp(),
           eventTitle: program.title
         });
+        if (window.ldahAnalytics) ldahAnalytics.trackFormSubmit('recurring_event_signup');
 
         try {
           await db.collection('analytics').add({

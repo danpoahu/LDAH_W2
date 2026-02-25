@@ -7797,7 +7797,7 @@
         formSubmits: formSubmits,
         documentViews: documentViews,
         documentViewsByDoc: documentViewsByDoc,
-        totalInteractions: phoneCalls + emailClicks + outboundClicks + modalOpens + documentViews,
+        totalInteractions: phoneCalls + emailClicks + outboundClicks + modalOpens + documentViews + formSubmits,
         pageviewsByPage: pageviewsByPage
       };
     }
@@ -7818,7 +7818,7 @@
         topPagesEl.innerHTML = '<p style="color: var(--text-light); text-align: center; padding: 0.5rem; font-size: 0.85rem;">No data yet — analytics will appear after site visitors are tracked.</p>';
       } else {
         var pageLabels = { home: 'Home', contact: 'Contact', volunteer: 'Volunteer', events: 'Events', whoweare: 'Who We Are', resources: 'Resources', readiness: 'Readiness', specialed: 'Special Ed', military: 'Military', pacific: 'Pacific', community: 'Community', install: 'Install App', cms: 'CMS', accessibility: 'Accessibility' };
-        topPagesEl.innerHTML = sortedPages.slice(0, 8).map(function(entry) {
+        topPagesEl.innerHTML = sortedPages.map(function(entry) {
           var label = pageLabels[entry[0]] || entry[0];
           return '<div class="analytics-row"><span class="analytics-row-label">' + label + '</span><span class="analytics-row-value">' + entry[1].toLocaleString() + '</span></div>';
         }).join('');
@@ -7829,7 +7829,6 @@
       var interactions = [
         { label: 'Phone Call Taps', value: totals.phoneCalls },
         { label: 'Email Link Clicks', value: totals.emailClicks },
-        { label: 'Donation Clicks', value: totals.donationClicks },
         { label: 'Outbound Links', value: totals.outboundClicks },
         { label: 'Document / PDF Views', value: totals.documentViews },
         { label: 'Modal / Popup Opens', value: totals.modalOpens },

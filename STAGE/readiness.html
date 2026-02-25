@@ -1015,7 +1015,8 @@
 
             try {
                 await db.collection('providers').add(formData);
-                
+                if (window.ldahAnalytics) ldahAnalytics.trackFormSubmit('provider_request');
+
                 // Log analytics event
                 analytics.logEvent('provider_request_submitted', {
                     organization: formData.organizationName

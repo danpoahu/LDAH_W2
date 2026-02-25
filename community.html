@@ -1063,7 +1063,8 @@
                     submittedAt: firebase.firestore.FieldValue.serverTimestamp(),
                     status: 'new'
                 });
-                
+                if (window.ldahAnalytics) ldahAnalytics.trackFormSubmit('anti_bullying_pledge');
+
                 // Success - show in-modal Mahalo confirmation
                 document.getElementById('pledgeSuccessName').textContent = 'Mahalo, ' + name + '!';
                 document.getElementById('pledgeForm').style.display = 'none';
