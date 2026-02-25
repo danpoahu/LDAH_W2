@@ -2570,8 +2570,8 @@
             </div>
           </div>
 
-          <!-- Export Section -->
-          <div class="dashboard-export-section">
+          <!-- Export Section (superAdmin & admin only) -->
+          <div class="dashboard-export-section" data-roles="superAdmin,admin">
             <button onclick="exportAnalyticsReport()" class="btn-export-full">
               📄 Export CSV Report
             </button>
@@ -3436,6 +3436,12 @@
         firstVisible.classList.add('active');
         document.getElementById(firstVisible.dataset.tab + '-tab').classList.add('active');
       }
+
+      // Hide non-tab elements with data-roles (e.g. export section)
+      document.querySelectorAll('[data-roles]:not(.tab)').forEach(el => {
+        const allowedRoles = el.dataset.roles.split(',');
+        el.style.display = allowedRoles.includes(role) ? '' : 'none';
+      });
 
       // Archive buttons: only superAdmin
       if (role !== 'superAdmin') {
@@ -8344,7 +8350,7 @@
       eventData.sort((a, b) => b.signupCount - a.signupCount);
       
       breakdownEl.innerHTML = eventData.slice(0, 8).map(e => `
-        <div class="breakdown-item" style="cursor: pointer;" onclick="document.querySelector('[data-tab=events]').click();">
+        <div class="breakdown-item" style="cursor: pointer;" onclick="navToTab('events')">
           <div style="flex: 1; min-width: 0;">
             <div style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${e.title}</div>
             <div style="font-size: 0.75rem; color: var(--text-light);">${e.date ? new Date(e.date).toLocaleDateString() : 'No date'}</div>
@@ -8384,7 +8390,7 @@
       oppData.sort((a, b) => b.applicationCount - a.applicationCount);
       
       breakdownEl.innerHTML = oppData.slice(0, 8).map(o => `
-        <div class="breakdown-item" style="cursor: pointer;" onclick="document.querySelector('[data-tab=volunteers]').click();">
+        <div class="breakdown-item" style="cursor: pointer;" onclick="navToTab('volunteers')">
           <div style="flex: 1; min-width: 0;">
             <div style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${o.title}</div>
             <div style="font-size: 0.75rem; color: var(--text-light);">${o.commitment || 'Flexible'}</div>
@@ -8712,18 +8718,16 @@
       const parts = nav.split('-');
       const tab = parts[0];
       const subtab = parts[1];
-      
-      document.querySelector(`[data-tab="${tab}"]`).click();
-      
-      if (subtab) {
-        setTimeout(() => {
+
+      navToTab(tab, function() {
+        if (subtab) {
           if (tab === 'data') {
             switchDataSubTab(subtab);
           } else if (tab === 'volunteers') {
             switchVolunteerSubTab(subtab);
           }
-        }, 100);
-      }
+        }
+      });
     }
     
     function getTimeAgo(timestamp) {
