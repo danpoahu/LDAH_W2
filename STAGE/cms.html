@@ -8362,22 +8362,26 @@
           signupCount: signups.length,
           participantCount: totalParticipants,
           pendingCount,
-          date: event.startDate || event.eventDate || event.date
+          date: event.startDate || event.eventDate || event.date,
+          image: event.imageUrl || null
         };
       });
-      
+
       // Sort by signup count descending
       eventData.sort((a, b) => b.signupCount - a.signupCount);
-      
+
       breakdownEl.innerHTML = eventData.slice(0, 8).map(e => `
-        <div class="breakdown-item" style="cursor: pointer;" onclick="navToTab('events')">
-          <div style="flex: 1; min-width: 0;">
-            <div style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${e.title}</div>
-            <div style="font-size: 0.75rem; color: var(--text-light);">${e.date ? new Date(e.date).toLocaleDateString() : 'No date'}</div>
+        <div class="activity-item" style="cursor: pointer;" onclick="navToTab('events')">
+          ${e.image
+            ? `<img src="${e.image}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;" alt="" onerror="this.outerHTML='<div class=\\'activity-icon event\\'>📅</div>'">`
+            : '<div class="activity-icon event">📅</div>'}
+          <div class="activity-content">
+            <div class="activity-text" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><strong>${e.title}</strong></div>
+            <div class="activity-detail">${e.date ? new Date(e.date).toLocaleDateString() : 'No date'}</div>
           </div>
-          <div style="text-align: right;">
-            <div style="font-weight: 700; color: var(--primary-blue);">${e.signupCount} signups</div>
-            ${e.pendingCount > 0 ? `<div style="font-size: 0.75rem; color: #dc2626;">⚠️ ${e.pendingCount} pending</div>` : ''}
+          <div style="text-align: right; flex-shrink: 0;">
+            <div style="font-weight: 700; font-size: 0.8rem; color: var(--primary-blue);">${e.signupCount} signups</div>
+            ${e.pendingCount > 0 ? `<div style="font-size: 0.7rem; color: #dc2626;">⚠️ ${e.pendingCount} pending</div>` : ''}
           </div>
         </div>
       `).join('') || '<p style="color: var(--text-light); text-align: center; padding: 1rem;">No events yet.</p>';
