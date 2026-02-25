@@ -6484,6 +6484,7 @@
                   <div>
                     <strong>${s.name}</strong>
                     <span style="padding:2px 8px;border-radius:50px;font-size:11px;font-weight:600;margin-left:8px;background:${s.status==='confirmed'?'#d1fae5;color:#065f46':s.status==='cancelled'?'#fee2e2;color:#991b1b':'#fef3c7;color:#92400e'};">${s.status||'pending'}</span><br>
+                    ${s.registrantType?`<span style="display:inline-block;padding:2px 8px;border-radius:50px;font-size:11px;font-weight:600;margin-bottom:2px;background:${s.registrantType==='Professional'?'#ede9fe;color:#5b21b6':'#e0f2fe;color:#0369a1'}">${s.registrantType}</span><br>`:''}
                     ${s.studentName?`<span style="font-size:0.85rem;font-weight:600;color:#0369a1;">Student: ${s.studentName}${s.studentGrade?' · Grade '+s.studentGrade:''}${s.studentSchool?' · '+s.studentSchool:''}</span><br>`:''}
                     <span style="font-size:0.85rem;color:var(--text-light);">${s.email||''} &bull; ${s.phone||''} &bull; ${s.preferredContact||''}</span>
                     ${s.participationType==='Group'?`<br><span style="font-size:0.85rem;color:#555;">Group: ${s.groupName} (${s.groupSize})</span>`:''}
@@ -6565,7 +6566,7 @@
 
       // --- Column headers ---
       const headers = [
-        'Name','Email','Phone','Preferred Contact','Type','Group Name','Group Size',
+        'Name','Email','Phone','Preferred Contact','Registrant Type','Type','Group Name','Group Size',
         'Student Name','Date of Birth','ID #','Grade','Current School',
         'IEP Annual Review Date','Reevaluation Date','Care Coordinator',
         'Status','Comments','Submitted'
@@ -6605,7 +6606,7 @@
           const submitted = s.timestamp?.seconds ? new Date(s.timestamp.seconds * 1000).toLocaleString() : '';
           lines.push([
             s.name || '', s.email || '', s.phone || '', s.preferredContact || '',
-            s.participationType || 'Individual', s.groupName || '', s.groupSize || '',
+            s.registrantType || '', s.participationType || 'Individual', s.groupName || '', s.groupSize || '',
             s.studentName || '', s.studentDOB || '', s.studentId || '',
             s.studentGrade || '', s.studentSchool || '',
             s.iepReviewDate || '', s.reevalDate || '', s.careCoordinator || '',

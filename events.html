@@ -2619,6 +2619,19 @@
                 <!-- Student Information -->
                 <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:18px;margin-bottom:24px;">
                   <h4 style="color:#0369a1;margin:0 0 16px;font-size:15px;font-weight:700;">Student Information</h4>
+                  <div style="margin-bottom:16px;">
+                    <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:13px;">I am a... *</label>
+                    <div style="display:flex;gap:20px;flex-wrap:wrap;">
+                      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                        <input type="radio" name="registrantType" value="Parent/Guardian" required style="width:18px;height:18px;accent-color:#0369a1;">
+                        <span style="font-size:14px;color:#374151;">Parent / Guardian</span>
+                      </label>
+                      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                        <input type="radio" name="registrantType" value="Professional" required style="width:18px;height:18px;accent-color:#0369a1;">
+                        <span style="font-size:14px;color:#374151;">Professional</span>
+                      </label>
+                    </div>
+                  </div>
                   <div style="display:flex;flex-wrap:wrap;gap:14px;">
                     <div style="flex:1;min-width:220px;">
                       <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:6px;font-size:13px;">Student's Name *</label>
@@ -2714,6 +2727,7 @@
         customAnswers: [],
         additionalComments: document.getElementById('special-accommodations').value,
         // Student information fields
+        registrantType:  document.querySelector('input[name="registrantType"]:checked')?.value || '',
         studentName:     document.getElementById('studentName').value.trim(),
         studentDOB:      document.getElementById('studentDOB').value,
         studentId:       document.getElementById('studentId').value.trim(),
