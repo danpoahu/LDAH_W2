@@ -332,6 +332,17 @@
     trackPageView();
     patchModalFunctions();
 
+    // Fix footer year (innerHTML doesn't execute inline script tags)
+    // Run immediately + delayed retry for async-loaded footer
+    function fixDynamicYear() {
+      document.querySelectorAll('.dynamic-year').forEach(function(el) {
+        if (!el.textContent) el.textContent = new Date().getFullYear();
+      });
+    }
+    fixDynamicYear();
+    setTimeout(fixDynamicYear, 1500);
+    setTimeout(fixDynamicYear, 3000);
+
     // Periodic flush
     setInterval(flushEvents, FLUSH_INTERVAL);
 

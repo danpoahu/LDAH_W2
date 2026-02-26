@@ -83,7 +83,7 @@ const footerHTML = `
         </div>
         
         <div class="footer-bottom">
-            <p>© 2025 Leadership in Disabilities and Achievement of Hawai'i (LDAH). All Rights Reserved.</p>
+            <p>© ${new Date().getFullYear()} Leadership in Disabilities and Achievement of Hawai'i (LDAH). All Rights Reserved.</p>
             <p style="margin-top: 10px; font-size: 0.9em;">IT Powered by DP Consulting</p>
         </div>
     </div>

@@ -20,7 +20,7 @@ function openIframeModal(title, url) {
         titleEl.textContent = title;
         frame.outerHTML = `<div id="iframeFrame" style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 3rem; text-align: center; flex-direction: column;">
             <h4 style="color: #004E7C; font-size: 1.5rem; margin-bottom: 1rem;">Join Our Facebook Community</h4>
-            <p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other Hawaii families navigating special education and disabilities. Share experiences, ask questions, and find support.</p>
+            <p style="font-size: 1.1rem; line-height: 1.8; color: #666; margin-bottom: 2rem; max-width: 500px;">Connect with other Hawai'i families navigating special education and disabilities. Share experiences, ask questions, and find support.</p>
             <a href="${url}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 1rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border-radius: 50px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">Open Parent Talk Cafe →</a>
         </div>`;
         modal.classList.add('active');

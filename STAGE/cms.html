@@ -394,10 +394,7 @@
     .btn-archive:hover {
       background: #545b62;
     }
-
-    /* Hide archive buttons for non-superAdmin roles */
-    .hide-archive .btn-archive { display: none !important; }
-
+    
     .btn-restore {
       background: var(--success);
       color: white;
@@ -1837,29 +1834,17 @@
     <div class="login-box">
       <h1>LDAH CMS</h1>
       <p>Content Management System</p>
-
+      
       <div class="error-message" id="loginError"></div>
-
+      
       <form id="loginForm" onsubmit="handleLogin(event)">
         <div class="form-group">
-          <label for="loginEmail">Email Address</label>
-          <input type="email" id="loginEmail" required placeholder="Enter your email" autocomplete="email">
+          <label for="password">Password</label>
+          <input type="password" id="password" required placeholder="Enter CMS password">
         </div>
-        <div class="form-group">
-          <label for="loginPassword">Password</label>
-          <input type="password" id="loginPassword" required placeholder="Enter your password" autocomplete="current-password">
-        </div>
-
+        
         <button type="submit" class="btn btn-primary">Sign In</button>
-        <div style="text-align: center; margin-top: 0.75rem;">
-          <a href="javascript:void(0)" onclick="handlePasswordReset()" style="color: var(--primary-blue); font-size: 0.85rem;">Forgot Password?</a>
-        </div>
       </form>
-      <div id="noAccessMessage" style="display: none; text-align: center; padding: 1.5rem;">
-        <p style="color: #e53e3e; font-weight: 600;">Access Denied</p>
-        <p style="color: #666; font-size: 0.9rem;">Your account does not have CMS access.</p>
-        <button type="button" class="btn btn-primary" onclick="auth.signOut()" style="margin-top: 1rem;">Sign Out</button>
-      </div>
     </div>
   </div>
 
@@ -1869,24 +1854,24 @@
       <h1>📝 LDAH Content Management</h1>
       <div class="user-info">
         <a href="index.html" class="preview-button" target="_blank">Preview Site</a>
-        <span id="cmsUserBadge" style="background:#004E7C;color:#fff;font-size:0.8rem;font-weight:600;padding:0.35rem 0.9rem;border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,0.15);display:inline-flex;align-items:center;gap:0.5rem;"></span>
+        <button class="btn-logout" onclick="handleLogout()">Logout</button>
       </div>
     </div>
     
     <div class="cms-container">
       <!-- Tabs -->
       <div class="cms-tabs">
-        <button class="tab" data-tab="analytics" data-roles="superAdmin,admin,appAdmin,webAdmin,dailyUser">📈 Dashboard</button>
-        <button class="tab" data-tab="team" data-roles="superAdmin,admin,webAdmin">Team</button>
-        <button class="tab" data-tab="board" data-roles="superAdmin,admin,webAdmin">Board</button>
-        <button class="tab" data-tab="gallery" data-roles="superAdmin,admin,webAdmin">Gallery</button>
-        <button class="tab" data-tab="gallery2" data-roles="superAdmin,admin,webAdmin">Gallery 2</button>
-        <button class="tab" data-tab="resources" data-roles="superAdmin,admin,webAdmin">Resources</button>
-        <button class="tab" data-tab="faq" data-roles="superAdmin,admin,appAdmin">❓ FAQ</button>
-        <button class="tab" data-tab="events" data-roles="superAdmin,admin,appAdmin,webAdmin">Events <span id="eventsTabBadge" class="badge" style="display: none;"></span></button>
-        <button class="tab" data-tab="volunteers" data-roles="superAdmin,admin,appAdmin,webAdmin">Volunteers <span id="volunteersTabBadge" class="badge" style="display: none;"></span></button>
-        <button class="tab" data-tab="data" data-roles="superAdmin,admin,webAdmin,dataUser">📊 Data <span id="dataTabBadge" class="badge" style="display: none;"></span></button>
-        <button class="tab" data-tab="pages" data-roles="superAdmin,admin,webAdmin">📄 Pages</button>
+        <button class="tab" data-tab="analytics">📈 Dashboard</button>
+        <button class="tab" data-tab="team">Team</button>
+        <button class="tab" data-tab="board">Board</button>
+        <button class="tab" data-tab="gallery">Gallery</button>
+        <button class="tab" data-tab="gallery2">Gallery 2</button>
+        <button class="tab" data-tab="resources">Resources</button>
+        <button class="tab" data-tab="faq">❓ FAQ</button>
+        <button class="tab" data-tab="events">Events <span id="eventsTabBadge" class="badge" style="display: none;"></span></button>
+        <button class="tab" data-tab="volunteers">Volunteers <span id="volunteersTabBadge" class="badge" style="display: none;"></span></button>
+        <button class="tab" data-tab="data">📊 Data <span id="dataTabBadge" class="badge" style="display: none;"></span></button>
+        <button class="tab" data-tab="pages">📄 Pages</button>
       </div>
       
       <!-- Team Tab -->
@@ -2369,7 +2354,7 @@
           
           <!-- Main KPI Cards -->
           <div class="dashboard-kpi-grid">
-            <div class="kpi-card kpi-primary" onclick="navToTab('events')" style="cursor: pointer;">
+            <div class="kpi-card kpi-primary" onclick="document.querySelector('[data-tab=events]').click()" style="cursor: pointer;">
               <div class="kpi-header">
                 <span class="kpi-icon">📅</span>
               </div>
@@ -2386,7 +2371,7 @@
               <div class="kpi-label">Event Signups</div>
             </div>
             
-            <div class="kpi-card kpi-success" onclick="navToTab('volunteers')" style="cursor: pointer;">
+            <div class="kpi-card kpi-success" onclick="document.querySelector('[data-tab=volunteers]').click()" style="cursor: pointer;">
               <div class="kpi-header">
                 <span class="kpi-icon">🤝</span>
               </div>
@@ -2403,7 +2388,7 @@
               <div class="kpi-label">Volunteer Applications</div>
             </div>
             
-            <div class="kpi-card kpi-info" onclick="navToTab('data', () => switchDataSubTab('contacts'))" style="cursor: pointer;">
+            <div class="kpi-card kpi-info" onclick="document.querySelector('[data-tab=data]').click(); setTimeout(() => switchDataSubTab('contacts'), 100);" style="cursor: pointer;">
               <div class="kpi-header">
                 <span class="kpi-icon">✉️</span>
               </div>
@@ -2420,7 +2405,7 @@
               <div class="kpi-label">Contact Messages</div>
             </div>
             
-            <div class="kpi-card kpi-warning" onclick="navToTab('data', () => switchDataSubTab('providers'))" style="cursor: pointer;">
+            <div class="kpi-card kpi-warning" onclick="document.querySelector('[data-tab=data]').click(); setTimeout(() => switchDataSubTab('providers'), 100);" style="cursor: pointer;">
               <div class="kpi-header">
                 <span class="kpi-icon">📋</span>
               </div>
@@ -2446,32 +2431,32 @@
               <div class="dashboard-card">
                 <h3 class="dashboard-card-title">📊 Content Overview</h3>
                 <div class="content-stats-grid">
-                  <div class="content-stat-item" onclick="navToTab('team')">
+                  <div class="content-stat-item" onclick="document.querySelector('[data-tab=team]').click()">
                     <span class="content-stat-icon">👥</span>
                     <span class="content-stat-value" id="contentTeamCount">-</span>
                     <span class="content-stat-label">Team Members</span>
                   </div>
-                  <div class="content-stat-item" onclick="navToTab('board')">
+                  <div class="content-stat-item" onclick="document.querySelector('[data-tab=board]').click()">
                     <span class="content-stat-icon">🏆</span>
                     <span class="content-stat-value" id="contentBoardCount">-</span>
                     <span class="content-stat-label">Board Members</span>
                   </div>
-                  <div class="content-stat-item" onclick="navToTab('resources')">
+                  <div class="content-stat-item" onclick="document.querySelector('[data-tab=resources]').click()">
                     <span class="content-stat-icon">📚</span>
                     <span class="content-stat-value" id="contentResourcesCount">-</span>
                     <span class="content-stat-label">Resources</span>
                   </div>
-                  <div class="content-stat-item" onclick="navToTab('events')">
+                  <div class="content-stat-item" onclick="document.querySelector('[data-tab=events]').click()">
                     <span class="content-stat-icon">📅</span>
                     <span class="content-stat-value" id="contentEventsCount">-</span>
                     <span class="content-stat-label">Active Events</span>
                   </div>
-                  <div class="content-stat-item" onclick="navToTab('volunteers')">
+                  <div class="content-stat-item" onclick="document.querySelector('[data-tab=volunteers]').click()">
                     <span class="content-stat-icon">💼</span>
                     <span class="content-stat-value" id="contentOpportunitiesCount">-</span>
                     <span class="content-stat-label">Volunteer Roles</span>
                   </div>
-                  <div class="content-stat-item" onclick="navToTab('faq')">
+                  <div class="content-stat-item" onclick="document.querySelector('[data-tab=faq]').click()">
                     <span class="content-stat-icon">❓</span>
                     <span class="content-stat-value" id="contentFaqCount">-</span>
                     <span class="content-stat-label">FAQs</span>
@@ -2479,14 +2464,6 @@
                 </div>
               </div>
               
-              <!-- Recent CMS Changes (Audit Trail) -->
-              <div class="dashboard-card">
-                <h3 class="dashboard-card-title">📝 Recent CMS Changes</h3>
-                <div id="recentChangesLog" class="activity-feed">
-                  <p style="color: var(--text-light); text-align: center; padding: 1rem;">Loading...</p>
-                </div>
-              </div>
-
               <!-- Event Breakdown -->
               <div class="dashboard-card">
                 <h3 class="dashboard-card-title">Event Performance</h3>
@@ -2494,12 +2471,47 @@
                   <p style="color: var(--text-light); text-align: center; padding: 1rem;">Loading...</p>
                 </div>
               </div>
+              
+              <!-- Volunteer Performance -->
+              <div class="dashboard-card">
+                <h3 class="dashboard-card-title">Volunteer Opportunities</h3>
+                <div id="volunteerBreakdown" class="breakdown-list">
+                  <p style="color: var(--text-light); text-align: center; padding: 1rem;">Loading...</p>
+                </div>
+              </div>
             </div>
-
+            
             <!-- Right Column -->
             <div class="dashboard-col">
+              <!-- Quick Actions -->
+              <div class="dashboard-card">
+                <h3 class="dashboard-card-title">🚀 Quick Actions</h3>
+                <div class="quick-actions-grid">
+                  <button class="quick-action-btn" onclick="document.querySelector('[data-tab=events]').click(); setTimeout(() => openEventModal(), 100);">
+                    <span>📅</span> Add Event
+                  </button>
+                  <button class="quick-action-btn" onclick="document.querySelector('[data-tab=volunteers]').click(); setTimeout(() => openOpportunityModal(), 100);">
+                    <span>💼</span> Add Volunteer Role
+                  </button>
+                  <button class="quick-action-btn" onclick="document.querySelector('[data-tab=team]').click(); setTimeout(() => openPersonModal('team'), 100);">
+                    <span>👤</span> Add Team Member
+                  </button>
+                  <button class="quick-action-btn" onclick="document.querySelector('[data-tab=resources]').click(); setTimeout(() => openResourceModal(), 100);">
+                    <span>📚</span> Add Resource
+                  </button>
+                </div>
+              </div>
+              
+              <!-- Recent Activity -->
+              <div class="dashboard-card">
+                <h3 class="dashboard-card-title">🕐 Recent Activity</h3>
+                <div id="recentActivityFeed" class="activity-feed">
+                  <p style="color: var(--text-light); text-align: center; padding: 1rem;">Loading...</p>
+                </div>
+              </div>
+              
               <!-- Anti-Bullying Pledges -->
-              <div class="dashboard-card" onclick="navToTab('data', () => switchDataSubTab('pledges'))" style="cursor: pointer;">
+              <div class="dashboard-card" onclick="document.querySelector('[data-tab=data]').click(); setTimeout(() => switchDataSubTab('pledges'), 100);" style="cursor: pointer;">
                 <h3 class="dashboard-card-title">✊ Anti-Bullying Pledges</h3>
                 <div class="pledge-stats">
                   <div class="pledge-stat-big">
@@ -2509,14 +2521,6 @@
                   <div class="pledge-stat-small" id="pledgesByMonth">
                     <p style="color: var(--text-light);">Loading pledge data...</p>
                   </div>
-                </div>
-              </div>
-
-              <!-- Recent Activity -->
-              <div class="dashboard-card">
-                <h3 class="dashboard-card-title">🕐 Recent Activity</h3>
-                <div id="recentActivityFeed" class="activity-feed">
-                  <p style="color: var(--text-light); text-align: center; padding: 1rem;">Loading...</p>
                 </div>
               </div>
             </div>
@@ -2569,8 +2573,8 @@
             </div>
           </div>
 
-          <!-- Export Section (superAdmin & admin only) -->
-          <div class="dashboard-export-section" data-roles="superAdmin,admin">
+          <!-- Export Section -->
+          <div class="dashboard-export-section">
             <button onclick="exportAnalyticsReport()" class="btn-export-full">
               📄 Export CSV Report
             </button>
@@ -2806,7 +2810,7 @@
         
         <div class="form-group">
           <label>Organization Name *</label>
-          <input type="text" id="resourceName" placeholder="e.g., Hawaii Centers for Independent Living" required>
+          <input type="text" id="resourceName" placeholder="e.g., Hawai'i Centers for Independent Living" required>
         </div>
         
         <div class="form-group">
@@ -2988,7 +2992,7 @@
         
         <div class="form-group">
           <label>Location</label>
-          <input type="text" id="eventLocation" placeholder="e.g., Hawaii Convention Center">
+          <input type="text" id="eventLocation" placeholder="e.g., Hawai'i Convention Center">
         </div>
         
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
@@ -3322,12 +3326,12 @@
     const storage = firebase.storage();
     const auth = firebase.auth();
 
+    // Password
+    const CMS_PASSWORD = 'ldah2024';
     const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB for team/board photos
     const MAX_GALLERY_FILE_SIZE = 5 * 1024 * 1024; // 5MB for gallery photos
 
     // State
-    let currentUser = null;
-    let currentRole = null;
     let teamMembers = [];
     let boardMembers = [];
     let galleryPhotos = [];
@@ -3336,143 +3340,30 @@
     let draggedItem = null;
     let draggedGalleryItem = null;
 
-    // Roles that have CMS access
-    const CMS_ROLES = ['superAdmin', 'admin', 'appAdmin', 'webAdmin', 'dailyUser', 'dataUser'];
-
     // ===== Authentication =====
-    auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        currentUser = user;
-        try {
-          const roleDoc = await db.collection('userRoles').doc(user.uid).get();
-          if (roleDoc.exists) {
-            currentRole = roleDoc.data();
-          } else {
-            currentRole = { role: 'unknown', displayName: user.email };
-          }
-        } catch (err) {
-          console.error('Error fetching role:', err);
-          currentRole = { role: 'unknown', displayName: user.email };
-        }
-
-        // Check CMS access
-        if (!CMS_ROLES.includes(currentRole.role)) {
-          document.getElementById('loginForm').style.display = 'none';
-          document.getElementById('noAccessMessage').style.display = 'block';
-          document.getElementById('loginError').style.display = 'none';
-          return;
-        }
-
-        // Show CMS
-        document.getElementById('loginScreen').style.display = 'none';
-        document.getElementById('cmsPanel').style.display = 'block';
-        document.getElementById('cmsUserBadge').innerHTML = (currentRole.displayName || user.email) + ' <button onclick="handleLogout()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;cursor:pointer;font-size:0.75rem;padding:0.15rem 0.5rem;border-radius:10px;">Logout</button>';
-
-        // Apply role-based visibility
-        applyRolePermissions();
-        initializeCMS();
-      } else {
-        currentUser = null;
-        currentRole = null;
-        document.getElementById('loginScreen').style.display = 'flex';
-        document.getElementById('cmsPanel').style.display = 'none';
-        document.getElementById('loginForm').style.display = 'block';
-        document.getElementById('noAccessMessage').style.display = 'none';
-        document.getElementById('loginError').style.display = 'none';
-        document.body.classList.remove('hide-archive');
-      }
-    });
-
     function handleLogin(event) {
       event.preventDefault();
-      const email = document.getElementById('loginEmail').value;
-      const password = document.getElementById('loginPassword').value;
+      const password = document.getElementById('password').value;
       const errorDiv = document.getElementById('loginError');
-
-      if (!email || !password) {
-        errorDiv.textContent = 'Please enter email and password.';
-        errorDiv.style.display = 'block';
-        return;
-      }
-
-      errorDiv.style.display = 'none';
-      auth.signInWithEmailAndPassword(email, password).catch(err => {
-        errorDiv.textContent = 'Login failed: ' + err.message;
-        errorDiv.style.display = 'block';
-      });
-    }
-
-    function handleLogout() {
-      auth.signOut();
-    }
-
-    async function handlePasswordReset() {
-      const email = document.getElementById('loginEmail').value;
-      if (!email) { alert('Enter your email address first.'); return; }
-      try {
-        await auth.sendPasswordResetEmail(email);
-        alert('Password reset email sent. Check your inbox.');
-      } catch (err) {
-        alert('Error: ' + err.message);
-      }
-    }
-
-    function applyRolePermissions() {
-      if (!currentRole) return;
-      const role = currentRole.role;
-
-      // Tab visibility
-      document.querySelectorAll('.tab[data-roles]').forEach(tab => {
-        const allowedRoles = tab.dataset.roles.split(',');
-        tab.style.display = allowedRoles.includes(role) ? '' : 'none';
-      });
-
-      // Auto-select first visible tab
-      const firstVisible = document.querySelector('.tab[data-roles]:not([style*="display: none"])');
-      if (firstVisible) {
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-        firstVisible.classList.add('active');
-        document.getElementById(firstVisible.dataset.tab + '-tab').classList.add('active');
-      }
-
-      // Hide non-tab elements with data-roles (e.g. export section)
-      document.querySelectorAll('[data-roles]:not(.tab)').forEach(el => {
-        const allowedRoles = el.dataset.roles.split(',');
-        el.style.display = allowedRoles.includes(role) ? '' : 'none';
-      });
-
-      // Archive buttons: only superAdmin
-      if (role !== 'superAdmin') {
-        document.body.classList.add('hide-archive');
+      
+      if (password === CMS_PASSWORD) {
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('cmsPanel').style.display = 'block';
+        sessionStorage.setItem('cmsLoggedIn', 'true');
+        initializeCMS();
       } else {
-        document.body.classList.remove('hide-archive');
+        errorDiv.textContent = 'Incorrect password. Please try again.';
+        errorDiv.style.display = 'block';
+        document.getElementById('password').value = '';
       }
     }
-
-    // ===== Role-Aware Navigation =====
-    function navToTab(tabName, callback) {
-      if (!currentRole) return;
-      const tab = document.querySelector('[data-tab="' + tabName + '"]');
-      if (!tab || tab.style.display === 'none') return; // Tab hidden for this role — do nothing
-      tab.click();
-      if (callback) setTimeout(callback, 100);
-    }
-
-    // ===== Audit Trail Helpers =====
-    function auditFields() {
-      return {
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        updatedBy: currentUser ? currentUser.email : 'unknown',
-        updatedByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
-      };
-    }
-    function auditCreate() {
-      return {
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        createdBy: currentUser ? currentUser.email : 'unknown',
-        createdByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
-      };
+    
+    function handleLogout() {
+      sessionStorage.removeItem('cmsLoggedIn');
+      document.getElementById('loginScreen').style.display = 'flex';
+      document.getElementById('cmsPanel').style.display = 'none';
+      document.getElementById('password').value = '';
+      document.getElementById('loginError').style.display = 'none';
     }
 
     // ===== Initialize CMS =====
@@ -3489,6 +3380,8 @@
     
     async function initializeCMS() {
       try {
+        await auth.signInAnonymously();
+        
         // Load all data - dashboard will auto-refresh after loads complete
         loadTeamMembers();
         loadBoardMembers();
@@ -3524,7 +3417,8 @@
       });
     });
     
-    // Default tab set by applyRolePermissions() after login
+    // Set analytics tab as active on load
+    document.querySelector('.tab[data-tab="analytics"]').classList.add('active');
 
     // ===== Load Data =====
     async function loadTeamMembers() {
@@ -3890,7 +3784,7 @@
           name,
           role,
           photoUrl: photoUrl || '',
-          ...auditFields()
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
         
         if (type === 'team') {
@@ -3950,9 +3844,7 @@
         // Archive in Firestore (don't delete, just mark as archived)
         await db.collection(collection).doc(id).update({
           archived: true,
-          archivedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          archivedBy: currentUser ? currentUser.email : 'unknown',
-          archivedByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          archivedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         
         // Note: We keep the photo in storage for reporting purposes
@@ -3983,9 +3875,7 @@
         await db.collection(collection).doc(id).update({
           archived: false,
           archivedAt: firebase.firestore.FieldValue.delete(),
-          restoredAt: firebase.firestore.FieldValue.serverTimestamp(),
-          restoredBy: currentUser ? currentUser.email : 'unknown',
-          restoredByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          restoredAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         
         if (type === 'team') {
@@ -4261,7 +4151,7 @@
           services: document.getElementById('resourceServices').value.trim(),
           notes: document.getElementById('resourceNotes').value.trim(),
           logo: finalLogoUrl,
-          ...auditFields()
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
         
         if (existingId) {
@@ -4302,9 +4192,7 @@
       try {
         await db.collection('resources').doc(id).update({
           archived: true,
-          archivedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          archivedBy: currentUser ? currentUser.email : 'unknown',
-          archivedByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          archivedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         closeArchiveResourceModal();
         await loadResources();
@@ -4323,9 +4211,7 @@
         await db.collection('resources').doc(id).update({
           archived: false,
           archivedAt: firebase.firestore.FieldValue.delete(),
-          restoredAt: firebase.firestore.FieldValue.serverTimestamp(),
-          restoredBy: currentUser ? currentUser.email : 'unknown',
-          restoredByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          restoredAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         await loadResources();
         showSuccess('resources');
@@ -4682,7 +4568,7 @@
         const photoData = {
           caption,
           imageUrl,
-          ...auditFields()
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
         
         if (existingId) {
@@ -4724,9 +4610,7 @@
         // Archive in Firestore (don't delete, preserve for reporting)
         await db.collection('gallery').doc(id).update({
           archived: true,
-          archivedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          archivedBy: currentUser ? currentUser.email : 'unknown',
-          archivedByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          archivedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         
         // Note: We keep the photo in storage for reporting purposes
@@ -4748,9 +4632,7 @@
         await db.collection('gallery').doc(id).update({
           archived: false,
           archivedAt: firebase.firestore.FieldValue.delete(),
-          restoredAt: firebase.firestore.FieldValue.serverTimestamp(),
-          restoredBy: currentUser ? currentUser.email : 'unknown',
-          restoredByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          restoredAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         await loadGallery();
         showSuccess('gallery');
@@ -5021,7 +4903,7 @@
         const photoData = {
           caption,
           imageUrl: finalImageUrl,
-          ...auditFields()
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
         
         if (photoId) {
@@ -5061,9 +4943,7 @@
       try {
         await db.collection('gallery2').doc(id).update({
           archived: true,
-          archivedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          archivedBy: currentUser ? currentUser.email : 'unknown',
-          archivedByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          archivedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         
         // Note: Keep photo in storage for reporting purposes
@@ -5085,9 +4965,7 @@
         await db.collection('gallery2').doc(id).update({
           archived: false,
           archivedAt: firebase.firestore.FieldValue.delete(),
-          restoredAt: firebase.firestore.FieldValue.serverTimestamp(),
-          restoredBy: currentUser ? currentUser.email : 'unknown',
-          restoredByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          restoredAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         await loadGallery2();
         showSuccess('gallery2');
@@ -5390,13 +5268,13 @@
         if (id) {
           await db.collection('categories').doc(id).update({ 
             name, 
-            ...auditFields() 
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp() 
           });
         } else {
           await db.collection('categories').add({ 
             name, 
             order: categories.length, 
-            ...auditCreate() 
+            createdAt: firebase.firestore.FieldValue.serverTimestamp() 
           });
         }
         closeCategoryModal();
@@ -5418,9 +5296,7 @@
       try {
         await db.collection('categories').doc(id).update({
           archived: true,
-          archivedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          archivedBy: currentUser ? currentUser.email : 'unknown',
-          archivedByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          archivedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         await loadCategories();
         showSuccess('faq');
@@ -5435,9 +5311,7 @@
         await db.collection('categories').doc(id).update({
           archived: false,
           archivedAt: firebase.firestore.FieldValue.delete(),
-          restoredAt: firebase.firestore.FieldValue.serverTimestamp(),
-          restoredBy: currentUser ? currentUser.email : 'unknown',
-          restoredByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          restoredAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         await loadCategories();
         showSuccess('faq');
@@ -5518,7 +5392,7 @@
         summary: document.getElementById('faqSummary').value.trim(),
         steps: currentFaqSteps,
         contact: document.getElementById('faqContact').value.trim(),
-        ...auditFields()
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       
       if (!data.question) {
@@ -5552,9 +5426,7 @@
       try {
         await db.collection('faqs').doc(id).update({
           archived: true,
-          archivedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          archivedBy: currentUser ? currentUser.email : 'unknown',
-          archivedByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          archivedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         await loadFaqs();
         showSuccess('faq');
@@ -5569,9 +5441,7 @@
         await db.collection('faqs').doc(id).update({
           archived: false,
           archivedAt: firebase.firestore.FieldValue.delete(),
-          restoredAt: firebase.firestore.FieldValue.serverTimestamp(),
-          restoredBy: currentUser ? currentUser.email : 'unknown',
-          restoredByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          restoredAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         await loadFaqs();
         showSuccess('faq');
@@ -5872,7 +5742,7 @@
         signupDates: currentEventSignupDates,
         customQuestions: currentEventCustomQuestions,
         showGroupField: document.getElementById('eventShowGroupField').checked,
-        ...auditFields()
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       
       if (!data.title) { alert('Title is required'); return; }
@@ -5900,9 +5770,7 @@
         // Archive the event (don't delete signups, just mark event as archived)
         await db.collection('events').doc(id).update({
           archived: true,
-          archivedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          archivedBy: currentUser ? currentUser.email : 'unknown',
-          archivedByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          archivedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         await loadEvents();
         showSuccess('events');
@@ -5917,9 +5785,7 @@
         await db.collection('events').doc(id).update({
           archived: false,
           archivedAt: firebase.firestore.FieldValue.delete(),
-          restoredAt: firebase.firestore.FieldValue.serverTimestamp(),
-          restoredBy: currentUser ? currentUser.email : 'unknown',
-          restoredByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          restoredAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         await loadEvents();
         showSuccess('events');
@@ -6075,7 +5941,7 @@
     
     async function updateSignupStatus(eventId, signupId, status) {
       try {
-        await db.collection('events').doc(eventId).collection('signups').doc(signupId).update({ status, ...auditFields() });
+        await db.collection('events').doc(eventId).collection('signups').doc(signupId).update({ status });
         const signup = eventSignups[eventId]?.find(s => s.id === signupId);
         if (signup) signup.status = status;
         // Refresh the modal
@@ -6103,8 +5969,7 @@
         
         await db.collection('events').doc(eventId).collection('signups').doc(signupId).update({ 
           adminNotes: adminNotes,
-          notesUpdatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          notesUpdatedBy: currentUser ? currentUser.email : 'unknown'
+          notesUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         
         // Update local data
@@ -6141,9 +6006,7 @@
       try {
         await db.collection('events').doc(eventId).collection('signups').doc(signupId).update({
           archived: true,
-          archivedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          archivedBy: currentUser ? currentUser.email : 'unknown',
-          archivedByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          archivedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         // Update local data
         const signup = eventSignups[eventId].find(s => s.id === signupId);
@@ -6162,9 +6025,7 @@
         await db.collection('events').doc(eventId).collection('signups').doc(signupId).update({
           archived: false,
           archivedAt: firebase.firestore.FieldValue.delete(),
-          restoredAt: firebase.firestore.FieldValue.serverTimestamp(),
-          restoredBy: currentUser ? currentUser.email : 'unknown',
-          restoredByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          restoredAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         const signup = eventSignups[eventId].find(s => s.id === signupId);
         if (signup) signup.archived = false;
@@ -6430,7 +6291,7 @@
         schedules: currentRecurringSchedules,
         customQuestions: currentRecurringQuestions,
         showGroupField: document.getElementById('recurringShowGroupField').checked,
-        ...auditFields()
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       try {
         if (id) {
@@ -6448,7 +6309,7 @@
 
     async function toggleRecurringActive(id, active) {
       try {
-        await db.collection('recurringEvents').doc(id).update({ active, ...auditFields() });
+        await db.collection('recurringEvents').doc(id).update({ active, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
         await loadRecurringPrograms();
       } catch(err) { console.error(err); }
     }
@@ -6512,7 +6373,7 @@
 
     async function updateRecurringSignupStatus(programId, signupId, status) {
       try {
-        await db.collection('recurringEvents').doc(programId).collection('signups').doc(signupId).update({ status, ...auditFields() });
+        await db.collection('recurringEvents').doc(programId).collection('signups').doc(signupId).update({ status });
         const signup = (recurringSignups[programId]||[]).find(s=>s.id===signupId);
         if (signup) signup.status = status;
         // Refresh the modal so confirmed counts and FULL badges update
@@ -6523,7 +6384,7 @@
     async function archiveRecurringSignup(programId, signupId) {
       if (!confirm('Archive this signup?')) return;
       try {
-        await db.collection('recurringEvents').doc(programId).collection('signups').doc(signupId).update({ archived: true, archivedAt: firebase.firestore.FieldValue.serverTimestamp(), archivedBy: currentUser ? currentUser.email : 'unknown', archivedByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown' });
+        await db.collection('recurringEvents').doc(programId).collection('signups').doc(signupId).update({ archived:true });
         await loadRecurringPrograms();
         openRecurringSignupsModal(programId);
       } catch(err) { console.error(err); }
@@ -6795,7 +6656,7 @@
         alwaysPost: document.getElementById('opportunityAlwaysPost').checked,
         startDate: document.getElementById('opportunityStartDate').value,
         endDate: document.getElementById('opportunityEndDate').value,
-        ...auditFields()
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       
       if (!data.title || !data.description) {
@@ -6830,9 +6691,7 @@
       try {
         await db.collection('volunteerOpportunities').doc(id).update({
           archived: true,
-          archivedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          archivedBy: currentUser ? currentUser.email : 'unknown',
-          archivedByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          archivedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         await loadOpportunities();
         showSuccess('volunteers');
@@ -6845,9 +6704,7 @@
         await db.collection('volunteerOpportunities').doc(id).update({
           archived: false,
           archivedAt: firebase.firestore.FieldValue.delete(),
-          restoredAt: firebase.firestore.FieldValue.serverTimestamp(),
-          restoredBy: currentUser ? currentUser.email : 'unknown',
-          restoredByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          restoredAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         await loadOpportunities();
         showSuccess('volunteers');
@@ -6916,9 +6773,7 @@
       try {
         await db.collection('volunteers').doc(appId).update({
           archived: true,
-          archivedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          archivedBy: currentUser ? currentUser.email : 'unknown',
-          archivedByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          archivedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         const app = applications.find(a => a.id === appId);
         if (app) app.archived = true;
@@ -6935,9 +6790,7 @@
         await db.collection('volunteers').doc(appId).update({
           archived: false,
           archivedAt: firebase.firestore.FieldValue.delete(),
-          restoredAt: firebase.firestore.FieldValue.serverTimestamp(),
-          restoredBy: currentUser ? currentUser.email : 'unknown',
-          restoredByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          restoredAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         const app = applications.find(a => a.id === appId);
         if (app) app.archived = false;
@@ -7070,7 +6923,7 @@
     
     async function updateApplicationStatus(id, status) {
       try {
-        await db.collection('volunteers').doc(id).update({ status, ...auditFields() });
+        await db.collection('volunteers').doc(id).update({ status });
         const app = applications.find(a => a.id === id);
         if (app) app.status = status;
         renderApplications();
@@ -7095,8 +6948,7 @@
         
         await db.collection('volunteers').doc(appId).update({ 
           adminNotes: adminNotes,
-          notesUpdatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          notesUpdatedBy: currentUser ? currentUser.email : 'unknown'
+          notesUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         
         // Update local data
@@ -7136,9 +6988,7 @@
       try {
         await db.collection('volunteers').doc(id).update({
           archived: true,
-          archivedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          archivedBy: currentUser ? currentUser.email : 'unknown',
-          archivedByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          archivedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         const app = applications.find(a => a.id === id);
         if (app) app.archived = true;
@@ -7154,9 +7004,7 @@
         await db.collection('volunteers').doc(id).update({
           archived: false,
           archivedAt: firebase.firestore.FieldValue.delete(),
-          restoredAt: firebase.firestore.FieldValue.serverTimestamp(),
-          restoredBy: currentUser ? currentUser.email : 'unknown',
-          restoredByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          restoredAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         const app = applications.find(a => a.id === id);
         if (app) app.archived = false;
@@ -7323,7 +7171,7 @@
     
     async function updateProviderStatus(id, status) {
       try {
-        await db.collection('providers').doc(id).update({ status, ...auditFields() });
+        await db.collection('providers').doc(id).update({ status });
         const p = providers.find(x => x.id === id);
         if (p) p.status = status;
         renderProviders();
@@ -7339,9 +7187,7 @@
       try {
         await db.collection('providers').doc(id).update({
           archived: true,
-          archivedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          archivedBy: currentUser ? currentUser.email : 'unknown',
-          archivedByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          archivedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         const p = providers.find(p => p.id === id);
         if (p) p.archived = true;
@@ -7356,9 +7202,7 @@
         await db.collection('providers').doc(id).update({
           archived: false,
           archivedAt: firebase.firestore.FieldValue.delete(),
-          restoredAt: firebase.firestore.FieldValue.serverTimestamp(),
-          restoredBy: currentUser ? currentUser.email : 'unknown',
-          restoredByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          restoredAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         const p = providers.find(p => p.id === id);
         if (p) p.archived = false;
@@ -7484,7 +7328,7 @@
     
     async function updatePledgeStatus(id, status) {
       try {
-        await db.collection('pledges').doc(id).update({ status, ...auditFields() });
+        await db.collection('pledges').doc(id).update({ status });
         const p = pledges.find(x => x.id === id);
         if (p) p.status = status;
         renderPledges();
@@ -7499,7 +7343,7 @@
       try {
         const newPledges = pledges.filter(p => !p.status || p.status === 'new');
         for (const p of newPledges) {
-          await db.collection('pledges').doc(p.id).update({ status: 'viewed', ...auditFields() });
+          await db.collection('pledges').doc(p.id).update({ status: 'viewed' });
           p.status = 'viewed';
         }
         renderPledges();
@@ -7514,9 +7358,7 @@
       try {
         await db.collection('pledges').doc(id).update({
           archived: true,
-          archivedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          archivedBy: currentUser ? currentUser.email : 'unknown',
-          archivedByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          archivedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         const p = pledges.find(p => p.id === id);
         if (p) p.archived = true;
@@ -7531,9 +7373,7 @@
         await db.collection('pledges').doc(id).update({
           archived: false,
           archivedAt: firebase.firestore.FieldValue.delete(),
-          restoredAt: firebase.firestore.FieldValue.serverTimestamp(),
-          restoredBy: currentUser ? currentUser.email : 'unknown',
-          restoredByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          restoredAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         const p = pledges.find(p => p.id === id);
         if (p) p.archived = false;
@@ -7650,7 +7490,7 @@
     
     async function updateEventRequestStatus(id, status) {
       try {
-        await db.collection('eventRequests').doc(id).update({ status, ...auditFields() });
+        await db.collection('eventRequests').doc(id).update({ status });
         const r = eventRequests.find(x => x.id === id);
         if (r) r.status = status;
         renderEventRequests();
@@ -7666,9 +7506,7 @@
       try {
         await db.collection('eventRequests').doc(id).update({
           archived: true,
-          archivedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          archivedBy: currentUser ? currentUser.email : 'unknown',
-          archivedByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          archivedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         const r = eventRequests.find(r => r.id === id);
         if (r) r.archived = true;
@@ -7683,9 +7521,7 @@
         await db.collection('eventRequests').doc(id).update({
           archived: false,
           archivedAt: firebase.firestore.FieldValue.delete(),
-          restoredAt: firebase.firestore.FieldValue.serverTimestamp(),
-          restoredBy: currentUser ? currentUser.email : 'unknown',
-          restoredByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          restoredAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         const r = eventRequests.find(r => r.id === id);
         if (r) r.archived = false;
@@ -7799,7 +7635,7 @@
     
     async function updateContactStatus(id, status) {
       try {
-        await db.collection('contactSubmissions').doc(id).update({ status, ...auditFields() });
+        await db.collection('contactSubmissions').doc(id).update({ status });
         const c = contacts.find(x => x.id === id);
         if (c) c.status = status;
         renderContacts();
@@ -7815,9 +7651,7 @@
       try {
         await db.collection('contactSubmissions').doc(id).update({
           archived: true,
-          archivedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          archivedBy: currentUser ? currentUser.email : 'unknown',
-          archivedByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          archivedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         const c = contacts.find(c => c.id === id);
         if (c) c.archived = true;
@@ -7832,9 +7666,7 @@
         await db.collection('contactSubmissions').doc(id).update({
           archived: false,
           archivedAt: firebase.firestore.FieldValue.delete(),
-          restoredAt: firebase.firestore.FieldValue.serverTimestamp(),
-          restoredBy: currentUser ? currentUser.email : 'unknown',
-          restoredByName: currentRole ? (currentRole.displayName || currentUser.email) : 'unknown'
+          restoredAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         const c = contacts.find(c => c.id === id);
         if (c) c.archived = false;
@@ -8053,116 +7885,8 @@
       
       calculateAnalytics();
       updateWebsiteAnalyticsDashboard();
-      loadRecentChanges();
     }
-
-    // ===== Recent CMS Changes (Audit Trail) =====
-    async function loadRecentChanges() {
-      const container = document.getElementById('recentChangesLog');
-      if (!container) return;
-
-      const changes = [];
-      const collections = [
-        { name: 'teamMembers', label: 'Team Member' },
-        { name: 'boardMembers', label: 'Board Member' },
-        { name: 'gallery', label: 'Gallery Photo' },
-        { name: 'gallery2', label: 'Gallery 2 Photo' },
-        { name: 'resources', label: 'Resource' },
-        { name: 'categories', label: 'FAQ Category' },
-        { name: 'faqs', label: 'FAQ' },
-        { name: 'events', label: 'Event' },
-        { name: 'volunteerOpportunities', label: 'Volunteer Opportunity' },
-        { name: 'pageContent', label: 'Page' }
-      ];
-
-      const changeIcons = {
-        'Team Member': '👤', 'Board Member': '🏛️', 'Gallery Photo': '🖼️',
-        'Gallery 2 Photo': '🖼️', 'Resource': '📄', 'FAQ Category': '❓',
-        'FAQ': '❓', 'Event': '📅', 'Volunteer Opportunity': '🤝', 'Page': '📝'
-      };
-      const changeBg = {
-        'Team Member': '#dbeafe', 'Board Member': '#e0e7ff', 'Gallery Photo': '#fce7f3',
-        'Gallery 2 Photo': '#fce7f3', 'Resource': '#fef3c7', 'FAQ Category': '#ede9fe',
-        'FAQ': '#ede9fe', 'Event': '#dbeafe', 'Volunteer Opportunity': '#d1fae5', 'Page': '#f0f9ff'
-      };
-
-      try {
-        for (const col of collections) {
-          const snap = await db.collection(col.name)
-            .orderBy('updatedAt', 'desc')
-            .limit(5)
-            .get();
-          snap.docs.forEach(doc => {
-            const d = doc.data();
-            if (d.updatedAt && d.updatedByName) {
-              changes.push({
-                who: d.updatedByName,
-                what: col.label,
-                name: d.name || d.title || d.question || d.caption || doc.id,
-                when: d.updatedAt.toDate ? d.updatedAt.toDate() : new Date(d.updatedAt),
-                action: d.archived ? 'archived' : 'edited',
-                thumb: d.photoURL || d.imageUrl || d.image || d.photo || null
-              });
-            }
-          });
-        }
-
-        // Sort by most recent
-        changes.sort((a, b) => b.when - a.when);
-        const top = changes.slice(0, 15);
-
-        if (top.length === 0) {
-          container.innerHTML = '<p style="color: var(--text-light); text-align: center; padding: 1rem;">No recent changes recorded yet.</p>';
-          return;
-        }
-
-        container.innerHTML = top.map(c => {
-          const ago = timeAgo(c.when);
-          const actionColor = c.action === 'archived' ? '#dc2626' : '#16a34a';
-          const actionLabel = c.action === 'archived' ? 'archived' : 'updated';
-          const icon = changeIcons[c.what] || '📝';
-          const bg = changeBg[c.what] || '#f0f0f0';
-          const thumbHtml = c.thumb
-            ? '<img src="' + c.thumb + '" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;" alt="">'
-            : '<div class="activity-icon" style="background:' + bg + ';">' + icon + '</div>';
-          return '<div class="activity-item">'
-            + thumbHtml
-            + '<div class="activity-content">'
-            + '<div class="activity-text"><strong>' + escapeHtml(c.who) + '</strong> '
-            + '<span style="color:' + actionColor + ';">' + actionLabel + '</span> '
-            + escapeHtml(c.what) + '</div>'
-            + '<div class="activity-detail">"' + escapeHtml(truncate(c.name, 40)) + '"</div>'
-            + '<div class="activity-time">' + ago + '</div>'
-            + '</div></div>';
-        }).join('');
-      } catch (err) {
-        console.error('Error loading recent changes:', err);
-        container.innerHTML = '<p style="color: var(--text-light); text-align: center; padding: 1rem;">Could not load changes.</p>';
-      }
-    }
-
-    function truncate(str, max) {
-      if (!str) return '';
-      return str.length > max ? str.substring(0, max) + '...' : str;
-    }
-
-    function timeAgo(date) {
-      const now = new Date();
-      const diff = Math.floor((now - date) / 1000);
-      if (diff < 60) return 'just now';
-      if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
-      if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
-      if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
-      return date.toLocaleDateString();
-    }
-
-    function escapeHtml(str) {
-      if (!str) return '';
-      const div = document.createElement('div');
-      div.textContent = str;
-      return div.innerHTML;
-    }
-
+    
     // Manual refresh button - only re-fetch if user explicitly asks
     async function loadAnalytics() {
       const loading = document.getElementById('analyticsLoading');
@@ -8302,20 +8026,7 @@
       // Update action items banner
       updateActionItemsBanner();
       
-      // Load ongoing programs for dashboard, then update event breakdown
-      (async function() {
-        try {
-          const recSnap = await db.collection('recurringEvents').get();
-          recurringPrograms = recSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-          recurringSignups = {};
-          for (const p of recurringPrograms) {
-            const sSnap = await db.collection('recurringEvents').doc(p.id).collection('signups').get();
-            recurringSignups[p.id] = sSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-          }
-        } catch (err) { console.error('Error loading recurring programs for dashboard:', err); }
-        updateEventPerformance();
-      })();
-      // Also run immediately with whatever data is available
+      // Event breakdown - show ALL events with signup counts
       updateEventPerformance();
       
       // Volunteer opportunities breakdown
@@ -8358,28 +8069,13 @@
     function updateEventPerformance() {
       const breakdownEl = document.getElementById('eventBreakdown');
       if (!breakdownEl) return;
-
-      if (events.length === 0 && recurringPrograms.length === 0) {
+      
+      if (events.length === 0) {
         breakdownEl.innerHTML = '<p style="color: var(--text-light); text-align: center; padding: 1rem;">No events yet.</p>';
         return;
       }
-
-      // Build ongoing programs (always on top)
-      const ongoingData = recurringPrograms.filter(p => p.active !== false).map(prog => {
-        const signups = recurringSignups[prog.id] || [];
-        const pendingCount = signups.filter(s => !s.status || s.status === 'new' || s.status === 'pending').length;
-        return {
-          id: prog.id,
-          title: prog.title || 'Untitled Program',
-          signupCount: signups.length,
-          pendingCount,
-          date: null,
-          image: prog.imageUrl || null,
-          ongoing: true
-        };
-      });
-
-      // Build regular event data
+      
+      // Build event data with signup counts
       const eventData = events.map(event => {
         const signups = eventSignups[event.id] || [];
         const totalParticipants = signups.reduce((sum, s) => sum + (parseInt(s.numVolunteers) || 1), 0);
@@ -8390,34 +8086,22 @@
           signupCount: signups.length,
           participantCount: totalParticipants,
           pendingCount,
-          date: event.startDate || event.eventDate || event.date,
-          image: event.imageUrl || null,
-          ongoing: false
+          date: event.startDate || event.eventDate || event.date
         };
       });
-
-      // Sort regular events by most recent date first
-      eventData.sort((a, b) => {
-        const dateA = a.date ? new Date(a.date).getTime() : 0;
-        const dateB = b.date ? new Date(b.date).getTime() : 0;
-        return dateB - dateA;
-      });
-
-      // Ongoing on top, then regular events by date
-      const allData = [...ongoingData, ...eventData];
-
-      breakdownEl.innerHTML = allData.slice(0, 8).map(e => `
-        <div class="activity-item" style="cursor: pointer;" onclick="navToTab('events')">
-          ${e.image
-            ? `<img src="${e.image}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex-shrink:0;" alt="" onerror="this.outerHTML='<div style=\\'width:48px;height:48px;border-radius:8px;background:linear-gradient(135deg,var(--primary-blue),var(--light-blue));display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;\\'>📅</div>'">`
-            : '<div style="width:48px;height:48px;border-radius:8px;background:linear-gradient(135deg,var(--primary-blue),var(--light-blue));display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;">📅</div>'}
-          <div class="activity-content">
-            <div class="activity-text" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><strong>${e.title}</strong></div>
-            <div class="activity-detail">${e.ongoing ? '<span style="color:#16a34a;font-weight:600;">Ongoing</span>' : (e.date ? new Date(e.date).toLocaleDateString() : 'No date')}</div>
+      
+      // Sort by signup count descending
+      eventData.sort((a, b) => b.signupCount - a.signupCount);
+      
+      breakdownEl.innerHTML = eventData.slice(0, 8).map(e => `
+        <div class="breakdown-item" style="cursor: pointer;" onclick="document.querySelector('[data-tab=events]').click();">
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${e.title}</div>
+            <div style="font-size: 0.75rem; color: var(--text-light);">${e.date ? new Date(e.date).toLocaleDateString() : 'No date'}</div>
           </div>
-          <div style="text-align: right; flex-shrink: 0;">
-            <div style="font-weight: 700; font-size: 0.8rem; color: var(--primary-blue);">${e.signupCount} signups</div>
-            ${e.pendingCount > 0 ? `<div style="font-size: 0.7rem; color: #dc2626;">⚠️ ${e.pendingCount} pending</div>` : ''}
+          <div style="text-align: right;">
+            <div style="font-weight: 700; color: var(--primary-blue);">${e.signupCount} signups</div>
+            ${e.pendingCount > 0 ? `<div style="font-size: 0.75rem; color: #dc2626;">⚠️ ${e.pendingCount} pending</div>` : ''}
           </div>
         </div>
       `).join('') || '<p style="color: var(--text-light); text-align: center; padding: 1rem;">No events yet.</p>';
@@ -8450,7 +8134,7 @@
       oppData.sort((a, b) => b.applicationCount - a.applicationCount);
       
       breakdownEl.innerHTML = oppData.slice(0, 8).map(o => `
-        <div class="breakdown-item" style="cursor: pointer;" onclick="navToTab('volunteers')">
+        <div class="breakdown-item" style="cursor: pointer;" onclick="document.querySelector('[data-tab=volunteers]').click();">
           <div style="flex: 1; min-width: 0;">
             <div style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${o.title}</div>
             <div style="font-size: 0.75rem; color: var(--text-light);">${o.commitment || 'Flexible'}</div>
@@ -8778,16 +8462,18 @@
       const parts = nav.split('-');
       const tab = parts[0];
       const subtab = parts[1];
-
-      navToTab(tab, function() {
-        if (subtab) {
+      
+      document.querySelector(`[data-tab="${tab}"]`).click();
+      
+      if (subtab) {
+        setTimeout(() => {
           if (tab === 'data') {
             switchDataSubTab(subtab);
           } else if (tab === 'volunteers') {
             switchVolunteerSubTab(subtab);
           }
-        }
-      });
+        }, 100);
+      }
     }
     
     function getTimeAgo(timestamp) {
@@ -9610,7 +9296,13 @@
     }
 
     // ===== Init on Load =====
-    // Auth state handled by onAuthStateChanged listener above
+    window.addEventListener('load', () => {
+      if (sessionStorage.getItem('cmsLoggedIn') === 'true') {
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('cmsPanel').style.display = 'block';
+        initializeCMS();
+      }
+    });
   </script>
 </body>
 </html>
