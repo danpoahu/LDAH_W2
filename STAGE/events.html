@@ -2083,9 +2083,13 @@
     };
     
     function openSignupModal(eventId) {
+      // Clean up any existing signup modal to prevent duplicate IDs
+      const existingModal = document.getElementById('signupModal');
+      if (existingModal) existingModal.remove();
+
       const event = window.allEventsData.find(e => e.id === eventId);
       if (!event) return;
-      
+
       // Reset form
       signupFormData = {
         name: '',
@@ -2531,6 +2535,10 @@
     }
 
     async function openRecurringSignupModal(programId) {
+      // Clean up any existing signup modal to prevent duplicate IDs
+      const existingModal = document.getElementById('signupModal');
+      if (existingModal) existingModal.remove();
+
       const program = window._recurringPrograms && window._recurringPrograms[programId];
       if (!program) return;
       const occurrences = getOccurrencesInNext30Days(program.schedules);
@@ -2717,44 +2725,47 @@
       if (!program) return;
 
       const participationTypeEl = document.querySelector('input[name="participation-type"]:checked');
+      const getVal = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
       const formData = {
-        name: document.getElementById('signupName').value,
-        email: document.getElementById('signupEmail').value,
-        phone: document.getElementById('signupPhone').value,
+        name: getVal('signupName'),
+        email: getVal('signupEmail'),
+        phone: getVal('signupPhone'),
         preferredContact: document.querySelector('input[name="preferredContact"]:checked')?.value || '',
         participationType: participationTypeEl?.value || 'Individual',
         selectedSessions: [],
         customAnswers: [],
-        additionalComments: document.getElementById('special-accommodations').value,
+        additionalComments: getVal('special-accommodations'),
         // Student information fields
         registrantType:  document.querySelector('input[name="registrantType"]:checked')?.value || '',
-        studentName:     document.getElementById('studentName').value.trim(),
-        studentDOB:      document.getElementById('studentDOB').value,
-        studentId:       document.getElementById('studentId').value.trim(),
-        studentGrade:    document.getElementById('studentGrade').value.trim(),
-        studentSchool:   document.getElementById('studentSchool').value.trim(),
-        iepReviewDate:   document.getElementById('iepReviewDate').value,
-        reevalDate:      document.getElementById('reevalDate').value,
-        careCoordinator: document.getElementById('careCoordinator').value.trim()
+        studentName:     getVal('studentName').trim(),
+        studentDOB:      getVal('studentDOB'),
+        studentId:       getVal('studentId').trim(),
+        studentGrade:    getVal('studentGrade').trim(),
+        studentSchool:   getVal('studentSchool').trim(),
+        iepReviewDate:   getVal('iepReviewDate'),
+        reevalDate:      getVal('reevalDate'),
+        careCoordinator: getVal('careCoordinator').trim()
       };
 
       if (formData.participationType === 'Group') {
-        formData.groupName = document.getElementById('group-name').value;
-        formData.groupSize = document.getElementById('group-size').value;
+        formData.groupName = getVal('group-name');
+        formData.groupSize = getVal('group-size');
       }
 
       const checked = document.querySelectorAll('.signup-date-checkbox:checked');
       formData.selectedSessions = Array.from(checked).map(cb => cb.value);
 
       if (formData.selectedSessions.length === 0) {
-        document.getElementById('dateError').style.display = 'block';
+        const dateErr = document.getElementById('dateError');
+        if (dateErr) dateErr.style.display = 'block';
         return;
       }
 
       const customAnswerEls = document.querySelectorAll('.custom-answer');
       formData.customAnswers = Array.from(customAnswerEls).map(ta => ta.value);
 
-      document.getElementById('signupFormContent').innerHTML = `
+      const formContent = document.getElementById('signupFormContent');
+      if (formContent) formContent.innerHTML = `
         <div style="text-align:center;padding:40px;">
           <p style="color:#004E7C;font-weight:600;">Submitting...</p>
         </div>
@@ -2780,7 +2791,8 @@
           });
         } catch(e) { /* analytics non-critical */ }
 
-        document.getElementById('signupFormContent').innerHTML = `
+        const successContent = document.getElementById('signupFormContent');
+        if (successContent) successContent.innerHTML = `
           <div style="text-align:center;padding:40px;">
             <h2 style="color:#004E7C;font-size:24px;font-weight:bold;margin-bottom:12px;">Mahalo!</h2>
             <p style="color:#666;font-size:16px;">Your signup has been received. We'll contact you soon!</p>
