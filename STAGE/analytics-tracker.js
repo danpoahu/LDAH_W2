@@ -243,6 +243,13 @@
 
   // --- Auto-attach click listeners via event delegation ---
   document.addEventListener('click', function(e) {
+    // PayPal donate button (input type="image" inside a PayPal form)
+    var paypalForm = e.target.closest('form[action*="paypal.com/donate"]');
+    if (paypalForm) {
+      trackDonationClick(paypalForm.getAttribute('action'));
+      return;
+    }
+
     var link = e.target.closest('a');
     if (!link) return;
 
@@ -273,11 +280,12 @@
     }
   }, true);
 
-  // PayPal form submit (the donate button is a form, not a link, on some pages)
+  // PayPal form submit (backup for form-based donate buttons)
   document.addEventListener('submit', function(e) {
     var form = e.target;
-    if (form && form.action && form.action.indexOf('paypal.com/donate') !== -1) {
-      trackDonationClick(form.action);
+    if (form && form.getAttribute && form.getAttribute('action') &&
+        form.getAttribute('action').indexOf('paypal.com/donate') !== -1) {
+      trackDonationClick(form.getAttribute('action'));
     }
   }, true);
 
