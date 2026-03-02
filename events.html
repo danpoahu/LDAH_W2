@@ -1046,7 +1046,7 @@
             } catch (error) {
                 console.log('⚠️ Using inline fallback for header/footer');
                 headerContainer.innerHTML = '<nav><div class="nav-content"><a href="index.html" class="logo-container"><img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH Logo" class="logo-img"></a><div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div><ul class="nav-links" id="navLinks"><li><a href="whoweare.html">Who We Are</a></li><li><a href="index.html#services">What We Do</a></li><li><a href="events.html">Events</a></li><li><a href="volunteer.html">Volunteer</a></li><li><a href="resources.html">Resources</a></li><li><a href="contact.html">Contact</a></li></ul></div></nav>';
-                footerContainer.innerHTML = '<footer><svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg><div class="footer-content"><div class="footer-section"><h3>About LDAH</h3><p>Hawai\'i & Pacific Island Parent Training & Information Center &mdash; empowering families and children with disabilities.</p></div><div class="footer-section"><h3>Quick Links</h3><a href="whoweare.html">Who We Are</a><a href="index.html#services">What We Do</a><a href="events.html">Events</a><a href="volunteer.html">Volunteer</a><a href="resources.html">Resources</a><a href="contact.html">Contact Us</a></div><div class="footer-section"><h3>Honolulu Office</h3><p>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 536-7684<br><a href="mailto:rrowe@ldah.org" style="color: rgba(255, 255, 255, 0.7); text-decoration: none;">rrowe@ldah.org</a></p></div><div class="footer-section"><h3>Connect With Us</h3><a href="javascript:void(0)" onclick="openIframeModal(\'Parent Talk Cafe\', \'https://www.facebook.com/groups/2659334410969387\')">Parent Talk Cafe</a><a href="javascript:void(0)" onclick="openIframeModal(\'Career Opportunities\', \'https://www.hrsymphony.com/hrs/careers/ldah\')">Career Opportunities</a><a href="install.html">Install Our App</a><form action="https://www.paypal.com/donate" method="post" target="_blank" style="margin-top: 8px;"><input type="hidden" name="hosted_button_id" value="F6F2DPC4D6RSA"><input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" title="PayPal - The safer, easier way to pay online!" alt="Donate with PayPal button"></form></div></div><div class="footer-bottom"><p>&copy; <span class="dynamic-year"><\/span> Leadership in Disabilities and Achievement of Hawai\'i. All rights reserved.</p><p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal(\'DP Consulting\', \'https://oahuappdesign.com\')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a></p></div></footer>';
+                footerContainer.innerHTML = '<footer><svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg><div class="footer-content"><div class="footer-section"><h3>About LDAH</h3><p>Hawai\'i & Pacific Island Parent Training & Information Center &mdash; empowering families and children with disabilities.</p></div><div class="footer-section"><h3>Quick Links</h3><a href="whoweare.html">Who We Are</a><a href="index.html#services">What We Do</a><a href="events.html">Events</a><a href="volunteer.html">Volunteer</a><a href="resources.html">Resources</a><a href="contact.html">Contact Us</a></div><div class="footer-section"><h3>Honolulu Office</h3><p>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 536-7684<br><a href="mailto:rrowe@ldahawaii.org" style="color: rgba(255, 255, 255, 0.7); text-decoration: none;">rrowe@ldahawaii.org</a></p></div><div class="footer-section"><h3>Connect With Us</h3><a href="javascript:void(0)" onclick="openIframeModal(\'Parent Talk Cafe\', \'https://www.facebook.com/groups/2659334410969387\')">Parent Talk Cafe</a><a href="javascript:void(0)" onclick="openIframeModal(\'Career Opportunities\', \'https://www.hrsymphony.com/hrs/careers/ldah\')">Career Opportunities</a><a href="install.html">Install Our App</a><form action="https://www.paypal.com/donate" method="post" target="_blank" style="margin-top: 8px;"><input type="hidden" name="hosted_button_id" value="F6F2DPC4D6RSA"><input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" title="PayPal - The safer, easier way to pay online!" alt="Donate with PayPal button"></form></div></div><div class="footer-bottom"><p>&copy; <span class="dynamic-year"><\/span> Leadership in Disabilities and Achievement of Hawai\'i. All rights reserved.</p><p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal(\'DP Consulting\', \'https://oahuappdesign.com\')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a></p></div></footer>';
             }
             
             setActiveNavLink();
@@ -2083,9 +2083,13 @@
     };
     
     function openSignupModal(eventId) {
+      // Clean up any existing signup modal to prevent duplicate IDs
+      const existingModal = document.getElementById('signupModal');
+      if (existingModal) existingModal.remove();
+
       const event = window.allEventsData.find(e => e.id === eventId);
       if (!event) return;
-      
+
       // Reset form
       signupFormData = {
         name: '',
@@ -2531,6 +2535,10 @@
     }
 
     async function openRecurringSignupModal(programId) {
+      // Clean up any existing signup modal to prevent duplicate IDs
+      const existingModal = document.getElementById('signupModal');
+      if (existingModal) existingModal.remove();
+
       const program = window._recurringPrograms && window._recurringPrograms[programId];
       if (!program) return;
       const occurrences = getOccurrencesInNext30Days(program.schedules);
@@ -2717,44 +2725,47 @@
       if (!program) return;
 
       const participationTypeEl = document.querySelector('input[name="participation-type"]:checked');
+      const getVal = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
       const formData = {
-        name: document.getElementById('signupName').value,
-        email: document.getElementById('signupEmail').value,
-        phone: document.getElementById('signupPhone').value,
+        name: getVal('signupName'),
+        email: getVal('signupEmail'),
+        phone: getVal('signupPhone'),
         preferredContact: document.querySelector('input[name="preferredContact"]:checked')?.value || '',
         participationType: participationTypeEl?.value || 'Individual',
         selectedSessions: [],
         customAnswers: [],
-        additionalComments: document.getElementById('special-accommodations').value,
+        additionalComments: getVal('special-accommodations'),
         // Student information fields
         registrantType:  document.querySelector('input[name="registrantType"]:checked')?.value || '',
-        studentName:     document.getElementById('studentName').value.trim(),
-        studentDOB:      document.getElementById('studentDOB').value,
-        studentId:       document.getElementById('studentId').value.trim(),
-        studentGrade:    document.getElementById('studentGrade').value.trim(),
-        studentSchool:   document.getElementById('studentSchool').value.trim(),
-        iepReviewDate:   document.getElementById('iepReviewDate').value,
-        reevalDate:      document.getElementById('reevalDate').value,
-        careCoordinator: document.getElementById('careCoordinator').value.trim()
+        studentName:     getVal('studentName').trim(),
+        studentDOB:      getVal('studentDOB'),
+        studentId:       getVal('studentId').trim(),
+        studentGrade:    getVal('studentGrade').trim(),
+        studentSchool:   getVal('studentSchool').trim(),
+        iepReviewDate:   getVal('iepReviewDate'),
+        reevalDate:      getVal('reevalDate'),
+        careCoordinator: getVal('careCoordinator').trim()
       };
 
       if (formData.participationType === 'Group') {
-        formData.groupName = document.getElementById('group-name').value;
-        formData.groupSize = document.getElementById('group-size').value;
+        formData.groupName = getVal('group-name');
+        formData.groupSize = getVal('group-size');
       }
 
       const checked = document.querySelectorAll('.signup-date-checkbox:checked');
       formData.selectedSessions = Array.from(checked).map(cb => cb.value);
 
       if (formData.selectedSessions.length === 0) {
-        document.getElementById('dateError').style.display = 'block';
+        const dateErr = document.getElementById('dateError');
+        if (dateErr) dateErr.style.display = 'block';
         return;
       }
 
       const customAnswerEls = document.querySelectorAll('.custom-answer');
       formData.customAnswers = Array.from(customAnswerEls).map(ta => ta.value);
 
-      document.getElementById('signupFormContent').innerHTML = `
+      const formContent = document.getElementById('signupFormContent');
+      if (formContent) formContent.innerHTML = `
         <div style="text-align:center;padding:40px;">
           <p style="color:#004E7C;font-weight:600;">Submitting...</p>
         </div>
@@ -2780,7 +2791,8 @@
           });
         } catch(e) { /* analytics non-critical */ }
 
-        document.getElementById('signupFormContent').innerHTML = `
+        const successContent = document.getElementById('signupFormContent');
+        if (successContent) successContent.innerHTML = `
           <div style="text-align:center;padding:40px;">
             <h2 style="color:#004E7C;font-size:24px;font-weight:bold;margin-bottom:12px;">Mahalo!</h2>
             <p style="color:#666;font-size:16px;">Your signup has been received. We'll contact you soon!</p>

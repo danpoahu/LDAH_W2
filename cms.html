@@ -2630,7 +2630,7 @@
         
         <div class="form-group" id="emailGroup">
           <label>Email Address</label>
-          <input type="email" id="personEmail" placeholder="e.g., john@ldah.org">
+          <input type="email" id="personEmail" placeholder="e.g., john@ldahawaii.org">
         </div>
       </div>
       <div class="modal-footer">
@@ -3391,6 +3391,7 @@
         loadCategories();
         loadFaqs();
         loadEvents(); // This loads eventSignups too
+        loadRecurringPrograms(); // Load recurring signups for badge counts
         loadOpportunities();
         loadApplications();
         loadProviders();
@@ -6105,14 +6106,41 @@
         if (recurringPrograms.length === 0) { empty.style.display = 'block'; countEl.textContent = ''; return; }
         countEl.textContent = `${recurringPrograms.length} program(s)`;
         renderRecurringPrograms();
+        updateEventsTabBadge();
       } catch (err) { console.error(err); loading.style.display = 'none'; }
     }
 
     function renderRecurringPrograms() {
       const list = document.getElementById('ongoingList');
+      const now = new Date();
+      const threeDaysAgo = new Date(now.getTime() - (3 * 24 * 60 * 60 * 1000));
       list.innerHTML = recurringPrograms.map(p => {
         const signups = recurringSignups[p.id] || [];
-        const pending = signups.filter(s => s.status === 'pending' && !s.archived).length;
+        // Categorize signups using same logic as regular events
+        let newCount = 0, attentionCount = 0;
+        signups.filter(s => !s.archived).forEach(s => {
+          const status = s.status || 'new';
+          if (status === 'confirmed' || status === 'cancelled') return;
+          const submitDate = s.timestamp?.seconds
+            ? new Date(s.timestamp.seconds * 1000)
+            : (s.submittedAt?.seconds ? new Date(s.submittedAt.seconds * 1000) : null);
+          if ((status === 'new' || !s.status) && submitDate && submitDate > threeDaysAgo) {
+            newCount++;
+          } else if (status === 'pending' || status === 'new' || !s.status) {
+            const isOld = !submitDate || submitDate <= threeDaysAgo;
+            const hasNotesNoAction = s.adminNotes && s.adminNotes.trim().length > 0;
+            const missingContact = !s.email && !s.phone;
+            if (isOld || hasNotesNoAction || missingContact) attentionCount++;
+            else newCount++;
+          }
+        });
+        let badgeHtml = '';
+        if (newCount > 0 || attentionCount > 0) {
+          badgeHtml = '<span style="position:absolute;top:-8px;right:-8px;display:flex;gap:2px;">';
+          if (newCount > 0) badgeHtml += `<span class="badge badge-new" title="${newCount} new signup${newCount !== 1 ? 's' : ''}">${newCount}</span>`;
+          if (attentionCount > 0) badgeHtml += `<span class="badge badge-attention" title="${attentionCount} need${attentionCount !== 1 ? '' : 's'} attention">${attentionCount}</span>`;
+          badgeHtml += '</span>';
+        }
         const schedulesSummary = (p.schedules || []).map(s => {
           if (s.frequency === 'weekly') return `${DAY_NAMES[s.dayOfWeek]}s ${fmt12cms(s.startTime)}–${fmt12cms(s.endTime)} @ ${s.location}${s.venue ? ' ('+s.venue+')' : ''}`;
           return `${ORDINAL[s.weekOfMonth]} ${DAY_NAMES[s.dayOfWeek]} of month ${fmt12cms(s.startTime)}–${fmt12cms(s.endTime)} @ ${s.location}${s.venue ? ' ('+s.venue+')' : ''}`;
@@ -6133,8 +6161,9 @@
                 <p style="font-size:0.8rem;color:#555;line-height:1.6;">${schedulesSummary || '<em>No schedules defined</em>'}</p>
               </div>
               <div style="display:flex;flex-direction:column;gap:0.4rem;flex-shrink:0;align-items:flex-end;">
-                <button class="btn-edit" onclick="openRecurringSignupsModal('${p.id}')">
-                  Signups ${pending > 0 ? `<span style="background:#ef4444;color:white;border-radius:50%;padding:1px 6px;font-size:10px;margin-left:4px;">${pending}</span>` : `(${signups.length})`}
+                <button class="btn-edit" onclick="openRecurringSignupsModal('${p.id}')" style="position:relative;">
+                  Signups (${signups.filter(s => !s.archived).length})
+                  ${badgeHtml}
                 </button>
                 <button class="btn-edit" onclick="openRecurringEventModal('${p.id}')">Edit</button>
                 <button class="btn-delete" onclick="toggleRecurringActive('${p.id}',${!p.active})">${p.active ? 'Deactivate' : 'Activate'}</button>
@@ -9243,36 +9272,37 @@
       const threeDaysAgo = new Date(now.getTime() - (3 * 24 * 60 * 60 * 1000));
       let totalNew = 0;
       let totalAttention = 0;
-      
-      for (const eventId in eventSignups) {
-        eventSignups[eventId].filter(s => !s.archived).forEach(s => {
-          const status = s.status || 'new';
-          
-          // Skip confirmed or cancelled
-          if (status === 'confirmed' || status === 'cancelled') return;
-          
-          // Get submission date
-          const submitDate = s.timestamp?.seconds 
-            ? new Date(s.timestamp.seconds * 1000) 
-            : (s.submittedAt?.seconds ? new Date(s.submittedAt.seconds * 1000) : null);
-          
-          // Truly NEW = status is 'new' or no status, submitted within last 3 days
-          if ((status === 'new' || !s.status) && submitDate && submitDate > threeDaysAgo) {
+
+      // Helper to categorize a single signup
+      function categorizeSignup(s) {
+        if (s.archived) return;
+        const status = s.status || 'new';
+        if (status === 'confirmed' || status === 'cancelled') return;
+        const submitDate = s.timestamp?.seconds
+          ? new Date(s.timestamp.seconds * 1000)
+          : (s.submittedAt?.seconds ? new Date(s.submittedAt.seconds * 1000) : null);
+        if ((status === 'new' || !s.status) && submitDate && submitDate > threeDaysAgo) {
+          totalNew++;
+        } else if (status === 'pending' || status === 'new' || !s.status) {
+          const isOld = !submitDate || submitDate <= threeDaysAgo;
+          const hasNotesNoAction = s.adminNotes && s.adminNotes.trim().length > 0;
+          const missingContact = !s.email && !s.phone;
+          if (isOld || hasNotesNoAction || missingContact) {
+            totalAttention++;
+          } else {
             totalNew++;
           }
-          // NEEDS ATTENTION = pending/new but older than 3 days, OR has admin notes but still pending, OR missing contact info
-          else if (status === 'pending' || status === 'new' || !s.status) {
-            const isOld = !submitDate || submitDate <= threeDaysAgo;
-            const hasNotesNoAction = s.adminNotes && s.adminNotes.trim().length > 0;
-            const missingContact = !s.email && !s.phone;
-            
-            if (isOld || hasNotesNoAction || missingContact) {
-              totalAttention++;
-            } else {
-              totalNew++;
-            }
-          }
-        });
+        }
+      }
+
+      // Count regular event signups
+      for (const eventId in eventSignups) {
+        eventSignups[eventId].forEach(categorizeSignup);
+      }
+
+      // Count recurring/ongoing program signups
+      for (const programId in recurringSignups) {
+        (recurringSignups[programId] || []).forEach(categorizeSignup);
       }
       
       const badgeContainer = document.getElementById('eventsTabBadge');
