@@ -5488,18 +5488,41 @@
 
     function exportFaqItemsToCSV() {
       const headers = ['Category', 'Question', 'Summary', 'Steps', 'Contact', 'Order', 'Status'];
-      const rows = faqs.map(faq => {
+      const rows = [];
+
+      // Group by category
+      const catGroups = {};
+      faqs.forEach(faq => {
         const cat = categories.find(c => c.id === faq.categoryId);
-        return [
-          (cat?.name || 'Uncategorized').replace(/"/g, '""'),
-          (faq.question || '').replace(/"/g, '""'),
-          (faq.summary || '').replace(/"/g, '""'),
-          (faq.steps || []).join(' | ').replace(/"/g, '""'),
-          (faq.contact || '').replace(/"/g, '""'),
-          faq.order ?? '',
-          faq.archived ? 'Archived' : 'Active'
-        ];
+        const catName = cat?.name || 'Uncategorized';
+        if (!catGroups[catName]) catGroups[catName] = [];
+        catGroups[catName].push(faq);
       });
+
+      const sortedCats = Object.keys(catGroups).sort((a, b) => {
+        if (a === 'Uncategorized') return 1;
+        if (b === 'Uncategorized') return -1;
+        return a.localeCompare(b);
+      });
+
+      sortedCats.forEach((catName, i) => {
+        if (i > 0) rows.push(['', '', '', '', '', '', '']);
+        rows.push([`--- ${catName} (${catGroups[catName].length}) ---`, '', '', '', '', '', '']);
+        catGroups[catName]
+          .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
+          .forEach(faq => {
+            rows.push([
+              catName.replace(/"/g, '""'),
+              (faq.question || '').replace(/"/g, '""'),
+              (faq.summary || '').replace(/"/g, '""'),
+              (faq.steps || []).join(' | ').replace(/"/g, '""'),
+              (faq.contact || '').replace(/"/g, '""'),
+              faq.order ?? '',
+              faq.archived ? 'Archived' : 'Active'
+            ]);
+          });
+      });
+
       downloadCSV('faq_items.csv', headers, rows);
     }
 
