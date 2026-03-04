@@ -5487,16 +5487,19 @@
     }
 
     function exportFaqItemsToCSV() {
-      const headers = ['Category', 'Question', 'Summary', 'Steps', 'Contact', 'Order', 'Status'];
+      const headers = ['Category', 'Status', 'Question', 'Summary', 'Steps', 'Contact', 'Order'];
       const rows = [];
 
-      // Group by category
+      // Group by category — include ALL categories, even empty ones
       const catGroups = {};
+      categories.forEach(cat => {
+        catGroups[cat.name || 'Untitled'] = { archived: !!cat.archived, items: [] };
+      });
       faqs.forEach(faq => {
         const cat = categories.find(c => c.id === faq.categoryId);
         const catName = cat?.name || 'Uncategorized';
-        if (!catGroups[catName]) catGroups[catName] = [];
-        catGroups[catName].push(faq);
+        if (!catGroups[catName]) catGroups[catName] = { archived: false, items: [] };
+        catGroups[catName].items.push(faq);
       });
 
       const sortedCats = Object.keys(catGroups).sort((a, b) => {
@@ -5506,21 +5509,27 @@
       });
 
       sortedCats.forEach((catName, i) => {
+        const group = catGroups[catName];
         if (i > 0) rows.push(['', '', '', '', '', '', '']);
-        rows.push([`--- ${catName} (${catGroups[catName].length}) ---`, '', '', '', '', '', '']);
-        catGroups[catName]
-          .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
-          .forEach(faq => {
-            rows.push([
-              catName.replace(/"/g, '""'),
-              (faq.question || '').replace(/"/g, '""'),
-              (faq.summary || '').replace(/"/g, '""'),
-              (faq.steps || []).join(' | ').replace(/"/g, '""'),
-              (faq.contact || '').replace(/"/g, '""'),
-              faq.order ?? '',
-              faq.archived ? 'Archived' : 'Active'
-            ]);
-          });
+        const catStatus = group.archived ? ' [Archived]' : '';
+        rows.push([`--- ${catName}${catStatus} (${group.items.length} items) ---`, '', '', '', '', '', '']);
+        if (group.items.length === 0) {
+          rows.push([catName, '', '(no items)', '', '', '', '']);
+        } else {
+          group.items
+            .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
+            .forEach(faq => {
+              rows.push([
+                catName.replace(/"/g, '""'),
+                faq.archived ? 'Archived' : 'Active',
+                (faq.question || '').replace(/"/g, '""'),
+                (faq.summary || '').replace(/"/g, '""'),
+                (faq.steps || []).join(' | ').replace(/"/g, '""'),
+                (faq.contact || '').replace(/"/g, '""'),
+                faq.order ?? ''
+              ]);
+            });
+        }
       });
 
       downloadCSV('faq_items.csv', headers, rows);
