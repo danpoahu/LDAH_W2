@@ -1858,6 +1858,7 @@
         <button class="btn-logout" onclick="handleLogout()">Logout</button>
       </div>
     </div>
+    <div style="text-align: right; padding: 2px 20px 0; font-size: 0.7rem; color: #999;">v22</div>
     
     <div class="cms-container">
       <!-- Tabs -->
@@ -7298,26 +7299,46 @@
       rows.push(['Provider Requests Report', '', '', '', '', '', '', '', '', '']);
       rows.push([`Exported: ${exported}`, '', '', '', '', '', '', '', '', '']);
       rows.push(['', '', '', '', '', '', '', '', '', '']);
+
+      // Group by category
+      const categoryGroups = {};
       providers.forEach(p => {
-        let date = '';
-        if (p.submittedAt?.seconds) {
-          date = new Date(p.submittedAt.seconds * 1000).toLocaleDateString();
-        } else if (p.timestamp?.seconds) {
-          date = new Date(p.timestamp.seconds * 1000).toLocaleDateString();
-        }
-        rows.push([
-          p.firstName || '',
-          p.lastName || '',
-          p.organizationName || p.orgName || '',
-          p.email || '',
-          p.phone || '',
-          p.serviceType || '',
-          p.category || '',
-          p.status || 'new',
-          (p.message || p.details || '').replace(/"/g, '""'),
-          date
-        ]);
+        const cat = p.category || 'Uncategorized';
+        if (!categoryGroups[cat]) categoryGroups[cat] = [];
+        categoryGroups[cat].push(p);
       });
+
+      const sortedCategories = Object.keys(categoryGroups).sort((a, b) => {
+        if (a === 'Uncategorized') return 1;
+        if (b === 'Uncategorized') return -1;
+        return a.localeCompare(b);
+      });
+
+      sortedCategories.forEach((cat, i) => {
+        if (i > 0) rows.push(['', '', '', '', '', '', '', '', '', '']);
+        rows.push([`--- ${cat} (${categoryGroups[cat].length}) ---`, '', '', '', '', '', '', '', '', '']);
+        categoryGroups[cat].forEach(p => {
+          let date = '';
+          if (p.submittedAt?.seconds) {
+            date = new Date(p.submittedAt.seconds * 1000).toLocaleDateString();
+          } else if (p.timestamp?.seconds) {
+            date = new Date(p.timestamp.seconds * 1000).toLocaleDateString();
+          }
+          rows.push([
+            p.firstName || '',
+            p.lastName || '',
+            p.organizationName || p.orgName || '',
+            p.email || '',
+            p.phone || '',
+            p.serviceType || '',
+            cat,
+            p.status || 'new',
+            (p.message || p.details || '').replace(/"/g, '""'),
+            date
+          ]);
+        });
+      });
+
       downloadCSV('provider_requests.csv', headers, rows);
     }
     
