@@ -1858,7 +1858,7 @@
         <button class="btn-logout" onclick="handleLogout()">Logout</button>
       </div>
     </div>
-    <div style="text-align: right; padding: 2px 20px 0; font-size: 0.7rem; color: #999;">v20</div>
+    <div style="text-align: right; padding: 2px 20px 0; font-size: 0.7rem; color: #999;">v21</div>
     
     <div class="cms-container">
       <!-- Tabs -->
@@ -2007,7 +2007,10 @@
           
           <!-- Categories Sub-tab -->
           <div id="categories-subtab" class="subtab-content">
-            <button class="btn-add-person" onclick="openCategoryModal()">+ Add Category</button>
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+              <button class="btn-add-person" onclick="openCategoryModal()">+ Add Category</button>
+              <button class="btn-export" onclick="exportFaqCategoriesToCSV()">📥 Export CSV</button>
+            </div>
             <div id="categoriesLoading" class="loading-spinner">Loading categories...</div>
             <div id="categoriesEmpty" class="empty-state" style="display:none;">
               <p>No categories yet. Create categories first, then add FAQs.</p>
@@ -2017,7 +2020,10 @@
           
           <!-- FAQs Sub-tab -->
           <div id="faqs-subtab" class="subtab-content" style="display: none;">
-            <button class="btn-add-person" onclick="openFaqModal()">+ Add FAQ</button>
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+              <button class="btn-add-person" onclick="openFaqModal()">+ Add FAQ</button>
+              <button class="btn-export" onclick="exportFaqItemsToCSV()">📥 Export CSV</button>
+            </div>
             <div style="margin: 1rem 0; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
               <select id="faqCategoryFilter" onchange="filterFaqsByCategory()" style="padding: 0.5rem; border-radius: 8px; border: 2px solid #ddd;">
                 <option value="all">All Categories</option>
@@ -5464,6 +5470,37 @@
       } catch (error) {
         console.error('Error restoring FAQ:', error);
       }
+    }
+
+    function exportFaqCategoriesToCSV() {
+      const headers = ['Category', 'Order', 'FAQ Count', 'Status'];
+      const rows = categories.map(cat => {
+        const faqCount = faqs.filter(f => f.categoryId === cat.id).length;
+        return [
+          (cat.name || '').replace(/"/g, '""'),
+          cat.order ?? '',
+          faqCount,
+          cat.archived ? 'Archived' : 'Active'
+        ];
+      });
+      downloadCSV('faq_categories.csv', headers, rows);
+    }
+
+    function exportFaqItemsToCSV() {
+      const headers = ['Category', 'Question', 'Summary', 'Steps', 'Contact', 'Order', 'Status'];
+      const rows = faqs.map(faq => {
+        const cat = categories.find(c => c.id === faq.categoryId);
+        return [
+          (cat?.name || 'Uncategorized').replace(/"/g, '""'),
+          (faq.question || '').replace(/"/g, '""'),
+          (faq.summary || '').replace(/"/g, '""'),
+          (faq.steps || []).join(' | ').replace(/"/g, '""'),
+          (faq.contact || '').replace(/"/g, '""'),
+          faq.order ?? '',
+          faq.archived ? 'Archived' : 'Active'
+        ];
+      });
+      downloadCSV('faq_items.csv', headers, rows);
     }
 
     // ===== Events Functions =====

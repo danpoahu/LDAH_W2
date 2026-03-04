@@ -439,6 +439,7 @@
     
     .person-card.archived,
     .resource-card.archived,
+    .faq-card.archived,
     tr.archived {
       opacity: 0.7;
       background: #f0f0f0;
@@ -2005,7 +2006,10 @@
           
           <!-- Categories Sub-tab -->
           <div id="categories-subtab" class="subtab-content">
-            <button class="btn-add-person" onclick="openCategoryModal()">+ Add Category</button>
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+              <button class="btn-add-person" onclick="openCategoryModal()">+ Add Category</button>
+              <button class="btn-export" onclick="exportFaqCategoriesToCSV()">📥 Export CSV</button>
+            </div>
             <div id="categoriesLoading" class="loading-spinner">Loading categories...</div>
             <div id="categoriesEmpty" class="empty-state" style="display:none;">
               <p>No categories yet. Create categories first, then add FAQs.</p>
@@ -2015,11 +2019,18 @@
           
           <!-- FAQs Sub-tab -->
           <div id="faqs-subtab" class="subtab-content" style="display: none;">
-            <button class="btn-add-person" onclick="openFaqModal()">+ Add FAQ</button>
-            <div style="margin: 1rem 0;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+              <button class="btn-add-person" onclick="openFaqModal()">+ Add FAQ</button>
+              <button class="btn-export" onclick="exportFaqItemsToCSV()">📥 Export CSV</button>
+            </div>
+            <div style="margin: 1rem 0; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
               <select id="faqCategoryFilter" onchange="filterFaqsByCategory()" style="padding: 0.5rem; border-radius: 8px; border: 2px solid #ddd;">
                 <option value="all">All Categories</option>
               </select>
+              <div class="archived-toggle">
+                <input type="checkbox" id="showFaqsArchived" onchange="renderFaqs()">
+                <label for="showFaqsArchived">Show Archived</label>
+              </div>
             </div>
             <div id="faqsLoading" class="loading-spinner">Loading FAQs...</div>
             <div id="faqsEmpty" class="empty-state" style="display:none;">
@@ -5141,23 +5152,33 @@
       const filterEl = document.getElementById('faqCategoryFilter');
       if (!list) return;
       const filter = filterEl ? filterEl.value : 'all';
-      const filtered = filter === 'all' ? faqs : faqs.filter(f => f.categoryId === filter);
-      
+      const categoryFiltered = filter === 'all' ? faqs : faqs.filter(f => f.categoryId === filter);
+
+      // Filter by archive status based on toggle
+      const showArchived = document.getElementById('showFaqsArchived')?.checked || false;
+      const filtered = showArchived ? categoryFiltered : categoryFiltered.filter(f => !f.archived);
+
       if (filtered.length === 0) {
-        list.innerHTML = '<p style="color: var(--text-light); text-align: center; padding: 2rem;">No FAQs found.</p>';
+        list.innerHTML = `<p style="color: var(--text-light); text-align: center; padding: 2rem;">${showArchived ? 'No archived FAQs.' : 'No FAQs found.'}</p>`;
         return;
       }
-      
+
       list.innerHTML = filtered.map((faq, index) => {
         const cat = categories.find(c => c.id === faq.categoryId);
+        const actionButtons = faq.archived
+          ? `<button class="btn-edit" onclick="editFaq('${faq.id}')">✏️ Edit</button>
+             <button class="btn-edit" onclick="restoreFaq('${faq.id}')">♻️ Restore</button>`
+          : `<button class="btn-edit" onclick="editFaq('${faq.id}')">✏️ Edit</button>
+             <button class="btn-archive" onclick="archiveFaq('${faq.id}')">📦 Archive</button>`;
         return `
-          <div class="faq-card" draggable="true" data-id="${faq.id}" data-index="${index}"
-               ondragstart="handleFaqDragStart(event)" ondragover="handleFaqDragOver(event)" 
+          <div class="faq-card${faq.archived ? ' archived' : ''}" draggable="true" data-id="${faq.id}" data-index="${index}"
+               ondragstart="handleFaqDragStart(event)" ondragover="handleFaqDragOver(event)"
                ondrop="handleFaqDrop(event)" ondragend="handleFaqDragEnd(event)">
             <div class="faq-card-header" style="cursor: pointer;">
               <div style="display: flex; align-items: center; gap: 0.5rem;">
                 <span style="cursor: grab; color: var(--text-light);" onclick="event.stopPropagation()">☰</span>
                 <span class="faq-category-badge">${cat?.name || 'Uncategorized'}</span>
+                ${faq.archived ? '<span class="archived-badge">ARCHIVED</span>' : ''}
               </div>
               <div style="display: flex; justify-content: space-between; align-items: flex-start;" onclick="toggleDataExpand('faq-${faq.id}')">
                 <strong style="color: var(--text-dark); flex: 1;">${faq.question}</strong>
@@ -5176,8 +5197,7 @@
               ` : ''}
               ${faq.contact ? `<p style="margin-bottom: 1rem;"><strong>Contact:</strong> ${faq.contact}</p>` : ''}
               <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
-                <button class="btn-edit" onclick="editFaq('${faq.id}')">✏️ Edit</button>
-                <button class="btn-archive" onclick="archiveFaq('${faq.id}')">📦 Archive</button>
+                ${actionButtons}
               </div>
             </div>
           </div>
@@ -5449,6 +5469,37 @@
       } catch (error) {
         console.error('Error restoring FAQ:', error);
       }
+    }
+
+    function exportFaqCategoriesToCSV() {
+      const headers = ['Category', 'Order', 'FAQ Count', 'Status'];
+      const rows = categories.map(cat => {
+        const faqCount = faqs.filter(f => f.categoryId === cat.id).length;
+        return [
+          (cat.name || '').replace(/"/g, '""'),
+          cat.order ?? '',
+          faqCount,
+          cat.archived ? 'Archived' : 'Active'
+        ];
+      });
+      downloadCSV('faq_categories.csv', headers, rows);
+    }
+
+    function exportFaqItemsToCSV() {
+      const headers = ['Category', 'Question', 'Summary', 'Steps', 'Contact', 'Order', 'Status'];
+      const rows = faqs.map(faq => {
+        const cat = categories.find(c => c.id === faq.categoryId);
+        return [
+          (cat?.name || 'Uncategorized').replace(/"/g, '""'),
+          (faq.question || '').replace(/"/g, '""'),
+          (faq.summary || '').replace(/"/g, '""'),
+          (faq.steps || []).join(' | ').replace(/"/g, '""'),
+          (faq.contact || '').replace(/"/g, '""'),
+          faq.order ?? '',
+          faq.archived ? 'Archived' : 'Active'
+        ];
+      });
+      downloadCSV('faq_items.csv', headers, rows);
     }
 
     // ===== Events Functions =====
@@ -8050,7 +8101,7 @@
       document.getElementById('contentEventsCount').textContent = upcomingEvents + approvedRequests;
       
       document.getElementById('contentOpportunitiesCount').textContent = opportunities.length;
-      document.getElementById('contentFaqCount').textContent = faqs.length;
+      document.getElementById('contentFaqCount').textContent = faqs.filter(f => !f.archived).length;
       
       // Update action items banner
       updateActionItemsBanner();
