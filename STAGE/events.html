@@ -1241,6 +1241,22 @@
           recurringSnapshot.docs.forEach(doc => {
             const data = { id: doc.id, ...doc.data() };
             window._recurringPrograms[doc.id] = data;
+
+            // Flyer-only programs: show without dates or signup
+            if (data.flyerOnly) {
+              syntheticEvents.push({
+                id: doc.id,
+                title: data.title,
+                description: data.description,
+                imageUrl: data.imageUrl,
+                eventDate: new Date().toISOString().slice(0, 10),
+                isRecurring: true,
+                isFlyerOnly: true,
+                _nextDateLabel: 'Informational',
+              });
+              return;
+            }
+
             const occurrences = getOccurrencesInNext30Days(data.schedules);
             if (occurrences.length === 0) return;
             const nextOcc = occurrences[0];
@@ -1431,7 +1447,7 @@
                   </span>
                 </div>
 
-                ${type === 'upcoming' && (hasSignupDates || isRecurring) ?
+                ${type === 'upcoming' && (hasSignupDates || isRecurring) && !event.isFlyerOnly ?
                   `<button
                     onclick="${isRecurring ? `openRecurringSignupModal('${event.id}')` : `openSignupModal('${event.id}')`}"
                     style="

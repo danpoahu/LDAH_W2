@@ -2990,17 +2990,17 @@
           <label>Event Poster/Image</label>
           <input type="hidden" id="eventImageUrl">
           <div id="eventImagePreview" style="margin-bottom: 0.5rem;"></div>
-          <input type="file" id="eventImageInput" accept="image/*" onchange="handleEventImageUpload(event)">
+          <input type="file" id="eventImageInput" accept="image/jpeg,image/png,image/webp,application/pdf" onchange="handleEventImageUpload(event)">
           <div class="upload-progress" id="eventUploadProgress" style="display: none;">
             <div class="upload-progress-bar" id="eventUploadProgressBar"></div>
           </div>
-          <p style="font-size: 0.8rem; color: var(--text-light); margin-top: 0.5rem;">Max 10MB. PNG, JPG, or WebP.</p>
+          <p style="font-size: 0.8rem; color: var(--text-light); margin-top: 0.5rem;">Max 10MB. PNG, JPG, WebP, or PDF.</p>
         </div>
         
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
           <div class="form-group">
-            <label>Event Date (Display)</label>
-            <input type="text" id="eventEventDate" placeholder="e.g., October 15, 2025">
+            <label>Event Date *</label>
+            <input type="date" id="eventEventDate" required>
           </div>
           <div class="form-group">
             <label>Time</label>
@@ -3103,11 +3103,11 @@
           <label>Program Image / Flyer</label>
           <input type="hidden" id="recurringImageUrl">
           <div id="recurringImagePreview" style="margin-bottom:0.5rem;"></div>
-          <input type="file" id="recurringImageInput" accept="image/*" onchange="handleRecurringImageUpload(event)">
+          <input type="file" id="recurringImageInput" accept="image/jpeg,image/png,image/webp,application/pdf" onchange="handleRecurringImageUpload(event)">
           <div class="upload-progress" id="recurringUploadProgress" style="display:none;">
             <div class="upload-progress-bar" id="recurringUploadProgressBar"></div>
           </div>
-          <p style="font-size:0.8rem;color:var(--text-light);margin-top:0.5rem;">Max 10MB. PNG, JPG, or WebP.</p>
+          <p style="font-size:0.8rem;color:var(--text-light);margin-top:0.5rem;">Max 10MB. PNG, JPG, WebP, or PDF.</p>
         </div>
 
         <div class="form-group" style="display:flex;align-items:center;gap:0.75rem;">
@@ -3115,6 +3115,12 @@
           <label for="recurringActive" style="margin:0;cursor:pointer;">Program is Active (shown on Events page)</label>
         </div>
 
+        <div class="form-group" style="display:flex;align-items:center;gap:0.75rem;padding:0.75rem;background:#fffbeb;border-radius:8px;border:1px solid #fde68a;margin-top:1rem;">
+          <input type="checkbox" id="recurringFlyerOnly" style="width:18px;height:18px;cursor:pointer;flex-shrink:0;" onchange="toggleRecurringScheduleSection()">
+          <label for="recurringFlyerOnly" style="margin:0;cursor:pointer;font-weight:500;">Informational Flyer Only (no dates or sign-up)</label>
+        </div>
+
+        <div id="recurringScheduleSection">
         <hr style="margin:1.5rem 0;border-color:#e2e8f0;">
         <h4 style="color:var(--primary-blue);margin-bottom:1rem;">Schedules</h4>
         <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:1rem;">Add one row per location/time slot. Each schedule generates its own checkboxes in the signup modal.</p>
@@ -3136,6 +3142,7 @@
           <input type="checkbox" id="recurringShowGroupField" style="width:18px;height:18px;cursor:pointer;flex-shrink:0;">
           <label for="recurringShowGroupField" style="margin:0;cursor:pointer;font-weight:500;">Show "Individual or Group?" question in signup form</label>
         </div>
+        </div><!-- end recurringScheduleSection -->
       </div>
       <div class="modal-footer">
         <button class="btn-cancel" onclick="closeRecurringEventModal()">Cancel</button>
@@ -5743,7 +5750,11 @@
       // Image preview
       const preview = document.getElementById('eventImagePreview');
       if (event?.imageUrl) {
-        preview.innerHTML = `<img src="${event.imageUrl}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 8px;"><button type="button" class="btn-delete" style="margin-left: 0.5rem;" onclick="clearEventImage()">Remove</button>`;
+        const isPDF = event.imageUrl.toLowerCase().includes('.pdf');
+        const previewHtml = isPDF
+          ? `<div style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.5rem;background:#f0f0f0;border-radius:8px;">📄 PDF Flyer</div>`
+          : `<img src="${event.imageUrl}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 8px;">`;
+        preview.innerHTML = previewHtml + `<button type="button" class="btn-delete" style="margin-left: 0.5rem;" onclick="clearEventImage()">Remove</button>`;
       } else {
         preview.innerHTML = '';
       }
@@ -5774,33 +5785,45 @@
     async function handleEventImageUpload(e) {
       const file = e.target.files[0];
       if (!file) return;
-      
+
+      const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+      if (!allowed.includes(file.type)) {
+        alert('Please upload a PNG, JPG, WebP, or PDF file.');
+        return;
+      }
+
       if (file.size > 10 * 1024 * 1024) {
         alert('File must be less than 10MB');
         return;
       }
-      
+
       const progress = document.getElementById('eventUploadProgress');
       const progressBar = document.getElementById('eventUploadProgressBar');
       progress.style.display = 'block';
-      
+
       try {
         const filename = `event-images/${Date.now()}_${file.name}`;
         const ref = storage.ref(filename);
-        const task = ref.put(file);
-        
-        task.on('state_changed', 
+        const metadata = { contentType: file.type };
+        const task = ref.put(file, metadata);
+
+        task.on('state_changed',
           (snap) => { progressBar.style.width = (snap.bytesTransferred / snap.totalBytes * 100) + '%'; },
-          (err) => { alert('Upload failed'); progress.style.display = 'none'; },
+          (err) => { alert('Upload failed: ' + err.message); progress.style.display = 'none'; },
           async () => {
             const url = await task.snapshot.ref.getDownloadURL();
             document.getElementById('eventImageUrl').value = url;
-            document.getElementById('eventImagePreview').innerHTML = `<img src="${url}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 8px;"><button type="button" class="btn-delete" style="margin-left: 0.5rem;" onclick="clearEventImage()">Remove</button>`;
+            const isPDF = file.type === 'application/pdf';
+            const previewHtml = isPDF
+              ? `<div style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.5rem;background:#f0f0f0;border-radius:8px;">📄 <span>${file.name}</span></div>`
+              : `<img src="${url}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 8px;">`;
+            document.getElementById('eventImagePreview').innerHTML = previewHtml + `<button type="button" class="btn-delete" style="margin-left: 0.5rem;" onclick="clearEventImage()">Remove</button>`;
             progress.style.display = 'none';
           }
         );
       } catch (err) {
         console.error(err);
+        alert('Upload failed: ' + err.message);
         progress.style.display = 'none';
       }
     }
@@ -5872,6 +5895,7 @@
       };
       
       if (!data.title) { alert('Title is required'); return; }
+      if (!data.eventDate) { alert('Event Date is required'); return; }
       if (!data.startDate || !data.moveToPastDate || !data.removeDate) { alert('All dates are required'); return; }
       
       try {
@@ -6396,16 +6420,29 @@
       document.getElementById('recurringDescription').value = program?.description || '';
       document.getElementById('recurringImageUrl').value = program?.imageUrl || '';
       document.getElementById('recurringActive').checked = program ? !!program.active : true;
-      document.getElementById('recurringImagePreview').innerHTML = program?.imageUrl
-        ? `<img src="${program.imageUrl}" style="width:100px;height:100px;object-fit:cover;border-radius:8px;"><button type="button" class="btn-delete" style="margin-left:0.5rem;" onclick="document.getElementById('recurringImageUrl').value='';document.getElementById('recurringImagePreview').innerHTML='';">Remove</button>`
-        : '';
+      if (program?.imageUrl) {
+        const isPDF = program.imageUrl.toLowerCase().includes('.pdf');
+        const previewHtml = isPDF
+          ? `<div style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.5rem;background:#f0f0f0;border-radius:8px;">📄 PDF Flyer</div>`
+          : `<img src="${program.imageUrl}" style="width:100px;height:100px;object-fit:cover;border-radius:8px;">`;
+        document.getElementById('recurringImagePreview').innerHTML = previewHtml + `<button type="button" class="btn-delete" style="margin-left:0.5rem;" onclick="document.getElementById('recurringImageUrl').value='';document.getElementById('recurringImagePreview').innerHTML='';">Remove</button>`;
+      } else {
+        document.getElementById('recurringImagePreview').innerHTML = '';
+      }
       if (program?.schedules) program.schedules.forEach(s => { currentRecurringSchedules.push({...s}); });
       if (program?.customQuestions) currentRecurringQuestions = [...program.customQuestions];
       // Default unchecked (false) for new programs; preserve stored value when editing
       document.getElementById('recurringShowGroupField').checked = program ? !!program.showGroupField : false;
+      document.getElementById('recurringFlyerOnly').checked = program ? !!program.flyerOnly : false;
+      toggleRecurringScheduleSection();
       renderRecurringScheduleRows();
       renderRecurringQuestions();
       document.getElementById('recurringEventModal').classList.add('active');
+    }
+
+    function toggleRecurringScheduleSection() {
+      const hidden = document.getElementById('recurringFlyerOnly').checked;
+      document.getElementById('recurringScheduleSection').style.display = hidden ? 'none' : '';
     }
 
     function closeRecurringEventModal() {
@@ -6414,37 +6451,46 @@
 
     async function handleRecurringImageUpload(e) {
       const file = e.target.files[0]; if (!file) return;
+      const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+      if (!allowed.includes(file.type)) { alert('Please upload a PNG, JPG, WebP, or PDF file.'); return; }
       if (file.size > 10 * 1024 * 1024) { alert('File must be less than 10MB'); return; }
       const progress = document.getElementById('recurringUploadProgress');
       const bar = document.getElementById('recurringUploadProgressBar');
       progress.style.display = 'block';
       try {
         const ref = storage.ref(`event-images/${Date.now()}_${file.name}`);
-        const task = ref.put(file);
+        const metadata = { contentType: file.type };
+        const task = ref.put(file, metadata);
         task.on('state_changed',
           snap => { bar.style.width = (snap.bytesTransferred/snap.totalBytes*100)+'%'; },
-          err => { alert('Upload failed'); progress.style.display='none'; },
+          err => { alert('Upload failed: ' + err.message); progress.style.display='none'; },
           async () => {
             const url = await task.snapshot.ref.getDownloadURL();
             document.getElementById('recurringImageUrl').value = url;
-            document.getElementById('recurringImagePreview').innerHTML = `<img src="${url}" style="width:100px;height:100px;object-fit:cover;border-radius:8px;"><button type="button" class="btn-delete" style="margin-left:0.5rem;" onclick="document.getElementById('recurringImageUrl').value='';document.getElementById('recurringImagePreview').innerHTML='';">Remove</button>`;
+            const isPDF = file.type === 'application/pdf';
+            const previewHtml = isPDF
+              ? `<div style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.5rem;background:#f0f0f0;border-radius:8px;">📄 ${file.name}</div>`
+              : `<img src="${url}" style="width:100px;height:100px;object-fit:cover;border-radius:8px;">`;
+            document.getElementById('recurringImagePreview').innerHTML = previewHtml + `<button type="button" class="btn-delete" style="margin-left:0.5rem;" onclick="document.getElementById('recurringImageUrl').value='';document.getElementById('recurringImagePreview').innerHTML='';">Remove</button>`;
             progress.style.display = 'none';
           });
-      } catch(err) { console.error(err); progress.style.display='none'; }
+      } catch(err) { console.error(err); alert('Upload failed: ' + err.message); progress.style.display='none'; }
     }
 
     async function saveRecurringEvent() {
       const id = document.getElementById('recurringEventId').value;
       const title = document.getElementById('recurringTitle').value.trim();
       if (!title) { alert('Program title is required'); return; }
+      const isFlyerOnly = document.getElementById('recurringFlyerOnly').checked;
       const data = {
         title,
         description: document.getElementById('recurringDescription').value.trim(),
         imageUrl: document.getElementById('recurringImageUrl').value.trim(),
         active: document.getElementById('recurringActive').checked,
-        schedules: currentRecurringSchedules,
-        customQuestions: currentRecurringQuestions,
-        showGroupField: document.getElementById('recurringShowGroupField').checked,
+        flyerOnly: isFlyerOnly,
+        schedules: isFlyerOnly ? [] : currentRecurringSchedules,
+        customQuestions: isFlyerOnly ? [] : currentRecurringQuestions,
+        showGroupField: isFlyerOnly ? false : document.getElementById('recurringShowGroupField').checked,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       try {
