@@ -678,10 +678,14 @@
                 return now >= startDate && now < moveToPastDate;
             }).sort((a, b) => new Date(a.eventDate + 'T00:00:00') - new Date(b.eventDate + 'T00:00:00')).slice(0, 2);
 
-            // Recurring programs with a session in next 30 days (up to 1)
+            // Recurring programs with a session in next 30 days (up to 1), plus flyer-only
             const recurringCards = [];
             recurringSnap.docs.forEach(doc => {
                 const data = { id: doc.id, ...doc.data() };
+                if (data.flyerOnly) {
+                    recurringCards.push({ ...data, _nextDate: new Date(), isRecurring: true, isFlyerOnly: true });
+                    return;
+                }
                 const next = _nextOccurrence(data.schedules);
                 if (next) recurringCards.push({ ...data, _nextDate: next, isRecurring: true });
             });
@@ -695,7 +699,9 @@
 
             container.innerHTML = '<div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">' + allCards.map(event => {
                 const isRec = !!event.isRecurring;
-                const displayDate = isRec
+                const displayDate = event.isFlyerOnly
+                    ? 'Informational'
+                    : isRec
                     ? 'Next: ' + event._nextDate.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' })
                     : new Date(event.eventDate + 'T00:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
                 const isPDF = event.imageUrl && event.imageUrl.toLowerCase().includes('.pdf');

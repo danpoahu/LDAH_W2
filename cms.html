@@ -3115,6 +3115,12 @@
           <label for="recurringActive" style="margin:0;cursor:pointer;">Program is Active (shown on Events page)</label>
         </div>
 
+        <div class="form-group" style="display:flex;align-items:center;gap:0.75rem;padding:0.75rem;background:#fffbeb;border-radius:8px;border:1px solid #fde68a;margin-top:1rem;">
+          <input type="checkbox" id="recurringFlyerOnly" style="width:18px;height:18px;cursor:pointer;flex-shrink:0;" onchange="toggleRecurringScheduleSection()">
+          <label for="recurringFlyerOnly" style="margin:0;cursor:pointer;font-weight:500;">Informational Flyer Only (no dates or sign-up)</label>
+        </div>
+
+        <div id="recurringScheduleSection">
         <hr style="margin:1.5rem 0;border-color:#e2e8f0;">
         <h4 style="color:var(--primary-blue);margin-bottom:1rem;">Schedules</h4>
         <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:1rem;">Add one row per location/time slot. Each schedule generates its own checkboxes in the signup modal.</p>
@@ -3136,6 +3142,7 @@
           <input type="checkbox" id="recurringShowGroupField" style="width:18px;height:18px;cursor:pointer;flex-shrink:0;">
           <label for="recurringShowGroupField" style="margin:0;cursor:pointer;font-weight:500;">Show "Individual or Group?" question in signup form</label>
         </div>
+        </div><!-- end recurringScheduleSection -->
       </div>
       <div class="modal-footer">
         <button class="btn-cancel" onclick="closeRecurringEventModal()">Cancel</button>
@@ -6426,9 +6433,16 @@
       if (program?.customQuestions) currentRecurringQuestions = [...program.customQuestions];
       // Default unchecked (false) for new programs; preserve stored value when editing
       document.getElementById('recurringShowGroupField').checked = program ? !!program.showGroupField : false;
+      document.getElementById('recurringFlyerOnly').checked = program ? !!program.flyerOnly : false;
+      toggleRecurringScheduleSection();
       renderRecurringScheduleRows();
       renderRecurringQuestions();
       document.getElementById('recurringEventModal').classList.add('active');
+    }
+
+    function toggleRecurringScheduleSection() {
+      const hidden = document.getElementById('recurringFlyerOnly').checked;
+      document.getElementById('recurringScheduleSection').style.display = hidden ? 'none' : '';
     }
 
     function closeRecurringEventModal() {
@@ -6467,14 +6481,16 @@
       const id = document.getElementById('recurringEventId').value;
       const title = document.getElementById('recurringTitle').value.trim();
       if (!title) { alert('Program title is required'); return; }
+      const isFlyerOnly = document.getElementById('recurringFlyerOnly').checked;
       const data = {
         title,
         description: document.getElementById('recurringDescription').value.trim(),
         imageUrl: document.getElementById('recurringImageUrl').value.trim(),
         active: document.getElementById('recurringActive').checked,
-        schedules: currentRecurringSchedules,
-        customQuestions: currentRecurringQuestions,
-        showGroupField: document.getElementById('recurringShowGroupField').checked,
+        flyerOnly: isFlyerOnly,
+        schedules: isFlyerOnly ? [] : currentRecurringSchedules,
+        customQuestions: isFlyerOnly ? [] : currentRecurringQuestions,
+        showGroupField: isFlyerOnly ? false : document.getElementById('recurringShowGroupField').checked,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       try {
