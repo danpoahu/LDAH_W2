@@ -2198,7 +2198,7 @@
                   <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
                     Phone Number (for calls or texts) *
                   </label>
-                  <input type="tel" required id="signupPhone" placeholder="(808) 555-1234" style="
+                  <input type="tel" required id="signupPhone" placeholder="(808) 555-1234" pattern="[\\(]?\\d{3}[\\)]?[\\s.\\-]?\\d{3}[\\s.\\-]?\\d{4}" title="Please enter a valid 10-digit phone number, e.g. (808) 555-1234" style="
                     width: 100%;
                     padding: 12px;
                     border: 1px solid #D1D5DB;
@@ -2234,7 +2234,7 @@
                         
                         return `
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                          <input type="checkbox" class="signup-date-checkbox" value="${date}" style="width: 18px; height: 18px; cursor: pointer;">
+                          <input type="checkbox" class="signup-date-checkbox" value="${date}" ${isExpired ? 'disabled' : ''} style="width: 18px; height: 18px; cursor: pointer;">
                           <span style="font-size: 14px; color: #374151; ${isExpired ? 'text-decoration: line-through; opacity: 0.6;' : ''}">${date}</span>
                         </label>
                       `;
@@ -2626,7 +2626,7 @@
                 </div>
                 <div style="margin-bottom:20px;">
                   <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Phone Number (for calls or texts) *</label>
-                  <input type="tel" required id="signupPhone" placeholder="(808) 555-1234" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
+                  <input type="tel" required id="signupPhone" placeholder="(808) 555-1234" pattern="[\\(]?\\d{3}[\\)]?[\\s.\\-]?\\d{3}[\\s.\\-]?\\d{4}" title="Please enter a valid 10-digit phone number, e.g. (808) 555-1234" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
                 </div>
                 <div style="margin-bottom:20px;">
                   <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Preferred Method of Contact *</label>
@@ -2973,7 +2973,7 @@
             <label style="display: block; color: var(--primary-blue); font-weight: 600; margin-bottom: 0.5rem; font-size: 0.95rem;">
               Phone Number
             </label>
-            <input type="tel" id="requestPhone" placeholder="(808) 555-1234" style="
+            <input type="tel" id="requestPhone" placeholder="(808) 555-1234" pattern="\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}" title="Please enter a valid 10-digit phone number, e.g. (808) 555-1234" style="
               width: 100%;
               padding: 12px;
               border: 1px solid #D1D5DB;

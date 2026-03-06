@@ -686,7 +686,7 @@
         subject: document.getElementById('app-subject').value,
         notes: document.getElementById('app-notes').value || '',
         opportunityId: opportunityId,
-        submittedAt: new Date().toISOString(),
+        submittedAt: firebase.firestore.FieldValue.serverTimestamp(),
         status: 'new'
       };
 

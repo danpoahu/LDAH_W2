@@ -860,7 +860,7 @@
                 
                 <div class="form-group">
                     <label>Phone</label>
-                    <input type="tel" id="providerPhone" placeholder="(808) 000-0000">
+                    <input type="tel" id="providerPhone" placeholder="(808) 000-0000" pattern="\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}" title="Please enter a valid 10-digit phone number, e.g. (808) 555-1234">
                 </div>
                 
                 <div class="form-group">
@@ -989,6 +989,12 @@
             }
             document.getElementById('providerModal').classList.remove('active');
             document.body.style.overflow = 'auto';
+            // Reset form and hide thank-you screen so reopening shows a fresh form
+            document.getElementById('providerForm').reset();
+            document.getElementById('providerForm').style.display = '';
+            document.getElementById('thankYouScreen').classList.remove('active');
+            document.getElementById('submitBtn').disabled = false;
+            document.getElementById('submitBtn').textContent = 'Submit Request';
         }
 
         // Handle form submission
