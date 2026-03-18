@@ -1788,7 +1788,7 @@
                             <p><strong>Email:</strong> <a href="mailto:evelyn.claros1@gmail.com">evelyn.claros1@gmail.com</a></p>
                             <p><strong>Address:</strong> DNA Building 238 Archbishop Flores St. Suite 304, Hagatna, Guam 96910</p>
                         </div>
-                        <div class="contact-card secondary">
+                        <div id="pacific-guamContact2" class="contact-card secondary">
                             <h4>Jo Blas</h4>
                             <p><strong>Phone:</strong> <a href="tel:+16714750568">(671) 475-0568</a></p>
                             <p><strong>Email:</strong> <a href="mailto:joblas67@gmail.com">joblas67@gmail.com</a></p>
@@ -2263,7 +2263,7 @@
             const photos = [];
 
             // Text fields — About, Contact, Support (and FSM has fsmContacts instead)
-            ['About', 'Contact', 'Support'].forEach(suffix => {
+            ['About', 'Contact', 'Contact2', 'Support'].forEach(suffix => {
                 const id = prefix + suffix;
                 if (document.getElementById(id)) text.push(id);
             });
