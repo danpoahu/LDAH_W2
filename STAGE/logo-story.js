@@ -81,13 +81,13 @@
         // Staggered paragraph reveals with shimmer
         setTimeout(function () {
             texts[0].classList.add('reveal', 'shimmer');
-        }, 400);
+        }, 800);
         setTimeout(function () {
             texts[1].classList.add('reveal', 'shimmer');
-        }, 1600);
+        }, 3000);
 
-        // Auto-dismiss after 12 seconds
-        var autoDismiss = setTimeout(function () { dismissCinematic(logo); }, 12000);
+        // Auto-dismiss after 16 seconds
+        var autoDismiss = setTimeout(function () { dismissCinematic(logo); }, 16000);
 
         // Click overlay or card to dismiss
         function onDismiss(e) {

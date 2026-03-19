@@ -3,7 +3,7 @@
 .logo-story-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.55);
+    background: rgba(0, 0, 0, 0.72);
     z-index: 9998;
     opacity: 0;
     transition: opacity 0.6s ease;
@@ -93,7 +93,7 @@
     color: #1E293B;
     opacity: 0;
     transform: translateY(8px);
-    transition: opacity 0.8s ease, transform 0.8s ease;
+    transition: opacity 1.5s ease, transform 1.5s ease;
 }
 
 .logo-story-text.reveal {
@@ -121,7 +121,7 @@
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
-    animation: shimmerSweep 3s ease-in-out 1;
+    animation: shimmerSweep 5s ease-in-out 1;
 }
 
 @keyframes shimmerSweep {
