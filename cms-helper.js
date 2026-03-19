@@ -90,10 +90,43 @@
     }
   ];
 
+  /* ---- Detect which page we're on ---- */
+  var isCmsPage = window.location.pathname.indexOf("cms.html") !== -1 ||
+                  document.title.indexOf("CMS") !== -1;
+
+  /* ---- CMS-specific Q&A entries (added when on cms.html) ---- */
+  if (isCmsPage) {
+    qaCache.push(
+      { patterns: ["team", "add team", "team member", "staff"],
+        answer: "To manage team members: click the Team tab, then use '+ Add Team Member'. Fill in name, title, bio, and photo. Drag cards to reorder. Changes appear on the Who We Are page." },
+      { patterns: ["board", "board member", "director", "directors"],
+        answer: "To manage the Board: click the Board tab, then use '+ Add Board Member'. Same fields as Team — name, title, bio, photo. Drag to reorder. Shows on the Who We Are page." },
+      { patterns: ["gallery", "photo", "photos", "image", "upload"],
+        answer: "Gallery 1 shows on Who We Are. Gallery 2 shows on the Volunteer page. Click the tab, use '+ Add Photo', upload an image (max 5 MB), add a caption, and Save. Drag cards to reorder." },
+      { patterns: ["resource", "resources", "add resource", "community resource"],
+        answer: "To manage resources: click the Resources tab, use '+ Add Resource' to add a title, description, URL, and category. Use the search bar to filter. Changes show on the Resources page." },
+      { patterns: ["faq", "frequently asked", "question", "category", "categories"],
+        answer: "FAQ has two sub-tabs: Categories and FAQ Items. First create categories (e.g. 'IEP Process'), then add FAQ items assigned to those categories. FAQs display on the Special Education page." },
+      { patterns: ["event", "events", "one-time", "ongoing", "program", "signup"],
+        answer: "Events has two modes: One-Time Events and Ongoing Programs. One-time events are single dates. Ongoing programs recur on a schedule — parents see the next 30 days when signing up." },
+      { patterns: ["volunteer", "opportunity", "application", "applications"],
+        answer: "Volunteers has two sub-tabs: Opportunities (what you're recruiting for) and Applications (who signed up). You can filter by status and export to CSV." },
+      { patterns: ["data", "provider", "pledge", "contact message", "submission"],
+        answer: "The Data tab shows website form submissions: Provider Requests, Anti-Bullying Pledges, Calendar Requests, and Contact Messages. Each has status filters and CSV export." },
+      { patterns: ["export", "csv", "download", "spreadsheet"],
+        answer: "Most tabs have an 'Export CSV' button that downloads the data as a spreadsheet. Look for the '📥 Export CSV' button in Resources, FAQ, Events, Volunteers, and Data sections." },
+      { patterns: ["drag", "reorder", "order", "move", "sort"],
+        answer: "To reorder items: click and hold a card, then drag it to the new position. The new order saves automatically. Works for Team, Board, Gallery, Resources, and FAQ items." },
+      { patterns: ["page", "pages", "page editor", "edit page"],
+        answer: "To edit page content (hero text, descriptions, photos), go to the Pages tab and click 'Open Page Editor'. That opens the visual editor where you click directly on text to edit it." }
+    );
+  }
+
   /* ---- State ---- */
   var chatHistory = []; // { role: "user"|"bot", text: "" }
   var panelOpen = false;
   var infoBubblesInitialized = false;
+  var cmsInfoBubblesInitialized = false;
 
   /* ===========================================================
      DOM Construction — builds all widget HTML dynamically
@@ -126,7 +159,7 @@
 
     var title = document.createElement("span");
     title.className = "cms-chat-header-title";
-    title.textContent = "LDAH Page Editor Help";
+    title.textContent = isCmsPage ? "LDAH CMS Help" : "LDAH Page Editor Help";
 
     var closeBtn = document.createElement("button");
     closeBtn.className = "cms-chat-close";
@@ -141,12 +174,9 @@
     var quickWrap = document.createElement("div");
     quickWrap.className = "cms-quick-actions";
 
-    var quickItems = [
-      "How to edit text",
-      "How to change a photo",
-      "Edit island contacts",
-      "Formatting tips"
-    ];
+    var quickItems = isCmsPage
+      ? ["How to add team members", "Managing FAQ", "Events & signups", "Export data to CSV"]
+      : ["How to edit text", "How to change a photo", "Edit island contacts", "Formatting tips"];
 
     for (var q = 0; q < quickItems.length; q++) {
       var qb = document.createElement("button");
@@ -217,7 +247,9 @@
       panel.classList.add("open");
       // Show greeting if first open
       if (chatHistory.length === 0) {
-        appendBotMessage("Hi! I'm your Page Editor helper. What would you like to know?");
+        appendBotMessage(isCmsPage
+          ? "Hi! I'm your CMS helper. Ask me about managing team, board, gallery, FAQ, events, volunteers, resources, or data."
+          : "Hi! I'm your Page Editor helper. What would you like to know?");
       }
       // Focus the input
       var input = document.getElementById("cmsChatInput");
@@ -295,8 +327,13 @@
     return null;
   }
 
-  /** Detect the current page from the sidebar */
+  /** Detect the current page/tab context */
   function getCurrentPageContext() {
+    if (isCmsPage) {
+      var activeTab = document.querySelector(".tab.active, .tab[style*='background']");
+      if (activeTab) return "CMS > " + activeTab.textContent.trim();
+      return "CMS dashboard";
+    }
     var activeBtn = document.querySelector(".side-btn.active");
     if (activeBtn) {
       return activeBtn.textContent.trim();
@@ -577,6 +614,114 @@
     infoBubblesInitialized = true;
   }
 
+  /**
+   * Initialize info bubbles on CMS tab headings.
+   * Called when cms.html is detected.
+   */
+  function initCmsInfoBubbles() {
+    // Info bubbles are baked into cms.html — skip dynamic injection
+    return;
+    if (cmsInfoBubblesInitialized) return;
+
+    // Team tab
+    var teamH2 = document.querySelector("#team-tab .content-section h2");
+    addInfoBubble(teamH2,
+      "Add team members with photo, name, title, and bio. Drag cards to reorder. Changes show on the Who We Are page.");
+
+    // Board tab
+    var boardH2 = document.querySelector("#board-tab .content-section h2");
+    addInfoBubble(boardH2,
+      "Add board members with the same fields as Team. Drag to reorder. Shows on the Who We Are page under Board of Directors.");
+
+    // Gallery tab
+    var galleryH2 = document.querySelector("#gallery-tab .content-section h2");
+    addInfoBubble(galleryH2,
+      "Upload photos (max 5 MB each) with optional captions. Drag cards to reorder. These display on the Who We Are page gallery section.");
+
+    // Gallery 2 tab
+    var gallery2H2 = document.querySelector("#gallery2-tab .content-section h2");
+    addInfoBubble(gallery2H2,
+      "Gallery 2 photos appear on the Volunteer page. Same controls as Gallery 1 — upload, caption, drag to reorder.");
+
+    // Resources tab
+    var resourcesH2 = document.querySelector("#resources-tab .content-section h2");
+    addInfoBubble(resourcesH2,
+      "Add community resources with title, description, URL, and category. Use the search bar to find specific resources. Displayed on the Resources page.");
+
+    // FAQ tab
+    var faqH2 = document.querySelector("#faq-tab .content-section h2");
+    addInfoBubble(faqH2,
+      "Step 1: Create categories first (e.g. 'IEP Process', 'Accommodations'). Step 2: Switch to FAQ Items and add questions assigned to a category. FAQs display on the Special Education page grouped by category. You can reorder, archive, and export to CSV.");
+
+    // FAQ sub-tab buttons
+    var catSubBtn = document.querySelector("[data-subtab='categories']");
+    if (catSubBtn) {
+      addInfoBubble(catSubBtn,
+        "Categories organize your FAQs into groups. Create categories BEFORE adding FAQ items. Each category has a name, description, and icon. Drag to reorder how they appear on the site.");
+    }
+    var faqSubBtn = document.querySelector("[data-subtab='faqs']");
+    if (faqSubBtn) {
+      addInfoBubble(faqSubBtn,
+        "Each FAQ item has a question, answer, and is assigned to one category. Use the category filter to find specific items. Toggle 'Show Archived' to see hidden items. Export all items to CSV for records.");
+    }
+
+    // Events tab - One-Time
+    var eventsH2 = document.querySelector("#eventsSubPanel h2");
+    addInfoBubble(eventsH2,
+      "Create one-time events with date, time, location, and description. Visitors can sign up from the Events page. Click an event card to view who signed up.");
+
+    // Events tab - Ongoing
+    var ongoingH2 = document.querySelector("#ongoingSubPanel h2");
+    addInfoBubble(ongoingH2,
+      "Ongoing programs recur on a schedule (e.g. every Tuesday). Parents see the next 30 days of sessions when signing up. Great for recurring programs like Next Gen Connect.");
+
+    // Volunteers tab
+    var volH2 = document.querySelector("#volunteers-tab .content-section h2");
+    addInfoBubble(volH2,
+      "Create volunteer opportunities, then view applications in the Applications sub-tab. Filter by status (New, Contacted, Interviewing, Accepted, Declined) and export to CSV.");
+
+    // Volunteer sub-tab buttons
+    var oppSubBtn = document.querySelector("[data-subtab='opportunities']");
+    if (oppSubBtn) {
+      addInfoBubble(oppSubBtn,
+        "Create and manage volunteer positions. Each opportunity has a title, description, requirements, and time commitment. Visitors apply from the Volunteer page.");
+    }
+    var appSubBtn = document.querySelector("[data-subtab='applications']");
+    if (appSubBtn) {
+      addInfoBubble(appSubBtn,
+        "View all volunteer applications. Change status as you process them: New → Contacted → Interviewing → Accepted/Declined. Export to CSV for your records.");
+    }
+
+    // Data tab
+    var dataH2 = document.querySelector("#data-tab .content-section h2");
+    addInfoBubble(dataH2,
+      "View all website form submissions in one place. Use the sub-tabs to switch between Provider Requests, Anti-Bullying Pledges, Calendar Requests, and Contact Messages. Each has status filters and CSV export.");
+
+    // Data sub-tabs
+    var provSubBtn = document.querySelector("[data-subtab='providers']");
+    if (provSubBtn) {
+      addInfoBubble(provSubBtn,
+        "Provider listing requests from organizations wanting to be added to the Resources directory. Track status: New → Contacted → In Progress → Completed or Archived.");
+    }
+    var pledgeSubBtn = document.querySelector("[data-subtab='pledges']");
+    if (pledgeSubBtn) {
+      addInfoBubble(pledgeSubBtn,
+        "Anti-bullying pledges submitted from the Community page. Mark as Viewed or Acknowledged. Use 'Mark All Viewed' for bulk updates.");
+    }
+    var eventReqSubBtn = document.querySelector("[data-subtab='eventRequests']");
+    if (eventReqSubBtn) {
+      addInfoBubble(eventReqSubBtn,
+        "Calendar event requests from visitors who want LDAH to attend or host events. Track through: Pending → Reviewed → Approved → Scheduled → Completed.");
+    }
+    var contactSubBtn = document.querySelector("[data-subtab='contacts']");
+    if (contactSubBtn) {
+      addInfoBubble(contactSubBtn,
+        "Contact form messages from the website. Mark as New, Read, or Replied to track response status.");
+    }
+
+    cmsInfoBubblesInitialized = true;
+  }
+
   /* ===========================================================
      Auto-initialization
      =========================================================== */
@@ -635,13 +780,18 @@
     }
 
     // Also try to init info bubbles after a delay (panel may already exist in DOM)
-    setTimeout(initInfoBubbles, 2000);
+    if (!isCmsPage) {
+      // Page editor: inject info bubbles dynamically
+      setTimeout(initInfoBubbles, 2000);
+    }
+    // CMS page: info bubbles are baked into the HTML directly
   }
 
   /* ---- Expose global functions for external use ---- */
   window.cmsHelper = {
     addInfoBubble: addInfoBubble,
     initInfoBubbles: initInfoBubbles,
+    initCmsInfoBubbles: initCmsInfoBubbles,
     openChat: openPanel,
     sendMessage: sendMessage
   };
