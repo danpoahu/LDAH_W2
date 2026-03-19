@@ -106,17 +106,15 @@
 }
 
 
-/* Blue logo watermark behind text */
-.logo-story-card::after {
-    content: '';
+/* Quilt watermark image inside card */
+.logo-story-watermark {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 60%;
-    height: 80%;
-    background: url(logo_blue.png) no-repeat center center;
-    background-size: contain;
+    width: 85%;
+    max-height: 90%;
+    object-fit: contain;
     opacity: 0.12;
     pointer-events: none;
     z-index: 0;

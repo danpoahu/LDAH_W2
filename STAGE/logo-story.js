@@ -31,6 +31,7 @@
         card = document.createElement('div');
         card.className = 'logo-story-card';
         card.innerHTML =
+            '<img src="logo_quilt.png" alt="" class="logo-story-watermark">' +
             '<div class="logo-story-title">Our Logo Story</div>' +
             '<p class="logo-story-text" data-p="1">' + PARAGRAPH_1 + '</p>' +
             '<p class="logo-story-text" data-p="2">' + PARAGRAPH_2 + '</p>' +
