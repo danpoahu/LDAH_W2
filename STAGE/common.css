@@ -36,35 +36,11 @@ nav {
     align-items: center;
     gap: 1rem;
     text-decoration: none;
-    position: relative;
 }
 
 .logo-img {
     width: 110px !important;
     height: 110px !important;
-    opacity: 0 !important;
-}
-
-.logo-container::before {
-    content: '';
-    display: block;
-    width: 110px;
-    height: 110px;
-    flex-shrink: 0;
-    background-color: #0891B2;
-    -webkit-mask-image: url(https://danpoahu.github.io/LDAH/logo_transparent.png);
-    mask-image: url(https://danpoahu.github.io/LDAH/logo_transparent.png);
-    -webkit-mask-size: contain;
-    mask-size: contain;
-    -webkit-mask-repeat: no-repeat;
-    mask-repeat: no-repeat;
-    -webkit-mask-position: center;
-    mask-position: center;
-    position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    pointer-events: none;
 }
 
 .logo-text {
