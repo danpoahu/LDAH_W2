@@ -1864,7 +1864,7 @@
         <button class="btn-logout" onclick="handleLogout()">Logout</button>
       </div>
     </div>
-    <div style="text-align: right; padding: 2px 20px 0; font-size: 0.7rem; color: #999;">v26</div>
+    <div style="text-align: right; padding: 2px 20px 0; font-size: 0.7rem; color: #999;">v27</div>
     
     <div class="cms-container">
       <!-- Tabs -->
@@ -1999,12 +1999,23 @@
       <div class="tab-content" id="faq-tab">
         <div class="content-section">
           <h2>❓ Manage FAQ</h2>
-          <p style="color: var(--text-light); margin-bottom: 1.5rem;">
-            Manage FAQ categories and questions. These appear on the Special Education page.
-          </p>
-          
+
+          <!-- Detailed FAQ Instructions -->
+          <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; font-size: 0.9rem; line-height: 1.7; color: #1e3a5f;">
+            <strong style="display: block; margin-bottom: 0.5rem; font-size: 1rem; color: var(--primary-blue);">How FAQ Management Works</strong>
+            <p style="margin: 0 0 0.75rem 0;">FAQs display on the <strong>Special Education</strong> page, grouped by category. Follow these steps:</p>
+            <ol style="margin: 0; padding-left: 1.5rem;">
+              <li style="margin-bottom: 0.5rem;"><strong>Create Categories first</strong> — Click the <em>📁 Categories</em> sub-tab, then <em>+ Add Category</em>. Give each category a name (e.g. "IEP Process", "Accommodations", "Transition Planning"), a short description, and an optional icon. Categories determine how FAQs are grouped on the website.</li>
+              <li style="margin-bottom: 0.5rem;"><strong>Add FAQ Items</strong> — Switch to the <em>❓ FAQ Items</em> sub-tab and click <em>+ Add FAQ</em>. Enter the question and answer, then assign it to one of your categories from the dropdown. The answer supports basic formatting.</li>
+              <li style="margin-bottom: 0.5rem;"><strong>Reorder items</strong> — Drag and drop cards within each category to control the display order on the site.</li>
+              <li style="margin-bottom: 0.5rem;"><strong>Archive instead of delete</strong> — If a question is no longer relevant, archive it rather than deleting. Archived items are hidden from the site but can be restored later. Toggle "Show Archived" to view them.</li>
+              <li style="margin-bottom: 0.5rem;"><strong>Filter by category</strong> — Use the category dropdown in the FAQ Items sub-tab to show only items in a specific category. Helpful when you have many FAQs.</li>
+              <li><strong>Export to CSV</strong> — Click 📥 Export CSV in either sub-tab to download a spreadsheet of all categories or FAQ items for your records.</li>
+            </ol>
+          </div>
+
           <div class="success-message" id="faqSuccess">Changes saved successfully!</div>
-          
+
           <!-- Sub-tabs for Categories/FAQs -->
           <div class="sub-tabs" style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
             <button class="sub-tab active" data-subtab="categories" onclick="switchFaqSubTab('categories')">📁 Categories</button>
@@ -9525,5 +9536,9 @@
       }
     });
   </script>
+
+  <!-- CMS Helper — chat widget + info bubbles -->
+  <link rel="stylesheet" href="cms-helper.css?v=27">
+  <script src="cms-helper.js?v=27"></script>
 </body>
 </html>
