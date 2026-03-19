@@ -16,10 +16,13 @@
 }
 
 /* Keep the logo bright during cinematic */
-.logo-story-spotlight .logo-img {
-    position: relative;
+.logo-story-spotlight {
     z-index: 9999;
-    filter: brightness(0) saturate(100%) invert(40%) sepia(90%) saturate(800%) hue-rotate(155deg) brightness(95%) contrast(95%) drop-shadow(0 0 20px rgba(251, 191, 36, 0.5));
+    position: relative;
+}
+
+.logo-story-spotlight::before {
+    filter: drop-shadow(0 0 20px rgba(251, 191, 36, 0.5));
     transition: filter 0.6s ease;
 }
 
