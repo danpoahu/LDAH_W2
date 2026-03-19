@@ -93,20 +93,27 @@
     
     .logo-img { width: 88px; height: 88px; }
 
-    /* Home page: giant logo bleeds over hero */
-    .logo-container .logo-img {
-        width: 250px !important;
-        height: 250px !important;
-        position: absolute;
-        top: -10px;
-        left: 0;
-        z-index: 1001;
-    }
+    /* Home page: giant logo bleeds over hero, shrinks on scroll */
     .logo-container {
-        width: 110px;
-        height: 88px;
         position: relative;
         flex-shrink: 0;
+        width: 88px;
+        height: 88px;
+    }
+    .logo-container .logo-img {
+        position: absolute;
+        top: -15px;
+        left: -30px;
+        z-index: 1001;
+        width: 250px !important;
+        height: 250px !important;
+        transition: width 0.35s ease, height 0.35s ease, top 0.35s ease, left 0.35s ease;
+    }
+    .logo-container .logo-img.logo-docked {
+        width: 110px !important;
+        height: 110px !important;
+        top: -12px;
+        left: 0;
     }
     
     .nav-links { 
@@ -747,5 +754,26 @@
 <link rel="stylesheet" href="logo-story.css">
 <script src="logo-story.js"></script>
 <script src="analytics-tracker.js"></script>
+<script>
+// Home page logo: big at top, shrinks into nav on scroll
+(function() {
+    var threshold = 150;
+    var docked = false;
+    function checkLogo() {
+        var logo = document.querySelector('.logo-img');
+        if (!logo) return;
+        if (window.scrollY > threshold && !docked) {
+            logo.classList.add('logo-docked');
+            docked = true;
+        } else if (window.scrollY <= threshold && docked) {
+            logo.classList.remove('logo-docked');
+            docked = false;
+        }
+    }
+    window.addEventListener('scroll', checkLogo, { passive: true });
+    // Check on load in case page is already scrolled
+    setTimeout(checkLogo, 500);
+})();
+</script>
 </body>
 </html>
