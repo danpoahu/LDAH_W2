@@ -15,30 +15,46 @@
     pointer-events: all;
 }
 
-/* Spotlight sweep */
-.logo-story-overlay::before {
+/* Spotlight sweeps — two crossing searchlights */
+.logo-story-overlay::before,
+.logo-story-overlay::after {
     content: '';
     position: fixed;
     bottom: -20%;
-    left: 50%;
-    width: 200px;
+    width: 180px;
     height: 150vh;
     background: radial-gradient(ellipse at bottom, rgba(251, 191, 36, 0.12) 0%, rgba(251, 191, 36, 0.04) 30%, transparent 60%);
     transform-origin: bottom center;
-    animation: spotlightSweep 4s ease-in-out infinite;
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.8s ease 0.3s;
 }
 
-.logo-story-overlay.active::before {
+.logo-story-overlay::before {
+    left: 30%;
+    animation: spotlightLeft 6s ease-in-out infinite;
+}
+
+.logo-story-overlay::after {
+    left: 70%;
+    animation: spotlightRight 6s ease-in-out infinite;
+}
+
+.logo-story-overlay.active::before,
+.logo-story-overlay.active::after {
     opacity: 1;
 }
 
-@keyframes spotlightSweep {
-    0% { transform: translateX(-50%) rotate(-25deg); }
-    50% { transform: translateX(-50%) rotate(25deg); }
-    100% { transform: translateX(-50%) rotate(-25deg); }
+@keyframes spotlightLeft {
+    0% { transform: translateX(-50%) rotate(-30deg); }
+    50% { transform: translateX(-50%) rotate(30deg); }
+    100% { transform: translateX(-50%) rotate(-30deg); }
+}
+
+@keyframes spotlightRight {
+    0% { transform: translateX(-50%) rotate(30deg); }
+    50% { transform: translateX(-50%) rotate(-30deg); }
+    100% { transform: translateX(-50%) rotate(30deg); }
 }
 
 /* Keep the logo bright during cinematic */
