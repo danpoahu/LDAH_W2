@@ -920,6 +920,8 @@
                             <button type="button" class="fmt-btn" onclick="fmtWrap('h4')" title="Heading">H</button>
                             <button type="button" class="fmt-btn fmt-sm" onclick="fmtWrap('p')" title="Paragraph">&para;</button>
                             <button type="button" class="fmt-btn fmt-sm" onclick="fmtInsert('&lt;br&gt;')" title="Line Break">BR</button>
+                            <span class="fmt-sep"></span>
+                            <button type="button" class="fmt-btn fmt-sm" onclick="fmtClearFormat()" title="Remove all formatting from selected text" style="color:#DC2626;">Tx</button>
                         </div>
                         <div class="fmt-row">
                             <span class="fmt-row-label">Color:</span>
@@ -929,6 +931,7 @@
                             <button type="button" class="fmt-swatch" style="background:#0891B2" onclick="fmtApplyColor('#0891B2')" title="Ocean Teal"></button>
                             <button type="button" class="fmt-swatch" style="background:#F97316" onclick="fmtApplyColor('#F97316')" title="Sunset Orange"></button>
                             <button type="button" class="fmt-swatch" style="background:#DC2626" onclick="fmtApplyColor('#DC2626')" title="Red"></button>
+                            <button type="button" class="fmt-swatch" style="background:#FFFFFF; box-shadow: 0 0 0 1px #94a3b8;" onclick="fmtApplyColor('#FFFFFF')" title="White"></button>
                             <span class="fmt-sep"></span>
                             <select id="fmtSize" onchange="fmtApplySize(this.value)" class="fmt-size-select" title="Font Size">
                                 <option value="">Size</option>
@@ -952,6 +955,7 @@
                             <div class="fmt-cheatsheet-item"><span class="fmt-cheatsheet-icon">BR</span><span><strong>Line Break</strong> — starts a new line</span></div>
                             <div class="fmt-cheatsheet-item"><span class="fmt-cheatsheet-icon" style="background:linear-gradient(135deg,#1E293B,#0891B2,#F97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:700;">&#9679;</span><span><strong>Color</strong> — pick an approved brand color</span></div>
                             <div class="fmt-cheatsheet-item"><span class="fmt-cheatsheet-icon" style="font-size:0.65rem;font-weight:600;">Size</span><span><strong>Font Size</strong> — Small through X-Large</span></div>
+                            <div class="fmt-cheatsheet-item"><span class="fmt-cheatsheet-icon" style="color:#DC2626;font-weight:700;font-size:0.75rem;">Tx</span><span><strong>Clear Format</strong> — strips all markup from selected text</span></div>
                         </div>
                     </div>
                 </div>
@@ -1021,6 +1025,12 @@
         function fmtInsert(openTag) {
             fmtFocus();
             document.execCommand('insertHTML', false, '<br>');
+        }
+        function fmtClearFormat() {
+            fmtFocus();
+            var sel = window.getSelection();
+            if (!sel.rangeCount || sel.isCollapsed) { alert('Select some text first, then click Tx to clear formatting.'); return; }
+            document.execCommand('removeFormat', false, null);
         }
         function fmtApplyColor(color) {
             fmtFocus();
