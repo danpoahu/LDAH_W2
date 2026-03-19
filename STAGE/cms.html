@@ -1831,6 +1831,59 @@
       0% { background: #d1fae5; }
       100% { background: #fafafa; }
     }
+
+    /* Info bubble (i) circles */
+    .ib {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #0891B2;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      font-style: italic;
+      line-height: 20px;
+      text-align: center;
+      cursor: pointer;
+      vertical-align: middle;
+      margin-left: 8px;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: background 0.15s, transform 0.15s;
+      position: relative;
+    }
+    .ib:hover {
+      background: #0e7490;
+      transform: scale(1.15);
+    }
+    .ib-pop {
+      position: fixed;
+      background: #fff;
+      max-width: 360px;
+      min-width: 220px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+      z-index: 9999;
+      font-size: 0.88rem;
+      line-height: 1.6;
+      color: #334155;
+      font-style: normal;
+      font-weight: 400;
+      pointer-events: auto;
+    }
+    .ib-pop::after {
+      content: "";
+      position: absolute;
+      bottom: -7px;
+      left: 20px;
+      width: 14px;
+      height: 14px;
+      background: #fff;
+      transform: rotate(45deg);
+      box-shadow: 3px 3px 6px rgba(0,0,0,0.06);
+    }
   </style>
   <!-- jsPDF for PDF export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -1885,7 +1938,7 @@
       <!-- Team Tab -->
       <div class="tab-content" id="team-tab">
         <div class="content-section">
-          <h2>Manage Our Team</h2>
+          <h2>Manage Our Team <span class="ib" onclick="event.stopPropagation(); ibShow(this, 'Add team members with photo, name, title, and bio. Drag cards to reorder. Changes show on the <b>Who We Are</b> page.')">i</span></h2>
           <p style="color: var(--text-light); margin-bottom: 1.5rem;">
             Add, edit, or remove team members. Drag and drop cards to reorder. Changes appear on the Who We Are page.
           </p>
@@ -1906,7 +1959,7 @@
       <!-- Board Tab -->
       <div class="tab-content" id="board-tab">
         <div class="content-section">
-          <h2>Manage Board of Directors</h2>
+          <h2>Manage Board of Directors <span class="ib" onclick="event.stopPropagation(); ibShow(this, 'Add board members with photo, name, title, and bio. Drag cards to reorder. Shows on the <b>Who We Are</b> page under Board of Directors.')">i</span></h2>
           <p style="color: var(--text-light); margin-bottom: 1.5rem;">
             Add, edit, or remove board members. Drag and drop cards to reorder. Changes appear on the Who We Are page.
           </p>
@@ -1927,7 +1980,7 @@
       <!-- Gallery Tab -->
       <div class="tab-content" id="gallery-tab">
         <div class="content-section">
-          <h2>Manage Photo Gallery</h2>
+          <h2>Manage Photo Gallery <span class="ib" onclick="event.stopPropagation(); ibShow(this, 'Upload photos (max 5 MB each) with optional captions. Drag cards to reorder. These display on the <b>Who We Are</b> page gallery section.')">i</span></h2>
           <p style="color: var(--text-light); margin-bottom: 1.5rem;">
             Add, edit, or remove photos from the gallery. Drag and drop cards to reorder. Changes appear on the Who We Are page.
           </p>
@@ -1949,7 +2002,7 @@
       <!-- Gallery 2 Tab -->
       <div class="tab-content" id="gallery2-tab">
         <div class="content-section">
-          <h2>Manage Photo Gallery 2</h2>
+          <h2>Manage Photo Gallery 2 <span class="ib" onclick="event.stopPropagation(); ibShow(this, 'Gallery 2 photos appear on the <b>Volunteer</b> page. Same controls as Gallery 1 &mdash; upload, caption, drag to reorder.')">i</span></h2>
           <p style="color: var(--text-light); margin-bottom: 1.5rem;">
             Add, edit, or remove photos from gallery 2. Drag and drop cards to reorder. Changes appear on the Volunteer page.
           </p>
@@ -1971,7 +2024,7 @@
       <!-- Resources Tab -->
       <div class="tab-content" id="resources-tab">
         <div class="content-section">
-          <h2>Manage Resources</h2>
+          <h2>Manage Resources <span class="ib" onclick="event.stopPropagation(); ibShow(this, 'Add community resources with title, description, URL, and category. Use the search bar to filter. Displayed on the <b>Resources</b> page for families to find support services.')">i</span></h2>
           <p style="color: var(--text-light); margin-bottom: 1.5rem;">
             Add, edit, or remove community resources. These appear on the Resources page for families to find support services.
           </p>
@@ -1998,7 +2051,7 @@
       <!-- FAQ Tab -->
       <div class="tab-content" id="faq-tab">
         <div class="content-section">
-          <h2>❓ Manage FAQ</h2>
+          <h2>❓ Manage FAQ <span class="ib" onclick="event.stopPropagation(); ibShow(this, '&lt;b&gt;Step 1:&lt;/b&gt; Create categories first (e.g. IEP Process, Accommodations).&lt;br&gt;&lt;b&gt;Step 2:&lt;/b&gt; Switch to FAQ Items tab and add questions assigned to a category.&lt;br&gt;&lt;b&gt;Step 3:&lt;/b&gt; Drag to reorder. Archive old items instead of deleting.&lt;br&gt;FAQs display on the &lt;b&gt;Special Education&lt;/b&gt; page grouped by category.')">i</span></h2>
 
           <!-- Detailed FAQ Instructions -->
           <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; font-size: 0.9rem; line-height: 1.7; color: #1e3a5f;">
@@ -2018,8 +2071,8 @@
 
           <!-- Sub-tabs for Categories/FAQs -->
           <div class="sub-tabs" style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
-            <button class="sub-tab active" data-subtab="categories" onclick="switchFaqSubTab('categories')">📁 Categories</button>
-            <button class="sub-tab" data-subtab="faqs" onclick="switchFaqSubTab('faqs')">❓ FAQ Items</button>
+            <button class="sub-tab active" data-subtab="categories" onclick="switchFaqSubTab('categories')">📁 Categories <span class="ib" onclick="event.stopPropagation(); ibShow(this, 'Categories organize your FAQs into groups. Create categories &lt;b&gt;before&lt;/b&gt; adding FAQ items. Each has a name, description, and optional icon. Drag to reorder how they appear on the site.')">i</span></button>
+            <button class="sub-tab" data-subtab="faqs" onclick="switchFaqSubTab('faqs')">❓ FAQ Items <span class="ib" onclick="event.stopPropagation(); ibShow(this, 'Each FAQ has a question, answer, and is assigned to one category. Use the category filter to find specific items. Toggle &quot;Show Archived&quot; to see hidden items. Export to CSV for records.')">i</span></button>
           </div>
           
           <!-- Categories Sub-tab -->
@@ -2070,7 +2123,7 @@
 
           <!-- One-Time Events Panel -->
           <div id="eventsSubPanel">
-            <h2>Manage Events</h2>
+            <h2>Manage Events <span class="ib" onclick="event.stopPropagation(); ibShow(this, 'Create one-time events with date, time, location, and description. Visitors can sign up from the <b>Events</b> page. Click an event card to view who signed up.')">i</span></h2>
             <p style="color: var(--text-light); margin-bottom: 1.5rem;">
               Create and manage one-time events. View signups for each event.
             </p>
@@ -2084,7 +2137,7 @@
 
           <!-- Ongoing Programs Panel -->
           <div id="ongoingSubPanel" style="display:none;">
-            <h2>Ongoing Programs</h2>
+            <h2>Ongoing Programs <span class="ib" onclick="event.stopPropagation(); ibShow(this, 'Ongoing programs recur on a schedule (e.g. every Tuesday). Parents see the next 30 days of sessions when signing up. Great for recurring programs like Next Gen Connect.')">i</span></h2>
             <p style="color: var(--text-light); margin-bottom: 1.5rem;">
               Recurring programs (e.g. Next Gen Connect) with auto-computed session dates. Parents see the next 30 days of sessions when signing up.
             </p>
@@ -2101,7 +2154,7 @@
       <!-- Volunteers Tab -->
       <div class="tab-content" id="volunteers-tab">
         <div class="content-section">
-          <h2>Manage Volunteers</h2>
+          <h2>Manage Volunteers <span class="ib" onclick="event.stopPropagation(); ibShow(this, 'Create volunteer opportunities, then view applications in the Applications sub-tab. Filter by status (New, Contacted, Interviewing, Accepted, Declined) and export to CSV.')">i</span></h2>
           <p style="color: var(--text-light); margin-bottom: 1.5rem;">
             Manage volunteer opportunities and view applications.
           </p>
@@ -2110,10 +2163,11 @@
           
           <!-- Sub-tabs -->
           <div class="sub-tabs" style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
-            <button class="sub-tab active" data-subtab="opportunities" onclick="switchVolunteerSubTab('opportunities')">Opportunities</button>
+            <button class="sub-tab active" data-subtab="opportunities" onclick="switchVolunteerSubTab('opportunities')">Opportunities <span class="ib" onclick="event.stopPropagation(); ibShow(this, 'Create and manage volunteer positions. Each has a title, description, requirements, and time commitment. Visitors apply from the <b>Volunteer</b> page.')">i</span></button>
             <button class="sub-tab" data-subtab="applications" onclick="switchVolunteerSubTab('applications')">
               📨 Applications
               <span id="newApplicationsBadge" class="badge" style="display: none;"></span>
+              <span class="ib" onclick="event.stopPropagation(); ibShow(this, 'View all volunteer applications. Change status as you process: New &rarr; Contacted &rarr; Interviewing &rarr; Accepted/Declined. Export to CSV for records.')">i</span>
             </button>
           </div>
           
@@ -2153,7 +2207,7 @@
       <!-- Data Tab (Providers, Pledges, Event Requests) -->
       <div class="tab-content" id="data-tab">
         <div class="content-section">
-          <h2>📊 Form Submissions & Data</h2>
+          <h2>📊 Form Submissions & Data <span class="ib" onclick="event.stopPropagation(); ibShow(this, 'View all website form submissions in one place. Use the sub-tabs to switch between Provider Requests, Pledges, Calendar Requests, and Contact Messages. Each has status filters and CSV export.')">i</span></h2>
           <p style="color: var(--text-light); margin-bottom: 1.5rem;">
             View and manage form submissions from the website.
           </p>
@@ -2165,18 +2219,22 @@
             <button class="sub-tab active" data-subtab="providers" onclick="switchDataSubTab('providers')">
               🏢 Provider Requests
               <span id="newProvidersBadge" class="badge" style="display: none;"></span>
+              <span class="ib" onclick="event.stopPropagation(); ibShow(this, 'Provider listing requests from organizations wanting to be in the Resources directory. Track: New &rarr; Contacted &rarr; In Progress &rarr; Completed or Archived.')">i</span>
             </button>
             <button class="sub-tab" data-subtab="pledges" onclick="switchDataSubTab('pledges')">
               ✊ Anti-Bullying Pledges
               <span id="newPledgesBadge" class="badge" style="display: none;"></span>
+              <span class="ib" onclick="event.stopPropagation(); ibShow(this, 'Anti-bullying pledges submitted from the Community page. Mark as Viewed or Acknowledged. Use &quot;Mark All Viewed&quot; for bulk updates.')">i</span>
             </button>
             <button class="sub-tab" data-subtab="eventRequests" onclick="switchDataSubTab('eventRequests')">
               Calendar Requests
               <span id="newEventRequestsBadge" class="badge" style="display: none;"></span>
+              <span class="ib" onclick="event.stopPropagation(); ibShow(this, 'Event requests from visitors who want LDAH to attend or host events. Track: Pending &rarr; Reviewed &rarr; Approved &rarr; Scheduled &rarr; Completed.')">i</span>
             </button>
             <button class="sub-tab" data-subtab="contacts" onclick="switchDataSubTab('contacts')">
               Contact Messages
               <span id="newContactsBadge" class="badge" style="display: none;"></span>
+              <span class="ib" onclick="event.stopPropagation(); ibShow(this, 'Contact form messages from the website. Mark as New, Read, or Replied to track response status.')">i</span>
             </button>
           </div>
           
@@ -3344,6 +3402,30 @@
   </div>
 
   <script>
+    /* ---- Info bubble popover system ---- */
+    let _ibPop = null;
+    function ibShow(el, text) {
+      ibClose();
+      const pop = document.createElement('div');
+      pop.className = 'ib-pop';
+      pop.innerHTML = text;
+      document.body.appendChild(pop);
+      const r = el.getBoundingClientRect();
+      pop.style.left = Math.max(10, r.left - 10) + 'px';
+      pop.style.top = (r.top - 10) + 'px';
+      pop.style.transform = 'translateY(-100%)';
+      _ibPop = pop;
+      setTimeout(() => document.addEventListener('click', _ibOutside), 50);
+    }
+    function ibClose() {
+      if (_ibPop && _ibPop.parentNode) _ibPop.parentNode.removeChild(_ibPop);
+      _ibPop = null;
+      document.removeEventListener('click', _ibOutside);
+    }
+    function _ibOutside(e) {
+      if (_ibPop && !_ibPop.contains(e.target)) ibClose();
+    }
+
     // Firebase Configuration
     const firebaseConfig = {
       apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk",

@@ -778,12 +778,11 @@
     }
 
     // Also try to init info bubbles after a delay (panel may already exist in DOM)
-    if (isCmsPage) {
-      // On CMS page, init CMS bubbles once DOM is settled
-      setTimeout(initCmsInfoBubbles, 1500);
-    } else {
+    if (!isCmsPage) {
+      // Page editor: inject info bubbles dynamically
       setTimeout(initInfoBubbles, 2000);
     }
+    // CMS page: info bubbles are baked into the HTML directly
   }
 
   /* ---- Expose global functions for external use ---- */
