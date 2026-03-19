@@ -159,14 +159,13 @@
         // We need to prevent single-click from firing on double-click
         var clickTimer = null;
         logoContainer.addEventListener('click', function (e) {
+            e.preventDefault();
             if (isShowingCinematic) {
                 // During cinematic, click dismisses instead of navigating
-                e.preventDefault();
                 return;
             }
             // Delay single-click to detect double-click
             if (clickTimer) return; // Already waiting
-            e.preventDefault();
             clickTimer = setTimeout(function () {
                 clickTimer = null;
                 // Perform the navigation
