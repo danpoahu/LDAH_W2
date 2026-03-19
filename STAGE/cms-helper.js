@@ -540,35 +540,25 @@
   function initInfoBubbles() {
     if (infoBubblesInitialized) return;
 
+    // Panel header — add a help bubble right in the "Edit Field" header
+    var panelHead = document.querySelector(".panel-head h2");
+    if (panelHead) {
+      addInfoBubble(panelHead,
+        "Click any text or photo in the preview to edit it here. Use Save to publish changes or Cancel to discard.");
+    }
+
+    // Editor label — next to the "Editing: ..." label
+    var editorLabel = document.getElementById("lbl");
+    if (editorLabel) {
+      addInfoBubble(editorLabel,
+        "This shows which field you're currently editing. Make changes below and click Save when done.");
+    }
+
     // Formatting guide title
     var fmtTitle = document.querySelector(".fmt-cheatsheet-title");
     if (fmtTitle) {
       addInfoBubble(fmtTitle,
-        "Use Bold, Italic, Underline, Heading, Paragraph, and Line Break to format your text. Highlight text first, then click a button.");
-    }
-
-    // Photo edit section — add bubble to the "Current image:" label
-    var photoSection = document.getElementById("photoEditSection");
-    if (photoSection) {
-      var photoLabel = photoSection.querySelector("p");
-      if (photoLabel) {
-        addInfoBubble(photoLabel,
-          "Upload a new photo from your computer (max 5 MB, auto-compressed) or paste an image URL. Click Save when done.");
-      }
-    }
-
-    // Save button
-    var saveBtn = document.querySelector(".btn-save");
-    if (saveBtn) {
-      addInfoBubble(saveBtn,
-        "Save publishes your changes to the live website immediately. Visitors will see the update right away.");
-    }
-
-    // Cancel button
-    var cancelBtn = document.querySelector(".btn-cancel");
-    if (cancelBtn) {
-      addInfoBubble(cancelBtn,
-        "Cancel discards your changes. The content reverts to what it was before you started editing.");
+        "Highlight text first, then click a toolbar button: Bold (B), Italic (I), Underline (U), Heading (H), or change color/size.");
     }
 
     infoBubblesInitialized = true;
