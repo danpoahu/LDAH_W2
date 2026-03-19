@@ -1,0 +1,233 @@
+/* Logo Story — Tooltip + Cinematic Reveal */
+
+.logo-story-overlay {
+    position: fixed;
+    top: 0; right: 0; bottom: 0; left: 0;
+    background: rgba(0, 0, 0, 0.72);
+    z-index: 9998;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+    pointer-events: none;
+}
+
+.logo-story-overlay.active {
+    opacity: 1;
+    pointer-events: all;
+}
+
+/* Spotlight sweeps — two crossing searchlights */
+.logo-story-overlay::before,
+.logo-story-overlay::after {
+    content: '';
+    position: fixed;
+    bottom: -20%;
+    width: 180px;
+    height: 150vh;
+    background: radial-gradient(ellipse at bottom, rgba(251, 191, 36, 0.12) 0%, rgba(251, 191, 36, 0.04) 30%, transparent 60%);
+    transform-origin: bottom center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.8s ease 0.3s;
+}
+
+.logo-story-overlay::before {
+    left: 30%;
+    animation: spotlightLeft 6s ease-in-out infinite;
+}
+
+.logo-story-overlay::after {
+    left: 70%;
+    animation: spotlightRight 6s ease-in-out infinite;
+}
+
+.logo-story-overlay.active::before,
+.logo-story-overlay.active::after {
+    opacity: 1;
+}
+
+@keyframes spotlightLeft {
+    0% { transform: translateX(-50%) rotate(-30deg); }
+    50% { transform: translateX(-50%) rotate(30deg); }
+    100% { transform: translateX(-50%) rotate(-30deg); }
+}
+
+@keyframes spotlightRight {
+    0% { transform: translateX(-50%) rotate(30deg); }
+    50% { transform: translateX(-50%) rotate(-30deg); }
+    100% { transform: translateX(-50%) rotate(30deg); }
+}
+
+/* Keep the logo bright during cinematic */
+.logo-story-spotlight .logo-img {
+    position: relative;
+    z-index: 9999;
+    filter: drop-shadow(0 0 20px rgba(251, 191, 36, 0.5));
+    transition: filter 0.6s ease;
+}
+
+/* The tooltip card */
+.logo-story-card {
+    position: fixed;
+    z-index: 10000;
+    background: linear-gradient(145deg, #FFFBEB 0%, #FEF3C7 100%);
+    border: 2px solid rgba(251, 191, 36, 0.4);
+    border-radius: 16px;
+    padding: 1.75rem 2rem;
+    max-width: 420px;
+    width: 90vw;
+    box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.15),
+        0 0 40px rgba(251, 191, 36, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+    pointer-events: none;
+}
+
+.logo-story-card.visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: all;
+}
+
+/* Arrow pointing to logo */
+.logo-story-card::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: 32px;
+    width: 20px;
+    height: 20px;
+    background: #FFFBEB;
+    border-top: 2px solid rgba(251, 191, 36, 0.4);
+    border-left: 2px solid rgba(251, 191, 36, 0.4);
+    transform: rotate(45deg);
+}
+
+
+/* Quilt watermark image inside card */
+.logo-story-watermark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 85%;
+    max-height: 90%;
+    object-fit: contain;
+    opacity: 0.2;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.logo-story-title,
+.logo-story-text,
+.logo-story-hint {
+    position: relative;
+    z-index: 1;
+}
+
+.logo-story-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #0891B2;
+    margin-bottom: 0.75rem;
+}
+
+.logo-story-text {
+    font-family: 'Source Sans 3', -apple-system, sans-serif;
+    font-size: 1rem;
+    line-height: 1.7;
+    color: #1E293B;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 1.5s ease, transform 1.5s ease;
+}
+
+.logo-story-text.reveal {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.logo-story-text + .logo-story-text {
+    margin-top: 0.75rem;
+}
+
+/* Golden shimmer sweep — with fallback color for older browsers */
+.logo-story-text.shimmer {
+    color: #1E293B;
+    background: linear-gradient(
+        90deg,
+        #1E293B 0%,
+        #1E293B 40%,
+        #D97706 50%,
+        #FBBF24 55%,
+        #D97706 60%,
+        #1E293B 70%,
+        #1E293B 100%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shimmerSweep 5s ease-in-out 1;
+}
+
+/* If background-clip: text is not supported, text stays dark and readable */
+@supports not (background-clip: text) {
+    .logo-story-text.shimmer {
+        background: none;
+        -webkit-text-fill-color: initial;
+        color: #1E293B;
+    }
+}
+
+@keyframes shimmerSweep {
+    0% { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+}
+
+/* Hint text */
+.logo-story-hint {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-top: 1rem;
+    opacity: 0;
+    transition: opacity 0.5s ease 2s;
+    text-align: right;
+    font-style: italic;
+}
+
+.logo-story-card.visible .logo-story-hint {
+    opacity: 1;
+}
+
+/* Hover-only mode — simpler, no overlay */
+.logo-story-card.hover-mode {
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1), 0 0 20px rgba(251, 191, 36, 0.08);
+}
+
+.logo-story-card.hover-mode .logo-story-text {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.logo-story-card.hover-mode .logo-story-hint {
+    display: none;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+    .logo-story-card {
+        max-width: 92vw;
+        padding: 1.25rem 1.5rem;
+        left: 4vw !important;
+    }
+
+    .logo-story-card::before {
+        left: 24px;
+    }
+}
