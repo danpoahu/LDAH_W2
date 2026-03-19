@@ -21,6 +21,7 @@ nav {
     backdrop-filter: blur(10px);
     box-shadow: 0 2px 8px rgba(0, 78, 124, 0.1);
     overflow: visible;
+    height: 60px;
 }
 
 .nav-content {
@@ -30,7 +31,7 @@ nav {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    min-height: 60px;
+    height: 60px;
 }
 
 .logo-container {
@@ -40,14 +41,16 @@ nav {
     text-decoration: none;
     position: relative;
     z-index: 1001;
+    align-self: flex-start;
 }
 
 .logo-img {
     width: 250px !important;
     height: 250px !important;
-    margin-top: -10px;
+    margin-top: -5px;
     filter: none !important;
     opacity: 1 !important;
+    pointer-events: auto;
 }
 
 .logo-text {
