@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LDAH Firestore — Test Data Cleanup</title>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:#f1f5f9; color:#1e293b; padding:2rem; }
+  h1 { color:#004E7C; margin-bottom:0.5rem; }
+  .subtitle { color:#64748b; margin-bottom:2rem; }
+  .login-box { max-width:400px; margin:4rem auto; background:white; padding:2rem; border-radius:16px; box-shadow:0 4px 16px rgba(0,0,0,0.1); }
+  .login-box h2 { color:#004E7C; margin-bottom:1rem; }
+  .login-box input { width:100%; padding:0.75rem; border:2px solid #e2e8f0; border-radius:8px; margin-bottom:1rem; font-size:1rem; }
+  .login-box button { width:100%; padding:0.75rem; background:#004E7C; color:white; border:none; border-radius:8px; font-weight:600; font-size:1rem; cursor:pointer; }
+  .login-box button:hover { background:#003d61; }
+  #app { display:none; max-width:1000px; margin:0 auto; }
+  .warn-banner { background:#fef3c7; border:2px solid #f59e0b; border-radius:12px; padding:1rem 1.5rem; margin-bottom:2rem; }
+  .warn-banner strong { color:#92400e; }
+  .safe-banner { background:#dcfce7; border:2px solid #22c55e; border-radius:12px; padding:0.75rem 1.25rem; margin-bottom:1.5rem; font-size:0.9rem; color:#166534; }
+  .collection-card { background:white; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.06); margin-bottom:1.25rem; overflow:hidden; }
+  .cc-header { padding:1rem 1.25rem; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; }
+  .cc-name { font-weight:700; font-size:1.05rem; color:#004E7C; }
+  .cc-count { background:#e2e8f0; color:#475569; font-size:0.8rem; font-weight:600; padding:3px 10px; border-radius:999px; }
+  .cc-count.zero { background:#dcfce7; color:#166534; }
+  .cc-desc { padding:0.5rem 1.25rem; font-size:0.85rem; color:#64748b; }
+  .cc-sample { padding:0.75rem 1.25rem; }
+  .cc-sample summary { font-size:0.85rem; font-weight:600; color:#0891B2; cursor:pointer; }
+  .cc-sample pre { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem; margin-top:0.5rem; font-size:0.78rem; overflow-x:auto; max-height:300px; overflow-y:auto; white-space:pre-wrap; }
+  .cc-actions { padding:0.75rem 1.25rem; display:flex; gap:0.75rem; align-items:center; border-top:1px solid #f1f5f9; }
+  .btn-purge { padding:8px 20px; background:#DC2626; color:white; border:none; border-radius:8px; font-weight:600; font-size:0.85rem; cursor:pointer; }
+  .btn-purge:hover { background:#b91c1c; }
+  .btn-purge:disabled { background:#94a3b8; cursor:not-allowed; }
+  .btn-purge.done { background:#22c55e; }
+  .status { font-size:0.85rem; color:#64748b; }
+  .status.error { color:#DC2626; }
+  .status.success { color:#22c55e; font-weight:600; }
+  .purge-all-wrap { margin-top:2rem; padding:1.5rem; background:#fef2f2; border:2px solid #DC2626; border-radius:12px; text-align:center; }
+  .btn-purge-all { padding:12px 32px; background:#DC2626; color:white; border:none; border-radius:10px; font-weight:700; font-size:1.1rem; cursor:pointer; }
+  .btn-purge-all:hover { background:#991b1b; }
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div class="login-box">
+    <h2>LDAH Cleanup Tool</h2>
+    <p style="color:#64748b;margin-bottom:1.5rem;">Log in with your CMS admin account to review and purge test data.</p>
+    <input type="email" id="email" placeholder="Email">
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="doLogin()">Log In</button>
+    <p id="loginError" style="color:#DC2626;margin-top:0.75rem;font-size:0.85rem;"></p>
+  </div>
+</div>
+
+<div id="app">
+  <h1>LDAH Firestore — Test Data Cleanup</h1>
+  <p class="subtitle">Review each collection, inspect sample data, then purge. Logged in as <strong id="userEmail"></strong></p>
+
+  <div class="warn-banner">
+    <strong>This tool permanently deletes data.</strong> Review each sample carefully before clicking Purge.
+    Once deleted, data cannot be recovered.
+  </div>
+
+  <div class="safe-banner">
+    <strong>Will NOT be touched:</strong> events, recurringEvents, volunteerOpportunities, teamMembers, boardMembers,
+    gallery, gallery2, resources, categories, faqs, pageContent, userRoles, chatConversations, interactions, contacts, lookupLists
+  </div>
+
+  <div id="cards"></div>
+
+  <div class="purge-all-wrap">
+    <p style="margin-bottom:1rem;color:#991b1b;font-weight:600;">Purge ALL collections listed above in one go:</p>
+    <button class="btn-purge-all" onclick="purgeAll()">Purge All Test Data</button>
+    <p id="purgeAllStatus" class="status" style="margin-top:0.75rem;"></p>
+  </div>
+</div>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk",
+    authDomain: "ldah-932d5.firebaseapp.com",
+    projectId: "ldah-932d5",
+    storageBucket: "ldah-932d5.firebasestorage.app",
+    messagingSenderId: "662130454003",
+    appId: "1:662130454003:web:437576d5a5811ecd8df686"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  const auth = firebase.auth();
+
+  const COLLECTIONS = [
+    { name: 'volunteers',         desc: 'Volunteer applications — form submissions from visitors on the Volunteer page' },
+    { name: 'providers',          desc: 'Provider listing requests — organizations requesting to be added to Resources' },
+    { name: 'pledges',            desc: 'Anti-bullying pledges — submitted from the Community page' },
+    { name: 'eventRequests',      desc: 'Calendar event requests — visitors requesting LDAH attend/host events' },
+    { name: 'contactSubmissions', desc: 'Contact form messages — submitted from the Contact page' },
+    { name: 'analytics',          desc: 'Event-based analytics — page view and interaction tracking events' },
+    { name: 'siteAnalytics',      desc: 'Daily aggregated analytics — daily rollup docs for dashboard metrics' },
+  ];
+
+  const SIGNUP_PARENTS = [
+    { parent: 'events',          desc: 'One-time event signups — people who signed up for specific events' },
+    { parent: 'recurringEvents', desc: 'Recurring program signups — people who signed up for ongoing programs' },
+  ];
+
+  async function doLogin() {
+    const email = document.getElementById('email').value;
+    const pw = document.getElementById('password').value;
+    try {
+      await auth.signInWithEmailAndPassword(email, pw);
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      document.getElementById('userEmail').textContent = email;
+      await loadAll();
+    } catch (e) {
+      document.getElementById('loginError').textContent = e.message;
+    }
+  }
+
+  function fmtTimestamp(v) {
+    if (!v) return v;
+    if (v.toDate) return v.toDate().toISOString();
+    if (v.seconds) return new Date(v.seconds * 1000).toISOString();
+    return v;
+  }
+
+  function sanitize(obj) {
+    if (!obj) return obj;
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (v && (v.toDate || v.seconds)) out[k] = fmtTimestamp(v);
+      else if (Array.isArray(v)) out[k] = v;
+      else if (v && typeof v === 'object') out[k] = sanitize(v);
+      else out[k] = v;
+    }
+    return out;
+  }
+
+  async function loadAll() {
+    const container = document.getElementById('cards');
+    container.innerHTML = '<p style="color:#64748b;">Loading collections...</p>';
+    let html = '';
+
+    // Top-level collections
+    for (const col of COLLECTIONS) {
+      const snap = await db.collection(col.name).get();
+      const count = snap.size;
+      const sample = snap.empty ? null : sanitize(snap.docs[0].data());
+      const sampleId = snap.empty ? '' : snap.docs[0].id;
+      html += buildCard(col.name, col.desc, count, sampleId, sample, 'collection');
+    }
+
+    // Signup subcollections
+    for (const sub of SIGNUP_PARENTS) {
+      const parentSnap = await db.collection(sub.parent).get();
+      let total = 0;
+      let firstSample = null;
+      let firstParent = '';
+      for (const pdoc of parentSnap.docs) {
+        const sSnap = await db.collection(sub.parent).doc(pdoc.id).collection('signups').get();
+        total += sSnap.size;
+        if (!firstSample && !sSnap.empty) {
+          firstSample = sanitize(sSnap.docs[0].data());
+          firstParent = pdoc.id;
+        }
+      }
+      const label = sub.parent + '/*/signups';
+      html += buildCard(label, sub.desc, total, firstParent ? 'from ' + firstParent : '', firstSample, 'signups:' + sub.parent);
+    }
+
+    container.innerHTML = html;
+  }
+
+  function buildCard(name, desc, count, sampleId, sample, type) {
+    const countClass = count === 0 ? 'cc-count zero' : 'cc-count';
+    const sampleHtml = sample
+      ? '<details class="cc-sample"><summary>View sample data (doc: ' + sampleId + ')</summary><pre>' + JSON.stringify(sample, null, 2) + '</pre></details>'
+      : '<div class="cc-sample" style="font-size:0.85rem;color:#94a3b8;">(empty collection)</div>';
+    return '<div class="collection-card" id="card-' + type + '">'
+      + '<div class="cc-header"><span class="cc-name">' + name + '</span><span class="' + countClass + '">' + count + ' docs</span></div>'
+      + '<div class="cc-desc">' + desc + '</div>'
+      + sampleHtml
+      + '<div class="cc-actions">'
+      + '<button class="btn-purge" data-type="' + type + '" onclick="purgeOne(this, \'' + type + '\')" ' + (count === 0 ? 'disabled' : '') + '>'
+      + (count === 0 ? 'Empty' : 'Purge ' + count + ' docs') + '</button>'
+      + '<span class="status" id="status-' + type + '"></span>'
+      + '</div></div>';
+  }
+
+  async function deleteCollection(name, statusEl) {
+    const snap = await db.collection(name).get();
+    let deleted = 0;
+    const batch_size = 400;
+    let batch = db.batch();
+    let inBatch = 0;
+    for (const doc of snap.docs) {
+      batch.delete(doc.ref);
+      inBatch++;
+      if (inBatch >= batch_size) {
+        await batch.commit();
+        deleted += inBatch;
+        statusEl.textContent = 'Deleted ' + deleted + '/' + snap.size + '...';
+        batch = db.batch();
+        inBatch = 0;
+      }
+    }
+    if (inBatch > 0) { await batch.commit(); deleted += inBatch; }
+    return deleted;
+  }
+
+  async function deleteSignups(parentCol, statusEl) {
+    const parentSnap = await db.collection(parentCol).get();
+    let totalDeleted = 0;
+    for (const pdoc of parentSnap.docs) {
+      const sSnap = await db.collection(parentCol).doc(pdoc.id).collection('signups').get();
+      if (sSnap.empty) continue;
+      const batch = db.batch();
+      sSnap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      totalDeleted += sSnap.size;
+      statusEl.textContent = 'Deleted ' + totalDeleted + ' signups...';
+    }
+    return totalDeleted;
+  }
+
+  async function purgeOne(btn, type) {
+    if (!confirm('Are you sure you want to permanently delete all docs in ' + type + '?')) return;
+    btn.disabled = true;
+    btn.textContent = 'Purging...';
+    const statusEl = document.getElementById('status-' + type);
+    statusEl.className = 'status';
+    statusEl.textContent = 'Working...';
+
+    try {
+      let count;
+      if (type.startsWith('signups:')) {
+        const parent = type.split(':')[1];
+        count = await deleteSignups(parent, statusEl);
+      } else {
+        count = await deleteCollection(type, statusEl);
+      }
+      btn.textContent = 'Done';
+      btn.className = 'btn-purge done';
+      statusEl.className = 'status success';
+      statusEl.textContent = count + ' docs deleted';
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = 'Retry';
+      statusEl.className = 'status error';
+      statusEl.textContent = 'Error: ' + err.message;
+    }
+  }
+
+  async function purgeAll() {
+    if (!confirm('PERMANENTLY DELETE ALL test data from ALL listed collections?\\n\\nThis cannot be undone.')) return;
+    if (!confirm('FINAL CONFIRMATION — Are you absolutely sure?')) return;
+
+    const statusEl = document.getElementById('purgeAllStatus');
+    statusEl.textContent = 'Purging all collections...';
+
+    for (const col of COLLECTIONS) {
+      statusEl.textContent = 'Purging ' + col.name + '...';
+      const stEl = document.getElementById('status-collection') || statusEl;
+      try { await deleteCollection(col.name, statusEl); } catch (e) { /* continue */ }
+    }
+    for (const sub of SIGNUP_PARENTS) {
+      statusEl.textContent = 'Purging ' + sub.parent + ' signups...';
+      try { await deleteSignups(sub.parent, statusEl); } catch (e) { /* continue */ }
+    }
+
+    statusEl.className = 'status success';
+    statusEl.textContent = 'All test data purged. Reloading counts...';
+    await loadAll();
+  }
+</script>
+</body>
+</html>
