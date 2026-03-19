@@ -540,18 +540,31 @@
   function initInfoBubbles() {
     if (infoBubblesInitialized) return;
 
-    // Panel header — add a help bubble right in the "Edit Field" header
+    // --- VISIBLE AREA: Section headers in the preview ---
+
+    // Section badge labels (e.g., "Hero Photos", "Our Foundation", etc.)
+    var secBadges = document.querySelectorAll(".sec-badge");
+    for (var b = 0; b < secBadges.length; b++) {
+      var badge = secBadges[b];
+      var sectionText = badge.textContent.trim();
+      addInfoBubble(badge,
+        'To edit items in the "' + sectionText + '" section, hover over the text or photo you want to change and click it. Look for the teal Edit or Photo badge.');
+    }
+
+    // Hero section titles on each page
+    var heroTitles = document.querySelectorAll(".hero h1[id]");
+    for (var h = 0; h < heroTitles.length; h++) {
+      addInfoBubble(heroTitles[h],
+        "Click this title to edit it. The editor panel will open on the right where you can make changes and save.");
+    }
+
+    // --- EDITOR PANEL (visible when panel opens) ---
+
+    // Panel header
     var panelHead = document.querySelector(".panel-head h2");
     if (panelHead) {
       addInfoBubble(panelHead,
         "Click any text or photo in the preview to edit it here. Use Save to publish changes or Cancel to discard.");
-    }
-
-    // Editor label — next to the "Editing: ..." label
-    var editorLabel = document.getElementById("lbl");
-    if (editorLabel) {
-      addInfoBubble(editorLabel,
-        "This shows which field you're currently editing. Make changes below and click Save when done.");
     }
 
     // Formatting guide title

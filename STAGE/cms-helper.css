@@ -105,17 +105,11 @@
 /* ---- Quick Actions ---- */
 .cms-quick-actions {
   display: flex;
-  gap: 8px;
-  padding: 10px 16px;
-  overflow-x: auto;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 14px;
   flex-shrink: 0;
   border-bottom: 1px solid #e5e7eb;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Hide scrollbar but keep scrollable */
-.cms-quick-actions::-webkit-scrollbar {
-  height: 0;
 }
 
 .cms-quick-btn {
