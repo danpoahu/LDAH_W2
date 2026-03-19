@@ -2,7 +2,7 @@
 
 .logo-story-overlay {
     position: fixed;
-    inset: 0;
+    top: 0; right: 0; bottom: 0; left: 0;
     background: rgba(0, 0, 0, 0.72);
     z-index: 9998;
     opacity: 0;
@@ -135,8 +135,9 @@
     margin-top: 0.75rem;
 }
 
-/* Golden shimmer sweep */
+/* Golden shimmer sweep — with fallback color for older browsers */
 .logo-story-text.shimmer {
+    color: #1E293B;
     background: linear-gradient(
         90deg,
         #1E293B 0%,
@@ -152,6 +153,15 @@
     background-clip: text;
     -webkit-text-fill-color: transparent;
     animation: shimmerSweep 5s ease-in-out 1;
+}
+
+/* If background-clip: text is not supported, text stays dark and readable */
+@supports not (background-clip: text) {
+    .logo-story-text.shimmer {
+        background: none;
+        -webkit-text-fill-color: initial;
+        color: #1E293B;
+    }
 }
 
 @keyframes shimmerSweep {
