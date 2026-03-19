@@ -1917,7 +1917,7 @@
         <button class="btn-logout" onclick="handleLogout()">Logout</button>
       </div>
     </div>
-    <div style="text-align: right; padding: 2px 20px 0; font-size: 0.7rem; color: #999;">v28</div>
+    <div style="text-align: right; padding: 2px 20px 0; font-size: 0.7rem; color: #999;">v29</div>
     
     <div class="cms-container">
       <!-- Tabs -->
@@ -2051,11 +2051,24 @@
       <!-- FAQ Tab -->
       <div class="tab-content" id="faq-tab">
         <div class="content-section">
-          <h2>❓ Manage FAQ <span class="ib" onclick="event.stopPropagation(); ibShow(this, '&lt;b&gt;How FAQ Management Works&lt;/b&gt;&lt;br&gt;FAQs display on the &lt;b&gt;Special Education&lt;/b&gt; page, grouped by category.&lt;br&gt;&lt;br&gt;&lt;b&gt;1. Create Categories first&lt;/b&gt; — Click Categories sub-tab, then + Add Category. Give each a name (e.g. &quot;IEP Process&quot;, &quot;Accommodations&quot;), description, and optional icon.&lt;br&gt;&lt;br&gt;&lt;b&gt;2. Add FAQ Items&lt;/b&gt; — Switch to FAQ Items, click + Add FAQ. Enter question &amp; answer, assign to a category.&lt;br&gt;&lt;br&gt;&lt;b&gt;3. Reorder&lt;/b&gt; — Drag and drop cards to control display order.&lt;br&gt;&lt;br&gt;&lt;b&gt;4. Archive, don\'t delete&lt;/b&gt; — Archive old items to hide them (restorable later). Toggle &quot;Show Archived&quot; to view.&lt;br&gt;&lt;br&gt;&lt;b&gt;5. Filter&lt;/b&gt; — Use the category dropdown to show only one category\'s items.&lt;br&gt;&lt;br&gt;&lt;b&gt;6. Export&lt;/b&gt; — Click Export CSV in either sub-tab for a spreadsheet.')">i</span></h2>
+          <h2>❓ Manage FAQ <span class="ib" onclick="event.stopPropagation(); var box=document.getElementById('faqHelpBox'); box.style.display=box.style.display==='none'?'block':'none';">i</span></h2>
 
           <p style="color: var(--text-light); margin-bottom: 1.5rem;">
-            Manage FAQ categories and questions. These appear on the Special Education page. Click the <span style="color:#0891B2; font-weight:600;">ⓘ</span> above for step-by-step instructions.
+            Manage FAQ categories and questions. These appear on the Special Education page. Click <span style="color:#0891B2; font-weight:600;">ⓘ</span> for step-by-step instructions.
           </p>
+
+          <div id="faqHelpBox" style="display:none; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; font-size: 0.9rem; line-height: 1.7; color: #1e3a5f;">
+            <strong style="display: block; margin-bottom: 0.5rem; font-size: 1rem; color: var(--primary-blue);">How FAQ Management Works</strong>
+            <p style="margin: 0 0 0.75rem 0;">FAQs display on the <strong>Special Education</strong> page, grouped by category. Follow these steps:</p>
+            <ol style="margin: 0; padding-left: 1.5rem;">
+              <li style="margin-bottom: 0.5rem;"><strong>Create Categories first</strong> — Click the <em>📁 Categories</em> sub-tab, then <em>+ Add Category</em>. Give each category a name (e.g. "IEP Process", "Accommodations", "Transition Planning"), a short description, and an optional icon. Categories determine how FAQs are grouped on the website.</li>
+              <li style="margin-bottom: 0.5rem;"><strong>Add FAQ Items</strong> — Switch to the <em>❓ FAQ Items</em> sub-tab and click <em>+ Add FAQ</em>. Enter the question and answer, then assign it to one of your categories from the dropdown. The answer supports basic formatting.</li>
+              <li style="margin-bottom: 0.5rem;"><strong>Reorder items</strong> — Drag and drop cards within each category to control the display order on the site.</li>
+              <li style="margin-bottom: 0.5rem;"><strong>Archive instead of delete</strong> — If a question is no longer relevant, archive it rather than deleting. Archived items are hidden from the site but can be restored later. Toggle "Show Archived" to view them.</li>
+              <li style="margin-bottom: 0.5rem;"><strong>Filter by category</strong> — Use the category dropdown in the FAQ Items sub-tab to show only items in a specific category. Helpful when you have many FAQs.</li>
+              <li><strong>Export to CSV</strong> — Click 📥 Export CSV in either sub-tab to download a spreadsheet of all categories or FAQ items for your records.</li>
+            </ol>
+          </div>
 
           <div class="success-message" id="faqSuccess">Changes saved successfully!</div>
 
