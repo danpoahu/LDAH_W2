@@ -1,4 +1,4 @@
-const { onRequest } = require("firebase-functions/v2/https");
+const functions = require("firebase-functions");
 const Anthropic = require("@anthropic-ai/sdk");
 
 const ALLOWED_ORIGIN = "https://danpoahu.github.io";
@@ -74,20 +74,15 @@ TIPS:
 - The Page Editor saves to the live website — changes are visible to visitors immediately after saving
 - To edit Pacific island details, click the island name in the sidebar (Am. Samoa, CNMI, FSM, etc.)`;
 
-exports.ldahCmsHelp = onRequest(
-  {
-    maxInstances: 5,
-    timeoutSeconds: 30,
-    secrets: ["ANTHROPIC_API_KEY"],
-  },
-  async (req, res) => {
+exports.ldahCmsHelp = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 5, secrets: ["ANTHROPIC_API_KEY"] })
+  .https.onRequest(async (req, res) => {
     // CORS headers
     res.set("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
     res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
     res.set("Access-Control-Allow-Headers", "Content-Type");
     res.set("Access-Control-Max-Age", "3600");
 
-    // Handle preflight
     if (req.method === "OPTIONS") {
       res.status(204).send("");
       return;
@@ -99,14 +94,13 @@ exports.ldahCmsHelp = onRequest(
     }
 
     try {
-      const { message, pageContext, history, isAdmin } = req.body;
+      const { message, pageContext, history } = req.body;
 
       if (!message || typeof message !== "string") {
         res.status(400).json({ error: "Missing or invalid message" });
         return;
       }
 
-      // Build messages array from history (last 10, truncated to 1000 chars each)
       const messages = [];
 
       if (Array.isArray(history)) {
@@ -121,14 +115,12 @@ exports.ldahCmsHelp = onRequest(
         }
       }
 
-      // Build the current user message with optional page context
       let userContent = message.slice(0, 1000);
       if (pageContext) {
         userContent = `[Currently viewing: ${String(pageContext).slice(0, 200)}]\n\n${userContent}`;
       }
       messages.push({ role: "user", content: userContent });
 
-      // Call Anthropic
       const client = new Anthropic();
       const response = await client.messages.create({
         model: "claude-haiku-4-5-20251001",
@@ -149,5 +141,4 @@ exports.ldahCmsHelp = onRequest(
         error: "Something went wrong. Please try again in a moment.",
       });
     }
-  }
-);
+  });

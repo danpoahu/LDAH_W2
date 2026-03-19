@@ -7,7 +7,7 @@
   "use strict";
 
   /* ---- Configuration ---- */
-  var CLOUD_FUNCTION_URL = "CLOUD_FUNCTION_URL"; // Replace after deploy
+  var CLOUD_FUNCTION_URL = "https://us-central1-ldah-932d5.cloudfunctions.net/ldahCmsHelp";
   var MAX_HISTORY = 10;
   var MAX_HISTORY_CHARS = 1000;
 
