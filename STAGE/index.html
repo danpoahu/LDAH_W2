@@ -93,16 +93,20 @@
     
     .logo-img { width: 88px; height: 88px; }
 
-    /* Home page: giant floating logo over hero */
-    .logo-container {
-        position: fixed;
-        top: 10px;
-        left: 30px;
-        z-index: 1001;
-    }
+    /* Home page: giant logo bleeds over hero */
     .logo-container .logo-img {
         width: 250px !important;
         height: 250px !important;
+        position: absolute;
+        top: -10px;
+        left: 0;
+        z-index: 1001;
+    }
+    .logo-container {
+        width: 110px;
+        height: 88px;
+        position: relative;
+        flex-shrink: 0;
     }
     
     .nav-links { 
