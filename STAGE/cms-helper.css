@@ -1,0 +1,334 @@
+/* ============================================================
+   CMS AI Helper — Chat Widget Styles
+   LDAH Page Editor Help Assistant
+   ============================================================ */
+
+/* ---- Floating Help Button ---- */
+.cms-help-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: #0891B2;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(8, 145, 178, 0.4);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  animation: cmsPulse 2.5s infinite;
+}
+
+.cms-help-btn:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 20px rgba(8, 145, 178, 0.55);
+}
+
+.cms-help-btn svg {
+  width: 26px;
+  height: 26px;
+  fill: #fff;
+}
+
+@keyframes cmsPulse {
+  0%   { box-shadow: 0 4px 14px rgba(8, 145, 178, 0.4); }
+  50%  { box-shadow: 0 4px 22px rgba(8, 145, 178, 0.65); }
+  100% { box-shadow: 0 4px 14px rgba(8, 145, 178, 0.4); }
+}
+
+/* ---- Chat Panel ---- */
+.cms-chat-panel {
+  position: fixed;
+  bottom: 84px;
+  right: 20px;
+  width: 360px;
+  max-width: calc(100vw - 40px);
+  max-height: 520px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+  z-index: 9001;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* Slide-up animation */
+  opacity: 0;
+  transform: translateY(16px) scale(0.96);
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.cms-chat-panel.open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+/* ---- Header ---- */
+.cms-chat-header {
+  background: linear-gradient(135deg, #0891B2, #0e7490);
+  color: #fff;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.cms-chat-header-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.cms-chat-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  opacity: 0.85;
+  transition: opacity 0.15s;
+}
+
+.cms-chat-close:hover {
+  opacity: 1;
+}
+
+/* ---- Quick Actions ---- */
+.cms-quick-actions {
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px;
+  overflow-x: auto;
+  flex-shrink: 0;
+  border-bottom: 1px solid #e5e7eb;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Hide scrollbar but keep scrollable */
+.cms-quick-actions::-webkit-scrollbar {
+  height: 0;
+}
+
+.cms-quick-btn {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border: 1.5px solid #0891B2;
+  border-radius: 999px;
+  background: #fff;
+  color: #0891B2;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.cms-quick-btn:hover {
+  background: #0891B2;
+  color: #fff;
+}
+
+/* ---- Messages Area ---- */
+.cms-chat-messages {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Shared bubble styles */
+.cms-msg {
+  max-width: 85%;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  border-radius: 12px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Bot messages */
+.cms-msg.bot {
+  align-self: flex-start;
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+/* User messages */
+.cms-msg.user {
+  align-self: flex-end;
+  background: #0891B2;
+  color: #fff;
+}
+
+/* ---- Typing Indicator ---- */
+.cms-typing {
+  align-self: flex-start;
+  background: #f1f5f9;
+  border-radius: 12px;
+  padding: 10px 18px;
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.cms-typing-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #94a3b8;
+  animation: cmsBounce 1.2s infinite ease-in-out;
+}
+
+.cms-typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.cms-typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes cmsBounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30%           { transform: translateY(-6px); }
+}
+
+/* ---- Input Area ---- */
+.cms-chat-input-wrap {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  border-top: 1px solid #e5e7eb;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.cms-chat-input {
+  flex: 1;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.88rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.cms-chat-input:focus {
+  border-color: #0891B2;
+}
+
+.cms-chat-send {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #0891B2;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.cms-chat-send:hover {
+  background: #0e7490;
+}
+
+.cms-chat-send svg {
+  width: 18px;
+  height: 18px;
+  fill: #fff;
+}
+
+/* ---- Info Bubble (i) Icon ---- */
+.cms-info-bubble {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #0891B2;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 18px;
+  text-align: center;
+  cursor: pointer;
+  vertical-align: middle;
+  margin-left: 6px;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background 0.15s;
+}
+
+.cms-info-bubble:hover {
+  background: #0e7490;
+}
+
+/* ---- Info Popover ---- */
+.cms-info-popover {
+  position: absolute;
+  background: #fff;
+  max-width: 280px;
+  padding: 10px;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16);
+  z-index: 9002;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: #334155;
+}
+
+/* Small arrow */
+.cms-info-popover::before {
+  content: "";
+  position: absolute;
+  bottom: -6px;
+  left: 16px;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  transform: rotate(45deg);
+  box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+.cms-info-popover-text {
+  margin: 0 0 8px 0;
+}
+
+.cms-info-popover-link {
+  color: #0891B2;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 0.82rem;
+}
+
+.cms-info-popover-link:hover {
+  text-decoration: underline;
+}
+
+/* ---- Mobile: full-width below 420px ---- */
+@media (max-width: 420px) {
+  .cms-chat-panel {
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 100vh;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .cms-help-btn {
+    bottom: 14px;
+    right: 14px;
+  }
+}
