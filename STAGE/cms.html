@@ -1917,7 +1917,7 @@
         <button class="btn-logout" onclick="handleLogout()">Logout</button>
       </div>
     </div>
-    <div style="text-align: right; padding: 2px 20px 0; font-size: 0.7rem; color: #999;">v29</div>
+    <div style="text-align: right; padding: 2px 20px 0; font-size: 0.7rem; color: #999;">v30</div>
     
     <div class="cms-container">
       <!-- Tabs -->
@@ -3411,7 +3411,12 @@
       ibClose();
       const pop = document.createElement('div');
       pop.className = 'ib-pop';
-      pop.innerHTML = text;
+      pop.innerHTML = text
+        + '<div style="margin-top:10px;border-top:1px solid #e2e8f0;padding-top:8px;">'
+        + '<a href="#" style="color:#0891B2;font-weight:600;font-size:0.82rem;text-decoration:none;" '
+        + 'onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'" '
+        + 'onclick="event.preventDefault();ibClose();if(window.cmsHelper)window.cmsHelper.openChat();">'
+        + 'Still need help? Ask our assistant</a></div>';
       document.body.appendChild(pop);
       const r = el.getBoundingClientRect();
       pop.style.left = Math.max(10, r.left - 10) + 'px';
