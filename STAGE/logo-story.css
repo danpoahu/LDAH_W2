@@ -70,7 +70,6 @@
     position: fixed;
     z-index: 10000;
     background: linear-gradient(145deg, #FFFBEB 0%, #FEF3C7 100%);
-    overflow: hidden;
     border: 2px solid rgba(251, 191, 36, 0.4);
     border-radius: 16px;
     padding: 1.75rem 2rem;
@@ -118,7 +117,7 @@
     height: 80%;
     background: url(logo_blue.png) no-repeat center center;
     background-size: contain;
-    opacity: 0.08;
+    opacity: 0.12;
     pointer-events: none;
     z-index: 0;
 }
