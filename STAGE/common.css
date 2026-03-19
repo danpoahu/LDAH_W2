@@ -20,27 +20,34 @@ nav {
     background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(10px);
     box-shadow: 0 2px 8px rgba(0, 78, 124, 0.1);
+    overflow: visible;
 }
 
 .nav-content {
     max-width: 1400px;
     margin: 0 auto;
-    padding: 1rem 2rem;
+    padding: 0.5rem 2rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    min-height: 60px;
 }
 
 .logo-container {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 1rem;
     text-decoration: none;
+    position: relative;
+    z-index: 1001;
 }
 
 .logo-img {
-    width: 110px !important;
-    height: 110px !important;
+    width: 250px !important;
+    height: 250px !important;
+    margin-top: -10px;
+    filter: none !important;
+    opacity: 1 !important;
 }
 
 .logo-text {
