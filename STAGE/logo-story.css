@@ -63,18 +63,6 @@
     transform: rotate(45deg);
 }
 
-/* Quilt-inspired corner accents */
-.logo-story-card::after {
-    content: '';
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 28px;
-    height: 28px;
-    border-top: 3px solid rgba(8, 145, 178, 0.3);
-    border-right: 3px solid rgba(8, 145, 178, 0.3);
-    border-radius: 0 8px 0 0;
-}
 
 .logo-story-title {
     font-family: 'Outfit', sans-serif;
