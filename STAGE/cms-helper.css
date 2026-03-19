@@ -6,7 +6,7 @@
 /* ---- Floating Help Button ---- */
 .cms-help-btn {
   position: fixed;
-  bottom: 20px;
+  bottom: 80px;
   right: 20px;
   width: 54px;
   height: 54px;
@@ -44,7 +44,7 @@
 /* ---- Chat Panel ---- */
 .cms-chat-panel {
   position: fixed;
-  bottom: 84px;
+  bottom: 144px;
   right: 20px;
   width: 360px;
   max-width: calc(100vw - 40px);
