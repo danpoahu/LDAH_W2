@@ -818,6 +818,19 @@
         margin-bottom: 0.75rem;
     }
 
+    .island-modal-body .contact-card p,
+    .island-modal-body .support-person p,
+    .island-modal-body .state-card p {
+        line-height: 1.4;
+        margin: 0.1rem 0;
+    }
+
+    .island-modal-body .contact-card h4,
+    .island-modal-body .support-person h4,
+    .island-modal-body .state-card h4 {
+        margin: 0 0 0.1rem 0;
+    }
+
     .island-modal-body a {
         color: var(--pacific-blue);
         text-decoration: none;
@@ -883,11 +896,11 @@
 
     .contact-card h4 {
         color: var(--primary-blue);
-        margin: 0 0 0.75rem 0;
+        margin: 0 0 0.15rem 0;
     }
 
     .contact-card p {
-        margin-bottom: 0.5rem;
+        margin: 0 0 0.1rem 0;
     }
 
     .contact-card p:last-child {
@@ -911,13 +924,13 @@
 
     .support-person h4 {
         color: var(--primary-blue);
-        margin: 0 0 0.25rem 0;
+        margin: 0 0 0.1rem 0;
         font-size: 1rem;
     }
 
     .support-person p {
         font-size: 0.9rem;
-        margin-bottom: 0.25rem;
+        margin: 0 0 0.1rem 0;
     }
 
     /* States Grid (for FSM) */
@@ -1281,6 +1294,7 @@
         <!-- Section Header -->
         <div class="section-header">
             <img src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Pacific-Island-Partners-Logo.png" alt="Pacific Island Partners" style="max-width: 280px; margin-bottom: 1.5rem;">
+            <h2 id="pacific-partnersTitle" style="font-size: 1.8rem; color: var(--primary-blue); margin-bottom: 1rem;">Our Island Partners</h2>
             <p id="pacific-partnersSubtitle">Click on each island to learn more about our partnerships and the resources available for families in these communities.</p>
         </div>
 
@@ -1289,7 +1303,7 @@
             <!-- American Samoa -->
             <div class="island-card island-samoa" onclick="openIslandModal('samoa')">
                 <div class="island-card-image">
-                    <img class="island-flag" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-6-1024x512.png" alt="American Samoa Flag">
+                    <img id="pacific-samoaCardPhoto" class="island-flag" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-6-1024x512.png" alt="American Samoa Flag">
                 </div>
                 <div class="island-card-content">
                     <h3 id="pacific-samoaTitle">American Samoa</h3>
@@ -1302,7 +1316,7 @@
             <!-- Commonwealth of the Northern Mariana Islands -->
             <div class="island-card island-cnmi" onclick="openIslandModal('cnmi')">
                 <div class="island-card-image">
-                    <img class="island-flag" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-5-1024x512.png" alt="CNMI Flag">
+                    <img id="pacific-cnmiCardPhoto" class="island-flag" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-5-1024x512.png" alt="CNMI Flag">
                 </div>
                 <div class="island-card-content">
                     <h3 id="pacific-cnmiTitle">Northern Mariana Islands</h3>
@@ -1315,7 +1329,7 @@
             <!-- Federated States of Micronesia -->
             <div class="island-card island-fsm" onclick="openIslandModal('fsm')">
                 <div class="island-card-image">
-                    <img class="island-flag" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-4.png" alt="FSM Flag">
+                    <img id="pacific-fsmCardPhoto" class="island-flag" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-4.png" alt="FSM Flag">
                 </div>
                 <div class="island-card-content">
                     <h3 id="pacific-fsmTitle">Federated States of Micronesia</h3>
@@ -1328,7 +1342,7 @@
             <!-- Guam -->
             <div class="island-card island-guam" onclick="openIslandModal('guam')">
                 <div class="island-card-image">
-                    <img class="island-flag" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-3.png" alt="Guam Flag">
+                    <img id="pacific-guamCardPhoto" class="island-flag" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-3.png" alt="Guam Flag">
                 </div>
                 <div class="island-card-content">
                     <h3 id="pacific-guamTitle">Guam</h3>
@@ -1341,7 +1355,7 @@
             <!-- Republic of the Marshall Islands -->
             <div class="island-card island-marshall" onclick="openIslandModal('marshall')">
                 <div class="island-card-image">
-                    <img class="island-flag" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-2-1024x539.png" alt="Marshall Islands Flag">
+                    <img id="pacific-marshallCardPhoto" class="island-flag" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-2-1024x539.png" alt="Marshall Islands Flag">
                 </div>
                 <div class="island-card-content">
                     <h3 id="pacific-marshallTitle">Republic of the Marshall Islands</h3>
@@ -1354,7 +1368,7 @@
             <!-- Republic of Palau -->
             <div class="island-card island-palau" onclick="openIslandModal('palau')">
                 <div class="island-card-image">
-                    <img class="island-flag" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-1.png" alt="Palau Flag">
+                    <img id="pacific-palauCardPhoto" class="island-flag" src="https://www.ldahawaii.org/wp-content/uploads/2023/10/Leadership-in-Disabilities-Achievement-of-Hawaii-Pacific-1.png" alt="Palau Flag">
                 </div>
                 <div class="island-card-content">
                     <h3 id="pacific-palauTitle">Republic of Palau</h3>
@@ -1448,7 +1462,7 @@
                 if (key === 'updatedAt') return;
                 const el = document.getElementById(`pacific-${key}`);
                 if (el && data[key]) {
-                    if ((key.includes('Photo') || key.includes('Hero') || key.includes('Flag')) && el.tagName === 'IMG') {
+                    if ((key.includes('Photo') || key.includes('Hero') || key.includes('Flag') || key.includes('Logo')) && el.tagName === 'IMG') {
                         el.src = data[key];
                         el.style.display = '';
                     } else {
@@ -1599,12 +1613,12 @@
 
                         <h3>Support Personnel</h3>
                         <div id="pacific-samoaSupport" class="support-grid">
-                            <div class="support-person">
+                            <div id="pacific-samoaSupport1" class="support-person">
                                 <h4>Dr. Herbert Boat</h4>
                                 <p>Assistant SPED Director</p>
                                 <p><a href="mailto:herbert.boat@doe.as">herbert.boat@doe.as</a></p>
                             </div>
-                            <div class="support-person">
+                            <div id="pacific-samoaSupport2" class="support-person">
                                 <h4>Segia Ioane</h4>
                                 <p>Early Childhood Specialist</p>
                                 <p><a href="mailto:ioane_tuia@yahoo.com">ioane_tuia@yahoo.com</a></p>
@@ -1655,12 +1669,12 @@
 
                         <h3>Support Personnel</h3>
                         <div id="pacific-cnmiSupport" class="support-grid">
-                            <div class="support-person">
+                            <div id="pacific-cnmiSupport1" class="support-person">
                                 <h4>Jennifer O. Tanaka</h4>
                                 <p><a href="mailto:jtanaka@dys.gov.mp">jtanaka@dys.gov.mp</a></p>
                                 <p><a href="tel:+16702371017">(670) 237-1017</a></p>
                             </div>
-                            <div class="support-person">
+                            <div id="pacific-cnmiSupport2" class="support-person">
                                 <h4>Maria L. Olopai</h4>
                                 <p><a href="mailto:mlolopai@dys.gov.mp">mlolopai@dys.gov.mp</a></p>
                                 <p><a href="tel:+16702371015">(670) 237-1015</a></p>
@@ -1700,7 +1714,7 @@
 
                         <h3>State Contacts</h3>
                         <div id="pacific-fsmContacts" class="states-grid">
-                            <div class="state-card">
+                            <div id="pacific-fsmYap" class="state-card">
                                 <h4>Yap</h4>
                                 <div class="contact-info">
                                     <p><strong>Jacquelyn Lefagoyal</strong></p>
@@ -1708,7 +1722,7 @@
                                     <p>P.O. Box 692, Colonia, Yap 96943</p>
                                 </div>
                             </div>
-                            <div class="state-card">
+                            <div id="pacific-fsmChuuk" class="state-card">
                                 <h4>Chuuk</h4>
                                 <div class="contact-info">
                                     <p><strong>Ansina Kony</strong></p>
@@ -1717,7 +1731,7 @@
                                     <p><a href="tel:+6913308910">(691) 330-8910</a></p>
                                 </div>
                             </div>
-                            <div class="state-card">
+                            <div id="pacific-fsmPohnpei" class="state-card">
                                 <h4>Pohnpei</h4>
                                 <div class="contact-info">
                                     <p><strong>Arthur Albert</strong>, FSM SPED Director</p>
@@ -1730,7 +1744,7 @@
                                     <p><a href="mailto:bugulrow@yahoo.com">bugulrow@yahoo.com</a></p>
                                 </div>
                             </div>
-                            <div class="state-card">
+                            <div id="pacific-fsmKosrae" class="state-card">
                                 <h4>Kosrae</h4>
                                 <div class="contact-info">
                                     <p><strong>Aliksa Sigrah</strong></p>
@@ -1778,7 +1792,7 @@
                         <div id="pacific-guamAbout"><p><strong>Autism Community Together (ACT)</strong> is a non-profit support group for individuals with autism, their families, and supporters on the island of Guam. ACT frequently hosts events where autistic individuals and their families can have fun together in their community.</p></div>
 
                         <div class="partner-logo-section">
-                            <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-1.png" alt="ACT Guam Logo" class="partner-logo-img">
+                            <img id="pacific-guamLogo" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Guam-1.png" alt="ACT Guam Logo" class="partner-logo-img">
                         </div>
 
                         <h3>Primary Contact</h3>
@@ -1796,12 +1810,12 @@
 
                         <h3>Support Personnel</h3>
                         <div id="pacific-guamSupport" class="support-grid">
-                            <div class="support-person">
+                            <div id="pacific-guamSupport1" class="support-person">
                                 <h4>Laura Taisipic</h4>
                                 <p>Parent Services, Guam DOE</p>
                                 <p><a href="mailto:lktaisipic@gdoe.net">lktaisipic@gdoe.net</a></p>
                             </div>
-                            <div class="support-person">
+                            <div id="pacific-guamSupport2" class="support-person">
                                 <h4>June De Leon</h4>
                                 <p>Interim Director, University of Guam CEDDERS</p>
                                 <p><a href="tel:+16717352494">(671) 735-2494/5</a></p>
@@ -1853,17 +1867,17 @@
 
                         <h3>Support Personnel</h3>
                         <div id="pacific-marshallSupport" class="support-grid">
-                            <div class="support-person">
+                            <div id="pacific-marshallSupport1" class="support-person">
                                 <h4>Tony Komta</h4>
                                 <p>MISPA President</p>
                                 <p><a href="tel:+6924551617">(692) 455-1617</a></p>
                             </div>
-                            <div class="support-person">
+                            <div id="pacific-marshallSupport2" class="support-person">
                                 <h4>Namar Nashon</h4>
                                 <p>MISPA Vice President</p>
                                 <p><a href="mailto:namarnashon@hotmail.com">namarnashon@hotmail.com</a></p>
                             </div>
-                            <div class="support-person">
+                            <div id="pacific-marshallSupport3" class="support-person">
                                 <h4>Suewellynn Johannes</h4>
                                 <p>MISPA Treasurer</p>
                                 <p><a href="mailto:suejo0502@gmail.com">suejo0502@gmail.com</a></p>
@@ -1872,10 +1886,10 @@
 
                         <h3>Public School System (PSS)</h3>
                         <div class="partner-logo-section">
-                            <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/OfficialPSSLogo.png" alt="PSS Logo" class="partner-logo-img">
+                            <img id="pacific-marshallPSSLogo" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/OfficialPSSLogo.png" alt="PSS Logo" class="partner-logo-img">
                         </div>
 
-                        <div class="contact-card">
+                        <div id="pacific-marshallPSSContact" class="contact-card">
                             <h4>Frank Horiuchi</h4>
                             <p>SPED Director, PSS</p>
                             <p><strong>Phone:</strong> <a href="tel:+6926256023">(692) 625-6023</a></p>
@@ -1884,16 +1898,16 @@
 
                         <h3>PSS Support Personnel</h3>
                         <div class="support-grid">
-                            <div class="support-person">
+                            <div id="pacific-marshallPSSSupport1" class="support-person">
                                 <h4>Janet Nemra</h4>
                                 <p>RMI Disability Coordinator</p>
                                 <p><a href="mailto:rmidisability@gmail.com">rmidisability@gmail.com</a></p>
                             </div>
-                            <div class="support-person">
+                            <div id="pacific-marshallPSSSupport2" class="support-person">
                                 <h4>Jayann Taala</h4>
                                 <p><a href="mailto:taalaj@pss.edu.mh">taalaj@pss.edu.mh</a></p>
                             </div>
-                            <div class="support-person">
+                            <div id="pacific-marshallPSSSupport3" class="support-person">
                                 <h4>Asmon Langidrik</h4>
                                 <p>Special Education Specialist</p>
                                 <p><a href="mailto:osmondlang@yahoo.com">osmondlang@yahoo.com</a></p>
@@ -1936,7 +1950,7 @@
                         <p>As a Community Parent Resource Center, our services are designed to enable parents and other family members of children with disabilities to better meet and understand the needs of individuals with disabilities. The ultimate goal is to prepare children with disabilities to lead productive, independent lives, to the fullest extent possible.</p></div>
 
                         <div class="partner-logo-section">
-                            <img src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-1.png" alt="PPE Logo" class="partner-logo-img">
+                            <img id="pacific-palauLogo" src="https://www.ldahawaii.org/wp-content/uploads/2023/11/LDAH-Palau-1.png" alt="PPE Logo" class="partner-logo-img">
                         </div>
 
                         <h3>Primary Contact</h3>
@@ -1953,7 +1967,7 @@
 
                         <h3>Support Personnel</h3>
                         <div id="pacific-palauSupport" class="support-grid">
-                            <div class="support-person">
+                            <div id="pacific-palauSupport1" class="support-person">
                                 <h4>Nora Renguul</h4>
                                 <p>SPED Acting Director</p>
                                 <p><a href="mailto:norarenguul@palaumoe.net">norarenguul@palaumoe.net</a></p>

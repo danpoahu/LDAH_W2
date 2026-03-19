@@ -1088,7 +1088,7 @@
             document.getElementById('pg').value=pg; 
             
             // Show appropriate edit section based on field type
-            const isPhoto = fld.includes('Photo') || /^[a-z]+Hero$/.test(fld) || /^[a-z]+Flag$/.test(fld);
+            const isPhoto = fld.includes('Photo') || fld.includes('Logo') || /^[a-z]+Hero$/.test(fld) || /^[a-z]+Flag$/.test(fld);
             document.getElementById('textEditSection').style.display = isPhoto ? 'none' : 'block';
             document.getElementById('photoEditSection').style.display = isPhoto ? 'block' : 'none';
             
@@ -1206,7 +1206,7 @@
         async function save() { 
             const pg = document.getElementById('pg').value;
             const fld = document.getElementById('fld').value;
-            const isPhoto = fld.includes('Photo') || /^[a-z]+Hero$/.test(fld) || /^[a-z]+Flag$/.test(fld);
+            const isPhoto = fld.includes('Photo') || fld.includes('Logo') || /^[a-z]+Hero$/.test(fld) || /^[a-z]+Flag$/.test(fld);
 
             // Get the value based on field type
             let txt;
