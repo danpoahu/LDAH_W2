@@ -619,6 +619,8 @@
    * Called when cms.html is detected.
    */
   function initCmsInfoBubbles() {
+    // Info bubbles are baked into cms.html — skip dynamic injection
+    return;
     if (cmsInfoBubblesInitialized) return;
 
     // Team tab
