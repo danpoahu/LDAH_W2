@@ -112,6 +112,10 @@
     .nav-links a:hover { background: var(--sand-light); color: var(--ocean-deep); }
     .nav-links a.active { background: var(--sand); color: var(--ocean-deep); }
 
+    .nav-donate-li { margin-left: 0.5rem; }
+    .nav-donate-btn { display: inline-block; text-decoration: none; background: var(--sunset-coral, #F97316); color: #FFFFFF !important; font-weight: 600; font-family: "Outfit", sans-serif; padding: 0.5rem 1.3rem; border-radius: 20px; border: none; cursor: pointer; font-size: 0.95rem; transition: all 0.25s ease; box-shadow: 0 2px 8px rgba(249, 115, 22, 0.25); letter-spacing: 0.3px; }
+    .nav-donate-btn:hover { background: #EA580C; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(249, 115, 22, 0.35); color: #FFFFFF !important; }
+
     .hamburger {
         display: none;
         flex-direction: column;
@@ -631,6 +635,8 @@
         .hamburger {
             display: flex;
         }
+        .nav-donate-li { margin-left: 0; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(8, 145, 178, 0.1); }
+        .nav-donate-btn { display: block; text-align: center; width: 100%; padding: 0.8rem 1.5rem; font-size: 1rem; border-radius: 10px; }
 
         .hero-section h1 {
             font-size: 2em;
@@ -931,7 +937,7 @@
                 }
             } catch (error) {
                 console.log('⚠️ Using inline fallback for header/footer');
-                headerContainer.innerHTML = '<nav><div class="nav-content"><a href="index.html" class="logo-container"><img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH Logo" class="logo-img"></a><div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div><ul class="nav-links" id="navLinks"><li><a href="whoweare.html">Who We Are</a></li><li><a href="index.html#services">What We Do</a></li><li><a href="events.html">Events</a></li><li><a href="volunteer.html">Volunteer</a></li><li><a href="resources.html">Resources</a></li><li><a href="contact.html">Contact</a></li></ul></div></nav>';
+                headerContainer.innerHTML = '<nav><div class="nav-content"><a href="index.html" class="logo-container"><img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH Logo" class="logo-img"></a><div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div><ul class="nav-links" id="navLinks"><li><a href="whoweare.html">Who We Are</a></li><li><a href="index.html#services">What We Do</a></li><li><a href="events.html">Events</a></li><li><a href="volunteer.html">Volunteer</a></li><li><a href="resources.html">Resources</a></li><li><a href="contact.html">Contact</a></li><li class="nav-donate-li"><a href="https://www.paypal.com/donate?hosted_button_id=F6F2DPC4D6RSA" target="_blank" rel="noopener" class="nav-donate-btn">Donate</a></li></ul></div></nav>';
                 footerContainer.innerHTML = '<footer><svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg><div class="footer-content"><div class="footer-section"><h3>About LDAH</h3><p>Hawai\'i & Pacific Island Parent Training & Information Center &mdash; empowering families and children with disabilities.</p></div><div class="footer-section"><h3>Quick Links</h3><a href="whoweare.html">Who We Are</a><a href="index.html#services">What We Do</a><a href="events.html">Events</a><a href="volunteer.html">Volunteer</a><a href="resources.html">Resources</a><a href="contact.html">Contact Us</a></div><div class="footer-section"><h3>Honolulu Office</h3><p>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 536-7684<br><a href="mailto:rrowe@ldahawaii.org" style="color: rgba(255, 255, 255, 0.7); text-decoration: none;">rrowe@ldahawaii.org</a></p></div><div class="footer-section"><h3>Connect With Us</h3><a href="javascript:void(0)" onclick="openIframeModal(\'Parent Talk Cafe\', \'https://www.facebook.com/groups/2659334410969387\')">Parent Talk Cafe</a><a href="javascript:void(0)" onclick="openIframeModal(\'Career Opportunities\', \'https://www.hrsymphony.com/hrs/careers/ldah\')">Career Opportunities</a><a href="install.html">Install Our App</a><form action="https://www.paypal.com/donate" method="post" target="_blank" style="margin-top: 8px;"><input type="hidden" name="hosted_button_id" value="F6F2DPC4D6RSA"><input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" title="PayPal - The safer, easier way to pay online!" alt="Donate with PayPal button"></form></div></div><div class="footer-bottom"><p>&copy; <span class="dynamic-year"><\/span> Leadership in Disabilities and Achievement of Hawai\'i. All rights reserved.</p><p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal(\'DP Consulting\', \'https://oahuappdesign.com\')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a></p></div></footer>';
             }
             
