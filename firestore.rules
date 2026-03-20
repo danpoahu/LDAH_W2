@@ -1,144 +1,163 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Categories collection - read by all, write by authenticated users
     match /categories/{document=**} {
       allow read: if true;
       allow write: if request.auth != null;
     }
-
-    // FAQs collection - read by all, write by authenticated users
     match /faqs/{document=**} {
       allow read: if true;
       allow write: if request.auth != null;
     }
-
-    // Events collection - read by all, write by authenticated users
     match /events/{eventId} {
       allow read: if true;
       allow write: if request.auth != null;
-
-      // Signups subcollection - public write for submissions
       match /signups/{signupId} {
         allow read: if request.auth != null;
-        allow create: if true;  // Anyone can submit event signups
+        allow create: if true;
         allow update, delete: if request.auth != null;
       }
     }
-    // Recurring Events collection - read by all, write by authenticated users
     match /recurringEvents/{eventId} {
       allow read: if true;
       allow write: if request.auth != null;
-      // Signups subcollection - public write for submissions
       match /signups/{signupId} {
         allow read: if request.auth != null;
-        allow create: if true;  // Anyone can submit recurring event signups
+        allow create: if true;
         allow update, delete: if request.auth != null;
       }
     }
-
-    // Event Requests collection - write by all (for form submissions), read by authenticated users only
     match /eventRequests/{document=**} {
       allow read: if request.auth != null;
-      allow create: if true; // Anyone can submit an event request
+      allow create: if true;
       allow update, delete: if request.auth != null;
     }
-
-    // Volunteer Opportunities collection - read by all, write by authenticated users
     match /volunteerOpportunities/{document=**} {
       allow read: if true;
       allow write: if request.auth != null;
     }
-
-    // Volunteer Applications collection - write by all (for form submissions), read by authenticated users only
     match /volunteers/{document=**} {
       allow read: if request.auth != null;
-      allow create: if true; // Anyone can submit a volunteer application
+      allow create: if true;
       allow update, delete: if request.auth != null;
     }
-
-    // Contact Form Submissions collection - write by all (for form submissions), read by authenticated users only
     match /contactSubmissions/{document=**} {
       allow read: if request.auth != null;
-      allow create: if true; // Anyone can submit a contact form
+      allow create: if true;
       allow update, delete: if request.auth != null;
     }
-
-    // Provider Services Requests collection - write by all (for form submissions), read by authenticated users only
     match /providers/{document=**} {
       allow read: if request.auth != null;
-      allow create: if true; // Anyone can submit a provider request
+      allow create: if true;
       allow update, delete: if request.auth != null;
     }
-
-    // Anti-Bullying Pledges collection - write by all (for form submissions), read by authenticated users only
     match /pledges/{document=**} {
       allow read: if request.auth != null;
-      allow create: if true; // Anyone can submit a pledge
+      allow create: if true;
       allow update, delete: if request.auth != null;
     }
-
-    // Analytics collection - write by all (for tracking), read by authenticated users only
     match /analytics/{document=**} {
       allow read: if request.auth != null;
-      allow create: if true; // Anyone can write analytics events
+      allow create: if true;
       allow update, delete: if request.auth != null;
     }
-
-    // Site Analytics - public write for page tracking, read by authenticated users
     match /siteAnalytics/{document=**} {
       allow read: if request.auth != null;
-      allow create, update: if true;  // Tracker uses set({merge:true}) which needs create+update
+      allow create, update: if true;
       allow delete: if request.auth != null;
     }
-
-    // Team Members collection - read by all, write by authenticated users
     match /teamMembers/{document=**} {
       allow read: if true;
       allow write: if request.auth != null;
     }
-
-    // Board Members collection - read by all, write by authenticated users
     match /boardMembers/{document=**} {
       allow read: if true;
       allow write: if request.auth != null;
     }
-
-    // Resources collection - read by all, write by authenticated users
     match /resources/{document=**} {
       allow read: if true;
       allow write: if request.auth != null;
     }
-
-    // Gallery collection - read by all, write by authenticated users
+    match /resourceActivity/{document=**} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null;
+    }
     match /gallery/{document=**} {
       allow read: if true;
       allow write: if request.auth != null;
     }
-
-    // Gallery 2 collection (Volunteer page) - read by all, write by authenticated users
     match /gallery2/{document=**} {
       allow read: if true;
       allow write: if request.auth != null;
     }
-
-    // Page Content collection - read by all (for website), write by authenticated users (CMS)
     match /pageContent/{document=**} {
       allow read: if true;
       allow write: if request.auth != null;
     }
 
-    // User Roles collection - users can read their own role, admins can read/write all
+    // User Roles collection
+    // - Users can read their own doc (login, profile)
+    // - Admins/superAdmins can read any doc (user management, emergency contacts, etc.)
+    // - Users can update their own doc BUT cannot change their role
+    // - superAdmin has full write (create, delete, role changes)
     match /userRoles/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if request.auth != null;
+      allow read: if request.auth != null
+        && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin', 'admin'];
+      allow update: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.role == resource.data.role;
+      allow write: if request.auth != null
+        && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role == 'superAdmin';
     }
 
-    // Partners collection (legacy) - read by authenticated users
     match /partners/{document=**} {
       allow read: if request.auth != null;
       allow write: if request.auth != null;
+    }
+
+    match /contacts/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin','admin'];
+    }
+
+    match /interactions/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    match /lookupLists/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role == 'superAdmin';
+    }
+
+    match /chatPresence/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /chatConversations/{convId} {
+      allow read, write: if request.auth != null;
+      match /messages/{msgId} {
+        allow read, write: if request.auth != null;
+      }
+    }
+    match /changeRequests/{docId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null
+        && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin', 'admin'];
+    }
+    match /notifications/{notifId} {
+      allow read: if request.auth != null && resource.data.recipientUid == request.auth.uid;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && resource.data.recipientUid == request.auth.uid;
+    }
+    match /androidBetaRequests/{docId} {
+      allow read: if request.auth != null;
+      allow create: if true;
+      allow update, delete: if request.auth != null;
     }
   }
 }
