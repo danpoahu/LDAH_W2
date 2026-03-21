@@ -2314,6 +2314,10 @@
                 <option value="replied">Replied</option>
               </select>
               <button onclick="exportContactsToCSV()" class="btn-export">📥 Export CSV</button>
+              <div class="archived-toggle" style="margin-left:auto;">
+                <input type="checkbox" id="showContactsArchived" onchange="renderContacts()">
+                <label for="showContactsArchived">Show Archived</label>
+              </div>
             </div>
             <div id="contactsLoading" class="loading-spinner">Loading messages...</div>
             <div id="contactsEmpty" class="empty-state" style="display:none;">
@@ -7913,24 +7917,36 @@
     function renderContacts() {
       const list = document.getElementById('contactsList');
       const filterEl = document.getElementById('contactStatusFilter');
+      const countEl = document.getElementById('contactsCount');
       if (!list) return;
       const filter = filterEl ? filterEl.value : 'all';
-      let filtered = filter === 'all' ? contacts : contacts.filter(c => (c.status || 'new') === filter);
-      
+      const showArchived = document.getElementById('showContactsArchived')?.checked || false;
+      let filtered = contacts.filter(c => {
+        if (c.archived && !showArchived) return false;
+        return filter === 'all' || (c.status || 'new') === filter;
+      });
+
+      if (countEl) {
+        const total = contacts.filter(c => !c.archived).length;
+        const archivedCount = contacts.filter(c => c.archived).length;
+        countEl.textContent = `${total} messages` + (archivedCount > 0 ? ` (${archivedCount} archived)` : '');
+      }
+
       if (filtered.length === 0) {
         list.innerHTML = '<p style="color: var(--text-light); text-align: center; padding: 2rem;">No messages found.</p>';
         return;
       }
-      
+
       list.innerHTML = filtered.map(c => {
         const date = c.timestamp?.seconds ? new Date(c.timestamp.seconds * 1000).toLocaleDateString() : 'Unknown';
         const status = c.status || 'new';
+        const isArchived = c.archived === true;
         return `
-          <div class="data-card ${status}">
+          <div class="data-card ${status}${isArchived ? ' archived' : ''}">
             <div class="data-card-header" onclick="toggleDataExpand('contact-${c.id}')">
               <div style="flex: 1;">
                 <strong>${c.name || 'Unknown'}</strong>
-                <span class="status-badge status-${status}">${status}</span>
+                ${isArchived ? '<span class="archived-badge">ARCHIVED</span>' : `<span class="status-badge status-${status}">${status}</span>`}
                 <p style="color: var(--text-light); font-size: 0.85rem;">📧 ${c.email} • ${date}</p>
               </div>
               <span id="contact-${c.id}-arrow">▶</span>
@@ -7939,14 +7955,14 @@
               <p><strong>Phone:</strong> ${c.phone || 'N/A'}</p>
               <p><strong>Message:</strong></p>
               <p style="background: #f9fafb; padding: 0.75rem; border-radius: 8px; white-space: pre-wrap;">${c.message || 'N/A'}</p>
-              <div class="status-buttons">
+              ${isArchived ? '' : `<div class="status-buttons">
                 ${['new', 'read', 'replied'].map(s => `
                   <button class="status-btn ${status === s ? 'active' : ''}" onclick="updateContactStatus('${c.id}', '${s}')">${s}</button>
                 `).join('')}
-              </div>
+              </div>`}
               <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
-                <a href="mailto:${c.email}" class="btn-edit">📧 Reply</a>
-                <button class="btn-archive" onclick="archiveContact('${c.id}')">📦</button>
+                ${isArchived ? `<button class="btn-edit" onclick="restoreContact('${c.id}')">Restore</button>` : `<a href="mailto:${c.email}" class="btn-edit">📧 Reply</a>
+                <button class="btn-archive" onclick="archiveContact('${c.id}')">📦</button>`}
               </div>
             </div>
           </div>
