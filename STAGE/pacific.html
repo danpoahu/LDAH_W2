@@ -110,10 +110,12 @@
         color: var(--text-dark);
         font-weight: 500;
         padding: 0.6rem 1.1rem;
-        transition: color 0.3s;
+        border-radius: 8px;
+        transition: all 0.25s ease;
     }
 
-    .nav-links a:hover { color: var(--primary-blue); }
+    .nav-links a:hover { background: var(--sand-light); color: var(--ocean-deep); }
+    .nav-links a.active { background: var(--sand); color: var(--ocean-deep); }
 
     .nav-donate-li { margin-left: 0.5rem; }
     .nav-donate-btn { background: var(--sunset-coral, #F97316); color: #FFFFFF !important; border-radius: 20px; opacity: 0.8; }
