@@ -96,19 +96,19 @@
     .logo-img { width: 88px; height: 88px; }
     
     .nav-links { 
-        display: flex; 
-        gap: 0.5rem; 
-        list-style: none; 
-        align-items: center; 
+      display: flex; 
+      gap: 0.5rem; 
+      list-style: none; 
+      align-items: center; 
     }
     
     .nav-links a { 
-        text-decoration: none; 
-        color: var(--text-dark); 
-        font-weight: 500; 
-        padding: 0.6rem 1.1rem;
-        border-radius: 8px;
-        transition: all 0.25s ease;
+      text-decoration: none; 
+      color: var(--text-dark); 
+      font-weight: 500; 
+      padding: 0.6rem 1.1rem;
+      border-radius: 8px;
+      transition: all 0.25s ease;
     }
     
     .nav-links a:hover { background: var(--sand-light); color: var(--ocean-deep); }
@@ -122,16 +122,16 @@
     .hamburger span { width: 25px; height: 3px; background: var(--ocean-deep); margin: 3px 0; transition: 0.3s; border-radius: 2px; }
 
     @media (max-width: 768px) {
-        .nav-links { position: fixed; top: 108px; left: 0; right: 0; background: white; 
-            flex-direction: column; padding: 2rem; box-shadow: 0 4px 20px rgba(8, 145, 178, 0.1); 
-            gap: 0.5rem; transform: translateY(-100%); opacity: 0; 
-            transition: transform 0.3s, opacity 0.3s; pointer-events: none; 
-        }
-        .nav-links.active { transform: translateY(0); opacity: 1; pointer-events: all; }
-        .hamburger { display: flex; }
+      .nav-links { position: fixed; top: 108px; left: 0; right: 0; background: white; 
+        flex-direction: column; padding: 2rem; box-shadow: 0 4px 20px rgba(8, 145, 178, 0.1); 
+        gap: 0.5rem; transform: translateY(-100%); opacity: 0; 
+        transition: transform 0.3s, opacity 0.3s; pointer-events: none; 
+      }
+      .nav-links.active { transform: translateY(0); opacity: 1; pointer-events: all; }
+      .hamburger { display: flex; }
         .nav-donate-li { margin-left: 0; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid rgba(8, 145, 178, 0.1); }
         .nav-donate-btn { display: block; text-align: center; width: 100%; padding: 0.8rem 1.5rem; font-size: 1rem; border-radius: 10px; }
-        .logo-img { width: 78px; height: 78px; }
+      .logo-img { width: 78px; height: 78px; }
     }
 
     /* Hero Section */
