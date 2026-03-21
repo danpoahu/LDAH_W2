@@ -615,16 +615,16 @@
       <!-- Google Play Store — Beta Request -->
       <div class="store-card">
         <h3>Android <span class="beta-badge">BETA</span></h3>
-        <p>The Android version is currently in closed beta testing. To get access, submit your Gmail address below and we will send you an invite.</p>
+        <p>The Android version is currently in closed beta testing. To get access, submit the email address associated with your Google account and we will send you an invite.</p>
         <div id="androidRequestForm">
           <div style="display:flex; gap:0.75rem; justify-content:center; flex-wrap:wrap; margin-top:1rem;">
-            <input type="email" id="androidGmail" placeholder="your.name@gmail.com" style="padding:0.6rem 1rem; border:1px solid rgba(8,145,178,0.2); border-radius:8px; font-size:0.95rem; width:280px; font-family:inherit;">
+            <input type="email" id="androidGmail" placeholder="you@example.com" style="padding:0.6rem 1rem; border:1px solid rgba(8,145,178,0.2); border-radius:8px; font-size:0.95rem; width:280px; font-family:inherit;">
             <button onclick="submitAndroidRequest()" style="padding:0.6rem 1.5rem; background:var(--sunset-coral,#F97316); color:white; border:none; border-radius:8px; font-size:0.95rem; font-weight:600; cursor:pointer; font-family:inherit; transition:background 0.25s;">Request Access</button>
           </div>
           <p id="androidFormMsg" style="margin-top:0.75rem; font-size:0.85rem; color:var(--text-soft); min-height:1.2em;"></p>
         </div>
         <div class="beta-note" style="margin-top:1.25rem;">
-          A Gmail address is required for Google Play beta access. After submitting, you will receive an email invite within 1-2 business days with a link to download the app.
+          A Google account is required for Google Play beta access. You can use any email address linked to a Google account. Requests submitted during business hours are typically processed the same day.
         </div>
       </div>
     </div>
@@ -713,14 +713,9 @@
       var input = document.getElementById('androidGmail');
       var email = (input.value || '').trim().toLowerCase();
 
-      if (!email) {
+      if (!email || !email.includes('@') || !email.includes('.')) {
         msg.style.color = '#DC2626';
-        msg.textContent = 'Please enter your Gmail address.';
-        return;
-      }
-      if (!email.endsWith('@gmail.com')) {
-        msg.style.color = '#DC2626';
-        msg.textContent = 'Please use a Gmail address (example@gmail.com). This is required for Google Play beta access.';
+        msg.textContent = 'Please enter a valid email address associated with your Google account.';
         return;
       }
 
@@ -746,14 +741,14 @@
             name: 'Android Beta Request',
             email: email,
             phone: '',
-            message: 'New Android beta access request.\n\nGmail: ' + email + '\n\nAdd this email to the closed testing track in Google Play Console.',
+            message: 'New Android beta access request.\n\nEmail: ' + email + '\n\nAdd this email to the closed testing track in Google Play Console.',
             timestamp: firebase.firestore.FieldValue.serverTimestamp(),
             status: 'new',
             source: 'android-beta'
           });
         }).then(function() {
           msg.style.color = '#16A34A';
-          msg.textContent = 'Request submitted! You will receive a Google Play invite at ' + email + ' within 1-2 business days.';
+          msg.textContent = 'Request submitted! You will receive a Google Play invite at ' + email + ' during business hours.';
           input.value = '';
         });
       }).catch(function(err) {
