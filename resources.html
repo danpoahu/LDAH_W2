@@ -836,6 +836,8 @@
                         fax: doc.data().fax || '',
                         email: doc.data().email || '',
                         website: doc.data().website || '',
+                        iframeBlocked: doc.data().iframeBlocked === true,
+                        allowExternal: doc.data().allowExternal === true,
                         services: doc.data().services || '',
                         notes: doc.data().notes || '',
                         island: doc.data().island || '',
@@ -907,7 +909,7 @@
                             <div class="contact-buttons">
                                 ${resource.phone ? `<a href="tel:${resource.phone.replace(/[^0-9+]/g, '')}" class="contact-btn phone">Call</a>` : ''}
                                 ${resource.email ? `<a href="mailto:${resource.email}" class="contact-btn email">Email</a>` : ''}
-                                ${resource.website ? `<button onclick="event.stopPropagation(); openIframeModal('${resource.name.replace(/'/g, "\\'")}', '${websiteUrl}')" class="contact-btn website">Website</button>` : ''}
+                                ${resource.website ? (resource.iframeBlocked ? (resource.allowExternal ? `<a href="${websiteUrl}" target="_blank" rel="noopener" class="contact-btn website">Website</a>` : '') : `<button onclick="event.stopPropagation(); openIframeModal('${resource.name.replace(/'/g, "\\'")}', '${websiteUrl}')" class="contact-btn website">Website</button>`) : ''}
                             </div>
                         </div>
                     </div>
