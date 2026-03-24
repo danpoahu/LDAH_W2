@@ -116,7 +116,16 @@
         top: -12px;
         left: 0;
     }
-    
+    /* Tablet only: prevent giant logo from clipping off left edge */
+    @media (min-width: 821px) and (max-width: 1250px) {
+      .logo-container .logo-img:not(.logo-docked) {
+        width: 180px !important;
+        height: 180px !important;
+        left: -20px;
+        top: -10px;
+      }
+    }
+
     .nav-links { 
       display: flex; 
       gap: 0.5rem; 
