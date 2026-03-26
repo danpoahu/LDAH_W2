@@ -3492,55 +3492,27 @@
       resultDiv.style.display = 'block';
       resultDiv.style.background = '#f0f9ff';
       resultDiv.style.color = '#0369a1';
-      resultDiv.textContent = 'Checking your account...';
+      resultDiv.textContent = 'Sending setup link...';
 
       try {
-        // First check if this email exists in userRoles
-        var snapshot = await firebase.firestore().collection('userRoles')
-          .where('email', '==', email).limit(1).get();
-
-        if (snapshot.empty) {
-          // Try sending password reset — Firebase will error if no account
-          try {
-            await firebase.auth().sendPasswordResetEmail(email);
-            resultDiv.style.background = '#f0fdf4';
-            resultDiv.style.color = '#166534';
-            resultDiv.innerHTML = '<b>Check your email!</b> We sent a secure link to <b>' + email + '</b> to set your password. After setting your password, visit the LDAH Dashboard link above to log in.';
-          } catch (authErr) {
-            if (authErr.code === 'auth/user-not-found') {
-              resultDiv.style.background = '#fef2f2';
-              resultDiv.style.color = '#991b1b';
-              resultDiv.innerHTML = 'This email is not set up yet. Please contact <b>Rosie</b> to get your account created.';
-            } else {
-              resultDiv.style.background = '#fef2f2';
-              resultDiv.style.color = '#991b1b';
-              resultDiv.textContent = 'Error: ' + authErr.message;
-            }
-          }
-          return;
-        }
-
-        // Email found in userRoles — try to send password reset
-        try {
-          await firebase.auth().sendPasswordResetEmail(email);
-          resultDiv.style.background = '#f0fdf4';
-          resultDiv.style.color = '#166534';
-          resultDiv.innerHTML = '<b>Check your email!</b> We sent a secure link to <b>' + email + '</b> to set your password. After setting your password, visit the LDAH Dashboard link above to log in.';
-        } catch (authErr) {
-          if (authErr.code === 'auth/user-not-found') {
-            resultDiv.style.background = '#fef2f2';
-            resultDiv.style.color = '#991b1b';
-            resultDiv.innerHTML = 'Your account needs to be activated. Please contact <b>Rosie</b> to complete your setup.';
-          } else {
-            resultDiv.style.background = '#fef2f2';
-            resultDiv.style.color = '#991b1b';
-            resultDiv.textContent = 'Error: ' + authErr.message;
-          }
-        }
+        await firebase.auth().sendPasswordResetEmail(email);
+        resultDiv.style.background = '#f0fdf4';
+        resultDiv.style.color = '#166534';
+        resultDiv.innerHTML = '<b>Check your email!</b> We sent a secure link to <b>' + email + '</b> to set your password.<br><br>After setting your password, click the <b>Open LDAH Dashboard</b> button above to log in.';
       } catch (err) {
-        resultDiv.style.background = '#fef2f2';
-        resultDiv.style.color = '#991b1b';
-        resultDiv.textContent = 'Error: ' + err.message;
+        if (err.code === 'auth/user-not-found') {
+          resultDiv.style.background = '#fef2f2';
+          resultDiv.style.color = '#991b1b';
+          resultDiv.innerHTML = 'This email is not set up yet. Please contact <b>Rosie</b> to get your account created.';
+        } else if (err.code === 'auth/invalid-email') {
+          resultDiv.style.background = '#fef2f2';
+          resultDiv.style.color = '#991b1b';
+          resultDiv.textContent = 'Please enter a valid email address.';
+        } else {
+          resultDiv.style.background = '#fef2f2';
+          resultDiv.style.color = '#991b1b';
+          resultDiv.textContent = 'Something went wrong. Please try again or contact Rosie.';
+        }
       }
     }
 
