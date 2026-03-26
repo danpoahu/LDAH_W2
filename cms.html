@@ -1905,6 +1905,25 @@
         
         <button type="submit" class="btn btn-primary">Sign In</button>
       </form>
+
+        <!-- LDAH-Int Invitation -->
+        <div style="margin-top:2rem;padding-top:1.5rem;border-top:1px solid #e2e8f0;">
+          <div style="background:linear-gradient(135deg,#f0fdfa,#ecfdf5);border:1px solid #99f6e4;border-radius:14px;padding:1.5rem;text-align:center;">
+            <h3 style="font-size:1.1rem;color:#004E7C;margin-bottom:0.5rem;">Try Our New Visual Editor</h3>
+            <p style="font-size:0.88rem;color:#475569;line-height:1.5;margin-bottom:1rem;">For a richer editing experience with live page previews, use the <b>LDAH Internal Dashboard</b>.</p>
+            <a href="https://danpoahu.github.io/LDAH-Int/" target="_blank" style="display:inline-block;background:linear-gradient(135deg,#0891B2,#06B6D4);color:white;padding:10px 24px;border-radius:10px;font-weight:700;font-size:0.9rem;text-decoration:none;transition:all 0.15s;">Open LDAH Dashboard</a>
+          </div>
+
+          <div style="margin-top:1.25rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:1.25rem;">
+            <h4 style="font-size:0.92rem;color:#334155;margin-bottom:0.5rem;">Need access? Set up your password:</h4>
+            <p style="font-size:0.82rem;color:#64748b;line-height:1.4;margin-bottom:0.75rem;">Enter your work email below. If your account is set up, we'll send you a secure link to create your password.</p>
+            <div id="intSetupForm">
+              <input type="email" id="intSetupEmail" placeholder="Enter your work email" style="width:100%;padding:10px 14px;border:2px solid #e2e8f0;border-radius:8px;font-size:0.9rem;margin-bottom:0.5rem;box-sizing:border-box;">
+              <button type="button" onclick="intSendSetup()" style="width:100%;background:#004E7C;color:white;padding:10px;border:none;border-radius:8px;font-weight:600;font-size:0.9rem;cursor:pointer;transition:all 0.15s;">Send Password Setup Link</button>
+            </div>
+            <div id="intSetupResult" style="display:none;margin-top:0.75rem;padding:0.75rem;border-radius:8px;font-size:0.85rem;line-height:1.4;"></div>
+          </div>
+        </div>
     </div>
   </div>
 
@@ -3455,6 +3474,47 @@
     const db = firebase.firestore();
     const storage = firebase.storage();
     const auth = firebase.auth();
+
+    /* ── LDAH-Int Self-Service Password Setup ── */
+    async function intSendSetup() {
+      var emailInput = document.getElementById('intSetupEmail');
+      var resultDiv = document.getElementById('intSetupResult');
+      var email = emailInput.value.trim().toLowerCase();
+
+      if (!email || !email.includes('@')) {
+        resultDiv.style.display = 'block';
+        resultDiv.style.background = '#fef2f2';
+        resultDiv.style.color = '#991b1b';
+        resultDiv.textContent = 'Please enter a valid email address.';
+        return;
+      }
+
+      resultDiv.style.display = 'block';
+      resultDiv.style.background = '#f0f9ff';
+      resultDiv.style.color = '#0369a1';
+      resultDiv.textContent = 'Sending setup link...';
+
+      try {
+        await firebase.auth().sendPasswordResetEmail(email);
+        resultDiv.style.background = '#f0fdf4';
+        resultDiv.style.color = '#166534';
+        resultDiv.innerHTML = '<b>Check your email!</b> We sent a secure link to <b>' + email + '</b> to set your password.<br><br>After setting your password, click the <b>Open LDAH Dashboard</b> button above to log in.';
+      } catch (err) {
+        if (err.code === 'auth/user-not-found') {
+          resultDiv.style.background = '#fef2f2';
+          resultDiv.style.color = '#991b1b';
+          resultDiv.innerHTML = 'This email is not set up yet. Please contact <b>Rosie</b> to get your account created.';
+        } else if (err.code === 'auth/invalid-email') {
+          resultDiv.style.background = '#fef2f2';
+          resultDiv.style.color = '#991b1b';
+          resultDiv.textContent = 'Please enter a valid email address.';
+        } else {
+          resultDiv.style.background = '#fef2f2';
+          resultDiv.style.color = '#991b1b';
+          resultDiv.textContent = 'Something went wrong. Please try again or contact Rosie.';
+        }
+      }
+    }
 
     // Password
     const CMS_PASSWORD = 'ldah2024';
