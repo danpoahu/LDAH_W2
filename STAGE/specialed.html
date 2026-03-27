@@ -668,9 +668,6 @@
                 if (doc.exists) {
                     const data = doc.data();
                     Object.keys(data).forEach(key => {
-                        // Skip res title/desc fields — use hardcoded HTML as source of truth
-                        // Allow photo fields through so CMS images still load
-                        if (key.match(/^res\d+(Title|Desc)$/)) return;
                         const el = document.getElementById(`specialed-${key}`);
                         if (el && data[key]) {
                             // For photo fields, update the src attribute instead of innerHTML
