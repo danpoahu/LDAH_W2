@@ -1118,12 +1118,12 @@
                     // Update all elements that have matching IDs
                     Object.keys(content).forEach(key => {
                         const el = document.getElementById(`whoweare-${key}`);
-                        if (el && content[key]) {
+                        if (el && content[key] && typeof content[key] === 'string') {
                             // For photo fields, update src attribute instead of innerHTML
                             if (key.includes('Photo') && el.tagName === 'IMG') {
                                 el.src = content[key];
                             } else {
-                                el.innerHTML = stripEmoji(content[key]);
+                                el.textContent = stripEmoji(content[key]);
                             }
                         }
                     });

@@ -1445,12 +1445,12 @@
             Object.keys(data).forEach(key => {
                 if (key === 'updatedAt') return;
                 const el = document.getElementById(`pacific-${key}`);
-                if (el && data[key]) {
+                if (el && data[key] && typeof data[key] === 'string') {
                     if ((key.includes('Photo') || key.includes('Hero') || key.includes('Flag') || key.includes('Logo')) && el.tagName === 'IMG') {
                         el.src = data[key];
                         el.style.display = '';
                     } else {
-                        el.innerHTML = stripEmoji(data[key]);
+                        el.textContent = stripEmoji(data[key]);
                     }
                 }
             });
