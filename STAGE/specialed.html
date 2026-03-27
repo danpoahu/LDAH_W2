@@ -692,7 +692,7 @@
             titleEl.textContent = title;
             // Use youtube-nocookie for better privacy/embedding support
             frame.allow = 'autoplay; encrypted-media';
-            frame.src = `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&autoplay=1&loop=1&playlist=${videoId}&enablejsapi=1`;
+            frame.src = `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&enablejsapi=1`;
             modal.classList.add('active');
             document.body.style.overflow = 'hidden';
             
