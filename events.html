@@ -1144,8 +1144,8 @@
           const fields = ['heroTitle', 'heroSubtitle', 'currentTitle', 'pastTitle', 'calendarTitle', 'ctaTitle', 'ctaSubtitle', 'ctaButton'];
           fields.forEach(field => {
             const el = document.getElementById('events-' + field);
-            if (el && data[field]) {
-              el.innerHTML = stripEmoji(data[field]);
+            if (el && data[field] && typeof data[field] === 'string') {
+              el.textContent = stripEmoji(data[field]);
             }
           });
         }

@@ -796,12 +796,12 @@
                     const data = doc.data();
                     Object.keys(data).forEach(key => {
                         const el = document.getElementById(`military-${key}`);
-                        if (el && data[key]) {
+                        if (el && data[key] && typeof data[key] === 'string') {
                             // For photo fields, update the src attribute instead of innerHTML
                             if (key.includes('Photo') && el.tagName === 'IMG') {
                                 el.src = data[key];
                             } else {
-                                el.innerHTML = stripEmoji(data[key]);
+                                el.textContent = stripEmoji(data[key]);
                             }
                         }
                     });
@@ -817,7 +817,7 @@
             const frame = document.getElementById('videoFrame');
             
             titleEl.textContent = title;
-            frame.src = `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&autoplay=1&loop=1&playlist=${videoId}&enablejsapi=1`;
+            frame.src = `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&autoplay=1&mute=1&loop=1&playlist=${videoId}&enablejsapi=1`;
             modal.classList.add('active');
             document.body.style.overflow = 'hidden';
             

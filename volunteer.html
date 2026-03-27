@@ -593,8 +593,8 @@
           const content = doc.data();
           Object.keys(content).forEach(key => {
             const el = document.getElementById(`volunteer-${key}`);
-            if (el && content[key]) {
-              el.innerHTML = content[key];
+            if (el && content[key] && typeof content[key] === 'string') {
+              el.textContent = content[key];
             }
           });
         }

@@ -872,12 +872,12 @@
                     const data = doc.data();
                     Object.keys(data).forEach(key => {
                         const el = document.getElementById(`community-${key}`);
-                        if (el && data[key]) {
+                        if (el && data[key] && typeof data[key] === 'string') {
                             // For photo fields, update the src attribute instead of innerHTML
                             if (key.includes('Photo') && el.tagName === 'IMG') {
                                 el.src = data[key];
                             } else {
-                                el.innerHTML = stripEmoji(data[key]);
+                                el.textContent = stripEmoji(data[key]);
                             }
                         }
                     });
