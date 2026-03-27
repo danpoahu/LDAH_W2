@@ -1450,7 +1450,7 @@
                         el.src = data[key];
                         el.style.display = '';
                     } else {
-                        el.textContent = stripEmoji(data[key]);
+                        el.innerHTML = stripEmoji(data[key]);
                     }
                 }
             });
