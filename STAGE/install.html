@@ -727,7 +727,7 @@
       db.collection('androidBetaRequests').where('email', '==', email).get().then(function(snap) {
         if (!snap.empty) {
           msg.style.color = '#0891B2';
-          msg.innerHTML = 'You\'re already on the list! <a href="https://play.google.com/apps/testing/org.ldahawaii.app" target="_blank" style="color:#0891B2;font-weight:700;text-decoration:underline;">Tap here to install LDAH from Google Play</a>.';
+          msg.innerHTML = 'You\'ve already requested access! <a href="https://groups.google.com/g/ldah-beta-testers" target="_blank" style="color:#0891B2;font-weight:700;text-decoration:underline;">Join the testers group</a>, then <a href="https://play.google.com/apps/testing/org.ldahawaii.app" target="_blank" style="color:#0891B2;font-weight:700;text-decoration:underline;">install from Google Play</a>.';
           return;
         }
         // Save to androidBetaRequests for tracking
@@ -749,11 +749,10 @@
         }).then(function() {
           input.value = '';
           msg.style.color = '#16A34A';
-          msg.innerHTML = 'You\'re in! Opening Google Play...<br><span style="font-size:.85em;color:#64748B;">A Google Play invite will also be sent to your email.</span>';
-          // Give the Cloud Function a moment to add them, then open Play Store
-          setTimeout(function() {
-            window.open('https://play.google.com/apps/testing/org.ldahawaii.app', '_blank');
-          }, 3000);
+          msg.innerHTML = 'Almost there! Join the testers group to get access, then install the app.<br>' +
+            '<a href="https://play.google.com/apps/testing/org.ldahawaii.app" target="_blank" style="color:#0891B2;font-weight:700;text-decoration:underline;font-size:.95em;">Install LDAH from Google Play</a>';
+          // Open the group join page so they can join with one click
+          window.open('https://groups.google.com/g/ldah-beta-testers', '_blank');
         });
       }).catch(function(err) {
         msg.style.color = '#DC2626';
