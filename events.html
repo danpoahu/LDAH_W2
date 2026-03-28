@@ -1256,7 +1256,7 @@
               return;
             }
 
-            const occurrences = getOccurrencesInNext30Days(data.schedules);
+            const occurrences = getOccurrencesInNext30Days(data.schedules, data.cancelledDates);
             if (occurrences.length === 0) return;
             const nextOcc = occurrences[0];
             const nextDateLabel = nextOcc.date.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
@@ -2477,9 +2477,10 @@
       return `${hour}:${String(m).padStart(2,'0')} ${ampm}`;
     }
 
-    function getOccurrencesInNext30Days(schedules) {
+    function getOccurrencesInNext30Days(schedules, cancelledDates) {
       const today = new Date(); today.setHours(0,0,0,0);
       const end   = new Date(today); end.setDate(end.getDate() + 30);
+      const cancelledSet = new Set((cancelledDates || []).map(cd => cd.date || cd));
       const results = [];
       (schedules || []).forEach(sch => {
         if (sch.frequency === 'weekly') {
@@ -2487,7 +2488,9 @@
           const diff = (sch.dayOfWeek - d.getDay() + 7) % 7;
           d.setDate(d.getDate() + diff);
           while (d <= end) {
-            results.push({ date: new Date(d), schedule: sch });
+            if (!cancelledSet.has(d.toISOString().slice(0, 10))) {
+              results.push({ date: new Date(d), schedule: sch });
+            }
             d.setDate(d.getDate() + 7);
           }
         } else { // monthly-nth
@@ -2497,7 +2500,7 @@
             const dayOffset = (sch.dayOfWeek - firstDow + 7) % 7;
             const nth = new Date(ref.getFullYear(), ref.getMonth(),
                                  1 + dayOffset + (sch.weekOfMonth - 1) * 7);
-            if (nth.getMonth() === ref.getMonth() && nth >= today && nth <= end)
+            if (nth.getMonth() === ref.getMonth() && nth >= today && nth <= end && !cancelledSet.has(nth.toISOString().slice(0, 10)))
               results.push({ date: nth, schedule: sch });
           }
         }
@@ -2525,7 +2528,7 @@
         snapshot.docs.forEach(doc => {
           const data = { id: doc.id, ...doc.data() };
           window._recurringPrograms[doc.id] = data;
-          const occurrences = getOccurrencesInNext30Days(data.schedules);
+          const occurrences = getOccurrencesInNext30Days(data.schedules, data.cancelledDates);
           if (occurrences.length === 0) return;
           const nextOcc = occurrences[0];
           const nextDateLabel = nextOcc.date.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
@@ -2559,7 +2562,7 @@
 
       const program = window._recurringPrograms && window._recurringPrograms[programId];
       if (!program) return;
-      const occurrences = getOccurrencesInNext30Days(program.schedules);
+      const occurrences = getOccurrencesInNext30Days(program.schedules, program.cancelledDates);
       const occFormatted = occurrences.map(formatOccurrence);
 
       // Fetch signups to determine which sessions are full
