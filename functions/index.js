@@ -1,5 +1,9 @@
 const functions = require("firebase-functions");
+const admin = require("firebase-admin");
 const Anthropic = require("@anthropic-ai/sdk");
+const nodemailer = require("nodemailer");
+
+admin.initializeApp();
 
 const ALLOWED_ORIGIN = "https://danpoahu.github.io";
 
@@ -141,4 +145,166 @@ exports.ldahCmsHelp = functions
         error: "Something went wrong. Please try again in a moment.",
       });
     }
+  });
+
+// ── Check Resource URL for iframe compatibility ──
+exports.checkResourceUrl = functions
+  .runWith({ timeoutSeconds: 15, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    // CORS headers — LDAH-Int is on GitHub Pages
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Access-Control-Max-Age", "3600");
+
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "Method not allowed" });
+      return;
+    }
+
+    const { url } = req.body;
+
+    if (!url || typeof url !== "string") {
+      res.status(400).json({ error: "Missing or invalid url" });
+      return;
+    }
+
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(url);
+    } catch (_) {
+      res.status(400).json({ error: "Invalid URL format" });
+      return;
+    }
+
+    // Only allow http/https
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      res.status(400).json({ error: "Only http and https URLs are supported" });
+      return;
+    }
+
+    const https = require("https");
+    const http = require("http");
+
+    /**
+     * Makes a HEAD request to the given URL, following up to maxRedirects
+     * redirects, and resolves with the final response headers and status.
+     */
+    function headRequest(targetUrl, redirectsLeft = 5) {
+      return new Promise((resolve, reject) => {
+        const parsed = new URL(targetUrl);
+        const lib = parsed.protocol === "https:" ? https : http;
+
+        const options = {
+          hostname: parsed.hostname,
+          port: parsed.port || (parsed.protocol === "https:" ? 443 : 80),
+          path: parsed.pathname + parsed.search,
+          method: "HEAD",
+          headers: { "User-Agent": "LDAH-ResourceChecker/1.0" },
+          timeout: 5000,
+        };
+
+        const request = lib.request(options, (response) => {
+          const { statusCode, headers: resHeaders } = response;
+          // Consume response body (HEAD should have none, but be safe)
+          response.resume();
+
+          // Follow redirects (301, 302, 303, 307, 308)
+          if (
+            [301, 302, 303, 307, 308].includes(statusCode) &&
+            resHeaders.location &&
+            redirectsLeft > 0
+          ) {
+            // Resolve relative redirects against the current URL
+            const nextUrl = new URL(resHeaders.location, targetUrl).href;
+            resolve(headRequest(nextUrl, redirectsLeft - 1));
+          } else {
+            resolve({ statusCode, headers: resHeaders, finalUrl: targetUrl });
+          }
+        });
+
+        request.on("timeout", () => {
+          request.destroy();
+          reject(new Error("Request timed out"));
+        });
+
+        request.on("error", (err) => {
+          reject(err);
+        });
+
+        request.end();
+      });
+    }
+
+    try {
+      const { statusCode, headers: resHeaders } = await headRequest(url);
+
+      // 4xx / 5xx → treat as blocked
+      if (statusCode >= 400) {
+        res.status(200).json({
+          iframeBlocked: true,
+          reason: `HTTP ${statusCode} error`,
+        });
+        return;
+      }
+
+      // Check X-Frame-Options
+      const xfo = (resHeaders["x-frame-options"] || "").toUpperCase().trim();
+      if (xfo === "DENY" || xfo === "SAMEORIGIN") {
+        res.status(200).json({
+          iframeBlocked: true,
+          reason: `X-Frame-Options: ${xfo}`,
+        });
+        return;
+      }
+
+      // Check Content-Security-Policy frame-ancestors
+      const csp = (resHeaders["content-security-policy"] || "").toLowerCase();
+      if (csp.includes("frame-ancestors")) {
+        if (
+          csp.includes("frame-ancestors 'none'") ||
+          csp.includes("frame-ancestors 'self'")
+        ) {
+          // Extract the directive for a readable reason
+          const match = csp.match(/frame-ancestors[^;]*/);
+          const directive = match ? match[0].trim() : "frame-ancestors restricted";
+          res.status(200).json({
+            iframeBlocked: true,
+            reason: `Content-Security-Policy: ${directive}`,
+          });
+          return;
+        }
+      }
+
+      res.status(200).json({ iframeBlocked: false });
+    } catch (err) {
+      console.error("checkResourceUrl error:", err.message);
+      res.status(200).json({
+        iframeBlocked: true,
+        reason: err.message.includes("timed out")
+          ? "Request timed out (5s)"
+          : "Connection error: " + err.message,
+      });
+    }
+  });
+
+// ── Android Beta Request Tracking ──
+// Testers join via Google Group (ldah-beta-testers@googlegroups.com)
+// which is linked to the closed testing track in Google Play Console.
+// This function just timestamps the request in Firestore for tracking.
+exports.notifyAndroidBetaRequest = functions
+  .runWith({ timeoutSeconds: 15, maxInstances: 5 })
+  .firestore.document("androidBetaRequests/{docId}")
+  .onCreate(async (snap) => {
+    const data = snap.data();
+    const email = data.email || "unknown";
+    console.log("Android beta request received:", email);
+    await snap.ref.update({
+      processedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
   });
