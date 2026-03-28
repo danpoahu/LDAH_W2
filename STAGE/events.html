@@ -2427,6 +2427,11 @@
           timestamp: firebase.firestore.FieldValue.serverTimestamp(),
           eventTitle: eventData.title
         });
+        // Update denormalized counts on parent doc
+        await db.collection('events').doc(eventId).update({
+          signupCount: firebase.firestore.FieldValue.increment(1),
+          pendingCount: firebase.firestore.FieldValue.increment(1)
+        });
         if (window.ldahAnalytics) ldahAnalytics.trackFormSubmit('event_signup');
 
         // Track analytics
@@ -2801,6 +2806,11 @@
           archived: false,
           timestamp: firebase.firestore.FieldValue.serverTimestamp(),
           eventTitle: program.title
+        });
+        // Update denormalized counts on parent doc
+        await db.collection('recurringEvents').doc(programId).update({
+          signupCount: firebase.firestore.FieldValue.increment(1),
+          pendingCount: firebase.firestore.FieldValue.increment(1)
         });
         if (window.ldahAnalytics) ldahAnalytics.trackFormSubmit('recurring_event_signup');
 

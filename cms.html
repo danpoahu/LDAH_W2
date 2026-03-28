@@ -6257,6 +6257,11 @@
     async function updateSignupStatus(eventId, signupId, status) {
       try {
         await db.collection('events').doc(eventId).collection('signups').doc(signupId).update({ status });
+        // Recalculate denormalized pendingCount
+        var allSnap = await db.collection('events').doc(eventId).collection('signups').get();
+        var pc = 0;
+        allSnap.forEach(function(doc) { var st = doc.data().status; if (st === 'pending' || st === 'new') pc++; });
+        await db.collection('events').doc(eventId).update({ pendingCount: pc });
         const signup = eventSignups[eventId]?.find(s => s.id === signupId);
         if (signup) signup.status = status;
         // Refresh the modal
@@ -6323,6 +6328,11 @@
           archived: true,
           archivedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
+        // Recalculate denormalized pendingCount
+        var allSnap = await db.collection('events').doc(eventId).collection('signups').get();
+        var pc = 0;
+        allSnap.forEach(function(doc) { var st = doc.data().status; if (st === 'pending' || st === 'new') pc++; });
+        await db.collection('events').doc(eventId).update({ pendingCount: pc });
         // Update local data
         const signup = eventSignups[eventId].find(s => s.id === signupId);
         if (signup) signup.archived = true;
@@ -6342,6 +6352,11 @@
           archivedAt: firebase.firestore.FieldValue.delete(),
           restoredAt: firebase.firestore.FieldValue.serverTimestamp()
         });
+        // Recalculate denormalized pendingCount
+        var allSnap = await db.collection('events').doc(eventId).collection('signups').get();
+        var pc = 0;
+        allSnap.forEach(function(doc) { var st = doc.data().status; if (st === 'pending' || st === 'new') pc++; });
+        await db.collection('events').doc(eventId).update({ pendingCount: pc });
         const signup = eventSignups[eventId].find(s => s.id === signupId);
         if (signup) signup.archived = false;
         openSignupsModal(eventId);
@@ -6739,6 +6754,11 @@
     async function updateRecurringSignupStatus(programId, signupId, status) {
       try {
         await db.collection('recurringEvents').doc(programId).collection('signups').doc(signupId).update({ status });
+        // Recalculate denormalized pendingCount
+        var allSnap = await db.collection('recurringEvents').doc(programId).collection('signups').get();
+        var pc = 0;
+        allSnap.forEach(function(doc) { var st = doc.data().status; if (st === 'pending' || st === 'new') pc++; });
+        await db.collection('recurringEvents').doc(programId).update({ pendingCount: pc });
         const signup = (recurringSignups[programId]||[]).find(s=>s.id===signupId);
         if (signup) signup.status = status;
         // Refresh the modal so confirmed counts and FULL badges update
@@ -6750,6 +6770,11 @@
       if (!confirm('Archive this signup?')) return;
       try {
         await db.collection('recurringEvents').doc(programId).collection('signups').doc(signupId).update({ archived:true });
+        // Recalculate denormalized pendingCount
+        var allSnap = await db.collection('recurringEvents').doc(programId).collection('signups').get();
+        var pc = 0;
+        allSnap.forEach(function(doc) { var st = doc.data().status; if (st === 'pending' || st === 'new') pc++; });
+        await db.collection('recurringEvents').doc(programId).update({ pendingCount: pc });
         await loadRecurringPrograms();
         openRecurringSignupsModal(programId);
       } catch(err) { console.error(err); }
