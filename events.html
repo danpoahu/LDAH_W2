@@ -1145,7 +1145,9 @@
           fields.forEach(field => {
             const el = document.getElementById('events-' + field);
             if (el && data[field] && typeof data[field] === 'string') {
-              el.textContent = stripEmoji(data[field]);
+              var tmp = document.createElement('div');
+              tmp.innerHTML = data[field];
+              el.textContent = stripEmoji(tmp.textContent || tmp.innerText || '');
             }
           });
         }
