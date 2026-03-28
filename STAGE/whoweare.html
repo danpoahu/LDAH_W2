@@ -1123,7 +1123,9 @@
                             if (key.includes('Photo') && el.tagName === 'IMG') {
                                 el.src = content[key];
                             } else {
-                                el.textContent = stripEmoji(content[key]);
+                                var tmp = document.createElement('div');
+                                tmp.innerHTML = content[key];
+                                el.textContent = stripEmoji(tmp.textContent || tmp.innerText || '');
                             }
                         }
                     });

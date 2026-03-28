@@ -673,8 +673,9 @@
                             if (key.includes('Photo') && el.tagName === 'IMG') {
                                 el.src = data[key];
                             } else {
-                                // Use textContent to avoid DOM issues from CMS richtext HTML tags
-                                el.textContent = stripEmoji(data[key]);
+                                var tmp = document.createElement('div');
+                                tmp.innerHTML = data[key];
+                                el.textContent = stripEmoji(tmp.textContent || tmp.innerText || '');
                             }
                         }
                     });
