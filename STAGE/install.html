@@ -727,7 +727,9 @@
       db.collection('androidBetaRequests').where('email', '==', email).get().then(function(snap) {
         if (!snap.empty) {
           msg.style.color = '#0891B2';
-          msg.innerHTML = 'This email has already been submitted. <a href="https://groups.google.com/g/ldah-beta-testers" target="_blank" style="color:#0891B2;font-weight:600;text-decoration:underline;">Join the LDAH Beta Testers group</a> to get instant access.';
+          window.open('https://groups.google.com/g/ldah-beta-testers', '_blank');
+          msg.innerHTML = 'You already requested access. Join the testers group in the window that just opened, then ' +
+            '<a href="https://play.google.com/apps/testing/org.ldahawaii.app" target="_blank" style="color:#0891B2;font-weight:700;text-decoration:underline;">tap here to install LDAH from Google Play</a>.';
           return;
         }
         // Save to androidBetaRequests for tracking
@@ -747,9 +749,14 @@
             source: 'android-beta'
           });
         }).then(function() {
-          msg.style.color = '#16A34A';
-          msg.innerHTML = 'Request received! To get instant access, <a href="https://groups.google.com/g/ldah-beta-testers" target="_blank" style="color:#0891B2;font-weight:600;text-decoration:underline;">join the LDAH Beta Testers group</a> with your Google account, then return to this page to download the app.';
           input.value = '';
+          // Step 1: Auto-open the testers group join page
+          window.open('https://groups.google.com/g/ldah-beta-testers', '_blank');
+          // Step 2: Show instructions with Play Store link
+          msg.style.color = '#16A34A';
+          msg.innerHTML = '<strong>Step 1:</strong> Join the testers group in the window that just opened (click "Join group").<br>' +
+            '<strong>Step 2:</strong> <a href="https://play.google.com/apps/testing/org.ldahawaii.app" target="_blank" style="color:#0891B2;font-weight:700;text-decoration:underline;">Tap here to install LDAH from Google Play</a><br>' +
+            '<span style="font-size:.85em;color:#64748B;">A Google Play invite will also be sent to your email.</span>';
         });
       }).catch(function(err) {
         msg.style.color = '#DC2626';
