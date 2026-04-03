@@ -2421,12 +2421,13 @@
       `;
       
       try {
-        await db.collection('events').doc(eventId).collection('signups').add({
+        const signupDocRef = await db.collection('events').doc(eventId).collection('signups').add({
           ...formData,
           status: 'pending',
           timestamp: firebase.firestore.FieldValue.serverTimestamp(),
           eventTitle: eventData.title
         });
+        const signupDocId = signupDocRef.id;
         // Update denormalized counts on parent doc
         await db.collection('events').doc(eventId).update({
           signupCount: firebase.firestore.FieldValue.increment(1),
@@ -2443,7 +2444,7 @@
             eventId: eventId,
             eventTitle: eventData.title
           });
-          
+
           if (typeof gtag !== 'undefined') {
             gtag('event', 'event_signup', {
               event_category: 'engagement',
@@ -2453,20 +2454,41 @@
         } catch (analyticsError) {
           console.error('Analytics error:', analyticsError);
         }
-        
-        // Show success
+
+        // Show success with Complete Registration step
         document.getElementById('signupFormContent').innerHTML = `
           <div style="text-align: center; padding: 40px;">
+            <div style="width: 56px; height: 56px; border-radius: 50%; background: #22c55e; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </div>
             <h2 style="color: #004E7C; font-size: 24px; font-weight: bold; margin-bottom: 12px;">
-              Mahalo! 🤙
+              Mahalo! You're signed up.
             </h2>
-            <p style="color: #666; font-size: 16px;">
-              Your signup has been received. We'll contact you soon!
+            <p style="color: #666; font-size: 16px; margin-bottom: 8px;">
+              One more step -- please complete your registration so we can reserve your spot.
             </p>
+            <p style="color: #555; font-size: 14px; margin-bottom: 24px;">
+              Please remember to register each person who will be attending.
+            </p>
+            <a href="register.html?token=${signupDocId}&eventId=${eventId}&type=event" style="
+              display: inline-block;
+              padding: 14px 32px;
+              background: linear-gradient(135deg, #004E7C, #0066a1);
+              color: white;
+              border: none;
+              border-radius: 50px;
+              font-weight: 600;
+              font-size: 16px;
+              text-decoration: none;
+              cursor: pointer;
+              transition: transform 0.15s, box-shadow 0.15s;
+              box-shadow: 0 2px 8px rgba(0, 78, 124, 0.3);
+            " onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(0,78,124,0.4)';"
+               onmouseout="this.style.transform='';this.style.boxShadow='0 2px 8px rgba(0,78,124,0.3)';">
+              Complete Registration
+            </a>
           </div>
         `;
-        
-        setTimeout(() => closeSignupModal(), 2000);
       } catch (error) {
         console.error('Error submitting signup:', error);
         alert('There was an error submitting your signup. Please try again.');
@@ -2800,13 +2822,14 @@
       `;
 
       try {
-        await db.collection('recurringEvents').doc(programId).collection('signups').add({
+        const signupDocRef = await db.collection('recurringEvents').doc(programId).collection('signups').add({
           ...formData,
           status: 'pending',
           archived: false,
           timestamp: firebase.firestore.FieldValue.serverTimestamp(),
           eventTitle: program.title
         });
+        const signupDocId = signupDocRef.id;
         // Update denormalized counts on parent doc
         await db.collection('recurringEvents').doc(programId).update({
           signupCount: firebase.firestore.FieldValue.increment(1),
@@ -2827,11 +2850,30 @@
         const successContent = document.getElementById('signupFormContent');
         if (successContent) successContent.innerHTML = `
           <div style="text-align:center;padding:40px;">
-            <h2 style="color:#004E7C;font-size:24px;font-weight:bold;margin-bottom:12px;">Mahalo! 🤙</h2>
-            <p style="color:#666;font-size:16px;">Your signup has been received. We'll contact you soon!</p>
+            <div style="width:56px;height:56px;border-radius:50%;background:#22c55e;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </div>
+            <h2 style="color:#004E7C;font-size:24px;font-weight:bold;margin-bottom:12px;">Mahalo! You're signed up.</h2>
+            <p style="color:#666;font-size:16px;margin-bottom:24px;">Complete your registration to confirm your spot.</p>
+            <a href="register.html?token=${signupDocId}&eventId=${programId}&type=recurring" style="
+              display:inline-block;
+              padding:14px 32px;
+              background:linear-gradient(135deg, #004E7C, #0066a1);
+              color:white;
+              border:none;
+              border-radius:50px;
+              font-weight:600;
+              font-size:16px;
+              text-decoration:none;
+              cursor:pointer;
+              transition:transform 0.15s, box-shadow 0.15s;
+              box-shadow:0 2px 8px rgba(0,78,124,0.3);
+            " onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(0,78,124,0.4)';"
+               onmouseout="this.style.transform='';this.style.boxShadow='0 2px 8px rgba(0,78,124,0.3)';">
+              Complete Registration
+            </a>
           </div>
         `;
-        setTimeout(() => closeSignupModal(), 2000);
       } catch (error) {
         console.error('Error submitting recurring signup:', error);
         alert('There was an error submitting your signup. Please try again.');

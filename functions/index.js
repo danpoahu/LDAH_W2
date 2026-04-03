@@ -368,3 +368,247 @@ exports.notifyAndroidBetaRequest = functions
       });
     }
   });
+
+// ── Registration Completion Email ──────────────────────────────────
+// Sends a "Complete Your Registration" email when a signup is created
+// with status: "pending". Does NOT send for status: "confirmed".
+
+/**
+ * Build the nodemailer SMTP transport from environment secrets.
+ * Expects these Firebase secrets to be set:
+ *   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM
+ *
+ * To configure:
+ *   firebase functions:secrets:set SMTP_HOST
+ *   firebase functions:secrets:set SMTP_PORT
+ *   firebase functions:secrets:set SMTP_USER
+ *   firebase functions:secrets:set SMTP_PASS
+ *   firebase functions:secrets:set SMTP_FROM
+ *
+ * For Resend SMTP:
+ *   SMTP_HOST = smtp.resend.com
+ *   SMTP_PORT = 465
+ *   SMTP_USER = resend
+ *   SMTP_PASS = re_YOUR_API_KEY
+ *   SMTP_FROM = registration@ldahawaii.org
+ */
+function createSmtpTransport() {
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT || "465", 10),
+    secure: parseInt(process.env.SMTP_PORT || "465", 10) === 465,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+}
+
+/**
+ * Format a Firestore Timestamp or date-like value to a readable string.
+ */
+function formatEventDate(dateValue) {
+  if (!dateValue) return "";
+  let d;
+  if (dateValue.toDate && typeof dateValue.toDate === "function") {
+    d = dateValue.toDate();
+  } else if (dateValue.seconds) {
+    d = new Date(dateValue.seconds * 1000);
+  } else {
+    d = new Date(dateValue);
+  }
+  if (isNaN(d.getTime())) return String(dateValue);
+  return d.toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+/**
+ * Build the registration email HTML.
+ */
+function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eventId, type }) {
+  const registrationUrl =
+    "https://ldahawaii.org/register.html?token=" + encodeURIComponent(signupId) +
+    "&eventId=" + encodeURIComponent(eventId) +
+    "&type=" + encodeURIComponent(type);
+  const dateLine = eventDate ? " on " + eventDate : "";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;">
+<tr><td align="center" style="padding:24px 16px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;max-width:600px;width:100%;">
+
+  <!-- Header -->
+  <tr>
+    <td style="background-color:#1a3c6e;padding:24px 32px;text-align:center;">
+      <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:bold;letter-spacing:0.5px;">
+        Leadership in Disabilities &amp; Achievement of Hawai'i
+      </h1>
+      <p style="margin:4px 0 0;color:#b0c4de;font-size:13px;">LDAH</p>
+    </td>
+  </tr>
+
+  <!-- Body -->
+  <tr>
+    <td style="padding:32px;">
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha ${name},</p>
+
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
+        Mahalo for signing up for <strong>${eventTitle}</strong>${dateLine}.
+        To complete your registration, please click the button below.
+      </p>
+
+      <!-- CTA Button -->
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px auto;">
+        <tr>
+          <td align="center" style="background-color:#1a73e8;border-radius:6px;">
+            <a href="${registrationUrl}"
+               target="_blank"
+               style="display:inline-block;padding:14px 32px;font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;">
+              Complete Registration
+            </a>
+          </td>
+        </tr>
+      </table>
+
+      <p style="margin:0 0 16px;font-size:15px;color:#555555;line-height:1.5;">
+        This information helps us serve you better and is required for our
+        reporting to ensure continued funding for LDAH programs.
+      </p>
+
+      <p style="margin:0 0 16px;font-size:15px;color:#555555;line-height:1.5;">
+        Please note that your spot is reserved once registration is complete.
+        We want to make sure we have a place saved for you, so completing this
+        form as soon as possible helps us plan accordingly.
+      </p>
+
+      <p style="margin:0 0 0;font-size:15px;color:#555555;line-height:1.5;">
+        Reminder: Please register each person who will be attending, including children.
+      </p>
+    </td>
+  </tr>
+
+  <!-- Footer -->
+  <tr>
+    <td style="background-color:#f0f0f0;padding:24px 32px;text-align:center;border-top:1px solid #dddddd;">
+      <p style="margin:0 0 4px;font-size:13px;color:#777777;font-weight:bold;">
+        Leadership in Disabilities &amp; Achievement of Hawai'i
+      </p>
+      <p style="margin:0 0 4px;font-size:12px;color:#999999;">
+        245 N. Kukui St., Suite 205, Honolulu, HI 96817
+      </p>
+      <p style="margin:0 0 4px;font-size:12px;color:#999999;">
+        Phone: (808) 536-2280
+      </p>
+      <p style="margin:0;font-size:12px;color:#999999;">
+        Email: <a href="mailto:info@ldahawaii.org" style="color:#999999;">info@ldahawaii.org</a>
+      </p>
+    </td>
+  </tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
+/**
+ * Core handler shared by both event-signup and recurringEvent-signup triggers.
+ */
+async function handleSignupCreated(snap, context, collectionName) {
+  const signupData = snap.data();
+  const { eventId, signupId } = context.params;
+
+  // Only send for pending signups
+  if (signupData.status !== "pending") {
+    console.log(`Signup ${signupId} status is "${signupData.status}", skipping email.`);
+    return null;
+  }
+
+  // Must have an email address
+  const recipientEmail = signupData.email;
+  if (!recipientEmail) {
+    console.log(`Signup ${signupId} has no email, skipping.`);
+    return null;
+  }
+
+  const signupName = signupData.name || signupData.firstName || "there";
+
+  // Fetch the parent event for title and date
+  let eventTitle = "an LDAH Event";
+  let eventDate = "";
+  try {
+    const eventDoc = await admin.firestore()
+      .collection(collectionName)
+      .doc(eventId)
+      .get();
+    if (eventDoc.exists) {
+      const eventData = eventDoc.data();
+      eventTitle = eventData.title || eventTitle;
+      eventDate = formatEventDate(eventData.date || eventData.startDate || eventData.eventDate);
+    }
+  } catch (err) {
+    console.error(`Error reading ${collectionName}/${eventId}:`, err.message);
+  }
+
+  // Derive the type string for register.html ("event" or "recurring")
+  const type = collectionName === "recurringEvents" ? "recurring" : "event";
+
+  // Build and send the email
+  const htmlBody = buildRegistrationEmailHtml({
+    name: signupName,
+    eventTitle,
+    eventDate,
+    signupId,
+    eventId,
+    type,
+  });
+
+  const fromAddress = process.env.SMTP_FROM || "registration@ldahawaii.org";
+
+  const mailOptions = {
+    from: `"LDAH" <${fromAddress}>`,
+    to: recipientEmail,
+    subject: `Complete Your Registration -- ${eventTitle}`,
+    html: htmlBody,
+  };
+
+  try {
+    const transport = createSmtpTransport();
+    await transport.sendMail(mailOptions);
+    console.log(`Registration email sent to ${recipientEmail} for signup ${signupId}`);
+    await snap.ref.update({
+      registrationEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (err) {
+    console.error(`Failed to send registration email to ${recipientEmail}:`, err.message);
+    await snap.ref.update({
+      registrationEmailError: err.message,
+    });
+  }
+
+  return null;
+}
+
+const SMTP_SECRETS = ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "SMTP_FROM"];
+
+exports.onEventSignupCreated = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: SMTP_SECRETS })
+  .firestore.document("events/{eventId}/signups/{signupId}")
+  .onCreate(async (snap, context) => {
+    return handleSignupCreated(snap, context, "events");
+  });
+
+exports.onRecurringEventSignupCreated = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: SMTP_SECRETS })
+  .firestore.document("recurringEvents/{eventId}/signups/{signupId}")
+  .onCreate(async (snap, context) => {
+    return handleSignupCreated(snap, context, "recurringEvents");
+  });
