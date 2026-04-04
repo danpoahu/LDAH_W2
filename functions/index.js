@@ -526,7 +526,17 @@ async function handleSignupCreated(snap, context, collectionName) {
   const signupData = snap.data();
   const { eventId, signupId } = context.params;
 
-  // Only send for pending signups
+  // Update denormalized counts on parent doc (admin SDK bypasses security rules)
+  try {
+    await admin.firestore().collection(collectionName).doc(eventId).update({
+      signupCount: admin.firestore.FieldValue.increment(1),
+      pendingCount: admin.firestore.FieldValue.increment(1),
+    });
+  } catch (countErr) {
+    console.error(`Count update failed for ${collectionName}/${eventId}:`, countErr.message);
+  }
+
+  // Only send email for pending signups
   if (signupData.status !== "pending") {
     console.log(`Signup ${signupId} status is "${signupData.status}", skipping email.`);
     return null;

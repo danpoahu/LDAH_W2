@@ -2428,11 +2428,15 @@
           eventTitle: eventData.title
         });
         const signupDocId = signupDocRef.id;
-        // Update denormalized counts on parent doc
-        await db.collection('events').doc(eventId).update({
-          signupCount: firebase.firestore.FieldValue.increment(1),
-          pendingCount: firebase.firestore.FieldValue.increment(1)
-        });
+        // Update denormalized counts on parent doc (may fail for unauthenticated users — Cloud Function handles this)
+        try {
+          await db.collection('events').doc(eventId).update({
+            signupCount: firebase.firestore.FieldValue.increment(1),
+            pendingCount: firebase.firestore.FieldValue.increment(1)
+          });
+        } catch (countErr) {
+          console.warn('Count update deferred to Cloud Function:', countErr.message);
+        }
         if (window.ldahAnalytics) ldahAnalytics.trackFormSubmit('event_signup');
 
         // Track analytics
@@ -2830,11 +2834,15 @@
           eventTitle: program.title
         });
         const signupDocId = signupDocRef.id;
-        // Update denormalized counts on parent doc
-        await db.collection('recurringEvents').doc(programId).update({
-          signupCount: firebase.firestore.FieldValue.increment(1),
-          pendingCount: firebase.firestore.FieldValue.increment(1)
-        });
+        // Update denormalized counts on parent doc (may fail for unauthenticated users — Cloud Function handles this)
+        try {
+          await db.collection('recurringEvents').doc(programId).update({
+            signupCount: firebase.firestore.FieldValue.increment(1),
+            pendingCount: firebase.firestore.FieldValue.increment(1)
+          });
+        } catch (countErr) {
+          console.warn('Count update deferred to Cloud Function:', countErr.message);
+        }
         if (window.ldahAnalytics) ldahAnalytics.trackFormSubmit('recurring_event_signup');
 
         try {
