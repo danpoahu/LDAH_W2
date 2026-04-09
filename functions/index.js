@@ -1,7 +1,8 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const Anthropic = require("@anthropic-ai/sdk");
-const nodemailer = require("nodemailer");
+// nodemailer removed — Firebase 1st Gen blocks outbound SMTP (port 465/587).
+// Using Resend HTTP API instead (HTTPS on port 443, always allowed).
 
 admin.initializeApp();
 
@@ -372,36 +373,38 @@ exports.notifyAndroidBetaRequest = functions
 // ── Registration Completion Email ──────────────────────────────────
 // Sends a "Complete Your Registration" email when a signup is created
 // with status: "pending". Does NOT send for status: "confirmed".
+//
+// Uses Resend HTTP API (not SMTP) because Firebase 1st Gen Cloud Functions
+// block outbound connections on SMTP ports (465/587).
+//
+// Required Firebase secret:
+//   RESEND_API_KEY  — your Resend API key (re_xxxx)
+//
+// To configure:
+//   firebase functions:secrets:set RESEND_API_KEY
 
 /**
- * Build the nodemailer SMTP transport from environment secrets.
- * Expects these Firebase secrets to be set:
- *   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM
- *
- * To configure:
- *   firebase functions:secrets:set SMTP_HOST
- *   firebase functions:secrets:set SMTP_PORT
- *   firebase functions:secrets:set SMTP_USER
- *   firebase functions:secrets:set SMTP_PASS
- *   firebase functions:secrets:set SMTP_FROM
- *
- * For Resend SMTP:
- *   SMTP_HOST = smtp.resend.com
- *   SMTP_PORT = 465
- *   SMTP_USER = resend
- *   SMTP_PASS = re_YOUR_API_KEY
- *   SMTP_FROM = registration@ldahawaii.org
+ * Send an email via Resend HTTP API.
  */
-function createSmtpTransport() {
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT || "465", 10),
-    secure: parseInt(process.env.SMTP_PORT || "465", 10) === 465,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
+async function sendEmailViaResend({ from, to, subject, html }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) throw new Error("RESEND_API_KEY secret is not set");
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer " + apiKey,
+      "Content-Type": "application/json",
     },
+    body: JSON.stringify({ from, to: [to], subject, html }),
   });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error("Resend API error (" + response.status + "): " + errorBody);
+  }
+
+  return response.json();
 }
 
 /**
@@ -581,18 +584,15 @@ async function handleSignupCreated(snap, context, collectionName) {
     type,
   });
 
-  const fromAddress = process.env.SMTP_FROM || "registration@ldahawaii.org";
-
-  const mailOptions = {
-    from: `"LDAH" <${fromAddress}>`,
-    to: recipientEmail,
-    subject: `Complete Your Registration -- ${eventTitle}`,
-    html: htmlBody,
-  };
+  const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
 
   try {
-    const transport = createSmtpTransport();
-    await transport.sendMail(mailOptions);
+    await sendEmailViaResend({
+      from: `LDAH <${fromAddress}>`,
+      to: recipientEmail,
+      subject: `Complete Your Registration -- ${eventTitle}`,
+      html: htmlBody,
+    });
     console.log(`Registration email sent to ${recipientEmail} for signup ${signupId}`);
     await snap.ref.update({
       registrationEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -607,17 +607,17 @@ async function handleSignupCreated(snap, context, collectionName) {
   return null;
 }
 
-const SMTP_SECRETS = ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "SMTP_FROM"];
+const EMAIL_SECRETS = ["RESEND_API_KEY", "SMTP_FROM"];
 
 exports.onEventSignupCreated = functions
-  .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: SMTP_SECRETS })
+  .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: EMAIL_SECRETS })
   .firestore.document("events/{eventId}/signups/{signupId}")
   .onCreate(async (snap, context) => {
     return handleSignupCreated(snap, context, "events");
   });
 
 exports.onRecurringEventSignupCreated = functions
-  .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: SMTP_SECRETS })
+  .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: EMAIL_SECRETS })
   .firestore.document("recurringEvents/{eventId}/signups/{signupId}")
   .onCreate(async (snap, context) => {
     return handleSignupCreated(snap, context, "recurringEvents");

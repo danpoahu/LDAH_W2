@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LDAH Registration</title>
+</head>
+<body style="font-family: 'Source Sans 3', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f8f9fa;">
+  <div id="msg" style="text-align: center; color: #004E7C; font-size: 18px;">Redirecting to registration...</div>
+  <script>
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      var token = params.get('token');
+      var eventId = params.get('eventId');
+      var type = params.get('type');
+
+      if (!token || !eventId || !type) {
+        document.getElementById('msg').innerHTML =
+          'Invalid registration link.<br><br>' +
+          '<span style="font-size:15px;color:#555;">Please contact LDAH at (808) 536-2280 for assistance.</span>';
+        return;
+      }
+
+      window.location.replace(
+        'events.html?token=' + encodeURIComponent(token) +
+        '&eventId=' + encodeURIComponent(eventId) +
+        '&type=' + encodeURIComponent(type)
+      );
+    })();
+  </script>
+</body>
+</html>
