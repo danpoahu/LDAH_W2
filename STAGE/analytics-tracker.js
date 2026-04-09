@@ -50,9 +50,12 @@
   // --- Page identification ---
   function getPageName() {
     const path = window.location.pathname;
-    // Handle GitHub Pages subpath
-    const cleanPath = path.replace(/^\/LDAH_W2/, '') || '/';
-    return PAGE_NAMES[cleanPath] || cleanPath.replace(/^\/|\.html$/g, '') || 'home';
+    // Handle GitHub Pages subpath and STAGE path
+    const cleanPath = path.replace(/^\/LDAH_W2/, '').replace(/^\/STAGE/, '') || '/';
+    const mapped = PAGE_NAMES[cleanPath];
+    if (mapped) return mapped;
+    // Fallback: strip slashes/extension and replace illegal Firestore field chars
+    return cleanPath.replace(/^\/|\.html$/g, '').replace(/[~*\/\[\]]/g, '_') || 'home';
   }
 
   // --- Pending events buffer ---
