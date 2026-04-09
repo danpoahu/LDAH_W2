@@ -2358,7 +2358,7 @@
 
     // ===== REGISTRATION MODAL =====
 
-    function openRegistrationModal(token, eventId, type) {
+    function openRegistrationModal(token, eventId, type, prefillData) {
       // Clean up any existing registration modal
       const existingModal = document.getElementById('registrationModal');
       if (existingModal) existingModal.remove();
@@ -2426,14 +2426,20 @@
 
           const data = doc.data();
 
+          // Store signup info for potential "Register Another Child" flow
+          window._lastSignupInfo = { name: data.name || '', email: data.email || '', phone: data.phone || '', eventId: eventId, type: type };
+
           if (data.status === 'confirmed') {
-            contentEl.innerHTML = '<div style="text-align: center; padding: 40px;"><div style="width: 56px; height: 56px; border-radius: 50%; background: #22c55e; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div><h2 style="color: #004E7C; font-size: 24px; font-weight: bold; margin-bottom: 12px;">You have already completed registration. Mahalo!</h2></div>';
+            contentEl.innerHTML = '<div style="text-align: center; padding: 40px;"><div style="width: 56px; height: 56px; border-radius: 50%; background: #22c55e; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div><h2 style="color: #004E7C; font-size: 24px; font-weight: bold; margin-bottom: 12px;">You have already completed registration. Mahalo!</h2>' +
+              '<p style="color:#555; font-size:14px; margin-top:16px;">Do you have another child to register for this event?</p>' +
+              '<button onclick="registerAnotherChild(\'' + eventId + '\', \'' + type + '\')" style="padding:12px 24px; background:linear-gradient(135deg, #0891b2, #0e7490); color:white; border:none; border-radius:10px; font-weight:600; font-size:14px; cursor:pointer; margin-top:8px;">+ Register Another Child</button>' +
+            '</div>';
             return;
           }
 
           const registrantName = data.name || 'Attendee';
 
-          contentEl.innerHTML = buildRegistrationForm(registrantName, token, eventId, type);
+          contentEl.innerHTML = buildRegistrationForm(registrantName, token, eventId, type, prefillData);
         })
         .catch(function(error) {
           console.error('Error loading registration:', error);
@@ -2444,8 +2450,10 @@
         });
     }
 
-    function buildRegistrationForm(registrantName, token, eventId, type) {
+    function buildRegistrationForm(registrantName, token, eventId, type, prefillData) {
+      var pf = prefillData || {};
       return '<h2 style="color: #004E7C; font-size: 24px; font-weight: bold; margin-bottom: 8px; padding-right: 40px;">Complete Registration for ' + registrantName + '</h2>' +
+        (prefillData ? '<div style="background: #ecfdf5; border: 1px solid #86efac; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; font-size: 14px; color: #166534;">Family information carried over from previous registration. Only child details need to be filled in.</div>' : '') +
         '<p style="color: #666; font-size: 14px; margin-bottom: 24px;">* Indicates required question</p>' +
         '<form id="registrationForm" onsubmit="submitRegistration(event, \'' + token + '\', \'' + eventId + '\', \'' + type + '\')">' +
 
@@ -2454,16 +2462,16 @@
           '<h3 style="color: #004E7C; font-size: 16px; font-weight: bold; margin-bottom: 14px;">Mailing Address</h3>' +
           '<div style="margin-bottom: 14px;">' +
             '<label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">Street Address</label>' +
-            '<input type="text" id="regStreet" placeholder="Your answer" style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">' +
+            '<input type="text" id="regStreet" placeholder="Your answer"' + (pf.streetAddress ? ' value="' + pf.streetAddress.replace(/"/g, '&quot;') + '"' : '') + ' style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">' +
           '</div>' +
           '<div style="display: flex; gap: 12px;">' +
             '<div style="flex: 2;">' +
               '<label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">City <span style="color: #DC2626;">*</span></label>' +
-              '<input type="text" id="regCity" required placeholder="Your answer" style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">' +
+              '<input type="text" id="regCity" required placeholder="Your answer"' + (pf.city ? ' value="' + pf.city.replace(/"/g, '&quot;') + '"' : '') + ' style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">' +
             '</div>' +
             '<div style="flex: 1;">' +
               '<label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">Zip Code <span style="color: #DC2626;">*</span></label>' +
-              '<input type="text" id="regZip" required placeholder="96XXX" style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">' +
+              '<input type="text" id="regZip" required placeholder="96XXX"' + (pf.zipCode ? ' value="' + pf.zipCode.replace(/"/g, '&quot;') + '"' : '') + ' style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">' +
             '</div>' +
           '</div>' +
         '</div>' +
@@ -2476,7 +2484,7 @@
             '<label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">I am a... <span style="color: #DC2626;">*</span></label>' +
             '<div style="display: flex; flex-direction: column; gap: 8px;">' +
               ['Parent/Guardian', 'Professional', 'Student', 'Community Member'].map(function(opt) {
-                return '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="radio" name="regRole" value="' + opt + '" required style="width: 18px; height: 18px; cursor: pointer;"><span style="font-size: 14px; color: #374151;">' + opt + '</span></label>';
+                return '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="radio" name="regRole" value="' + opt + '" required' + (pf.role === opt ? ' checked' : '') + ' style="width: 18px; height: 18px; cursor: pointer;"><span style="font-size: 14px; color: #374151;">' + opt + '</span></label>';
               }).join('') +
             '</div>' +
           '</div>' +
@@ -2485,31 +2493,25 @@
             '<label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">Reason for Attending <span style="color: #DC2626;">*</span></label>' +
             '<select id="regReason" required style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px; background: white;">' +
               '<option value="">-- Select --</option>' +
-              '<option value="Parent/Guardian">Parent/Guardian</option>' +
-              '<option value="Surrogate Parent">Surrogate Parent</option>' +
-              '<option value="Grandparent">Grandparent</option>' +
-              '<option value="Student">Student</option>' +
-              '<option value="Professional">Professional</option>' +
-              '<option value="Other">Other</option>' +
+              ['Parent/Guardian', 'Surrogate Parent', 'Grandparent', 'Student', 'Professional', 'Other'].map(function(r) {
+                return '<option value="' + r + '"' + (pf.reasonForAttending === r ? ' selected' : '') + '>' + r + '</option>';
+              }).join('') +
             '</select>' +
           '</div>' +
 
           '<div style="margin-bottom: 14px;">' +
             '<label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">Military Status</label>' +
             '<div style="display: flex; flex-direction: column; gap: 8px;">' +
-              '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="radio" name="regMilitary" value="none" onchange="document.getElementById(\'regBranchWrap\').style.display=\'none\';" style="width: 18px; height: 18px; cursor: pointer;"><span style="font-size: 14px; color: #374151;">Not military affiliated</span></label>' +
-              '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="radio" name="regMilitary" value="active" onchange="document.getElementById(\'regBranchWrap\').style.display=\'block\';" style="width: 18px; height: 18px; cursor: pointer;"><span style="font-size: 14px; color: #374151;">Active Duty/Military Family</span></label>' +
+              '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="radio" name="regMilitary" value="none"' + (pf.militaryStatus === 'none' ? ' checked' : '') + ' onchange="document.getElementById(\'regBranchWrap\').style.display=\'none\';" style="width: 18px; height: 18px; cursor: pointer;"><span style="font-size: 14px; color: #374151;">Not military affiliated</span></label>' +
+              '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="radio" name="regMilitary" value="active"' + (pf.militaryStatus === 'active' ? ' checked' : '') + ' onchange="document.getElementById(\'regBranchWrap\').style.display=\'block\';" style="width: 18px; height: 18px; cursor: pointer;"><span style="font-size: 14px; color: #374151;">Active Duty/Military Family</span></label>' +
             '</div>' +
-            '<div id="regBranchWrap" style="display: none; margin-top: 10px; padding-left: 26px;">' +
+            '<div id="regBranchWrap" style="display: ' + (pf.militaryStatus === 'active' ? 'block' : 'none') + '; margin-top: 10px; padding-left: 26px;">' +
               '<label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">Branch</label>' +
               '<select id="regBranch" style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px; background: white;">' +
                 '<option value="">-- Select --</option>' +
-                '<option value="Army">Army</option>' +
-                '<option value="Navy">Navy</option>' +
-                '<option value="Marines">Marines</option>' +
-                '<option value="Air Force">Air Force</option>' +
-                '<option value="Coast Guard">Coast Guard</option>' +
-                '<option value="Reserves">Reserves</option>' +
+                ['Army', 'Navy', 'Marines', 'Air Force', 'Coast Guard', 'Reserves'].map(function(b) {
+                  return '<option value="' + b + '"' + (pf.militaryBranch === b ? ' selected' : '') + '>' + b + '</option>';
+                }).join('') +
               '</select>' +
             '</div>' +
           '</div>' +
@@ -2568,12 +2570,12 @@
           '<div style="margin-bottom: 14px;">' +
             '<label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">Prior LDAH training in the past 12 months?</label>' +
             '<div style="display: flex; flex-direction: column; gap: 8px;">' +
-              '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="radio" name="regPriorTraining" value="No" onchange="document.getElementById(\'regPriorDateWrap\').style.display=\'none\';" style="width: 18px; height: 18px; cursor: pointer;"><span style="font-size: 14px; color: #374151;">No</span></label>' +
-              '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="radio" name="regPriorTraining" value="Yes" onchange="document.getElementById(\'regPriorDateWrap\').style.display=\'block\';" style="width: 18px; height: 18px; cursor: pointer;"><span style="font-size: 14px; color: #374151;">Yes</span></label>' +
+              '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="radio" name="regPriorTraining" value="No"' + (pf.priorTraining === 'No' ? ' checked' : '') + ' onchange="document.getElementById(\'regPriorDateWrap\').style.display=\'none\';" style="width: 18px; height: 18px; cursor: pointer;"><span style="font-size: 14px; color: #374151;">No</span></label>' +
+              '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="radio" name="regPriorTraining" value="Yes"' + (pf.priorTraining === 'Yes' ? ' checked' : '') + ' onchange="document.getElementById(\'regPriorDateWrap\').style.display=\'block\';" style="width: 18px; height: 18px; cursor: pointer;"><span style="font-size: 14px; color: #374151;">Yes</span></label>' +
             '</div>' +
-            '<div id="regPriorDateWrap" style="display: none; margin-top: 10px; padding-left: 26px;">' +
+            '<div id="regPriorDateWrap" style="display: ' + (pf.priorTraining === 'Yes' ? 'block' : 'none') + '; margin-top: 10px; padding-left: 26px;">' +
               '<label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">Date of last training</label>' +
-              '<input type="date" id="regPriorDate" style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">' +
+              '<input type="date" id="regPriorDate"' + (pf.priorTrainingDate ? ' value="' + pf.priorTrainingDate + '"' : '') + ' style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">' +
             '</div>' +
           '</div>' +
 
@@ -2581,13 +2583,9 @@
             '<label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">How did you hear about this training? <span style="color: #DC2626;">*</span></label>' +
             '<select id="regHearAbout" required style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px; background: white;">' +
               '<option value="">-- Select --</option>' +
-              '<option value="Agency">Agency</option>' +
-              '<option value="Newspaper">Newspaper</option>' +
-              '<option value="School">School</option>' +
-              '<option value="Radio">Radio</option>' +
-              '<option value="Website">Website</option>' +
-              '<option value="Facebook">Facebook</option>' +
-              '<option value="Other">Other</option>' +
+              ['Agency', 'Newspaper', 'School', 'Radio', 'Website', 'Facebook', 'Other'].map(function(h) {
+                return '<option value="' + h + '"' + (pf.howHeard === h ? ' selected' : '') + '>' + h + '</option>';
+              }).join('') +
             '</select>' +
           '</div>' +
         '</div>' +
@@ -2595,7 +2593,7 @@
         // --- Accommodations ---
         '<div style="margin-bottom: 20px;">' +
           '<label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">Accommodations Needed</label>' +
-          '<textarea id="regAccommodations" placeholder="Please let us know at least 2 weeks prior to the event..." rows="3" style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px; font-family: inherit; resize: vertical;"></textarea>' +
+          '<textarea id="regAccommodations" placeholder="Please let us know at least 2 weeks prior to the event..." rows="3" style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px; font-family: inherit; resize: vertical;">' + (pf.accommodations || '') + '</textarea>' +
         '</div>' +
 
         // --- Submit ---
@@ -2645,6 +2643,12 @@
             registrationCompletedAt: firebase.firestore.FieldValue.serverTimestamp()
           });
 
+        // Store registration data for "Register Another Child" flow
+        window._lastRegistration = registration;
+        if (!window._lastSignupInfo) window._lastSignupInfo = {};
+        window._lastSignupInfo.eventId = eventId;
+        window._lastSignupInfo.type = type;
+
         document.getElementById('registrationFormContent').innerHTML =
           '<div style="text-align: center; padding: 40px;">' +
             '<div style="width: 56px; height: 56px; border-radius: 50%; background: #22c55e; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">' +
@@ -2652,6 +2656,8 @@
             '</div>' +
             '<h2 style="color: #004E7C; font-size: 24px; font-weight: bold; margin-bottom: 12px;">Mahalo! Your registration is complete.</h2>' +
             '<p style="color: #666; font-size: 14px;">You may now close this window.</p>' +
+            '<p style="color:#555; font-size:14px; margin-top:16px;">Do you have another child to register for this event?</p>' +
+            '<button onclick="registerAnotherChild(\'' + eventId + '\', \'' + type + '\')" style="padding:12px 24px; background:linear-gradient(135deg, #0891b2, #0e7490); color:white; border:none; border-radius:10px; font-weight:600; font-size:14px; cursor:pointer; margin-top:8px;">+ Register Another Child</button>' +
           '</div>';
       } catch (error) {
         console.error('Error submitting registration:', error);
@@ -2660,6 +2666,48 @@
             '<p style="color: #DC2626; font-size: 16px; font-weight: 600; margin-bottom: 12px;">There was an error submitting your registration.</p>' +
             '<p style="color: #666; font-size: 14px;">Please try again later or contact LDAH for assistance.</p>' +
           '</div>';
+      }
+    }
+
+    async function registerAnotherChild(eventId, type) {
+      var info = window._lastSignupInfo || {};
+      var reg = window._lastRegistration || {};
+      var collectionName = type === 'recurring' ? 'recurringEvents' : 'events';
+
+      // Show loading in the current modal
+      var contentEl = document.getElementById('registrationFormContent');
+      if (contentEl) {
+        contentEl.innerHTML = '<div style="text-align: center; padding: 40px;"><p style="color: #004E7C; font-weight: 600;">Setting up registration for another child...</p></div>';
+      }
+
+      try {
+        // Create a new signup doc with the same parent info
+        var newDocRef = await db.collection(collectionName).doc(eventId).collection('signups').add({
+          name: info.name || '',
+          email: info.email || '',
+          phone: info.phone || '',
+          status: 'pending',
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Update denormalized counts (best-effort)
+        try {
+          await db.collection(collectionName).doc(eventId).update({
+            signupCount: firebase.firestore.FieldValue.increment(1),
+            pendingCount: firebase.firestore.FieldValue.increment(1)
+          });
+        } catch (countErr) {
+          console.warn('Count update deferred to Cloud Function:', countErr.message);
+        }
+
+        // Close existing modal and open registration with prefilled family data
+        closeRegistrationModal();
+        openRegistrationModal(newDocRef.id, eventId, type, reg);
+      } catch (error) {
+        console.error('Error creating sibling signup:', error);
+        if (contentEl) {
+          contentEl.innerHTML = '<div style="text-align: center; padding: 40px;"><p style="color: #DC2626; font-size: 16px; font-weight: 600;">There was an error. Please try again.</p></div>';
+        }
       }
     }
 

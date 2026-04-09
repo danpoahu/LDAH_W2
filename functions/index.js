@@ -839,6 +839,32 @@ async function handleSignupUpdated(change, context) {
       updates.disabilityCategories = registration.disabilityCategories;
     }
 
+    // Build child entry from registration child-specific fields
+    try {
+      const childEntry = {};
+      if (registration.childAgeRange) childEntry.ageRange = registration.childAgeRange;
+      if (registration.childGender) childEntry.gender = registration.childGender;
+      if (registration.ethnicity) childEntry.ethnicity = registration.ethnicity;
+      if (Array.isArray(registration.disabilityCategories) && registration.disabilityCategories.length) {
+        childEntry.disabilityCategories = registration.disabilityCategories;
+      }
+
+      if (Object.keys(childEntry).length > 0) {
+        childEntry.addedAt = admin.firestore.FieldValue.serverTimestamp();
+        childEntry.sourceSignupId = context.params.signupId;
+
+        const existingChildren = contactData.children || [];
+        // Don't duplicate if this signup already added a child
+        const alreadyAdded = existingChildren.some(c => c.sourceSignupId === context.params.signupId);
+        if (!alreadyAdded) {
+          existingChildren.push(childEntry);
+          updates.children = existingChildren;
+        }
+      }
+    } catch (childErr) {
+      console.error(`Children enrichment error (signup ${context.params.signupId}):`, childErr.message);
+    }
+
     if (Object.keys(updates).length > 0) {
       updates.enrichedAt = admin.firestore.FieldValue.serverTimestamp();
       updates.enrichedFrom = "registration";
