@@ -607,6 +607,73 @@ async function handleSignupCreated(snap, context, collectionName) {
   return null;
 }
 
+// ── Resend Registration Email (callable from LDAH-Int admin) ─────
+exports.resendRegistrationEmail = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 5, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.set("Access-Control-Max-Age", "3600");
+
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const { collection, eventId, signupId } = req.body;
+    if (!collection || !eventId || !signupId) {
+      res.status(400).json({ error: "Missing collection, eventId, or signupId" });
+      return;
+    }
+
+    try {
+      const signupDoc = await admin.firestore()
+        .collection(collection).doc(eventId).collection("signups").doc(signupId).get();
+      if (!signupDoc.exists) { res.status(404).json({ error: "Signup not found" }); return; }
+
+      const signupData = signupDoc.data();
+      if (!signupData.email) { res.status(400).json({ error: "Signup has no email address" }); return; }
+      if (signupData.status === "confirmed") { res.status(400).json({ error: "Already confirmed" }); return; }
+
+      // Fetch event title
+      let eventTitle = "an LDAH Event";
+      let eventDate = "";
+      try {
+        const eventDoc = await admin.firestore().collection(collection).doc(eventId).get();
+        if (eventDoc.exists) {
+          const eventData = eventDoc.data();
+          eventTitle = eventData.title || eventTitle;
+          eventDate = formatEventDate(eventData.date || eventData.startDate || eventData.eventDate);
+        }
+      } catch (_) { /* use defaults */ }
+
+      const type = collection === "recurringEvents" ? "recurring" : "event";
+      const signupName = signupData.name || signupData.firstName || "there";
+
+      const htmlBody = buildRegistrationEmailHtml({
+        name: signupName, eventTitle, eventDate, signupId, eventId, type,
+      });
+
+      const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+      await sendEmailViaResend({
+        from: `LDAH <${fromAddress}>`,
+        to: signupData.email,
+        subject: `Complete Your Registration -- ${eventTitle}`,
+        html: htmlBody,
+      });
+
+      await signupDoc.ref.update({
+        registrationEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+        registrationEmailError: admin.firestore.FieldValue.delete(),
+      });
+
+      console.log(`Resent registration email to ${signupData.email} for ${signupId}`);
+      res.status(200).json({ success: true, email: signupData.email });
+    } catch (err) {
+      console.error("resendRegistrationEmail error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
 const EMAIL_SECRETS = ["RESEND_API_KEY", "SMTP_FROM"];
 
 exports.onEventSignupCreated = functions
