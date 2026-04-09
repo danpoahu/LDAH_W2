@@ -813,6 +813,32 @@ async function handleSignupUpdated(change, context) {
       }
     }
 
+    // Enrich additional demographics — only if the contact field is empty/missing
+    const stringFields = [
+      "streetAddress", "city", "zipCode",
+      "militaryStatus", "militaryBranch",
+      "childAgeRange", "childGender",
+      "ethnicity",
+      "priorTraining", "priorTrainingDate",
+      "howHeard", "accommodations",
+    ];
+    stringFields.forEach((field) => {
+      const regVal = (registration[field] || "").trim();
+      const contactVal = (contactData[field] || "").trim();
+      if (regVal && !contactVal) {
+        updates[field] = regVal;
+      }
+    });
+
+    // Enrich disabilityCategories (array) — only if contact has none
+    if (
+      Array.isArray(registration.disabilityCategories) &&
+      registration.disabilityCategories.length > 0 &&
+      (!Array.isArray(contactData.disabilityCategories) || contactData.disabilityCategories.length === 0)
+    ) {
+      updates.disabilityCategories = registration.disabilityCategories;
+    }
+
     if (Object.keys(updates).length > 0) {
       updates.enrichedAt = admin.firestore.FieldValue.serverTimestamp();
       updates.enrichedFrom = "registration";
