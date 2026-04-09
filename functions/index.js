@@ -539,6 +539,82 @@ async function handleSignupCreated(snap, context, collectionName) {
     console.error(`Count update failed for ${collectionName}/${eventId}:`, countErr.message);
   }
 
+  // ── Contact auto-creation / linking ──────────────────────────────────
+  try {
+    const db = admin.firestore();
+    const signupEmail = signupData.email ? signupData.email.trim().toLowerCase() : null;
+    const signupPhone = signupData.phone ? signupData.phone.replace(/\D/g, '') : null;
+    const signupName = signupData.name || signupData.firstName || '';
+
+    let linkedContactId = null;
+
+    if (signupEmail) {
+      // Query contacts by normalized email
+      const emailSnap = await db.collection('contacts').where('email', '==', signupEmail).get();
+
+      if (emailSnap.size === 1) {
+        linkedContactId = emailSnap.docs[0].id;
+      } else if (emailSnap.size === 0) {
+        // Create a new contact
+        const nameParts = signupName.trim().split(/\s+/);
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+        const newContactRef = await db.collection('contacts').add({
+          displayName: signupName,
+          firstName,
+          lastName,
+          email: signupEmail,
+          phone: signupData.phone || '',
+          type: '',
+          source: 'event-signup',
+          createdBy: 'auto-signup',
+          createdByName: 'Auto-Signup',
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        linkedContactId = newContactRef.id;
+        console.log(`Auto-created contact ${linkedContactId} for signup ${signupId}`);
+      } else {
+        // Multiple matches — link to first, warn
+        linkedContactId = emailSnap.docs[0].id;
+        console.warn(`Multiple contacts (${emailSnap.size}) found for email ${signupEmail}; linked to ${linkedContactId}`);
+      }
+    } else if (signupPhone) {
+      // No email — try phone lookup
+      const phoneSnap = await db.collection('contacts').where('phone', '==', signupPhone).get();
+
+      if (phoneSnap.size === 1) {
+        linkedContactId = phoneSnap.docs[0].id;
+      } else if (phoneSnap.size === 0) {
+        const nameParts = signupName.trim().split(/\s+/);
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+        const newContactRef = await db.collection('contacts').add({
+          displayName: signupName,
+          firstName,
+          lastName,
+          email: '',
+          phone: signupPhone,
+          type: '',
+          source: 'event-signup',
+          createdBy: 'auto-signup',
+          createdByName: 'Auto-Signup',
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        linkedContactId = newContactRef.id;
+        console.log(`Auto-created contact ${linkedContactId} (phone-only) for signup ${signupId}`);
+      } else {
+        linkedContactId = phoneSnap.docs[0].id;
+        console.warn(`Multiple contacts (${phoneSnap.size}) found for phone ${signupPhone}; linked to ${linkedContactId}`);
+      }
+    }
+
+    // Write linkedContactId on the signup doc (null if no email/phone)
+    await snap.ref.update({ linkedContactId });
+  } catch (contactErr) {
+    console.error(`Contact auto-creation failed for signup ${signupId}:`, contactErr.message);
+    // Non-blocking — continue to email logic
+  }
+
   // Only send email for pending signups
   if (signupData.status !== "pending") {
     console.log(`Signup ${signupId} status is "${signupData.status}", skipping email.`);
@@ -688,4 +764,79 @@ exports.onRecurringEventSignupCreated = functions
   .firestore.document("recurringEvents/{eventId}/signups/{signupId}")
   .onCreate(async (snap, context) => {
     return handleSignupCreated(snap, context, "recurringEvents");
+  });
+
+// ── Contact Enrichment on Registration Completion ────────────────
+// When a signup transitions to status:"confirmed" with a registration
+// object and a linkedContactId, enrich the contact record with
+// location and type from the registration demographics.
+
+async function handleSignupUpdated(change, context) {
+  try {
+    const before = change.before.data();
+    const after = change.after.data();
+
+    // Only act when status transitions to "confirmed"
+    if (before.status === "confirmed" || after.status !== "confirmed") return null;
+
+    // Must have registration data and a linked contact
+    const registration = after.registration;
+    const linkedContactId = after.linkedContactId;
+    if (!registration || !linkedContactId) return null;
+
+    const db = admin.firestore();
+    const contactRef = db.collection("contacts").doc(linkedContactId);
+    const contactSnap = await contactRef.get();
+    if (!contactSnap.exists) {
+      console.warn(`Contact ${linkedContactId} not found for enrichment (signup ${context.params.signupId})`);
+      return null;
+    }
+
+    const contactData = contactSnap.data();
+    const updates = {};
+
+    // Enrich location if currently empty
+    if (!contactData.location || contactData.location.trim() === "") {
+      const city = (registration.city || "").trim();
+      const zip = (registration.zipCode || "").trim();
+      if (city || zip) {
+        updates.location = city && zip ? city + ", " + zip : city || zip;
+      }
+    }
+
+    // Enrich type if currently empty
+    if (!contactData.type || contactData.type.trim() === "") {
+      const role = (registration.role || "").trim();
+      const validRoles = ["Parent/Guardian", "Professional", "Student", "Community Member"];
+      if (validRoles.includes(role)) {
+        updates.type = role;
+      }
+    }
+
+    if (Object.keys(updates).length > 0) {
+      updates.enrichedAt = admin.firestore.FieldValue.serverTimestamp();
+      updates.enrichedFrom = "registration";
+      await contactRef.update(updates);
+      console.log(`Enriched contact ${linkedContactId} with:`, JSON.stringify(updates));
+    }
+  } catch (err) {
+    // Never fail — log and move on
+    console.error(`Contact enrichment error (signup ${context.params.signupId}):`, err.message);
+  }
+
+  return null;
+}
+
+exports.onEventSignupUpdated = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .firestore.document("events/{eventId}/signups/{signupId}")
+  .onUpdate(async (change, context) => {
+    return handleSignupUpdated(change, context);
+  });
+
+exports.onRecurringEventSignupUpdated = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .firestore.document("recurringEvents/{eventId}/signups/{signupId}")
+  .onUpdate(async (change, context) => {
+    return handleSignupUpdated(change, context);
   });

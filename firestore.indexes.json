@@ -43,16 +43,6 @@
       ]
     },
     {
-      "collectionGroup": "stats",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "order",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
       "collectionGroup": "signups",
       "queryScope": "COLLECTION",
       "fields": [
@@ -67,5 +57,20 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "signups",
+      "fieldPath": "linkedContactId",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    }
+  ]
 }
