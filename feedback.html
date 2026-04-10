@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#004E7C">
+  <title>LDAH - Event Feedback</title>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #F0F4F8;
+      color: #1E293B;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+    .feedback-card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.08);
+      max-width: 560px;
+      width: 100%;
+      overflow: hidden;
+    }
+    .feedback-header {
+      background: #004E7C;
+      padding: 24px 28px;
+      text-align: center;
+    }
+    .feedback-header h1 {
+      font-family: 'Outfit', sans-serif;
+      color: #fff;
+      font-size: 1.3rem;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .feedback-header p {
+      color: #B0C4DE;
+      font-size: .85rem;
+      margin-top: 4px;
+    }
+    .event-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #004E7C;
+      text-align: center;
+      padding: 18px 24px 0;
+    }
+    .feedback-body {
+      padding: 20px 28px 28px;
+    }
+    .question {
+      margin-bottom: 22px;
+    }
+    .question label {
+      display: block;
+      font-weight: 600;
+      font-size: .95rem;
+      color: #1E293B;
+      margin-bottom: 8px;
+    }
+    .radio-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .radio-option {
+      position: relative;
+    }
+    .radio-option input {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .radio-option span {
+      display: inline-block;
+      padding: 8px 16px;
+      border: 2px solid #CBD5E1;
+      border-radius: 8px;
+      font-size: .88rem;
+      color: #475569;
+      cursor: pointer;
+      transition: all .15s;
+      user-select: none;
+    }
+    .radio-option input:checked + span {
+      border-color: #004E7C;
+      background: #EFF6FF;
+      color: #004E7C;
+      font-weight: 600;
+    }
+    .radio-option span:hover {
+      border-color: #004E7C;
+    }
+    textarea {
+      width: 100%;
+      border: 2px solid #CBD5E1;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: .9rem;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 80px;
+      transition: border-color .15s;
+    }
+    textarea:focus {
+      outline: none;
+      border-color: #004E7C;
+    }
+    .submit-btn {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      background: #004E7C;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background .15s;
+    }
+    .submit-btn:hover { background: #003A5C; }
+    .submit-btn:disabled {
+      background: #94A3B8;
+      cursor: not-allowed;
+    }
+    .success-screen, .already-screen, .error-screen {
+      text-align: center;
+      padding: 48px 28px;
+    }
+    .success-screen h2 {
+      font-family: 'Outfit', sans-serif;
+      color: #004E7C;
+      font-size: 1.4rem;
+      margin-bottom: 12px;
+    }
+    .success-screen p, .already-screen p, .error-screen p {
+      color: #64748B;
+      font-size: 1rem;
+      line-height: 1.5;
+    }
+    .already-screen h2 {
+      font-family: 'Outfit', sans-serif;
+      color: #004E7C;
+      font-size: 1.3rem;
+      margin-bottom: 12px;
+    }
+    .error-screen h2 {
+      font-family: 'Outfit', sans-serif;
+      color: #DC2626;
+      font-size: 1.3rem;
+      margin-bottom: 12px;
+    }
+    .loading {
+      text-align: center;
+      padding: 48px 28px;
+      color: #64748B;
+      font-size: 1rem;
+    }
+    @media (max-width: 480px) {
+      body { padding: 12px 8px; }
+      .feedback-body { padding: 16px 18px 24px; }
+      .feedback-header { padding: 18px 18px; }
+      .radio-group { gap: 6px; }
+      .radio-option span { padding: 7px 12px; font-size: .84rem; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="feedback-card">
+  <div class="feedback-header">
+    <h1>Leadership in Disabilities &amp; Achievement of Hawai'i</h1>
+    <p>LDAH</p>
+  </div>
+
+  <!-- Loading state -->
+  <div id="loadingState" class="loading">Loading...</div>
+
+  <!-- Already submitted -->
+  <div id="alreadyState" class="already-screen" style="display:none;">
+    <h2>You've already submitted feedback.</h2>
+    <p>Mahalo!</p>
+  </div>
+
+  <!-- Error state -->
+  <div id="errorState" class="error-screen" style="display:none;">
+    <h2>Something went wrong</h2>
+    <p id="errorMessage">Unable to load the feedback form.</p>
+  </div>
+
+  <!-- Form -->
+  <div id="formState" style="display:none;">
+    <div class="event-title" id="eventTitleDisplay"></div>
+    <div class="feedback-body">
+      <form id="feedbackForm" onsubmit="return submitFeedback(event)">
+
+        <div class="question">
+          <label>How was the presenter?</label>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="presenterRating" value="Very Helpful" required><span>Very Helpful</span></label>
+            <label class="radio-option"><input type="radio" name="presenterRating" value="Helpful"><span>Helpful</span></label>
+            <label class="radio-option"><input type="radio" name="presenterRating" value="Not Helpful"><span>Not Helpful</span></label>
+            <label class="radio-option"><input type="radio" name="presenterRating" value="N/A"><span>N/A</span></label>
+          </div>
+        </div>
+
+        <div class="question">
+          <label>How were the handouts/materials?</label>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="handoutsRating" value="Very Helpful" required><span>Very Helpful</span></label>
+            <label class="radio-option"><input type="radio" name="handoutsRating" value="Helpful"><span>Helpful</span></label>
+            <label class="radio-option"><input type="radio" name="handoutsRating" value="Not Helpful"><span>Not Helpful</span></label>
+            <label class="radio-option"><input type="radio" name="handoutsRating" value="N/A"><span>N/A</span></label>
+          </div>
+        </div>
+
+        <div class="question">
+          <label>Would you recommend this training to others?</label>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="wouldRecommend" value="Yes" required><span>Yes</span></label>
+            <label class="radio-option"><input type="radio" name="wouldRecommend" value="No"><span>No</span></label>
+          </div>
+        </div>
+
+        <div class="question">
+          <label>Comments or suggestions <span style="font-weight:400;color:#64748B;">(optional)</span></label>
+          <textarea id="feedbackComments" placeholder="Share your thoughts..."></textarea>
+        </div>
+
+        <button type="submit" class="submit-btn" id="submitBtn">Submit Feedback</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Success -->
+  <div id="successState" class="success-screen" style="display:none;">
+    <h2>Mahalo for your feedback!</h2>
+    <p>Your responses help us improve our programs and better serve the community.</p>
+  </div>
+</div>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk",
+    authDomain: "ldah-932d5.firebaseapp.com",
+    projectId: "ldah-932d5",
+    storageBucket: "ldah-932d5.firebasestorage.app",
+    messagingSenderId: "662130454003",
+    appId: "1:662130454003:web:437576d5a5811ecd8df686"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  // Parse URL params
+  const params = new URLSearchParams(window.location.search);
+  const eventId = params.get('eventId');
+  const signupId = params.get('signupId');
+  const type = params.get('type') || 'event';
+  const sessionDate = params.get('sessionDate') || null;
+  const collection = type === 'recurring' ? 'recurringEvents' : 'events';
+
+  function showState(id) {
+    ['loadingState', 'alreadyState', 'errorState', 'formState', 'successState'].forEach(function(s) {
+      document.getElementById(s).style.display = s === id ? '' : 'none';
+    });
+  }
+
+  function showError(msg) {
+    document.getElementById('errorMessage').textContent = msg;
+    showState('errorState');
+  }
+
+  async function initFeedback() {
+    if (!eventId || !signupId) {
+      showError('Invalid feedback link. Missing event or signup information.');
+      return;
+    }
+
+    try {
+      // Check if already submitted
+      var signupDoc = await db.collection(collection).doc(eventId).collection('signups').doc(signupId).get();
+      if (!signupDoc.exists) {
+        showError('Signup not found. This link may have expired.');
+        return;
+      }
+      var signupData = signupDoc.data();
+      if (signupData.feedbackSubmittedAt) {
+        showState('alreadyState');
+        return;
+      }
+
+      // Fetch event title
+      var eventDoc = await db.collection(collection).doc(eventId).get();
+      var eventTitle = 'LDAH Event';
+      if (eventDoc.exists) {
+        eventTitle = eventDoc.data().title || eventTitle;
+      }
+      document.getElementById('eventTitleDisplay').textContent = eventTitle;
+      showState('formState');
+    } catch (err) {
+      console.error('Init error:', err);
+      showError('Unable to load feedback form. Please try again later.');
+    }
+  }
+
+  async function submitFeedback(e) {
+    e.preventDefault();
+    var btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Submitting...';
+
+    var form = document.getElementById('feedbackForm');
+    var presenterRating = form.querySelector('input[name="presenterRating"]:checked');
+    var handoutsRating = form.querySelector('input[name="handoutsRating"]:checked');
+    var wouldRecommend = form.querySelector('input[name="wouldRecommend"]:checked');
+    var comments = document.getElementById('feedbackComments').value.trim();
+
+    if (!presenterRating || !handoutsRating || !wouldRecommend) {
+      btn.disabled = false;
+      btn.textContent = 'Submit Feedback';
+      alert('Please answer all required questions.');
+      return false;
+    }
+
+    try {
+      // Read linkedContactId from signup doc
+      var signupDoc = await db.collection(collection).doc(eventId).collection('signups').doc(signupId).get();
+      var linkedContactId = signupDoc.exists ? (signupDoc.data().linkedContactId || null) : null;
+
+      // Write feedback doc
+      var feedbackData = {
+        eventId: eventId,
+        eventCollection: collection,
+        signupId: signupId,
+        linkedContactId: linkedContactId,
+        presenterRating: presenterRating.value,
+        handoutsRating: handoutsRating.value,
+        wouldRecommend: wouldRecommend.value,
+        comments: comments || '',
+        source: 'email',
+        submittedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      if (sessionDate) {
+        feedbackData.sessionDate = sessionDate;
+      }
+
+      await db.collection('eventFeedback').add(feedbackData);
+
+      // Mark signup as feedback submitted
+      await db.collection(collection).doc(eventId).collection('signups').doc(signupId).update({
+        feedbackSubmittedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      showState('successState');
+    } catch (err) {
+      console.error('Submit error:', err);
+      btn.disabled = false;
+      btn.textContent = 'Submit Feedback';
+      alert('There was an error submitting your feedback. Please try again.');
+    }
+
+    return false;
+  }
+
+  initFeedback();
+</script>
+</body>
+</html>

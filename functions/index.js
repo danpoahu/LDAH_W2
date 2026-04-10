@@ -892,3 +892,394 @@ exports.onRecurringEventSignupUpdated = functions
   .onUpdate(async (change, context) => {
     return handleSignupUpdated(change, context);
   });
+
+// ── No-Show Re-Invite Email ───────────────────────────────────────
+
+/**
+ * Build the no-show re-invite email HTML.
+ */
+function buildNoShowEmailHtml({ name, eventTitle, nextEventTitle, nextEventDate, nextEventUrl }) {
+  const nextEventSection = nextEventTitle
+    ? `<p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
+        We'd love to see you at our next workshop: <strong>${nextEventTitle}</strong> on ${nextEventDate}.
+      </p>
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px auto;">
+        <tr>
+          <td align="center" style="background-color:#1a73e8;border-radius:6px;">
+            <a href="${nextEventUrl}"
+               target="_blank"
+               style="display:inline-block;padding:14px 32px;font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;">
+              Sign Up
+            </a>
+          </td>
+        </tr>
+      </table>`
+    : `<p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
+        Check out our upcoming events at
+        <a href="https://ldahawaii.org/events.html" style="color:#1a73e8;text-decoration:underline;">ldahawaii.org/events.html</a>
+      </p>`;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;">
+<tr><td align="center" style="padding:24px 16px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;max-width:600px;width:100%;">
+
+  <!-- Header -->
+  <tr>
+    <td style="background-color:#1a3c6e;padding:24px 32px;text-align:center;">
+      <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:bold;letter-spacing:0.5px;">
+        Leadership in Disabilities &amp; Achievement of Hawai'i
+      </h1>
+      <p style="margin:4px 0 0;color:#b0c4de;font-size:13px;">LDAH</p>
+    </td>
+  </tr>
+
+  <!-- Body -->
+  <tr>
+    <td style="padding:32px;">
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha ${name},</p>
+
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
+        We're sorry we missed you at <strong>${eventTitle}</strong>. We hope you're doing well!
+      </p>
+
+      ${nextEventSection}
+
+      <p style="margin:0 0 0;font-size:15px;color:#555555;line-height:1.5;">
+        We look forward to seeing you at a future LDAH event. Mahalo!
+      </p>
+    </td>
+  </tr>
+
+  <!-- Footer -->
+  <tr>
+    <td style="background-color:#f0f0f0;padding:24px 32px;text-align:center;border-top:1px solid #dddddd;">
+      <p style="margin:0 0 4px;font-size:13px;color:#777777;font-weight:bold;">
+        Leadership in Disabilities &amp; Achievement of Hawai'i
+      </p>
+      <p style="margin:0 0 4px;font-size:12px;color:#999999;">
+        245 N. Kukui St., Suite 205, Honolulu, HI 96817
+      </p>
+      <p style="margin:0 0 4px;font-size:12px;color:#999999;">
+        Phone: (808) 536-2280
+      </p>
+      <p style="margin:0;font-size:12px;color:#999999;">
+        Email: <a href="mailto:info@ldahawaii.org" style="color:#999999;">info@ldahawaii.org</a>
+      </p>
+    </td>
+  </tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
+exports.sendNoShowReInvites = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 5, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .https.onRequest(async (req, res) => {
+    // CORS headers
+    res.set("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.set("Access-Control-Max-Age", "3600");
+
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const { collection, eventId } = req.body;
+    if (!collection || !eventId) {
+      res.status(400).json({ error: "Missing collection or eventId" });
+      return;
+    }
+
+    // Only allow one-time events — recurring program attendees just attend the next session
+    if (collection === "recurringEvents") {
+      res.status(400).json({ error: "Re-invites are only for one-time events. Recurring program attendees attend the next session." });
+      return;
+    }
+
+    const db = admin.firestore();
+
+    try {
+      // Fetch event title
+      let eventTitle = "an LDAH Event";
+      const eventDoc = await db.collection(collection).doc(eventId).get();
+      if (eventDoc.exists) {
+        eventTitle = eventDoc.data().title || eventTitle;
+      }
+
+      // Get all signups for this event
+      const signupsSnap = await db.collection(collection).doc(eventId).collection("signups").get();
+
+      // Filter to no-shows with email that haven't already been emailed
+      const noShows = [];
+      signupsSnap.forEach((doc) => {
+        const data = doc.data();
+        if (data.attendanceStatus === "no-show" && data.email && !data.noShowEmailSentAt) {
+          noShows.push({ id: doc.id, ref: doc.ref, ...data });
+        }
+      });
+
+      if (noShows.length === 0) {
+        res.status(200).json({ success: true, sent: 0, skipped: signupsSnap.size });
+        return;
+      }
+
+      // Find next future event (one-time events only)
+      let nextEventTitle = "";
+      let nextEventDate = "";
+      const nextEventUrl = "https://ldahawaii.org/events.html";
+      const now = new Date();
+      try {
+        const nextSnap = await db.collection("events")
+          .where("archived", "!=", true)
+          .orderBy("archived")
+          .orderBy("date")
+          .limit(20)
+          .get();
+        for (const doc of nextSnap.docs) {
+          const d = doc.data();
+          if (doc.id === eventId) continue; // skip the current event
+          let eventDateObj;
+          if (d.date && d.date.toDate) eventDateObj = d.date.toDate();
+          else if (d.date && d.date.seconds) eventDateObj = new Date(d.date.seconds * 1000);
+          else if (d.date) eventDateObj = new Date(d.date);
+          if (eventDateObj && eventDateObj > now) {
+            nextEventTitle = d.title || "";
+            nextEventDate = formatEventDate(d.date);
+            break;
+          }
+        }
+      } catch (err) {
+        console.error("Error finding next event:", err.message);
+        // Continue without next event info — email will use generic fallback
+      }
+
+      // Send emails
+      const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+      let sent = 0;
+      let skipped = 0;
+
+      for (const signup of noShows) {
+        const name = signup.name || signup.firstName || "there";
+        const htmlBody = buildNoShowEmailHtml({
+          name,
+          eventTitle,
+          nextEventTitle: nextEventTitle || "",
+          nextEventDate: nextEventDate || "",
+          nextEventUrl,
+        });
+
+        try {
+          await sendEmailViaResend({
+            from: `LDAH <${fromAddress}>`,
+            to: signup.email,
+            subject: `We missed you at ${eventTitle}!`,
+            html: htmlBody,
+          });
+
+          await signup.ref.update({
+            noShowEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          sent++;
+          console.log(`No-show re-invite sent to ${signup.email} for event ${eventId}`);
+        } catch (err) {
+          console.error(`Failed to send no-show email to ${signup.email}:`, err.message);
+          skipped++;
+        }
+      }
+
+      res.status(200).json({ success: true, sent, skipped });
+    } catch (err) {
+      console.error("sendNoShowReInvites error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+// ── Feedback Email HTML Builder ─────────────────────────────────
+function buildFeedbackEmailHtml({ name, eventTitle, feedbackUrl }) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;">
+<tr><td align="center" style="padding:24px 16px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;max-width:600px;width:100%;">
+
+  <!-- Header -->
+  <tr>
+    <td style="background-color:#1a3c6e;padding:24px 32px;text-align:center;">
+      <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:bold;letter-spacing:0.5px;">
+        Leadership in Disabilities &amp; Achievement of Hawai'i
+      </h1>
+      <p style="margin:4px 0 0;color:#b0c4de;font-size:13px;">LDAH</p>
+    </td>
+  </tr>
+
+  <!-- Body -->
+  <tr>
+    <td style="padding:32px;">
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha ${name},</p>
+
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
+        Mahalo for attending <strong>${eventTitle}</strong>!
+        We would love to hear your thoughts so we can continue to improve our programs.
+      </p>
+
+      <p style="margin:0 0 24px;font-size:16px;color:#333333;line-height:1.5;">
+        It only takes a minute -- please share your feedback by clicking the button below.
+      </p>
+
+      <!-- CTA Button -->
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px auto;">
+        <tr>
+          <td align="center" style="background-color:#004E7C;border-radius:6px;">
+            <a href="${feedbackUrl}"
+               target="_blank"
+               style="display:inline-block;padding:14px 32px;font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;">
+              Share Your Feedback
+            </a>
+          </td>
+        </tr>
+      </table>
+
+      <p style="margin:0 0 0;font-size:15px;color:#555555;line-height:1.5;">
+        Your feedback helps us improve our services and better support families
+        and children with disabilities throughout Hawai'i.
+      </p>
+    </td>
+  </tr>
+
+  <!-- Footer -->
+  <tr>
+    <td style="background-color:#f0f0f0;padding:24px 32px;text-align:center;border-top:1px solid #dddddd;">
+      <p style="margin:0 0 4px;font-size:13px;color:#777777;font-weight:bold;">
+        Leadership in Disabilities &amp; Achievement of Hawai'i
+      </p>
+      <p style="margin:0 0 4px;font-size:12px;color:#999999;">
+        245 N. Kukui St., Suite 205, Honolulu, HI 96817
+      </p>
+      <p style="margin:0 0 4px;font-size:12px;color:#999999;">
+        Phone: (808) 536-2280
+      </p>
+      <p style="margin:0;font-size:12px;color:#999999;">
+        Email: <a href="mailto:info@ldahawaii.org" style="color:#999999;">info@ldahawaii.org</a>
+      </p>
+    </td>
+  </tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
+// ── Send Feedback Emails (called from LDAH-Int) ─────────────────
+exports.sendFeedbackEmails = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 5, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.set("Access-Control-Max-Age", "3600");
+
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const { collection, eventId, sessionDate } = req.body;
+    if (!collection || !eventId) {
+      res.status(400).json({ error: "Missing collection or eventId" });
+      return;
+    }
+
+    try {
+      const dbAdmin = admin.firestore();
+
+      // Fetch event title
+      let eventTitle = "an LDAH Event";
+      try {
+        const eventDoc = await dbAdmin.collection(collection).doc(eventId).get();
+        if (eventDoc.exists) {
+          eventTitle = eventDoc.data().title || eventTitle;
+        }
+      } catch (_) { /* use default */ }
+
+      // Query all signups
+      const signupsSnap = await dbAdmin
+        .collection(collection).doc(eventId).collection("signups")
+        .get();
+
+      const type = collection === "recurringEvents" ? "recurring" : "event";
+      const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+      let sent = 0;
+      let skipped = 0;
+
+      for (const doc of signupsSnap.docs) {
+        const data = doc.data();
+
+        // Only send to attendees who attended
+        if (data.attendanceStatus !== "attended") {
+          skipped++;
+          continue;
+        }
+
+        // Must have email
+        if (!data.email) {
+          skipped++;
+          continue;
+        }
+
+        // Skip if already sent
+        if (data.feedbackEmailSentAt) {
+          skipped++;
+          continue;
+        }
+
+        // If sessionDate filter provided, check signup has that date
+        if (sessionDate && data.selectedDates && Array.isArray(data.selectedDates)) {
+          if (!data.selectedDates.includes(sessionDate)) {
+            skipped++;
+            continue;
+          }
+        }
+
+        const name = data.name || data.firstName || "there";
+        const feedbackUrl =
+          "https://ldahawaii.org/feedback.html?eventId=" + encodeURIComponent(eventId) +
+          "&signupId=" + encodeURIComponent(doc.id) +
+          "&type=" + encodeURIComponent(type) +
+          (sessionDate ? "&sessionDate=" + encodeURIComponent(sessionDate) : "");
+
+        const htmlBody = buildFeedbackEmailHtml({ name, eventTitle, feedbackUrl });
+
+        try {
+          await sendEmailViaResend({
+            from: `LDAH <${fromAddress}>`,
+            to: data.email,
+            subject: `How was ${eventTitle}? We'd love your feedback`,
+            html: htmlBody,
+          });
+
+          await doc.ref.update({
+            feedbackEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          sent++;
+        } catch (emailErr) {
+          console.error(`Failed to send feedback email to ${data.email}:`, emailErr.message);
+          skipped++;
+        }
+      }
+
+      console.log(`sendFeedbackEmails: sent=${sent}, skipped=${skipped} for ${collection}/${eventId}`);
+      res.status(200).json({ success: true, sent, skipped });
+    } catch (err) {
+      console.error("sendFeedbackEmails error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });

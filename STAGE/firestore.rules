@@ -24,6 +24,10 @@ service cloud.firestore {
           && resource.data.status == 'pending'
           && request.resource.data.status == 'confirmed'
           && request.resource.data.keys().hasAny(['registration', 'registrationCompletedAt']);
+        // Unauthenticated feedback: only set feedbackSubmittedAt
+        allow update: if request.auth == null
+          && request.resource.data.keys().hasAny(['feedbackSubmittedAt'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['feedbackSubmittedAt']);
         allow delete: if request.auth != null;
       }
     }
@@ -42,6 +46,10 @@ service cloud.firestore {
           && resource.data.status == 'pending'
           && request.resource.data.status == 'confirmed'
           && request.resource.data.keys().hasAny(['registration', 'registrationCompletedAt']);
+        // Unauthenticated feedback: only set feedbackSubmittedAt
+        allow update: if request.auth == null
+          && request.resource.data.keys().hasAny(['feedbackSubmittedAt'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['feedbackSubmittedAt']);
         allow delete: if request.auth != null;
       }
     }
@@ -172,6 +180,11 @@ service cloud.firestore {
       allow create: if request.auth != null;
       allow update: if request.auth != null && resource.data.recipientUid == request.auth.uid;
     }
+    // Collection group query for signups (used by contact timeline in LDAH-Int)
+    match /{path=**}/signups/{signupId} {
+      allow read: if request.auth != null;
+    }
+
     match /androidBetaRequests/{docId} {
       allow read, create: if true;
       allow update, delete: if request.auth != null;
@@ -179,6 +192,15 @@ service cloud.firestore {
     match /auditLog/{document=**} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
+    }
+    match /eventFeedback/{document=**} {
+      allow read: if request.auth != null;
+      allow create: if true;
+      allow update, delete: if request.auth != null;
+    }
+    match /trainingVideos/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
     }
   }
 }
