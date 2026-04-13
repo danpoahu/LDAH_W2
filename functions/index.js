@@ -510,7 +510,7 @@ function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eve
         Phone: (808) 536-2280
       </p>
       <p style="margin:0;font-size:12px;color:#999999;">
-        Email: <a href="mailto:info@ldahawaii.org" style="color:#999999;">info@ldahawaii.org</a>
+        Email: <a href="mailto:rrowe@ldahawaii.org" style="color:#999999;">rrowe@ldahawaii.org</a>
       </p>
     </td>
   </tr>
@@ -967,7 +967,7 @@ function buildNoShowEmailHtml({ name, eventTitle, nextEventTitle, nextEventDate,
         Phone: (808) 536-2280
       </p>
       <p style="margin:0;font-size:12px;color:#999999;">
-        Email: <a href="mailto:info@ldahawaii.org" style="color:#999999;">info@ldahawaii.org</a>
+        Email: <a href="mailto:rrowe@ldahawaii.org" style="color:#999999;">rrowe@ldahawaii.org</a>
       </p>
     </td>
   </tr>
@@ -1168,7 +1168,7 @@ function buildFeedbackEmailHtml({ name, eventTitle, feedbackUrl }) {
         Phone: (808) 536-2280
       </p>
       <p style="margin:0;font-size:12px;color:#999999;">
-        Email: <a href="mailto:info@ldahawaii.org" style="color:#999999;">info@ldahawaii.org</a>
+        Email: <a href="mailto:rrowe@ldahawaii.org" style="color:#999999;">rrowe@ldahawaii.org</a>
       </p>
     </td>
   </tr>
@@ -1282,4 +1282,642 @@ exports.sendFeedbackEmails = functions
       console.error("sendFeedbackEmails error:", err.message);
       res.status(500).json({ error: err.message });
     }
+  });
+
+// ── Daily Session Sheet Email ──────────────────────────────────────
+// Sends a daily summary email at 6 AM HST to active recipients
+// listed in the dailyReportRecipients collection. Includes today's
+// sessions, signup counts, yesterday's activity, and items needing
+// attention.
+
+exports.sendDailySessionSheet = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 1, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .pubsub.schedule("0 6 * * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async (context) => {
+    const db = admin.firestore();
+    const now = new Date();
+
+    // Convert to Hawaii time for display and date matching
+    const hawaiiNow = new Date(now.toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
+    const todayStr = hawaiiNow.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      timeZone: "Pacific/Honolulu",
+    });
+    const todayFormatted = hawaiiNow.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      timeZone: "Pacific/Honolulu",
+    });
+    const todayDayOfWeek = hawaiiNow.toLocaleDateString("en-US", {
+      weekday: "long",
+      timeZone: "Pacific/Honolulu",
+    });
+    // YYYY-MM-DD for date field matching
+    const yyyy = hawaiiNow.getFullYear();
+    const mm = String(hawaiiNow.getMonth() + 1).padStart(2, "0");
+    const dd = String(hawaiiNow.getDate()).padStart(2, "0");
+    const todayISO = `${yyyy}-${mm}-${dd}`;
+
+    // ── 1. Get active recipients ──
+    let recipients = [];
+    try {
+      const recipSnap = await db.collection("dailyReportRecipients").where("active", "==", true).get();
+      recipSnap.forEach((doc) => {
+        const d = doc.data();
+        if (d.email) recipients.push({ name: d.name || "", email: d.email });
+      });
+    } catch (err) {
+      console.error("sendDailySessionSheet: failed to fetch recipients:", err.message);
+      return null;
+    }
+
+    if (recipients.length === 0) {
+      console.log("sendDailySessionSheet: no active recipients, skipping.");
+      return null;
+    }
+
+    // Helper: format Firestore timestamp for display
+    function fmtTs(ts) {
+      if (!ts) return "";
+      let d = null;
+      if (ts.toDate) d = ts.toDate();
+      else if (ts.seconds) d = new Date(ts.seconds * 1000);
+      if (!d) return "";
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "Pacific/Honolulu" })
+        + " " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "Pacific/Honolulu" });
+    }
+    function esc(str) { return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+
+    const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const cutoffTimestamp = admin.firestore.Timestamp.fromDate(new Date(now.getTime() - 24 * 60 * 60 * 1000));
+
+    // ═══════════════════════════════════════════════════
+    // SECTION 1: All Active Events & Programs with signups
+    // ═══════════════════════════════════════════════════
+    const allSessions = [];
+
+    // Active one-time events (only skip if removeDate passed — matches preview logic)
+    try {
+      const eventsSnap = await db.collection("events").get();
+      for (const doc of eventsSnap.docs) {
+        const data = doc.data();
+        // Skip only if removeDate has passed (same filter as LDAH-Int preview)
+        if (data.removeDate) {
+          let rd;
+          if (typeof data.removeDate === "string") rd = new Date(data.removeDate);
+          else if (data.removeDate.toDate) rd = data.removeDate.toDate();
+          else if (data.removeDate.seconds) rd = new Date(data.removeDate.seconds * 1000);
+          if (rd && rd < hawaiiNow) continue;
+        }
+        const signups = [];
+        try {
+          const sSnap = await db.collection("events").doc(doc.id).collection("signups").get();
+          sSnap.forEach((s) => { signups.push({ id: s.id, ...s.data() }); });
+        } catch (_) {}
+        // Skip events with no signups
+        if (signups.length === 0) continue;
+        // Format the event date for display (field is eventDate, not date)
+        let dateDisplay = "";
+        const rawDate = data.eventDate || data.date || "";
+        if (rawDate) {
+          if (typeof rawDate === "string") {
+            try {
+              const parsed = new Date(rawDate + "T12:00:00");
+              dateDisplay = isNaN(parsed.getTime()) ? rawDate : parsed.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "Pacific/Honolulu" });
+            } catch (_) { dateDisplay = rawDate; }
+          } else if (rawDate.toDate) {
+            dateDisplay = rawDate.toDate().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "Pacific/Honolulu" });
+          } else if (rawDate.seconds) {
+            dateDisplay = new Date(rawDate.seconds * 1000).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "Pacific/Honolulu" });
+          }
+        }
+        allSessions.push({
+          title: data.title || "Untitled Event",
+          date: dateDisplay,
+          time: data.time || data.startTime || "",
+          location: data.location || "",
+          signups,
+          type: "event",
+          id: doc.id,
+        });
+      }
+    } catch (err) {
+      console.error("sendDailySessionSheet: error fetching events:", err.message);
+    }
+
+    console.log(`sendDailySessionSheet: ${allSessions.length} one-time events found`);
+
+    // Active recurring programs — grouped by session date (matching session sheet logic)
+    try {
+      const recurringSnap = await db.collection("recurringEvents").get();
+      for (const doc of recurringSnap.docs) {
+        const data = doc.data();
+        if (data.active === false) continue;
+        const allSignups = [];
+        try {
+          const sSnap = await db.collection("recurringEvents").doc(doc.id).collection("signups").get();
+          sSnap.forEach((s) => { allSignups.push({ id: s.id, ...s.data() }); });
+        } catch (_) {}
+        if (allSignups.length === 0) continue;
+
+        // Generate session dates for next 90 days (matching session sheet)
+        const rawCancelled = Array.isArray(data.cancelledDates) ? data.cancelledDates : [];
+        const cancelledSet = {};
+        for (const cd of rawCancelled) {
+          if (typeof cd === "string") cancelledSet[cd] = true;
+          else if (cd && cd.date) cancelledSet[cd.date] = true;
+        }
+
+        const upcomingSessions = [];
+        if (Array.isArray(data.schedules)) {
+          for (const sch of data.schedules) {
+            const dow = typeof sch.dayOfWeek === "number" ? sch.dayOfWeek : -1;
+            if (dow < 0) continue;
+            for (let offset = 0; offset <= 90; offset++) {
+              const d = new Date(hawaiiNow);
+              d.setDate(d.getDate() + offset);
+              if (d.getDay() !== dow) continue;
+              const iso = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+              if (cancelledSet[iso]) continue;
+              upcomingSessions.push({
+                iso,
+                dateLabel: DAY_NAMES[dow] + ", " + d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
+                timeLabel: (sch.startTime && sch.endTime) ? sch.startTime + " - " + sch.endTime : (sch.startTime || ""),
+                location: sch.location || "",
+                venue: sch.venue || "",
+              });
+            }
+          }
+        }
+        upcomingSessions.sort((a, b) => a.iso.localeCompare(b.iso));
+
+        // Active signups only
+        const active = allSignups.filter((su) => su.status !== "cancelled");
+        const cancelled = allSignups.filter((su) => su.status === "cancelled");
+
+        // Group signups by session date — match selectedSessions/selectedDates containing ISO date
+        // (exact same logic as cmsGenerateRecurringSessionSheet in LDAH-Int)
+        const sessionGroups = [];
+        for (const sess of upcomingSessions) {
+          const dateSignups = active.filter((su) => {
+            const sDates = su.selectedSessions || su.selectedDates || [];
+            return sDates.some((sd) => {
+              const sdStr = String(sd);
+              if (sdStr.indexOf(sess.iso) === -1) return false;
+              // Cross-location check
+              if (sess.location && (sdStr.indexOf("|") !== -1 || sdStr.indexOf("@ ") !== -1)) {
+                return sdStr.indexOf(sess.location) !== -1;
+              }
+              return true;
+            });
+          });
+          if (dateSignups.length === 0) continue;
+          // Dedup: skip if we already have this date+location
+          const key = sess.iso + "|" + sess.location;
+          if (sessionGroups.some((g) => g.key === key)) continue;
+          const loc = sess.location + (sess.venue ? " (" + sess.venue + ")" : "");
+          sessionGroups.push({
+            key,
+            dateLabel: sess.dateLabel,
+            timeLabel: sess.timeLabel,
+            location: loc,
+            signups: dateSignups,
+          });
+        }
+
+        // Build one card per session group (sub-header style under the program name)
+        if (sessionGroups.length > 0) {
+          for (const sg of sessionGroups) {
+            // Include cancelled count for this session
+            const cancelledForSession = cancelled.filter((su) => {
+              const sDates = su.selectedSessions || su.selectedDates || [];
+              return sDates.some((sd) => String(sd).indexOf(sg.key.split("|")[0]) !== -1);
+            });
+            allSessions.push({
+              title: data.title + " -- " + sg.dateLabel + (sg.timeLabel ? " -- " + sg.timeLabel : ""),
+              date: "",
+              time: "",
+              location: sg.location,
+              signups: [...sg.signups, ...cancelledForSession],
+              type: "recurring",
+              id: doc.id,
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error("sendDailySessionSheet: error fetching recurring events:", err.message);
+    }
+
+    // Build session card HTML (email-safe, no JS — all expanded)
+    function buildSessionCard(s) {
+      let confirmed = 0, pending = 0, cancelled = 0, attended = 0, noshow = 0;
+      s.signups.forEach((su) => {
+        if (su.status === "confirmed") confirmed++;
+        else if (su.status === "cancelled") cancelled++;
+        else pending++;
+        if (su.attendanceStatus === "attended") attended++;
+        if (su.attendanceStatus === "no-show") noshow++;
+      });
+      const active = s.signups.filter((su) => su.status !== "cancelled");
+      active.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+      const typeLabel = s.type === "recurring"
+        ? `<span style="background:#7c3aed;color:white;padding:1px 6px;border-radius:6px;font-size:10px;font-weight:700;margin-left:6px;">RECURRING</span>`
+        : `<span style="background:#1a73e8;color:white;padding:1px 6px;border-radius:6px;font-size:10px;font-weight:700;margin-left:6px;">EVENT</span>`;
+      const attLine = (attended > 0 || noshow > 0)
+        ? ` | <span style="color:#2e7d32;">${attended} attended</span>, <span style="color:#dc2626;">${noshow} no-show</span>` : "";
+
+      let rows = "";
+      for (const su of active) {
+        const stColor = su.status === "confirmed" ? "#2e7d32" : "#e65100";
+        const stLabel = su.status === "confirmed" ? "Confirmed" : "Pending";
+        const typeVal = su.type || su.participantType || "";
+        const studentVal = su.studentName || su.student || "";
+        const gradeVal = su.grade || "";
+        const notesVal = su.notes || "";
+        rows += `<tr style="border-bottom:1px solid #eee;">`
+          + `<td style="padding:5px 8px;font-size:12px;font-weight:600;">${esc(su.name || "Unknown")}</td>`
+          + `<td style="padding:5px 8px;font-size:12px;">${esc(su.phone || "--")}</td>`
+          + `<td style="padding:5px 8px;font-size:12px;">${typeVal ? `<span style="background:#0d6efd;color:white;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;">${esc(typeVal)}</span>` : ""}</td>`
+          + `<td style="padding:5px 8px;font-size:12px;">${esc(studentVal)}</td>`
+          + `<td style="padding:5px 8px;font-size:12px;">${esc(gradeVal)}</td>`
+          + `<td style="padding:5px 8px;font-size:12px;"><span style="color:${stColor};font-weight:700;">${stLabel}</span></td>`
+          + `<td style="padding:5px 8px;font-size:12px;">${esc(notesVal)}</td></tr>`;
+      }
+      if (cancelled > 0) {
+        rows += `<tr><td colspan="7" style="padding:5px 8px;font-size:11px;color:#999;font-style:italic;">+ ${cancelled} cancelled/archived not shown</td></tr>`;
+      }
+
+      let detailLines = "";
+      if (s.date) {
+        const dateLines = String(s.date).split("\n");
+        for (const dl of dateLines) {
+          if (dl.trim()) detailLines += "<strong>" + esc(dl.trim()) + "</strong><br>";
+        }
+      }
+      if (s.time) detailLines += "Time: <strong>" + esc(s.time) + "</strong><br>";
+      if (s.location) detailLines += esc(s.location);
+
+      // Header bar matching session sheet style
+      const badgeText = `${confirmed} confirmed + ${pending} pending`;
+
+      return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;border:1px solid #ccc;border-radius:8px;overflow:hidden;">`
+        // Dark header bar with title + badge
+        + `<tr><td style="padding:10px 14px;background:#1a3c6e;color:white;">`
+        + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>`
+        + `<td style="font-size:14px;font-weight:800;color:white;">${esc(s.title)} --</td>`
+        + `<td style="text-align:right;"><span style="background:#4a7fb5;color:white;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;">${badgeText}</span></td>`
+        + `</tr></table></td></tr>`
+        // Detail lines (date, location, etc.)
+        + (detailLines ? `<tr><td style="padding:6px 14px 2px;font-size:12px;color:#555;">${detailLines}</td></tr>` : "")
+        // Signup table
+        + `<tr><td style="padding:0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">`
+        + `<tr style="background:#f0f0f0;">`
+        + `<th style="padding:5px 8px;text-align:left;font-size:11px;color:#555;font-weight:800;">NAME</th>`
+        + `<th style="padding:5px 8px;text-align:left;font-size:11px;color:#555;font-weight:800;">PHONE</th>`
+        + `<th style="padding:5px 8px;text-align:left;font-size:11px;color:#555;font-weight:800;">TYPE</th>`
+        + `<th style="padding:5px 8px;text-align:left;font-size:11px;color:#555;font-weight:800;">STUDENT</th>`
+        + `<th style="padding:5px 8px;text-align:left;font-size:11px;color:#555;font-weight:800;">GRADE</th>`
+        + `<th style="padding:5px 8px;text-align:left;font-size:11px;color:#555;font-weight:800;">STATUS</th>`
+        + `<th style="padding:5px 8px;text-align:left;font-size:11px;color:#555;font-weight:800;">NOTES</th>`
+        + `</tr>${rows}</table></td></tr></table>`;
+    }
+
+    let sessionsHtml = "";
+    if (allSessions.length === 0) {
+      sessionsHtml = `<p style="color:#666;font-style:italic;">No active events or programs.</p>`;
+    } else {
+      for (const s of allSessions) { sessionsHtml += buildSessionCard(s); }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // SECTION 2: What Changed Since Yesterday (detailed)
+    // ═══════════════════════════════════════════════════
+    const changelog = [];
+
+    // New signups with names + event titles
+    try {
+      const nsSnap = await db.collectionGroup("signups").where("timestamp", ">=", cutoffTimestamp).get();
+      for (const doc of nsSnap.docs) {
+        const nd = doc.data();
+        const parentRef = doc.ref.parent.parent;
+        const parentDoc = await parentRef.get();
+        const evTitle = (parentDoc.data() || {}).title || "Unknown Event";
+        changelog.push({
+          icon: "&#128221;",
+          text: `<strong>${esc(nd.name || "Someone")}</strong> signed up for <em>${esc(evTitle)}</em>`,
+          time: fmtTs(nd.timestamp),
+          sort: nd.timestamp ? (nd.timestamp.seconds || 0) : 0,
+        });
+      }
+    } catch (err) { console.warn("Changelog signups:", err.message); }
+
+    // Completed registrations with names
+    try {
+      const crSnap = await db.collectionGroup("signups").where("registrationCompletedAt", ">=", cutoffTimestamp).get();
+      for (const doc of crSnap.docs) {
+        const cd = doc.data();
+        const parentRef = doc.ref.parent.parent;
+        const parentDoc = await parentRef.get();
+        const pTitle = (parentDoc.data() || {}).title || "Unknown Event";
+        changelog.push({
+          icon: "&#9989;",
+          text: `<strong>${esc(cd.name || "Someone")}</strong> completed registration for <em>${esc(pTitle)}</em>`,
+          time: fmtTs(cd.registrationCompletedAt),
+          sort: cd.registrationCompletedAt ? (cd.registrationCompletedAt.seconds || 0) : 0,
+        });
+      }
+    } catch (err) { console.warn("Changelog regs:", err.message); }
+
+    // New feedback
+    try {
+      const fbSnap = await db.collection("eventFeedback").where("submittedAt", ">=", cutoffTimestamp).get();
+      fbSnap.forEach((f) => {
+        const fd = f.data();
+        changelog.push({
+          icon: "&#128172;",
+          text: `Feedback received for <em>${esc(fd.eventTitle || fd.eventId || "an event")}</em>${fd.presenterRating ? " (Presenter: " + esc(fd.presenterRating) + ")" : ""}`,
+          time: fmtTs(fd.submittedAt),
+          sort: fd.submittedAt ? (fd.submittedAt.seconds || 0) : 0,
+        });
+      });
+    } catch (err) { console.warn("Changelog feedback:", err.message); }
+
+    // New contacts
+    try {
+      const ctSnap = await db.collection("contacts").where("createdAt", ">=", cutoffTimestamp).get();
+      ctSnap.forEach((c) => {
+        const cdata = c.data();
+        changelog.push({
+          icon: "&#128100;",
+          text: `New contact created: <strong>${esc(cdata.displayName || cdata.firstName || "Unknown")}</strong>${cdata.source ? " (from " + esc(cdata.source) + ")" : ""}`,
+          time: fmtTs(cdata.createdAt),
+          sort: cdata.createdAt ? (cdata.createdAt.seconds || 0) : 0,
+        });
+      });
+    } catch (err) { console.warn("Changelog contacts:", err.message); }
+
+    // Admin actions from audit log (status changes, archives, reschedules, etc.)
+    function formatAuditEntry(action, details) {
+      if (!action || !details) return null;
+      let m;
+      if (action === "Updated signup status") {
+        m = details.match(/^(.*?)\s+—\s+(.*?)\s+—\s+Status:\s+(.*)$/);
+        if (m) {
+          const verbs = {
+            confirmed: "was <strong>confirmed</strong> for",
+            cancelled: "was marked <strong>cancelled</strong> for",
+            pending: "was set to <strong>pending</strong> for",
+            new: "was reset to <strong>new</strong> for",
+          };
+          const verb = verbs[m[3]] || `was set to <strong>${esc(m[3])}</strong> for`;
+          return { icon: "&#128260;", text: `<strong>${esc(m[1])}</strong> ${verb} <em>${esc(m[2])}</em>` };
+        }
+      }
+      if (action === "Archived signup") {
+        m = details.match(/^(.*?)\s+—\s+(.*)$/);
+        if (m) return { icon: "&#128465;", text: `<strong>${esc(m[1])}</strong> was archived from <em>${esc(m[2])}</em>` };
+      }
+      if (action === "Restored signup") {
+        m = details.match(/^(.*?)\s+—\s+(.*)$/);
+        if (m) return { icon: "&#8617;", text: `<strong>${esc(m[1])}</strong> was restored to <em>${esc(m[2])}</em>` };
+      }
+      if (action === "Rescheduled signup") {
+        m = details.match(/^(.*?)\s+—\s+from\s+(.*?)\s+to\s+(.*)$/);
+        if (m) return { icon: "&#128197;", text: `<strong>${esc(m[1])}</strong> was rescheduled from ${esc(m[2])} to ${esc(m[3])}` };
+      }
+      if (action === "Saved attendance") return { icon: "&#9989;", text: `Attendance saved — <em>${esc(details)}</em>` };
+      if (action === "Cancelled session") return { icon: "&#10060;", text: `Session cancelled — <em>${esc(details)}</em>` };
+      if (action === "Restored session") return { icon: "&#9200;", text: `Session restored — <em>${esc(details)}</em>` };
+      if (action === "Sent no-show re-invites") return { icon: "&#128231;", text: `No-show re-invites sent — <em>${esc(details)}</em>` };
+      if (action === "Saved event summary") return { icon: "&#128203;", text: `Event summary saved — <em>${esc(details)}</em>` };
+      if (action === "Updated signup notes") {
+        m = details.match(/^(.*?)\s+—\s+(.*)$/);
+        if (m) return { icon: "&#9999;", text: `Admin notes updated for <strong>${esc(m[1])}</strong> on <em>${esc(m[2])}</em>` };
+      }
+      return null;
+    }
+
+    try {
+      const alSnap = await db.collection("auditLog").where("timestamp", ">=", cutoffTimestamp).get();
+      alSnap.forEach((a) => {
+        const ad = a.data();
+        const fmt = formatAuditEntry(ad.action, ad.details);
+        if (!fmt) return;
+        const by = ad.performedBy ? ` <span style="color:#999;">(by ${esc(ad.performedBy)})</span>` : "";
+        changelog.push({
+          icon: fmt.icon,
+          text: fmt.text + by,
+          time: fmtTs(ad.timestamp),
+          sort: ad.timestamp ? (ad.timestamp.seconds || 0) : 0,
+        });
+      });
+    } catch (err) { console.warn("Changelog audit:", err.message); }
+
+    // Sort changelog by time (newest first)
+    changelog.sort((a, b) => b.sort - a.sort);
+
+    let changelogHtml = "";
+    if (changelog.length === 0) {
+      changelogHtml = `<p style="color:#666;font-style:italic;">No changes in the last 24 hours.</p>`;
+    } else {
+      changelogHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;">`;
+      changelog.forEach((c, idx) => {
+        const bg = idx % 2 === 0 ? "#fafafa" : "#ffffff";
+        changelogHtml += `<tr style="background:${bg};">`
+          + `<td style="padding:8px 14px;font-size:16px;width:30px;text-align:center;">${c.icon}</td>`
+          + `<td style="padding:8px 14px;font-size:13px;color:#333;">${c.text}</td>`
+          + `<td style="padding:8px 14px;font-size:11px;color:#999;white-space:nowrap;text-align:right;">${c.time}</td></tr>`;
+      });
+      changelogHtml += `</table>`;
+    }
+
+    // ═══════════════════════════════════════════════════
+    // SECTION 3: Pending/New Public Submissions
+    // ═══════════════════════════════════════════════════
+    const formSections = [];
+
+    // Helper: check if status is pending or new (or no status = new)
+    function isPendingOrNew(status) { return !status || status === "pending" || status === "new"; }
+
+    // Anti-Bullying Pledges (all pending/new)
+    try {
+      const plSnap = await db.collection("pledges").get();
+      const plDocs = [];
+      plSnap.forEach((p) => { const pd = p.data(); if (isPendingOrNew(pd.status)) plDocs.push(pd); });
+      if (plDocs.length > 0) {
+        let plRows = "";
+        plDocs.forEach((pd) => { plRows += `<tr style="border-bottom:1px solid #eee;"><td style="padding:5px 8px;font-size:12px;font-weight:600;">${esc(pd.name)}</td><td style="padding:5px 8px;font-size:12px;">${esc(pd.email)}</td><td style="padding:5px 8px;font-size:12px;">${esc(pd.role)}</td><td style="padding:5px 8px;font-size:12px;">${esc(pd.zip)}</td></tr>`; });
+        formSections.push({ title: "Anti-Bullying Pledges", count: plDocs.length, color: "#7c3aed", headers: "Name|Email|Role|Zip", rows: plRows });
+      }
+    } catch (_) {}
+
+    // Volunteer Applications (all pending/new)
+    try {
+      const volSnap = await db.collection("volunteers").get();
+      const volDocs = [];
+      volSnap.forEach((v) => { const vd = v.data(); if (isPendingOrNew(vd.status)) volDocs.push(vd); });
+      if (volDocs.length > 0) {
+        let vRows = "";
+        volDocs.forEach((vd) => { vRows += `<tr style="border-bottom:1px solid #eee;"><td style="padding:5px 8px;font-size:12px;font-weight:600;">${esc((vd.firstName || "") + " " + (vd.lastName || ""))}</td><td style="padding:5px 8px;font-size:12px;">${esc(vd.email)}</td><td style="padding:5px 8px;font-size:12px;">${esc(vd.subject)}</td><td style="padding:5px 8px;font-size:12px;">${esc((vd.notes || "").substring(0, 80))}</td></tr>`; });
+        formSections.push({ title: "Volunteer Applications", count: volDocs.length, color: "#059669", headers: "Name|Email|Opportunity|Notes", rows: vRows });
+      }
+    } catch (_) {}
+
+    // Contact Messages (all pending/new)
+    try {
+      const cmSnap = await db.collection("contactSubmissions").get();
+      const cmDocs = [];
+      cmSnap.forEach((c) => { const cd = c.data(); if (isPendingOrNew(cd.status)) cmDocs.push(cd); });
+      if (cmDocs.length > 0) {
+        let cmRows = "";
+        cmDocs.forEach((cd) => { cmRows += `<tr style="border-bottom:1px solid #eee;"><td style="padding:5px 8px;font-size:12px;font-weight:600;">${esc(cd.name)}</td><td style="padding:5px 8px;font-size:12px;">${esc(cd.email)}</td><td style="padding:5px 8px;font-size:12px;">${esc(cd.phone)}</td><td style="padding:5px 8px;font-size:12px;">${esc((cd.message || "").substring(0, 100))}</td></tr>`; });
+        formSections.push({ title: "Contact Messages", count: cmDocs.length, color: "#0891b2", headers: "Name|Email|Phone|Message", rows: cmRows });
+      }
+    } catch (_) {}
+
+    // Event Requests (all pending/new)
+    try {
+      const erSnap = await db.collection("eventRequests").get();
+      const erDocs = [];
+      erSnap.forEach((r) => { const rd = r.data(); if (isPendingOrNew(rd.status)) erDocs.push(rd); });
+      if (erDocs.length > 0) {
+        let erRows = "";
+        erDocs.forEach((rd) => { erRows += `<tr style="border-bottom:1px solid #eee;"><td style="padding:5px 8px;font-size:12px;font-weight:600;">${esc(rd.name)}</td><td style="padding:5px 8px;font-size:12px;">${esc(rd.email)}</td><td style="padding:5px 8px;font-size:12px;">${esc(rd.preferredDate)}</td><td style="padding:5px 8px;font-size:12px;">${esc((rd.eventInfo || "").substring(0, 100))}</td></tr>`; });
+        formSections.push({ title: "Event Requests", count: erDocs.length, color: "#d97706", headers: "Name|Email|Preferred Date|Details", rows: erRows });
+      }
+    } catch (_) {}
+
+    // Provider Requests (all pending/new)
+    try {
+      const prSnap = await db.collection("providers").get();
+      const prDocs = [];
+      prSnap.forEach((p) => { const pd = p.data(); if (isPendingOrNew(pd.status)) prDocs.push(pd); });
+      if (prDocs.length > 0) {
+        let prRows = "";
+        prDocs.forEach((pd) => { prRows += `<tr style="border-bottom:1px solid #eee;"><td style="padding:5px 8px;font-size:12px;font-weight:600;">${esc(pd.organizationName)}</td><td style="padding:5px 8px;font-size:12px;">${esc((pd.firstName || "") + " " + (pd.lastName || ""))}</td><td style="padding:5px 8px;font-size:12px;">${esc(pd.email)}</td><td style="padding:5px 8px;font-size:12px;">${esc((pd.services || "").substring(0, 80))}</td></tr>`; });
+        formSections.push({ title: "Provider Requests", count: prDocs.length, color: "#be185d", headers: "Organization|Contact|Email|Services", rows: prRows });
+      }
+    } catch (_) {}
+
+    let formsHtml = "";
+    if (formSections.length === 0) {
+      formsHtml = `<p style="color:#666;font-style:italic;">No pending submissions.</p>`;
+    } else {
+      for (const fs of formSections) {
+        const headerCells = fs.headers.split("|").map((h) =>
+          `<th style="padding:5px 8px;text-align:left;font-size:11px;color:#666;font-weight:800;">${h}</th>`
+        ).join("");
+        formsHtml += `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px;border:1px solid #ddd;border-radius:8px;overflow:hidden;">`
+          + `<tr><td style="padding:10px 14px;background:${fs.color}10;border-left:4px solid ${fs.color};">`
+          + `<span style="font-size:14px;font-weight:800;color:${fs.color};">${esc(fs.title)}</span>`
+          + `&nbsp;&nbsp;<span style="background:${fs.color};color:white;padding:2px 10px;border-radius:10px;font-size:12px;font-weight:800;">${fs.count} pending</span>`
+          + `</td></tr>`
+          + `<tr><td style="padding:0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">`
+          + `<tr style="background:#f8f9fa;">${headerCells}</tr>${fs.rows}</table></td></tr></table>`;
+      }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // BUILD FULL HTML EMAIL
+    // ═══════════════════════════════════════════════════
+    const emailHtml = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;">
+<tr><td align="center" style="padding:24px 16px;">
+<table role="presentation" width="800" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;max-width:800px;width:100%;">
+
+  <!-- Header -->
+  <tr>
+    <td style="background-color:#1a3c6e;padding:24px 32px;text-align:center;">
+      <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:bold;letter-spacing:0.5px;">
+        LDAH Daily Report
+      </h1>
+      <p style="margin:4px 0 0;color:#b0c4de;font-size:14px;">${todayStr}</p>
+    </td>
+  </tr>
+
+  <!-- Section 1: All Active Events & Programs -->
+  <tr>
+    <td style="padding:24px 28px 8px;">
+      <h2 style="margin:0;font-size:17px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:6px;">
+        All Active Events &amp; Programs
+      </h2>
+      <p style="margin:4px 0 12px;font-size:12px;color:#666;">${allSessions.length} active</p>
+    </td>
+  </tr>
+  <tr><td style="padding:0 28px 16px;">${sessionsHtml}</td></tr>
+
+  <!-- Section 2: What Changed (Last 24 Hours) -->
+  <tr>
+    <td style="padding:24px 28px 8px;">
+      <h2 style="margin:0;font-size:17px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:6px;">
+        What Changed (Last 24 Hours)
+      </h2>
+      <p style="margin:4px 0 12px;font-size:12px;color:#666;">${changelog.length} change(s)</p>
+    </td>
+  </tr>
+  <tr><td style="padding:0 28px 16px;">${changelogHtml}</td></tr>
+
+  <!-- Section 3: Pending/New Public Submissions -->
+  <tr>
+    <td style="padding:24px 28px 8px;">
+      <h2 style="margin:0;font-size:17px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:6px;">
+        Pending Public Submissions
+      </h2>
+    </td>
+  </tr>
+  <tr><td style="padding:0 28px 16px;">${formsHtml}</td></tr>
+
+  <!-- Footer -->
+  <tr>
+    <td style="background-color:#f0f0f0;padding:20px 28px;text-align:center;border-top:1px solid #dddddd;">
+      <p style="margin:0 0 3px;font-size:12px;color:#777777;font-weight:bold;">
+        Leadership in Disabilities &amp; Achievement of Hawai'i
+      </p>
+      <p style="margin:0 0 3px;font-size:11px;color:#999999;">
+        245 N. Kukui St., Suite 205, Honolulu, HI 96817 | (808) 536-2280
+      </p>
+      <p style="margin:0;font-size:11px;color:#999999;">
+        Email: <a href="mailto:rrowe@ldahawaii.org" style="color:#999999;">rrowe@ldahawaii.org</a>
+      </p>
+    </td>
+  </tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+
+    // ── 6. Send to each active recipient ──
+    const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+    const subject = `LDAH Daily Report -- ${todayFormatted}`;
+    let sentCount = 0;
+
+    for (const recipient of recipients) {
+      try {
+        await sendEmailViaResend({
+          from: `LDAH <${fromAddress}>`,
+          to: recipient.email,
+          subject,
+          html: emailHtml,
+        });
+        sentCount++;
+        console.log(`sendDailySessionSheet: sent to ${recipient.email}`);
+      } catch (err) {
+        console.error(`sendDailySessionSheet: failed to send to ${recipient.email}:`, err.message);
+      }
+    }
+
+    console.log(`sendDailySessionSheet: complete. Sent to ${sentCount}/${recipients.length} recipients. Sessions: ${allSessions.length}`);
+    return null;
   });
