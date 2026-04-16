@@ -5840,7 +5840,7 @@
       }
       
       list.innerHTML = events.map(event => {
-        const moveToPast = event.moveToPastDate ? new Date(event.moveToPastDate) : null;
+        const moveToPast = event.moveToPastDate ? new Date(event.moveToPastDate + 'T00:00:00') : null;
         const isPast = moveToPast && moveToPast < now;
         const signups = eventSignups[event.id] || [];
         const totalVolunteers = signups.reduce((sum, s) => sum + (parseInt(s.numVolunteers) || 1), 0);
@@ -6926,8 +6926,8 @@
       list.innerHTML = opportunities.map(opp => {
         let status = 'active', statusLabel = 'Active';
         if (opp.alwaysPost) { status = 'always'; statusLabel = 'Always Posted'; }
-        else if (opp.startDate && new Date(opp.startDate) > now) { status = 'scheduled'; statusLabel = 'Scheduled'; }
-        else if (opp.endDate && new Date(opp.endDate) < now) { status = 'expired'; statusLabel = 'Expired'; }
+        else if (opp.startDate && new Date(opp.startDate + 'T00:00:00') > now) { status = 'scheduled'; statusLabel = 'Scheduled'; }
+        else if (opp.endDate && new Date(opp.endDate + 'T23:59:59') < now) { status = 'expired'; statusLabel = 'Expired'; }
         
         const oppApps = applications.filter(a => a.opportunityId === opp.id);
         const newApps = oppApps.filter(a => !a.status || a.status === 'new').length;
@@ -8430,7 +8430,7 @@
       const upcomingEvents = events.filter(e => {
         // Use moveToPastDate if available, otherwise fall back to event date
         if (e.moveToPastDate) {
-          return new Date(e.moveToPastDate) >= now;
+          return new Date(e.moveToPastDate + 'T00:00:00') >= now;
         }
         // If no moveToPastDate, check event date
         if (!e.date && !e.startDate && !e.eventDate) return true;
@@ -9004,9 +9004,9 @@
       
       const now = new Date();
       const activeEvents = events.filter(e => {
-        if (e.moveToPastDate) return new Date(e.moveToPastDate) >= now;
+        if (e.moveToPastDate) return new Date(e.moveToPastDate + 'T00:00:00') >= now;
         if (!e.date && !e.startDate && !e.eventDate) return true;
-        return new Date(e.startDate || e.eventDate || e.date) >= now;
+        return new Date((e.startDate || e.eventDate || e.date) + 'T00:00:00') >= now;
       }).length;
       const approvedRequests = eventRequests.filter(r => r.status === 'approved' || r.status === 'scheduled').length;
       rows.push(['Active Events', activeEvents + approvedRequests]);
@@ -9284,9 +9284,9 @@
       
       const now = new Date();
       const activeEvents = events.filter(e => {
-        if (e.moveToPastDate) return new Date(e.moveToPastDate) >= now;
+        if (e.moveToPastDate) return new Date(e.moveToPastDate + 'T00:00:00') >= now;
         if (!e.date && !e.startDate && !e.eventDate) return true;
-        return new Date(e.startDate || e.eventDate || e.date) >= now;
+        return new Date((e.startDate || e.eventDate || e.date) + 'T00:00:00') >= now;
       }).length;
       const approvedRequests = eventRequests.filter(r => r.status === 'approved' || r.status === 'scheduled').length;
       

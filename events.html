@@ -1229,12 +1229,12 @@
           const pastEvents = allEvents.filter(event => {
             try {
               if (!event.moveToPastDate || !event.removeDate) return false;
-              const moveToPastDate = new Date(event.moveToPastDate);
-              const removeDate = new Date(event.removeDate);
+              const moveToPastDate = new Date(event.moveToPastDate + 'T00:00:00');
+              const removeDate = new Date(event.removeDate + 'T00:00:00');
               if (isNaN(moveToPastDate.getTime()) || isNaN(removeDate.getTime())) return false;
               return now >= moveToPastDate && now < removeDate;
             } catch (err) { return false; }
-          }).sort((a, b) => new Date(b.moveToPastDate) - new Date(a.moveToPastDate));
+          }).sort((a, b) => new Date(b.moveToPastDate + 'T00:00:00') - new Date(a.moveToPastDate + 'T00:00:00'));
 
           // Build recurring synthetic cards from the already-fetched snapshot
           window._recurringPrograms = {};
