@@ -776,8 +776,11 @@ async function handleSignupUpdated(change, context) {
     const before = change.before.data();
     const after = change.after.data();
 
-    // Only act when status transitions to "confirmed"
-    if (before.status === "confirmed" || after.status !== "confirmed") return null;
+    // Act when status transitions to "confirmed" OR when registration data is added
+    const statusJustConfirmed = before.status !== "confirmed" && after.status === "confirmed";
+    const registrationJustAdded = !before.registration && after.registration;
+    if (!statusJustConfirmed && !registrationJustAdded) return null;
+    if (after.status !== "confirmed") return null;
 
     // Must have registration data and a linked contact
     const registration = after.registration;
