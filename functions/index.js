@@ -735,7 +735,7 @@ async function handleSignupCreated(snap, context, collectionName) {
       type: "registration",
       relatedEventId: eventId,
       relatedSignupId: signupId,
-      recipientName: recipientName,
+      recipientName: signupName,
     });
     console.log(`Registration email sent to ${recipientEmail} for signup ${signupId}`);
     await snap.ref.update({
