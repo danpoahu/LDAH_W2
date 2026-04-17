@@ -386,7 +386,7 @@ exports.notifyAndroidBetaRequest = functions
 /**
  * Temporary BCC during email-system review. Set to empty string to disable.
  */
-const REVIEW_BCC = "dan@oahuappdesign.com";
+const REVIEW_BCC = "";
 
 /**
  * Log a single email send (or failure) to Firestore for admin review.
@@ -513,6 +513,7 @@ function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eve
   <!-- Header -->
   <tr>
     <td style="background-color:#1a3c6e;padding:24px 32px;text-align:center;">
+      <img src="https://www.ldahawaii.org/assets/logo_transparent.png" alt="LDAH" width="72" height="72" style="display:block;margin:0 auto 10px;border:0;outline:none;text-decoration:none;">
       <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:bold;letter-spacing:0.5px;">
         Leadership in Disabilities &amp; Achievement of Hawai'i
       </h1>
@@ -1072,6 +1073,7 @@ function buildNoShowEmailHtml({ name, eventTitle, nextEventTitle, nextEventDate,
   <!-- Header -->
   <tr>
     <td style="background-color:#1a3c6e;padding:24px 32px;text-align:center;">
+      <img src="https://www.ldahawaii.org/assets/logo_transparent.png" alt="LDAH" width="72" height="72" style="display:block;margin:0 auto 10px;border:0;outline:none;text-decoration:none;">
       <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:bold;letter-spacing:0.5px;">
         Leadership in Disabilities &amp; Achievement of Hawai'i
       </h1>
@@ -1260,6 +1262,7 @@ function buildFeedbackEmailHtml({ name, eventTitle, feedbackUrl }) {
   <!-- Header -->
   <tr>
     <td style="background-color:#1a3c6e;padding:24px 32px;text-align:center;">
+      <img src="https://www.ldahawaii.org/assets/logo_transparent.png" alt="LDAH" width="72" height="72" style="display:block;margin:0 auto 10px;border:0;outline:none;text-decoration:none;">
       <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:bold;letter-spacing:0.5px;">
         Leadership in Disabilities &amp; Achievement of Hawai'i
       </h1>
@@ -1988,6 +1991,7 @@ exports.sendDailySessionSheet = functions
   <!-- Header -->
   <tr>
     <td style="background-color:#1a3c6e;padding:24px 32px;text-align:center;">
+      <img src="https://www.ldahawaii.org/assets/logo_transparent.png" alt="LDAH" width="72" height="72" style="display:block;margin:0 auto 10px;border:0;outline:none;text-decoration:none;">
       <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:bold;letter-spacing:0.5px;">
         LDAH Daily Report
       </h1>
