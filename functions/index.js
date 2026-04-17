@@ -896,6 +896,74 @@ exports.onRecurringEventSignupUpdated = functions
     return handleSignupUpdated(change, context);
   });
 
+// ── Contact → Signup Sync ────────────────────────────────────────
+// When a contact's name, email, or phone changes, propagate the new
+// value to every signup doc that has a matching linkedContactId so
+// resend-registration, daily reports, and any other signup-email
+// consumers always use the corrected contact info.
+
+exports.onContactUpdated = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 5 })
+  .firestore.document("contacts/{contactId}")
+  .onUpdate(async (change, context) => {
+    try {
+      const before = change.before.data() || {};
+      const after = change.after.data() || {};
+      const contactId = context.params.contactId;
+
+      const prevName = [before.firstName, before.lastName].filter(Boolean).join(" ").trim();
+      const newName = [after.firstName, after.lastName].filter(Boolean).join(" ").trim();
+
+      const syncFields = {};
+      if ((before.email || "") !== (after.email || "") && after.email) {
+        syncFields.email = after.email;
+      }
+      if ((before.phone || "") !== (after.phone || "") && after.phone) {
+        syncFields.phone = after.phone;
+      }
+      if (prevName !== newName && newName) {
+        syncFields.name = newName;
+      }
+
+      if (Object.keys(syncFields).length === 0) return null;
+
+      const db = admin.firestore();
+      // Single collectionGroup query covers every event + recurringEvent signup.
+      const sigs = await db.collectionGroup("signups")
+        .where("linkedContactId", "==", contactId)
+        .get();
+
+      if (sigs.empty) {
+        console.log(`Contact ${contactId} changed (${Object.keys(syncFields).join(",")}) but no linked signups.`);
+        return null;
+      }
+
+      const batch = db.batch();
+      let writeCount = 0;
+      sigs.forEach((doc) => {
+        const s = doc.data();
+        const updates = {};
+        for (const k of Object.keys(syncFields)) {
+          if ((s[k] || "") !== syncFields[k]) updates[k] = syncFields[k];
+        }
+        if (Object.keys(updates).length > 0) {
+          batch.update(doc.ref, updates);
+          writeCount++;
+        }
+      });
+
+      if (writeCount > 0) {
+        await batch.commit();
+        console.log(`Contact ${contactId} sync: updated ${writeCount} signups with ${JSON.stringify(syncFields)}`);
+      } else {
+        console.log(`Contact ${contactId} sync: ${sigs.size} linked signups already in sync.`);
+      }
+    } catch (err) {
+      console.error(`Contact sync error (${context.params.contactId}):`, err.message);
+    }
+    return null;
+  });
+
 // ── No-Show Re-Invite Email ───────────────────────────────────────
 
 /**
