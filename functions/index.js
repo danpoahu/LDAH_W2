@@ -705,7 +705,8 @@ async function handleSignupCreated(snap, context, collectionName) {
     if (eventDoc.exists) {
       const eventData = eventDoc.data();
       eventTitle = eventData.title || eventTitle;
-      eventDate = formatEventDate(eventData.date || eventData.startDate || eventData.eventDate);
+      const picked = Array.isArray(signupData.selectedDates) && signupData.selectedDates[0];
+      eventDate = picked || formatEventDate(eventData.eventDate || eventData.date);
     }
   } catch (err) {
     console.error(`Error reading ${collectionName}/${eventId}:`, err.message);
@@ -786,7 +787,8 @@ exports.resendRegistrationEmail = functions
         if (eventDoc.exists) {
           const eventData = eventDoc.data();
           eventTitle = eventData.title || eventTitle;
-          eventDate = formatEventDate(eventData.date || eventData.startDate || eventData.eventDate);
+          const picked = Array.isArray(signupData.selectedDates) && signupData.selectedDates[0];
+          eventDate = picked || formatEventDate(eventData.eventDate || eventData.date);
         }
       } catch (_) { /* use defaults */ }
 
