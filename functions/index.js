@@ -384,27 +384,90 @@ exports.notifyAndroidBetaRequest = functions
 //   firebase functions:secrets:set RESEND_API_KEY
 
 /**
- * Send an email via Resend HTTP API.
+ * Temporary BCC during email-system review. Set to empty string to disable.
  */
-async function sendEmailViaResend({ from, to, subject, html }) {
+const REVIEW_BCC = "dan@oahuappdesign.com";
+
+/**
+ * Log a single email send (or failure) to Firestore for admin review.
+ */
+async function logEmailSend(entry) {
+  try {
+    await admin.firestore().collection("emailLog").add({
+      sentAt: admin.firestore.FieldValue.serverTimestamp(),
+      from: entry.from || "",
+      to: entry.to || "",
+      bcc: entry.bcc || "",
+      subject: entry.subject || "",
+      html: entry.html || "",
+      type: entry.type || "unknown",
+      relatedEventId: entry.relatedEventId || "",
+      relatedSignupId: entry.relatedSignupId || "",
+      recipientName: entry.recipientName || "",
+      success: entry.success === true,
+      error: entry.error || null,
+      resendId: entry.resendId || null,
+    });
+  } catch (e) {
+    console.warn("emailLog write failed:", e.message);
+  }
+}
+
+/**
+ * Send an email via Resend HTTP API.
+ * Extra optional fields (type, relatedEventId, relatedSignupId, recipientName)
+ * are used only for the emailLog entry and are safe to omit.
+ */
+async function sendEmailViaResend({
+  from, to, subject, html,
+  type, relatedEventId, relatedSignupId, recipientName,
+}) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error("RESEND_API_KEY secret is not set");
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      "Authorization": "Bearer " + apiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ from, to: [to], subject, html }),
-  });
+  const body = { from, to: [to], subject, html };
+  if (REVIEW_BCC) body.bcc = [REVIEW_BCC];
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error("Resend API error (" + response.status + "): " + errorBody);
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      const msg = "Resend API error (" + response.status + "): " + errorBody;
+      await logEmailSend({
+        from, to, bcc: REVIEW_BCC, subject, html,
+        type, relatedEventId, relatedSignupId, recipientName,
+        success: false, error: msg,
+      });
+      throw new Error(msg);
+    }
+
+    const result = await response.json();
+    await logEmailSend({
+      from, to, bcc: REVIEW_BCC, subject, html,
+      type, relatedEventId, relatedSignupId, recipientName,
+      success: true, resendId: (result && result.id) || null,
+    });
+    return result;
+  } catch (err) {
+    // If we already logged the error above, this will just rethrow;
+    // if the fetch itself threw, catch it here so we still log.
+    if (!err.message || err.message.indexOf("Resend API error") !== 0) {
+      await logEmailSend({
+        from, to, bcc: REVIEW_BCC, subject, html,
+        type, relatedEventId, relatedSignupId, recipientName,
+        success: false, error: err.message || String(err),
+      });
+    }
+    throw err;
   }
-
-  return response.json();
 }
 
 /**
@@ -668,6 +731,10 @@ async function handleSignupCreated(snap, context, collectionName) {
       to: recipientEmail,
       subject: `Complete Your Registration -- ${eventTitle}`,
       html: htmlBody,
+      type: "registration",
+      relatedEventId: eventId,
+      relatedSignupId: signupId,
+      recipientName: recipientName,
     });
     console.log(`Registration email sent to ${recipientEmail} for signup ${signupId}`);
     await snap.ref.update({
@@ -735,6 +802,10 @@ exports.resendRegistrationEmail = functions
         to: signupData.email,
         subject: `Complete Your Registration -- ${eventTitle}`,
         html: htmlBody,
+        type: "registration-resend",
+        relatedEventId: eventId,
+        relatedSignupId: signupId,
+        recipientName: signupName,
       });
 
       await signupDoc.ref.update({
@@ -1152,6 +1223,10 @@ exports.sendNoShowReInvites = functions
             to: signup.email,
             subject: `We missed you at ${eventTitle}!`,
             html: htmlBody,
+            type: "no-show-reinvite",
+            relatedEventId: eventId,
+            relatedSignupId: signup.id,
+            recipientName: signup.data().name || "",
           });
 
           await signup.ref.update({
@@ -1335,6 +1410,10 @@ exports.sendFeedbackEmails = functions
             to: data.email,
             subject: `How was ${eventTitle}? We'd love your feedback`,
             html: htmlBody,
+            type: "feedback-request",
+            relatedEventId: eventId,
+            relatedSignupId: doc.id,
+            recipientName: name,
           });
 
           await doc.ref.update({
@@ -1981,6 +2060,8 @@ exports.sendDailySessionSheet = functions
           to: recipient.email,
           subject,
           html: emailHtml,
+          type: "daily-session-sheet",
+          recipientName: recipient.name || "",
         });
         sentCount++;
         console.log(`sendDailySessionSheet: sent to ${recipient.email}`);
