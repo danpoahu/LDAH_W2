@@ -826,6 +826,93 @@ exports.resendRegistrationEmail = functions
 
 const EMAIL_SECRETS = ["RESEND_API_KEY", "SMTP_FROM"];
 
+// ── Find sibling pending signups for same email ─────────────────
+// Used by W2/App registration forms: after a user completes registration,
+// this returns their other pending signups so they can apply the same
+// registration to them. Access: unauthenticated POST, but proof of
+// ownership is required (valid source signupId that matches email).
+exports.findSiblingPendingSignups = functions
+  .runWith({ timeoutSeconds: 20, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Access-Control-Max-Age", "3600");
+
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const { collection, eventId, signupId } = req.body || {};
+    if (!collection || !eventId || !signupId) {
+      res.status(400).json({ error: "Missing collection, eventId, or signupId" });
+      return;
+    }
+    if (collection !== "events" && collection !== "recurringEvents") {
+      res.status(400).json({ error: "Invalid collection" });
+      return;
+    }
+
+    try {
+      const db = admin.firestore();
+      const sourceDoc = await db.collection(collection).doc(eventId).collection("signups").doc(signupId).get();
+      if (!sourceDoc.exists) { res.status(404).json({ error: "Source signup not found" }); return; }
+      const sourceData = sourceDoc.data();
+      const email = (sourceData.email || "").trim().toLowerCase();
+      if (!email) { res.status(400).json({ error: "Source signup has no email" }); return; }
+
+      // Find all other pending signups with the same email (case-insensitive) across both collections.
+      const siblings = [];
+      const snap = await db.collectionGroup("signups").where("email", "==", sourceData.email).get();
+      // Also check lowercased, in case emails were stored with different casing
+      const seen = new Set();
+      snap.forEach((d) => seen.add(d.ref.path));
+      if (sourceData.email !== email) {
+        const snap2 = await db.collectionGroup("signups").where("email", "==", email).get();
+        snap2.forEach((d) => { if (!seen.has(d.ref.path)) { seen.add(d.ref.path); snap.docs.push(d); } });
+      }
+
+      const parentCache = {};
+      for (const d of snap.docs) {
+        const data = d.data();
+        if (!data) continue;
+        if (data.archived === true) continue;
+        if (data.status !== "pending" && data.status !== "new") continue;
+        if (data.registration && typeof data.registration === "object") continue;
+        // Parse collection + eventId from path
+        const parts = d.ref.path.split("/");
+        if (parts.length !== 4) continue;
+        const coll = parts[0];
+        const eid = parts[1];
+        const sid = parts[3];
+        if (coll === collection && eid === eventId && sid === signupId) continue; // skip source
+        // Fetch event title (cached)
+        const cacheKey = coll + "/" + eid;
+        let evTitle = parentCache[cacheKey];
+        if (evTitle === undefined) {
+          try {
+            const evDoc = await db.collection(coll).doc(eid).get();
+            evTitle = evDoc.exists ? (evDoc.data().title || "Untitled Event") : "Untitled Event";
+          } catch (_) { evTitle = "Untitled Event"; }
+          parentCache[cacheKey] = evTitle;
+        }
+        const sessionDate = Array.isArray(data.selectedDates) && data.selectedDates[0] ? data.selectedDates[0] : (data.sessionDate || "");
+        siblings.push({
+          collection: coll,
+          eventId: eid,
+          signupId: sid,
+          eventTitle: evTitle,
+          sessionDate: sessionDate,
+          status: data.status,
+        });
+      }
+
+      res.status(200).json({ siblings });
+    } catch (err) {
+      console.error("findSiblingPendingSignups error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
 exports.onEventSignupCreated = functions
   .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: EMAIL_SECRETS })
   .firestore.document("events/{eventId}/signups/{signupId}")

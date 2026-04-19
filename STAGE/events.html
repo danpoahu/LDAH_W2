@@ -2711,11 +2711,14 @@
             '</div>' +
             '<h2 style="color: #004E7C; font-size: 24px; font-weight: bold; margin-bottom: 12px;">Mahalo! Your registration is complete.</h2>' +
             '<p style="color: #666; font-size: 14px;">You may now close this window.</p>' +
+            '<div id="regSiblingPrompt" style="margin-top:20px;"></div>' +
             (isParent ?
               '<p style="color:#555; font-size:14px; margin-top:16px;">Do you have another child to register for this event?</p>' +
               '<button onclick="registerAnotherChild(\'' + eventId + '\', \'' + type + '\')" style="padding:12px 24px; background:linear-gradient(135deg, #0891b2, #0e7490); color:white; border:none; border-radius:10px; font-weight:600; font-size:14px; cursor:pointer; margin-top:8px;">+ Register Another Child</button>'
             : '') +
           '</div>';
+        // Check for other pending signups for this email and offer to apply this registration
+        checkSiblingSignupsAndPrompt(collectionName, eventId, token, registration);
       } catch (error) {
         console.error('Error submitting registration:', error);
         document.getElementById('registrationFormContent').innerHTML =
@@ -2772,6 +2775,83 @@
       if (event && event.target !== event.currentTarget) return;
       var modal = document.getElementById('registrationModal');
       if (modal) modal.remove();
+    }
+
+    async function checkSiblingSignupsAndPrompt(collection, eventId, signupId, registration) {
+      var container = document.getElementById('regSiblingPrompt');
+      if (!container) return;
+      try {
+        var resp = await fetch('https://us-central1-ldah-932d5.cloudfunctions.net/findSiblingPendingSignups', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ collection: collection, eventId: eventId, signupId: signupId })
+        });
+        if (!resp.ok) return;
+        var data = await resp.json();
+        var siblings = (data && data.siblings) || [];
+        if (!siblings.length) return;
+        window._regSiblingRegistration = registration;
+        window._regSiblingList = siblings;
+        var html =
+          '<div style="background:#F0F9FF;border:1px solid #BAE6FD;border-radius:10px;padding:16px;text-align:left;">' +
+            '<p style="color:#0369A1;font-weight:700;font-size:14px;margin:0 0 6px 0;">You\'re also signed up for ' + siblings.length + ' other event' + (siblings.length > 1 ? 's' : '') + '.</p>' +
+            '<p style="color:#374151;font-size:13px;margin:0 0 10px 0;">If this registration applies to the same child, select the events below and we\'ll use the same answers. If not, leave them unchecked and complete each one when we email you.</p>' +
+            '<div style="max-height:180px;overflow-y:auto;">';
+        siblings.forEach(function(s, idx) {
+          var title = s.eventTitle || 'Event';
+          var dateNote = s.sessionDate ? ' <span style="color:#64748B;font-size:12px;">(' + s.sessionDate + ')</span>' : '';
+          html +=
+            '<label style="display:flex;align-items:flex-start;gap:8px;padding:6px 4px;cursor:pointer;">' +
+              '<input type="checkbox" class="reg-sibling-cb" data-idx="' + idx + '" checked style="margin-top:3px;cursor:pointer;">' +
+              '<span style="font-size:13px;color:#0F172A;">' + title + dateNote + '</span>' +
+            '</label>';
+        });
+        html +=
+            '</div>' +
+            '<div style="display:flex;gap:8px;margin-top:10px;">' +
+              '<button onclick="applyRegistrationToSiblings()" id="regSiblingApplyBtn" style="flex:1;padding:10px;background:linear-gradient(135deg,#0891B2,#0E7490);color:white;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;">Apply to Selected</button>' +
+              '<button onclick="document.getElementById(\'regSiblingPrompt\').innerHTML=\'\';" style="padding:10px 16px;background:#F3F4F6;color:#374151;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;">No Thanks</button>' +
+            '</div>' +
+          '</div>';
+        container.innerHTML = html;
+      } catch (err) {
+        console.warn('Sibling signup check skipped:', err.message);
+      }
+    }
+
+    async function applyRegistrationToSiblings() {
+      var btn = document.getElementById('regSiblingApplyBtn');
+      var reg = window._regSiblingRegistration;
+      var list = window._regSiblingList || [];
+      if (!reg || !list.length) return;
+      var checkedIdx = Array.from(document.querySelectorAll('.reg-sibling-cb:checked')).map(function(cb) { return parseInt(cb.dataset.idx, 10); });
+      if (!checkedIdx.length) {
+        document.getElementById('regSiblingPrompt').innerHTML = '<p style="font-size:13px;color:#64748B;">No events selected. You can complete each registration later from the email link.</p>';
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Applying...';
+      try {
+        var writes = checkedIdx.map(function(i) {
+          var s = list[i];
+          return db.collection(s.collection).doc(s.eventId).collection('signups').doc(s.signupId).update({
+            registration: reg,
+            status: 'confirmed',
+            registrationCompletedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        });
+        await Promise.all(writes);
+        document.getElementById('regSiblingPrompt').innerHTML =
+          '<div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:10px;padding:14px;">' +
+            '<p style="color:#065F46;font-weight:700;font-size:13px;margin:0;">Registration applied to ' + checkedIdx.length + ' other event' + (checkedIdx.length > 1 ? 's' : '') + '. Mahalo!</p>' +
+          '</div>';
+      } catch (err) {
+        console.error('Error applying registration:', err);
+        document.getElementById('regSiblingPrompt').innerHTML =
+          '<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:14px;">' +
+            '<p style="color:#991B1B;font-weight:600;font-size:13px;margin:0;">Couldn\'t apply to the other events. You can still complete them from the email link.</p>' +
+          '</div>';
+      }
     }
 
     // Auto-open registration modal from URL params (email links)
