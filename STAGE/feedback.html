@@ -59,6 +59,14 @@
       text-align: center;
       padding: 18px 24px 0;
     }
+    .respondent-name {
+      font-family: 'Outfit', sans-serif;
+      font-size: .9rem;
+      font-weight: 500;
+      color: #475569;
+      text-align: center;
+      padding: 4px 24px 0;
+    }
     .feedback-body {
       padding: 20px 28px 28px;
     }
@@ -219,6 +227,7 @@
   <!-- Form -->
   <div id="formState" style="display:none;">
     <div class="event-title" id="eventTitleDisplay"></div>
+    <div class="respondent-name" id="respondentNameDisplay"></div>
     <div class="feedback-body">
       <form id="feedbackForm" onsubmit="return submitFeedback(event)">
 
@@ -346,7 +355,7 @@
 
   <!-- Success -->
   <div id="successState" class="success-screen" style="display:none;">
-    <h2>Mahalo for your feedback!</h2>
+    <h2 id="successHeading">Mahalo for your feedback!</h2>
     <p>Your responses help us improve our programs and better serve the community.</p>
   </div>
 </div>
@@ -419,6 +428,11 @@
         eventTitle = eventDoc.data().title || eventTitle;
       }
       document.getElementById('eventTitleDisplay').textContent = eventTitle;
+      var respondentName = (signupData.name || signupData.firstName || '').trim();
+      if (respondentName) {
+        document.getElementById('respondentNameDisplay').textContent = respondentName;
+        document.getElementById('successHeading').textContent = 'Mahalo ' + respondentName + ' for helping us improve!';
+      }
       showState('formState');
     } catch (err) {
       console.error('Init error:', err);
