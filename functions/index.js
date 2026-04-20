@@ -2446,7 +2446,7 @@ async function sendOneReminderEmail({
 // Scheduled daily at 7 AM HST.
 exports.sendEventReminders = functions
   .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: EMAIL_SECRETS })
-  .pubsub.schedule("0 7 * * *")
+  .pubsub.schedule("0 16 * * *")
   .timeZone("Pacific/Honolulu")
   .onRun(async (context) => {
     const db = admin.firestore();
