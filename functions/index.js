@@ -2413,7 +2413,7 @@ async function sendOneReminderEmail({
   const isVirtual = !!zoomUrl;
 
   const surveyUrl =
-    "https://ldahawaii.org/feedback.html?token=" + encodeURIComponent(signupId) +
+    "https://ldahawaii.org/feedback.html?signupId=" + encodeURIComponent(signupId) +
     "&eventId=" + encodeURIComponent(eventId) +
     "&type=" + encodeURIComponent(type);
 
