@@ -521,12 +521,8 @@ function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eve
 
   <!-- Header -->
   <tr>
-    <td style="background-color:#1a3c6e;padding:24px 32px;text-align:center;">
-      <img src="https://www.ldahawaii.org/logo_quilt.png" alt="LDAH" width="80" height="80" style="display:block;margin:0 auto 10px;border:0;outline:none;text-decoration:none;">
-      <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:bold;letter-spacing:0.5px;">
-        Leadership in Disabilities &amp; Achievement of Hawai'i
-      </h1>
-      <p style="margin:4px 0 0;color:#b0c4de;font-size:13px;">LDAH</p>
+    <td style="background-color:#ffffff;padding:28px 32px 20px;text-align:center;border-bottom:3px solid #1a3c6e;">
+      <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="200" style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;">
     </td>
   </tr>
 
@@ -1170,12 +1166,8 @@ function buildNoShowEmailHtml({ name, eventTitle, nextEventTitle, nextEventDate,
 
   <!-- Header -->
   <tr>
-    <td style="background-color:#1a3c6e;padding:24px 32px;text-align:center;">
-      <img src="https://www.ldahawaii.org/logo_quilt.png" alt="LDAH" width="80" height="80" style="display:block;margin:0 auto 10px;border:0;outline:none;text-decoration:none;">
-      <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:bold;letter-spacing:0.5px;">
-        Leadership in Disabilities &amp; Achievement of Hawai'i
-      </h1>
-      <p style="margin:4px 0 0;color:#b0c4de;font-size:13px;">LDAH</p>
+    <td style="background-color:#ffffff;padding:28px 32px 20px;text-align:center;border-bottom:3px solid #1a3c6e;">
+      <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="200" style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;">
     </td>
   </tr>
 
@@ -1359,12 +1351,8 @@ function buildFeedbackEmailHtml({ name, eventTitle, feedbackUrl }) {
 
   <!-- Header -->
   <tr>
-    <td style="background-color:#1a3c6e;padding:24px 32px;text-align:center;">
-      <img src="https://www.ldahawaii.org/logo_quilt.png" alt="LDAH" width="80" height="80" style="display:block;margin:0 auto 10px;border:0;outline:none;text-decoration:none;">
-      <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:bold;letter-spacing:0.5px;">
-        Leadership in Disabilities &amp; Achievement of Hawai'i
-      </h1>
-      <p style="margin:4px 0 0;color:#b0c4de;font-size:13px;">LDAH</p>
+    <td style="background-color:#ffffff;padding:28px 32px 20px;text-align:center;border-bottom:3px solid #1a3c6e;">
+      <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="200" style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;">
     </td>
   </tr>
 
@@ -2089,7 +2077,7 @@ exports.sendDailySessionSheet = functions
   <!-- Header -->
   <tr>
     <td style="background-color:#1a3c6e;padding:24px 32px;text-align:center;">
-      <img src="https://www.ldahawaii.org/logo_quilt.png" alt="LDAH" width="80" height="80" style="display:block;margin:0 auto 10px;border:0;outline:none;text-decoration:none;">
+      <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="180" style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;background-color:#ffffff;padding:14px 20px;border-radius:10px;">
       <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:bold;letter-spacing:0.5px;">
         LDAH Daily Report
       </h1>
@@ -2306,12 +2294,8 @@ function buildEventReminderEmailHtml({
 
   <!-- Header -->
   <tr>
-    <td style="background-color:#1a3c6e;padding:24px 32px;text-align:center;">
-      <img src="https://www.ldahawaii.org/logo_quilt.png" alt="LDAH" width="80" height="80" style="display:block;margin:0 auto 10px;border:0;outline:none;text-decoration:none;">
-      <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:bold;letter-spacing:0.5px;">
-        Leadership in Disabilities &amp; Achievement of Hawai'i
-      </h1>
-      <p style="margin:4px 0 0;color:#b0c4de;font-size:13px;">LDAH</p>
+    <td style="background-color:#ffffff;padding:28px 32px 20px;text-align:center;border-bottom:3px solid #1a3c6e;">
+      <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="200" style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;">
     </td>
   </tr>
 
