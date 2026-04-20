@@ -2596,6 +2596,7 @@ exports.sendEventRemindersTest = functions
     const body = req.body || {};
     const { signupId, eventId, collection, mode } = body;
     const token = body.token || req.query.token;
+    const skipBcc = body.skipBcc === true || body.skipBcc === "true";
 
     // Optional token gate. If REMINDER_TEST_TOKEN is configured at
     // runtime (via environment), require it. Otherwise rely on CORS
@@ -2655,7 +2656,7 @@ exports.sendEventRemindersTest = functions
       const result = await sendOneReminderEmail({
         collection, eventId, signupId, signup, event,
         sessionDateKey, mode, zoomDefault,
-        skipBcc: false, // test still BCCs Leilani -- she asked to see these
+        skipBcc: skipBcc,
       });
 
       res.status(200).json({ success: true, id: (result && result.id) || null, to: signup.email, sessionDateKey });
