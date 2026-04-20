@@ -419,14 +419,23 @@ async function logEmailSend(entry) {
  * are used only for the emailLog entry and are safe to omit.
  */
 async function sendEmailViaResend({
-  from, to, subject, html,
+  from, to, subject, html, bcc,
   type, relatedEventId, relatedSignupId, recipientName,
 }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error("RESEND_API_KEY secret is not set");
 
+  // Assemble BCC list: per-call bcc + REVIEW_BCC (if set). De-dupe + skip empties.
+  const bccList = [];
+  if (bcc) {
+    if (Array.isArray(bcc)) bccList.push(...bcc.filter(Boolean));
+    else bccList.push(bcc);
+  }
+  if (REVIEW_BCC && !bccList.includes(REVIEW_BCC)) bccList.push(REVIEW_BCC);
+  const bccLogValue = bccList.join(", ");
+
   const body = { from, to: [to], subject, html };
-  if (REVIEW_BCC) body.bcc = [REVIEW_BCC];
+  if (bccList.length) body.bcc = bccList;
 
   try {
     const response = await fetch("https://api.resend.com/emails", {
@@ -442,7 +451,7 @@ async function sendEmailViaResend({
       const errorBody = await response.text();
       const msg = "Resend API error (" + response.status + "): " + errorBody;
       await logEmailSend({
-        from, to, bcc: REVIEW_BCC, subject, html,
+        from, to, bcc: bccLogValue, subject, html,
         type, relatedEventId, relatedSignupId, recipientName,
         success: false, error: msg,
       });
@@ -451,7 +460,7 @@ async function sendEmailViaResend({
 
     const result = await response.json();
     await logEmailSend({
-      from, to, bcc: REVIEW_BCC, subject, html,
+      from, to, bcc: bccLogValue, subject, html,
       type, relatedEventId, relatedSignupId, recipientName,
       success: true, resendId: (result && result.id) || null,
     });
@@ -461,7 +470,7 @@ async function sendEmailViaResend({
     // if the fetch itself threw, catch it here so we still log.
     if (!err.message || err.message.indexOf("Resend API error") !== 0) {
       await logEmailSend({
-        from, to, bcc: REVIEW_BCC, subject, html,
+        from, to, bcc: bccLogValue, subject, html,
         type, relatedEventId, relatedSignupId, recipientName,
         success: false, error: err.message || String(err),
       });
@@ -2165,4 +2174,493 @@ exports.sendDailySessionSheet = functions
 
     console.log(`sendDailySessionSheet: complete. Sent to ${sentCount}/${recipients.length} recipients. Sessions: ${allSessions.length}`);
     return null;
+  });
+
+// ── Event Reminder Emails (5-day + 1-day) ──────────────────────────
+// Scheduled daily at 7 AM HST. Scans all confirmed, non-archived
+// signups under events/ and recurringEvents/, and sends a reminder
+// to each attendee 5 days and 1 day before their session. Dedupes
+// per-session via sessionReminders map on the signup doc.
+//
+// Event body mirrors Leilani's manual template verbatim. BCCs
+// LKailiawa@ldahawaii.org so Leilani has a paper trail.
+
+const REMINDER_BCC = "LKailiawa@ldahawaii.org";
+
+/**
+ * Parse a date-like value to a YYYY-MM-DD string in HST.
+ * Accepts: Firestore Timestamp, {seconds}, string "YYYY-MM-DD",
+ * string like "Wednesday, April 22, 2026", or any Date-parsable string.
+ * Returns "" if parsing fails.
+ */
+function toHstDateKey(value) {
+  if (!value) return "";
+  let d;
+  try {
+    if (value && typeof value === "object" && typeof value.toDate === "function") {
+      d = value.toDate();
+    } else if (value && typeof value === "object" && value.seconds) {
+      d = new Date(value.seconds * 1000);
+    } else if (typeof value === "string") {
+      // Strict YYYY-MM-DD: treat as HST-local midnight to avoid UTC shift.
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        d = new Date(value + "T00:00:00-10:00");
+      } else {
+        d = new Date(value);
+      }
+    } else {
+      d = new Date(value);
+    }
+    if (!d || isNaN(d.getTime())) return "";
+  } catch (_) {
+    return "";
+  }
+  // Format in HST
+  const y = d.toLocaleString("en-US", { year: "numeric", timeZone: "Pacific/Honolulu" });
+  const m = d.toLocaleString("en-US", { month: "2-digit", timeZone: "Pacific/Honolulu" });
+  const day = d.toLocaleString("en-US", { day: "2-digit", timeZone: "Pacific/Honolulu" });
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Given a YYYY-MM-DD string, return { dayName, formatted } in HST.
+ * e.g. { dayName: "Wednesday", formatted: "April 22, 2026" }
+ */
+function formatHstDateParts(ymd) {
+  if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return { dayName: "", formatted: ymd || "" };
+  const d = new Date(ymd + "T00:00:00-10:00");
+  if (isNaN(d.getTime())) return { dayName: "", formatted: ymd };
+  const dayName = d.toLocaleDateString("en-US", { weekday: "long", timeZone: "Pacific/Honolulu" });
+  const formatted = d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "Pacific/Honolulu" });
+  return { dayName, formatted };
+}
+
+/**
+ * Add N days to a YYYY-MM-DD string (HST) and return a new YYYY-MM-DD.
+ */
+function addDaysHst(ymd, days) {
+  const d = new Date(ymd + "T00:00:00-10:00");
+  d.setDate(d.getDate() + days);
+  return toHstDateKey(d);
+}
+
+/**
+ * Build the event reminder email HTML. Mirrors Leilani's template.
+ */
+function buildEventReminderEmailHtml({
+  recipientName, eventTitle, dayName, dateFormatted,
+  startTime, endTime, isVirtual, zoomUrl, meetingId, passcode,
+  surveyUrl, mode,
+}) {
+  const virt = !!isVirtual;
+  const timeLine = (startTime || endTime)
+    ? ` from ${startTime || ""}${endTime ? " to " + endTime : ""}`
+    : "";
+
+  const zoomEarlyLine = virt
+    ? `<p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
+         We will have the zoom room open 15 minutes early for any questions that you may have.
+       </p>`
+    : "";
+
+  const seeYouLine = `<p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
+      We are looking forward to seeing you${virt ? " virtually" : ""} on ${dayName}, ${dateFormatted}${timeLine}.
+    </p>`;
+
+  const belowIsLine = `<p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
+      Below is the ${virt ? "zoom link and " : ""}evaluation survey (To please be completed before logging off):
+    </p>`;
+
+  const zoomBlock = virt && zoomUrl
+    ? `<div style="margin:16px 0;padding:16px;background-color:#f4f8fc;border-left:4px solid #1a3c6e;border-radius:4px;">
+         <p style="margin:0 0 6px;font-size:15px;color:#1a3c6e;font-weight:bold;">Join Zoom Meeting</p>
+         <p style="margin:0 0 10px;font-size:15px;color:#333333;word-break:break-all;">
+           <a href="${zoomUrl}" target="_blank" style="color:#1a73e8;text-decoration:none;">${zoomUrl}</a>
+         </p>
+         ${meetingId ? `<p style="margin:0;font-size:14px;color:#333333;">Meeting ID: <strong>${meetingId}</strong></p>` : ""}
+         ${passcode ? `<p style="margin:4px 0 0;font-size:14px;color:#333333;">Passcode: <strong>${passcode}</strong></p>` : ""}
+       </div>`
+    : "";
+
+  const surveyBlock = `<div style="margin:16px 0;padding:16px;background-color:#fff8e8;border-left:4px solid #c79400;border-radius:4px;">
+      <p style="margin:0 0 6px;font-size:15px;color:#8a6600;font-weight:bold;">Evaluation Survey Link</p>
+      <p style="margin:0;font-size:15px;color:#333333;word-break:break-all;">
+        <a href="${surveyUrl}" target="_blank" style="color:#1a73e8;text-decoration:none;">${surveyUrl}</a>
+      </p>
+    </div>`;
+
+  const zoomTroubleLine = virt
+    ? `<p style="margin:0 0 16px;font-size:15px;color:#555555;line-height:1.5;">
+         If on the day and time of the event, you have trouble getting onto zoom, please contact Leilani at
+         <strong>808-479-2604</strong> (Work cellphone).
+       </p>`
+    : "";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;">
+<tr><td align="center" style="padding:24px 16px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;max-width:600px;width:100%;">
+
+  <!-- Header -->
+  <tr>
+    <td style="background-color:#1a3c6e;padding:24px 32px;text-align:center;">
+      <img src="https://www.ldahawaii.org/assets/logo_transparent.png" alt="LDAH" width="72" height="72" style="display:block;margin:0 auto 10px;border:0;outline:none;text-decoration:none;">
+      <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:bold;letter-spacing:0.5px;">
+        Leadership in Disabilities &amp; Achievement of Hawai'i
+      </h1>
+      <p style="margin:4px 0 0;color:#b0c4de;font-size:13px;">LDAH</p>
+    </td>
+  </tr>
+
+  <!-- Body -->
+  <tr>
+    <td style="padding:32px;">
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha, ${recipientName},</p>
+
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
+        We hope you and your family are doing well. Mahalo Nui Loa for registering for <strong>${eventTitle}</strong>.
+      </p>
+
+      ${zoomEarlyLine}
+
+      ${seeYouLine}
+
+      ${belowIsLine}
+
+      ${zoomBlock}
+
+      ${surveyBlock}
+
+      <p style="margin:16px 0;font-size:15px;color:#555555;line-height:1.5;">
+        If you have further questions, please call us at <strong>808-536-9684</strong>. We are here to support you.
+      </p>
+
+      ${zoomTroubleLine}
+
+      <p style="margin:24px 0 4px;font-size:15px;color:#333333;line-height:1.5;">With gratitude,</p>
+      <p style="margin:0 0 16px;font-size:15px;color:#333333;line-height:1.5;"><strong>LDAH Team</strong></p>
+
+      <p style="margin:16px 0 2px;font-size:14px;color:#555555;line-height:1.5;">
+        <strong>Leilani Kailiawa</strong><br>
+        Parent Consultant<br>
+        Leadership in Disabilities &amp; Achievement of Hawai'i<br>
+        245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>
+        Phone: (808) 536-9684 ext 112<br>
+        <a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>
+      </p>
+    </td>
+  </tr>
+
+  <!-- Footer -->
+  <tr>
+    <td style="background-color:#f0f0f0;padding:24px 32px;text-align:center;border-top:1px solid #dddddd;">
+      <p style="margin:0 0 4px;font-size:13px;color:#777777;font-weight:bold;">
+        Leadership in Disabilities &amp; Achievement of Hawai'i
+      </p>
+      <p style="margin:0 0 4px;font-size:12px;color:#999999;">
+        245 N. Kukui St., Suite 205, Honolulu, HI 96817
+      </p>
+      <p style="margin:0 0 4px;font-size:12px;color:#999999;">
+        Phone: (808) 536-2280
+      </p>
+      <p style="margin:0;font-size:12px;color:#999999;">
+        Email: <a href="mailto:rrowe@ldahawaii.org" style="color:#999999;">rrowe@ldahawaii.org</a>
+      </p>
+    </td>
+  </tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
+/**
+ * Resolve the recipient-facing "name" from a signup doc.
+ */
+function resolveReminderRecipientName(signup) {
+  const n = (signup && signup.name ? String(signup.name).trim() : "");
+  if (n) return n;
+  const e = (signup && signup.email ? String(signup.email).trim() : "");
+  if (e && e.indexOf("@") > 0) {
+    const first = e.split("@")[0].split(/[._-]/)[0];
+    if (first) return first;
+  }
+  return "there";
+}
+
+/**
+ * Build the full params + send one reminder email. Shared by the
+ * scheduled job and the test endpoint. Returns the Resend result.
+ */
+async function sendOneReminderEmail({
+  collection, eventId, signupId, signup, event, sessionDateKey, mode, zoomDefault, skipBcc,
+}) {
+  const type = collection === "recurringEvents" ? "recurring" : "event";
+  const { dayName, formatted } = formatHstDateParts(sessionDateKey);
+  const recipientName = resolveReminderRecipientName(signup);
+  const eventTitle = (event && event.title) || "an LDAH Event";
+  const startTime = (event && (event.startTime || event.time)) || "";
+  const endTime = (event && event.endTime) || "";
+
+  const zoomUrl = zoomDefault && zoomDefault.meetingUrl ? String(zoomDefault.meetingUrl).trim() : "";
+  const meetingId = zoomDefault && zoomDefault.meetingId ? String(zoomDefault.meetingId).trim() : "";
+  const passcode = zoomDefault && zoomDefault.passcode ? String(zoomDefault.passcode).trim() : "";
+  const isVirtual = !!zoomUrl;
+
+  const surveyUrl =
+    "https://ldahawaii.org/feedback.html?token=" + encodeURIComponent(signupId) +
+    "&eventId=" + encodeURIComponent(eventId) +
+    "&type=" + encodeURIComponent(type);
+
+  const html = buildEventReminderEmailHtml({
+    recipientName, eventTitle, dayName, dateFormatted: formatted,
+    startTime, endTime, isVirtual, zoomUrl, meetingId, passcode,
+    surveyUrl, mode,
+  });
+
+  const subject = mode === "1day"
+    ? `Tomorrow: ${eventTitle} -- ${formatted}`
+    : `Reminder: ${eventTitle} -- ${dayName}, ${formatted}`;
+
+  const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+  const emailType = mode === "1day" ? "event-reminder-1day" : "event-reminder-5day";
+
+  return sendEmailViaResend({
+    from: `LDAH <${fromAddress}>`,
+    to: signup.email,
+    bcc: skipBcc ? undefined : REMINDER_BCC,
+    subject,
+    html,
+    type: emailType,
+    relatedEventId: eventId,
+    relatedSignupId: signupId,
+    recipientName,
+  });
+}
+
+// Scheduled daily at 7 AM HST.
+exports.sendEventReminders = functions
+  .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: EMAIL_SECRETS })
+  .pubsub.schedule("0 7 * * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async (context) => {
+    const db = admin.firestore();
+
+    // 1. Load zoom defaults (gracefully handle missing doc)
+    let zoomDefault = null;
+    try {
+      const zSnap = await db.collection("settings").doc("zoomDefault").get();
+      if (zSnap.exists) zoomDefault = zSnap.data() || null;
+    } catch (err) {
+      console.warn("sendEventReminders: failed to read settings/zoomDefault:", err.message);
+    }
+
+    // 2. Compute target dates in HST
+    const now = new Date();
+    const todayKey = toHstDateKey(now);
+    const target5d = addDaysHst(todayKey, 5);
+    const target1d = addDaysHst(todayKey, 1);
+    const targetSet = {};
+    targetSet[target5d] = "fiveDay";
+    targetSet[target1d] = "oneDay";
+
+    console.log(`sendEventReminders: today=${todayKey} target5d=${target5d} target1d=${target1d}`);
+
+    let sent5d = 0;
+    let sent1d = 0;
+    let skipped = 0;
+
+    // Helper: process one signup doc. For each matching session date,
+    // send (with dedupe) and update sessionReminders.
+    async function processSignup({ collection, eventId, event, signupDoc }) {
+      const signup = signupDoc.data() || {};
+      const signupId = signupDoc.id;
+
+      // Filter: confirmed, not archived, has email
+      if (signup.status !== "confirmed") { skipped++; return; }
+      if (signup.archived === true) { skipped++; return; }
+      if (!signup.email) { skipped++; return; }
+
+      // Build list of candidate session dates from this signup.
+      const candidateDates = [];
+      if (collection === "recurringEvents") {
+        const dates = Array.isArray(signup.selectedDates) ? signup.selectedDates : [];
+        for (const raw of dates) {
+          const key = toHstDateKey(raw);
+          if (key && targetSet[key]) candidateDates.push(key);
+        }
+      } else {
+        const raw = (event && (event.eventDate || event.date)) || null;
+        const key = raw ? toHstDateKey(raw) : "";
+        if (key && targetSet[key]) candidateDates.push(key);
+      }
+
+      if (candidateDates.length === 0) return; // nothing to do
+
+      const existing = (signup.sessionReminders && typeof signup.sessionReminders === "object")
+        ? signup.sessionReminders : {};
+
+      for (const sessionDateKey of candidateDates) {
+        const which = targetSet[sessionDateKey]; // "fiveDay" | "oneDay"
+        const mode = which === "oneDay" ? "1day" : "5day";
+        const already = existing[sessionDateKey] && existing[sessionDateKey][which];
+        if (already) { skipped++; continue; }
+
+        try {
+          await sendOneReminderEmail({
+            collection, eventId, signupId, signup, event,
+            sessionDateKey, mode, zoomDefault,
+          });
+          // Dedupe write — merge so other session keys + the other flag survive.
+          await signupDoc.ref.set({
+            sessionReminders: {
+              [sessionDateKey]: {
+                [which]: admin.firestore.FieldValue.serverTimestamp(),
+              },
+            },
+          }, { merge: true });
+          if (mode === "1day") sent1d++; else sent5d++;
+          console.log(`sendEventReminders: sent ${mode} to ${signup.email} for ${collection}/${eventId} on ${sessionDateKey}`);
+        } catch (err) {
+          // per-signup guard so a bad row doesn't kill the run
+          console.error(`sendEventReminders: failed ${collection}/${eventId}/signups/${signupId} (${mode}) on ${sessionDateKey}:`, err.message);
+        }
+      }
+    }
+
+    // 3. One-time events
+    try {
+      const eventsSnap = await db.collection("events").get();
+      for (const eDoc of eventsSnap.docs) {
+        const event = eDoc.data();
+        const eventDateKey = event ? toHstDateKey(event.eventDate || event.date) : "";
+        if (!eventDateKey || !targetSet[eventDateKey]) continue; // quick skip
+        try {
+          const sSnap = await db.collection("events").doc(eDoc.id).collection("signups").get();
+          for (const sDoc of sSnap.docs) {
+            await processSignup({ collection: "events", eventId: eDoc.id, event, signupDoc: sDoc });
+          }
+        } catch (err) {
+          console.error(`sendEventReminders: failed to list signups for events/${eDoc.id}:`, err.message);
+        }
+      }
+    } catch (err) {
+      console.error("sendEventReminders: events scan failed:", err.message);
+    }
+
+    // 4. Recurring events
+    try {
+      const recSnap = await db.collection("recurringEvents").get();
+      for (const eDoc of recSnap.docs) {
+        const event = eDoc.data();
+        if (event && event.active === false) continue;
+        try {
+          const sSnap = await db.collection("recurringEvents").doc(eDoc.id).collection("signups").get();
+          for (const sDoc of sSnap.docs) {
+            await processSignup({ collection: "recurringEvents", eventId: eDoc.id, event, signupDoc: sDoc });
+          }
+        } catch (err) {
+          console.error(`sendEventReminders: failed to list signups for recurringEvents/${eDoc.id}:`, err.message);
+        }
+      }
+    } catch (err) {
+      console.error("sendEventReminders: recurringEvents scan failed:", err.message);
+    }
+
+    console.log(`sendEventReminders: 5day sent=${sent5d}, 1day sent=${sent1d}, skipped=${skipped}`);
+    return null;
+  });
+
+// Test endpoint — send one reminder on demand, skip dedupe.
+// Restricted by ALLOWED_ORIGIN CORS + an optional token param.
+// To enable token gating, set the REMINDER_TEST_TOKEN secret and the
+// caller must pass the same value in body.token or ?token=. When the
+// secret is not set, the CORS origin restriction is the only gate —
+// fine for an admin tool but bump the secret in before widespread use.
+exports.sendEventRemindersTest = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 3, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.set("Access-Control-Max-Age", "3600");
+
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const { signupId, eventId, collection, mode } = body;
+    const token = body.token || req.query.token;
+
+    // Optional token gate. If REMINDER_TEST_TOKEN is configured at
+    // runtime (via environment), require it. Otherwise rely on CORS
+    // origin restriction above.
+    const expected = process.env.REMINDER_TEST_TOKEN || "";
+    if (expected && (!token || token !== expected)) {
+      res.status(401).json({ error: "Invalid token" }); return;
+    }
+
+    if (!signupId || !eventId || !collection || !mode) {
+      res.status(400).json({ error: "Missing signupId, eventId, collection, or mode" });
+      return;
+    }
+    if (collection !== "events" && collection !== "recurringEvents") {
+      res.status(400).json({ error: "Invalid collection" });
+      return;
+    }
+    if (mode !== "5day" && mode !== "1day") {
+      res.status(400).json({ error: "mode must be '5day' or '1day'" });
+      return;
+    }
+
+    try {
+      const db = admin.firestore();
+
+      // Load zoom defaults
+      let zoomDefault = null;
+      try {
+        const zSnap = await db.collection("settings").doc("zoomDefault").get();
+        if (zSnap.exists) zoomDefault = zSnap.data() || null;
+      } catch (_) { /* swallow */ }
+
+      // Load event + signup
+      const eventDoc = await db.collection(collection).doc(eventId).get();
+      if (!eventDoc.exists) { res.status(404).json({ error: "Event not found" }); return; }
+      const event = eventDoc.data() || {};
+
+      const signupDoc = await db.collection(collection).doc(eventId).collection("signups").doc(signupId).get();
+      if (!signupDoc.exists) { res.status(404).json({ error: "Signup not found" }); return; }
+      const signup = signupDoc.data() || {};
+      if (!signup.email) { res.status(400).json({ error: "Signup has no email" }); return; }
+
+      // Pick a session date for the subject/body.
+      let sessionDateKey = "";
+      if (collection === "recurringEvents") {
+        const dates = Array.isArray(signup.selectedDates) ? signup.selectedDates : [];
+        if (dates.length > 0) sessionDateKey = toHstDateKey(dates[0]);
+      } else {
+        sessionDateKey = toHstDateKey(event.eventDate || event.date);
+      }
+      if (!sessionDateKey) {
+        // Fallback: use today+1 or today+5 in HST so the email still renders sensibly
+        const todayKey = toHstDateKey(new Date());
+        sessionDateKey = addDaysHst(todayKey, mode === "1day" ? 1 : 5);
+      }
+
+      const result = await sendOneReminderEmail({
+        collection, eventId, signupId, signup, event,
+        sessionDateKey, mode, zoomDefault,
+        skipBcc: false, // test still BCCs Leilani -- she asked to see these
+      });
+
+      res.status(200).json({ success: true, id: (result && result.id) || null, to: signup.email, sessionDateKey });
+    } catch (err) {
+      console.error("sendEventRemindersTest error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
   });
