@@ -419,7 +419,7 @@ async function logEmailSend(entry) {
  * are used only for the emailLog entry and are safe to omit.
  */
 async function sendEmailViaResend({
-  from, to, subject, html, bcc,
+  from, to, subject, html, bcc, cc,
   type, relatedEventId, relatedSignupId, recipientName,
 }) {
   const apiKey = process.env.RESEND_API_KEY;
@@ -434,8 +434,15 @@ async function sendEmailViaResend({
   if (REVIEW_BCC && !bccList.includes(REVIEW_BCC)) bccList.push(REVIEW_BCC);
   const bccLogValue = bccList.join(", ");
 
+  const ccList = [];
+  if (cc) {
+    if (Array.isArray(cc)) ccList.push(...cc.filter(Boolean));
+    else ccList.push(cc);
+  }
+
   const body = { from, to: [to], subject, html };
   if (bccList.length) body.bcc = bccList;
+  if (ccList.length) body.cc = ccList;
 
   try {
     const response = await fetch("https://api.resend.com/emails", {
@@ -522,7 +529,7 @@ function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eve
   <!-- Header -->
   <tr>
     <td style="background-color:#ffffff;padding:28px 32px 20px;text-align:center;border-bottom:3px solid #1a3c6e;">
-      <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="200" style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;">
+      <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="150" style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;">
     </td>
   </tr>
 
@@ -1167,7 +1174,7 @@ function buildNoShowEmailHtml({ name, eventTitle, nextEventTitle, nextEventDate,
   <!-- Header -->
   <tr>
     <td style="background-color:#ffffff;padding:28px 32px 20px;text-align:center;border-bottom:3px solid #1a3c6e;">
-      <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="200" style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;">
+      <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="150" style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;">
     </td>
   </tr>
 
@@ -1352,7 +1359,7 @@ function buildFeedbackEmailHtml({ name, eventTitle, feedbackUrl }) {
   <!-- Header -->
   <tr>
     <td style="background-color:#ffffff;padding:28px 32px 20px;text-align:center;border-bottom:3px solid #1a3c6e;">
-      <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="200" style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;">
+      <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="150" style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;">
     </td>
   </tr>
 
@@ -2295,7 +2302,7 @@ function buildEventReminderEmailHtml({
   <!-- Header -->
   <tr>
     <td style="background-color:#ffffff;padding:28px 32px 20px;text-align:center;border-bottom:3px solid #1a3c6e;">
-      <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="200" style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;">
+      <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="150" style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;">
     </td>
   </tr>
 
@@ -2382,7 +2389,7 @@ function resolveReminderRecipientName(signup) {
  * scheduled job and the test endpoint. Returns the Resend result.
  */
 async function sendOneReminderEmail({
-  collection, eventId, signupId, signup, event, sessionDateKey, mode, zoomDefault, skipBcc,
+  collection, eventId, signupId, signup, event, sessionDateKey, mode, zoomDefault, skipBcc, cc,
 }) {
   const type = collection === "recurringEvents" ? "recurring" : "event";
   const { dayName, formatted } = formatHstDateParts(sessionDateKey);
@@ -2418,6 +2425,7 @@ async function sendOneReminderEmail({
     from: `LDAH <${fromAddress}>`,
     to: signup.email,
     bcc: skipBcc ? undefined : REMINDER_BCC,
+    cc: cc,
     subject,
     html,
     type: emailType,
@@ -2581,6 +2589,7 @@ exports.sendEventRemindersTest = functions
     const { signupId, eventId, collection, mode } = body;
     const token = body.token || req.query.token;
     const skipBcc = body.skipBcc === true || body.skipBcc === "true";
+    const ccList = Array.isArray(body.cc) ? body.cc : (body.cc ? [body.cc] : []);
 
     // Optional token gate. If REMINDER_TEST_TOKEN is configured at
     // runtime (via environment), require it. Otherwise rely on CORS
@@ -2641,6 +2650,7 @@ exports.sendEventRemindersTest = functions
         collection, eventId, signupId, signup, event,
         sessionDateKey, mode, zoomDefault,
         skipBcc: skipBcc,
+        cc: ccList,
       });
 
       res.status(200).json({ success: true, id: (result && result.id) || null, to: signup.email, sessionDateKey });
