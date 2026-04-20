@@ -59,6 +59,14 @@
       text-align: center;
       padding: 18px 24px 0;
     }
+    .respondent-name {
+      font-family: 'Outfit', sans-serif;
+      font-size: .9rem;
+      font-weight: 500;
+      color: #475569;
+      text-align: center;
+      padding: 4px 24px 0;
+    }
     .feedback-body {
       padding: 20px 28px 28px;
     }
@@ -120,6 +128,17 @@
     textarea:focus {
       outline: none;
       border-color: #004E7C;
+    }
+    .section-header {
+      background: #004E7C;
+      color: #fff;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      font-size: .95rem;
+      padding: 10px 14px;
+      border-radius: 6px;
+      margin: 8px 0 18px;
+      letter-spacing: 0.2px;
     }
     .submit-btn {
       display: block;
@@ -208,40 +227,125 @@
   <!-- Form -->
   <div id="formState" style="display:none;">
     <div class="event-title" id="eventTitleDisplay"></div>
+    <div class="respondent-name" id="respondentNameDisplay"></div>
     <div class="feedback-body">
       <form id="feedbackForm" onsubmit="return submitFeedback(event)">
 
         <div class="question">
-          <label>How was the presenter?</label>
+          <label>Did you participate virtually or in person?</label>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="participationMode" value="Virtual" required><span>Virtual</span></label>
+            <label class="radio-option"><input type="radio" name="participationMode" value="In Person"><span>In Person</span></label>
+          </div>
+        </div>
+
+        <div class="question">
+          <label>The PRESENTER was</label>
           <div class="radio-group">
             <label class="radio-option"><input type="radio" name="presenterRating" value="Very Helpful" required><span>Very Helpful</span></label>
             <label class="radio-option"><input type="radio" name="presenterRating" value="Helpful"><span>Helpful</span></label>
-            <label class="radio-option"><input type="radio" name="presenterRating" value="Not Helpful"><span>Not Helpful</span></label>
-            <label class="radio-option"><input type="radio" name="presenterRating" value="N/A"><span>N/A</span></label>
+            <label class="radio-option"><input type="radio" name="presenterRating" value="No Answer"><span>No Answer</span></label>
           </div>
         </div>
 
         <div class="question">
-          <label>How were the handouts/materials?</label>
+          <label>The HANDOUTS were</label>
           <div class="radio-group">
             <label class="radio-option"><input type="radio" name="handoutsRating" value="Very Helpful" required><span>Very Helpful</span></label>
             <label class="radio-option"><input type="radio" name="handoutsRating" value="Helpful"><span>Helpful</span></label>
-            <label class="radio-option"><input type="radio" name="handoutsRating" value="Not Helpful"><span>Not Helpful</span></label>
-            <label class="radio-option"><input type="radio" name="handoutsRating" value="N/A"><span>N/A</span></label>
+            <label class="radio-option"><input type="radio" name="handoutsRating" value="No Answer"><span>No Answer</span></label>
           </div>
         </div>
 
         <div class="question">
-          <label>Would you recommend this training to others?</label>
+          <label>The information I received today has increased my knowledge</label>
           <div class="radio-group">
-            <label class="radio-option"><input type="radio" name="wouldRecommend" value="Yes" required><span>Yes</span></label>
-            <label class="radio-option"><input type="radio" name="wouldRecommend" value="No"><span>No</span></label>
+            <label class="radio-option"><input type="radio" name="increasedKnowledge" value="Yes" required><span>Yes</span></label>
+            <label class="radio-option"><input type="radio" name="increasedKnowledge" value="To some extent"><span>To some extent</span></label>
+            <label class="radio-option"><input type="radio" name="increasedKnowledge" value="No"><span>No</span></label>
+            <label class="radio-option"><input type="radio" name="increasedKnowledge" value="No answer"><span>No answer</span></label>
           </div>
         </div>
 
         <div class="question">
-          <label>Comments or suggestions <span style="font-weight:400;color:#64748B;">(optional)</span></label>
-          <textarea id="feedbackComments" placeholder="Share your thoughts..."></textarea>
+          <label>The information was relevant to meeting my child's needs</label>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="relevantToChild" value="Yes" required><span>Yes</span></label>
+            <label class="radio-option"><input type="radio" name="relevantToChild" value="No"><span>No</span></label>
+            <label class="radio-option"><input type="radio" name="relevantToChild" value="To some extent"><span>To some extent</span></label>
+          </div>
+        </div>
+
+        <div class="question">
+          <label>The information received is useful to me</label>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="usefulToMe" value="Yes" required><span>Yes</span></label>
+            <label class="radio-option"><input type="radio" name="usefulToMe" value="No"><span>No</span></label>
+            <label class="radio-option"><input type="radio" name="usefulToMe" value="To some extent"><span>To some extent</span></label>
+          </div>
+        </div>
+
+        <div class="question">
+          <label>Overall, I am satisfied with the training I received</label>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="overallSatisfied" value="Yes" required><span>Yes</span></label>
+            <label class="radio-option"><input type="radio" name="overallSatisfied" value="To some Extent"><span>To some Extent</span></label>
+            <label class="radio-option"><input type="radio" name="overallSatisfied" value="No"><span>No</span></label>
+            <label class="radio-option"><input type="radio" name="overallSatisfied" value="No answer"><span>No answer</span></label>
+          </div>
+        </div>
+
+        <!-- Conditional section: only shown for Parent/Guardian w/ priorTraining === 'Yes' -->
+        <div id="priorAttendeeSection" style="display:none;">
+          <div class="section-header">For Parents who previously attended our trainings</div>
+
+          <div class="question">
+            <label>My child has received more appropriate services because I have put to use the information I received from you in the past.</label>
+            <div class="radio-group">
+              <label class="radio-option"><input type="radio" name="priorImpactServices" value="Yes"><span>Yes</span></label>
+              <label class="radio-option"><input type="radio" name="priorImpactServices" value="To some extent"><span>To some extent</span></label>
+              <label class="radio-option"><input type="radio" name="priorImpactServices" value="No"><span>No</span></label>
+            </div>
+          </div>
+
+          <div class="question">
+            <label>I have shared the information I have learned from you with other families.</label>
+            <div class="radio-group">
+              <label class="radio-option"><input type="radio" name="priorImpactShared" value="Yes"><span>Yes</span></label>
+              <label class="radio-option"><input type="radio" name="priorImpactShared" value="To some extent"><span>To some extent</span></label>
+              <label class="radio-option"><input type="radio" name="priorImpactShared" value="No"><span>No</span></label>
+            </div>
+          </div>
+
+          <div class="question">
+            <label>Because of the information I've received, I was able to work with my child's school to address a critical need related to my child's education</label>
+            <div class="radio-group">
+              <label class="radio-option"><input type="radio" name="priorImpactSchool" value="Yes"><span>Yes</span></label>
+              <label class="radio-option"><input type="radio" name="priorImpactSchool" value="To some extent"><span>To some extent</span></label>
+              <label class="radio-option"><input type="radio" name="priorImpactSchool" value="No"><span>No</span></label>
+            </div>
+          </div>
+
+          <div class="question">
+            <label>The information and support I received from you helped me to resolve a disagreement with my child's school.</label>
+            <div class="radio-group">
+              <label class="radio-option"><input type="radio" name="priorImpactResolved" value="Yes"><span>Yes</span></label>
+              <label class="radio-option"><input type="radio" name="priorImpactResolved" value="To some extent"><span>To some extent</span></label>
+              <label class="radio-option"><input type="radio" name="priorImpactResolved" value="No"><span>No</span></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-header">To Help Us Serve You Better</div>
+
+        <div class="question">
+          <label>Describe what you liked best about today's training</label>
+          <textarea id="likedBest" placeholder="Share what stood out to you..." required></textarea>
+        </div>
+
+        <div class="question">
+          <label>Please share your feedback on how we may improve this training.</label>
+          <textarea id="improvementFeedback" placeholder="What could we do better?" required></textarea>
         </div>
 
         <button type="submit" class="submit-btn" id="submitBtn">Submit Feedback</button>
@@ -251,7 +355,7 @@
 
   <!-- Success -->
   <div id="successState" class="success-screen" style="display:none;">
-    <h2>Mahalo for your feedback!</h2>
+    <h2 id="successHeading">Mahalo for your feedback!</h2>
     <p>Your responses help us improve our programs and better serve the community.</p>
   </div>
 </div>
@@ -275,6 +379,10 @@
   const type = params.get('type') || 'event';
   const sessionDate = params.get('sessionDate') || null;
   const collection = type === 'recurring' ? 'recurringEvents' : 'events';
+
+  // Track whether the conditional prior-attendee section was shown,
+  // so we know whether to record its fields (or null) in Firestore.
+  let priorSectionShown = false;
 
   function showState(id) {
     ['loadingState', 'alreadyState', 'errorState', 'formState', 'successState'].forEach(function(s) {
@@ -306,6 +414,13 @@
         return;
       }
 
+      // Conditional block: show Q8-Q11 for Parent/Guardian w/ prior training
+      var reg = signupData.registration || {};
+      if (reg.role === 'Parent/Guardian' && reg.priorTraining === 'Yes') {
+        document.getElementById('priorAttendeeSection').style.display = '';
+        priorSectionShown = true;
+      }
+
       // Fetch event title
       var eventDoc = await db.collection(collection).doc(eventId).get();
       var eventTitle = 'LDAH Event';
@@ -313,11 +428,21 @@
         eventTitle = eventDoc.data().title || eventTitle;
       }
       document.getElementById('eventTitleDisplay').textContent = eventTitle;
+      var respondentName = (signupData.name || signupData.firstName || '').trim();
+      if (respondentName) {
+        document.getElementById('respondentNameDisplay').textContent = respondentName;
+        document.getElementById('successHeading').textContent = 'Mahalo ' + respondentName + ' for helping us improve!';
+      }
       showState('formState');
     } catch (err) {
       console.error('Init error:', err);
       showError('Unable to load feedback form. Please try again later.');
     }
+  }
+
+  function getRadioValue(form, name) {
+    var el = form.querySelector('input[name="' + name + '"]:checked');
+    return el ? el.value : null;
   }
 
   async function submitFeedback(e) {
@@ -327,12 +452,29 @@
     btn.textContent = 'Submitting...';
 
     var form = document.getElementById('feedbackForm');
-    var presenterRating = form.querySelector('input[name="presenterRating"]:checked');
-    var handoutsRating = form.querySelector('input[name="handoutsRating"]:checked');
-    var wouldRecommend = form.querySelector('input[name="wouldRecommend"]:checked');
-    var comments = document.getElementById('feedbackComments').value.trim();
 
-    if (!presenterRating || !handoutsRating || !wouldRecommend) {
+    // Required Q1-Q7
+    var participationMode = getRadioValue(form, 'participationMode');
+    var presenterRating = getRadioValue(form, 'presenterRating');
+    var handoutsRating = getRadioValue(form, 'handoutsRating');
+    var increasedKnowledge = getRadioValue(form, 'increasedKnowledge');
+    var relevantToChild = getRadioValue(form, 'relevantToChild');
+    var usefulToMe = getRadioValue(form, 'usefulToMe');
+    var overallSatisfied = getRadioValue(form, 'overallSatisfied');
+
+    // Optional Q8-Q11 (only if conditional block shown)
+    var priorImpactServices = getRadioValue(form, 'priorImpactServices');
+    var priorImpactShared = getRadioValue(form, 'priorImpactShared');
+    var priorImpactSchool = getRadioValue(form, 'priorImpactSchool');
+    var priorImpactResolved = getRadioValue(form, 'priorImpactResolved');
+
+    // Required textareas Q12-Q13
+    var likedBest = document.getElementById('likedBest').value.trim();
+    var improvementFeedback = document.getElementById('improvementFeedback').value.trim();
+
+    if (!participationMode || !presenterRating || !handoutsRating ||
+        !increasedKnowledge || !relevantToChild || !usefulToMe || !overallSatisfied ||
+        !likedBest || !improvementFeedback) {
       btn.disabled = false;
       btn.textContent = 'Submit Feedback';
       alert('Please answer all required questions.');
@@ -350,10 +492,19 @@
         eventCollection: collection,
         signupId: signupId,
         linkedContactId: linkedContactId,
-        presenterRating: presenterRating.value,
-        handoutsRating: handoutsRating.value,
-        wouldRecommend: wouldRecommend.value,
-        comments: comments || '',
+        participationMode: participationMode,
+        presenterRating: presenterRating,
+        handoutsRating: handoutsRating,
+        increasedKnowledge: increasedKnowledge,
+        relevantToChild: relevantToChild,
+        usefulToMe: usefulToMe,
+        overallSatisfied: overallSatisfied,
+        priorImpactServices: priorSectionShown ? (priorImpactServices || null) : null,
+        priorImpactShared: priorSectionShown ? (priorImpactShared || null) : null,
+        priorImpactSchool: priorSectionShown ? (priorImpactSchool || null) : null,
+        priorImpactResolved: priorSectionShown ? (priorImpactResolved || null) : null,
+        likedBest: likedBest,
+        improvementFeedback: improvementFeedback,
         source: 'email',
         submittedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
