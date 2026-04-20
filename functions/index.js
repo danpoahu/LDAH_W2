@@ -1056,17 +1056,25 @@ async function handleSignupUpdated(change, context) {
 }
 
 exports.onEventSignupUpdated = functions
-  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .runWith({ timeoutSeconds: 60, maxInstances: 10, secrets: EMAIL_SECRETS })
   .firestore.document("events/{eventId}/signups/{signupId}")
   .onUpdate(async (change, context) => {
-    return handleSignupUpdated(change, context);
+    await Promise.allSettled([
+      handleSignupUpdated(change, context),
+      maybeSendCatchupReminder(change, context, "events"),
+    ]);
+    return null;
   });
 
 exports.onRecurringEventSignupUpdated = functions
-  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .runWith({ timeoutSeconds: 60, maxInstances: 10, secrets: EMAIL_SECRETS })
   .firestore.document("recurringEvents/{eventId}/signups/{signupId}")
   .onUpdate(async (change, context) => {
-    return handleSignupUpdated(change, context);
+    await Promise.allSettled([
+      handleSignupUpdated(change, context),
+      maybeSendCatchupReminder(change, context, "recurringEvents"),
+    ]);
+    return null;
   });
 
 // ── Contact → Signup Sync ────────────────────────────────────────
@@ -2433,6 +2441,89 @@ async function sendOneReminderEmail({
     relatedSignupId: signupId,
     recipientName,
   });
+}
+
+/**
+ * Catch-up reminder: when a signup becomes confirmed (or registration
+ * is just added), check whether any of its sessions fall inside the
+ * next 5 days. For each one that does and hasn't already received a
+ * 5-day reminder, send one immediately. This handles late registrants
+ * who would otherwise miss the 5-day window entirely.
+ */
+async function maybeSendCatchupReminder(change, context, collection) {
+  try {
+    const before = change.before.data() || {};
+    const after = change.after.data() || {};
+
+    // Only care about newly confirmed signups with an email.
+    const statusJustConfirmed = before.status !== "confirmed" && after.status === "confirmed";
+    const registrationJustAdded = !before.registration && !!after.registration;
+    if (!statusJustConfirmed && !registrationJustAdded) return;
+    if (after.status !== "confirmed") return;
+    if (after.archived === true) return;
+    if (!after.email) return;
+
+    const eventId = context.params.eventId;
+    const signupId = context.params.signupId;
+    const db = admin.firestore();
+
+    // Load event + zoom defaults in parallel
+    const [eventSnap, zoomSnap] = await Promise.all([
+      db.collection(collection).doc(eventId).get(),
+      db.collection("settings").doc("zoomDefault").get(),
+    ]);
+    if (!eventSnap.exists) return;
+    const event = eventSnap.data() || {};
+    const zoomDefault = zoomSnap.exists ? (zoomSnap.data() || null) : null;
+
+    // Determine candidate session dates within [today, today+5] HST.
+    const todayKey = toHstDateKey(new Date());
+    const windowKeys = {};
+    for (let d = 0; d <= 5; d++) {
+      const k = addDaysHst(todayKey, d);
+      if (k) windowKeys[k] = true;
+    }
+
+    const candidateDates = [];
+    if (collection === "recurringEvents") {
+      const dates = Array.isArray(after.selectedDates) ? after.selectedDates : [];
+      for (const raw of dates) {
+        const key = toHstDateKey(raw);
+        if (key && windowKeys[key]) candidateDates.push(key);
+      }
+    } else {
+      const key = toHstDateKey(event.eventDate || event.date);
+      if (key && windowKeys[key]) candidateDates.push(key);
+    }
+    if (candidateDates.length === 0) return;
+
+    const existing = (after.sessionReminders && typeof after.sessionReminders === "object")
+      ? after.sessionReminders : {};
+
+    for (const sessionDateKey of candidateDates) {
+      if (existing[sessionDateKey] && existing[sessionDateKey].fiveDay) continue;
+      try {
+        await sendOneReminderEmail({
+          collection, eventId, signupId,
+          signup: after, event,
+          sessionDateKey, mode: "5day", zoomDefault,
+        });
+        await change.after.ref.set({
+          sessionReminders: {
+            [sessionDateKey]: {
+              fiveDay: admin.firestore.FieldValue.serverTimestamp(),
+            },
+          },
+        }, { merge: true });
+        console.log(`catch-up reminder sent to ${after.email} for ${collection}/${eventId} on ${sessionDateKey}`);
+      } catch (sendErr) {
+        console.error(`catch-up reminder send failed for ${collection}/${eventId}/${signupId} on ${sessionDateKey}:`, sendErr.message);
+      }
+    }
+  } catch (err) {
+    // Never fail — log and move on
+    console.error(`maybeSendCatchupReminder error (${collection}/${context.params.eventId}/${context.params.signupId}):`, err.message);
+  }
 }
 
 // Scheduled daily at 7 AM HST.
