@@ -2191,6 +2191,30 @@ exports.sendDailySessionSheet = functions
 const REMINDER_BCC = "LKailiawa@ldahawaii.org";
 
 /**
+ * Extract session date keys (YYYY-MM-DD HST) from a signup doc.
+ * Reads both `selectedDates` (Learning Labs shape — array of date
+ * strings) and `selectedSessions` (Connect-Gen shape — pipe-delimited
+ * "YYYY-MM-DD|venue|time"). De-duped across both.
+ */
+function extractSignupSessionKeys(signup) {
+  const keys = new Set();
+  if (signup && Array.isArray(signup.selectedDates)) {
+    for (const raw of signup.selectedDates) {
+      const k = toHstDateKey(raw);
+      if (k) keys.add(k);
+    }
+  }
+  if (signup && Array.isArray(signup.selectedSessions)) {
+    for (const raw of signup.selectedSessions) {
+      const head = String(raw || "").split("|")[0].trim();
+      const k = toHstDateKey(head);
+      if (k) keys.add(k);
+    }
+  }
+  return Array.from(keys);
+}
+
+/**
  * Parse a date-like value to a YYYY-MM-DD string in HST.
  * Accepts: Firestore Timestamp, {seconds}, string "YYYY-MM-DD",
  * string like "Wednesday, April 22, 2026", or any Date-parsable string.
@@ -2484,17 +2508,12 @@ async function maybeSendCatchupReminder(change, context, collection) {
       if (k) windowKeys[k] = true;
     }
 
-    const candidateDates = [];
-    if (collection === "recurringEvents") {
-      const dates = Array.isArray(after.selectedDates) ? after.selectedDates : [];
-      for (const raw of dates) {
-        const key = toHstDateKey(raw);
-        if (key && windowKeys[key]) candidateDates.push(key);
-      }
-    } else {
+    let sessionKeys = extractSignupSessionKeys(after);
+    if (sessionKeys.length === 0) {
       const key = toHstDateKey(event.eventDate || event.date);
-      if (key && windowKeys[key]) candidateDates.push(key);
+      if (key) sessionKeys = [key];
     }
+    const candidateDates = sessionKeys.filter((k) => !!windowKeys[k]);
     if (candidateDates.length === 0) return;
 
     const existing = (after.sessionReminders && typeof after.sessionReminders === "object")
@@ -2569,19 +2588,15 @@ exports.sendEventReminders = functions
       if (signup.archived === true) { skipped++; return; }
       if (!signup.email) { skipped++; return; }
 
-      // Build list of candidate session dates from this signup.
-      const candidateDates = [];
-      if (collection === "recurringEvents") {
-        const dates = Array.isArray(signup.selectedDates) ? signup.selectedDates : [];
-        for (const raw of dates) {
-          const key = toHstDateKey(raw);
-          if (key && targetSet[key]) candidateDates.push(key);
-        }
-      } else {
-        const raw = (event && (event.eventDate || event.date)) || null;
-        const key = raw ? toHstDateKey(raw) : "";
-        if (key && targetSet[key]) candidateDates.push(key);
+      // Candidate session dates: per-signup selections take precedence
+      // (covers Learning Labs multi-date + Connect-Gen selectedSessions).
+      // Fall back to the event's own eventDate if the signup has none.
+      let signupSessionKeys = extractSignupSessionKeys(signup);
+      if (signupSessionKeys.length === 0) {
+        const key = toHstDateKey((event && (event.eventDate || event.date)) || null);
+        if (key) signupSessionKeys = [key];
       }
+      const candidateDates = signupSessionKeys.filter((k) => !!targetSet[k]);
 
       if (candidateDates.length === 0) return; // nothing to do
 
