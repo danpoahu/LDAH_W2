@@ -1635,7 +1635,48 @@ exports.sendDailySessionSheet = functions
         } catch (_) {}
         // Skip events with no signups
         if (signups.length === 0) continue;
-        // Format the event date for display (field is eventDate, not date)
+
+        const sigDates = Array.isArray(data.signupDates) ? data.signupDates : [];
+
+        // Multi-date one-time event (e.g. Learning Labs with May 6 + May 13):
+        // emit one card per signupDates entry, mirroring the recurring layout.
+        if (sigDates.length > 1) {
+          const matchedIds = new Set();
+          for (const dateStr of sigDates) {
+            const dateSignups = signups.filter((su) => {
+              const sd = su.selectedDates || [];
+              return sd.indexOf(dateStr) !== -1;
+            });
+            if (dateSignups.length === 0) continue;
+            dateSignups.forEach((su) => matchedIds.add(su.id));
+            allSessions.push({
+              title: (data.title || "Untitled Event") + " -- " + dateStr,
+              date: "",
+              time: "",
+              location: data.location || "",
+              signups: dateSignups,
+              type: "event",
+              id: doc.id,
+            });
+          }
+          // Surface any signups that don't match a current signupDates entry
+          // (legacy/orphaned) so they're still visible in the daily report.
+          const orphans = signups.filter((su) => !matchedIds.has(su.id));
+          if (orphans.length > 0) {
+            allSessions.push({
+              title: (data.title || "Untitled Event") + " -- Unmatched signups",
+              date: "",
+              time: "",
+              location: data.location || "",
+              signups: orphans,
+              type: "event",
+              id: doc.id,
+            });
+          }
+          continue;
+        }
+
+        // Single-date / no-date one-time event: original flat layout
         let dateDisplay = "";
         const rawDate = data.eventDate || data.date || "";
         if (rawDate) {
@@ -2200,7 +2241,7 @@ function extractSignupSessionKeys(signup) {
   const keys = new Set();
   if (signup && Array.isArray(signup.selectedDates)) {
     for (const raw of signup.selectedDates) {
-      const k = toHstDateKey(raw);
+      const k = parseEventDateKey(raw);
       if (k) keys.add(k);
     }
   }
@@ -2208,6 +2249,39 @@ function extractSignupSessionKeys(signup) {
     for (const raw of signup.selectedSessions) {
       const head = String(raw || "").split("|")[0].trim();
       const k = toHstDateKey(head);
+      if (k) keys.add(k);
+    }
+  }
+  return Array.from(keys);
+}
+
+/**
+ * Parse a Learning-Labs-style date string like "May 6, 2026, 5:00 pm-6:00 pm"
+ * by extracting the "Month Day, Year" prefix before any time range.
+ * Falls back to toHstDateKey for plain dates / timestamps.
+ */
+function parseEventDateKey(raw) {
+  if (!raw) return "";
+  if (typeof raw !== "string") return toHstDateKey(raw);
+  const m = raw.match(/^([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s*(\d{4})/);
+  if (m) return toHstDateKey(`${m[1]} ${m[2]}, ${m[3]}`);
+  return toHstDateKey(raw);
+}
+
+/**
+ * Build the full set of candidate session date keys for an event:
+ * the event's primary eventDate plus any parseable entries in signupDates.
+ * Used so multi-date one-time events (Learning Labs) aren't skipped
+ * when the primary eventDate is not in the reminder target window.
+ */
+function extractEventCandidateDateKeys(event) {
+  const keys = new Set();
+  if (!event) return [];
+  const main = toHstDateKey(event.eventDate || event.date);
+  if (main) keys.add(main);
+  if (Array.isArray(event.signupDates)) {
+    for (const raw of event.signupDates) {
+      const k = parseEventDateKey(raw);
       if (k) keys.add(k);
     }
   }
@@ -2636,8 +2710,11 @@ exports.sendEventReminders = functions
       const eventsSnap = await db.collection("events").get();
       for (const eDoc of eventsSnap.docs) {
         const event = eDoc.data();
-        const eventDateKey = event ? toHstDateKey(event.eventDate || event.date) : "";
-        if (!eventDateKey || !targetSet[eventDateKey]) continue; // quick skip
+        // Build the event's full set of candidate dates (eventDate + parsed
+        // signupDates entries) so multi-date events don't get skipped when
+        // the primary eventDate isn't in the 5/1-day target window.
+        const candidateKeys = extractEventCandidateDateKeys(event);
+        if (!candidateKeys.some((k) => !!targetSet[k])) continue; // quick skip
         try {
           const sSnap = await db.collection("events").doc(eDoc.id).collection("signups").get();
           for (const sDoc of sSnap.docs) {
