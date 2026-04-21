@@ -1657,7 +1657,8 @@ exports.sendDailySessionSheet = functions
           }
           // Surface any signups that don't match a current signupDates entry
           // (legacy/orphaned) so they're still visible in the daily report.
-          const orphans = signups.filter((su) => !matchedIds.has(su.id));
+          // Skip cancelled/archived — they'd show as "0 active" and just clutter.
+          const orphans = signups.filter((su) => !matchedIds.has(su.id) && su.status !== "cancelled" && su.archived !== true);
           if (orphans.length > 0) {
             allSessions.push({
               title: (data.title || "Untitled Event") + " -- Unmatched signups",
