@@ -2253,13 +2253,25 @@ function extractSignupSessionKeys(signup) {
 /**
  * Parse a Learning-Labs-style date string like "May 6, 2026, 5:00 pm-6:00 pm"
  * by extracting the "Month Day, Year" prefix before any time range.
- * Falls back to toHstDateKey for plain dates / timestamps.
+ * Builds the YYYY-MM-DD key directly from regex captures — NEVER routes
+ * through new Date("Month D, YYYY") which parses as UTC midnight on Cloud
+ * Functions (server tz = UTC), yielding the previous day in HST.
+ * Falls back to toHstDateKey for plain ISO dates / timestamps.
  */
+const MONTH_TO_NUM = {
+  january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
+  july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
+};
 function parseEventDateKey(raw) {
   if (!raw) return "";
   if (typeof raw !== "string") return toHstDateKey(raw);
   const m = raw.match(/^([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s*(\d{4})/);
-  if (m) return toHstDateKey(`${m[1]} ${m[2]}, ${m[3]}`);
+  if (m) {
+    const monthNum = MONTH_TO_NUM[m[1].toLowerCase()];
+    if (monthNum) {
+      return `${m[3]}-${String(monthNum).padStart(2, "0")}-${String(parseInt(m[2], 10)).padStart(2, "0")}`;
+    }
+  }
   return toHstDateKey(raw);
 }
 
