@@ -1615,19 +1615,15 @@ exports.sendDailySessionSheet = functions
     // ═══════════════════════════════════════════════════
     const allSessions = [];
 
-    // Active one-time events (only skip if removeDate passed — matches preview logic)
+    // Active one-time events (skip if archived, past moveToPastDate, or past removeDate —
+    // matches the LDAH-Int CMS Active/Past/Expired categorization).
     try {
       const eventsSnap = await db.collection("events").get();
       for (const doc of eventsSnap.docs) {
         const data = doc.data();
-        // Skip only if removeDate has passed (same filter as LDAH-Int preview)
-        if (data.removeDate) {
-          let rd;
-          if (typeof data.removeDate === "string") rd = new Date(data.removeDate);
-          else if (data.removeDate.toDate) rd = data.removeDate.toDate();
-          else if (data.removeDate.seconds) rd = new Date(data.removeDate.seconds * 1000);
-          if (rd && rd < hawaiiNow) continue;
-        }
+        if (data.archived === true) continue;
+        if (data.moveToPastDate && /^\d{4}-\d{2}-\d{2}$/.test(data.moveToPastDate) && data.moveToPastDate <= todayISO) continue;
+        if (data.removeDate && /^\d{4}-\d{2}-\d{2}$/.test(data.removeDate) && data.removeDate <= todayISO) continue;
         const signups = [];
         try {
           const sSnap = await db.collection("events").doc(doc.id).collection("signups").get();
@@ -1832,21 +1828,20 @@ exports.sendDailySessionSheet = functions
       for (const su of active) {
         const stColor = su.status === "confirmed" ? "#2e7d32" : "#e65100";
         const stLabel = su.status === "confirmed" ? "Confirmed" : "Pending";
-        const typeVal = su.type || su.participantType || "";
-        const studentVal = su.studentName || su.student || "";
-        const gradeVal = su.grade || "";
-        const notesVal = su.notes || "";
+        const regIcon = su.registrationCompletedAt ? "&#9745;" : "&#9744;";
+        let attBadge = "";
+        if (su.attendanceStatus === "attended") attBadge = `<span style="background:#2e7d32;color:white;padding:1px 6px;border-radius:8px;font-size:11px;font-weight:700;">Attended</span>`;
+        else if (su.attendanceStatus === "no-show") attBadge = `<span style="background:#dc2626;color:white;padding:1px 6px;border-radius:8px;font-size:11px;font-weight:700;">No-Show</span>`;
         rows += `<tr style="border-bottom:1px solid #eee;">`
           + `<td style="padding:5px 8px;font-size:12px;font-weight:600;">${esc(su.name || "Unknown")}</td>`
+          + `<td style="padding:5px 8px;font-size:12px;">${esc(su.email || "--")}</td>`
           + `<td style="padding:5px 8px;font-size:12px;">${esc(su.phone || "--")}</td>`
-          + `<td style="padding:5px 8px;font-size:12px;">${typeVal ? `<span style="background:#0d6efd;color:white;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;">${esc(typeVal)}</span>` : ""}</td>`
-          + `<td style="padding:5px 8px;font-size:12px;">${esc(studentVal)}</td>`
-          + `<td style="padding:5px 8px;font-size:12px;">${esc(gradeVal)}</td>`
           + `<td style="padding:5px 8px;font-size:12px;"><span style="color:${stColor};font-weight:700;">${stLabel}</span></td>`
-          + `<td style="padding:5px 8px;font-size:12px;">${esc(notesVal)}</td></tr>`;
+          + `<td style="padding:5px 8px;font-size:12px;text-align:center;">${regIcon}</td>`
+          + `<td style="padding:5px 8px;font-size:12px;">${attBadge}</td></tr>`;
       }
       if (cancelled > 0) {
-        rows += `<tr><td colspan="7" style="padding:5px 8px;font-size:11px;color:#999;font-style:italic;">+ ${cancelled} cancelled/archived not shown</td></tr>`;
+        rows += `<tr><td colspan="6" style="padding:5px 8px;font-size:11px;color:#999;font-style:italic;">+ ${cancelled} cancelled/archived not shown</td></tr>`;
       }
 
       let detailLines = "";
@@ -1875,12 +1870,11 @@ exports.sendDailySessionSheet = functions
         + `<tr><td style="padding:0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">`
         + `<tr style="background:#f0f0f0;">`
         + `<th style="padding:5px 8px;text-align:left;font-size:11px;color:#555;font-weight:800;">NAME</th>`
+        + `<th style="padding:5px 8px;text-align:left;font-size:11px;color:#555;font-weight:800;">EMAIL</th>`
         + `<th style="padding:5px 8px;text-align:left;font-size:11px;color:#555;font-weight:800;">PHONE</th>`
-        + `<th style="padding:5px 8px;text-align:left;font-size:11px;color:#555;font-weight:800;">TYPE</th>`
-        + `<th style="padding:5px 8px;text-align:left;font-size:11px;color:#555;font-weight:800;">STUDENT</th>`
-        + `<th style="padding:5px 8px;text-align:left;font-size:11px;color:#555;font-weight:800;">GRADE</th>`
         + `<th style="padding:5px 8px;text-align:left;font-size:11px;color:#555;font-weight:800;">STATUS</th>`
-        + `<th style="padding:5px 8px;text-align:left;font-size:11px;color:#555;font-weight:800;">NOTES</th>`
+        + `<th style="padding:5px 8px;text-align:left;font-size:11px;color:#555;font-weight:800;">REG</th>`
+        + `<th style="padding:5px 8px;text-align:left;font-size:11px;color:#555;font-weight:800;">ATT.</th>`
         + `</tr>${rows}</table></td></tr></table>`;
     }
 
