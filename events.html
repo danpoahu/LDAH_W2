@@ -1278,7 +1278,18 @@
 
           // Render — recurring programs first, then one-time events
           window._upcomingEvents = upcomingEvents;
-          renderCurrentEvents([...syntheticEvents, ...upcomingEvents]);
+          // Partition current events: signup-accepting first, no-signup last.
+          // Preserves existing chronological order within each tier (stable).
+          var _mergedCurrent = [...syntheticEvents, ...upcomingEvents];
+          function _acceptsSignups(ev) {
+            if (ev && ev.isFlyerOnly) return false;
+            var rec = ev && (ev._isRecurring || ev.isRecurring);
+            var hasDates = ev && ev.signupDates && ev.signupDates.length > 0;
+            return !!(rec || hasDates);
+          }
+          var _tier1 = _mergedCurrent.filter(_acceptsSignups);
+          var _tier2 = _mergedCurrent.filter(function (e) { return !_acceptsSignups(e); });
+          renderCurrentEvents([..._tier1, ..._tier2]);
           renderPastEvents(pastEvents);
           
           // Load approved event requests and merge with events for calendar
