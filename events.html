@@ -31,7 +31,8 @@
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
-  
+  <script src="./js/formatters.js"></script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -3690,6 +3691,33 @@
         document.body.style.overflow = '';
       }
       document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeFlyerLightbox(); });
+
+      // LDAH name/phone auto-formatters — onBlur, idempotent
+      (function () {
+        function wireFormatters() {
+          if (!window.LDAHFormat) return;
+          var nameIds = ['signupName', 'requestName'];
+          var phoneIds = ['signupPhone', 'requestPhone'];
+          nameIds.forEach(function (id) {
+            document.querySelectorAll('#' + id).forEach(function (el) {
+              window.LDAHFormat.attachFormatter(el, 'name');
+            });
+          });
+          phoneIds.forEach(function (id) {
+            document.querySelectorAll('#' + id).forEach(function (el) {
+              window.LDAHFormat.attachFormatter(el, 'phone');
+            });
+          });
+        }
+        // Wire immediately and also after any modal open (signup/recurring/request reuse same IDs)
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', wireFormatters);
+        } else {
+          wireFormatters();
+        }
+        // Re-run on any click — cheap, idempotent, catches modal openings
+        document.addEventListener('click', function () { setTimeout(wireFormatters, 50); }, true);
+      })();
     </script>
 
     <script src="modal.js"></script>
