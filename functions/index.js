@@ -1563,6 +1563,54 @@ exports.sendFeedbackEmails = functions
   });
 
 /**
+ * Resend a previously logged email. Reads the original emailLog doc,
+ * re-sends via Resend using the same HTML body + subject + from. A fresh
+ * emailLog entry is written (by sendEmailViaResend) with type suffixed
+ * "-resend" so the origin is traceable. BCC is NOT carried over — if the
+ * original BCC'd Leilani, the resend goes to the addressee only.
+ */
+exports.resendLoggedEmail = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 5, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.set("Access-Control-Max-Age", "3600");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const { logId, overrideTo } = req.body || {};
+    if (!logId) { res.status(400).json({ error: "Missing logId" }); return; }
+
+    try {
+      const db = admin.firestore();
+      const doc = await db.collection("emailLog").doc(logId).get();
+      if (!doc.exists) { res.status(404).json({ error: "Log entry not found" }); return; }
+      const log = doc.data();
+      if (!log.html) { res.status(400).json({ error: "No HTML body recorded for this entry — cannot resend" }); return; }
+      const to = (overrideTo && String(overrideTo).trim()) || log.to;
+      if (!to) { res.status(400).json({ error: "No recipient address" }); return; }
+
+      const fromAddress = log.from || `LDAH <${process.env.SMTP_FROM || "onboarding@resend.dev"}>`;
+      const result = await sendEmailViaResend({
+        from: fromAddress,
+        to,
+        subject: log.subject || "(resend)",
+        html: log.html,
+        type: (log.type || "resend") + "-resend",
+        relatedEventId: log.relatedEventId,
+        relatedSignupId: log.relatedSignupId,
+        recipientName: log.recipientName,
+      });
+
+      res.status(200).json({ success: true, id: (result && result.id) || null, to });
+    } catch (err) {
+      console.error("resendLoggedEmail error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+/**
  * Shared helper: send ONE feedback email (initial or reminder).
  * Caller is responsible for dedupe bookkeeping after this resolves.
  */
