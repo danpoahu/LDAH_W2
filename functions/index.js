@@ -2472,7 +2472,10 @@ exports.sendDailySessionSheet = functions
 // Event body mirrors Leilani's manual template verbatim. BCCs
 // LKailiawa@ldahawaii.org so Leilani has a paper trail.
 
-const REMINDER_BCC = "LKailiawa@ldahawaii.org";
+// Leilani no longer wants to be BCC'd on every reminder — her inbox was
+// getting flooded once the cron + catch-up + feedback pipelines came
+// online. She'll only receive the ones actually addressed TO her.
+const REMINDER_BCC = "";
 
 /**
  * Extract session date keys (YYYY-MM-DD HST) from a signup doc.
