@@ -1473,30 +1473,38 @@ exports.sendFeedbackEmails = functions
       for (const doc of signupsSnap.docs) {
         const data = doc.data();
 
-        // Only send to attendees who attended
-        if (data.attendanceStatus !== "attended") {
-          skipped++;
-          continue;
-        }
-
         // Must have email
         if (!data.email) {
           skipped++;
           continue;
         }
 
-        // Skip if already sent
-        if (data.feedbackEmailSentAt) {
+        // Per-session attendance check when sessionDate is provided
+        // (recurring programs + multi-date one-time events). Falls back
+        // to flat attendanceStatus for single-date one-time events.
+        let isAttended;
+        if (sessionDate && data.sessionAttendance && data.sessionAttendance[sessionDate]) {
+          isAttended = data.sessionAttendance[sessionDate].status === "attended";
+        } else if (!sessionDate) {
+          isAttended = data.attendanceStatus === "attended";
+        } else {
+          // sessionDate given but no sessionAttendance entry for it
+          isAttended = false;
+        }
+        if (!isAttended) {
           skipped++;
           continue;
         }
 
-        // If sessionDate filter provided, check signup has that date
-        if (sessionDate && data.selectedDates && Array.isArray(data.selectedDates)) {
-          if (!data.selectedDates.includes(sessionDate)) {
+        // Per-session dedupe when sessionDate provided; otherwise flat flag
+        if (sessionDate) {
+          if (data.feedbackEmailsSent && data.feedbackEmailsSent[sessionDate]) {
             skipped++;
             continue;
           }
+        } else if (data.feedbackEmailSentAt) {
+          skipped++;
+          continue;
         }
 
         const name = data.name || data.firstName || "there";
@@ -1520,9 +1528,17 @@ exports.sendFeedbackEmails = functions
             recipientName: name,
           });
 
-          await doc.ref.update({
-            feedbackEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
+          if (sessionDate) {
+            await doc.ref.set({
+              feedbackEmailsSent: {
+                [sessionDate]: admin.firestore.FieldValue.serverTimestamp(),
+              },
+            }, { merge: true });
+          } else {
+            await doc.ref.update({
+              feedbackEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          }
           sent++;
         } catch (emailErr) {
           console.error(`Failed to send feedback email to ${data.email}:`, emailErr.message);
