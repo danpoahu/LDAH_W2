@@ -2445,6 +2445,18 @@
 
       document.body.insertAdjacentHTML('beforeend', modalHTML);
 
+      // Sibling draft mode — no Firestore doc yet, build form directly from cached draft.
+      if (token === '__SIBLING_DRAFT__') {
+        var draft = window._siblingDraft || {};
+        var registrantName = draft.name || 'Attendee';
+        var contentEl = document.getElementById('registrationFormContent');
+        if (contentEl) {
+          contentEl.innerHTML = buildRegistrationForm(registrantName, token, eventId, type, prefillData);
+          if (typeof toggleParentSections === 'function') toggleParentSections();
+        }
+        return;
+      }
+
       // Fetch signup doc from Firestore
       const collectionName = type === 'recurring' ? 'recurringEvents' : 'events';
       db.collection(collectionName).doc(eventId).collection('signups').doc(token).get()
@@ -2460,7 +2472,7 @@
           const data = doc.data();
 
           // Store signup info for potential "Register Another Child" flow
-          window._lastSignupInfo = { name: data.name || '', email: data.email || '', phone: data.phone || '', eventId: eventId, type: type };
+          window._lastSignupInfo = { name: data.name || '', email: data.email || '', phone: data.phone || '', selectedDates: Array.isArray(data.selectedDates) ? data.selectedDates.slice() : [], eventId: eventId, type: type };
 
           if (data.status === 'confirmed') {
             var confirmedRole = (data.registration && data.registration.role) || '';
@@ -2703,13 +2715,39 @@
 
       try {
         var collectionName = type === 'recurring' ? 'recurringEvents' : 'events';
-        await db.collection(collectionName).doc(eventId).collection('signups').doc(token)
-          .update({
+        if (token === '__SIBLING_DRAFT__') {
+          // Sibling draft — create fully-formed confirmed signup now (no email sent because status != pending)
+          var draft = window._siblingDraft || {};
+          var newDocRef = await db.collection(collectionName).doc(eventId).collection('signups').add({
+            name: draft.name || '',
+            email: draft.email || '',
+            phone: draft.phone || '',
+            selectedDates: Array.isArray(draft.selectedDates) ? draft.selectedDates : [],
+            status: 'confirmed',
             registration: registration,
             registrantType: role,
-            status: 'confirmed',
-            registrationCompletedAt: firebase.firestore.FieldValue.serverTimestamp()
+            registrationCompletedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
           });
+          // Update denormalized counts (best-effort — CF will also do it)
+          try {
+            await db.collection(collectionName).doc(eventId).update({
+              signupCount: firebase.firestore.FieldValue.increment(1)
+            });
+          } catch (countErr) {
+            console.warn('Count update deferred to Cloud Function:', countErr.message);
+          }
+          window._siblingDraft = null;
+          token = newDocRef.id; // so subsequent code (siblings prompt, etc.) has a real token
+        } else {
+          await db.collection(collectionName).doc(eventId).collection('signups').doc(token)
+            .update({
+              registration: registration,
+              registrantType: role,
+              status: 'confirmed',
+              registrationCompletedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }
 
         // Store registration data for "Register Another Child" flow
         window._lastRegistration = registration;
@@ -2742,46 +2780,24 @@
       }
     }
 
-    async function registerAnotherChild(eventId, type) {
+    function registerAnotherChild(eventId, type) {
       var info = window._lastSignupInfo || {};
       var reg = window._lastRegistration || {};
-      var collectionName = type === 'recurring' ? 'recurringEvents' : 'events';
 
-      // Show loading in the current modal
-      var contentEl = document.getElementById('registrationFormContent');
-      if (contentEl) {
-        contentEl.innerHTML = '<div style="text-align: center; padding: 40px;"><p style="color: #004E7C; font-weight: 600;">Setting up registration for another child...</p></div>';
-      }
+      // Defer Firestore write until the sibling's registration form is submitted.
+      // Stash draft context for submitRegistration to pick up.
+      window._siblingDraft = {
+        eventId: eventId,
+        type: type,
+        collectionName: type === 'recurring' ? 'recurringEvents' : 'events',
+        name: info.name || '',
+        email: info.email || '',
+        phone: info.phone || '',
+        selectedDates: Array.isArray(info.selectedDates) ? info.selectedDates.slice() : []
+      };
 
-      try {
-        // Create a new signup doc with the same parent info
-        var newDocRef = await db.collection(collectionName).doc(eventId).collection('signups').add({
-          name: info.name || '',
-          email: info.email || '',
-          phone: info.phone || '',
-          status: 'pending',
-          timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        });
-
-        // Update denormalized counts (best-effort)
-        try {
-          await db.collection(collectionName).doc(eventId).update({
-            signupCount: firebase.firestore.FieldValue.increment(1),
-            pendingCount: firebase.firestore.FieldValue.increment(1)
-          });
-        } catch (countErr) {
-          console.warn('Count update deferred to Cloud Function:', countErr.message);
-        }
-
-        // Close existing modal and open registration with prefilled family data
-        closeRegistrationModal();
-        openRegistrationModal(newDocRef.id, eventId, type, reg);
-      } catch (error) {
-        console.error('Error creating sibling signup:', error);
-        if (contentEl) {
-          contentEl.innerHTML = '<div style="text-align: center; padding: 40px;"><p style="color: #DC2626; font-size: 16px; font-weight: 600;">There was an error. Please try again.</p></div>';
-        }
-      }
+      closeRegistrationModal();
+      openRegistrationModal('__SIBLING_DRAFT__', eventId, type, reg);
     }
 
     function closeRegistrationModal(event) {
