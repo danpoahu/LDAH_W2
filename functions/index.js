@@ -1062,6 +1062,7 @@ exports.onEventSignupUpdated = functions
     await Promise.allSettled([
       handleSignupUpdated(change, context),
       maybeSendCatchupReminder(change, context, "events"),
+      maybeSendFeedbackEmailOnAttendance(change, context, "events"),
     ]);
     return null;
   });
@@ -1073,6 +1074,7 @@ exports.onRecurringEventSignupUpdated = functions
     await Promise.allSettled([
       handleSignupUpdated(change, context),
       maybeSendCatchupReminder(change, context, "recurringEvents"),
+      maybeSendFeedbackEmailOnAttendance(change, context, "recurringEvents"),
     ]);
     return null;
   });
@@ -1355,7 +1357,14 @@ exports.sendNoShowReInvites = functions
   });
 
 // ── Feedback Email HTML Builder ─────────────────────────────────
-function buildFeedbackEmailHtml({ name, eventTitle, feedbackUrl }) {
+function buildFeedbackEmailHtml({ name, eventTitle, feedbackUrl, mode }) {
+  const isReminder = mode === "reminder";
+  const intro = isReminder
+    ? `Just a quick reminder — we would still love your feedback on <strong>${eventTitle}</strong> if you have a moment. Your input helps us continue to improve our programs.`
+    : `Mahalo for attending <strong>${eventTitle}</strong>! We would love to hear your thoughts so we can continue to improve our programs.`;
+  return _buildFeedbackEmailHtmlInner({ name, eventTitle, feedbackUrl, intro });
+}
+function _buildFeedbackEmailHtmlInner({ name, eventTitle, feedbackUrl, intro }) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -1377,8 +1386,7 @@ function buildFeedbackEmailHtml({ name, eventTitle, feedbackUrl }) {
       <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha ${name},</p>
 
       <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
-        Mahalo for attending <strong>${eventTitle}</strong>!
-        We would love to hear your thoughts so we can continue to improve our programs.
+        ${intro}
       </p>
 
       <p style="margin:0 0 24px;font-size:16px;color:#333333;line-height:1.5;">
@@ -1552,6 +1560,230 @@ exports.sendFeedbackEmails = functions
       console.error("sendFeedbackEmails error:", err.message);
       res.status(500).json({ error: err.message });
     }
+  });
+
+/**
+ * Shared helper: send ONE feedback email (initial or reminder).
+ * Caller is responsible for dedupe bookkeeping after this resolves.
+ */
+async function sendOneFeedbackEmail({ collection, eventId, signupId, signup, sessionDate, mode, event }) {
+  const type = collection === "recurringEvents" ? "recurring" : "event";
+  const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+  const eventTitle = (event && event.title) || "an LDAH Event";
+  const name = signup.name || signup.firstName || "there";
+  const feedbackUrl = "https://ldahawaii.org/feedback.html?eventId=" + encodeURIComponent(eventId) +
+    "&signupId=" + encodeURIComponent(signupId) +
+    "&type=" + encodeURIComponent(type) +
+    (sessionDate ? "&sessionDate=" + encodeURIComponent(sessionDate) : "");
+  const html = buildFeedbackEmailHtml({ name, eventTitle, feedbackUrl, mode });
+  const subject = mode === "reminder"
+    ? `Reminder: please share your feedback on ${eventTitle}`
+    : `How was ${eventTitle}? We'd love your feedback`;
+  return sendEmailViaResend({
+    from: `LDAH <${fromAddress}>`,
+    to: signup.email,
+    subject,
+    html,
+    type: mode === "reminder" ? "feedback-reminder" : "feedback-request",
+    relatedEventId: eventId,
+    relatedSignupId: signupId,
+    recipientName: name,
+  });
+}
+
+/**
+ * Trigger helper: when a signup's attendance is newly marked 'attended'
+ * (either per-session or flat), send the initial feedback email. Dedupes
+ * via feedbackEmailsSent[sessionDate] or flat feedbackEmailSentAt so a
+ * re-save doesn't double-send.
+ */
+async function maybeSendFeedbackEmailOnAttendance(change, context, collection) {
+  try {
+    const before = change.before.data() || {};
+    const after = change.after.data() || {};
+    if (!after.email) return;
+    if (after.archived === true) return;
+
+    const eventId = context.params.eventId;
+    const signupId = context.params.signupId;
+    const db = admin.firestore();
+
+    // Newly-attended per-session dates
+    const beforeSA = (before.sessionAttendance && typeof before.sessionAttendance === "object") ? before.sessionAttendance : {};
+    const afterSA = (after.sessionAttendance && typeof after.sessionAttendance === "object") ? after.sessionAttendance : {};
+    const newlyAttendedSessions = [];
+    for (const sd of Object.keys(afterSA)) {
+      const wasAttended = beforeSA[sd] && beforeSA[sd].status === "attended";
+      const isAttended = afterSA[sd].status === "attended";
+      if (isAttended && !wasAttended) newlyAttendedSessions.push(sd);
+    }
+
+    // Flat (single-date one-time) transition
+    const flatFlipped = before.attendanceStatus !== "attended" && after.attendanceStatus === "attended";
+
+    if (newlyAttendedSessions.length === 0 && !flatFlipped) return;
+
+    // Load event once (title + eventDate for context)
+    const eventSnap = await db.collection(collection).doc(eventId).get();
+    if (!eventSnap.exists) return;
+    const event = eventSnap.data() || {};
+
+    // Per-session sends
+    for (const sessionDate of newlyAttendedSessions) {
+      if (after.feedbackEmailsSent && after.feedbackEmailsSent[sessionDate]) continue;
+      try {
+        await sendOneFeedbackEmail({
+          collection, eventId, signupId, signup: after,
+          sessionDate, mode: "initial", event,
+        });
+        await change.after.ref.set({
+          feedbackEmailsSent: {
+            [sessionDate]: admin.firestore.FieldValue.serverTimestamp(),
+          },
+        }, { merge: true });
+        console.log(`feedback initial (on-attendance) sent to ${after.email} for ${collection}/${eventId} session ${sessionDate}`);
+      } catch (err) {
+        console.error(`feedback initial (on-attendance) send failed for ${collection}/${eventId}/${signupId} on ${sessionDate}:`, err.message);
+      }
+    }
+
+    // Flat flip → single-date one-time event
+    if (flatFlipped && !after.feedbackEmailSentAt) {
+      try {
+        await sendOneFeedbackEmail({
+          collection, eventId, signupId, signup: after,
+          sessionDate: null, mode: "initial", event,
+        });
+        await change.after.ref.update({
+          feedbackEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        console.log(`feedback initial (on-attendance, single-date) sent to ${after.email} for ${collection}/${eventId}`);
+      } catch (err) {
+        console.error(`feedback initial (on-attendance, single-date) send failed for ${collection}/${eventId}/${signupId}:`, err.message);
+      }
+    }
+  } catch (err) {
+    console.error(`maybeSendFeedbackEmailOnAttendance error (${collection}/${context.params.eventId}/${context.params.signupId}):`, err.message);
+  }
+}
+
+/**
+ * Scheduled daily at 8 AM HST. Scans sessions 5-14 days old and sends
+ * one feedback REMINDER to attendees who: received the initial feedback
+ * email, haven't submitted feedback yet, and haven't already been
+ * reminded for this session. Stops after one reminder per session.
+ */
+exports.sendFeedbackFollowups = functions
+  .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .pubsub.schedule("0 8 * * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const todayKey = toHstDateKey(new Date());
+    const windowStart = addDaysHst(todayKey, -14);
+    const windowEnd = addDaysHst(todayKey, -5);
+    console.log(`sendFeedbackFollowups: window ${windowStart} .. ${windowEnd}`);
+
+    let sent = 0, skipped = 0;
+
+    async function processEvent(collection, evDoc) {
+      const event = evDoc.data();
+      const eventId = evDoc.id;
+      const [signupsSnap, feedbackSnap] = await Promise.all([
+        db.collection(collection).doc(eventId).collection("signups").get(),
+        db.collection("eventFeedback").where("eventId", "==", eventId).get(),
+      ]);
+
+      // signupId -> Set of session keys that have submitted feedback
+      // 'FLAT' represents a submission without a sessionDate (legacy / one-time).
+      const submitted = {};
+      feedbackSnap.forEach((fb) => {
+        const f = fb.data();
+        if (!f.signupId) return;
+        const sd = f.sessionDate || "FLAT";
+        if (!submitted[f.signupId]) submitted[f.signupId] = new Set();
+        submitted[f.signupId].add(sd);
+      });
+
+      for (const doc of signupsSnap.docs) {
+        const data = doc.data();
+        if (!data.email) { skipped++; continue; }
+        if (data.archived === true) { skipped++; continue; }
+
+        const subSet = submitted[doc.id];
+
+        // Per-session attendance path
+        const sa = (data.sessionAttendance && typeof data.sessionAttendance === "object") ? data.sessionAttendance : null;
+        if (sa) {
+          for (const sd of Object.keys(sa)) {
+            if (sa[sd].status !== "attended") continue;
+            if (sd < windowStart || sd > windowEnd) continue;
+            if (!data.feedbackEmailsSent || !data.feedbackEmailsSent[sd]) { skipped++; continue; }
+            if (data.feedbackRemindersSent && data.feedbackRemindersSent[sd]) { skipped++; continue; }
+            if (subSet && (subSet.has(sd) || subSet.has("FLAT"))) { skipped++; continue; }
+            try {
+              await sendOneFeedbackEmail({
+                collection, eventId, signupId: doc.id, signup: data,
+                sessionDate: sd, mode: "reminder", event,
+              });
+              await doc.ref.set({
+                feedbackRemindersSent: {
+                  [sd]: admin.firestore.FieldValue.serverTimestamp(),
+                },
+              }, { merge: true });
+              sent++;
+              console.log(`feedback reminder sent to ${data.email} for ${collection}/${eventId} session ${sd}`);
+            } catch (e) {
+              console.error(`feedback reminder failed ${collection}/${eventId}/${doc.id} ${sd}:`, e.message);
+              skipped++;
+            }
+          }
+          continue;
+        }
+
+        // Flat attendance (single-date one-time event)
+        if (data.attendanceStatus !== "attended") { skipped++; continue; }
+        const eventDateKey = toHstDateKey(event.eventDate || event.date);
+        if (!eventDateKey || eventDateKey < windowStart || eventDateKey > windowEnd) { skipped++; continue; }
+        if (!data.feedbackEmailSentAt) { skipped++; continue; }
+        if (data.feedbackReminderSentAt) { skipped++; continue; }
+        if (subSet) { skipped++; continue; }
+        try {
+          await sendOneFeedbackEmail({
+            collection, eventId, signupId: doc.id, signup: data,
+            sessionDate: null, mode: "reminder", event,
+          });
+          await doc.ref.update({
+            feedbackReminderSentAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          sent++;
+          console.log(`feedback reminder sent to ${data.email} for ${collection}/${eventId}`);
+        } catch (e) {
+          console.error(`feedback reminder failed ${collection}/${eventId}/${doc.id}:`, e.message);
+          skipped++;
+        }
+      }
+    }
+
+    try {
+      const [eventsSnap, recurringSnap] = await Promise.all([
+        db.collection("events").get(),
+        db.collection("recurringEvents").get(),
+      ]);
+      for (const ev of eventsSnap.docs) {
+        try { await processEvent("events", ev); }
+        catch (e) { console.error(`events/${ev.id} failed:`, e.message); }
+      }
+      for (const ev of recurringSnap.docs) {
+        try { await processEvent("recurringEvents", ev); }
+        catch (e) { console.error(`recurringEvents/${ev.id} failed:`, e.message); }
+      }
+    } catch (err) {
+      console.error("sendFeedbackFollowups: scan failed:", err.message);
+    }
+
+    console.log(`sendFeedbackFollowups: sent=${sent}, skipped=${skipped}`);
+    return null;
   });
 
 // ── Daily Session Sheet Email ──────────────────────────────────────
