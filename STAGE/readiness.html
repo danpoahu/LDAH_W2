@@ -19,7 +19,8 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    
+    <script src="./js/formatters.js"></script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1026,6 +1027,23 @@
                 submitBtn.textContent = 'Submit Request';
             }
         });
+
+        (function () {
+          function wireFormatters() {
+            if (!window.LDAHFormat) return;
+            ['firstName', 'lastName'].forEach(function (id) {
+              var el = document.getElementById(id);
+              if (el) window.LDAHFormat.attachFormatter(el, 'name');
+            });
+            var ph = document.getElementById('providerPhone');
+            if (ph) window.LDAHFormat.attachFormatter(ph, 'phone');
+          }
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', wireFormatters);
+          } else {
+            wireFormatters();
+          }
+        })();
     </script>
 
     <!-- Header/Footer Loader -->
