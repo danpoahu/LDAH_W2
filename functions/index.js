@@ -2510,6 +2510,45 @@ const MONTH_TO_NUM = {
   january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
   july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
 };
+/**
+ * Parse the location portion of a signup's session key for a given date.
+ * Supports both formats produced by the signup form / reschedule flow:
+ *   "YYYY-MM-DD|Location – Venue|Time"  (pipe-delimited)
+ *   "Day, YYYY-MM-DD — Time @ Location (Venue)"
+ * Returns empty string when no matching entry or no location component.
+ */
+function getSessionLocationForDate(signup, sessionDateKey) {
+  if (!signup || !sessionDateKey) return "";
+  const entries = []
+    .concat(Array.isArray(signup.selectedSessions) ? signup.selectedSessions : [])
+    .concat(Array.isArray(signup.selectedDates) ? signup.selectedDates : []);
+  for (const raw of entries) {
+    const s = String(raw || "");
+    if (s.indexOf(sessionDateKey) === -1) continue;
+    if (s.indexOf("|") !== -1) {
+      const parts = s.split("|");
+      return (parts[1] || "").trim();
+    }
+    if (s.indexOf("@ ") !== -1) {
+      return s.split("@ ").slice(1).join("@ ").trim();
+    }
+  }
+  return "";
+}
+
+/**
+ * Decide whether a session is virtual based on the signup's own location
+ * string for that date. Falls back to event.location for events where the
+ * signup has no per-session detail (single-date one-time events).
+ * Matches the strings "Virtual", "Zoom", or "Online" case-insensitively.
+ */
+function isSessionVirtual(event, sessionDateKey, signup) {
+  const loc = getSessionLocationForDate(signup, sessionDateKey);
+  if (loc) return /virtual|zoom|online/i.test(loc);
+  const evLoc = String((event && event.location) || "");
+  return /virtual|zoom|online/i.test(evLoc);
+}
+
 function parseEventDateKey(raw) {
   if (!raw) return "";
   if (typeof raw !== "string") return toHstDateKey(raw);
@@ -2606,9 +2645,10 @@ function addDaysHst(ymd, days) {
 function buildEventReminderEmailHtml({
   recipientName, eventTitle, dayName, dateFormatted,
   startTime, endTime, isVirtual, zoomUrl, meetingId, passcode,
-  surveyUrl, mode,
+  locationLabel, surveyUrl, mode,
 }) {
   const virt = !!isVirtual;
+  const locLbl = String(locationLabel || "").trim();
   const timeLine = (startTime || endTime)
     ? ` from ${startTime || ""}${endTime ? " to " + endTime : ""}`
     : "";
@@ -2620,11 +2660,11 @@ function buildEventReminderEmailHtml({
     : "";
 
   const seeYouLine = `<p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
-      We are looking forward to seeing you${virt ? " virtually" : ""} on ${dayName}, ${dateFormatted}${timeLine}.
+      We are looking forward to seeing you${virt ? " virtually" : ""} on ${dayName}, ${dateFormatted}${timeLine}${!virt && locLbl ? " at " + locLbl : ""}.
     </p>`;
 
   const belowIsLine = `<p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
-      Below is the ${virt ? "zoom link and " : ""}evaluation survey (To please be completed before logging off):
+      Below is the ${virt ? "zoom link and " : (locLbl ? "meeting location and " : "")}evaluation survey (${virt ? "To please be completed before logging off" : "please complete after the session"}):
     </p>`;
 
   const zoomBlock = virt && zoomUrl
@@ -2635,6 +2675,13 @@ function buildEventReminderEmailHtml({
          </p>
          ${meetingId ? `<p style="margin:0;font-size:14px;color:#333333;">Meeting ID: <strong>${meetingId}</strong></p>` : ""}
          ${passcode ? `<p style="margin:4px 0 0;font-size:14px;color:#333333;">Passcode: <strong>${passcode}</strong></p>` : ""}
+       </div>`
+    : "";
+
+  const locationBlock = (!virt && locLbl)
+    ? `<div style="margin:16px 0;padding:16px;background-color:#f4f8fc;border-left:4px solid #1a3c6e;border-radius:4px;">
+         <p style="margin:0 0 6px;font-size:15px;color:#1a3c6e;font-weight:bold;">In-Person Location</p>
+         <p style="margin:0;font-size:15px;color:#333333;">${locLbl}</p>
        </div>`
     : "";
 
@@ -2683,6 +2730,8 @@ function buildEventReminderEmailHtml({
       ${belowIsLine}
 
       ${zoomBlock}
+
+      ${locationBlock}
 
       ${surveyBlock}
 
@@ -2759,10 +2808,15 @@ async function sendOneReminderEmail({
   const startTime = (event && (event.startTime || event.time)) || "";
   const endTime = (event && event.endTime) || "";
 
-  const zoomUrl = zoomDefault && zoomDefault.meetingUrl ? String(zoomDefault.meetingUrl).trim() : "";
-  const meetingId = zoomDefault && zoomDefault.meetingId ? String(zoomDefault.meetingId).trim() : "";
-  const passcode = zoomDefault && zoomDefault.passcode ? String(zoomDefault.passcode).trim() : "";
-  const isVirtual = !!zoomUrl;
+  // Per-session virtual detection: parse the signup's own session key for
+  // this date (recurring programs have Virtual vs Oahu/Hilo/Kona schedules
+  // mixed in one program). Zoom info is only attached when the session is
+  // actually virtual; in-person sessions get a location block instead.
+  const isVirtual = isSessionVirtual(event, sessionDateKey, signup);
+  const zoomUrl = isVirtual && zoomDefault && zoomDefault.meetingUrl ? String(zoomDefault.meetingUrl).trim() : "";
+  const meetingId = isVirtual && zoomDefault && zoomDefault.meetingId ? String(zoomDefault.meetingId).trim() : "";
+  const passcode = isVirtual && zoomDefault && zoomDefault.passcode ? String(zoomDefault.passcode).trim() : "";
+  const locationLabel = isVirtual ? "" : getSessionLocationForDate(signup, sessionDateKey);
 
   const surveyUrl =
     "https://ldahawaii.org/feedback.html?signupId=" + encodeURIComponent(signupId) +
@@ -2772,7 +2826,7 @@ async function sendOneReminderEmail({
   const html = buildEventReminderEmailHtml({
     recipientName, eventTitle, dayName, dateFormatted: formatted,
     startTime, endTime, isVirtual, zoomUrl, meetingId, passcode,
-    surveyUrl, mode,
+    locationLabel, surveyUrl, mode,
   });
 
   const subject = mode === "1day"
