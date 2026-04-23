@@ -1951,6 +1951,7 @@ exports.sendDailySessionSheet = functions
               signups: dateSignups,
               type: "event",
               id: doc.id,
+              sessionKey: dateStr,
             });
           }
           // Surface any signups that don't match a current signupDates entry
@@ -1994,6 +1995,7 @@ exports.sendDailySessionSheet = functions
           signups,
           type: "event",
           id: doc.id,
+          sessionKey: (typeof rawDate === "string" ? rawDate : ""),
         });
       }
     } catch (err) {
@@ -2096,6 +2098,7 @@ exports.sendDailySessionSheet = functions
               signups: [...sg.signups, ...cancelledForSession],
               type: "recurring",
               id: doc.id,
+              sessionKey: sg.key,
             });
           }
         }
@@ -2131,11 +2134,19 @@ exports.sendDailySessionSheet = functions
         let attBadge = "";
         if (su.attendanceStatus === "attended") attBadge = `<span style="background:#2e7d32;color:white;padding:1px 6px;border-radius:8px;font-size:11px;font-weight:700;">Attended</span>`;
         else if (su.attendanceStatus === "no-show") attBadge = `<span style="background:#dc2626;color:white;padding:1px 6px;border-radius:8px;font-size:11px;font-weight:700;">No-Show</span>`;
+        // Per-attendee mode override badge (inline on the status column)
+        let modeBadge = "";
+        const ovr = s.sessionKey ? getModeOverride(su, s.sessionKey) : null;
+        if (ovr === "confirmed-in-person") {
+          modeBadge = `<span style="display:inline-block;background:#fef3c7;color:#92400E;padding:1px 8px;border-radius:10px;font-size:.7rem;font-weight:700;margin-left:4px;">In-Person</span>`;
+        } else if (ovr === "confirmed-virtual") {
+          modeBadge = `<span style="display:inline-block;background:#dbeafe;color:#1d4ed8;padding:1px 8px;border-radius:10px;font-size:.7rem;font-weight:700;margin-left:4px;">Virtual</span>`;
+        }
         rows += `<tr style="border-bottom:1px solid #eee;">`
           + `<td style="padding:5px 8px;font-size:12px;font-weight:600;">${esc(su.name || "Unknown")}</td>`
           + `<td style="padding:5px 8px;font-size:12px;">${esc(su.email || "--")}</td>`
           + `<td style="padding:5px 8px;font-size:12px;">${esc(su.phone || "--")}</td>`
-          + `<td style="padding:5px 8px;font-size:12px;"><span style="color:${stColor};font-weight:700;">${stLabel}</span></td>`
+          + `<td style="padding:5px 8px;font-size:12px;"><span style="color:${stColor};font-weight:700;">${stLabel}</span>${modeBadge}</td>`
           + `<td style="padding:5px 8px;font-size:12px;text-align:center;">${regIcon}</td>`
           + `<td style="padding:5px 8px;font-size:12px;">${attBadge}</td></tr>`;
       }
@@ -2564,6 +2575,26 @@ const MONTH_TO_NUM = {
   july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
 };
 /**
+ * Look up a per-date attendance mode override on a signup. Overrides are
+ * keyed by either the raw selectedSessions/selectedDates string
+ * (e.g. "2026-04-27|Oahu|5:00 pm-6:00 pm") OR by the YYYY-MM-DD date prefix.
+ * Returns "confirmed-in-person", "confirmed-virtual", or null.
+ * Backward compatible: returns null when the field is missing.
+ */
+function getModeOverride(signup, sessionKey) {
+  if (!signup || !signup.dateStatusOverrides || !sessionKey) return null;
+  // Direct match first
+  if (signup.dateStatusOverrides[sessionKey]) return signup.dateStatusOverrides[sessionKey];
+  // Fallback: match by date prefix (first pipe segment)
+  const dateOnly = String(sessionKey).split("|")[0];
+  let found = null;
+  Object.keys(signup.dateStatusOverrides).forEach(function(k) {
+    if (String(k).split("|")[0] === dateOnly) found = signup.dateStatusOverrides[k];
+  });
+  return found;
+}
+
+/**
  * Parse the location portion of a signup's session key for a given date.
  * Supports both formats produced by the signup form / reschedule flow:
  *   "YYYY-MM-DD|Location – Venue|Time"  (pipe-delimited)
@@ -2865,11 +2896,33 @@ async function sendOneReminderEmail({
   // this date (recurring programs have Virtual vs Oahu/Hilo/Kona schedules
   // mixed in one program). Zoom info is only attached when the session is
   // actually virtual; in-person sessions get a location block instead.
-  const isVirtual = isSessionVirtual(event, sessionDateKey, signup);
+  let isVirtual = isSessionVirtual(event, sessionDateKey, signup);
+
+  // Per-attendee override: lets CMS flip this specific signup to in-person
+  // or virtual for this specific date without editing the session's default.
+  const modeOverride = getModeOverride(signup, sessionDateKey);
+  if (modeOverride === "confirmed-in-person") isVirtual = false;
+  else if (modeOverride === "confirmed-virtual") isVirtual = true;
+
   const zoomUrl = isVirtual && zoomDefault && zoomDefault.meetingUrl ? String(zoomDefault.meetingUrl).trim() : "";
   const meetingId = isVirtual && zoomDefault && zoomDefault.meetingId ? String(zoomDefault.meetingId).trim() : "";
   const passcode = isVirtual && zoomDefault && zoomDefault.passcode ? String(zoomDefault.passcode).trim() : "";
-  const locationLabel = isVirtual ? "" : getSessionLocationForDate(signup, sessionDateKey);
+  let locationLabel = isVirtual ? "" : getSessionLocationForDate(signup, sessionDateKey);
+  // If override flipped this attendee to in-person but the session key had
+  // no location component (e.g. virtual-by-default program), fall back to
+  // any address on the event/schedule before landing on a safe contact line.
+  if (!isVirtual && !locationLabel) {
+    const evLoc = String((event && (event.location || event.address)) || "").trim();
+    if (evLoc && !/virtual|zoom|online/i.test(evLoc)) {
+      locationLabel = evLoc;
+    } else if (Array.isArray(event && event.schedules)) {
+      for (const sch of event.schedules) {
+        const schLoc = String((sch && (sch.location || sch.venue || sch.address)) || "").trim();
+        if (schLoc && !/virtual|zoom|online/i.test(schLoc)) { locationLabel = schLoc; break; }
+      }
+    }
+    if (!locationLabel) locationLabel = "Contact LDAH office";
+  }
 
   const surveyUrl =
     "https://ldahawaii.org/feedback.html?signupId=" + encodeURIComponent(signupId) +
