@@ -3202,3 +3202,250 @@ exports.sendEventRemindersTest = functions
       res.status(500).json({ error: err.message });
     }
   });
+
+// ── Event Announcement Blast ────────────────────────────────────
+// Feature added 2026-04-23 — superAdmin-triggered blast to all contacts
+// with email + marketingOptOut: false. One-click unsubscribe compliant
+// with CAN-SPAM. Daily cap prevents sender-reputation damage during
+// Resend Free tier warm-up.
+const ANNOUNCEMENT_DAILY_CAP = 50; // Bump after Resend Pro upgrade
+
+function buildUnsubscribePage({ title, body, ok }) {
+  return '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>' + title + ' - LDAH</title>' +
+    '<style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f5f7fa;margin:0;padding:40px 20px;color:#1f2937}' +
+    '.card{max-width:520px;margin:40px auto;background:#fff;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.08);padding:40px 32px;text-align:center}' +
+    'h1{color:#004E7C;font-size:24px;margin:0 0 16px}p{color:#475569;font-size:15px;line-height:1.6}' +
+    '.icon{width:64px;height:64px;border-radius:50%;background:' + (ok ? '#ecfdf5' : '#fef3c7') + ';display:flex;align-items:center;justify-content:center;margin:0 auto 20px}' +
+    '.icon svg{width:32px;height:32px}</style></head><body>' +
+    '<div class="card"><div class="icon">' +
+    (ok
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
+    ) + '</div><h1>' + title + '</h1><p>' + body + '</p>' +
+    '<p style="margin-top:24px;font-size:13px;color:#94a3b8">Leadership in Disabilities and Achievement of Hawai\'i</p>' +
+    '</div></body></html>';
+}
+
+exports.handleUnsubscribe = functions
+  .runWith({ timeoutSeconds: 20, maxInstances: 5 })
+  .https.onRequest(async (req, res) => {
+    const token = (req.query && req.query.token) ? String(req.query.token).trim() : '';
+    if (!token) {
+      res.set('Content-Type', 'text/html');
+      res.status(400).send(buildUnsubscribePage({
+        title: 'Invalid link',
+        body: 'This unsubscribe link is missing its token. If you want to stop receiving emails, reply to any LDAH email and we will update you manually.',
+        ok: false,
+      }));
+      return;
+    }
+    try {
+      const snap = await admin.firestore().collection('contacts')
+        .where('unsubscribeToken', '==', token).limit(1).get();
+      if (snap.empty) {
+        res.set('Content-Type', 'text/html');
+        res.status(404).send(buildUnsubscribePage({
+          title: 'Link not recognized',
+          body: 'This unsubscribe link is no longer valid. If you still want to stop receiving emails, reply to any LDAH email and we will update you manually.',
+          ok: false,
+        }));
+        return;
+      }
+      const contactDoc = snap.docs[0];
+      const contact = contactDoc.data();
+      await contactDoc.ref.update({
+        marketingOptOut: true,
+        unsubscribedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      const name = (contact.displayName || contact.firstName || '').trim();
+      res.set('Content-Type', 'text/html');
+      res.status(200).send(buildUnsubscribePage({
+        title: 'You have been unsubscribed',
+        body: (name ? name + ', you' : 'You') + ' will no longer receive event announcement emails from LDAH. You will still receive emails about events you have signed up for. Changed your mind? Reply to any past email and we will get you back on the list.',
+        ok: true,
+      }));
+    } catch (err) {
+      console.error('handleUnsubscribe error:', err.message);
+      res.set('Content-Type', 'text/html');
+      res.status(500).send(buildUnsubscribePage({
+        title: 'Something went wrong',
+        body: 'Please try again later or reply to any LDAH email to unsubscribe manually.',
+        ok: false,
+      }));
+    }
+  });
+
+function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl }) {
+  const displayName = (contact.displayName || '').trim();
+  const firstName = displayName ? displayName.split(/\s+/)[0] : 'Friend';
+  const title = event.title || 'Upcoming LDAH Event';
+  let dateStr = '';
+  if (Array.isArray(event.signupDates) && event.signupDates[0]) dateStr = event.signupDates[0];
+  else if (event.eventDate) dateStr = formatEventDate(event.eventDate);
+  else if (event.date) dateStr = formatEventDate(event.date);
+  const location = event.location || '';
+  const rawDescription = event.description || event.details || '';
+  const descTrim = rawDescription.slice(0, 400);
+  const descMore = rawDescription.length > 400 ? '...' : '';
+  const flyerUrl = event.flyerUrl || event.imageUrl || event.flyer || '';
+  const eventsPageUrl = 'https://www.ldahawaii.org/events.html';
+
+  const esc = (s) => String(s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
+
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(title) + '</title></head>' +
+    '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
+    '<div style="max-width:600px;margin:0 auto;background:#fff">' +
+    '<div style="background:linear-gradient(135deg,#004E7C,#0891B2);padding:24px;text-align:center;color:#fff">' +
+    '<h1 style="margin:0;font-size:22px;font-weight:700">New LDAH Event</h1></div>' +
+    (flyerUrl ? '<img src="' + esc(flyerUrl) + '" alt="' + esc(title) + '" style="width:100%;display:block">' : '') +
+    '<div style="padding:32px 24px">' +
+    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + esc(firstName) + ',</p>' +
+    '<h2 style="margin:0 0 12px;color:#004E7C;font-size:24px">' + esc(title) + '</h2>' +
+    (dateStr ? '<p style="margin:0 0 8px;color:#475569"><strong>When:</strong> ' + esc(dateStr) + '</p>' : '') +
+    (location ? '<p style="margin:0 0 16px;color:#475569"><strong>Where:</strong> ' + esc(location) + '</p>' : '') +
+    (descTrim ? '<p style="margin:0 0 24px;color:#334155;line-height:1.6">' + esc(descTrim) + esc(descMore) + '</p>' : '') +
+    '<p style="text-align:center;margin:32px 0">' +
+    '<a href="' + eventsPageUrl + '" style="background:linear-gradient(135deg,#0891B2,#0E7490);color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:16px">View & Sign Up</a>' +
+    '</p></div>' +
+    '<div style="padding:16px 24px;border-top:1px solid #e5e7eb;background:#f9fafb;font-size:12px;color:#94a3b8;text-align:center">' +
+    '<p style="margin:0 0 8px">Leadership in Disabilities and Achievement of Hawai\'i</p>' +
+    '<p style="margin:0">You received this because you are in our contact list. <a href="' + unsubscribeUrl + '" style="color:#0891B2">Unsubscribe</a> from future announcements.</p>' +
+    '</div></div></body></html>';
+}
+
+exports.sendEventAnnouncement = functions
+  .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+    if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
+
+    const { eventId, collection, testMode, testEmail, dryRun } = req.body || {};
+    if (!eventId || !collection) { res.status(400).json({ error: 'Missing eventId or collection' }); return; }
+    if (collection !== 'events' && collection !== 'recurringEvents') {
+      res.status(400).json({ error: 'Invalid collection' });
+      return;
+    }
+
+    try {
+      const db = admin.firestore();
+      const eventRef = db.collection(collection).doc(eventId);
+      const eventSnap = await eventRef.get();
+      if (!eventSnap.exists) { res.status(404).json({ error: 'Event not found' }); return; }
+      const event = eventSnap.data();
+
+      let recipients;
+      if (testMode) {
+        if (!testEmail) { res.status(400).json({ error: 'testMode requires testEmail' }); return; }
+        recipients = [{
+          id: '__test__',
+          displayName: 'Test Recipient',
+          email: String(testEmail).trim(),
+          unsubscribeToken: 'test-token-noop',
+        }];
+      } else {
+        const contactsSnap = await db.collection('contacts')
+          .where('marketingOptOut', '==', false).get();
+        recipients = [];
+        contactsSnap.forEach(d => {
+          const c = d.data();
+          const email = (c.email || '').trim();
+          if (!email) return;
+          if (!c.unsubscribeToken) return;
+          const displayName = (c.displayName || [c.firstName, c.lastName].filter(Boolean).join(' ')).trim() || 'Friend';
+          recipients.push({ id: d.id, displayName, email, unsubscribeToken: c.unsubscribeToken });
+        });
+      }
+
+      const recipientColl = eventRef.collection('announcementRecipients');
+      const priorSnap = await recipientColl.get();
+      const alreadySent = new Set();
+      priorSnap.forEach(d => alreadySent.add(d.id));
+      const newRecipients = recipients.filter(r => !alreadySent.has(r.id));
+
+      if (dryRun) {
+        res.status(200).json({
+          dryRun: true,
+          eventTitle: event.title || '(untitled)',
+          totalEligible: recipients.length,
+          alreadySent: alreadySent.size,
+          willSendTo: newRecipients.length,
+        });
+        return;
+      }
+
+      const today = new Date().toISOString().slice(0, 10);
+      const throttleRef = db.collection('system').doc('announcementThrottle').collection('days').doc(today);
+      const throttleDoc = await throttleRef.get();
+      const sentToday = throttleDoc.exists ? (throttleDoc.data().count || 0) : 0;
+      const remaining = ANNOUNCEMENT_DAILY_CAP - sentToday;
+
+      if (remaining <= 0 && !testMode) {
+        res.status(429).json({ error: 'Daily announcement cap reached', sentToday, cap: ANNOUNCEMENT_DAILY_CAP });
+        return;
+      }
+
+      const batch = testMode ? newRecipients : newRecipients.slice(0, remaining);
+      const fromAddress = process.env.SMTP_FROM || 'onboarding@resend.dev';
+      const unsubscribeBaseUrl = 'https://us-central1-ldah-932d5.cloudfunctions.net/handleUnsubscribe';
+
+      let sent = 0, failed = 0;
+      const failures = [];
+
+      for (const r of batch) {
+        try {
+          const unsubscribeUrl = unsubscribeBaseUrl + '?token=' + encodeURIComponent(r.unsubscribeToken);
+          const html = buildAnnouncementEmailHtml({ event, contact: r, unsubscribeUrl });
+          await sendEmailViaResend({
+            from: 'LDAH <' + fromAddress + '>',
+            to: r.email,
+            subject: 'New Event: ' + (event.title || 'Upcoming LDAH Event'),
+            html,
+            type: 'event-announcement',
+            relatedEventId: eventId,
+            recipientName: r.displayName,
+          });
+          if (!testMode) {
+            await recipientColl.doc(r.id).set({
+              email: r.email,
+              name: r.displayName,
+              sentAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          }
+          sent++;
+        } catch (err) {
+          failed++;
+          failures.push({ email: r.email, error: err.message });
+          console.error('Announcement send failed for ' + r.email + ':', err.message);
+        }
+      }
+
+      if (!testMode && sent > 0) {
+        await throttleRef.set({ count: admin.firestore.FieldValue.increment(sent) }, { merge: true });
+        const updates = { announcementRecipientCount: admin.firestore.FieldValue.increment(sent) };
+        if (!event.announcementSent) {
+          updates.announcementSent = true;
+          updates.announcementSentAt = admin.firestore.FieldValue.serverTimestamp();
+        }
+        await eventRef.update(updates);
+      }
+
+      res.status(200).json({
+        success: true,
+        testMode: !!testMode,
+        sent,
+        failed,
+        failures,
+        queued: newRecipients.length - batch.length,
+        sentToday: sentToday + sent,
+        cap: ANNOUNCEMENT_DAILY_CAP,
+      });
+    } catch (err) {
+      console.error('sendEventAnnouncement error:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
