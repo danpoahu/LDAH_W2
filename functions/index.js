@@ -1063,6 +1063,7 @@ exports.onEventSignupUpdated = functions
       handleSignupUpdated(change, context),
       maybeSendCatchupReminder(change, context, "events"),
       maybeSendFeedbackEmailOnAttendance(change, context, "events"),
+      handleSignupLifecycleEmails(change, context, "events"),
     ]);
     return null;
   });
@@ -1075,6 +1076,7 @@ exports.onRecurringEventSignupUpdated = functions
       handleSignupUpdated(change, context),
       maybeSendCatchupReminder(change, context, "recurringEvents"),
       maybeSendFeedbackEmailOnAttendance(change, context, "recurringEvents"),
+      handleSignupLifecycleEmails(change, context, "recurringEvents"),
     ]);
     return null;
   });
@@ -3449,3 +3451,511 @@ exports.sendEventAnnouncement = functions
       res.status(500).json({ error: err.message });
     }
   });
+
+// ── Lifecycle Email Notifications (F-1 + F-2) ──────────────────
+// Transactional emails (not marketing) sent when signup/event state
+// changes in ways the recipient needs to know about. No unsubscribe
+// footer: these are operational, directly related to a user action.
+//
+// F-1 — Signup-scoped emails (fired from onEventSignupUpdated /
+//       onRecurringEventSignupUpdated alongside existing handlers):
+//   - Cancellation confirmation when status flips to 'cancelled'
+//   - Reschedule notice when selectedDates content changes
+//
+// F-2 — Event-scoped emails (fired from new onEventUpdated /
+//       onRecurringEventUpdated triggers):
+//   - Event cancelled (one-time): archived/cancelled flipped true
+//   - Event rescheduled (one-time): eventDate/signupDates changed
+//   - Session cancelled (recurring): new entry added to cancelledDates
+//
+// SCHEMA DECISIONS:
+// - "Event cancelled" = `archived === true` OR `cancelled === true`.
+//   Either flag is treated as a cancellation signal.
+// - Reason field is read from `cancellationReason` first, then
+//   `cancelledReason`, then falls back to "unforeseen circumstances".
+// - Idempotency markers live at
+//     {collectionName}/{eventId}/eventLifecycleNotifications/{signupId}-{kind}
+//   to survive retries and rapid-fire updates without double-sending.
+// - One email per recipient per change: priority
+//     cancellation > reschedule > session-cancel
+
+const LIFECYCLE_EMAIL_FROM_FALLBACK = "LDAH <registration@ldahawaii.org>";
+const LIFECYCLE_SEND_DELAY_MS = 200; // ~5/sec cap for Resend
+
+function lifecycleFromAddress() {
+  const raw = (process.env.SMTP_FROM || "").trim();
+  if (!raw) return LIFECYCLE_EMAIL_FROM_FALLBACK;
+  // Allow either "Name <addr>" or bare addr
+  if (raw.indexOf("<") !== -1) return raw;
+  return "LDAH <" + raw + ">";
+}
+
+function lifecycleEsc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[c]);
+}
+
+function lifecycleFirstName(nameLike) {
+  const s = String(nameLike || "").trim();
+  if (!s) return "Friend";
+  return s.split(/\s+/)[0];
+}
+
+function lifecycleReason(eventData) {
+  const raw = (eventData && (eventData.cancellationReason || eventData.cancelledReason)) || "";
+  const s = String(raw).trim();
+  return s || "unforeseen circumstances";
+}
+
+function lifecycleFormatDateList(dates) {
+  if (!dates) return "";
+  if (Array.isArray(dates)) return dates.filter(Boolean).join(", ");
+  return String(dates);
+}
+
+// ── Template helpers ────────────────────────────────────────────
+
+// F-1: signup-scoped (cancellation OR reschedule)
+function buildLifecycleEmailHtml({ kind, name, eventTitle, oldDates, newDates }) {
+  const firstName = lifecycleFirstName(name);
+  const title = lifecycleEsc(eventTitle || "your LDAH event");
+  const oldStr = lifecycleEsc(lifecycleFormatDateList(oldDates));
+  const newStr = lifecycleEsc(lifecycleFormatDateList(newDates));
+
+  let headerLabel, headerGradient, bodyHtml, heading;
+  if (kind === "cancellation") {
+    headerLabel = "Signup Cancelled";
+    headerGradient = "linear-gradient(135deg,#991b1b,#dc2626)";
+    heading = "Your signup was cancelled";
+    bodyHtml =
+      '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">' +
+        'Your signup for <strong>' + title + '</strong>' +
+        (oldStr ? ' on <strong>' + oldStr + '</strong>' : '') +
+        ' has been cancelled.' +
+      '</p>' +
+      '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6">' +
+        "If this was a mistake, you're welcome to sign up again on our events page. " +
+        'Mahalo for letting us know.' +
+      '</p>';
+  } else {
+    headerLabel = "Schedule Update";
+    headerGradient = "linear-gradient(135deg,#1e40af,#0891B2)";
+    heading = "Your session dates have changed";
+    bodyHtml =
+      '<p style="margin:0 0 12px;font-size:16px;color:#334155;line-height:1.6">' +
+        'A heads up about <strong>' + title + '</strong>:' +
+      '</p>' +
+      (oldStr
+        ? '<p style="margin:0 0 8px;font-size:15px;color:#475569"><strong>Previously scheduled:</strong> ' + oldStr + '</p>'
+        : '') +
+      (newStr
+        ? '<p style="margin:0 0 16px;font-size:15px;color:#475569"><strong>Now scheduled:</strong> ' + newStr + '</p>'
+        : '') +
+      '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6">' +
+        'No action needed on your end — we just wanted to keep you in the loop. Mahalo.' +
+      '</p>';
+  }
+
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + lifecycleEsc(heading) + '</title></head>' +
+    '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
+    '<div style="max-width:600px;margin:0 auto;background:#fff">' +
+    '<div style="background:' + headerGradient + ';padding:24px;text-align:center;color:#fff">' +
+    '<h1 style="margin:0;font-size:22px;font-weight:700">' + lifecycleEsc(headerLabel) + '</h1></div>' +
+    '<div style="padding:32px 24px">' +
+    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + lifecycleEsc(firstName) + ',</p>' +
+    '<h2 style="margin:0 0 16px;color:#004E7C;font-size:22px">' + lifecycleEsc(heading) + '</h2>' +
+    bodyHtml +
+    '</div>' +
+    '<div style="padding:16px 24px;border-top:1px solid #e5e7eb;background:#f9fafb;font-size:12px;color:#94a3b8;text-align:center">' +
+    '<p style="margin:0">Leadership in Disabilities and Achievement of Hawai\'i</p>' +
+    '</div></div></body></html>';
+}
+
+// F-2A: event cancelled (one-time)
+function buildEventCancelledEmailHtml({ name, eventTitle, eventDate, reason }) {
+  const firstName = lifecycleFirstName(name);
+  const title = lifecycleEsc(eventTitle || "your LDAH event");
+  const when = lifecycleEsc(eventDate || "");
+  const why = lifecycleEsc(reason || "unforeseen circumstances");
+
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Event Cancelled</title></head>' +
+    '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
+    '<div style="max-width:600px;margin:0 auto;background:#fff">' +
+    '<div style="background:linear-gradient(135deg,#991b1b,#dc2626);padding:24px;text-align:center;color:#fff">' +
+    '<h1 style="margin:0;font-size:22px;font-weight:700">Event Cancelled</h1></div>' +
+    '<div style="padding:32px 24px">' +
+    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + lifecycleEsc(firstName) + ',</p>' +
+    '<h2 style="margin:0 0 16px;color:#991b1b;font-size:22px">We\'re sorry</h2>' +
+    '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">' +
+      '<strong>' + title + '</strong>' +
+      (when ? ' scheduled for <strong>' + when + '</strong>' : '') +
+      ' has been cancelled due to ' + why + '.' +
+    '</p>' +
+    '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6">' +
+      'We appreciate your interest and hope to see you at a future event. If you have questions, please reach out to us at registration@ldahawaii.org.' +
+    '</p>' +
+    '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6">Mahalo for your understanding.</p>' +
+    '</div>' +
+    '<div style="padding:16px 24px;border-top:1px solid #e5e7eb;background:#f9fafb;font-size:12px;color:#94a3b8;text-align:center">' +
+    '<p style="margin:0">Leadership in Disabilities and Achievement of Hawai\'i</p>' +
+    '</div></div></body></html>';
+}
+
+// F-2B: event rescheduled (one-time)
+function buildEventRescheduledEmailHtml({ name, eventTitle, oldDate, newDate, reason }) {
+  const firstName = lifecycleFirstName(name);
+  const title = lifecycleEsc(eventTitle || "your LDAH event");
+  const oldStr = lifecycleEsc(oldDate || "");
+  const newStr = lifecycleEsc(newDate || "");
+  const why = lifecycleEsc(reason || "");
+
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Event Rescheduled</title></head>' +
+    '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
+    '<div style="max-width:600px;margin:0 auto;background:#fff">' +
+    '<div style="background:linear-gradient(135deg,#1e40af,#0891B2);padding:24px;text-align:center;color:#fff">' +
+    '<h1 style="margin:0;font-size:22px;font-weight:700">Event Rescheduled</h1></div>' +
+    '<div style="padding:32px 24px">' +
+    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + lifecycleEsc(firstName) + ',</p>' +
+    '<h2 style="margin:0 0 16px;color:#004E7C;font-size:22px">Heads up &mdash; the date has changed</h2>' +
+    '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">' +
+      '<strong>' + title + '</strong> has been rescheduled' +
+      (why && why !== lifecycleEsc("unforeseen circumstances") ? ' (' + why + ')' : '') +
+      '.' +
+    '</p>' +
+    (oldStr ? '<p style="margin:0 0 8px;font-size:15px;color:#475569"><strong>Previous date:</strong> ' + oldStr + '</p>' : '') +
+    (newStr ? '<p style="margin:0 0 16px;font-size:15px;color:#475569"><strong>New date:</strong> ' + newStr + '</p>' : '') +
+    '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6">' +
+      'Your signup has been carried forward. No action needed. If the new date doesn\'t work for you, please let us know at registration@ldahawaii.org.' +
+    '</p>' +
+    '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6">Mahalo.</p>' +
+    '</div>' +
+    '<div style="padding:16px 24px;border-top:1px solid #e5e7eb;background:#f9fafb;font-size:12px;color:#94a3b8;text-align:center">' +
+    '<p style="margin:0">Leadership in Disabilities and Achievement of Hawai\'i</p>' +
+    '</div></div></body></html>';
+}
+
+// F-2C: single session cancelled (recurring)
+function buildSessionCancelledEmailHtml({ name, eventTitle, sessionDate, reason }) {
+  const firstName = lifecycleFirstName(name);
+  const title = lifecycleEsc(eventTitle || "your LDAH program");
+  const when = lifecycleEsc(sessionDate || "");
+  const why = lifecycleEsc(reason || "unforeseen circumstances");
+
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Session Cancelled</title></head>' +
+    '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
+    '<div style="max-width:600px;margin:0 auto;background:#fff">' +
+    '<div style="background:linear-gradient(135deg,#b45309,#f59e0b);padding:24px;text-align:center;color:#fff">' +
+    '<h1 style="margin:0;font-size:22px;font-weight:700">Session Cancelled</h1></div>' +
+    '<div style="padding:32px 24px">' +
+    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + lifecycleEsc(firstName) + ',</p>' +
+    '<h2 style="margin:0 0 16px;color:#b45309;font-size:22px">Just this session</h2>' +
+    '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">' +
+      'The <strong>' + title + '</strong> session' +
+      (when ? ' on <strong>' + when + '</strong>' : '') +
+      ' has been cancelled due to ' + why + '.' +
+    '</p>' +
+    '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6">' +
+      'Your other sessions for this program are still on the schedule. No action needed.' +
+    '</p>' +
+    '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6">Mahalo for your flexibility.</p>' +
+    '</div>' +
+    '<div style="padding:16px 24px;border-top:1px solid #e5e7eb;background:#f9fafb;font-size:12px;color:#94a3b8;text-align:center">' +
+    '<p style="margin:0">Leadership in Disabilities and Achievement of Hawai\'i</p>' +
+    '</div></div></body></html>';
+}
+
+// ── F-1: signup lifecycle handler ───────────────────────────────
+async function handleSignupLifecycleEmails(change, context, collectionName) {
+  try {
+    const before = change.before.data() || {};
+    const after = change.after.data() || {};
+    const eventId = context.params.eventId;
+    const signupId = context.params.signupId;
+    const db = admin.firestore();
+
+    const toEmail = (after.email || "").trim();
+    if (!toEmail) return;
+
+    // If the event doc is being processed for a fleet-wide cancellation /
+    // reschedule, the event-level handler will email instead.
+    // We skip this signup-level handler if the signup state changed purely
+    // because an event-level lifecycle email was sent to it (marker present).
+    // That marker is written by handleEventLifecycleEmails.
+
+    // Detect transitions
+    const wasCancelled = before.status === "cancelled";
+    const nowCancelled = after.status === "cancelled";
+    const justCancelled = !wasCancelled && nowCancelled;
+
+    const beforeDates = Array.isArray(before.selectedDates) ? before.selectedDates.filter(Boolean) : [];
+    const afterDates = Array.isArray(after.selectedDates) ? after.selectedDates.filter(Boolean) : [];
+    const beforeKey = JSON.stringify(beforeDates.slice().sort());
+    const afterKey = JSON.stringify(afterDates.slice().sort());
+    const datesChanged = beforeDates.length > 0 && afterDates.length > 0 && beforeKey !== afterKey;
+    // Skip if the only delta is that new dates were added (sibling sharing) —
+    // i.e., afterDates is a strict superset of beforeDates.
+    const isPureAdd = beforeDates.every((d) => afterDates.indexOf(d) !== -1) && afterDates.length > beforeDates.length;
+
+    if (!justCancelled && !datesChanged) return;
+    if (datesChanged && isPureAdd) {
+      // Pure add (e.g., sharing registration to new sessions) — not a reschedule
+      if (!justCancelled) return;
+    }
+
+    // Priority: cancellation wins over reschedule
+    const kind = justCancelled ? "cancellation" : "reschedule";
+    if (kind === "reschedule" && nowCancelled) return; // covered by cancel email
+
+    // Fetch event title for subject/body
+    let eventTitle = "LDAH Event";
+    try {
+      const evSnap = await db.collection(collectionName).doc(eventId).get();
+      if (evSnap.exists) eventTitle = (evSnap.data() && evSnap.data().title) || eventTitle;
+    } catch (_) { /* ignore */ }
+
+    // Idempotency: one lifecycle email per signup per kind per event update.
+    // We anchor the marker on the signup doc itself so retries of this same
+    // Firestore trigger don't double-send.
+    const markerField = "lifecycleEmail_" + kind + "_sentAt";
+    if (after[markerField]) return;
+
+    const subject = kind === "cancellation"
+      ? "Your signup was cancelled — " + eventTitle
+      : "Your session dates have changed — " + eventTitle;
+
+    const html = buildLifecycleEmailHtml({
+      kind,
+      name: after.name || after.displayName || "",
+      eventTitle,
+      oldDates: beforeDates,
+      newDates: afterDates,
+    });
+
+    try {
+      await sendEmailViaResend({
+        from: lifecycleFromAddress(),
+        to: toEmail,
+        subject,
+        html,
+        type: kind === "cancellation" ? "signup-cancellation" : "signup-reschedule",
+        relatedEventId: eventId,
+        relatedSignupId: signupId,
+        recipientName: after.name || after.displayName || "",
+      });
+      // Write marker so we don't re-fire on the next unrelated update
+      await change.after.ref.set({
+        [markerField]: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      console.log("lifecycle " + kind + " email sent to " + toEmail + " for " + collectionName + "/" + eventId + "/" + signupId);
+    } catch (sendErr) {
+      console.error("handleSignupLifecycleEmails send failed (" + collectionName + "/" + eventId + "/" + signupId + "):", sendErr.message);
+    }
+  } catch (err) {
+    console.error("handleSignupLifecycleEmails error (" + collectionName + "/" + context.params.eventId + "/" + context.params.signupId + "):", err.message);
+  }
+}
+
+// ── F-2: event lifecycle handler ────────────────────────────────
+
+function sleepMs(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Build a human-readable version of an event's one-time date for subjects/body.
+function eventDateDisplay(eventData) {
+  if (!eventData) return "";
+  if (Array.isArray(eventData.signupDates) && eventData.signupDates[0]) return String(eventData.signupDates[0]);
+  if (eventData.eventDate) return formatEventDate(eventData.eventDate);
+  if (eventData.date) return formatEventDate(eventData.date);
+  return "";
+}
+
+function oneTimeDatesFingerprint(eventData) {
+  if (!eventData) return "";
+  const parts = [];
+  if (Array.isArray(eventData.signupDates)) parts.push(eventData.signupDates.slice().join("|"));
+  else parts.push("");
+  // normalize eventDate / date to ISO-ish strings
+  const norm = (v) => {
+    if (!v) return "";
+    if (v.toDate && typeof v.toDate === "function") return v.toDate().toISOString();
+    if (v.seconds) return new Date(v.seconds * 1000).toISOString();
+    return String(v);
+  };
+  parts.push(norm(eventData.eventDate));
+  parts.push(norm(eventData.date));
+  return parts.join("::");
+}
+
+async function handleEventLifecycleEmails(change, context, collectionName) {
+  try {
+    const before = change.before.data() || {};
+    const after = change.after.data() || {};
+    const eventId = context.params.eventId;
+    const db = admin.firestore();
+    const eventRef = db.collection(collectionName).doc(eventId);
+
+    // Safeguard: don't spam right after an announcement blast.
+    if (after.announcementSent && !before.announcementSent) return;
+
+    // Detect transitions
+    const wasCancelled = before.archived === true || before.cancelled === true;
+    const nowCancelled = after.archived === true || after.cancelled === true;
+    const justCancelled = !wasCancelled && nowCancelled;
+
+    const beforeFp = oneTimeDatesFingerprint(before);
+    const afterFp = oneTimeDatesFingerprint(after);
+    const datesChanged = !justCancelled && beforeFp !== afterFp && afterFp.length > 2;
+
+    const beforeCancelled = Array.isArray(before.cancelledDates) ? before.cancelledDates : [];
+    const afterCancelled = Array.isArray(after.cancelledDates) ? after.cancelledDates : [];
+    const beforeSet = new Set(beforeCancelled.map(String));
+    const newlyCancelledDates = afterCancelled
+      .map(String)
+      .filter((d) => d && !beforeSet.has(d));
+
+    if (!justCancelled && !datesChanged && newlyCancelledDates.length === 0) return;
+
+    const eventTitle = after.title || before.title || "LDAH Event";
+    const reason = lifecycleReason(after) || lifecycleReason(before);
+    const oldDateStr = eventDateDisplay(before);
+    const newDateStr = eventDateDisplay(after);
+
+    // Resolve which kind this update represents, in priority order.
+    let mode;
+    if (justCancelled) mode = "event-cancelled";
+    else if (datesChanged) mode = "event-rescheduled";
+    else mode = "session-cancelled";
+
+    // Collect signups that need to hear about this.
+    const signupsSnap = await eventRef.collection("signups").get();
+    const recipients = [];
+    signupsSnap.forEach((d) => {
+      const sd = d.data() || {};
+      if (sd.archived === true) return;
+      const email = (sd.email || "").trim();
+      if (!email) return;
+      if (sd.status === "cancelled") return;
+      recipients.push({ id: d.id, data: sd, email });
+    });
+
+    if (recipients.length === 0) return;
+
+    const markerColl = eventRef.collection("eventLifecycleNotifications");
+    const fromAddr = lifecycleFromAddress();
+
+    if (mode === "event-cancelled" || mode === "event-rescheduled") {
+      // Fleet send: one email per recipient.
+      const kindKey = mode === "event-cancelled" ? "event-cancelled" : "event-rescheduled";
+      for (const r of recipients) {
+        const markerId = r.id + "-" + kindKey;
+        try {
+          const markerSnap = await markerColl.doc(markerId).get();
+          if (markerSnap.exists) continue;
+        } catch (_) { /* proceed */ }
+
+        let html, subject, typeTag;
+        if (mode === "event-cancelled") {
+          html = buildEventCancelledEmailHtml({
+            name: r.data.name || r.data.displayName || "",
+            eventTitle,
+            eventDate: oldDateStr || newDateStr,
+            reason,
+          });
+          subject = "Event cancelled: " + eventTitle;
+          typeTag = "event-cancelled";
+        } else {
+          html = buildEventRescheduledEmailHtml({
+            name: r.data.name || r.data.displayName || "",
+            eventTitle,
+            oldDate: oldDateStr,
+            newDate: newDateStr,
+            reason,
+          });
+          subject = eventTitle + " has a new date";
+          typeTag = "event-rescheduled";
+        }
+
+        try {
+          await sendEmailViaResend({
+            from: fromAddr,
+            to: r.email,
+            subject,
+            html,
+            type: typeTag,
+            relatedEventId: eventId,
+            relatedSignupId: r.id,
+            recipientName: r.data.name || r.data.displayName || "",
+          });
+          await markerColl.doc(markerId).set({
+            signupId: r.id,
+            kind: kindKey,
+            email: r.email,
+            sentAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        } catch (sendErr) {
+          console.error("handleEventLifecycleEmails send failed (" + collectionName + "/" + eventId + " -> " + r.email + "):", sendErr.message);
+        }
+        await sleepMs(LIFECYCLE_SEND_DELAY_MS);
+      }
+    } else if (mode === "session-cancelled") {
+      // For each newly cancelled date, email recipients whose selectedDates include it.
+      for (const dateStr of newlyCancelledDates) {
+        for (const r of recipients) {
+          const selected = Array.isArray(r.data.selectedDates) ? r.data.selectedDates.map(String) : [];
+          if (selected.indexOf(String(dateStr)) === -1) continue;
+
+          const markerId = r.id + "-session-cancelled-" + String(dateStr).replace(/[^0-9A-Za-z-]/g, "_");
+          try {
+            const markerSnap = await markerColl.doc(markerId).get();
+            if (markerSnap.exists) continue;
+          } catch (_) { /* proceed */ }
+
+          const html = buildSessionCancelledEmailHtml({
+            name: r.data.name || r.data.displayName || "",
+            eventTitle,
+            sessionDate: dateStr,
+            reason,
+          });
+          const subject = "Session cancelled on " + dateStr + " — " + eventTitle;
+
+          try {
+            await sendEmailViaResend({
+              from: fromAddr,
+              to: r.email,
+              subject,
+              html,
+              type: "session-cancelled",
+              relatedEventId: eventId,
+              relatedSignupId: r.id,
+              recipientName: r.data.name || r.data.displayName || "",
+            });
+            await markerColl.doc(markerId).set({
+              signupId: r.id,
+              kind: "session-cancelled",
+              sessionDate: dateStr,
+              email: r.email,
+              sentAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          } catch (sendErr) {
+            console.error("handleEventLifecycleEmails session-cancel send failed (" + collectionName + "/" + eventId + " -> " + r.email + "):", sendErr.message);
+          }
+          await sleepMs(LIFECYCLE_SEND_DELAY_MS);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("handleEventLifecycleEmails error (" + collectionName + "/" + context.params.eventId + "):", err.message);
+  }
+}
+
+exports.onEventUpdated = functions
+  .runWith({ timeoutSeconds: 540, maxInstances: 5, secrets: EMAIL_SECRETS })
+  .firestore.document("events/{eventId}")
+  .onUpdate(async (change, context) => handleEventLifecycleEmails(change, context, "events"));
+
+exports.onRecurringEventUpdated = functions
+  .runWith({ timeoutSeconds: 540, maxInstances: 5, secrets: EMAIL_SECRETS })
+  .firestore.document("recurringEvents/{eventId}")
+  .onUpdate(async (change, context) => handleEventLifecycleEmails(change, context, "recurringEvents"));
