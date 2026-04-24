@@ -4012,3 +4012,339 @@ exports.onRecurringEventUpdated = functions
   .runWith({ timeoutSeconds: 540, maxInstances: 5, secrets: EMAIL_SECRETS })
   .firestore.document("recurringEvents/{eventId}")
   .onUpdate(async (change, context) => handleEventLifecycleEmails(change, context, "recurringEvents"));
+
+// ── Event Recording & Slides Emails ────────────────────────────────
+// Admin sends a post-event follow-up with a Zoom recording link and a
+// slides PDF (attached AND linked). Auto-expires from Storage after
+// 2 weeks + 1 day via pruneExpiredRecordings.
+
+const RECORDING_RETENTION_DAYS = 15;
+
+function _recEsc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function buildRecordingEmailHtml({
+  bodyText, eventTitle, recordingUrl, passcode, slidesDownloadUrl, slidesFileName,
+}) {
+  // Convert admin-authored plain-text body to HTML paragraphs.
+  const paras = String(bodyText || "")
+    .replace(/\r\n/g, "\n")
+    .split(/\n\s*\n/)
+    .map(p => p.trim())
+    .filter(Boolean)
+    .map(p => `<p style="margin:0 0 14px;font-size:16px;color:#333333;line-height:1.5;">${_recEsc(p).replace(/\n/g, "<br>")}</p>`)
+    .join("");
+
+  const zoomBlock = recordingUrl
+    ? `<div style="margin:16px 0;padding:16px;background-color:#f4f8fc;border-left:4px solid #1a3c6e;border-radius:4px;">
+         <p style="margin:0 0 6px;font-size:15px;color:#1a3c6e;font-weight:bold;">Zoom Recording</p>
+         <p style="margin:0 0 6px;font-size:15px;color:#333333;word-break:break-all;">
+           <a href="${_recEsc(recordingUrl)}" target="_blank" style="color:#1a73e8;text-decoration:none;">${_recEsc(recordingUrl)}</a>
+         </p>
+         ${passcode ? `<p style="margin:0 0 6px;font-size:14px;color:#333333;">Passcode: <strong>${_recEsc(passcode)}</strong></p>` : ""}
+         <p style="margin:6px 0 0;font-size:13px;color:#8a6600;"><em>This recording link is available for two weeks.</em></p>
+       </div>`
+    : "";
+
+  const slidesBlock = slidesDownloadUrl
+    ? `<div style="margin:16px 0;padding:16px;background-color:#fff8e8;border-left:4px solid #c79400;border-radius:4px;">
+         <p style="margin:0 0 6px;font-size:15px;color:#8a6600;font-weight:bold;">Slides (PDF)</p>
+         <p style="margin:0 0 6px;font-size:15px;color:#333333;">
+           The slides are attached to this email. You can also download them here:
+         </p>
+         <p style="margin:0 0 6px;font-size:15px;color:#333333;word-break:break-all;">
+           <a href="${_recEsc(slidesDownloadUrl)}" target="_blank" style="color:#1a73e8;text-decoration:none;">${_recEsc(slidesFileName || "Download Slides")}</a>
+         </p>
+         <p style="margin:6px 0 0;font-size:13px;color:#8a6600;"><em>This download link is available for two weeks.</em></p>
+       </div>`
+    : "";
+
+  const confidentiality = `<p style="margin:18px 0 0;font-size:11px;color:#999999;line-height:1.5;border-top:1px solid #eeeeee;padding-top:12px;">
+      <strong>CONFIDENTIALITY STATEMENT</strong><br>
+      This message may contain legal, privileged, and/or confidential information. If you are not the intended recipient or the employee or agent responsible for delivery of this message to the intended recipient, you are hereby notified that any dissemination, distribution, or copying of this message is strictly prohibited. If you have received this message in error, please immediately notify the sender and delete this message from your computer.
+    </p>`;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;">
+<tr><td align="center" style="padding:24px 16px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;max-width:600px;width:100%;">
+  <tr><td style="background-color:#ffffff;padding:28px 32px 20px;text-align:center;border-bottom:3px solid #1a3c6e;">
+    <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="150" style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;">
+  </td></tr>
+  <tr><td style="padding:32px;">
+    ${paras}
+    ${zoomBlock}
+    ${slidesBlock}
+    <p style="margin:24px 0 4px;font-size:15px;color:#333333;line-height:1.5;">With gratitude,</p>
+    <p style="margin:0 0 16px;font-size:15px;color:#333333;line-height:1.5;"><strong>LDAH Team</strong></p>
+    <p style="margin:16px 0 2px;font-size:14px;color:#555555;line-height:1.5;">
+      <strong>Leilani Kailiawa</strong><br>
+      Parent Consultant<br>
+      Leadership in Disabilities &amp; Achievement of Hawai'i<br>
+      245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>
+      Phone: (808) 536-9684 ext 112<br>
+      <a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>
+    </p>
+    ${confidentiality}
+  </td></tr>
+  <tr><td style="background-color:#f0f0f0;padding:24px 32px;text-align:center;border-top:1px solid #dddddd;">
+    <p style="margin:0 0 4px;font-size:13px;color:#777777;font-weight:bold;">Leadership in Disabilities &amp; Achievement of Hawai'i</p>
+    <p style="margin:0 0 4px;font-size:12px;color:#999999;">245 N. Kukui St., Suite 205, Honolulu, HI 96817</p>
+    <p style="margin:0 0 4px;font-size:12px;color:#999999;">Phone: (808) 536-2280</p>
+    <p style="margin:0;font-size:12px;color:#999999;">Email: <a href="mailto:rrowe@ldahawaii.org" style="color:#999999;">rrowe@ldahawaii.org</a></p>
+  </td></tr>
+</table>
+</td></tr></table></body></html>`;
+}
+
+async function fetchStorageAsBase64(storagePath) {
+  if (!storagePath) return null;
+  const bucket = admin.storage().bucket();
+  const file = bucket.file(storagePath);
+  const [exists] = await file.exists();
+  if (!exists) return null;
+  const [buf] = await file.download();
+  return buf.toString("base64");
+}
+
+exports.sendEventRecordingEmail = functions
+  .runWith({ timeoutSeconds: 540, memory: "512MB", maxInstances: 3, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.set("Access-Control-Max-Age", "3600");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    try {
+      const {
+        collection, eventId, sessionKey, sessionDate, eventTitle,
+        subject, body, recordingUrl, passcode,
+        pdfStoragePath, pdfDownloadUrl, pdfFileName,
+        recipients,
+      } = req.body || {};
+
+      if (!collection || !eventId) { res.status(400).json({ error: "collection + eventId required" }); return; }
+      if (!Array.isArray(recipients) || !recipients.length) { res.status(400).json({ error: "At least one recipient required" }); return; }
+      if (!subject || !body) { res.status(400).json({ error: "subject + body required" }); return; }
+
+      const html = buildRecordingEmailHtml({
+        bodyText: body, eventTitle: eventTitle || "",
+        recordingUrl: recordingUrl || "", passcode: passcode || "",
+        slidesDownloadUrl: pdfDownloadUrl || "", slidesFileName: pdfFileName || "",
+      });
+
+      // Fetch PDF once and reuse for all recipients
+      let pdfBase64 = null;
+      if (pdfStoragePath) {
+        try { pdfBase64 = await fetchStorageAsBase64(pdfStoragePath); }
+        catch (e) { console.warn("Could not fetch PDF for attachment:", e.message); }
+      }
+
+      const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+      const from = `LDAH <${fromAddress}>`;
+      const apiKey = process.env.RESEND_API_KEY;
+      if (!apiKey) { res.status(500).json({ error: "RESEND_API_KEY missing" }); return; }
+
+      let sent = 0, failed = 0;
+      const errors = [];
+
+      for (const r of recipients) {
+        if (!r || !r.email) { failed++; continue; }
+        const resendBody = { from, to: [r.email], subject, html };
+        if (pdfBase64 && pdfFileName) {
+          resendBody.attachments = [{ filename: pdfFileName, content: pdfBase64 }];
+        }
+        try {
+          const resp = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { "Authorization": "Bearer " + apiKey, "Content-Type": "application/json" },
+            body: JSON.stringify(resendBody),
+          });
+          if (!resp.ok) {
+            const t = await resp.text();
+            failed++; errors.push(r.email + ": " + resp.status + " " + t);
+            await logEmailSend({
+              from, to: r.email, bcc: "", subject, html,
+              type: "event-recording",
+              relatedEventId: eventId, relatedSignupId: r.signupId || "",
+              recipientName: r.name || "",
+              success: false,
+              error: "Resend API error (" + resp.status + "): " + t,
+            });
+            continue;
+          }
+          const result = await resp.json();
+          sent++;
+          // Log each send individually (mirrors other bulk email flows)
+          await logEmailSend({
+            from, to: r.email, bcc: "", subject, html,
+            type: "event-recording",
+            relatedEventId: eventId, relatedSignupId: r.signupId || "",
+            recipientName: r.name || "",
+            success: true,
+            resendId: (result && result.id) || null,
+          });
+          // Attach extra metadata so Email Log can detect the attachment+expiry
+          try {
+            const lastSnap = await admin.firestore().collection("emailLog")
+              .where("relatedEventId", "==", eventId)
+              .where("to", "==", r.email)
+              .where("type", "==", "event-recording")
+              .orderBy("sentAt", "desc").limit(1).get();
+            if (!lastSnap.empty) {
+              await lastSnap.docs[0].ref.update({
+                recordingStoragePath: pdfStoragePath || "",
+                recordingSessionKey: sessionKey || "",
+              });
+            }
+          } catch (e) { /* index-missing is non-fatal */ }
+        } catch (e) {
+          failed++; errors.push(r.email + ": " + (e.message || e));
+        }
+      }
+
+      // Stamp event doc so the button state flips in the UI
+      try {
+        const evRef = admin.firestore().collection(collection).doc(eventId);
+        const key = sessionKey || "_single";
+        await evRef.set({
+          recordingEmailSent: {
+            [key]: {
+              sentAt: admin.firestore.FieldValue.serverTimestamp(),
+              recipientCount: sent,
+              failedCount: failed,
+              sessionDate: sessionDate || "",
+              storagePath: pdfStoragePath || "",
+              recordingUrl: recordingUrl || "",
+            },
+          },
+        }, { merge: true });
+      } catch (e) { console.warn("Failed to stamp event doc recordingEmailSent:", e.message); }
+
+      // Schedule auto-deletion of the PDF 15 days from now
+      if (pdfStoragePath) {
+        try {
+          const expiresAt = new Date(Date.now() + RECORDING_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+          await admin.firestore().collection("scheduledDeletions").add({
+            storagePath: pdfStoragePath,
+            expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+            eventId, sessionKey: sessionKey || "_single", eventTitle: eventTitle || "",
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            reason: "event-recording-attachment",
+          });
+        } catch (e) { console.warn("scheduledDeletions write failed:", e.message); }
+      }
+
+      res.status(200).json({ success: true, sent, failed, errors });
+    } catch (err) {
+      console.error("sendEventRecordingEmail error:", err);
+      res.status(500).json({ error: err.message || String(err) });
+    }
+  });
+
+// Daily 3 AM HST (13:00 UTC) — delete recording PDFs whose 2-week window expired
+exports.pruneExpiredRecordings = functions
+  .runWith({ timeoutSeconds: 540, maxInstances: 1 })
+  .pubsub.schedule("0 3 * * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const bucket = admin.storage().bucket();
+    const now = admin.firestore.Timestamp.now();
+    const snap = await db.collection("scheduledDeletions")
+      .where("expiresAt", "<=", now)
+      .limit(200).get();
+    let deleted = 0, missing = 0, errs = 0;
+    for (const doc of snap.docs) {
+      const d = doc.data();
+      try {
+        if (d.storagePath) {
+          const f = bucket.file(d.storagePath);
+          const [exists] = await f.exists();
+          if (exists) { await f.delete(); deleted++; }
+          else { missing++; }
+        }
+        await doc.ref.delete();
+      } catch (e) {
+        errs++; console.warn("pruneExpiredRecordings failed for " + doc.id + ":", e.message);
+      }
+    }
+    console.log(`pruneExpiredRecordings: deleted=${deleted} missing=${missing} errors=${errs} scanned=${snap.size}`);
+    return null;
+  });
+
+// Helper used by an extended resendLoggedEmail flow (if type=event-recording,
+// re-attach the PDF from Storage when the file is still there; otherwise
+// send just the HTML — the recipient still has a link in the body which
+// will 404 gracefully past the retention window).
+exports.resendEventRecordingEmail = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 5, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    try {
+      const { logId, overrideTo } = req.body || {};
+      if (!logId) { res.status(400).json({ error: "Missing logId" }); return; }
+
+      const db = admin.firestore();
+      const doc = await db.collection("emailLog").doc(logId).get();
+      if (!doc.exists) { res.status(404).json({ error: "Log entry not found" }); return; }
+      const log = doc.data();
+      if (!log.html) { res.status(400).json({ error: "No HTML body recorded" }); return; }
+      const to = (overrideTo && String(overrideTo).trim()) || log.to;
+      if (!to) { res.status(400).json({ error: "No recipient" }); return; }
+
+      const apiKey = process.env.RESEND_API_KEY;
+      if (!apiKey) { res.status(500).json({ error: "RESEND_API_KEY missing" }); return; }
+      const fromAddress = log.from || `LDAH <${process.env.SMTP_FROM || "onboarding@resend.dev"}>`;
+
+      // Try to re-attach the PDF if still in Storage
+      let attachments = undefined;
+      let attachmentStatus = "none";
+      if (log.recordingStoragePath) {
+        const b64 = await fetchStorageAsBase64(log.recordingStoragePath).catch(() => null);
+        if (b64) {
+          attachments = [{ filename: (log.recordingStoragePath.split("/").pop()) || "slides.pdf", content: b64 }];
+          attachmentStatus = "attached";
+        } else {
+          attachmentStatus = "expired";
+        }
+      }
+
+      const body = { from: fromAddress, to: [to], subject: log.subject || "(resend)", html: log.html };
+      if (attachments) body.attachments = attachments;
+
+      const resp = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + apiKey, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) { const t = await resp.text(); throw new Error("Resend error (" + resp.status + "): " + t); }
+      const result = await resp.json();
+
+      await logEmailSend({
+        from: fromAddress, to, bcc: "", subject: log.subject || "", html: log.html,
+        type: (log.type || "event-recording") + "-resend",
+        relatedEventId: log.relatedEventId || "", relatedSignupId: log.relatedSignupId || "",
+        recipientName: log.recipientName || "",
+        success: true, resendId: (result && result.id) || null,
+      });
+
+      res.status(200).json({ success: true, id: (result && result.id) || null, to, attachmentStatus });
+    } catch (err) {
+      console.error("resendEventRecordingEmail error:", err);
+      res.status(500).json({ error: err.message || String(err) });
+    }
+  });
