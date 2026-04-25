@@ -3563,8 +3563,31 @@ function lifecycleReason(eventData) {
 
 function lifecycleFormatDateList(dates) {
   if (!dates) return "";
-  if (Array.isArray(dates)) return dates.filter(Boolean).join(", ");
-  return String(dates);
+  if (Array.isArray(dates)) return dates.filter(Boolean).map(lifecycleFormatSessionEntry).join(", ");
+  return lifecycleFormatSessionEntry(dates);
+}
+
+// Convert a Connect-Gen pipe-delimited session key
+// ("2026-05-04|Hilo – Venue|10:00 AM – 12:00 PM") into a friendlier
+// "Mon, May 4 — 10:00 AM – 12:00 PM @ Hilo – Venue". Plain date strings
+// (e.g., Learning Labs / one-time selectedDates) pass through unchanged.
+function lifecycleFormatSessionEntry(s) {
+  const str = String(s == null ? "" : s).trim();
+  if (!str || str.indexOf("|") === -1) return str;
+  const parts = str.split("|").map((p) => p.trim());
+  const datePart = parts[0] || "";
+  const locPart = parts[1] || "";
+  const timePart = parts[2] || "";
+  let nice = datePart;
+  const m = datePart.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) {
+    const d = new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+    if (!isNaN(d.getTime())) nice = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  }
+  let out = nice;
+  if (timePart) out += " — " + timePart;
+  if (locPart) out += " @ " + locPart;
+  return out;
 }
 
 // ── Template helpers ────────────────────────────────────────────
@@ -3741,8 +3764,16 @@ async function handleSignupLifecycleEmails(change, context, collectionName) {
     const nowCancelled = after.status === "cancelled";
     const justCancelled = !wasCancelled && nowCancelled;
 
-    const beforeDates = Array.isArray(before.selectedDates) ? before.selectedDates.filter(Boolean) : [];
-    const afterDates = Array.isArray(after.selectedDates) ? after.selectedDates.filter(Boolean) : [];
+    // Connect-Gen recurring events use selectedSessions (pipe-delimited keys).
+    // Learning Labs / one-time use selectedDates. Pick whichever is populated;
+    // selectedSessions wins when both shapes coexist.
+    const beforeSess = Array.isArray(before.selectedSessions) ? before.selectedSessions.filter(Boolean) : [];
+    const afterSess = Array.isArray(after.selectedSessions) ? after.selectedSessions.filter(Boolean) : [];
+    const beforeDatesRaw = Array.isArray(before.selectedDates) ? before.selectedDates.filter(Boolean) : [];
+    const afterDatesRaw = Array.isArray(after.selectedDates) ? after.selectedDates.filter(Boolean) : [];
+    const useSessions = beforeSess.length > 0 || afterSess.length > 0;
+    const beforeDates = useSessions ? beforeSess : beforeDatesRaw;
+    const afterDates = useSessions ? afterSess : afterDatesRaw;
     const beforeKey = JSON.stringify(beforeDates.slice().sort());
     const afterKey = JSON.stringify(afterDates.slice().sort());
     const datesChanged = beforeDates.length > 0 && afterDates.length > 0 && beforeKey !== afterKey;
@@ -3767,11 +3798,13 @@ async function handleSignupLifecycleEmails(change, context, collectionName) {
       if (evSnap.exists) eventTitle = (evSnap.data() && evSnap.data().title) || eventTitle;
     } catch (_) { /* ignore */ }
 
-    // Idempotency: one lifecycle email per signup per kind per event update.
-    // We anchor the marker on the signup doc itself so retries of this same
-    // Firestore trigger don't double-send.
-    const markerField = "lifecycleEmail_" + kind + "_sentAt";
-    if (after[markerField]) return;
+    // Idempotency: store the post-update afterKey on the signup so retries of
+    // the same Firestore trigger don't double-send, but a *new* reschedule
+    // (different key) still emails. Old "_sentAt" timestamp markers from
+    // earlier deploys are ignored — those signups will email once more on
+    // their next genuine state change, which is the intended behavior.
+    const markerField = "lifecycleEmail_" + kind + "_lastKey";
+    if (after[markerField] && after[markerField] === afterKey) return;
 
     const subject = kind === "cancellation"
       ? "Your signup was cancelled — " + eventTitle
@@ -3798,7 +3831,8 @@ async function handleSignupLifecycleEmails(change, context, collectionName) {
       });
       // Write marker so we don't re-fire on the next unrelated update
       await change.after.ref.set({
-        [markerField]: admin.firestore.FieldValue.serverTimestamp(),
+        [markerField]: afterKey,
+        ["lifecycleEmail_" + kind + "_sentAt"]: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
       console.log("lifecycle " + kind + " email sent to " + toEmail + " for " + collectionName + "/" + eventId + "/" + signupId);
     } catch (sendErr) {
@@ -4038,27 +4072,33 @@ function buildRecordingEmailHtml({
     .map(p => `<p style="margin:0 0 14px;font-size:16px;color:#333333;line-height:1.5;">${_recEsc(p).replace(/\n/g, "<br>")}</p>`)
     .join("");
 
+  // Bulletproof button HTML (Outlook-safe table-wrapped anchor).
+  function _recBtn(href, label, bg, fg) {
+    return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:10px 0;">
+      <tr><td align="center" bgcolor="${bg}" style="border-radius:6px;background:${bg};">
+        <a href="${_recEsc(href)}" target="_blank"
+           style="display:inline-block;padding:12px 26px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;color:${fg};text-decoration:none;border-radius:6px;">
+          ${_recEsc(label)}
+        </a>
+      </td></tr></table>`;
+  }
+
   const zoomBlock = recordingUrl
-    ? `<div style="margin:16px 0;padding:16px;background-color:#f4f8fc;border-left:4px solid #1a3c6e;border-radius:4px;">
-         <p style="margin:0 0 6px;font-size:15px;color:#1a3c6e;font-weight:bold;">Zoom Recording</p>
-         <p style="margin:0 0 6px;font-size:15px;color:#333333;word-break:break-all;">
-           <a href="${_recEsc(recordingUrl)}" target="_blank" style="color:#1a73e8;text-decoration:none;">${_recEsc(recordingUrl)}</a>
-         </p>
-         ${passcode ? `<p style="margin:0 0 6px;font-size:14px;color:#333333;">Passcode: <strong>${_recEsc(passcode)}</strong></p>` : ""}
-         <p style="margin:6px 0 0;font-size:13px;color:#8a6600;"><em>This recording link is available for two weeks.</em></p>
+    ? `<div style="margin:16px 0;padding:16px 18px;background-color:#f4f8fc;border-left:4px solid #1a3c6e;border-radius:4px;">
+         <p style="margin:0 0 8px;font-size:15px;color:#1a3c6e;font-weight:bold;">Zoom Recording</p>
+         ${_recBtn(recordingUrl, "Watch Recording", "#1a3c6e", "#ffffff")}
+         ${passcode ? `<p style="margin:4px 0 4px;font-size:14px;color:#333333;">Passcode: <span style="font-family:Courier,monospace;background:#ffffff;border:1px solid #d1d5db;padding:2px 8px;border-radius:4px;font-weight:700;">${_recEsc(passcode)}</span></p>` : ""}
+         <p style="margin:6px 0 0;font-size:12px;color:#8a6600;font-style:italic;">Available for two weeks.</p>
        </div>`
     : "";
 
   const slidesBlock = slidesDownloadUrl
-    ? `<div style="margin:16px 0;padding:16px;background-color:#fff8e8;border-left:4px solid #c79400;border-radius:4px;">
-         <p style="margin:0 0 6px;font-size:15px;color:#8a6600;font-weight:bold;">Slides (PDF)</p>
-         <p style="margin:0 0 6px;font-size:15px;color:#333333;">
-           The slides are attached to this email. You can also download them here:
-         </p>
-         <p style="margin:0 0 6px;font-size:15px;color:#333333;word-break:break-all;">
-           <a href="${_recEsc(slidesDownloadUrl)}" target="_blank" style="color:#1a73e8;text-decoration:none;">${_recEsc(slidesFileName || "Download Slides")}</a>
-         </p>
-         <p style="margin:6px 0 0;font-size:13px;color:#8a6600;"><em>This download link is available for two weeks.</em></p>
+    ? `<div style="margin:16px 0;padding:16px 18px;background-color:#fff8e8;border-left:4px solid #c79400;border-radius:4px;">
+         <p style="margin:0 0 8px;font-size:15px;color:#8a6600;font-weight:bold;">Slides (PDF)</p>
+         <p style="margin:0 0 8px;font-size:14px;color:#333333;line-height:1.5;">The slides are attached to this email. You can also download them below:</p>
+         ${_recBtn(slidesDownloadUrl, "Download Slides", "#c79400", "#ffffff")}
+         ${slidesFileName ? `<p style="margin:4px 0 0;font-size:12px;color:#6b7280;">File: ${_recEsc(slidesFileName)}</p>` : ""}
+         <p style="margin:6px 0 0;font-size:12px;color:#8a6600;font-style:italic;">Available for two weeks.</p>
        </div>`
     : "";
 
