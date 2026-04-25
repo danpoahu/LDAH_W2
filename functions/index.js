@@ -3371,6 +3371,39 @@ function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl }) {
     '</div></div></body></html>';
 }
 
+// Returns minimal contact identity (name + email + phone) for a contact
+// matched by their unsubscribeToken. Used by events.html to pre-fill the
+// signup modal when someone clicks "Sign Up" in an announcement email.
+exports.getContactForPrefill = functions
+  .runWith({ timeoutSeconds: 20, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "GET") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const token = (req.query && req.query.token) ? String(req.query.token).trim() : "";
+    if (!token) { res.status(400).json({ error: "Missing token" }); return; }
+
+    try {
+      const db = admin.firestore();
+      const snap = await db.collection("contacts").where("unsubscribeToken", "==", token).limit(1).get();
+      if (snap.empty) { res.status(404).json({ error: "Not found" }); return; }
+      const c = snap.docs[0].data() || {};
+      res.status(200).json({
+        firstName: c.firstName || "",
+        lastName: c.lastName || "",
+        displayName: c.displayName || "",
+        email: c.email || "",
+        phone: c.phone || "",
+      });
+    } catch (err) {
+      console.error("getContactForPrefill error:", err);
+      res.status(500).json({ error: err.message || String(err) });
+    }
+  });
+
 exports.sendEventAnnouncement = functions
   .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: EMAIL_SECRETS })
   .https.onRequest(async (req, res) => {
