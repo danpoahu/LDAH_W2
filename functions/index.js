@@ -3395,8 +3395,10 @@ exports.getContactForPrefill = functions
       const db = admin.firestore();
       const snap = await db.collection("contacts").where("unsubscribeToken", "==", token).limit(1).get();
       if (snap.empty) { res.status(404).json({ error: "Not found" }); return; }
-      const c = snap.docs[0].data() || {};
+      const doc = snap.docs[0];
+      const c = doc.data() || {};
       res.status(200).json({
+        contactId: doc.id,
         firstName: c.firstName || "",
         lastName: c.lastName || "",
         displayName: c.displayName || "",

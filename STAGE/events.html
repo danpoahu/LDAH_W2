@@ -2726,6 +2726,8 @@
             status: 'confirmed',
             registration: registration,
             registrantType: role,
+            // Sibling draft was opened from a registration-token email link
+            signupSource: 'registration-email',
             registrationCompletedAt: firebase.firestore.FieldValue.serverTimestamp(),
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
           });
@@ -2910,6 +2912,9 @@
         var resp = await fetch('https://us-central1-ldah-932d5.cloudfunctions.net/getContactForPrefill?token=' + encodeURIComponent(token));
         if (!resp.ok) return;
         var c = await resp.json();
+        // Stash attribution so submit handlers can stamp the new signup
+        // with signupSource + attributedContactId.
+        window._announcementAttribution = { token: token, contactId: c.contactId || null };
         var fullName = (c.displayName || [c.firstName, c.lastName].filter(Boolean).join(' ') || '').trim();
         var nameEl = document.getElementById('signupName');
         var emailEl = document.getElementById('signupEmail');
@@ -2932,6 +2937,9 @@
             if (nameEl) nameEl.value = '';
             if (emailEl) emailEl.value = '';
             if (phoneEl) phoneEl.value = '';
+            // User said "not me" — drop attribution so the resulting signup
+            // doesn't get falsely tied to the prefilled contact.
+            window._announcementAttribution = null;
             banner.remove();
             return false;
           };
@@ -3032,9 +3040,17 @@
         </div>
       `;
       
+      // Attribution: stamp source + contactId if the form was opened via the
+      // announcement-email autoOpen flow and the user didn't click "Not you?".
+      const attribution = window._announcementAttribution || null;
+      const sourceFields = attribution
+        ? { signupSource: 'announcement-email', attributedContactId: attribution.contactId || '' }
+        : {};
+
       try {
         const signupDocRef = await db.collection('events').doc(eventId).collection('signups').add({
           ...formData,
+          ...sourceFields,
           status: 'pending',
           timestamp: firebase.firestore.FieldValue.serverTimestamp(),
           eventTitle: eventData.title
@@ -3436,9 +3452,15 @@
         </div>
       `;
 
+      const _attribution = window._announcementAttribution || null;
+      const _sourceFields = _attribution
+        ? { signupSource: 'announcement-email', attributedContactId: _attribution.contactId || '' }
+        : {};
+
       try {
         const signupDocRef = await db.collection('recurringEvents').doc(programId).collection('signups').add({
           ...formData,
+          ..._sourceFields,
           status: 'pending',
           archived: false,
           timestamp: firebase.firestore.FieldValue.serverTimestamp(),
