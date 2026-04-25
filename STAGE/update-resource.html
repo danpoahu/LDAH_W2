@@ -443,6 +443,9 @@
 
         <!-- Form state -->
         <div id="formCard" class="card" style="display: none;">
+            <div id="previewBanner" style="display:none;background:#FEF3C7;border:1px solid #F59E0B;color:#92400E;border-radius:10px;padding:14px 16px;margin-bottom:18px;font-size:.92rem;line-height:1.5;">
+                <strong>PREVIEW MODE</strong> &mdash; This is a sample form populated with <strong>Boys &amp; Girls Club of Hawai'i</strong> as example data. Anything you submit here will <strong>not</strong> be saved. Use this to review the questions a real partner will see.
+            </div>
             <div class="resource-summary" id="resourceSummary"></div>
 
             <form id="updateForm" novalidate>
@@ -654,6 +657,9 @@
                 }
 
                 const data = await res.json();
+                if (data && data.isTestPreview) {
+                    document.getElementById('previewBanner').style.display = 'block';
+                }
                 populateForm(data);
                 showOnly(formCard);
             } catch (err) {
@@ -686,7 +692,12 @@
                     return;
                 }
 
-                if (payload.noChanges) {
+                const result = await res.json().catch(function(){ return {}; });
+                const isPreview = result && result.testPreview === true;
+                if (isPreview) {
+                    showMessage('Preview submitted',
+                        'Got it &mdash; this was a preview, so nothing was saved. The real flow would land in LDAH-Int for review.');
+                } else if (payload.noChanges) {
                     showMessage('Mahalo!',
                         "We'll keep your card as-is and check in with you next cycle.");
                 } else {

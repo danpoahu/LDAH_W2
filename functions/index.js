@@ -4442,6 +4442,21 @@ const RESOURCE_UPDATE_EDITABLE_FIELDS = [
 ];
 const RESOURCE_UPDATE_RESEND_DAYS = 30; // cycle length: don't re-spam within a single cycle
 
+// Stable test-preview token so admins clicking the link in a test email
+// land on a working form populated with sample data instead of a 404.
+const RESOURCE_TEST_PREVIEW_TOKEN = "preview-bgch";
+const RESOURCE_TEST_PREVIEW_DATA = Object.freeze({
+  resourceId: "preview",
+  name: "Boys & Girls Club of Hawai'i",
+  type: "Youth Development",
+  services: "After-school programs, summer camps, mentorship, leadership and STEM activities for youth statewide.",
+  city: "Honolulu",
+  island: "Statewide",
+  phone: "(808) 949-4203",
+  email: "info@bgch.com",
+  website: "https://www.bgch.com",
+});
+
 function resourceUpdateLink(token) {
   return RESOURCE_UPDATE_FORM_BASE + "?token=" + encodeURIComponent(token);
 }
@@ -4477,24 +4492,27 @@ function buildResourceUpdateEmailHtml({ resource, token, isNudge }) {
       'If your logo has changed since we last spoke, please email the new file to <a href="mailto:lkailiawa@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">lkailiawa@ldahawaii.org</a> and we\'ll update it for you.' +
     '</p>';
 
+  // Resource-update emails go out under La'a's name (Administrative
+  // Assistant), distinct from the F-1 lifecycle emails which sign as Leilani.
   bodyHtml +=
     '<p style="margin:24px 0 4px;font-size:15px;color:#333333;line-height:1.5;">If you have any questions, please contact us.</p>' +
     '<p style="margin:0 0 4px;font-size:15px;color:#333333;line-height:1.5;">With gratitude,</p>' +
     '<p style="margin:0 0 16px;font-size:15px;color:#333333;line-height:1.5;"><strong>LDAH Team</strong></p>' +
     '<p style="margin:16px 0 2px;font-size:14px;color:#555555;line-height:1.5;">' +
-      '<strong>Leilani Kailiawa</strong><br>' +
-      'Parent Consultant<br>' +
+      '<strong>La\'a Salvani</strong><br>' +
+      'Administrative Assistant<br>' +
       'Leadership in Disabilities &amp; Achievement of Hawai\'i<br>' +
       '245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>' +
-      'Phone: (808) 536-9684 ext 112<br>' +
-      'Email: <a href="mailto:lkailiawa@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">lkailiawa@ldahawaii.org</a><br>' +
+      'Phone: (808) 536-9684<br>' +
+      'Email: <a href="mailto:LSalvani@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LSalvani@ldahawaii.org</a><br>' +
       '<a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>' +
     '</p>';
 
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + resourceUpdateEsc(heading) + '</title></head>' +
     '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
     '<div style="max-width:600px;margin:0 auto;background:#fff">' +
-    '<div style="background:' + headerGradient + ';padding:24px;text-align:center;color:#fff">' +
+    '<div style="background:' + headerGradient + ';padding:18px 24px 22px;text-align:center;color:#fff">' +
+    '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;border:0;outline:none;text-decoration:none;">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">' + resourceUpdateEsc(headerLabel) + '</h1></div>' +
     '<div style="padding:32px 24px">' +
     '<p style="margin:0 0 16px;font-size:16px">Aloha ' + resourceUpdateEsc(firstName) + ',</p>' +
@@ -4529,25 +4547,20 @@ exports.sendResourceUpdateRequests = functions
 
       if (testMode) {
         if (!testEmail) { res.status(400).json({ error: "testMode requires testEmail" }); return; }
-        const fakeResource = {
-          name: "Sample Partner Organization",
-          type: "Nonprofit",
-          services: "Advocacy, family support, training",
-          city: "Honolulu",
-          island: "Oahu",
-          phone: "(808) 555-0123",
-          email: testEmail,
-          website: "https://example.org",
-        };
-        const fakeToken = crypto.randomBytes(16).toString("hex");
-        const html = buildResourceUpdateEmailHtml({ resource: fakeResource, token: fakeToken, isNudge: false });
+        // Use the stable preview token so the link in the test email resolves
+        // to a working form populated with sample data.
+        const html = buildResourceUpdateEmailHtml({
+          resource: RESOURCE_TEST_PREVIEW_DATA,
+          token: RESOURCE_TEST_PREVIEW_TOKEN,
+          isNudge: false,
+        });
         await sendEmailViaResend({
           from: fromAddress,
           to: testEmail,
           subject: "Action Required: Update your LDAH Resource Card",
           html,
           type: "resource-update-request",
-          recipientName: fakeResource.name,
+          recipientName: RESOURCE_TEST_PREVIEW_DATA.name,
         });
         res.status(200).json({ success: true, testMode: true, sentTo: testEmail });
         return;
@@ -4681,6 +4694,11 @@ exports.getResourceForUpdate = functions
     const token = (req.query && req.query.token) ? String(req.query.token).trim() : "";
     if (!token) { res.status(400).json({ error: "Missing token" }); return; }
 
+    if (token === RESOURCE_TEST_PREVIEW_TOKEN) {
+      res.status(200).json(Object.assign({}, RESOURCE_TEST_PREVIEW_DATA, { isTestPreview: true }));
+      return;
+    }
+
     try {
       const db = admin.firestore();
       const snap = await db.collection("resources").where("updateToken", "==", token).limit(1).get();
@@ -4722,6 +4740,11 @@ exports.submitResourceUpdate = functions
 
     if (!token) { res.status(400).json({ error: "Missing token" }); return; }
     if (!noChanges && !fields) { res.status(400).json({ error: "Provide noChanges or fields" }); return; }
+
+    if (token === RESOURCE_TEST_PREVIEW_TOKEN) {
+      res.status(200).json({ ok: true, mode: noChanges ? "noChanges" : "pending", testPreview: true });
+      return;
+    }
 
     try {
       const db = admin.firestore();
