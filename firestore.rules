@@ -30,6 +30,10 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['feedbackSubmittedAt']);
         allow delete: if request.auth != null;
       }
+      // Announcement recipients tracker (Cloud Function writes; admin reads for KPI)
+      match /announcementRecipients/{recipientId} {
+        allow read: if request.auth != null;
+      }
     }
     match /recurringEvents/{eventId} {
       allow read: if true;
@@ -51,6 +55,9 @@ service cloud.firestore {
           && request.resource.data.keys().hasAny(['feedbackSubmittedAt'])
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['feedbackSubmittedAt']);
         allow delete: if request.auth != null;
+      }
+      match /announcementRecipients/{recipientId} {
+        allow read: if request.auth != null;
       }
     }
     match /eventRequests/{document=**} {
