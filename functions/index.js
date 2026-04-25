@@ -4468,7 +4468,9 @@ function resourceUpdateEsc(s) {
 }
 
 function buildResourceUpdateEmailHtml({ resource, token, isNudge }) {
-  const firstName = lifecycleFirstName(resource && resource.name);
+  // Resource recipients are organizations, not individuals — splitting the
+  // org name to fake a first name produced "Aloha Boys," for "Boys & Girls
+  // Club of Hawai'i". Just greet the org generically instead.
   const orgName = resourceUpdateEsc((resource && resource.name) || "your organization");
   const link = resourceUpdateLink(token);
   const heading = isNudge ? "Quick reminder" : "Time for your semi-annual update";
@@ -4489,7 +4491,7 @@ function buildResourceUpdateEmailHtml({ resource, token, isNudge }) {
       '<a href="' + link + '" style="background:linear-gradient(135deg,#0891B2,#0E7490);color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:16px;display:inline-block">Review Your Card</a>' +
     '</p>' +
     '<p style="margin:0 0 16px;font-size:14px;color:#64748b;line-height:1.6">' +
-      'If your logo has changed since we last spoke, please email the new file to <a href="mailto:lkailiawa@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">lkailiawa@ldahawaii.org</a> and we\'ll update it for you.' +
+      'If your logo has changed since we last spoke, please email the new file to <a href="mailto:LSalvani@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LSalvani@ldahawaii.org</a> and we\'ll update it for you.' +
     '</p>';
 
   // Resource-update emails go out under La'a's name (Administrative
@@ -4515,7 +4517,7 @@ function buildResourceUpdateEmailHtml({ resource, token, isNudge }) {
     '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;border:0;outline:none;text-decoration:none;">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">' + resourceUpdateEsc(headerLabel) + '</h1></div>' +
     '<div style="padding:32px 24px">' +
-    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + resourceUpdateEsc(firstName) + ',</p>' +
+    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + orgName + ' team,</p>' +
     '<h2 style="margin:0 0 16px;color:#004E7C;font-size:22px">' + resourceUpdateEsc(heading) + '</h2>' +
     bodyHtml +
     '</div>' +
