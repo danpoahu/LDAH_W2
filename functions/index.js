@@ -3420,7 +3420,31 @@ exports.sendEventAnnouncement = functions
       const priorSnap = await recipientColl.get();
       const alreadySent = new Set();
       priorSnap.forEach(d => alreadySent.add(d.id));
-      const newRecipients = recipients.filter(r => !alreadySent.has(r.id));
+
+      // Skip anyone with an active signup for this event — they already
+      // know about it. Match by lowercase email; a cancelled or archived
+      // signup doesn't count (those folks are fair game to re-engage).
+      // Test sends bypass the filter so admins can preview their template.
+      const signupEmailSkip = new Set();
+      if (!testMode) {
+        const signupsSnap = await eventRef.collection('signups').get();
+        signupsSnap.forEach(d => {
+          const s = d.data() || {};
+          if (s.status === 'cancelled' || s.archived === true) return;
+          const e = String(s.email || '').trim().toLowerCase();
+          if (e) signupEmailSkip.add(e);
+        });
+      }
+
+      const newRecipients = recipients.filter(r => {
+        if (alreadySent.has(r.id)) return false;
+        if (signupEmailSkip.has(String(r.email || '').trim().toLowerCase())) return false;
+        return true;
+      });
+      const alreadySignedUp = recipients.filter(r =>
+        !alreadySent.has(r.id) &&
+        signupEmailSkip.has(String(r.email || '').trim().toLowerCase())
+      ).length;
 
       if (dryRun) {
         res.status(200).json({
@@ -3428,6 +3452,7 @@ exports.sendEventAnnouncement = functions
           eventTitle: event.title || '(untitled)',
           totalEligible: recipients.length,
           alreadySent: alreadySent.size,
+          alreadySignedUp,
           willSendTo: newRecipients.length,
         });
         return;
