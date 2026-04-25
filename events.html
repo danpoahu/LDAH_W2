@@ -2901,6 +2901,73 @@
       }
     })();
 
+    // Auto-open SIGNUP modal with name/email/phone pre-filled from announcement
+    // email link (?eventId=X&prefill=<unsubscribeToken>&autoOpen=1).
+    // Distinct from the registration token flow above — this one runs only
+    // when there's no `token`+`type` pair and `autoOpen=1` is present.
+    async function applyAnnouncementPrefill(token) {
+      try {
+        var resp = await fetch('https://us-central1-ldah-932d5.cloudfunctions.net/getContactForPrefill?token=' + encodeURIComponent(token));
+        if (!resp.ok) return;
+        var c = await resp.json();
+        var fullName = (c.displayName || [c.firstName, c.lastName].filter(Boolean).join(' ') || '').trim();
+        var nameEl = document.getElementById('signupName');
+        var emailEl = document.getElementById('signupEmail');
+        var phoneEl = document.getElementById('signupPhone');
+        if (nameEl && fullName) nameEl.value = fullName;
+        if (emailEl && c.email) emailEl.value = c.email;
+        if (phoneEl && c.phone) phoneEl.value = c.phone;
+        var formContent = document.getElementById('signupFormContent');
+        if (formContent && !document.getElementById('prefillBanner')) {
+          var banner = document.createElement('div');
+          banner.id = 'prefillBanner';
+          banner.style.cssText = 'background:#ECFDF5;border:1px solid #86EFAC;border-radius:10px;padding:10px 14px;margin-bottom:18px;font-size:13px;color:#166534;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;';
+          banner.innerHTML = '<span>Pre-filled from your contact info.</span>' +
+            '<a href="#" id="prefillResetLink" style="color:#0E7490;font-weight:600;text-decoration:underline;">Not you? Start fresh</a>';
+          var form = document.getElementById('signupForm');
+          if (form && form.parentNode) form.parentNode.insertBefore(banner, form);
+          var reset = document.getElementById('prefillResetLink');
+          if (reset) reset.onclick = function(e) {
+            e.preventDefault();
+            if (nameEl) nameEl.value = '';
+            if (emailEl) emailEl.value = '';
+            if (phoneEl) phoneEl.value = '';
+            banner.remove();
+            return false;
+          };
+        }
+      } catch (err) { console.warn('Announcement prefill failed:', err.message); }
+    }
+
+    (function() {
+      var p = new URLSearchParams(window.location.search);
+      var targetEventId = p.get('eventId');
+      var prefillToken = p.get('prefill');
+      var autoOpen = p.get('autoOpen') === '1';
+      if (!targetEventId || !autoOpen) return;
+      if (p.get('token') && p.get('type')) return; // registration flow above owns those links
+
+      function tryOpen(retriesLeft) {
+        if (!Array.isArray(window.allEventsData) || !window.allEventsData.length) {
+          if (retriesLeft <= 0) return;
+          setTimeout(function(){ tryOpen(retriesLeft - 1); }, 250);
+          return;
+        }
+        var ev = window.allEventsData.find(function(e){ return e.id === targetEventId; });
+        if (!ev) { console.warn('autoOpen: event not found', targetEventId); return; }
+        var isRecurring = !!ev.isRecurring;
+        // openRecurringSignupModal is async; openSignupModal is sync. Promise.resolve handles both.
+        Promise.resolve(isRecurring ? openRecurringSignupModal(targetEventId) : openSignupModal(targetEventId))
+          .then(function(){
+            if (prefillToken) setTimeout(function(){ applyAnnouncementPrefill(prefillToken); }, 50);
+          });
+      }
+
+      function start() { tryOpen(40); } // ~10s window
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+      else start();
+    })();
+
     function toggleGroupFields(show) {
       const groupFields = document.getElementById('group-fields');
       const groupName = document.getElementById('group-name');

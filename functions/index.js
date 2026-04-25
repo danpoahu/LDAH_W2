@@ -3333,7 +3333,7 @@ exports.handleUnsubscribe = functions
     }
   });
 
-function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl }) {
+function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl, eventId }) {
   const displayName = (contact.displayName || '').trim();
   const firstName = displayName ? displayName.split(/\s+/)[0] : 'Friend';
   const title = event.title || 'Upcoming LDAH Event';
@@ -3346,7 +3346,12 @@ function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl }) {
   const descTrim = rawDescription.slice(0, 400);
   const descMore = rawDescription.length > 400 ? '...' : '';
   const flyerUrl = event.flyerUrl || event.imageUrl || event.flyer || '';
-  const eventsPageUrl = 'https://www.ldahawaii.org/events.html';
+  // Deep-link straight into the signup modal with name/email/phone pre-filled
+  // from the recipient's contact doc (events.html reads these params).
+  const signupUrl = 'https://www.ldahawaii.org/events.html' +
+    '?eventId=' + encodeURIComponent(eventId || '') +
+    '&prefill=' + encodeURIComponent(contact.unsubscribeToken || '') +
+    '&autoOpen=1';
 
   const esc = (s) => String(s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
 
@@ -3363,7 +3368,7 @@ function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl }) {
     (location ? '<p style="margin:0 0 16px;color:#475569"><strong>Where:</strong> ' + esc(location) + '</p>' : '') +
     (descTrim ? '<p style="margin:0 0 24px;color:#334155;line-height:1.6">' + esc(descTrim) + esc(descMore) + '</p>' : '') +
     '<p style="text-align:center;margin:32px 0">' +
-    '<a href="' + eventsPageUrl + '" style="background:linear-gradient(135deg,#0891B2,#0E7490);color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:16px">View & Sign Up</a>' +
+    '<a href="' + signupUrl + '" style="background:linear-gradient(135deg,#0891B2,#0E7490);color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:16px">Sign Up</a>' +
     '</p></div>' +
     '<div style="padding:16px 24px;border-top:1px solid #e5e7eb;background:#f9fafb;font-size:12px;color:#94a3b8;text-align:center">' +
     '<p style="margin:0 0 8px">Leadership in Disabilities and Achievement of Hawai\'i</p>' +
@@ -3513,7 +3518,7 @@ exports.sendEventAnnouncement = functions
       for (const r of batch) {
         try {
           const unsubscribeUrl = unsubscribeBaseUrl + '?token=' + encodeURIComponent(r.unsubscribeToken);
-          const html = buildAnnouncementEmailHtml({ event, contact: r, unsubscribeUrl });
+          const html = buildAnnouncementEmailHtml({ event, contact: r, unsubscribeUrl, eventId });
           await sendEmailViaResend({
             from: 'LDAH <' + fromAddress + '>',
             to: r.email,
