@@ -1,6 +1,7 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const Anthropic = require("@anthropic-ai/sdk");
+const crypto = require("crypto");
 // nodemailer removed — Firebase 1st Gen blocks outbound SMTP (port 465/587).
 // Using Resend HTTP API instead (HTTPS on port 443, always allowed).
 
@@ -4428,4 +4429,407 @@ exports.resendEventRecordingEmail = functions
       console.error("resendEventRecordingEmail error:", err);
       res.status(500).json({ error: err.message || String(err) });
     }
+  });
+
+// ── Resource Update Request Workflow ───────────────────────────
+// Semi-annual cycle where partner orgs review their resource card
+// (name, type, services, contact info) and submit changes for admin
+// approval. Logo uploads stay manual via email to Leilani.
+
+const RESOURCE_UPDATE_FORM_BASE = "https://www.ldahawaii.org/update-resource.html";
+const RESOURCE_UPDATE_EDITABLE_FIELDS = [
+  "name", "type", "services", "city", "island", "phone", "email", "website",
+];
+const RESOURCE_UPDATE_RESEND_DAYS = 30; // cycle length: don't re-spam within a single cycle
+
+function resourceUpdateLink(token) {
+  return RESOURCE_UPDATE_FORM_BASE + "?token=" + encodeURIComponent(token);
+}
+
+function resourceUpdateEsc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[c]);
+}
+
+function buildResourceUpdateEmailHtml({ resource, token, isNudge }) {
+  const firstName = lifecycleFirstName(resource && resource.name);
+  const orgName = resourceUpdateEsc((resource && resource.name) || "your organization");
+  const link = resourceUpdateLink(token);
+  const heading = isNudge ? "Quick reminder" : "Time for your semi-annual update";
+  const headerLabel = isNudge ? "Reminder" : "Resource Card Update";
+  const headerGradient = isNudge
+    ? "linear-gradient(135deg,#b45309,#f59e0b)"
+    : "linear-gradient(135deg,#1e40af,#0891B2)";
+  const lead = isNudge
+    ? "Just a quick nudge in case our earlier note got lost. Twice a year we ask each partner organization to take a couple of minutes to review the resource card we keep for you on the LDAH website."
+    : "Twice a year we ask each partner organization to take a couple of minutes to review the resource card we keep for you on the LDAH website. This keeps the families and individuals who rely on our resource directory pointed to current information for " + orgName + ".";
+
+  let bodyHtml =
+    '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">' + lead + '</p>' +
+    '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6">' +
+      'Click the button below to review your card. If everything looks good, you can confirm in one tap. If anything needs to change, edit the fields and submit &mdash; our team will review and post the update.' +
+    '</p>' +
+    '<p style="text-align:center;margin:32px 0">' +
+      '<a href="' + link + '" style="background:linear-gradient(135deg,#0891B2,#0E7490);color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:16px;display:inline-block">Review Your Card</a>' +
+    '</p>' +
+    '<p style="margin:0 0 16px;font-size:14px;color:#64748b;line-height:1.6">' +
+      'If your logo has changed since we last spoke, please email the new file to <a href="mailto:lkailiawa@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">lkailiawa@ldahawaii.org</a> and we\'ll update it for you.' +
+    '</p>';
+
+  bodyHtml +=
+    '<p style="margin:24px 0 4px;font-size:15px;color:#333333;line-height:1.5;">If you have any questions, please contact us.</p>' +
+    '<p style="margin:0 0 4px;font-size:15px;color:#333333;line-height:1.5;">With gratitude,</p>' +
+    '<p style="margin:0 0 16px;font-size:15px;color:#333333;line-height:1.5;"><strong>LDAH Team</strong></p>' +
+    '<p style="margin:16px 0 2px;font-size:14px;color:#555555;line-height:1.5;">' +
+      '<strong>Leilani Kailiawa</strong><br>' +
+      'Parent Consultant<br>' +
+      'Leadership in Disabilities &amp; Achievement of Hawai\'i<br>' +
+      '245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>' +
+      'Phone: (808) 536-9684 ext 112<br>' +
+      'Email: <a href="mailto:lkailiawa@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">lkailiawa@ldahawaii.org</a><br>' +
+      '<a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>' +
+    '</p>';
+
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + resourceUpdateEsc(heading) + '</title></head>' +
+    '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
+    '<div style="max-width:600px;margin:0 auto;background:#fff">' +
+    '<div style="background:' + headerGradient + ';padding:24px;text-align:center;color:#fff">' +
+    '<h1 style="margin:0;font-size:22px;font-weight:700">' + resourceUpdateEsc(headerLabel) + '</h1></div>' +
+    '<div style="padding:32px 24px">' +
+    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + resourceUpdateEsc(firstName) + ',</p>' +
+    '<h2 style="margin:0 0 16px;color:#004E7C;font-size:22px">' + resourceUpdateEsc(heading) + '</h2>' +
+    bodyHtml +
+    '</div>' +
+    '<div style="padding:16px 24px;border-top:1px solid #e5e7eb;background:#f9fafb;font-size:12px;color:#94a3b8;text-align:center">' +
+    '<p style="margin:0">Leadership in Disabilities and Achievement of Hawai\'i</p>' +
+    '</div></div></body></html>';
+}
+
+exports.sendResourceUpdateRequests = functions
+  .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const dryRun = body.dryRun === true;
+    const testMode = body.testMode === true;
+    const testEmail = (body.testEmail || "").trim();
+    const adminEmail = (body.adminEmail || "").trim();
+    const mode = body.mode === "nonResponders" ? "nonResponders" : "all";
+
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const fromAddress = lifecycleFromAddress();
+
+      if (testMode) {
+        if (!testEmail) { res.status(400).json({ error: "testMode requires testEmail" }); return; }
+        const fakeResource = {
+          name: "Sample Partner Organization",
+          type: "Nonprofit",
+          services: "Advocacy, family support, training",
+          city: "Honolulu",
+          island: "Oahu",
+          phone: "(808) 555-0123",
+          email: testEmail,
+          website: "https://example.org",
+        };
+        const fakeToken = crypto.randomBytes(16).toString("hex");
+        const html = buildResourceUpdateEmailHtml({ resource: fakeResource, token: fakeToken, isNudge: false });
+        await sendEmailViaResend({
+          from: fromAddress,
+          to: testEmail,
+          subject: "Action Required: Update your LDAH Resource Card",
+          html,
+          type: "resource-update-request",
+          recipientName: fakeResource.name,
+        });
+        res.status(200).json({ success: true, testMode: true, sentTo: testEmail });
+        return;
+      }
+
+      const snap = await db.collection("resources").get();
+      const now = Date.now();
+      const cycleCutoffMs = now - (RESOURCE_UPDATE_RESEND_DAYS * 24 * 60 * 60 * 1000);
+
+      const eligible = [];
+      let totalResources = 0;
+      let withoutEmail = 0;
+      let alreadySentThisCycle = 0;
+
+      snap.forEach((d) => {
+        totalResources++;
+        const r = d.data() || {};
+        if (r.archived === true) return;
+        const email = String(r.email || "").trim();
+        if (!email) { withoutEmail++; return; }
+
+        const reqAt = r.updateRequestedAt && r.updateRequestedAt.toMillis ? r.updateRequestedAt.toMillis() : 0;
+        const submittedAt = r.updateSubmittedAt && r.updateSubmittedAt.toMillis ? r.updateSubmittedAt.toMillis() : 0;
+
+        if (mode === "all") {
+          if (reqAt && reqAt > cycleCutoffMs && !submittedAt) {
+            // Active cycle in flight — skip to avoid double-sending; nudges
+            // handle the follow-up.
+            alreadySentThisCycle++;
+            return;
+          }
+          eligible.push({ id: d.id, data: r, email });
+        } else {
+          if (!r.updateToken) return;
+          if (!reqAt || reqAt <= cycleCutoffMs) return;
+          if (submittedAt) return;
+          eligible.push({ id: d.id, data: r, email });
+        }
+      });
+
+      if (dryRun) {
+        res.status(200).json({
+          dryRun: true,
+          totalResources,
+          withoutEmail,
+          alreadySentThisCycle,
+          willSendTo: eligible.length,
+          mode,
+        });
+        return;
+      }
+
+      // Separate throttle namespace from announcements so a same-day
+      // announcement blast and update-request blast don't fight over the
+      // shared 50/day Resend cap.
+      const today = new Date().toISOString().slice(0, 10);
+      const throttleRef = db.collection("system").doc("resourceUpdateThrottle").collection("days").doc(today);
+      const throttleDoc = await throttleRef.get();
+      const sentToday = throttleDoc.exists ? (throttleDoc.data().count || 0) : 0;
+      const remaining = ANNOUNCEMENT_DAILY_CAP - sentToday;
+
+      if (remaining <= 0) {
+        res.status(429).json({ error: "Daily cap reached", sentToday, cap: ANNOUNCEMENT_DAILY_CAP });
+        return;
+      }
+
+      const batch = eligible.slice(0, remaining);
+      let sent = 0;
+      let failed = 0;
+      const failures = [];
+
+      for (const item of batch) {
+        const token = crypto.randomBytes(16).toString("hex");
+        try {
+          await db.collection("resources").doc(item.id).update({
+            updateToken: token,
+            updateRequestedAt: FieldValue.serverTimestamp(),
+            updateRequestedBy: adminEmail,
+            updateNudgeCount: 0,
+            lastUpdateNudgeAt: null,
+            updateSubmittedAt: null,
+            pendingUpdate: null,
+          });
+
+          const html = buildResourceUpdateEmailHtml({ resource: item.data, token, isNudge: false });
+          await sendEmailViaResend({
+            from: fromAddress,
+            to: item.email,
+            subject: "Action Required: Update your LDAH Resource Card",
+            html,
+            type: "resource-update-request",
+            recipientName: item.data.name || "",
+          });
+          sent++;
+        } catch (err) {
+          failed++;
+          failures.push({ resourceId: item.id, email: item.email, error: err.message });
+          console.error("sendResourceUpdateRequests failed for " + item.email + ":", err.message);
+        }
+      }
+
+      if (sent > 0) {
+        await throttleRef.set({ count: FieldValue.increment(sent) }, { merge: true });
+      }
+
+      res.status(200).json({
+        success: true,
+        sent,
+        failed,
+        failures,
+        queued: eligible.length - batch.length,
+        sentToday: sentToday + sent,
+        cap: ANNOUNCEMENT_DAILY_CAP,
+        mode,
+      });
+    } catch (err) {
+      console.error("sendResourceUpdateRequests error:", err);
+      res.status(500).json({ error: err.message || String(err) });
+    }
+  });
+
+exports.getResourceForUpdate = functions
+  .runWith({ timeoutSeconds: 20, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "GET") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const token = (req.query && req.query.token) ? String(req.query.token).trim() : "";
+    if (!token) { res.status(400).json({ error: "Missing token" }); return; }
+
+    try {
+      const db = admin.firestore();
+      const snap = await db.collection("resources").where("updateToken", "==", token).limit(1).get();
+      if (snap.empty) { res.status(404).json({ error: "Invalid or expired link" }); return; }
+      const doc = snap.docs[0];
+      const r = doc.data() || {};
+      if (r.updateSubmittedAt) { res.status(410).json({ error: "This link has already been used" }); return; }
+
+      res.status(200).json({
+        resourceId: doc.id,
+        name: r.name || "",
+        type: r.type || "",
+        services: r.services || "",
+        city: r.city || "",
+        island: r.island || "",
+        phone: r.phone || "",
+        email: r.email || "",
+        website: r.website || "",
+      });
+    } catch (err) {
+      console.error("getResourceForUpdate error:", err);
+      res.status(500).json({ error: err.message || String(err) });
+    }
+  });
+
+exports.submitResourceUpdate = functions
+  .runWith({ timeoutSeconds: 20, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const token = (body.token || "").toString().trim();
+    const noChanges = body.noChanges === true;
+    const fields = (body.fields && typeof body.fields === "object") ? body.fields : null;
+
+    if (!token) { res.status(400).json({ error: "Missing token" }); return; }
+    if (!noChanges && !fields) { res.status(400).json({ error: "Provide noChanges or fields" }); return; }
+
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const snap = await db.collection("resources").where("updateToken", "==", token).limit(1).get();
+      if (snap.empty) { res.status(404).json({ error: "Invalid or expired link" }); return; }
+      const doc = snap.docs[0];
+      const r = doc.data() || {};
+      if (r.updateSubmittedAt) { res.status(410).json({ error: "This link has already been used" }); return; }
+
+      if (noChanges) {
+        await doc.ref.update({
+          updateSubmittedAt: FieldValue.serverTimestamp(),
+          lastUpdateAt: FieldValue.serverTimestamp(),
+          updateToken: FieldValue.delete(),
+          pendingUpdate: null,
+        });
+        res.status(200).json({ ok: true, mode: "noChanges" });
+        return;
+      }
+
+      const cleaned = {};
+      RESOURCE_UPDATE_EDITABLE_FIELDS.forEach((k) => {
+        if (Object.prototype.hasOwnProperty.call(fields, k)) {
+          cleaned[k] = String(fields[k] == null ? "" : fields[k]);
+        }
+      });
+      cleaned.submittedAt = FieldValue.serverTimestamp();
+
+      await doc.ref.update({
+        pendingUpdate: cleaned,
+        updateSubmittedAt: FieldValue.serverTimestamp(),
+      });
+
+      res.status(200).json({ ok: true, mode: "pending" });
+    } catch (err) {
+      console.error("submitResourceUpdate error:", err);
+      res.status(500).json({ error: err.message || String(err) });
+    }
+  });
+
+exports.sendResourceUpdateNudges = functions
+  .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: EMAIL_SECRETS })
+  .pubsub.schedule("0 9 * * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const FieldValue = admin.firestore.FieldValue;
+    const fromAddress = lifecycleFromAddress();
+    const now = Date.now();
+
+    // 7-day gap between touches: initial → nudge1 (day 7) → nudge2 (day 14).
+    // 30-day cycle ceiling stops further nudges if the partner never responds.
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    const cycleCutoffMs = now - (RESOURCE_UPDATE_RESEND_DAYS * 24 * 60 * 60 * 1000);
+
+    let sent = 0;
+    let failed = 0;
+    let scanned = 0;
+
+    try {
+      const snap = await db.collection("resources").get();
+      for (const d of snap.docs) {
+        scanned++;
+        const r = d.data() || {};
+        if (r.archived === true) continue;
+        if (!r.updateToken) continue;
+        if (r.updateSubmittedAt) continue;
+        const email = String(r.email || "").trim();
+        if (!email) continue;
+
+        const reqAt = r.updateRequestedAt && r.updateRequestedAt.toMillis ? r.updateRequestedAt.toMillis() : 0;
+        if (!reqAt || reqAt <= cycleCutoffMs) continue;
+
+        const nudgeCount = Number(r.updateNudgeCount || 0);
+        if (nudgeCount >= 2) continue;
+
+        const lastNudgeAt = r.lastUpdateNudgeAt && r.lastUpdateNudgeAt.toMillis ? r.lastUpdateNudgeAt.toMillis() : 0;
+        if (nudgeCount === 0) {
+          if ((now - reqAt) < sevenDaysMs) continue;
+        } else {
+          if (!lastNudgeAt || (now - lastNudgeAt) < sevenDaysMs) continue;
+        }
+
+        try {
+          const html = buildResourceUpdateEmailHtml({ resource: r, token: r.updateToken, isNudge: true });
+          await sendEmailViaResend({
+            from: fromAddress,
+            to: email,
+            subject: "Reminder: Update your LDAH Resource Card",
+            html,
+            type: "resource-update-nudge",
+            recipientName: r.name || "",
+          });
+          await d.ref.update({
+            updateNudgeCount: FieldValue.increment(1),
+            lastUpdateNudgeAt: FieldValue.serverTimestamp(),
+          });
+          sent++;
+        } catch (err) {
+          failed++;
+          console.error("sendResourceUpdateNudges failed for " + email + ":", err.message);
+        }
+      }
+    } catch (err) {
+      console.error("sendResourceUpdateNudges scan failed:", err.message);
+    }
+
+    console.log("sendResourceUpdateNudges: scanned=" + scanned + " sent=" + sent + " failed=" + failed);
+    return null;
   });
