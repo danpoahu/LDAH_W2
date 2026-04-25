@@ -3633,6 +3633,22 @@ function buildLifecycleEmailHtml({ kind, name, eventTitle, oldDates, newDates })
       '</p>';
   }
 
+  // Standard Leilani signature block — mirrors the reminder + recording email
+  // templates so all outbound LDAH event emails close with the same contact info.
+  bodyHtml +=
+    '<p style="margin:24px 0 4px;font-size:15px;color:#333333;line-height:1.5;">If you have any questions, please contact us.</p>' +
+    '<p style="margin:0 0 4px;font-size:15px;color:#333333;line-height:1.5;">With gratitude,</p>' +
+    '<p style="margin:0 0 16px;font-size:15px;color:#333333;line-height:1.5;"><strong>LDAH Team</strong></p>' +
+    '<p style="margin:16px 0 2px;font-size:14px;color:#555555;line-height:1.5;">' +
+      '<strong>Leilani Kailiawa</strong><br>' +
+      'Parent Consultant<br>' +
+      'Leadership in Disabilities &amp; Achievement of Hawai\'i<br>' +
+      '245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>' +
+      'Phone: (808) 536-9684 ext 112<br>' +
+      'Email: <a href="mailto:lkailiawa@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">lkailiawa@ldahawaii.org</a><br>' +
+      '<a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>' +
+    '</p>';
+
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + lifecycleEsc(heading) + '</title></head>' +
     '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
     '<div style="max-width:600px;margin:0 auto;background:#fff">' +
