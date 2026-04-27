@@ -510,6 +510,53 @@ function formatEventDate(dateValue) {
 }
 
 /**
+ * Shared email helpers — escaping, Outlook-safe button, copy/paste URL fallback.
+ */
+function _emailEsc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function _emailBtn(href, label, opts) {
+  const o = opts || {};
+  const bg = o.bg || "#1a3c6e";
+  const fg = o.fg || "#ffffff";
+  const align = o.align === "left" ? "left" : "center";
+  const safeHref = _emailEsc(href);
+  const safeLabel = _emailEsc(label);
+  const wrapAttr = align === "center" ? ' align="center"' : "";
+  const wrapMargin = align === "center" ? "16px auto 4px" : "10px 0 4px";
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0"${wrapAttr} style="margin:${wrapMargin};">
+      <tr><td align="center" bgcolor="${bg}" style="border-radius:6px;background:${bg};">
+        <a href="${safeHref}" target="_blank"
+           style="display:inline-block;padding:12px 28px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;color:${fg};text-decoration:none;border-radius:6px;">
+          ${safeLabel}
+        </a>
+      </td></tr></table>`;
+}
+
+// Renders a "having trouble with the buttons?" footer block listing each
+// link with a short label so recipients can copy and paste the URL.
+// `links` is an array of { label, href }. Returns "" if the array is empty.
+function _emailLinkFooter(links) {
+  const list = (links || []).filter(l => l && l.href);
+  if (!list.length) return "";
+  const intro = list.length > 1
+    ? "If the buttons above don't work in your email app, you can copy and paste these links into your browser:"
+    : "If the button above doesn't work in your email app, you can copy and paste this link into your browser:";
+  const items = list.map(l => `
+    <p style="margin:10px 0 0;font-size:12px;color:#6b7280;line-height:1.5;">
+      <strong style="color:#374151;">${_emailEsc(l.label)}:</strong><br>
+      <a href="${_emailEsc(l.href)}" target="_blank" style="color:#9ca3af;text-decoration:underline;word-break:break-all;">${_emailEsc(l.href)}</a>
+    </p>`).join("");
+  return `<div style="margin:28px 0 8px;padding:14px 18px;background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;">
+      <p style="margin:0;font-size:12px;color:#6b7280;line-height:1.5;">${intro}</p>
+      ${items}
+    </div>`;
+}
+
+/**
  * Build the registration email HTML.
  */
 function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eventId, type }) {
@@ -544,20 +591,9 @@ function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eve
         To complete your registration, please click the button below.
       </p>
 
-      <!-- CTA Button -->
-      <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px auto;">
-        <tr>
-          <td align="center" style="background-color:#1a73e8;border-radius:6px;">
-            <a href="${registrationUrl}"
-               target="_blank"
-               style="display:inline-block;padding:14px 32px;font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;">
-              Complete Registration
-            </a>
-          </td>
-        </tr>
-      </table>
+      ${_emailBtn(registrationUrl, "Complete Registration", { bg: "#1a73e8" })}
 
-      <p style="margin:0 0 16px;font-size:15px;color:#555555;line-height:1.5;">
+      <p style="margin:16px 0;font-size:15px;color:#555555;line-height:1.5;">
         This information helps us serve you better and is required for our
         reporting to ensure continued funding for LDAH programs.
       </p>
@@ -571,6 +607,10 @@ function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eve
       <p style="margin:0 0 0;font-size:15px;color:#555555;line-height:1.5;">
         Reminder: Please register each person who will be attending, including children.
       </p>
+
+      ${_emailLinkFooter([
+        { label: "Complete Registration", href: registrationUrl },
+      ])}
     </td>
   </tr>
 
@@ -1156,25 +1196,17 @@ exports.onContactUpdated = functions
  * Build the no-show re-invite email HTML.
  */
 function buildNoShowEmailHtml({ name, eventTitle, nextEventTitle, nextEventDate, nextEventUrl }) {
+  const ctaUrl = nextEventTitle ? nextEventUrl : "https://ldahawaii.org/events.html";
+  const ctaLabel = nextEventTitle ? "Sign Up" : "View Upcoming Events";
   const nextEventSection = nextEventTitle
     ? `<p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
         We'd love to see you at our next workshop: <strong>${nextEventTitle}</strong> on ${nextEventDate}.
       </p>
-      <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px auto;">
-        <tr>
-          <td align="center" style="background-color:#1a73e8;border-radius:6px;">
-            <a href="${nextEventUrl}"
-               target="_blank"
-               style="display:inline-block;padding:14px 32px;font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;">
-              Sign Up
-            </a>
-          </td>
-        </tr>
-      </table>`
+      ${_emailBtn(ctaUrl, ctaLabel, { bg: "#1a73e8" })}`
     : `<p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
-        Check out our upcoming events at
-        <a href="https://ldahawaii.org/events.html" style="color:#1a73e8;text-decoration:underline;">ldahawaii.org/events.html</a>
-      </p>`;
+        Check out our upcoming events:
+      </p>
+      ${_emailBtn(ctaUrl, ctaLabel, { bg: "#1a73e8" })}`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -1205,6 +1237,8 @@ function buildNoShowEmailHtml({ name, eventTitle, nextEventTitle, nextEventDate,
       <p style="margin:0 0 0;font-size:15px;color:#555555;line-height:1.5;">
         We look forward to seeing you at a future LDAH event. Mahalo!
       </p>
+
+      ${_emailLinkFooter([{ label: ctaLabel, href: ctaUrl }])}
     </td>
   </tr>
 
@@ -1396,23 +1430,14 @@ function _buildFeedbackEmailHtmlInner({ name, eventTitle, feedbackUrl, intro }) 
         It only takes a minute -- please share your feedback by clicking the button below.
       </p>
 
-      <!-- CTA Button -->
-      <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px auto;">
-        <tr>
-          <td align="center" style="background-color:#004E7C;border-radius:6px;">
-            <a href="${feedbackUrl}"
-               target="_blank"
-               style="display:inline-block;padding:14px 32px;font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;">
-              Share Your Feedback
-            </a>
-          </td>
-        </tr>
-      </table>
+      ${_emailBtn(feedbackUrl, "Share Your Feedback", { bg: "#004E7C" })}
 
-      <p style="margin:0 0 0;font-size:15px;color:#555555;line-height:1.5;">
+      <p style="margin:16px 0 0;font-size:15px;color:#555555;line-height:1.5;">
         Your feedback helps us improve our services and better support families
         and children with disabilities throughout Hawai'i.
       </p>
+
+      ${_emailLinkFooter([{ label: "Share Your Feedback", href: feedbackUrl }])}
     </td>
   </tr>
 
@@ -2753,29 +2778,30 @@ function buildEventReminderEmailHtml({
     </p>`;
 
   const zoomBlock = virt && zoomUrl
-    ? `<div style="margin:16px 0;padding:16px;background-color:#f4f8fc;border-left:4px solid #1a3c6e;border-radius:4px;">
-         <p style="margin:0 0 6px;font-size:15px;color:#1a3c6e;font-weight:bold;">Join Zoom Meeting</p>
-         <p style="margin:0 0 10px;font-size:15px;color:#333333;word-break:break-all;">
-           <a href="${zoomUrl}" target="_blank" style="color:#1a73e8;text-decoration:none;">${zoomUrl}</a>
-         </p>
-         ${meetingId ? `<p style="margin:0;font-size:14px;color:#333333;">Meeting ID: <strong>${meetingId}</strong></p>` : ""}
+    ? `<div style="margin:16px 0;padding:16px 18px;background-color:#f4f8fc;border-left:4px solid #1a3c6e;border-radius:4px;">
+         <p style="margin:0 0 4px;font-size:15px;color:#1a3c6e;font-weight:bold;">Join Zoom Meeting</p>
+         ${_emailBtn(zoomUrl, "Open Zoom", { bg: "#1a3c6e", align: "left" })}
+         ${meetingId ? `<p style="margin:8px 0 0;font-size:14px;color:#333333;">Meeting ID: <strong>${meetingId}</strong></p>` : ""}
          ${passcode ? `<p style="margin:4px 0 0;font-size:14px;color:#333333;">Passcode: <strong>${passcode}</strong></p>` : ""}
        </div>`
     : "";
 
   const locationBlock = (!virt && locLbl)
-    ? `<div style="margin:16px 0;padding:16px;background-color:#f4f8fc;border-left:4px solid #1a3c6e;border-radius:4px;">
+    ? `<div style="margin:16px 0;padding:16px 18px;background-color:#f4f8fc;border-left:4px solid #1a3c6e;border-radius:4px;">
          <p style="margin:0 0 6px;font-size:15px;color:#1a3c6e;font-weight:bold;">In-Person Location</p>
          <p style="margin:0;font-size:15px;color:#333333;">${locLbl}</p>
        </div>`
     : "";
 
-  const surveyBlock = `<div style="margin:16px 0;padding:16px;background-color:#fff8e8;border-left:4px solid #c79400;border-radius:4px;">
-      <p style="margin:0 0 6px;font-size:15px;color:#8a6600;font-weight:bold;">Evaluation Survey Link</p>
-      <p style="margin:0;font-size:15px;color:#333333;word-break:break-all;">
-        <a href="${surveyUrl}" target="_blank" style="color:#1a73e8;text-decoration:none;">${surveyUrl}</a>
-      </p>
+  const surveyBlock = `<div style="margin:16px 0;padding:16px 18px;background-color:#fff8e8;border-left:4px solid #c79400;border-radius:4px;">
+      <p style="margin:0 0 4px;font-size:15px;color:#8a6600;font-weight:bold;">Evaluation Survey Link</p>
+      ${_emailBtn(surveyUrl, "Open Evaluation Survey", { bg: "#c79400", align: "left" })}
     </div>`;
+
+  const linkFooter = _emailLinkFooter([
+    virt && zoomUrl ? { label: "Zoom Meeting", href: zoomUrl } : null,
+    { label: "Evaluation Survey", href: surveyUrl },
+  ]);
 
   const zoomTroubleLine = virt
     ? `<p style="margin:0 0 16px;font-size:15px;color:#555555;line-height:1.5;">
@@ -2837,6 +2863,8 @@ function buildEventReminderEmailHtml({
         Phone: (808) 536-9684 ext 112<br>
         <a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>
       </p>
+
+      ${linkFooter}
     </td>
   </tr>
 
@@ -3369,7 +3397,9 @@ function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl, eventId })
     (descTrim ? '<p style="margin:0 0 24px;color:#334155;line-height:1.6">' + esc(descTrim) + esc(descMore) + '</p>' : '') +
     '<p style="text-align:center;margin:32px 0">' +
     '<a href="' + signupUrl + '" style="background:linear-gradient(135deg,#0891B2,#0E7490);color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:16px">Sign Up</a>' +
-    '</p></div>' +
+    '</p>' +
+    _emailLinkFooter([{ label: "Sign Up for " + title, href: signupUrl }]) +
+    '</div>' +
     '<div style="padding:16px 24px;border-top:1px solid #e5e7eb;background:#f9fafb;font-size:12px;color:#94a3b8;text-align:center">' +
     '<p style="margin:0 0 8px">Leadership in Disabilities and Achievement of Hawai\'i</p>' +
     '<p style="margin:0">You received this because you are in our contact list. <a href="' + unsubscribeUrl + '" style="color:#0891B2">Unsubscribe</a> from future announcements.</p>' +
@@ -4136,12 +4166,6 @@ exports.onRecurringEventUpdated = functions
 
 const RECORDING_RETENTION_DAYS = 15;
 
-function _recEsc(s) {
-  return String(s == null ? "" : s)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
-
 function buildRecordingEmailHtml({
   bodyText, eventTitle, recordingUrl, passcode, slidesDownloadUrl, slidesFileName,
 }) {
@@ -4151,38 +4175,32 @@ function buildRecordingEmailHtml({
     .split(/\n\s*\n/)
     .map(p => p.trim())
     .filter(Boolean)
-    .map(p => `<p style="margin:0 0 14px;font-size:16px;color:#333333;line-height:1.5;">${_recEsc(p).replace(/\n/g, "<br>")}</p>`)
+    .map(p => `<p style="margin:0 0 14px;font-size:16px;color:#333333;line-height:1.5;">${_emailEsc(p).replace(/\n/g, "<br>")}</p>`)
     .join("");
-
-  // Bulletproof button HTML (Outlook-safe table-wrapped anchor).
-  function _recBtn(href, label, bg, fg) {
-    return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:10px 0;">
-      <tr><td align="center" bgcolor="${bg}" style="border-radius:6px;background:${bg};">
-        <a href="${_recEsc(href)}" target="_blank"
-           style="display:inline-block;padding:12px 26px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;color:${fg};text-decoration:none;border-radius:6px;">
-          ${_recEsc(label)}
-        </a>
-      </td></tr></table>`;
-  }
 
   const zoomBlock = recordingUrl
     ? `<div style="margin:16px 0;padding:16px 18px;background-color:#f4f8fc;border-left:4px solid #1a3c6e;border-radius:4px;">
-         <p style="margin:0 0 8px;font-size:15px;color:#1a3c6e;font-weight:bold;">Zoom Recording</p>
-         ${_recBtn(recordingUrl, "Watch Recording", "#1a3c6e", "#ffffff")}
-         ${passcode ? `<p style="margin:4px 0 4px;font-size:14px;color:#333333;">Passcode: <span style="font-family:Courier,monospace;background:#ffffff;border:1px solid #d1d5db;padding:2px 8px;border-radius:4px;font-weight:700;">${_recEsc(passcode)}</span></p>` : ""}
+         <p style="margin:0 0 4px;font-size:15px;color:#1a3c6e;font-weight:bold;">Zoom Recording</p>
+         ${_emailBtn(recordingUrl, "Watch Recording", { bg: "#1a3c6e", align: "left" })}
+         ${passcode ? `<p style="margin:8px 0 4px;font-size:14px;color:#333333;">Passcode: <span style="font-family:Courier,monospace;background:#ffffff;border:1px solid #d1d5db;padding:2px 8px;border-radius:4px;font-weight:700;">${_emailEsc(passcode)}</span></p>` : ""}
          <p style="margin:6px 0 0;font-size:12px;color:#8a6600;font-style:italic;">Available for two weeks.</p>
        </div>`
     : "";
 
   const slidesBlock = slidesDownloadUrl
     ? `<div style="margin:16px 0;padding:16px 18px;background-color:#fff8e8;border-left:4px solid #c79400;border-radius:4px;">
-         <p style="margin:0 0 8px;font-size:15px;color:#8a6600;font-weight:bold;">Slides (PDF)</p>
+         <p style="margin:0 0 4px;font-size:15px;color:#8a6600;font-weight:bold;">Slides (PDF)</p>
          <p style="margin:0 0 8px;font-size:14px;color:#333333;line-height:1.5;">The slides are attached to this email. You can also download them below:</p>
-         ${_recBtn(slidesDownloadUrl, "Download Slides", "#c79400", "#ffffff")}
-         ${slidesFileName ? `<p style="margin:4px 0 0;font-size:12px;color:#6b7280;">File: ${_recEsc(slidesFileName)}</p>` : ""}
+         ${_emailBtn(slidesDownloadUrl, "Download Slides", { bg: "#c79400", align: "left" })}
+         ${slidesFileName ? `<p style="margin:8px 0 0;font-size:12px;color:#6b7280;">File: ${_emailEsc(slidesFileName)}</p>` : ""}
          <p style="margin:6px 0 0;font-size:12px;color:#8a6600;font-style:italic;">Available for two weeks.</p>
        </div>`
     : "";
+
+  const linkFooter = _emailLinkFooter([
+    recordingUrl ? { label: "Watch Recording", href: recordingUrl } : null,
+    slidesDownloadUrl ? { label: "Download Slides (PDF)", href: slidesDownloadUrl } : null,
+  ]);
 
   const confidentiality = `<p style="margin:18px 0 0;font-size:11px;color:#999999;line-height:1.5;border-top:1px solid #eeeeee;padding-top:12px;">
       <strong>CONFIDENTIALITY STATEMENT</strong><br>
@@ -4213,6 +4231,7 @@ function buildRecordingEmailHtml({
       Phone: (808) 536-9684 ext 112<br>
       <a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>
     </p>
+    ${linkFooter}
     ${confidentiality}
   </td></tr>
   <tr><td style="background-color:#f0f0f0;padding:24px 32px;text-align:center;border-top:1px solid #dddddd;">
