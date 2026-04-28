@@ -648,9 +648,10 @@ function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eve
  * reminder emails are coming. Session details, Zoom/location, and any
  * prep info live in the 5-day and 1-day reminder emails.
  */
-function buildConfirmationEmailHtml({ name, eventTitle }) {
+function buildConfirmationEmailHtml({ name, eventTitle, datesPhrase }) {
   const greetingName = _emailEsc(name || "there");
   const safeTitle = _emailEsc(eventTitle || "your LDAH session");
+  const datesSuffix = datesPhrase ? _emailEsc(datesPhrase) : "";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -671,11 +672,11 @@ function buildConfirmationEmailHtml({ name, eventTitle }) {
       <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha ${greetingName},</p>
 
       <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
-        You're all set for <strong>${safeTitle}</strong>. Mahalo for completing your registration!
+        You're all set for <strong>${safeTitle}</strong>${datesSuffix}. Mahalo for completing your registration!
       </p>
 
       <p style="margin:0;font-size:16px;color:#333333;line-height:1.5;">
-        We'll email you a reminder <strong>5 days before</strong> your session and again <strong>the day before</strong>, with everything you need.
+        We'll email you a reminder <strong>5 days before</strong> your session and again <strong>the day before</strong>, with your access into Zoom and everything else you need to succeed.
       </p>
     </td>
   </tr>
@@ -699,6 +700,34 @@ function buildConfirmationEmailHtml({ name, eventTitle }) {
 </table>
 </body>
 </html>`;
+}
+
+/**
+ * Build the trailing ", on Month Dayth [and Y / , Y, and Z]" phrase for the
+ * confirmation email. Takes an array of YYYY-MM-DD keys (already deduped
+ * and HST-correct from extractSignupSessionKeys / toHstDateKey). Returns
+ * "" if none, so the calling template renders cleanly without the phrase.
+ */
+function formatDatesPhrase(sessionKeys) {
+  if (!Array.isArray(sessionKeys) || sessionKeys.length === 0) return "";
+  // Sort chronologically and parse as local date components (avoid UTC-midnight bug)
+  const sorted = [...sessionKeys].sort();
+  const labels = sorted.map((iso) => {
+    const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return null;
+    const dt = new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+    if (isNaN(dt.getTime())) return null;
+    const month = dt.toLocaleDateString("en-US", { month: "long" });
+    const day = dt.getDate();
+    const ord = (day >= 11 && day <= 13)
+      ? "th"
+      : ({ 1: "st", 2: "nd", 3: "rd" }[day % 10] || "th");
+    return `${month} ${day}${ord}`;
+  }).filter(Boolean);
+  if (labels.length === 0) return "";
+  if (labels.length === 1) return `, on ${labels[0]}`;
+  if (labels.length === 2) return `, on ${labels[0]} and ${labels[1]}`;
+  return `, on ${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
 }
 
 /**
@@ -761,9 +790,11 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
 
     const recipientName = after.name || "there";
     const eventTitle = event.title || "your LDAH session";
+    const datesPhrase = formatDatesPhrase(sessionKeys);
     const html = buildConfirmationEmailHtml({
       name: recipientName,
       eventTitle,
+      datesPhrase,
     });
 
     const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
