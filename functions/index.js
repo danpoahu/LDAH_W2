@@ -644,24 +644,13 @@ function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eve
  * has fully completed the registration form (status flips to "confirmed")
  * AND no reminder email has already gone out for any of their session dates.
  *
- * The email recaps what the family signed up for, plus a short note that
- * 5-day and 1-day reminders will arrive automatically with the Zoom link
- * or location and any prep details.
+ * Intentionally minimal: just confirms they're handled and tells them
+ * reminder emails are coming. Session details, Zoom/location, and any
+ * prep info live in the 5-day and 1-day reminder emails.
  */
-function buildConfirmationEmailHtml({ name, eventTitle, sessionLines, isVirtual }) {
+function buildConfirmationEmailHtml({ name, eventTitle }) {
   const greetingName = _emailEsc(name || "there");
   const safeTitle = _emailEsc(eventTitle || "your LDAH session");
-  const sessionsBlock = (sessionLines && sessionLines.length)
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:8px 0 0;border-collapse:collapse;">
-        ${sessionLines.map(line => `
-          <tr><td style="padding:8px 12px;background:#f0f9ff;border-left:3px solid #0891B2;border-radius:0 6px 6px 0;font-size:14px;color:#1e293b;line-height:1.5;">${_emailEsc(line)}</td></tr>
-          <tr><td style="height:6px;"></td></tr>
-        `).join("")}
-      </table>`
-    : "";
-  const whereLine = isVirtual
-    ? "the Zoom link, meeting ID, and password"
-    : "the location and address";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -685,18 +674,8 @@ function buildConfirmationEmailHtml({ name, eventTitle, sessionLines, isVirtual 
         You're all set for <strong>${safeTitle}</strong>. Mahalo for completing your registration!
       </p>
 
-      <h3 style="margin:24px 0 8px;font-size:15px;color:#1a3c6e;font-weight:700;">Your session${sessionLines && sessionLines.length > 1 ? "s" : ""}</h3>
-      ${sessionsBlock}
-
-      <div style="margin:28px 0 0;padding:16px 18px;background-color:rgba(8,145,178,0.08);border-left:4px solid #0891B2;border-radius:0 6px 6px 0;">
-        <p style="margin:0 0 6px;font-size:14px;color:#004E7C;font-weight:700;">Watch your email for reminders</p>
-        <p style="margin:0;font-size:13.5px;color:#1e293b;line-height:1.5;">
-          We'll send you a reminder <strong>5 days before</strong> your session and again <strong>the day before</strong>, with ${whereLine} and anything else you may need.
-        </p>
-      </div>
-
-      <p style="margin:24px 0 0;font-size:14px;color:#555555;line-height:1.5;">
-        If anything changes between now and then — you need to cancel, switch to a different date, or add another family member — just reply to this email and we'll take care of it.
+      <p style="margin:0;font-size:16px;color:#333333;line-height:1.5;">
+        We'll email you a reminder <strong>5 days before</strong> your session and again <strong>the day before</strong>, with everything you need.
       </p>
     </td>
   </tr>
@@ -709,11 +688,8 @@ function buildConfirmationEmailHtml({ name, eventTitle, sessionLines, isVirtual 
       <p style="margin:0 0 4px;font-size:12px;color:#999999;">
         245 N. Kukui St., Suite 205, Honolulu, HI 96817
       </p>
-      <p style="margin:0 0 4px;font-size:12px;color:#999999;">
-        Phone: (808) 536-2280
-      </p>
       <p style="margin:0;font-size:12px;color:#999999;">
-        Email: <a href="mailto:registration@ldahawaii.org" style="color:#999999;">registration@ldahawaii.org</a>
+        Phone: (808) 536-2280
       </p>
     </td>
   </tr>
@@ -783,30 +759,11 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
       return;
     }
 
-    // Build a friendly per-session line. For recurring events with selected
-    // session strings ("YYYY-MM-DD|location|time-range"), show that whole
-    // string. For one-time events with selectedDates strings, show those.
-    const sessionLines = [];
-    const rawSel = Array.isArray(after.selectedSessions) && after.selectedSessions.length
-      ? after.selectedSessions
-      : (Array.isArray(after.selectedDates) ? after.selectedDates : []);
-    if (rawSel.length) {
-      rawSel.forEach(s => sessionLines.push(String(s).replace(/\|/g, " · ")));
-    } else if (event.eventDate || event.date) {
-      sessionLines.push(formatEventDate(event.eventDate || event.date));
-    }
-
-    // Crude virtual-vs-in-person detection — controls which "where" copy we use
-    const blob = JSON.stringify(rawSel).toLowerCase() + " " + (event.location || "").toLowerCase();
-    const isVirtual = /zoom|virtual|online/.test(blob);
-
     const recipientName = after.name || "there";
     const eventTitle = event.title || "your LDAH session";
     const html = buildConfirmationEmailHtml({
       name: recipientName,
       eventTitle,
-      sessionLines,
-      isVirtual,
     });
 
     const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
