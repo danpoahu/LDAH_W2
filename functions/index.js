@@ -648,10 +648,19 @@ function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eve
  * reminder emails are coming. Session details, Zoom/location, and any
  * prep info live in the 5-day and 1-day reminder emails.
  */
-function buildConfirmationEmailHtml({ name, eventTitle, datesPhrase }) {
+function buildConfirmationEmailHtml({ name, eventTitle, datesPhrase, modality }) {
   const greetingName = _emailEsc(name || "there");
   const safeTitle = _emailEsc(eventTitle || "your LDAH session");
   const datesSuffix = datesPhrase ? _emailEsc(datesPhrase) : "";
+  // Modality-aware "what's in the reminder" copy
+  let reminderTail;
+  if (modality === "in-person") {
+    reminderTail = "with the location details and everything else you need to succeed";
+  } else if (modality === "mixed") {
+    reminderTail = "with the Zoom access or location details for each session and everything else you need to succeed";
+  } else {
+    reminderTail = "with your access into Zoom and everything else you need to succeed";
+  }
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -676,7 +685,7 @@ function buildConfirmationEmailHtml({ name, eventTitle, datesPhrase }) {
       </p>
 
       <p style="margin:0;font-size:16px;color:#333333;line-height:1.5;">
-        We'll email you a reminder <strong>5 days before</strong> your session and again <strong>the day before</strong>, with your access into Zoom and everything else you need to succeed.
+        We'll email you a reminder <strong>5 days before</strong> your session and again <strong>the day before</strong>, ${reminderTail}.
       </p>
     </td>
   </tr>
@@ -700,6 +709,39 @@ function buildConfirmationEmailHtml({ name, eventTitle, datesPhrase }) {
 </table>
 </body>
 </html>`;
+}
+
+/**
+ * Determine whether a signup is virtual, in-person, or mixed so the
+ * confirmation email can promise the right "what's in the reminder" detail.
+ *
+ * For recurring events, the signup's selectedSessions strings carry the
+ * per-session location ("YYYY-MM-DD|location|time-range"), so we read each
+ * one. For one-time events, we fall back to the parent event's location field.
+ *
+ * Returns "virtual", "in-person", or "mixed". Defaults to "virtual" when we
+ * can't tell, since most LDAH sessions run on Zoom.
+ */
+function detectSignupModality(signup, event) {
+  const isVirtualString = (s) => /\b(zoom|virtual|online|webinar)\b/i.test(s || "");
+
+  const sel = (signup && Array.isArray(signup.selectedSessions))
+    ? signup.selectedSessions : [];
+  if (sel.length > 0) {
+    let hasVirtual = false;
+    let hasInPerson = false;
+    sel.forEach((s) => {
+      const loc = (String(s).split("|")[1] || "").trim();
+      if (!loc) return;
+      if (isVirtualString(loc)) hasVirtual = true;
+      else hasInPerson = true;
+    });
+    if (hasVirtual && hasInPerson) return "mixed";
+    if (hasVirtual) return "virtual";
+    if (hasInPerson) return "in-person";
+  }
+  // One-time events: lean on event.location
+  return isVirtualString(event && event.location) ? "virtual" : "in-person";
 }
 
 /**
@@ -791,10 +833,12 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
     const recipientName = after.name || "there";
     const eventTitle = event.title || "your LDAH session";
     const datesPhrase = formatDatesPhrase(sessionKeys);
+    const modality = detectSignupModality(after, event);
     const html = buildConfirmationEmailHtml({
       name: recipientName,
       eventTitle,
       datesPhrase,
+      modality,
     });
 
     const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
