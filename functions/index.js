@@ -640,6 +640,196 @@ function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eve
 }
 
 /**
+ * Build the registration-confirmed email HTML — sent once after the family
+ * has fully completed the registration form (status flips to "confirmed")
+ * AND no reminder email has already gone out for any of their session dates.
+ *
+ * The email recaps what the family signed up for, plus a short note that
+ * 5-day and 1-day reminders will arrive automatically with the Zoom link
+ * or location and any prep details.
+ */
+function buildConfirmationEmailHtml({ name, eventTitle, sessionLines, isVirtual }) {
+  const greetingName = _emailEsc(name || "there");
+  const safeTitle = _emailEsc(eventTitle || "your LDAH session");
+  const sessionsBlock = (sessionLines && sessionLines.length)
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:8px 0 0;border-collapse:collapse;">
+        ${sessionLines.map(line => `
+          <tr><td style="padding:8px 12px;background:#f0f9ff;border-left:3px solid #0891B2;border-radius:0 6px 6px 0;font-size:14px;color:#1e293b;line-height:1.5;">${_emailEsc(line)}</td></tr>
+          <tr><td style="height:6px;"></td></tr>
+        `).join("")}
+      </table>`
+    : "";
+  const whereLine = isVirtual
+    ? "the Zoom link, meeting ID, and password"
+    : "the location and address";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;">
+<tr><td align="center" style="padding:24px 16px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;max-width:600px;width:100%;">
+
+  <tr>
+    <td style="background-color:#ffffff;padding:28px 32px 20px;text-align:center;border-bottom:3px solid #1a3c6e;">
+      <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="150" style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;">
+    </td>
+  </tr>
+
+  <tr>
+    <td style="padding:32px;">
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha ${greetingName},</p>
+
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
+        You're all set for <strong>${safeTitle}</strong>. Mahalo for completing your registration!
+      </p>
+
+      <h3 style="margin:24px 0 8px;font-size:15px;color:#1a3c6e;font-weight:700;">Your session${sessionLines && sessionLines.length > 1 ? "s" : ""}</h3>
+      ${sessionsBlock}
+
+      <div style="margin:28px 0 0;padding:16px 18px;background-color:rgba(8,145,178,0.08);border-left:4px solid #0891B2;border-radius:0 6px 6px 0;">
+        <p style="margin:0 0 6px;font-size:14px;color:#004E7C;font-weight:700;">Watch your email for reminders</p>
+        <p style="margin:0;font-size:13.5px;color:#1e293b;line-height:1.5;">
+          We'll send you a reminder <strong>5 days before</strong> your session and again <strong>the day before</strong>, with ${whereLine} and anything else you may need.
+        </p>
+      </div>
+
+      <p style="margin:24px 0 0;font-size:14px;color:#555555;line-height:1.5;">
+        If anything changes between now and then — you need to cancel, switch to a different date, or add another family member — just reply to this email and we'll take care of it.
+      </p>
+    </td>
+  </tr>
+
+  <tr>
+    <td style="background-color:#f0f0f0;padding:24px 32px;text-align:center;border-top:1px solid #dddddd;">
+      <p style="margin:0 0 4px;font-size:13px;color:#777777;font-weight:bold;">
+        Leadership in Disabilities &amp; Achievement of Hawai'i
+      </p>
+      <p style="margin:0 0 4px;font-size:12px;color:#999999;">
+        245 N. Kukui St., Suite 205, Honolulu, HI 96817
+      </p>
+      <p style="margin:0 0 4px;font-size:12px;color:#999999;">
+        Phone: (808) 536-2280
+      </p>
+      <p style="margin:0;font-size:12px;color:#999999;">
+        Email: <a href="mailto:registration@ldahawaii.org" style="color:#999999;">registration@ldahawaii.org</a>
+      </p>
+    </td>
+  </tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
+/**
+ * After a signup transitions to "confirmed", send a registration-confirmed
+ * email recapping what they signed up for and announcing the upcoming
+ * 5-day / 1-day reminders. Skips if a reminder has already gone out
+ * (catch-up reminder fired) or if any session is within the 5-day window
+ * (catch-up reminder will fire shortly).
+ */
+async function maybeSendRegistrationConfirmation(change, context, collection) {
+  try {
+    const before = change.before.data() || {};
+    const after = change.after.data() || {};
+
+    // Fire on the same transitions as the catch-up reminder
+    const statusJustConfirmed = before.status !== "confirmed" && after.status === "confirmed";
+    const registrationJustAdded = !before.registration && !!after.registration;
+    if (!statusJustConfirmed && !registrationJustAdded) return;
+    if (after.status !== "confirmed") return;
+    if (after.archived === true) return;
+    if (!after.email) return;
+
+    // Idempotence — never send twice for the same signup
+    if (after.confirmationEmailSentAt) return;
+
+    // Skip if a reminder has already been sent for any session
+    const reminders = (after.sessionReminders && typeof after.sessionReminders === "object")
+      ? after.sessionReminders : {};
+    const anyReminderSent = Object.values(reminders).some(r => r && (r.fiveDay || r.oneDay));
+    if (anyReminderSent) return;
+
+    const eventId = context.params.eventId;
+    const signupId = context.params.signupId;
+    const db = admin.firestore();
+
+    // Skip if any session is within the 5-day catch-up window — the catch-up
+    // reminder has all the details and is the more useful email at that point.
+    const todayKey = toHstDateKey(new Date());
+    const windowKeys = {};
+    for (let d = 0; d <= 5; d++) {
+      const k = addDaysHst(todayKey, d);
+      if (k) windowKeys[k] = true;
+    }
+    let sessionKeys = extractSignupSessionKeys(after);
+
+    // Load event for title + fallback date + virtual/in-person flag
+    const eventSnap = await db.collection(collection).doc(eventId).get();
+    if (!eventSnap.exists) return;
+    const event = eventSnap.data() || {};
+
+    if (sessionKeys.length === 0) {
+      const k = toHstDateKey(event.eventDate || event.date);
+      if (k) sessionKeys = [k];
+    }
+    const withinWindow = sessionKeys.some(k => !!windowKeys[k]);
+    if (withinWindow) {
+      console.log(`Confirmation skipped (within 5d window) for ${collection}/${eventId}/${signupId}`);
+      return;
+    }
+
+    // Build a friendly per-session line. For recurring events with selected
+    // session strings ("YYYY-MM-DD|location|time-range"), show that whole
+    // string. For one-time events with selectedDates strings, show those.
+    const sessionLines = [];
+    const rawSel = Array.isArray(after.selectedSessions) && after.selectedSessions.length
+      ? after.selectedSessions
+      : (Array.isArray(after.selectedDates) ? after.selectedDates : []);
+    if (rawSel.length) {
+      rawSel.forEach(s => sessionLines.push(String(s).replace(/\|/g, " · ")));
+    } else if (event.eventDate || event.date) {
+      sessionLines.push(formatEventDate(event.eventDate || event.date));
+    }
+
+    // Crude virtual-vs-in-person detection — controls which "where" copy we use
+    const blob = JSON.stringify(rawSel).toLowerCase() + " " + (event.location || "").toLowerCase();
+    const isVirtual = /zoom|virtual|online/.test(blob);
+
+    const recipientName = after.name || "there";
+    const eventTitle = event.title || "your LDAH session";
+    const html = buildConfirmationEmailHtml({
+      name: recipientName,
+      eventTitle,
+      sessionLines,
+      isVirtual,
+    });
+
+    const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+    await sendEmailViaResend({
+      from: `LDAH <${fromAddress}>`,
+      to: after.email,
+      subject: `Confirmed -- ${eventTitle}`,
+      html,
+      type: "confirmation",
+      relatedEventId: eventId,
+      relatedSignupId: signupId,
+      recipientName,
+    });
+    await change.after.ref.set({
+      confirmationEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    console.log(`Confirmation email sent to ${after.email} for ${collection}/${eventId}/${signupId}`);
+  } catch (err) {
+    console.error(`maybeSendRegistrationConfirmation error (${collection}/${context.params.eventId}/${context.params.signupId}):`, err.message);
+  }
+}
+
+/**
  * Core handler shared by both event-signup and recurringEvent-signup triggers.
  */
 async function handleSignupCreated(snap, context, collectionName) {
@@ -1103,6 +1293,7 @@ exports.onEventSignupUpdated = functions
     await Promise.allSettled([
       handleSignupUpdated(change, context),
       maybeSendCatchupReminder(change, context, "events"),
+      maybeSendRegistrationConfirmation(change, context, "events"),
       maybeSendFeedbackEmailOnAttendance(change, context, "events"),
       handleSignupLifecycleEmails(change, context, "events"),
     ]);
@@ -1116,6 +1307,7 @@ exports.onRecurringEventSignupUpdated = functions
     await Promise.allSettled([
       handleSignupUpdated(change, context),
       maybeSendCatchupReminder(change, context, "recurringEvents"),
+      maybeSendRegistrationConfirmation(change, context, "recurringEvents"),
       maybeSendFeedbackEmailOnAttendance(change, context, "recurringEvents"),
       handleSignupLifecycleEmails(change, context, "recurringEvents"),
     ]);
