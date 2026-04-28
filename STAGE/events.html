@@ -3309,14 +3309,22 @@
                       const isFull = (sessionConfirmedCounts[occ.key] || 0) >= RECURRING_SESSION_CAPACITY;
                       return `
                       <label style="display:flex;align-items:flex-start;gap:8px;${isFull ? 'cursor:not-allowed;opacity:0.6;' : 'cursor:pointer;'}padding:10px 12px;background:${isFull ? '#fee2e2' : '#f0f9ff'};border-radius:8px;border:1px solid ${isFull ? '#fecaca' : '#e0f2fe'};">
-                        <input type="checkbox" class="signup-date-checkbox" value="${occ.key}" ${isFull ? 'disabled' : ''} style="width:18px;height:18px;${isFull ? 'cursor:not-allowed;' : 'cursor:pointer;'}flex-shrink:0;margin-top:2px;">
+                        <input type="checkbox" class="signup-date-checkbox" value="${occ.key}" ${isFull ? 'disabled' : ''} onchange="updateMultiSessionPanel()" style="width:18px;height:18px;${isFull ? 'cursor:not-allowed;' : 'cursor:pointer;'}flex-shrink:0;margin-top:2px;">
                         <span style="font-size:14px;color:${isFull ? '#991b1b' : '#374151'};line-height:1.5;">${occ.display}${isFull ? ' <span style="background:#DC2626;color:white;padding:1px 8px;border-radius:50px;font-size:11px;font-weight:700;margin-left:6px;">FULL</span>' : ''}</span>
                       </label>`;
                     }).join('') :
                       '<p style="color:#666;font-size:14px;">No sessions available in the next 30 days.</p>'
                     }
                   </div>
-                  <p id="dateError" style="color:#DC2626;font-size:12px;margin-top:4px;display:none;">Please select at least one session</p>
+                  <div id="multiSessionPanel" style="display:none;margin-top:14px;padding:14px 16px;background:#FEF3C7;border:1px solid #FBBF24;border-radius:12px;">
+                    <p style="margin:0 0 8px;font-size:13px;color:#78350F;font-weight:700;line-height:1.4;">
+                      Heads up &mdash; these sessions all cover the same content.
+                    </p>
+                    <p style="margin:0 0 10px;font-size:12.5px;color:#92400E;line-height:1.45;">
+                      You've picked <strong id="multiSessionCount">0</strong> sessions. If you're signing up for more than one (for example, multiple children), please tell us why so we can plan accordingly.
+                    </p>
+                    <textarea id="multipleSessionsReason" placeholder="e.g., Signing up two children for different days" rows="3" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;"></textarea>
+                  </div>
                 </div>
                 <!-- Student Information -->
                 <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:18px;margin-bottom:24px;">
@@ -3400,6 +3408,17 @@
       document.body.insertAdjacentHTML('beforeend', modalHTML);
     }
 
+    // Show/hide the multi-session reason panel inside the recurring signup form.
+    // Wired to the onchange of every .signup-date-checkbox via the template above.
+    window.updateMultiSessionPanel = function() {
+      const panel = document.getElementById('multiSessionPanel');
+      const countEl = document.getElementById('multiSessionCount');
+      if (!panel) return;
+      const checked = document.querySelectorAll('.signup-date-checkbox:checked').length;
+      if (countEl) countEl.textContent = checked;
+      panel.style.display = checked > 1 ? 'block' : 'none';
+    };
+
     async function submitRecurringSignup(event, programId) {
       event.preventDefault();
       const program = window._recurringPrograms && window._recurringPrograms[programId];
@@ -3437,10 +3456,19 @@
       formData.selectedSessions = Array.from(checked).map(cb => cb.value);
 
       if (formData.selectedSessions.length === 0) {
-        const dateErr = document.getElementById('dateError');
-        if (dateErr) dateErr.style.display = 'block';
+        alert('Please pick the session you will attend.');
         return;
       }
+      // Multi-session reason gate — same content each week, anything beyond
+      // one session needs a written reason (e.g. signing up multiple kids).
+      const reasonEl = document.getElementById('multipleSessionsReason');
+      const reason = reasonEl ? reasonEl.value.trim() : '';
+      if (formData.selectedSessions.length > 1 && reason.length < 10) {
+        alert('Each session covers the same content. Please tell us briefly why you need more than one (for example, signing up multiple children).');
+        if (reasonEl) reasonEl.focus();
+        return;
+      }
+      formData.multipleSessionsReason = reason;
 
       const customAnswerEls = document.querySelectorAll('.custom-answer');
       formData.customAnswers = Array.from(customAnswerEls).map(ta => ta.value);
