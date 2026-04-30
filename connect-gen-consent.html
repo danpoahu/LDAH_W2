@@ -550,9 +550,12 @@
         }
 
         // Live-update the consent text with the typed name as the user signs.
+        // When the input is cleared, fall back to the registered name on file
+        // (loaded from the GET endpoint) or the generic placeholder.
+        let registeredNameFallback = '[your name]';
         typedNameEl.addEventListener('input', function() {
             const v = typedNameEl.value.trim();
-            consentNameEl.textContent = v || '[your name]';
+            consentNameEl.textContent = v || registeredNameFallback;
         });
 
         async function loadConsentContext() {
@@ -575,7 +578,14 @@
                 summaryEl.innerHTML = '<strong>Signing up for:</strong> ' + escapeHtml(data.eventTitle || 'Connect-Gen') +
                     (data.datesPhrase ? '<br><strong>Session:</strong> ' + escapeHtml(data.datesPhrase) : '') +
                     (data.signupName ? '<br><strong>Registered name on file:</strong> ' + escapeHtml(data.signupName) : '');
-                if (data.signupName) typedNameEl.placeholder = data.signupName;
+                if (data.signupName) {
+                    typedNameEl.placeholder = data.signupName;
+                    // Pre-populate the consent paragraph with the registered name so
+                    // it reads naturally on first view. The input itself stays empty —
+                    // the parent must actively type to provide the e-signature.
+                    consentNameEl.textContent = data.signupName;
+                    registeredNameFallback = data.signupName;
+                }
                 showOnly(formCard);
             } catch (err) {
                 console.error('Failed to load consent context:', err);
