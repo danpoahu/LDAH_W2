@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Apply to be listed in the LDAH resource directory.">
+    <title>Become a Partner Resource - LDAH</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+    :root {
+        --ocean-deep: #0891B2;
+        --ocean-mid: #06B6D4;
+        --ocean-light: #22D3EE;
+        --sunset-coral: #F97316;
+        --sunset-warm: #FB923C;
+        --sunset-light: #FED7AA;
+        --sand: #FEF3C7;
+        --sand-light: #FFFBEB;
+        --palm: #65A30D;
+        --plumeria: #FBBF24;
+        --white: #FFFFFF;
+        --text-dark: #1E293B;
+        --text-soft: #64748B;
+        --bg-warm: #FEFDFB;
+        --primary-blue: #0891B2;
+        --light-blue: #06B6D4;
+        --accent-teal: #22D3EE;
+        --bg-light: #FFFBEB;
+        --text-light: #64748B;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+        font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        color: var(--text-dark);
+        line-height: 1.7;
+        background: var(--bg-warm);
+        overflow-x: hidden;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+    }
+
+    h1, h2, h3 {
+        font-family: 'Outfit', sans-serif;
+        font-weight: 600;
+        line-height: 1.3;
+    }
+
+    /* Simple branded header (no full nav) */
+    .page-header {
+        background: rgba(255, 255, 255, 0.97);
+        backdrop-filter: blur(12px);
+        box-shadow: 0 1px 20px rgba(8, 145, 178, 0.08);
+        border-bottom: 1px solid rgba(8, 145, 178, 0.1);
+    }
+
+    .page-header-inner {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 1rem 2rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .page-header img {
+        width: 72px;
+        height: 72px;
+        flex-shrink: 0;
+    }
+
+    .page-header .header-text h1 {
+        color: var(--primary-blue);
+        font-size: 1.4rem;
+        font-weight: 600;
+        margin: 0;
+    }
+
+    .page-header .header-text p {
+        color: var(--text-light);
+        font-size: 0.95rem;
+        margin: 0;
+        line-height: 1.4;
+    }
+
+    /* Hero */
+    .hero-section {
+        padding: 2rem;
+        background: linear-gradient(135deg, #0891B2 0%, #06B6D4 100%);
+        color: white;
+        text-align: center;
+        height: 160px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .hero-section h2 {
+        font-size: 1.9rem;
+        margin-bottom: 0.4rem;
+        font-family: 'Outfit', sans-serif;
+        font-weight: 600;
+        letter-spacing: -0.5px;
+        color: white;
+    }
+
+    .hero-section p {
+        font-size: 1rem;
+        max-width: 600px;
+        margin: 0 auto;
+        line-height: 1.5;
+        opacity: 0.95;
+    }
+
+    /* Main wrapper */
+    .main-wrap {
+        flex: 1;
+        max-width: 720px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 40px 20px 60px;
+    }
+
+    .card {
+        background: white;
+        border-radius: 20px;
+        padding: 2.5rem;
+        box-shadow: 0 4px 20px rgba(0, 78, 124, 0.10);
+        border: 1px solid rgba(8, 145, 178, 0.08);
+    }
+
+    .card.message-card {
+        text-align: center;
+    }
+
+    .card.message-card h3 {
+        color: var(--primary-blue);
+        font-size: 1.4rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .card.message-card p {
+        color: var(--text-light);
+        font-size: 1.02rem;
+    }
+
+    .card.message-card a {
+        color: var(--primary-blue);
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .card.message-card a:hover {
+        text-decoration: underline;
+    }
+
+    /* Status / loading state */
+    .loading-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: var(--text-light);
+    }
+
+    .loading-spinner {
+        display: inline-block;
+        width: 36px;
+        height: 36px;
+        border: 3px solid rgba(8, 145, 178, 0.2);
+        border-top-color: var(--primary-blue);
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+        margin-bottom: 1rem;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    /* Form */
+    .resource-summary {
+        background: var(--bg-light);
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.75rem;
+        font-size: 0.95rem;
+        color: var(--text-light);
+    }
+
+    .resource-summary strong {
+        color: var(--text-dark);
+    }
+
+    .form-group {
+        margin-bottom: 1.4rem;
+    }
+
+    .form-group label {
+        display: block;
+        font-weight: 600;
+        color: var(--text-dark);
+        margin-bottom: 0.4rem;
+        font-size: 0.97rem;
+    }
+
+    .form-group .helper-text {
+        display: block;
+        font-size: 0.85rem;
+        color: var(--text-light);
+        margin-top: 0.25rem;
+        margin-bottom: 0.45rem;
+        font-weight: 400;
+    }
+
+    .form-group input[type="text"],
+    .form-group input[type="url"],
+    .form-group input[type="email"],
+    .form-group select,
+    .form-group textarea {
+        width: 100%;
+        padding: 0.7rem 0.9rem;
+        font-family: inherit;
+        font-size: 1rem;
+        color: var(--text-dark);
+        background: white;
+        border: 1.5px solid #cbd5e1;
+        border-radius: 10px;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: var(--primary-blue);
+        box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.15);
+    }
+
+    .form-group textarea {
+        resize: vertical;
+        min-height: 100px;
+        font-family: inherit;
+    }
+
+    /* Logo info box */
+    .logo-info-box {
+        background: #FEF9C3;
+        border: 1px solid #FDE68A;
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        margin: 1.75rem 0;
+        color: #713F12;
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
+
+    .logo-info-box strong {
+        color: #713F12;
+    }
+
+    .logo-info-box a {
+        color: #713F12;
+        font-weight: 600;
+    }
+
+    /* Buttons */
+    .button-row {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-top: 1.5rem;
+    }
+
+    .btn {
+        flex: 1;
+        min-width: 200px;
+        padding: 0.85rem 1.5rem;
+        font-family: inherit;
+        font-size: 1rem;
+        font-weight: 600;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: 2px solid transparent;
+        text-align: center;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, var(--ocean-mid), var(--accent-teal));
+        color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(8, 145, 178, 0.3);
+    }
+
+    .btn-ghost {
+        background: white;
+        color: var(--primary-blue);
+        border-color: var(--primary-blue);
+    }
+
+    .btn-ghost:hover:not(:disabled) {
+        background: var(--bg-light);
+    }
+
+    .btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+    }
+
+    /* Inline error */
+    .inline-error {
+        background: #FEE2E2;
+        border: 1px solid #FCA5A5;
+        color: #991B1B;
+        border-radius: 10px;
+        padding: 0.8rem 1rem;
+        margin-top: 1rem;
+        font-size: 0.95rem;
+        display: none;
+    }
+
+    .inline-error.visible {
+        display: block;
+    }
+
+    /* Footer (loaded externally - styles match common pattern) */
+    footer {
+        background: var(--text-dark);
+        color: white;
+        padding: 1.75rem 2rem 1rem;
+        position: relative;
+        overflow: hidden;
+        margin-top: auto;
+    }
+
+    .footer-content {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.4rem;
+        margin-bottom: 1rem;
+        position: relative;
+        z-index: 1;
+    }
+
+    .footer-section h3 {
+        color: var(--plumeria);
+        margin-bottom: 0.7rem;
+        font-family: 'Outfit', sans-serif;
+        font-size: 1rem;
+    }
+
+    .footer-section p {
+        color: rgba(255, 255, 255, 0.7);
+        line-height: 1.5;
+        font-size: 0.9rem;
+    }
+
+    .footer-section a {
+        color: rgba(255, 255, 255, 0.7);
+        text-decoration: none;
+        display: block;
+        margin-bottom: 0.35rem;
+        transition: color 0.25s ease;
+        font-size: 0.9rem;
+    }
+
+    .footer-section a:hover { color: var(--plumeria); }
+
+    .footer-bottom {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding-top: 1rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        text-align: center;
+        color: rgba(255, 255, 255, 0.5);
+        position: relative;
+        z-index: 1;
+        font-size: 0.85rem;
+    }
+
+    .footer-bottom p { margin: 0.25rem 0; }
+
+    @media (max-width: 600px) {
+        .page-header-inner { padding: 0.75rem 1rem; gap: 0.75rem; }
+        .page-header img { width: 56px; height: 56px; }
+        .page-header .header-text h1 { font-size: 1.15rem; }
+        .page-header .header-text p { font-size: 0.85rem; }
+        .hero-section { height: auto; padding: 1.75rem 1rem; }
+        .hero-section h2 { font-size: 1.55rem; }
+        .hero-section p { font-size: 0.93rem; }
+        .card { padding: 1.5rem; }
+        .main-wrap { padding: 24px 14px 40px; }
+        .button-row { flex-direction: column; }
+        .btn { min-width: 0; width: 100%; }
+    }
+    </style>
+</head>
+<body>
+
+    <header class="page-header">
+        <div class="page-header-inner">
+            <img src="logo_blue.png" alt="LDAH Logo">
+            <div class="header-text">
+                <h1>Resource Directory Update</h1>
+                <p>Leadership in Disabilities & Achievement of Hawai'i</p>
+            </div>
+        </div>
+    </header>
+
+    <section class="hero-section">
+        <h2>Become a Partner Resource</h2>
+        <p>Help families across Hawai'i and the Pacific find your services. Submit your organization's information below — our team will review and reach out within 5 business days.</p>
+    </section>
+
+    <main class="main-wrap">
+
+        <!-- Error / message states -->
+        <div id="messageCard" class="card message-card" style="display: none;">
+            <h3 id="messageTitle"></h3>
+            <p id="messageBody"></p>
+        </div>
+
+        <!-- Form state -->
+        <div id="formCard" class="card">
+            <p style="margin:0 0 18px;color:var(--text-soft);font-size:.95rem;line-height:1.5;">
+                All applications are reviewed by LDAH before going live on our public Resources directory. Required fields are marked with <span style="color: var(--sunset-coral);">*</span>.
+            </p>
+
+            <form id="updateForm" novalidate>
+                <div class="form-group">
+                    <label for="fld-contact-name">Your Name (contact)</label>
+                    <span class="helper-text">Who should we follow up with about this application?</span>
+                    <input type="text" id="fld-contact-name" name="contactName">
+                </div>
+
+                <div class="form-group">
+                    <label for="fld-name">Organization Name <span style="color: var(--sunset-coral);">*</span></label>
+                    <input type="text" id="fld-name" name="name" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="fld-type">Type</label>
+                    <span class="helper-text">e.g., Healthcare, Education, Family Support</span>
+                    <input type="text" id="fld-type" name="type">
+                </div>
+
+                <div class="form-group">
+                    <label for="fld-services">Services</label>
+                    <span class="helper-text">What does your organization offer? Searchable by families on our site.</span>
+                    <textarea id="fld-services" name="services" rows="4"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="fld-city">City</label>
+                    <input type="text" id="fld-city" name="city">
+                </div>
+
+                <div class="form-group">
+                    <label for="fld-island">Island / Region</label>
+                    <select id="fld-island" name="island">
+                        <option value="O'ahu">O'ahu</option>
+                        <option value="Maui">Maui</option>
+                        <option value="Hawai'i Island">Hawai'i Island</option>
+                        <option value="Kaua'i">Kaua'i</option>
+                        <option value="Moloka'i">Moloka'i</option>
+                        <option value="Lana'i">Lana'i</option>
+                        <option value="CNMI">CNMI</option>
+                        <option value="Guam">Guam</option>
+                        <option value="American Samoa">American Samoa</option>
+                        <option value="Marshall Islands">Marshall Islands</option>
+                        <option value="Federated States of Micronesia">Federated States of Micronesia</option>
+                        <option value="Palau">Palau</option>
+                        <option value="Statewide">Statewide</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="fld-phone">Phone</label>
+                    <input type="text" id="fld-phone" name="phone">
+                </div>
+
+                <div class="form-group">
+                    <label for="fld-email">Public Contact Email <span style="color: var(--sunset-coral);">*</span></label>
+                    <input type="email" id="fld-email" name="email" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="fld-website">Website</label>
+                    <input type="url" id="fld-website" name="website" placeholder="https://example.org">
+                </div>
+
+                <div class="form-group">
+                    <label for="fld-notes">Anything else we should know?</label>
+                    <span class="helper-text">Optional — share any context that would help us review your application.</span>
+                    <textarea id="fld-notes" name="notes" rows="3"></textarea>
+                </div>
+
+                <div class="logo-info-box">
+                    <strong>Have a logo?</strong> Once your application is approved, you can email the image file to <a href="mailto:LSalvani@ldahawaii.org">LSalvani@ldahawaii.org</a> and we'll add it to your listing.
+                </div>
+
+                <div class="button-row">
+                    <button type="submit" id="submitBtn" class="btn btn-primary">Submit Application</button>
+                </div>
+
+                <div id="inlineError" class="inline-error"></div>
+            </form>
+        </div>
+
+    </main>
+
+    <div id="footer-container"></div>
+
+    <script>
+        // ===== Config =====
+        const ENDPOINT_POST = 'https://us-central1-ldah-932d5.cloudfunctions.net/submitResourceApplication';
+
+        // ===== Element refs =====
+        const messageCard = document.getElementById('messageCard');
+        const formCard = document.getElementById('formCard');
+        const messageTitle = document.getElementById('messageTitle');
+        const messageBody = document.getElementById('messageBody');
+        const inlineError = document.getElementById('inlineError');
+        const submitBtn = document.getElementById('submitBtn');
+        const updateForm = document.getElementById('updateForm');
+
+        // ===== UI helpers =====
+        function showOnly(el) {
+            messageCard.style.display = 'none';
+            formCard.style.display = 'none';
+            if (el) el.style.display = 'block';
+        }
+
+        function showMessage(title, bodyHtml) {
+            messageTitle.textContent = title;
+            messageBody.innerHTML = bodyHtml;
+            showOnly(messageCard);
+        }
+
+        function showInlineError(msg) {
+            inlineError.textContent = msg;
+            inlineError.classList.add('visible');
+        }
+
+        function clearInlineError() {
+            inlineError.textContent = '';
+            inlineError.classList.remove('visible');
+        }
+
+        function setBusy(busy) {
+            submitBtn.disabled = busy;
+            if (busy) {
+                submitBtn.dataset.origText = submitBtn.dataset.origText || submitBtn.textContent;
+                submitBtn.textContent = 'Submitting...';
+            } else if (submitBtn.dataset.origText) {
+                submitBtn.textContent = submitBtn.dataset.origText;
+            }
+        }
+
+        function readForm() {
+            return {
+                contactName: document.getElementById('fld-contact-name').value.trim(),
+                name: document.getElementById('fld-name').value.trim(),
+                type: document.getElementById('fld-type').value.trim(),
+                services: document.getElementById('fld-services').value.trim(),
+                city: document.getElementById('fld-city').value.trim(),
+                island: document.getElementById('fld-island').value,
+                phone: document.getElementById('fld-phone').value.trim(),
+                email: document.getElementById('fld-email').value.trim(),
+                website: document.getElementById('fld-website').value.trim(),
+                notes: document.getElementById('fld-notes').value.trim()
+            };
+        }
+
+        // Validate the website field. Empty is OK (optional). Rejects strings
+        // with whitespace or commas (catches the "https://a.com https://b.com"
+        // pattern a partner submitted that broke the link). Auto-prefixes https://.
+        function validateWebsiteUrl(input) {
+            const raw = String(input == null ? '' : input).trim();
+            if (!raw) return { ok: true, normalized: '' };
+            if (/\s/.test(raw)) return { ok: false, reason: 'Please enter a single web address. Spaces or multiple URLs are not allowed.' };
+            if (raw.indexOf(',') !== -1) return { ok: false, reason: 'Please enter a single web address. Remove the comma.' };
+            const withScheme = /^https?:\/\//i.test(raw) ? raw : 'https://' + raw;
+            try {
+                const u = new URL(withScheme);
+                if (!u.hostname || u.hostname.indexOf('.') === -1) {
+                    return { ok: false, reason: "That doesn't look like a valid web address. Try the form https://example.com." };
+                }
+                return { ok: true, normalized: u.href };
+            } catch (e) {
+                return { ok: false, reason: 'Could not understand that web address. Use the form https://example.com.' };
+            }
+        }
+
+        async function postApplication(fields) {
+            clearInlineError();
+            setBusy(true);
+            try {
+                const res = await fetch(ENDPOINT_POST, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fields })
+                });
+                if (!res.ok) {
+                    let detail = '';
+                    try { const j = await res.json(); detail = j && j.error ? ' (' + j.error + ')' : ''; } catch (_) {}
+                    showInlineError("We couldn't submit your application" + detail + '. Please try again.');
+                    setBusy(false);
+                    return;
+                }
+                showMessage('Mahalo!',
+                    "Your application is in. We've sent a confirmation to your email and will review within 5 business days. If approved, your listing will go live on the LDAH Resources page.");
+            } catch (err) {
+                console.error('Submit failed:', err);
+                showInlineError("We couldn't reach the server. Please check your connection and try again.");
+                setBusy(false);
+            }
+        }
+
+        function handleSubmit(e) {
+            e.preventDefault();
+            const fields = readForm();
+            if (!fields.name) {
+                showInlineError('Organization name is required.');
+                document.getElementById('fld-name').focus();
+                return;
+            }
+            if (!fields.email) {
+                showInlineError('Public contact email is required.');
+                document.getElementById('fld-email').focus();
+                return;
+            }
+            const wcheck = validateWebsiteUrl(fields.website);
+            if (!wcheck.ok) {
+                showInlineError(wcheck.reason);
+                document.getElementById('fld-website').focus();
+                return;
+            }
+            fields.website = wcheck.normalized;
+            postApplication(fields);
+        }
+
+        updateForm.addEventListener('submit', handleSubmit);
+
+        // ===== Footer loader (matches W2 pattern) =====
+        async function loadFooter() {
+            const footerContainer = document.getElementById('footer-container');
+            try {
+                const res = await fetch('footer.html');
+                if (res.ok) {
+                    footerContainer.innerHTML = await res.text();
+                    // Set dynamic year
+                    document.querySelectorAll('.dynamic-year').forEach(el => {
+                        el.textContent = new Date().getFullYear();
+                    });
+                }
+            } catch (err) {
+                // Silent fail - footer is non-critical for this page
+                console.log('Footer load skipped:', err);
+            }
+        }
+
+        // ===== Boot =====
+        function init() {
+            loadFooter();
+            // Form is shown by default — no token, no preload.
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    </script>
+
+</body>
+</html>

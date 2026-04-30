@@ -3131,6 +3131,44 @@ function resolveReminderRecipientName(signup) {
   return "there";
 }
 
+// Resolve which Zoom slot to use for a given event doc.
+// settings/zoomDefault holds two sub-objects: programZoom (Connect-Gen and any
+// future recurring program flagged with zoomMode='program') and eventZoom
+// (everything else — Learning Labs, Parent Talk Cafe, all one-off events).
+// Routing is per-event via event.zoomMode, NOT by Firestore collection,
+// because Learning Labs lives in `events` and Connect-Gen lives in
+// `recurringEvents` — collection alone is the wrong split.
+//
+// Legacy shape support: docs may still have flat {meetingUrl, meetingId,
+// passcode} — treat that as programZoom (the original single-link era was
+// always the Connect-Gen link).
+//
+// Safety fallback: if eventZoom isn't set yet, fall back to programZoom so
+// reminder emails never silently lose their link.
+function pickZoomForEvent(zoomDoc, event, collection) {
+  if (!zoomDoc) return null;
+  const hasNested = (s) => s && typeof s === "object" && (s.meetingUrl || s.meetingId || s.passcode);
+  const programZoom = hasNested(zoomDoc.programZoom)
+    ? zoomDoc.programZoom
+    : ((zoomDoc.meetingUrl || zoomDoc.meetingId || zoomDoc.passcode)
+        ? { meetingUrl: zoomDoc.meetingUrl || "", meetingId: zoomDoc.meetingId || "", passcode: zoomDoc.passcode || "" }
+        : null);
+  const eventZoom = hasNested(zoomDoc.eventZoom) ? zoomDoc.eventZoom : null;
+
+  // Resolution rule:
+  //   1. If the doc has an explicit zoomMode, honor it.
+  //   2. Otherwise default by collection: recurringEvents -> Program Zoom,
+  //      events -> Event Zoom. Matches how Daniel categorizes them — adding
+  //      a brand-new program automatically inherits Program Zoom.
+  let mode;
+  if (event && event.zoomMode === "program") mode = "program";
+  else if (event && event.zoomMode === "event") mode = "event";
+  else mode = (collection === "recurringEvents") ? "program" : "event";
+
+  if (mode === "program") return programZoom || eventZoom; // fallback if program slot empty
+  return eventZoom || programZoom;                          // fallback if event slot empty
+}
+
 /**
  * Build the full params + send one reminder email. Shared by the
  * scheduled job and the test endpoint. Returns the Resend result.
@@ -3240,7 +3278,8 @@ async function maybeSendCatchupReminder(change, context, collection) {
     ]);
     if (!eventSnap.exists) return;
     const event = eventSnap.data() || {};
-    const zoomDefault = zoomSnap.exists ? (zoomSnap.data() || null) : null;
+    const zoomDoc = zoomSnap.exists ? (zoomSnap.data() || null) : null;
+    const zoomDefault = pickZoomForEvent(zoomDoc, event, collection);
 
     // Determine candidate session dates within [today, today+5] HST.
     const todayKey = toHstDateKey(new Date());
@@ -3295,11 +3334,13 @@ exports.sendEventReminders = functions
   .onRun(async (context) => {
     const db = admin.firestore();
 
-    // 1. Load zoom defaults (gracefully handle missing doc)
-    let zoomDefault = null;
+    // 1. Load zoom defaults doc (gracefully handle missing). The doc holds
+    // both programZoom and eventZoom slots; pickZoomForEvent() picks
+    // the right one per signup based on the event's own zoomMode field.
+    let zoomDoc = null;
     try {
       const zSnap = await db.collection("settings").doc("zoomDefault").get();
-      if (zSnap.exists) zoomDefault = zSnap.data() || null;
+      if (zSnap.exists) zoomDoc = zSnap.data() || null;
     } catch (err) {
       console.warn("sendEventReminders: failed to read settings/zoomDefault:", err.message);
     }
@@ -3352,6 +3393,7 @@ exports.sendEventReminders = functions
         if (already) { skipped++; continue; }
 
         try {
+          const zoomDefault = pickZoomForEvent(zoomDoc, event, collection);
           await sendOneReminderEmail({
             collection, eventId, signupId, signup, event,
             sessionDateKey, mode, zoomDefault,
@@ -3466,17 +3508,16 @@ exports.sendEventRemindersTest = functions
     try {
       const db = admin.firestore();
 
-      // Load zoom defaults
-      let zoomDefault = null;
-      try {
-        const zSnap = await db.collection("settings").doc("zoomDefault").get();
-        if (zSnap.exists) zoomDefault = zSnap.data() || null;
-      } catch (_) { /* swallow */ }
-
-      // Load event + signup
-      const eventDoc = await db.collection(collection).doc(eventId).get();
-      if (!eventDoc.exists) { res.status(404).json({ error: "Event not found" }); return; }
+      // Load zoom defaults doc + the event in parallel so we can resolve
+      // the right zoom slot (programZoom vs eventZoom) from event.zoomMode.
+      const [zSnap, eventDoc] = await Promise.all([
+        db.collection("settings").doc("zoomDefault").get().catch(() => null),
+        db.collection(collection).doc(eventId).get(),
+      ]);
+      if (!eventDoc || !eventDoc.exists) { res.status(404).json({ error: "Event not found" }); return; }
       const event = eventDoc.data() || {};
+      const zoomDoc = (zSnap && zSnap.exists) ? (zSnap.data() || null) : null;
+      const zoomDefault = pickZoomForEvent(zoomDoc, event, collection);
 
       const signupDoc = await db.collection(collection).doc(eventId).collection("signups").doc(signupId).get();
       if (!signupDoc.exists) { res.status(404).json({ error: "Signup not found" }); return; }
@@ -3610,7 +3651,7 @@ function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl, eventId })
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(title) + '</title></head>' +
     '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
     '<div style="max-width:600px;margin:0 auto;background:#fff">' +
-    '<div style="background:linear-gradient(135deg,#004E7C,#0891B2);padding:24px;text-align:center;color:#fff">' +
+    '<div style="background-color:#004E7C;background:linear-gradient(135deg,#004E7C,#0891B2);padding:24px;text-align:center;color:#fff">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">New LDAH Event</h1></div>' +
     (flyerUrl ? '<img src="' + esc(flyerUrl) + '" alt="' + esc(title) + '" style="width:100%;display:block">' : '') +
     '<div style="padding:32px 24px">' +
@@ -3620,7 +3661,7 @@ function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl, eventId })
     (location ? '<p style="margin:0 0 16px;color:#475569"><strong>Where:</strong> ' + esc(location) + '</p>' : '') +
     (descTrim ? '<p style="margin:0 0 24px;color:#334155;line-height:1.6">' + esc(descTrim) + esc(descMore) + '</p>' : '') +
     '<p style="text-align:center;margin:32px 0">' +
-    '<a href="' + signupUrl + '" style="background:linear-gradient(135deg,#0891B2,#0E7490);color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:16px">Sign Up</a>' +
+    '<a href="' + signupUrl + '" style="background-color:#0891B2;background:linear-gradient(135deg,#0891B2,#0E7490);color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:16px">Sign Up</a>' +
     '</p>' +
     _emailLinkFooter([{ label: "Sign Up for " + title, href: signupUrl }]) +
     '</div>' +
@@ -3919,10 +3960,11 @@ function buildLifecycleEmailHtml({ kind, name, eventTitle, oldDates, newDates })
   const oldStr = lifecycleEsc(lifecycleFormatDateList(oldDates));
   const newStr = lifecycleEsc(lifecycleFormatDateList(newDates));
 
-  let headerLabel, headerGradient, bodyHtml, heading;
+  let headerLabel, headerGradient, headerColor, bodyHtml, heading;
   if (kind === "cancellation") {
     headerLabel = "Signup Cancelled";
     headerGradient = "linear-gradient(135deg,#991b1b,#dc2626)";
+    headerColor = "#991b1b";
     heading = "Your signup was cancelled";
     bodyHtml =
       '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">' +
@@ -3937,6 +3979,7 @@ function buildLifecycleEmailHtml({ kind, name, eventTitle, oldDates, newDates })
   } else {
     headerLabel = "Schedule Update";
     headerGradient = "linear-gradient(135deg,#1e40af,#0891B2)";
+    headerColor = "#1e40af";
     heading = "Your session dates have changed";
     bodyHtml =
       '<p style="margin:0 0 12px;font-size:16px;color:#334155;line-height:1.6">' +
@@ -3972,7 +4015,7 @@ function buildLifecycleEmailHtml({ kind, name, eventTitle, oldDates, newDates })
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + lifecycleEsc(heading) + '</title></head>' +
     '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
     '<div style="max-width:600px;margin:0 auto;background:#fff">' +
-    '<div style="background:' + headerGradient + ';padding:24px;text-align:center;color:#fff">' +
+    '<div style="background-color:' + headerColor + ';background:' + headerGradient + ';padding:24px;text-align:center;color:#fff">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">' + lifecycleEsc(headerLabel) + '</h1></div>' +
     '<div style="padding:32px 24px">' +
     '<p style="margin:0 0 16px;font-size:16px">Aloha ' + lifecycleEsc(firstName) + ',</p>' +
@@ -3994,7 +4037,7 @@ function buildEventCancelledEmailHtml({ name, eventTitle, eventDate, reason }) {
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Event Cancelled</title></head>' +
     '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
     '<div style="max-width:600px;margin:0 auto;background:#fff">' +
-    '<div style="background:linear-gradient(135deg,#991b1b,#dc2626);padding:24px;text-align:center;color:#fff">' +
+    '<div style="background-color:#991b1b;background:linear-gradient(135deg,#991b1b,#dc2626);padding:24px;text-align:center;color:#fff">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">Event Cancelled</h1></div>' +
     '<div style="padding:32px 24px">' +
     '<p style="margin:0 0 16px;font-size:16px">Aloha ' + lifecycleEsc(firstName) + ',</p>' +
@@ -4025,7 +4068,7 @@ function buildEventRescheduledEmailHtml({ name, eventTitle, oldDate, newDate, re
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Event Rescheduled</title></head>' +
     '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
     '<div style="max-width:600px;margin:0 auto;background:#fff">' +
-    '<div style="background:linear-gradient(135deg,#1e40af,#0891B2);padding:24px;text-align:center;color:#fff">' +
+    '<div style="background-color:#1e40af;background:linear-gradient(135deg,#1e40af,#0891B2);padding:24px;text-align:center;color:#fff">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">Event Rescheduled</h1></div>' +
     '<div style="padding:32px 24px">' +
     '<p style="margin:0 0 16px;font-size:16px">Aloha ' + lifecycleEsc(firstName) + ',</p>' +
@@ -4057,7 +4100,7 @@ function buildSessionCancelledEmailHtml({ name, eventTitle, sessionDate, reason 
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Session Cancelled</title></head>' +
     '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
     '<div style="max-width:600px;margin:0 auto;background:#fff">' +
-    '<div style="background:linear-gradient(135deg,#b45309,#f59e0b);padding:24px;text-align:center;color:#fff">' +
+    '<div style="background-color:#b45309;background:linear-gradient(135deg,#b45309,#f59e0b);padding:24px;text-align:center;color:#fff">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">Session Cancelled</h1></div>' +
     '<div style="padding:32px 24px">' +
     '<p style="margin:0 0 16px;font-size:16px">Aloha ' + lifecycleEsc(firstName) + ',</p>' +
@@ -4750,6 +4793,26 @@ function resourceUpdateEsc(s) {
   })[c]);
 }
 
+// Server-side mirror of the client validators. Returns the cleaned URL
+// or null if invalid (caller decides whether to reject the submission).
+// Empty input is fine — website is optional.
+function validateAndNormalizeWebsiteUrl(input) {
+  const raw = String(input == null ? "" : input).trim();
+  if (!raw) return { ok: true, normalized: "" };
+  if (/\s/.test(raw)) return { ok: false, reason: "Multiple URLs or spaces are not allowed in the website field." };
+  if (raw.indexOf(",") !== -1) return { ok: false, reason: "Multiple URLs or commas are not allowed in the website field." };
+  const withScheme = /^https?:\/\//i.test(raw) ? raw : "https://" + raw;
+  try {
+    const u = new URL(withScheme);
+    if (!u.hostname || u.hostname.indexOf(".") === -1) {
+      return { ok: false, reason: "Invalid web address." };
+    }
+    return { ok: true, normalized: u.href };
+  } catch (e) {
+    return { ok: false, reason: "Invalid web address." };
+  }
+}
+
 function buildResourceUpdateEmailHtml({ resource, token, isNudge }) {
   // Resource recipients are organizations, not individuals — splitting the
   // org name to fake a first name produced "Aloha Boys," for "Boys & Girls
@@ -4761,6 +4824,7 @@ function buildResourceUpdateEmailHtml({ resource, token, isNudge }) {
   const headerGradient = isNudge
     ? "linear-gradient(135deg,#b45309,#f59e0b)"
     : "linear-gradient(135deg,#1e40af,#0891B2)";
+  const headerColor = isNudge ? "#b45309" : "#1e40af";
   const lead = isNudge
     ? "Just a quick nudge in case our earlier note got lost. Twice a year we ask each partner organization to take a couple of minutes to review the resource card we keep for you on the LDAH website."
     : "Twice a year we ask each partner organization to take a couple of minutes to review the resource card we keep for you on the LDAH website. This keeps the families and individuals who rely on our resource directory pointed to current information for " + orgName + ".";
@@ -4771,7 +4835,7 @@ function buildResourceUpdateEmailHtml({ resource, token, isNudge }) {
       'Click the button below to review your card. If everything looks good, you can confirm in one tap. If anything needs to change, edit the fields and submit &mdash; our team will review and post the update.' +
     '</p>' +
     '<p style="text-align:center;margin:32px 0">' +
-      '<a href="' + link + '" style="background:linear-gradient(135deg,#0891B2,#0E7490);color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:16px;display:inline-block">Review Your Card</a>' +
+      '<a href="' + link + '" style="background-color:#0891B2;background:linear-gradient(135deg,#0891B2,#0E7490);color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:16px;display:inline-block">Review Your Card</a>' +
     '</p>' +
     '<p style="margin:0 0 16px;font-size:14px;color:#64748b;line-height:1.6">' +
       'If your logo has changed since we last spoke, please email the new file to <a href="mailto:LSalvani@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LSalvani@ldahawaii.org</a> and we\'ll update it for you.' +
@@ -4796,7 +4860,7 @@ function buildResourceUpdateEmailHtml({ resource, token, isNudge }) {
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + resourceUpdateEsc(heading) + '</title></head>' +
     '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
     '<div style="max-width:600px;margin:0 auto;background:#fff">' +
-    '<div style="background:' + headerGradient + ';padding:18px 24px 22px;text-align:center;color:#fff">' +
+    '<div style="background-color:' + headerColor + ';background:' + headerGradient + ';padding:18px 24px 22px;text-align:center;color:#fff">' +
     '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;border:0;outline:none;text-decoration:none;">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">' + resourceUpdateEsc(headerLabel) + '</h1></div>' +
     '<div style="padding:32px 24px">' +
@@ -5057,6 +5121,14 @@ exports.submitResourceUpdate = functions
           cleaned[k] = String(fields[k] == null ? "" : fields[k]);
         }
       });
+      // Defense-in-depth website URL validation — client-side checks live
+      // in update-resource.html and LDAH-Int's resource editor; this catches
+      // anything that bypasses them (older cached forms, scripted POSTs).
+      if (Object.prototype.hasOwnProperty.call(cleaned, "website")) {
+        const wcheck = validateAndNormalizeWebsiteUrl(cleaned.website);
+        if (!wcheck.ok) { res.status(400).json({ error: wcheck.reason }); return; }
+        cleaned.website = wcheck.normalized;
+      }
       cleaned.submittedAt = FieldValue.serverTimestamp();
 
       await doc.ref.update({
@@ -5067,6 +5139,102 @@ exports.submitResourceUpdate = functions
       res.status(200).json({ ok: true, mode: "pending" });
     } catch (err) {
       console.error("submitResourceUpdate error:", err);
+      res.status(500).json({ error: err.message || String(err) });
+    }
+  });
+
+// Public submission endpoint for "Want to become a partner resource".
+// Writes to a separate resourceApplications collection so a junk submission
+// can't accidentally surface on the public Resources directory. An admin
+// reviews each application in LDAH-Int and approves -> creates a real
+// resources doc, or declines.
+exports.submitResourceApplication = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const fields = (body.fields && typeof body.fields === "object") ? body.fields : null;
+    if (!fields) { res.status(400).json({ error: "Missing fields" }); return; }
+
+    const name = String(fields.name || "").trim();
+    const email = String(fields.email || "").trim();
+    const contactName = String(fields.contactName || "").trim();
+    if (!name) { res.status(400).json({ error: "Organization name is required." }); return; }
+    if (!email) { res.status(400).json({ error: "Email is required." }); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { res.status(400).json({ error: "Email looks invalid." }); return; }
+
+    // Server-side URL validation — same gate as submitResourceUpdate.
+    const websiteRaw = String(fields.website || "").trim();
+    let websiteNormalized = "";
+    if (websiteRaw) {
+      const wcheck = validateAndNormalizeWebsiteUrl(websiteRaw);
+      if (!wcheck.ok) { res.status(400).json({ error: wcheck.reason }); return; }
+      websiteNormalized = wcheck.normalized;
+    }
+
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const application = {
+        name,
+        type: String(fields.type || "").trim(),
+        services: String(fields.services || "").trim(),
+        city: String(fields.city || "").trim(),
+        island: String(fields.island || "").trim(),
+        phone: String(fields.phone || "").trim(),
+        email,
+        website: websiteNormalized,
+        contactName,
+        notes: String(fields.notes || "").trim(),
+        status: "new",
+        archived: false,
+        submittedAt: FieldValue.serverTimestamp(),
+      };
+      const ref = await db.collection("resourceApplications").add(application);
+
+      // Send confirmation to the applicant. La'a is the persona for the
+      // partner-resource workflow (matches the update-request emails).
+      try {
+        const fromAddress = lifecycleFromAddress();
+        const safeName = resourceUpdateEsc(name);
+        const html = '<!DOCTYPE html><html><head><meta charset="utf-8"></head>' +
+          '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
+          '<div style="max-width:600px;margin:0 auto;background:#fff">' +
+          '<div style="background-color:#1e40af;background:linear-gradient(135deg,#1e40af,#0891B2);padding:18px 24px 22px;text-align:center;color:#fff">' +
+          '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;border:0;outline:none;text-decoration:none;">' +
+          '<h1 style="margin:0;font-size:22px;font-weight:700">Resource Partner Application</h1></div>' +
+          '<div style="padding:32px 24px">' +
+          '<p style="margin:0 0 16px;font-size:16px">Aloha' + (contactName ? " " + resourceUpdateEsc(contactName) : "") + ',</p>' +
+          '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Mahalo for your interest in joining the LDAH resource directory. We have received your application for <strong>' + safeName + '</strong> and will review it within 5 business days.</p>' +
+          '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">If approved, your listing will go live on <a href="https://www.ldahawaii.org/resources.html" style="color:#1a73e8;text-decoration:none;">ldahawaii.org</a>. If we have questions about your application, we will reach out at the email you provided.</p>' +
+          '<p style="margin:24px 0 4px;font-size:15px;color:#333;line-height:1.5;">Questions in the meantime? Email <a href="mailto:LSalvani@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LSalvani@ldahawaii.org</a>.</p>' +
+          '<p style="margin:16px 0 4px;font-size:15px;color:#333;line-height:1.5;">With gratitude,</p>' +
+          '<p style="margin:0 0 16px;font-size:15px;color:#333;line-height:1.5;"><strong>LDAH Team</strong></p>' +
+          '</div>' +
+          '<div style="padding:16px 24px;border-top:1px solid #e5e7eb;background:#f9fafb;font-size:12px;color:#94a3b8;text-align:center">' +
+          '<p style="margin:0">Leadership in Disabilities and Achievement of Hawai\'i</p>' +
+          '</div></div></body></html>';
+        await sendEmailViaResend({
+          from: fromAddress,
+          to: email,
+          subject: "Application received — LDAH resource partner",
+          html,
+          type: "resource-application-confirmation",
+          recipientName: contactName || name,
+        });
+      } catch (emailErr) {
+        // Don't fail the whole submit if confirmation email fails — log it.
+        console.error("submitResourceApplication confirmation email failed:", emailErr.message);
+      }
+
+      res.status(200).json({ ok: true, applicationId: ref.id });
+    } catch (err) {
+      console.error("submitResourceApplication error:", err);
       res.status(500).json({ error: err.message || String(err) });
     }
   });
