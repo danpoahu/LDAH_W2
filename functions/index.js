@@ -5378,9 +5378,12 @@ exports.submitConnectGenConsent = functions
       });
 
       // Mirror to the linked contact doc so it surfaces in the contact card.
+      // Field is `linkedContactId` on the signup (set by handleSignupCreated),
+      // NOT `contactId` — the earlier draft of this CF used the wrong key
+      // and silently dropped the mirror in the catch block.
       try {
-        if (s.contactId) {
-          await db.collection("contacts").doc(s.contactId).update({
+        if (s.linkedContactId) {
+          await db.collection("contacts").doc(s.linkedContactId).update({
             connectGenConsent: {
               signedAt: FieldValue.serverTimestamp(),
               signedName: typedName,
