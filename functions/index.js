@@ -5247,19 +5247,19 @@ function buildConsentRequiredEmailHtml({ name, eventTitle, datesPhrase, consentU
     '</div></div></body></html>';
 }
 
-function buildConnectGenPrepEmailHtml({ name, eventTitle, datesPhrase, zoom, prepDocs }) {
+function buildConnectGenPrepEmailHtml({ name, eventTitle, datesPhrase, prepDocs }) {
   const safeName = lifecycleEsc(name || "there");
   const safeTitle = lifecycleEsc(eventTitle || "Connect-Gen");
   const safeDates = lifecycleEsc(datesPhrase || "");
 
-  const zoomBlock = zoom && zoom.meetingUrl
-    ? '<div style="background:#F0F9FF;border:1px solid #BAE6FD;border-radius:10px;padding:16px;margin:16px 0;">' +
-        '<div style="font-weight:700;color:#0C4A6E;margin-bottom:8px;">Join Zoom Meeting</div>' +
-        _emailBtn(zoom.meetingUrl, "Open Zoom", { bg: "#1a3c6e", align: "left" }) +
-        '<p style="margin:8px 0 0;font-size:14px;color:#333;">Meeting ID: <strong>' + lifecycleEsc(zoom.meetingId || "") + '</strong></p>' +
-        (zoom.passcode ? '<p style="margin:2px 0 0;font-size:14px;color:#333;">Passcode: <strong>' + lifecycleEsc(zoom.passcode) + '</strong></p>' : '') +
-      '</div>'
-    : '';
+  // Zoom link is intentionally NOT included here — the prep email goes out
+  // as soon as consent is signed, which can be weeks before the session.
+  // The Zoom link reaches the parent in the 5-day + 1-day reminder emails
+  // (sendEventReminders cron), matching every other event flow.
+  const zoomNoteBlock =
+    '<div style="background:#F0F9FF;border:1px solid #BAE6FD;border-radius:10px;padding:14px 18px;margin:16px 0;font-size:.92rem;color:#0C4A6E;line-height:1.5;">' +
+      '<strong>Zoom details:</strong> we\'ll send you the Zoom link in our reminder emails — once 5 days before the session and again the day before, so it\'s easy to find when you need it.' +
+    '</div>';
 
   let docsHtml = '';
   if (prepDocs && prepDocs.length) {
@@ -5287,7 +5287,7 @@ function buildConnectGenPrepEmailHtml({ name, eventTitle, datesPhrase, zoom, pre
       '<div style="font-weight:700;color:#92400E;font-size:1rem;margin-bottom:4px;">Important — please bring to the session</div>' +
       '<div style="font-size:.95rem;color:#78350F;line-height:1.5;">Your child\'s most current <strong>IEP</strong> and the <strong>Evaluation that created the IEP</strong>. We won\'t be able to do a meaningful review without both of these on hand.</div>' +
     '</div>' +
-    zoomBlock +
+    zoomNoteBlock +
     docsHtml +
     '<p style="margin:24px 0 4px;font-size:15px;color:#333;line-height:1.5;">If anything changes or you have questions, please reach out.</p>' +
     '<p style="margin:0 0 4px;font-size:15px;color:#333;line-height:1.5;">With gratitude,</p>' +
@@ -5394,16 +5394,15 @@ exports.submitConnectGenConsent = functions
         console.warn("Mirror consent to contact failed (non-fatal):", e.message);
       }
 
-      // Now send the prep-docs email.
+      // Now send the prep-docs email. NO Zoom link in this email — that
+      // arrives in the 5-day + 1-day reminder emails, matching every other
+      // event. This keeps stale Zoom links from showing up weeks before
+      // the session and matches the standard reminder cadence.
       try {
         const eventId = doc.ref.parent.parent.id;
         const collection = doc.ref.parent.parent.parent.id; // 'recurringEvents' or 'events'
         const eventSnap = await db.collection(collection).doc(eventId).get();
         const event = eventSnap.exists ? (eventSnap.data() || {}) : {};
-
-        const zoomSnap = await db.collection("settings").doc("zoomDefault").get();
-        const zoomDoc = zoomSnap.exists ? (zoomSnap.data() || null) : null;
-        const zoom = pickZoomForEvent(zoomDoc, event, collection);
 
         const prepSnap = await db.collection("system").doc("connectGenPrepDocs").get();
         const prepDocs = (prepSnap.exists && Array.isArray(prepSnap.data().docs)) ? prepSnap.data().docs : [];
@@ -5414,7 +5413,6 @@ exports.submitConnectGenConsent = functions
           name: s.name || typedName,
           eventTitle: event.title || "Connect-Gen",
           datesPhrase,
-          zoom,
           prepDocs,
         });
 
