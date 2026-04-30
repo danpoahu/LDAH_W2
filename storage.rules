@@ -73,5 +73,18 @@ service firebase.storage {
       allow read: if true;
       allow write: if request.auth != null;
     }
+
+    // Logos uploaded by anonymous applicants from become-partner.html.
+    // Public read so admins can display the logo while reviewing the
+    // application. Public create-only with strict size + MIME constraints
+    // (NO svg — XSS vector). Once approved the resource gets the logo
+    // copied to its real resources doc; if declined the file just sits
+    // until cleaned up manually.
+    match /resource-application-logos/{file} {
+      allow read: if true;
+      allow create: if request.resource.size < 2 * 1024 * 1024
+                    && request.resource.contentType.matches('image/(jpeg|jpg|png|webp|gif)');
+      allow update, delete: if request.auth != null;
+    }
   }
 }

@@ -5177,6 +5177,18 @@ exports.submitResourceApplication = functions
       websiteNormalized = wcheck.normalized;
     }
 
+    // Logo URL — only accept Firebase Storage URLs from our own bucket so
+    // a malicious submitter can't slip in a hotlink to anywhere else.
+    const logoUrlRaw = String(fields.logoUrl || "").trim();
+    let logoUrl = "";
+    if (logoUrlRaw) {
+      const allowed = /^https:\/\/firebasestorage\.googleapis\.com\/.+resource-application-logos%2F/i;
+      if (!allowed.test(logoUrlRaw)) {
+        res.status(400).json({ error: "Logo URL must be uploaded through this form." }); return;
+      }
+      logoUrl = logoUrlRaw;
+    }
+
     try {
       const db = admin.firestore();
       const FieldValue = admin.firestore.FieldValue;
@@ -5189,6 +5201,7 @@ exports.submitResourceApplication = functions
         phone: String(fields.phone || "").trim(),
         email,
         website: websiteNormalized,
+        logoUrl,
         contactName,
         notes: String(fields.notes || "").trim(),
         status: "new",

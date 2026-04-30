@@ -10,6 +10,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
 
+    <!-- Firebase SDK (storage upload for the optional logo) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+
     <style>
     :root {
         --ocean-deep: #0891B2;
@@ -502,13 +506,20 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="fld-logo">Logo (optional)</label>
+                    <span class="helper-text">PNG, JPG, or WebP up to 2 MB. We'll use this for your card on the public Resources page.</span>
+                    <input type="file" id="fld-logo" name="logo" accept="image/png,image/jpeg,image/webp,image/gif" style="margin-top:6px;">
+                    <div id="logoPreview" style="margin-top:10px;display:none;">
+                        <img id="logoPreviewImg" alt="Logo preview" style="max-width:120px;max-height:120px;border-radius:8px;border:1px solid #e2e8f0;padding:4px;background:#f8fafc;">
+                        <button type="button" id="logoClearBtn" style="margin-left:10px;background:none;border:none;color:#dc2626;cursor:pointer;font-size:.85rem;text-decoration:underline;">Remove</button>
+                    </div>
+                    <div id="logoUploadStatus" style="margin-top:6px;font-size:.85rem;color:var(--text-soft);"></div>
+                </div>
+
+                <div class="form-group">
                     <label for="fld-notes">Anything else we should know?</label>
                     <span class="helper-text">Optional — share any context that would help us review your application.</span>
                     <textarea id="fld-notes" name="notes" rows="3"></textarea>
-                </div>
-
-                <div class="logo-info-box">
-                    <strong>Have a logo?</strong> Once your application is approved, you can email the image file to <a href="mailto:LSalvani@ldahawaii.org">LSalvani@ldahawaii.org</a> and we'll add it to your listing.
                 </div>
 
                 <div class="button-row">
@@ -526,6 +537,17 @@
     <script>
         // ===== Config =====
         const ENDPOINT_POST = 'https://us-central1-ldah-932d5.cloudfunctions.net/submitResourceApplication';
+
+        // Firebase init — only used for the optional logo upload to Storage.
+        firebase.initializeApp({
+            apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk",
+            authDomain: "ldah-932d5.firebaseapp.com",
+            projectId: "ldah-932d5",
+            storageBucket: "ldah-932d5.firebasestorage.app",
+            messagingSenderId: "662130454003",
+            appId: "1:662130454003:web:437576d5a5811ecd8df686"
+        });
+        const storage = firebase.storage();
 
         // ===== Element refs =====
         const messageCard = document.getElementById('messageCard');
@@ -604,10 +626,67 @@
             }
         }
 
+        // Logo preview wiring (no upload yet — that happens on submit).
+        const logoInput = document.getElementById('fld-logo');
+        const logoPreviewWrap = document.getElementById('logoPreview');
+        const logoPreviewImg = document.getElementById('logoPreviewImg');
+        const logoClearBtn = document.getElementById('logoClearBtn');
+        const logoStatus = document.getElementById('logoUploadStatus');
+        logoInput.addEventListener('change', function() {
+            const f = logoInput.files && logoInput.files[0];
+            if (!f) { logoPreviewWrap.style.display = 'none'; logoStatus.textContent = ''; return; }
+            if (f.size > 2 * 1024 * 1024) {
+                logoStatus.style.color = '#dc2626';
+                logoStatus.textContent = 'That file is over 2 MB. Please pick a smaller image.';
+                logoInput.value = '';
+                return;
+            }
+            const url = URL.createObjectURL(f);
+            logoPreviewImg.src = url;
+            logoPreviewWrap.style.display = 'block';
+            logoStatus.style.color = 'var(--text-soft)';
+            logoStatus.textContent = 'Will upload when you submit.';
+        });
+        logoClearBtn.addEventListener('click', function() {
+            logoInput.value = '';
+            logoPreviewWrap.style.display = 'none';
+            logoStatus.textContent = '';
+        });
+
+        async function uploadLogoIfAny() {
+            const f = logoInput.files && logoInput.files[0];
+            if (!f) return '';
+            // Filename: timestamp + crypto-random + extension. Avoids collisions
+            // and prevents predictable names for any uploaded file.
+            const extMatch = (f.name || '').match(/\.[a-zA-Z0-9]+$/);
+            const ext = extMatch ? extMatch[0].toLowerCase() : '.png';
+            const rand = Math.random().toString(36).slice(2, 10);
+            const path = 'resource-application-logos/' + Date.now() + '-' + rand + ext;
+            logoStatus.style.color = 'var(--text-soft)';
+            logoStatus.textContent = 'Uploading logo...';
+            const ref = storage.ref(path);
+            await ref.put(f, { contentType: f.type });
+            const url = await ref.getDownloadURL();
+            logoStatus.style.color = '#16A34A';
+            logoStatus.textContent = 'Logo uploaded.';
+            return url;
+        }
+
         async function postApplication(fields) {
             clearInlineError();
             setBusy(true);
             try {
+                let logoUrl = '';
+                try {
+                    logoUrl = await uploadLogoIfAny();
+                } catch (uploadErr) {
+                    console.error('Logo upload failed:', uploadErr);
+                    showInlineError("We couldn't upload that logo. Try a different image, or submit without one.");
+                    setBusy(false);
+                    return;
+                }
+                if (logoUrl) fields.logoUrl = logoUrl;
+
                 const res = await fetch(ENDPOINT_POST, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
