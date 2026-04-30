@@ -74,6 +74,13 @@ service firebase.storage {
       allow write: if request.auth != null;
     }
 
+    // Connect-Gen prep documents — public read so links in the prep email
+    // resolve for parents. Admin-only write via the Firebase console / CLI.
+    match /connect-gen-prep-docs/{file} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
     // Logos uploaded by anonymous applicants from become-partner.html.
     // Public read so admins can display the logo while reviewing the
     // application. Public create-only with strict size + MIME constraints

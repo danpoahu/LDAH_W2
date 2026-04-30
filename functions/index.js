@@ -834,6 +834,57 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
     const eventTitle = event.title || "your LDAH session";
     const datesPhrase = formatDatesPhrase(sessionKeys);
     const modality = detectSignupModality(after, event);
+
+    // Connect-Gen branch — if the event is flagged Program Zoom and the
+    // parent has NOT signed the consent yet, send the consent-required
+    // email instead of the standard confirmation. The standard confirmation
+    // (and the prep-docs email) goes out from submitConnectGenConsent
+    // *after* the form is signed.
+    const isConnectGen = event && event.zoomMode === "program";
+    if (isConnectGen && !after.consentSignedAt) {
+      // Only send once.
+      if (after.consentRequiredEmailSentAt) return;
+      const consentToken = crypto.randomBytes(16).toString("hex");
+      const consentUrl = "https://www.ldahawaii.org/connect-gen-consent.html?token=" + encodeURIComponent(consentToken);
+      const html = buildConsentRequiredEmailHtml({
+        name: recipientName,
+        eventTitle,
+        datesPhrase,
+        consentUrl,
+      });
+      const fromAddress = lifecycleFromAddress();
+      await sendEmailViaResend({
+        from: fromAddress,
+        to: after.email,
+        subject: `Action needed -- consent form for ${eventTitle}`,
+        html,
+        type: "connect-gen-consent-required",
+        relatedEventId: eventId,
+        relatedSignupId: signupId,
+        recipientName,
+      });
+      await change.after.ref.set({
+        consentToken,
+        consentRequiredEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      console.log(`Consent-required email sent to ${after.email} for ${collection}/${eventId}/${signupId}`);
+      return; // do NOT mark confirmationEmailSentAt — the prep email later does that
+    }
+
+    // Connect-Gen + consent already signed → send the prep-docs email
+    // (in case status flipped from pending to confirmed AFTER consent was
+    // already on file from a prior run).
+    if (isConnectGen && after.consentSignedAt) {
+      // submitConnectGenConsent already sent the prep email when the form
+      // was submitted. Don't double-send. Just stamp confirmationEmailSentAt
+      // so this branch doesn't keep re-firing.
+      await change.after.ref.set({
+        confirmationEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      return;
+    }
+
+    // Standard non-Connect-Gen path.
     const html = buildConfirmationEmailHtml({
       name: recipientName,
       eventTitle,
@@ -3371,6 +3422,15 @@ exports.sendEventReminders = functions
       if (signup.archived === true) { skipped++; return; }
       if (!signup.email) { skipped++; return; }
 
+      // Connect-Gen gate — if the event uses Program Zoom (Connect-Gen and
+      // any future programs flagged the same way) and the signed consent
+      // has NOT been received, skip reminders. The consent flow handles
+      // its own emails (consent-required + prep-docs after signing).
+      if (event && event.zoomMode === "program" && !signup.consentSignedAt) {
+        skipped++;
+        return;
+      }
+
       // Candidate session dates: per-signup selections take precedence
       // (covers Learning Labs multi-date + Connect-Gen selectedSessions).
       // Fall back to the event's own eventDate if the signup has none.
@@ -5140,6 +5200,240 @@ exports.submitResourceUpdate = functions
     } catch (err) {
       console.error("submitResourceUpdate error:", err);
       res.status(500).json({ error: err.message || String(err) });
+    }
+  });
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Connect-Gen consent flow.
+   - On Connect-Gen signup confirmation, send a "consent required" email
+     instead of the standard confirmation. Email links to a public form.
+   - Parent submits consent → submitConnectGenConsent stamps the signup,
+     mirrors to the contact, and fires the prep-docs email (with the 13
+     PDFs hosted in connect-gen-prep-docs/ Storage path). Reminder cron
+     skips Connect-Gen signups where consentSignedAt is null.
+   ──────────────────────────────────────────────────────────────────────── */
+
+const CONSENT_TEXT_VERSION = "02/2021; RR";
+const CONSENT_TEXT = "In order for me, [PARENT NAME], to participate in LDAH's Connect Gen Session (CG), on [SESSION DATE], I grant my permission for LDAH to receive, view and discuss my child's confidential documents with me. I am sending the most current Individualized Education Program (IEP) and most current Evaluation(s)/Assessment(s) via fax, email, or postal service. By receiving my documents, it does not obligate LDAH employees to provide additional services to me. LDAH will determine through CG, my need for additional support or services within 48 hours from the date of the CG virtual attendance. My child's confidential documents will be held until a determination is made about receiving additional support with LDAH, such as case advocacy. If I do not require additional supports, my child's confidential documents will be destroyed within 24 hours of attendance date. I agree to send LDAH my child's confidential documents as described above.";
+
+function buildConsentRequiredEmailHtml({ name, eventTitle, datesPhrase, consentUrl }) {
+  const safeName = lifecycleEsc(name || "there");
+  const safeTitle = lifecycleEsc(eventTitle || "Connect-Gen");
+  const safeDates = lifecycleEsc(datesPhrase || "");
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"></head>' +
+    '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
+    '<div style="max-width:600px;margin:0 auto;background:#fff">' +
+    '<div style="background-color:#1e40af;background:linear-gradient(135deg,#1e40af,#0891B2);padding:18px 24px 22px;text-align:center;color:#fff">' +
+    '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;">' +
+    '<h1 style="margin:0;font-size:22px;font-weight:700">Action Required</h1></div>' +
+    '<div style="padding:32px 24px">' +
+    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + safeName + ',</p>' +
+    '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Mahalo for signing up for <strong>' + safeTitle + '</strong>' + (safeDates ? ' on <strong>' + safeDates + '</strong>' : '') + '. Before we can confirm your appointment, we need a signed consent form on file.</p>' +
+    '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">The consent gives LDAH permission to view and discuss your child\'s confidential documents (IEP and Evaluation/Assessment) during the session. Please read it carefully and sign by clicking the button below.</p>' +
+    '<p style="text-align:center;margin:32px 0">' +
+    _emailBtn(consentUrl, "Read & Sign the Consent Form", { bg: "#0891B2" }) +
+    '</p>' +
+    '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6"><strong>Until we receive your signed consent, this appointment is not yet confirmed.</strong> Once signed, we will send you a confirmation along with the prep documents you should review before the meeting.</p>' +
+    '<p style="margin:24px 0 4px;font-size:15px;color:#333;line-height:1.5;">Questions? Reach out anytime.</p>' +
+    '<p style="margin:0 0 4px;font-size:15px;color:#333;line-height:1.5;">With gratitude,</p>' +
+    '<p style="margin:0 0 16px;font-size:15px;color:#333;line-height:1.5;"><strong>Leilani Kailiawa</strong><br>Leadership in Disabilities &amp; Achievement of Hawai\'i<br>(808) 536-7684 &middot; <a href="mailto:lkailiawa@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">lkailiawa@ldahawaii.org</a></p>' +
+    '</div></div></body></html>';
+}
+
+function buildConnectGenPrepEmailHtml({ name, eventTitle, datesPhrase, zoom, prepDocs }) {
+  const safeName = lifecycleEsc(name || "there");
+  const safeTitle = lifecycleEsc(eventTitle || "Connect-Gen");
+  const safeDates = lifecycleEsc(datesPhrase || "");
+
+  const zoomBlock = zoom && zoom.meetingUrl
+    ? '<div style="background:#F0F9FF;border:1px solid #BAE6FD;border-radius:10px;padding:16px;margin:16px 0;">' +
+        '<div style="font-weight:700;color:#0C4A6E;margin-bottom:8px;">Join Zoom Meeting</div>' +
+        _emailBtn(zoom.meetingUrl, "Open Zoom", { bg: "#1a3c6e", align: "left" }) +
+        '<p style="margin:8px 0 0;font-size:14px;color:#333;">Meeting ID: <strong>' + lifecycleEsc(zoom.meetingId || "") + '</strong></p>' +
+        (zoom.passcode ? '<p style="margin:2px 0 0;font-size:14px;color:#333;">Passcode: <strong>' + lifecycleEsc(zoom.passcode) + '</strong></p>' : '') +
+      '</div>'
+    : '';
+
+  let docsHtml = '';
+  if (prepDocs && prepDocs.length) {
+    docsHtml = '<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:16px;margin:16px 0;">' +
+      '<div style="font-weight:700;color:#0F172A;margin-bottom:10px;">Prep Documents</div>' +
+      '<div style="font-size:.92rem;color:#475569;margin-bottom:10px;">Please review these before our session:</div>';
+    prepDocs.forEach(function (d) {
+      docsHtml += '<div style="margin:6px 0;">' +
+        '<a href="' + lifecycleEsc(d.url) + '" style="color:#1a73e8;text-decoration:none;font-size:.95rem;">' + lifecycleEsc(d.title) + '</a>' +
+      '</div>';
+    });
+    docsHtml += '</div>';
+  }
+
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"></head>' +
+    '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
+    '<div style="max-width:600px;margin:0 auto;background:#fff">' +
+    '<div style="background-color:#15803d;background:linear-gradient(135deg,#15803d,#16A34A);padding:18px 24px 22px;text-align:center;color:#fff">' +
+    '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;">' +
+    '<h1 style="margin:0;font-size:22px;font-weight:700">You\'re Confirmed</h1></div>' +
+    '<div style="padding:32px 24px">' +
+    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + safeName + ',</p>' +
+    '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Mahalo for returning your signed consent. Your appointment for <strong>' + safeTitle + '</strong>' + (safeDates ? ' on <strong>' + safeDates + '</strong>' : '') + ' is confirmed.</p>' +
+    '<div style="background:#FFFBEB;border:2px solid #F59E0B;border-radius:10px;padding:14px 18px;margin:18px 0;">' +
+      '<div style="font-weight:700;color:#92400E;font-size:1rem;margin-bottom:4px;">Important — please bring to the session</div>' +
+      '<div style="font-size:.95rem;color:#78350F;line-height:1.5;">Your child\'s most current <strong>IEP</strong> and the <strong>Evaluation that created the IEP</strong>. We won\'t be able to do a meaningful review without both of these on hand.</div>' +
+    '</div>' +
+    zoomBlock +
+    docsHtml +
+    '<p style="margin:24px 0 4px;font-size:15px;color:#333;line-height:1.5;">If anything changes or you have questions, please reach out.</p>' +
+    '<p style="margin:0 0 4px;font-size:15px;color:#333;line-height:1.5;">With gratitude,</p>' +
+    '<p style="margin:0 0 16px;font-size:15px;color:#333;line-height:1.5;"><strong>Leilani Kailiawa</strong><br>Leadership in Disabilities &amp; Achievement of Hawai\'i<br>(808) 536-7684 &middot; <a href="mailto:lkailiawa@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">lkailiawa@ldahawaii.org</a></p>' +
+    '</div></div></body></html>';
+}
+
+// GET endpoint — public form fetches signup details to pre-render.
+exports.getConnectGenConsent = functions
+  .runWith({ timeoutSeconds: 20, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "GET") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const token = (req.query.token || "").toString().trim();
+    if (!token) { res.status(400).json({ error: "Missing token" }); return; }
+
+    try {
+      const db = admin.firestore();
+      const snap = await db.collectionGroup("signups").where("consentToken", "==", token).limit(1).get();
+      if (snap.empty) { res.status(404).json({ error: "Invalid or expired link" }); return; }
+      const doc = snap.docs[0];
+      const s = doc.data() || {};
+      if (s.consentSignedAt) { res.status(410).json({ error: "This consent has already been signed", alreadySigned: true }); return; }
+
+      // Resolve event title + dates phrase for display.
+      const parentRef = doc.ref.parent.parent;
+      const eventSnap = await parentRef.get();
+      const event = eventSnap.exists ? (eventSnap.data() || {}) : {};
+      const sessionKeys = extractSignupSessionKeys(s);
+      const datesPhrase = formatDatesPhrase(sessionKeys);
+
+      res.status(200).json({
+        ok: true,
+        signupName: s.name || "",
+        eventTitle: event.title || "Connect-Gen",
+        datesPhrase,
+      });
+    } catch (err) {
+      console.error("getConnectGenConsent error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+// POST endpoint — parent submits the signed consent.
+exports.submitConnectGenConsent = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 5, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const token = (body.token || "").toString().trim();
+    const typedName = (body.typedName || "").toString().trim();
+    const agree = body.agree === true;
+    if (!token) { res.status(400).json({ error: "Missing token" }); return; }
+    if (!typedName) { res.status(400).json({ error: "Please type your full name to sign." }); return; }
+    if (typedName.length < 3 || typedName.indexOf(" ") === -1) {
+      res.status(400).json({ error: "Please type your first AND last name to sign." }); return;
+    }
+    if (!agree) { res.status(400).json({ error: "You must agree to the consent terms to submit." }); return; }
+
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const snap = await db.collectionGroup("signups").where("consentToken", "==", token).limit(1).get();
+      if (snap.empty) { res.status(404).json({ error: "Invalid or expired link" }); return; }
+      const doc = snap.docs[0];
+      const s = doc.data() || {};
+      if (s.consentSignedAt) { res.status(410).json({ error: "This consent has already been signed" }); return; }
+
+      // Stamp the signup with the signature record. Keep consentText so we
+      // have an immutable snapshot of exactly what they agreed to.
+      const ip = (req.headers["x-forwarded-for"] || req.ip || "").toString().split(",")[0].trim();
+      await doc.ref.update({
+        consentSignedAt: FieldValue.serverTimestamp(),
+        consentSignedName: typedName,
+        consentText: CONSENT_TEXT,
+        consentVersion: CONSENT_TEXT_VERSION,
+        consentSignedIp: ip,
+        consentToken: FieldValue.delete(),
+      });
+
+      // Mirror to the linked contact doc so it surfaces in the contact card.
+      try {
+        if (s.contactId) {
+          await db.collection("contacts").doc(s.contactId).update({
+            connectGenConsent: {
+              signedAt: FieldValue.serverTimestamp(),
+              signedName: typedName,
+              version: CONSENT_TEXT_VERSION,
+              eventId: doc.ref.parent.parent.id,
+              signupId: doc.id,
+            },
+          });
+        }
+      } catch (e) {
+        console.warn("Mirror consent to contact failed (non-fatal):", e.message);
+      }
+
+      // Now send the prep-docs email.
+      try {
+        const eventId = doc.ref.parent.parent.id;
+        const collection = doc.ref.parent.parent.parent.id; // 'recurringEvents' or 'events'
+        const eventSnap = await db.collection(collection).doc(eventId).get();
+        const event = eventSnap.exists ? (eventSnap.data() || {}) : {};
+
+        const zoomSnap = await db.collection("settings").doc("zoomDefault").get();
+        const zoomDoc = zoomSnap.exists ? (zoomSnap.data() || null) : null;
+        const zoom = pickZoomForEvent(zoomDoc, event, collection);
+
+        const prepSnap = await db.collection("system").doc("connectGenPrepDocs").get();
+        const prepDocs = (prepSnap.exists && Array.isArray(prepSnap.data().docs)) ? prepSnap.data().docs : [];
+
+        const sessionKeys = extractSignupSessionKeys(s);
+        const datesPhrase = formatDatesPhrase(sessionKeys);
+        const html = buildConnectGenPrepEmailHtml({
+          name: s.name || typedName,
+          eventTitle: event.title || "Connect-Gen",
+          datesPhrase,
+          zoom,
+          prepDocs,
+        });
+
+        const fromAddress = lifecycleFromAddress();
+        await sendEmailViaResend({
+          from: fromAddress,
+          to: s.email,
+          subject: "Confirmed -- Connect-Gen prep documents inside",
+          html,
+          type: "connect-gen-prep",
+          relatedEventId: eventId,
+          relatedSignupId: doc.id,
+          recipientName: s.name || typedName,
+        });
+        await doc.ref.update({
+          confirmationEmailSentAt: FieldValue.serverTimestamp(),
+          prepDocsEmailSentAt: FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        console.error("Prep-docs email failed (consent saved):", e.message);
+      }
+
+      res.status(200).json({ ok: true });
+    } catch (err) {
+      console.error("submitConnectGenConsent error:", err.message);
+      res.status(500).json({ error: err.message });
     }
   });
 

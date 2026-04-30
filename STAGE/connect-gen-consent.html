@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Sign your consent to participate in LDAH's Connect Gen session.">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Connect Gen Consent - LDAH</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+    :root {
+        --ocean-deep: #0891B2;
+        --ocean-mid: #06B6D4;
+        --ocean-light: #22D3EE;
+        --sunset-coral: #F97316;
+        --sunset-warm: #FB923C;
+        --sunset-light: #FED7AA;
+        --sand: #FEF3C7;
+        --sand-light: #FFFBEB;
+        --palm: #65A30D;
+        --plumeria: #FBBF24;
+        --white: #FFFFFF;
+        --text-dark: #1E293B;
+        --text-soft: #64748B;
+        --bg-warm: #FEFDFB;
+        --primary-blue: #0891B2;
+        --light-blue: #06B6D4;
+        --accent-teal: #22D3EE;
+        --bg-light: #FFFBEB;
+        --text-light: #64748B;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+        font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        color: var(--text-dark);
+        line-height: 1.7;
+        background: var(--bg-warm);
+        overflow-x: hidden;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+    }
+
+    h1, h2, h3 {
+        font-family: 'Outfit', sans-serif;
+        font-weight: 600;
+        line-height: 1.3;
+    }
+
+    /* Simple branded header (no full nav) */
+    .page-header {
+        background: rgba(255, 255, 255, 0.97);
+        backdrop-filter: blur(12px);
+        box-shadow: 0 1px 20px rgba(8, 145, 178, 0.08);
+        border-bottom: 1px solid rgba(8, 145, 178, 0.1);
+    }
+
+    .page-header-inner {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 1rem 2rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .page-header img {
+        width: 72px;
+        height: 72px;
+        flex-shrink: 0;
+    }
+
+    .page-header .header-text h1 {
+        color: var(--primary-blue);
+        font-size: 1.4rem;
+        font-weight: 600;
+        margin: 0;
+    }
+
+    .page-header .header-text p {
+        color: var(--text-light);
+        font-size: 0.95rem;
+        margin: 0;
+        line-height: 1.4;
+    }
+
+    /* Hero */
+    .hero-section {
+        padding: 2rem;
+        background: linear-gradient(135deg, #0891B2 0%, #06B6D4 100%);
+        color: white;
+        text-align: center;
+        height: 160px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .hero-section h2 {
+        font-size: 1.9rem;
+        margin-bottom: 0.4rem;
+        font-family: 'Outfit', sans-serif;
+        font-weight: 600;
+        letter-spacing: -0.5px;
+        color: white;
+    }
+
+    .hero-section p {
+        font-size: 1rem;
+        max-width: 600px;
+        margin: 0 auto;
+        line-height: 1.5;
+        opacity: 0.95;
+    }
+
+    /* Main wrapper */
+    .main-wrap {
+        flex: 1;
+        max-width: 720px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 40px 20px 60px;
+    }
+
+    .card {
+        background: white;
+        border-radius: 20px;
+        padding: 2.5rem;
+        box-shadow: 0 4px 20px rgba(0, 78, 124, 0.10);
+        border: 1px solid rgba(8, 145, 178, 0.08);
+    }
+
+    .card.message-card {
+        text-align: center;
+    }
+
+    .card.message-card h3 {
+        color: var(--primary-blue);
+        font-size: 1.4rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .card.message-card p {
+        color: var(--text-light);
+        font-size: 1.02rem;
+    }
+
+    .card.message-card a {
+        color: var(--primary-blue);
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .card.message-card a:hover {
+        text-decoration: underline;
+    }
+
+    /* Status / loading state */
+    .loading-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: var(--text-light);
+    }
+
+    .loading-spinner {
+        display: inline-block;
+        width: 36px;
+        height: 36px;
+        border: 3px solid rgba(8, 145, 178, 0.2);
+        border-top-color: var(--primary-blue);
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+        margin-bottom: 1rem;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    /* Form */
+    .resource-summary {
+        background: var(--bg-light);
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.75rem;
+        font-size: 0.95rem;
+        color: var(--text-light);
+    }
+
+    .resource-summary strong {
+        color: var(--text-dark);
+    }
+
+    .form-group {
+        margin-bottom: 1.4rem;
+    }
+
+    .form-group label {
+        display: block;
+        font-weight: 600;
+        color: var(--text-dark);
+        margin-bottom: 0.4rem;
+        font-size: 0.97rem;
+    }
+
+    .form-group .helper-text {
+        display: block;
+        font-size: 0.85rem;
+        color: var(--text-light);
+        margin-top: 0.25rem;
+        margin-bottom: 0.45rem;
+        font-weight: 400;
+    }
+
+    .form-group input[type="text"],
+    .form-group input[type="url"],
+    .form-group input[type="email"],
+    .form-group select,
+    .form-group textarea {
+        width: 100%;
+        padding: 0.7rem 0.9rem;
+        font-family: inherit;
+        font-size: 1rem;
+        color: var(--text-dark);
+        background: white;
+        border: 1.5px solid #cbd5e1;
+        border-radius: 10px;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: var(--primary-blue);
+        box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.15);
+    }
+
+    .form-group textarea {
+        resize: vertical;
+        min-height: 100px;
+        font-family: inherit;
+    }
+
+    /* Logo info box */
+    .logo-info-box {
+        background: #FEF9C3;
+        border: 1px solid #FDE68A;
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        margin: 1.75rem 0;
+        color: #713F12;
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
+
+    .logo-info-box strong {
+        color: #713F12;
+    }
+
+    .logo-info-box a {
+        color: #713F12;
+        font-weight: 600;
+    }
+
+    /* Buttons */
+    .button-row {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-top: 1.5rem;
+    }
+
+    .btn {
+        flex: 1;
+        min-width: 200px;
+        padding: 0.85rem 1.5rem;
+        font-family: inherit;
+        font-size: 1rem;
+        font-weight: 600;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: 2px solid transparent;
+        text-align: center;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, var(--ocean-mid), var(--accent-teal));
+        color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(8, 145, 178, 0.3);
+    }
+
+    .btn-ghost {
+        background: white;
+        color: var(--primary-blue);
+        border-color: var(--primary-blue);
+    }
+
+    .btn-ghost:hover:not(:disabled) {
+        background: var(--bg-light);
+    }
+
+    .btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+    }
+
+    /* Inline error */
+    .inline-error {
+        background: #FEE2E2;
+        border: 1px solid #FCA5A5;
+        color: #991B1B;
+        border-radius: 10px;
+        padding: 0.8rem 1rem;
+        margin-top: 1rem;
+        font-size: 0.95rem;
+        display: none;
+    }
+
+    .inline-error.visible {
+        display: block;
+    }
+
+    /* Footer (loaded externally - styles match common pattern) */
+    footer {
+        background: var(--text-dark);
+        color: white;
+        padding: 1.75rem 2rem 1rem;
+        position: relative;
+        overflow: hidden;
+        margin-top: auto;
+    }
+
+    /* The decorative islands SVG MUST be positioned absolute, otherwise
+       the empty <use href="#hawaii-islands"/> element (whose target symbol
+       isn't defined on this page) takes up huge layout space and balloons
+       the footer height. Matches resources.html. */
+    .footer-islands {
+        position: absolute;
+        right: -5%;
+        bottom: -20%;
+        width: 40%;
+        color: white;
+        opacity: 0.03;
+        transform: scaleY(-1);
+        pointer-events: none;
+    }
+
+    .footer-content {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.4rem;
+        margin-bottom: 1rem;
+        position: relative;
+        z-index: 1;
+    }
+
+    .footer-section h3 {
+        color: var(--plumeria);
+        margin-bottom: 0.7rem;
+        font-family: 'Outfit', sans-serif;
+        font-size: 1rem;
+    }
+
+    .footer-section p {
+        color: rgba(255, 255, 255, 0.7);
+        line-height: 1.5;
+        font-size: 0.9rem;
+    }
+
+    .footer-section a {
+        color: rgba(255, 255, 255, 0.7);
+        text-decoration: none;
+        display: block;
+        margin-bottom: 0.35rem;
+        transition: color 0.25s ease;
+        font-size: 0.9rem;
+    }
+
+    .footer-section a:hover { color: var(--plumeria); }
+
+    .footer-bottom {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding-top: 1rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        text-align: center;
+        color: rgba(255, 255, 255, 0.5);
+        position: relative;
+        z-index: 1;
+        font-size: 0.85rem;
+    }
+
+    .footer-bottom p { margin: 0.25rem 0; }
+
+    @media (max-width: 600px) {
+        .page-header-inner { padding: 0.75rem 1rem; gap: 0.75rem; }
+        .page-header img { width: 56px; height: 56px; }
+        .page-header .header-text h1 { font-size: 1.15rem; }
+        .page-header .header-text p { font-size: 0.85rem; }
+        .hero-section { height: auto; padding: 1.75rem 1rem; }
+        .hero-section h2 { font-size: 1.55rem; }
+        .hero-section p { font-size: 0.93rem; }
+        .card { padding: 1.5rem; }
+        .main-wrap { padding: 24px 14px 40px; }
+        .button-row { flex-direction: column; }
+        .btn { min-width: 0; width: 100%; }
+    }
+    </style>
+</head>
+<body>
+
+    <header class="page-header">
+        <div class="page-header-inner">
+            <img src="logo_blue.png" alt="LDAH Logo">
+            <div class="header-text">
+                <h1>Connect Gen Consent</h1>
+                <p>Leadership in Disabilities & Achievement of Hawai'i</p>
+            </div>
+        </div>
+    </header>
+
+    <section class="hero-section">
+        <h2>Connect Gen Consent</h2>
+        <p>Please read carefully and sign by typing your full name. Your appointment is not confirmed until we receive this consent.</p>
+    </section>
+
+    <main class="main-wrap">
+
+        <!-- Loading state -->
+        <div id="loadingCard" class="card">
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <p>Loading your consent form...</p>
+            </div>
+        </div>
+
+        <!-- Error / message states -->
+        <div id="messageCard" class="card message-card" style="display: none;">
+            <h3 id="messageTitle"></h3>
+            <p id="messageBody"></p>
+        </div>
+
+        <!-- Form state -->
+        <div id="formCard" class="card" style="display:none;">
+            <div id="signupSummary" style="background:#F0F9FF;border:1px solid #BAE6FD;border-radius:10px;padding:14px 16px;margin-bottom:18px;font-size:.92rem;line-height:1.5;color:#0C4A6E;"></div>
+
+            <!-- Consent text — verbatim, matches printed form revision 02/2021; RR. -->
+            <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:18px 20px;margin-bottom:20px;font-size:.95rem;line-height:1.65;color:#1f2937;">
+                <p style="margin:0 0 12px;">In order for me, <strong id="consentName">[your name]</strong>, to participate in LDAH's Connect Gen Session (CG), on <strong id="consentDate"></strong>, I grant my permission for LDAH to receive, view and discuss my child's confidential documents with me.</p>
+                <p style="margin:0 0 12px;">I am sending the most current Individualized Education Program (IEP) and most current Evaluation(s)/Assessment(s) via fax, email, or postal service.</p>
+                <p style="margin:0 0 12px;">By receiving my documents, it does not obligate LDAH employees to provide additional services to me. LDAH will determine through CG, my need for additional support or services within 48 hours from the date of the CG virtual attendance.</p>
+                <p style="margin:0 0 12px;">My child's confidential documents will be held until a determination is made about receiving additional support with LDAH, such as case advocacy. If I do not require additional supports, my child's confidential documents will be destroyed within 24 hours of attendance date.</p>
+                <p style="margin:0;font-weight:700;">I agree to send LDAH my child's confidential documents as described above.</p>
+                <p style="margin:14px 0 0;font-size:.78rem;color:#92400E;">Form revision: 02/2021; RR</p>
+            </div>
+
+            <form id="consentForm" novalidate>
+                <div class="form-group">
+                    <label for="fld-typed-name">Type your full legal name to sign <span style="color: var(--sunset-coral);">*</span></label>
+                    <span class="helper-text">First and last name, exactly as on the IEP/Evaluation. By typing your name and submitting, you are providing a legally binding electronic signature.</span>
+                    <input type="text" id="fld-typed-name" name="typedName" required style="font-family:'Outfit',cursive;font-size:1.15rem;font-style:italic;">
+                </div>
+
+                <div class="form-group" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:12px 14px;">
+                    <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-weight:600;">
+                        <input type="checkbox" id="fld-agree" name="agree" required style="margin-top:3px;flex-shrink:0;">
+                        <span>I have read the consent above. I understand and agree to its terms. I am the parent or legal guardian of the child whose documents will be reviewed.</span>
+                    </label>
+                </div>
+
+                <div class="button-row">
+                    <button type="submit" id="submitBtn" class="btn btn-primary">Sign and Submit</button>
+                </div>
+
+                <div id="inlineError" class="inline-error"></div>
+            </form>
+        </div>
+
+    </main>
+
+    <div id="footer-container"></div>
+
+    <script>
+        const ENDPOINT_GET  = 'https://us-central1-ldah-932d5.cloudfunctions.net/getConnectGenConsent';
+        const ENDPOINT_POST = 'https://us-central1-ldah-932d5.cloudfunctions.net/submitConnectGenConsent';
+
+        // Element refs
+        const loadingCard = document.getElementById('loadingCard');
+        const messageCard = document.getElementById('messageCard');
+        const formCard    = document.getElementById('formCard');
+        const messageTitle = document.getElementById('messageTitle');
+        const messageBody  = document.getElementById('messageBody');
+        const inlineError  = document.getElementById('inlineError');
+        const submitBtn    = document.getElementById('submitBtn');
+        const consentForm  = document.getElementById('consentForm');
+        const typedNameEl  = document.getElementById('fld-typed-name');
+        const agreeEl      = document.getElementById('fld-agree');
+        const consentNameEl = document.getElementById('consentName');
+        const consentDateEl = document.getElementById('consentDate');
+        const summaryEl    = document.getElementById('signupSummary');
+
+        let token = null;
+
+        function showOnly(el) {
+            loadingCard.style.display = 'none';
+            messageCard.style.display = 'none';
+            formCard.style.display = 'none';
+            if (el) el.style.display = 'block';
+        }
+        function showMessage(title, bodyHtml) {
+            messageTitle.textContent = title;
+            messageBody.innerHTML = bodyHtml;
+            showOnly(messageCard);
+        }
+        function showInlineError(msg) {
+            inlineError.textContent = msg;
+            inlineError.classList.add('visible');
+        }
+        function clearInlineError() {
+            inlineError.textContent = '';
+            inlineError.classList.remove('visible');
+        }
+        function setBusy(busy) {
+            submitBtn.disabled = busy;
+            if (busy) {
+                submitBtn.dataset.origText = submitBtn.dataset.origText || submitBtn.textContent;
+                submitBtn.textContent = 'Signing...';
+            } else if (submitBtn.dataset.origText) {
+                submitBtn.textContent = submitBtn.dataset.origText;
+            }
+        }
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+        }
+
+        // Live-update the consent text with the typed name as the user signs.
+        typedNameEl.addEventListener('input', function() {
+            const v = typedNameEl.value.trim();
+            consentNameEl.textContent = v || '[your name]';
+        });
+
+        async function loadConsentContext() {
+            try {
+                const res = await fetch(ENDPOINT_GET + '?token=' + encodeURIComponent(token));
+                if (res.status === 404) {
+                    showMessage('Link not found', "We couldn't find this consent request. The link may have expired or already been signed.");
+                    return;
+                }
+                if (res.status === 410) {
+                    showMessage('Already signed', "This consent has already been signed. Mahalo!");
+                    return;
+                }
+                if (!res.ok) {
+                    showMessage('Something went wrong', "We couldn't load your consent right now. Please try again later or contact <a href='mailto:lkailiawa@ldahawaii.org'>lkailiawa@ldahawaii.org</a>.");
+                    return;
+                }
+                const data = await res.json();
+                consentDateEl.textContent = data.datesPhrase || 'the upcoming session date';
+                summaryEl.innerHTML = '<strong>Signing up for:</strong> ' + escapeHtml(data.eventTitle || 'Connect-Gen') +
+                    (data.datesPhrase ? '<br><strong>Session:</strong> ' + escapeHtml(data.datesPhrase) : '') +
+                    (data.signupName ? '<br><strong>Registered name on file:</strong> ' + escapeHtml(data.signupName) : '');
+                if (data.signupName) typedNameEl.placeholder = data.signupName;
+                showOnly(formCard);
+            } catch (err) {
+                console.error('Failed to load consent context:', err);
+                showMessage('Connection error', "We couldn't reach the server. Please check your internet connection and try again.");
+            }
+        }
+
+        async function postConsent() {
+            clearInlineError();
+            setBusy(true);
+            try {
+                const res = await fetch(ENDPOINT_POST, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        token: token,
+                        typedName: typedNameEl.value.trim(),
+                        agree: agreeEl.checked === true
+                    })
+                });
+                if (res.status === 410) {
+                    showMessage('Already signed', "This consent has already been signed. Mahalo!");
+                    return;
+                }
+                if (!res.ok) {
+                    let detail = '';
+                    try { const j = await res.json(); detail = j && j.error ? ' (' + j.error + ')' : ''; } catch (_) {}
+                    showInlineError("We couldn't save your signature" + detail + '.');
+                    setBusy(false);
+                    return;
+                }
+                showMessage('Mahalo — consent received',
+                    'Your appointment is now confirmed. We\'ve sent you a confirmation email with your prep documents and Zoom details. <strong>Please bring your child\'s most current IEP and the Evaluation that created it</strong> to the session.');
+            } catch (err) {
+                console.error('Submit failed:', err);
+                showInlineError("We couldn't reach the server. Please check your connection and try again.");
+                setBusy(false);
+            }
+        }
+
+        function handleSubmit(e) {
+            e.preventDefault();
+            const typed = typedNameEl.value.trim();
+            if (typed.length < 3 || typed.indexOf(' ') === -1) {
+                showInlineError('Please type your first AND last name to sign.');
+                typedNameEl.focus();
+                return;
+            }
+            if (!agreeEl.checked) {
+                showInlineError('Please check the box to confirm you agree to the consent terms.');
+                agreeEl.focus();
+                return;
+            }
+            postConsent();
+        }
+        consentForm.addEventListener('submit', handleSubmit);
+
+        async function loadFooter() {
+            const footerContainer = document.getElementById('footer-container');
+            try {
+                const res = await fetch('footer.html');
+                if (res.ok) {
+                    footerContainer.innerHTML = await res.text();
+                    document.querySelectorAll('.dynamic-year').forEach(el => {
+                        el.textContent = new Date().getFullYear();
+                    });
+                }
+            } catch (_) {}
+        }
+
+        function init() {
+            loadFooter();
+            const params = new URLSearchParams(window.location.search);
+            token = params.get('token');
+            if (!token) {
+                showMessage('Invalid link', "This consent link is missing a token. Please check the link in your email or contact <a href='mailto:lkailiawa@ldahawaii.org'>lkailiawa@ldahawaii.org</a>.");
+                return;
+            }
+            loadConsentContext();
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    </script>
+
+</body>
+</html>
