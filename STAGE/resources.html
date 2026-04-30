@@ -260,137 +260,215 @@
         color: var(--primary-blue);
     }
 
-    /* Resource Cards */
+    /* Resource Card Grid */
+    .resource-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 16px;
+    }
+
     .resource-card {
         background: white;
-        border-radius: 16px;
-        margin-bottom: 16px;
+        border-radius: 14px;
         box-shadow: 0 2px 12px rgba(0, 78, 124, 0.08);
         overflow: hidden;
-        transition: box-shadow 0.3s, transform 0.3s;
-    }
-
-    .resource-card:hover {
-        box-shadow: 0 4px 20px rgba(0, 78, 124, 0.12);
-    }
-
-    .resource-header {
-        display: flex;
-        align-items: center;
-        padding: 20px;
         cursor: pointer;
-        gap: 20px;
+        border: none;
+        text-align: left;
+        padding: 18px;
+        font: inherit;
+        color: inherit;
+        width: 100%;
+        transition: box-shadow 0.25s, transform 0.25s;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
     }
 
-    .resource-logo {
-        width: 80px;
-        height: 80px;
-        border-radius: 12px;
+    .resource-card:hover,
+    .resource-card:focus-visible {
+        box-shadow: 0 6px 22px rgba(0, 78, 124, 0.16);
+        transform: translateY(-2px);
+        outline: 2px solid var(--primary-blue);
+        outline-offset: 2px;
+    }
+
+    .resource-card-head {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .resource-card-logo {
+        width: 56px;
+        height: 56px;
+        border-radius: 10px;
         object-fit: contain;
         background: #f8f9fa;
-        padding: 8px;
+        padding: 6px;
         flex-shrink: 0;
     }
 
-    .resource-logo-placeholder {
-        width: 80px;
-        height: 80px;
-        border-radius: 12px;
+    .resource-card-logo-placeholder {
+        width: 56px;
+        height: 56px;
+        border-radius: 10px;
         background: linear-gradient(135deg, var(--primary-blue), var(--light-blue));
+        color: white;
+        font-size: 1.4rem;
+        font-weight: 700;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 2rem;
         flex-shrink: 0;
     }
 
-    .resource-summary {
+    .resource-card-id {
         flex: 1;
         min-width: 0;
     }
 
-    .resource-name {
-        font-size: 1.15rem;
+    .resource-card-name {
+        font-size: 1.05rem;
         font-weight: 700;
         color: var(--primary-blue);
-        margin-bottom: 4px;
+        line-height: 1.25;
+        margin: 0 0 4px;
     }
 
-    .resource-type-badge {
-        display: inline-block;
-        padding: 4px 10px;
-        background: #e0f2fe;
-        color: #0369a1;
-        border-radius: 50px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        margin-bottom: 8px;
-    }
-
-    .resource-meta {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-        font-size: 0.85rem;
+    .resource-card-meta {
+        font-size: 0.82rem;
         color: var(--text-light);
+        line-height: 1.4;
     }
 
-    .resource-meta span {
-        display: flex;
-        align-items: center;
-        gap: 4px;
+    .resource-card-desc {
+        font-size: 0.88rem;
+        color: var(--text-dark);
+        line-height: 1.45;
+        margin: 0;
+        display: -webkit-box;
+        -webkit-line-clamp: 4;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
     }
 
-    .expand-icon {
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        background: #f1f5f9;
-        display: flex;
-        align-items: center;
+    /* Resource Detail Modal */
+    .resource-modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.75);
+        z-index: 9999;
+        align-items: flex-start;
         justify-content: center;
-        transition: transform 0.3s, background 0.3s;
+        padding: 24px 16px;
+        overflow-y: auto;
+    }
+
+    .resource-modal.open { display: flex; }
+
+    .resource-modal-content {
+        background: white;
+        border-radius: 16px;
+        max-width: 640px;
+        width: 100%;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+        animation: rmFadeIn 0.2s ease;
+        overflow: hidden;
+    }
+
+    @keyframes rmFadeIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .resource-modal-head {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 22px 24px;
+        background: linear-gradient(135deg, var(--primary-blue), var(--light-blue));
+        color: white;
+        position: relative;
+    }
+
+    .resource-modal-head .rm-logo,
+    .resource-modal-head .rm-placeholder {
+        width: 64px;
+        height: 64px;
+        border-radius: 12px;
         flex-shrink: 0;
     }
 
-    .resource-card.expanded .expand-icon {
-        transform: rotate(180deg);
-        background: var(--primary-blue);
+    .resource-modal-head .rm-logo {
+        object-fit: contain;
+        background: white;
+        padding: 6px;
+    }
+
+    .resource-modal-head .rm-placeholder {
+        background: rgba(255,255,255,.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.6rem;
+        font-weight: 700;
+    }
+
+    .resource-modal-head .rm-id { flex: 1; min-width: 0; }
+    .resource-modal-head h2 {
+        font-size: 1.4rem;
+        margin: 0 0 4px;
         color: white;
+        line-height: 1.2;
+    }
+    .resource-modal-head .rm-meta {
+        font-size: 0.88rem;
+        opacity: 0.9;
     }
 
-    /* Resource Details (expandable) */
-    .resource-details {
-        max-height: 0;
-        overflow: hidden;
-        transition: max-height 0.4s ease;
-        border-top: 0 solid #e2e8f0;
+    .resource-modal-close {
+        position: absolute;
+        top: 14px;
+        right: 16px;
+        background: rgba(255,255,255,.2);
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        font-size: 1.4rem;
+        cursor: pointer;
+        line-height: 1;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
-    .resource-card.expanded .resource-details {
-        max-height: 1000px;
-        border-top-width: 1px;
-    }
+    .resource-modal-close:hover { background: rgba(255,255,255,.3); }
 
-    .resource-details-inner {
-        padding: 20px;
+    .resource-modal-body {
+        padding: 22px 24px;
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 20px;
+        gap: 18px;
     }
 
     .detail-section h4 {
-        font-size: 0.8rem;
+        font-size: 0.78rem;
         color: var(--text-light);
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        margin-bottom: 6px;
+        margin: 0 0 6px;
     }
 
     .detail-section p {
         color: var(--text-dark);
         font-size: 0.95rem;
-        line-height: 1.6;
+        line-height: 1.5;
+        margin: 0;
     }
 
     .detail-section a {
@@ -398,9 +476,7 @@
         text-decoration: none;
     }
 
-    .detail-section a:hover {
-        text-decoration: underline;
-    }
+    .detail-section a:hover { text-decoration: underline; }
 
     .services-section {
         grid-column: 1 / -1;
@@ -409,16 +485,16 @@
         border-radius: 12px;
     }
 
-    .services-section h4 {
-        margin-bottom: 10px;
-    }
+    .services-section h4 { margin-bottom: 8px; }
 
     .contact-buttons {
         grid-column: 1 / -1;
         display: flex;
         flex-wrap: wrap;
         gap: 10px;
-        padding-top: 10px;
+        padding-top: 14px;
+        margin-top: 6px;
+        border-top: 1px solid #e2e8f0;
     }
 
     .contact-btn {
@@ -456,6 +532,40 @@
     @media (max-width: 767px) {
         .contact-btn.website {
             display: none;
+        }
+    }
+
+    /* Mobile: simpler 1-column list, more compact cards */
+    @media (max-width: 640px) {
+        .resource-grid {
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+        .resource-card {
+            padding: 14px;
+            gap: 8px;
+        }
+        .resource-card-logo,
+        .resource-card-logo-placeholder {
+            width: 44px;
+            height: 44px;
+        }
+        .resource-card-name { font-size: 1rem; }
+        .resource-card-desc {
+            -webkit-line-clamp: 2;
+        }
+        .resource-modal {
+            padding: 0;
+            align-items: stretch;
+        }
+        .resource-modal-content {
+            border-radius: 0;
+            max-width: 100%;
+            min-height: 100vh;
+        }
+        .resource-modal-body {
+            grid-template-columns: 1fr;
+            padding: 18px;
         }
     }
 
@@ -623,9 +733,6 @@
     @media (max-width: 768px) {
         .hero-section h1 { font-size: 1.8em; }
         .hero-section p { font-size: 1em; }
-        .resource-header { flex-wrap: wrap; }
-        .resource-logo, .resource-logo-placeholder { width: 60px; height: 60px; }
-        .resource-details-inner { grid-template-columns: 1fr; }
         .filter-buttons { gap: 6px; }
         .filter-btn { padding: 6px 12px; font-size: 0.8rem; }
     }
@@ -694,7 +801,7 @@
         </div>
 
         <!-- Resources List -->
-        <div id="resourcesList">
+        <div id="resourcesList" class="resource-grid">
             <!-- Cards will be generated by JavaScript -->
         </div>
     </div>
@@ -709,6 +816,21 @@
 
     <!-- Footer Container -->
     <div id="footer-container"></div>
+
+    <!-- Resource detail modal (full info on card click) -->
+    <div id="resourceModal" class="resource-modal" onclick="closeResourceModal(event)" role="dialog" aria-modal="true" aria-labelledby="rmTitle">
+        <div class="resource-modal-content" onclick="event.stopPropagation()">
+            <div class="resource-modal-head">
+                <div id="rmLogoSlot"></div>
+                <div class="rm-id">
+                    <h2 id="rmTitle">Loading…</h2>
+                    <div class="rm-meta" id="rmMeta"></div>
+                </div>
+                <button class="resource-modal-close" onclick="closeResourceModal()" aria-label="Close">&times;</button>
+            </div>
+            <div class="resource-modal-body" id="rmBody"></div>
+        </div>
+    </div>
 
     <!-- Modal for external links -->
     <div id="iframeModal" class="iframe-modal" onclick="closeIframeModal(event)">
@@ -859,69 +981,93 @@
             }
         }
 
-        // Render resource card
+        // Render compact resource card (whole card is clickable; full details open in modal)
         function renderResourceCard(resource) {
-            const logoHtml = resource.logo 
-                ? `<img src="${resource.logo}" alt="${resource.name}" class="resource-logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                   <div class="resource-logo-placeholder" style="display:none;"></div>`
-                : ``;
-            
-            const websiteUrl = resource.website && resource.website.startsWith('http') ? resource.website : `https://${resource.website}`;
+            const logoHtml = resource.logo
+                ? `<img src="${resource.logo}" alt="${resource.name}" class="resource-card-logo" onerror="this.outerHTML='<div class=&quot;resource-card-logo-placeholder&quot;>${(resource.name || '?').charAt(0).toUpperCase()}</div>';">`
+                : `<div class="resource-card-logo-placeholder">${(resource.name || '?').charAt(0).toUpperCase()}</div>`;
+
             const displayIsland = resource.island || 'Statewide';
-            const displayPhone = resource.phone || 'N/A';
-            
+            const cityIsland = [resource.city, displayIsland].filter(Boolean).join(' • ');
+
+            // Plain-text snippet for the card body (strip HTML, trim).
+            const rawDesc = String(resource.services || '').replace(/<[^>]*>/g, '').trim();
+
             return `
-                <div class="resource-card" data-id="${resource.id}" data-island="${resource.island}" data-type="${resource.type}">
-                    <div class="resource-header" onclick="toggleCard('${resource.id}')">
+                <button type="button" class="resource-card" data-id="${resource.id}" data-island="${resource.island}" data-type="${resource.type}" onclick="openResourceModal('${String(resource.id).replace(/'/g, "\\'")}')">
+                    <div class="resource-card-head">
                         ${logoHtml}
-                        <div class="resource-summary">
-                            <div class="resource-type-badge">${resource.type}</div>
-                            <h3 class="resource-name">${resource.name}</h3>
-                            <div class="resource-meta">
-                                <span>${displayIsland}</span>
-                                ${resource.phone ? `<span>${resource.phone}</span>` : ''}
-                            </div>
-                        </div>
-                        <div class="expand-icon">▼</div>
-                    </div>
-                    <div class="resource-details">
-                        <div class="resource-details-inner">
-                            ${resource.person ? `<div class="detail-section">
-                                <h4>Contact Person</h4>
-                                <p>${resource.person}</p>
-                            </div>` : ''}
-                            ${resource.address || resource.city ? `<div class="detail-section">
-                                <h4>Address</h4>
-                                <p>${resource.address ? resource.address + '<br>' : ''}${resource.city}${resource.state ? ', ' + resource.state : ''} ${resource.zip}</p>
-                            </div>` : ''}
-                            ${resource.phone ? `<div class="detail-section">
-                                <h4>Phone</h4>
-                                <p><a href="tel:${resource.phone.replace(/[^0-9+]/g, '')}">${resource.phone}</a></p>
-                            </div>` : ''}
-                            ${resource.email ? `<div class="detail-section">
-                                <h4>Email</h4>
-                                <p><a href="mailto:${resource.email}">${resource.email}</a></p>
-                            </div>` : ''}
-                            ${resource.services ? `<div class="services-section">
-                                <h4>Services Offered</h4>
-                                <p>${resource.services}</p>
-                            </div>` : ''}
-                            <div class="contact-buttons">
-                                ${resource.phone ? `<a href="tel:${resource.phone.replace(/[^0-9+]/g, '')}" class="contact-btn phone">Call</a>` : ''}
-                                ${resource.email ? `<a href="mailto:${resource.email}" class="contact-btn email">Email</a>` : ''}
-                                ${resource.website ? (resource.iframeBlocked ? (resource.allowExternal ? `<a href="${websiteUrl}" target="_blank" rel="noopener" class="contact-btn website">Website</a>` : '') : `<button onclick="event.stopPropagation(); openIframeModal('${resource.name.replace(/'/g, "\\'")}', '${websiteUrl}')" class="contact-btn website">Website</button>`) : ''}
-                            </div>
+                        <div class="resource-card-id">
+                            <h3 class="resource-card-name">${resource.name || ''}</h3>
+                            <div class="resource-card-meta"><strong>${resource.type || ''}</strong>${cityIsland ? ' · ' + cityIsland : ''}</div>
                         </div>
                     </div>
-                </div>
+                    ${rawDesc ? `<p class="resource-card-desc">${rawDesc}</p>` : ''}
+                </button>
             `;
         }
 
-        // Toggle card expansion
-        function toggleCard(id) {
-            const card = document.querySelector(`.resource-card[data-id="${id}"]`);
-            if (card) card.classList.toggle('expanded');
+        // Open the detail modal with a single resource.
+        function openResourceModal(id) {
+            const r = resourcesData.find(x => String(x.id) === String(id));
+            if (!r) return;
+
+            const websiteUrl = r.website && r.website.startsWith('http') ? r.website : (r.website ? 'https://' + r.website : '');
+            const safeName = (r.name || '').replace(/'/g, "\\'");
+            const phoneTel = r.phone ? r.phone.replace(/[^0-9+]/g, '') : '';
+
+            // Header
+            const logoSlot = document.getElementById('rmLogoSlot');
+            if (r.logo) {
+                logoSlot.innerHTML = `<img src="${r.logo}" alt="${r.name}" class="rm-logo" onerror="this.outerHTML='<div class=&quot;rm-placeholder&quot;>${(r.name || '?').charAt(0).toUpperCase()}</div>';">`;
+            } else {
+                logoSlot.innerHTML = `<div class="rm-placeholder">${(r.name || '?').charAt(0).toUpperCase()}</div>`;
+            }
+            document.getElementById('rmTitle').textContent = r.name || '';
+            const cityIsland = [r.city, r.island].filter(Boolean).join(' • ');
+            document.getElementById('rmMeta').textContent = [r.type, cityIsland].filter(Boolean).join(' · ');
+
+            // Body
+            let body = '';
+            if (r.person) body += `<div class="detail-section"><h4>Contact Person</h4><p>${r.person}</p></div>`;
+            if (r.address || r.city) {
+                body += `<div class="detail-section"><h4>Address</h4><p>${r.address ? r.address + '<br>' : ''}${r.city || ''}${r.state ? ', ' + r.state : ''} ${r.zip || ''}</p></div>`;
+            }
+            if (r.phone) body += `<div class="detail-section"><h4>Phone</h4><p><a href="tel:${phoneTel}">${r.phone}</a></p></div>`;
+            if (r.email) body += `<div class="detail-section"><h4>Email</h4><p><a href="mailto:${r.email}">${r.email}</a></p></div>`;
+            if (r.services) body += `<div class="services-section"><h4>Services Offered</h4><p>${r.services}</p></div>`;
+
+            const buttons = [];
+            if (r.phone) buttons.push(`<a href="tel:${phoneTel}" class="contact-btn phone">Call</a>`);
+            if (r.email) buttons.push(`<a href="mailto:${r.email}" class="contact-btn email">Email</a>`);
+            if (r.website) {
+                if (r.iframeBlocked) {
+                    if (r.allowExternal) buttons.push(`<a href="${websiteUrl}" target="_blank" rel="noopener" class="contact-btn website">Website</a>`);
+                } else {
+                    buttons.push(`<button type="button" onclick="openIframeModal('${safeName}', '${websiteUrl}')" class="contact-btn website">Website</button>`);
+                }
+            }
+            if (buttons.length) body += `<div class="contact-buttons">${buttons.join('')}</div>`;
+
+            document.getElementById('rmBody').innerHTML = body;
+
+            const modal = document.getElementById('resourceModal');
+            modal.classList.add('open');
+            document.body.style.overflow = 'hidden';
         }
+
+        function closeResourceModal(event) {
+            // If called from the backdrop click, only close when the click was on the backdrop itself.
+            if (event && event.target && event.target.id !== 'resourceModal' && event.type === 'click') return;
+            const modal = document.getElementById('resourceModal');
+            if (modal) modal.classList.remove('open');
+            document.body.style.overflow = '';
+        }
+
+        // Close modal on Escape key.
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeResourceModal();
+        });
 
         // Filter and render resources
         function filterAndRender() {
