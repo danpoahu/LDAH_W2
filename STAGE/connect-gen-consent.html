@@ -548,6 +548,12 @@
         function escapeHtml(s) {
             return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
         }
+        // formatDatesPhrase on the server returns ", on Some Date" with a leading
+        // article. On this page the surrounding sentence already says "on", so
+        // strip any leading comma/space/"on " before display.
+        function cleanDatesPhrase(s) {
+            return String(s || '').replace(/^[\s,]*on\s+/i, '').replace(/^[\s,]+/, '');
+        }
 
         // Live-update the consent text with the typed name as the user signs.
         // When the input is cleared, fall back to the registered name on file
@@ -574,9 +580,10 @@
                     return;
                 }
                 const data = await res.json();
-                consentDateEl.textContent = data.datesPhrase || 'the upcoming session date';
+                const cleanDate = cleanDatesPhrase(data.datesPhrase);
+                consentDateEl.textContent = cleanDate || 'the upcoming session date';
                 summaryEl.innerHTML = '<strong>Signing up for:</strong> ' + escapeHtml(data.eventTitle || 'Connect-Gen') +
-                    (data.datesPhrase ? '<br><strong>Session:</strong> ' + escapeHtml(data.datesPhrase) : '') +
+                    (cleanDate ? '<br><strong>Session:</strong> ' + escapeHtml(cleanDate) : '') +
                     (data.signupName ? '<br><strong>Registered name on file:</strong> ' + escapeHtml(data.signupName) : '');
                 if (data.signupName) {
                     typedNameEl.placeholder = data.signupName;
