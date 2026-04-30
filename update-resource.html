@@ -635,6 +635,26 @@
             };
         }
 
+        // Validate the website field. Empty is OK (optional). Rejects strings
+        // with whitespace or commas (catches the "https://a.com https://b.com"
+        // pattern a partner submitted that broke the link). Auto-prefixes https://.
+        function validateWebsiteUrl(input) {
+            const raw = String(input == null ? '' : input).trim();
+            if (!raw) return { ok: true, normalized: '' };
+            if (/\s/.test(raw)) return { ok: false, reason: 'Please enter a single web address. Spaces or multiple URLs are not allowed.' };
+            if (raw.indexOf(',') !== -1) return { ok: false, reason: 'Please enter a single web address. Remove the comma.' };
+            const withScheme = /^https?:\/\//i.test(raw) ? raw : 'https://' + raw;
+            try {
+                const u = new URL(withScheme);
+                if (!u.hostname || u.hostname.indexOf('.') === -1) {
+                    return { ok: false, reason: "That doesn't look like a valid web address. Try the form https://example.com." };
+                }
+                return { ok: true, normalized: u.href };
+            } catch (e) {
+                return { ok: false, reason: 'Could not understand that web address. Use the form https://example.com.' };
+            }
+        }
+
         // ===== Fetch resource =====
         async function loadResource() {
             try {
@@ -719,6 +739,13 @@
                 document.getElementById('fld-name').focus();
                 return;
             }
+            const wcheck = validateWebsiteUrl(fields.website);
+            if (!wcheck.ok) {
+                showInlineError(wcheck.reason);
+                document.getElementById('fld-website').focus();
+                return;
+            }
+            fields.website = wcheck.normalized; // store the cleaned form
             postUpdate({ token: token, noChanges: false, fields: fields }, 'submit');
         }
 
