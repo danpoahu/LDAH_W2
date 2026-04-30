@@ -347,6 +347,21 @@
         margin-top: auto;
     }
 
+    /* The decorative islands SVG MUST be positioned absolute, otherwise
+       the empty <use href="#hawaii-islands"/> element (whose target symbol
+       isn't defined on this page) takes up huge layout space and balloons
+       the footer height. Matches resources.html. */
+    .footer-islands {
+        position: absolute;
+        right: -5%;
+        bottom: -20%;
+        width: 40%;
+        color: white;
+        opacity: 0.03;
+        transform: scaleY(-1);
+        pointer-events: none;
+    }
+
     .footer-content {
         max-width: 1200px;
         margin: 0 auto;
