@@ -845,7 +845,14 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
       // Only send once.
       if (after.consentRequiredEmailSentAt) return;
       const consentToken = crypto.randomBytes(16).toString("hex");
-      const consentUrl = "https://www.ldahawaii.org/connect-gen-consent.html?token=" + encodeURIComponent(consentToken);
+      // URL carries eventId/signupId/collection so the CFs can do a direct
+      // path lookup instead of a collectionGroup index query. Token still
+      // gates authentication.
+      const consentUrl = "https://www.ldahawaii.org/connect-gen-consent.html" +
+        "?token=" + encodeURIComponent(consentToken) +
+        "&e=" + encodeURIComponent(eventId) +
+        "&s=" + encodeURIComponent(signupId) +
+        "&c=" + encodeURIComponent(collection);
       const html = buildConsentRequiredEmailHtml({
         name: recipientName,
         eventTitle,
