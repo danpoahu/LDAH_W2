@@ -2715,15 +2715,27 @@
 
       try {
         var collectionName = type === 'recurring' ? 'recurringEvents' : 'events';
+
+        // Connect-Gen gate: if the event is flagged Program Zoom, the signup
+        // stays in 'pending' until the parent signs the consent form. Status
+        // flips to 'confirmed' inside submitConnectGenConsent on the server.
+        var _isConnectGen = false;
+        try {
+          var _evSnap = await db.collection(collectionName).doc(eventId).get();
+          if (_evSnap.exists && (_evSnap.data() || {}).zoomMode === 'program') _isConnectGen = true;
+        } catch (_e) {}
+        var _regStatus = _isConnectGen ? 'pending' : 'confirmed';
+
         if (token === '__SIBLING_DRAFT__') {
-          // Sibling draft — create fully-formed confirmed signup now (no email sent because status != pending)
+          // Sibling draft — create fully-formed signup now. Connect-Gen siblings
+          // stay 'pending' until consent is signed; everyone else goes 'confirmed'.
           var draft = window._siblingDraft || {};
           var newDocRef = await db.collection(collectionName).doc(eventId).collection('signups').add({
             name: draft.name || '',
             email: draft.email || '',
             phone: draft.phone || '',
             selectedDates: Array.isArray(draft.selectedDates) ? draft.selectedDates : [],
-            status: 'confirmed',
+            status: _regStatus,
             registration: registration,
             registrantType: role,
             // Sibling draft was opened from a registration-token email link
@@ -2746,7 +2758,7 @@
             .update({
               registration: registration,
               registrantType: role,
-              status: 'confirmed',
+              status: _regStatus,
               registrationCompletedAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         }

@@ -788,9 +788,11 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
     const statusJustConfirmed = before.status !== "confirmed" && after.status === "confirmed";
     const registrationJustAdded = !before.registration && !!after.registration;
     if (!statusJustConfirmed && !registrationJustAdded) return;
-    if (after.status !== "confirmed") return;
     if (after.archived === true) return;
     if (!after.email) return;
+    // Status gate is applied after the event load below — Connect-Gen
+    // signups stay 'pending' until consent is signed, so we allow that
+    // status through for the consent-required branch only.
 
     // Idempotence — never send twice for the same signup
     if (after.confirmationEmailSentAt) return;
@@ -828,6 +830,13 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
     // catch-up reminder would also skip it (gated on consentSignedAt) —
     // and the parent gets nothing.
     const isConnectGen = event && event.zoomMode === "program";
+
+    // Status gate (deferred from earlier so we know if this is Connect-Gen).
+    // Non-Connect-Gen requires status='confirmed'. Connect-Gen allows
+    // status='pending' so the consent-required email can fire while the
+    // signup waits on the parent's signature.
+    if (after.status !== "confirmed" && !(isConnectGen && after.status === "pending")) return;
+
     if (isConnectGen && !after.consentSignedAt) {
       // Only send once.
       if (after.consentRequiredEmailSentAt) return;
@@ -2737,6 +2746,88 @@ exports.sendDailySessionSheet = functions
     }
 
     // ═══════════════════════════════════════════════════
+    // SECTION 4: Partner Resource Update Cycle progress
+    // ═══════════════════════════════════════════════════
+    // Mirrors the LDAH-Int dashboard panel (cmsRenderResourceCyclePanel).
+    // Cycle starts every May 1 / Nov 1 with a 7-day grace window.
+    let cycleHtml = "";
+    try {
+      const _yr = hawaiiNow.getFullYear();
+      const _may1 = new Date(_yr, 4, 1).getTime();
+      const _nov1 = new Date(_yr, 10, 1).getTime();
+      const _nowMs = hawaiiNow.getTime();
+      let cycleStartMs;
+      if (_nowMs >= _nov1)      cycleStartMs = _nov1;
+      else if (_nowMs >= _may1) cycleStartMs = _may1;
+      else                       cycleStartMs = new Date(_yr - 1, 10, 1).getTime();
+      const graceWindow = cycleStartMs - (7 * 24 * 60 * 60 * 1000);
+
+      let resTotal = 0, confirmed = 0, pendingReview = 0, awaiting = 0, noEmail = 0;
+      const resSnap = await db.collection("resources").get();
+      resSnap.forEach((r) => {
+        const rd = r.data() || {};
+        if (rd.archived === true) return;
+        const nm = (rd.name || "").trim();
+        if (!nm) return; // skip Downloads entries
+        resTotal++;
+        const email = (rd.email || "").trim();
+        const lu = rd.lastUpdateAt && rd.lastUpdateAt.toMillis ? rd.lastUpdateAt.toMillis() : 0;
+        const reqAt = rd.updateRequestedAt && rd.updateRequestedAt.toMillis ? rd.updateRequestedAt.toMillis() : 0;
+        const subAt = rd.updateSubmittedAt && rd.updateSubmittedAt.toMillis ? rd.updateSubmittedAt.toMillis() : 0;
+        if (rd.pendingUpdate) pendingReview++;
+        if (lu >= graceWindow || subAt >= graceWindow) {
+          confirmed++;
+        } else if (email && reqAt >= graceWindow) {
+          awaiting++;
+        } else if (!email) {
+          noEmail++;
+        } else {
+          awaiting++;
+        }
+      });
+
+      if (resTotal > 0) {
+        const pct = (n) => resTotal > 0 ? Math.round((n / resTotal) * 100) : 0;
+        const confirmedPct = pct(confirmed);
+        const pendingPct = pct(pendingReview);
+        const awaitingPct = pct(awaiting);
+        const noEmailPct = Math.max(0, 100 - confirmedPct - pendingPct - awaitingPct);
+        const cycleDate = new Date(cycleStartMs).toLocaleDateString("en-US", {
+          month: "long", day: "numeric", year: "numeric", timeZone: "Pacific/Honolulu",
+        });
+
+        const chip = (color, label, n, p) =>
+          `<td style="padding:0 6px 6px 0;"><table role="presentation" cellpadding="0" cellspacing="0" style="border:1px solid #E2E8F0;border-radius:999px;background:#fff;">`
+          + `<tr><td style="padding:6px 14px;font-size:13px;white-space:nowrap;">`
+          + `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};vertical-align:middle;margin-right:6px;"></span>`
+          + `<span style="font-weight:700;color:#0F172A;">${n}</span> `
+          + `<span style="color:#64748B;">${label}${p > 0 ? ` (${p}%)` : ""}</span>`
+          + `</td></tr></table></td>`;
+
+        const barSeg = (p, color) => p > 0
+          ? `<td width="${p}%" style="background:${color};font-size:0;line-height:0;">&nbsp;</td>`
+          : "";
+
+        cycleHtml =
+          `<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:16px 18px;">`
+          + `<h3 style="margin:0 0 2px;font-size:16px;color:#0F172A;">Partner Resource Update Cycle</h3>`
+          + `<div style="font-size:12px;color:#64748B;margin-bottom:10px;">Cycle started ${cycleDate} &middot; ${confirmed} of ${resTotal} confirmed (${confirmedPct}%)</div>`
+          + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border-radius:999px;overflow:hidden;border:1px solid #CBD5E1;background:#E2E8F0;margin-bottom:10px;height:14px;">`
+          + `<tr>${barSeg(confirmedPct, "#16A34A")}${barSeg(pendingPct, "#F59E0B")}${barSeg(awaitingPct, "#0891B2")}${barSeg(noEmailPct, "#94A3B8")}</tr>`
+          + `</table>`
+          + `<table role="presentation" cellpadding="0" cellspacing="0"><tr>`
+          + chip("#16A34A", "Confirmed this cycle", confirmed, confirmedPct)
+          + chip("#F59E0B", "Pending review", pendingReview, pendingPct)
+          + chip("#0891B2", "Sent, awaiting reply", awaiting, awaitingPct)
+          + chip("#94A3B8", "No email on file", noEmail, noEmailPct)
+          + `</tr></table>`
+          + `</div>`;
+      }
+    } catch (err) {
+      console.warn("sendDailySessionSheet: cycle panel error:", err.message);
+    }
+
+    // ═══════════════════════════════════════════════════
     // BUILD FULL HTML EMAIL
     // ═══════════════════════════════════════════════════
     const emailHtml = `<!DOCTYPE html>
@@ -2757,6 +2848,8 @@ exports.sendDailySessionSheet = functions
       <p style="margin:4px 0 0;color:#b0c4de;font-size:14px;">${todayStr}</p>
     </td>
   </tr>
+
+  ${cycleHtml ? `<tr><td style="padding:20px 28px 0;">${cycleHtml}</td></tr>` : ""}
 
   <!-- Section 1: All Active Events & Programs -->
   <tr>
@@ -5434,6 +5527,11 @@ exports.submitConnectGenConsent = functions
       // Stamp the signup with the signature record. Keep consentText so we
       // have an immutable snapshot of exactly what they agreed to.
       const ip = (req.headers["x-forwarded-for"] || req.ip || "").toString().split(",")[0].trim();
+      // Flip status from 'pending' → 'confirmed' now that consent is on file.
+      // Non-Connect-Gen signups skip this gate entirely (registration alone
+      // confirms them), but for Connect-Gen the registration form leaves the
+      // signup at 'pending' until this moment.
+      const _statusUpdate = (s.status === "pending") ? { status: "confirmed" } : {};
       await doc.ref.update({
         consentSignedAt: FieldValue.serverTimestamp(),
         consentSignedName: typedName,
@@ -5441,6 +5539,7 @@ exports.submitConnectGenConsent = functions
         consentVersion: CONSENT_TEXT_VERSION,
         consentSignedIp: ip,
         consentToken: FieldValue.delete(),
+        ..._statusUpdate,
       });
 
       // Mirror to the linked contact doc so it surfaces in the contact card.
