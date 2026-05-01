@@ -4955,11 +4955,63 @@ exports.sendResourceUpdateRequests = functions
     const testEmail = (body.testEmail || "").trim();
     const adminEmail = (body.adminEmail || "").trim();
     const mode = body.mode === "nonResponders" ? "nonResponders" : "all";
+    const targetResourceId = (body.targetResourceId || "").trim();
 
     try {
       const db = admin.firestore();
       const FieldValue = admin.firestore.FieldValue;
       const fromAddress = lifecycleFromAddress();
+
+      // Single-resource path — admin clicked "Send Update Request" on one
+      // partner card. Bypasses the collection scan + cycle eligibility
+      // entirely; just regenerates the token and sends. Throttle still
+      // applies (counts toward the 50/day cap).
+      if (targetResourceId) {
+        const docSnap = await db.collection("resources").doc(targetResourceId).get();
+        if (!docSnap.exists) { res.status(404).json({ error: "Resource not found" }); return; }
+        const r = docSnap.data() || {};
+        if (r.archived === true) { res.status(400).json({ error: "Resource is archived" }); return; }
+        const email = String(r.email || "").trim();
+        if (!email) { res.status(400).json({ error: "This partner has no email on file." }); return; }
+
+        // Throttle check (shared with the bulk send).
+        const today = new Date().toISOString().slice(0, 10);
+        const throttleRef = db.collection("system").doc("resourceUpdateThrottle").collection("days").doc(today);
+        const throttleDoc = await throttleRef.get();
+        const sentToday = throttleDoc.exists ? (throttleDoc.data().count || 0) : 0;
+        if (sentToday >= ANNOUNCEMENT_DAILY_CAP) {
+          res.status(429).json({ error: "Daily cap reached", sentToday, cap: ANNOUNCEMENT_DAILY_CAP });
+          return;
+        }
+
+        const token = crypto.randomBytes(16).toString("hex");
+        try {
+          await docSnap.ref.update({
+            updateToken: token,
+            updateRequestedAt: FieldValue.serverTimestamp(),
+            updateRequestedBy: adminEmail,
+            updateNudgeCount: 0,
+            lastUpdateNudgeAt: null,
+            updateSubmittedAt: null,
+            pendingUpdate: null,
+          });
+          const html = buildResourceUpdateEmailHtml({ resource: r, token, isNudge: false });
+          await sendEmailViaResend({
+            from: fromAddress,
+            to: email,
+            subject: "Action Required: Update your LDAH Resource Card",
+            html,
+            type: "resource-update-request",
+            recipientName: r.name || "",
+          });
+          await throttleRef.set({ count: FieldValue.increment(1) }, { merge: true });
+          res.status(200).json({ success: true, sent: 1, to: email, name: r.name || "" });
+        } catch (err) {
+          console.error("sendResourceUpdateRequests (single) failed for " + email + ":", err.message);
+          res.status(500).json({ error: err.message });
+        }
+        return;
+      }
 
       if (testMode) {
         if (!testEmail) { res.status(400).json({ error: "testMode requires testEmail" }); return; }
