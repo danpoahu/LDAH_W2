@@ -85,7 +85,7 @@ const CONNECT_GEN_ID = "CmkPXEpPwfAQ5sR377K2";
     '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6"><strong>Until we receive your signed consent, this appointment is not yet confirmed.</strong> Once signed, we will send you a confirmation along with the prep documents you should review before the meeting.</p>' +
     '<p style="margin:24px 0 4px;font-size:15px;color:#333;line-height:1.5;">Questions? Reach out anytime.</p>' +
     '<p style="margin:0 0 4px;font-size:15px;color:#333;line-height:1.5;">With gratitude,</p>' +
-    '<p style="margin:0 0 16px;font-size:15px;color:#333;line-height:1.5;"><strong>Leilani Kailiawa</strong><br>Leadership in Disabilities &amp; Achievement of Hawai\'i<br>(808) 536-7684</p>' +
+    '<p style="margin:0 0 16px;font-size:15px;color:#333;line-height:1.5;"><strong>Leilani Kailiawa</strong><br>Leadership in Disabilities &amp; Achievement of Hawai\'i<br>(808) 536-9684</p>' +
     '</div></div></body></html>';
 
   const apiKey = execSync("firebase functions:secrets:access RESEND_API_KEY --project ldah-932d5", { encoding: "utf8" }).trim();

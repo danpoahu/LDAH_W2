@@ -39,7 +39,7 @@ const footerHTML = `
                     245 North Kukui Street, Suite 205<br>
                     Honolulu, HI 96817<br>
                     <br>
-                    Phone: (808) 536-7684<br>
+                    Phone: (808) 536-9684<br>
                     <br>
                     Monday to Friday – 8am to 5pm
                 </address>

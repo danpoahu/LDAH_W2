@@ -1,0 +1,38 @@
+Category,File,Lines
+Front End,accessibility.html,611
+Front End,cms.html,8805
+Front End,community.html,1078
+Front End,contact.html,841
+Front End,events.html,3044
+Front End,footer.html,40
+Front End,header.html,20
+Front End,index.html,715
+Front End,install.html,837
+Front End,military.html,959
+Front End,pacific.html,1992
+Front End,page-admin.html,1024
+Front End,readiness.html,1096
+Front End,resources.html,1119
+Front End,specialed.html,814
+Front End,volunteer.html,798
+Front End,whoweare.html,1576
+CSS,common-styles.css,168
+CSS,common.css,168
+JavaScript,accessibility.js,588
+JavaScript,common-components.js,131
+JavaScript,header-footer-loader.js,35
+JavaScript,modal.js,84
+JavaScript,js/app.js,511
+JavaScript,js/cms.js,350
+JavaScript,js/firebase-config.js,268
+Firebase Back End,firestore.rules,59
+Firebase Back End,storage.rules,28
+Firebase Back End,firebase.json,45
+Firebase Back End,firestore.indexes.json,71
+,,
+TOTALS,,
+HTML Pages (17 files),,24369
+CSS (2 files),,336
+JavaScript (6 files),,1969
+Firebase Back End (4 files),,203
+GRAND TOTAL,,28644

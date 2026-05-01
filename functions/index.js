@@ -5309,7 +5309,7 @@ function buildConsentRequiredEmailHtml({ name, eventTitle, datesPhrase, consentU
     '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6"><strong>Until we receive your signed consent, this appointment is not yet confirmed.</strong> Once signed, we will send you a confirmation along with the prep documents you should review before the meeting.</p>' +
     '<p style="margin:24px 0 4px;font-size:15px;color:#333;line-height:1.5;">Questions? Reach out anytime.</p>' +
     '<p style="margin:0 0 4px;font-size:15px;color:#333;line-height:1.5;">With gratitude,</p>' +
-    '<p style="margin:0 0 16px;font-size:15px;color:#333;line-height:1.5;"><strong>Leilani Kailiawa</strong><br>Leadership in Disabilities &amp; Achievement of Hawai\'i<br>(808) 536-7684 &middot; <a href="mailto:lkailiawa@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">lkailiawa@ldahawaii.org</a></p>' +
+    '<p style="margin:0 0 16px;font-size:15px;color:#333;line-height:1.5;"><strong>Leilani Kailiawa</strong><br>Leadership in Disabilities &amp; Achievement of Hawai\'i<br>(808) 536-9684 &middot; <a href="mailto:lkailiawa@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">lkailiawa@ldahawaii.org</a></p>' +
     '</div></div></body></html>';
 }
 
@@ -5357,7 +5357,7 @@ function buildConnectGenPrepEmailHtml({ name, eventTitle, datesPhrase, prepDocs 
     docsHtml +
     '<p style="margin:24px 0 4px;font-size:15px;color:#333;line-height:1.5;">If anything changes or you have questions, please reach out.</p>' +
     '<p style="margin:0 0 4px;font-size:15px;color:#333;line-height:1.5;">With gratitude,</p>' +
-    '<p style="margin:0 0 16px;font-size:15px;color:#333;line-height:1.5;"><strong>Leilani Kailiawa</strong><br>Leadership in Disabilities &amp; Achievement of Hawai\'i<br>(808) 536-7684 &middot; <a href="mailto:lkailiawa@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">lkailiawa@ldahawaii.org</a></p>' +
+    '<p style="margin:0 0 16px;font-size:15px;color:#333;line-height:1.5;"><strong>Leilani Kailiawa</strong><br>Leadership in Disabilities &amp; Achievement of Hawai\'i<br>(808) 536-9684 &middot; <a href="mailto:lkailiawa@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">lkailiawa@ldahawaii.org</a></p>' +
     '</div></div></body></html>';
 }
 
