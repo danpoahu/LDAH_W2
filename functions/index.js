@@ -805,29 +805,15 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
     const signupId = context.params.signupId;
     const db = admin.firestore();
 
-    // Skip if any session is within the 5-day catch-up window — the catch-up
-    // reminder has all the details and is the more useful email at that point.
-    const todayKey = toHstDateKey(new Date());
-    const windowKeys = {};
-    for (let d = 0; d <= 5; d++) {
-      const k = addDaysHst(todayKey, d);
-      if (k) windowKeys[k] = true;
-    }
-    let sessionKeys = extractSignupSessionKeys(after);
-
-    // Load event for title + fallback date + virtual/in-person flag
+    // Load event for title + fallback date + Connect-Gen flag
     const eventSnap = await db.collection(collection).doc(eventId).get();
     if (!eventSnap.exists) return;
     const event = eventSnap.data() || {};
 
+    let sessionKeys = extractSignupSessionKeys(after);
     if (sessionKeys.length === 0) {
       const k = toHstDateKey(event.eventDate || event.date);
       if (k) sessionKeys = [k];
-    }
-    const withinWindow = sessionKeys.some(k => !!windowKeys[k]);
-    if (withinWindow) {
-      console.log(`Confirmation skipped (within 5d window) for ${collection}/${eventId}/${signupId}`);
-      return;
     }
 
     const recipientName = after.name || "there";
@@ -835,11 +821,12 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
     const datesPhrase = formatDatesPhrase(sessionKeys);
     const modality = detectSignupModality(after, event);
 
-    // Connect-Gen branch — if the event is flagged Program Zoom and the
-    // parent has NOT signed the consent yet, send the consent-required
-    // email instead of the standard confirmation. The standard confirmation
-    // (and the prep-docs email) goes out from submitConnectGenConsent
-    // *after* the form is signed.
+    // Connect-Gen branch — MUST run BEFORE the 5-day window skip below.
+    // For programs flagged Program Zoom, the consent gate is required
+    // regardless of how close the session is. Without this ordering, a
+    // late signup (e.g. 4 days out) would skip the consent email AND the
+    // catch-up reminder would also skip it (gated on consentSignedAt) —
+    // and the parent gets nothing.
     const isConnectGen = event && event.zoomMode === "program";
     if (isConnectGen && !after.consentSignedAt) {
       // Only send once.
@@ -888,6 +875,24 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
       await change.after.ref.set({
         confirmationEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
+      return;
+    }
+
+    // For non-Connect-Gen events: skip the standard confirmation if any
+    // session is within the 5-day catch-up window — the catch-up reminder
+    // (which fires from maybeSendCatchupReminder above this in the trigger
+    // chain) carries the same info and is the more useful email at that
+    // point. Connect-Gen returns above before reaching this so its consent
+    // email always fires regardless of session proximity.
+    const _todayKey = toHstDateKey(new Date());
+    const _windowKeys = {};
+    for (let _d = 0; _d <= 5; _d++) {
+      const _k = addDaysHst(_todayKey, _d);
+      if (_k) _windowKeys[_k] = true;
+    }
+    const _withinWindow = sessionKeys.some(k => !!_windowKeys[k]);
+    if (_withinWindow) {
+      console.log(`Confirmation skipped (within 5d window) for ${collection}/${eventId}/${signupId}`);
       return;
     }
 
@@ -3338,6 +3343,15 @@ async function maybeSendCatchupReminder(change, context, collection) {
     const event = eventSnap.data() || {};
     const zoomDoc = zoomSnap.exists ? (zoomSnap.data() || null) : null;
     const zoomDefault = pickZoomForEvent(zoomDoc, event, collection);
+
+    // Connect-Gen gate — skip the catch-up reminder if consent isn't signed
+    // yet. The reminder would carry the Zoom link, which we don't want
+    // until the parent has signed the consent. The consent-required email
+    // (fired in maybeSendRegistrationConfirmation) handles their next step.
+    if (event.zoomMode === "program" && !after.consentSignedAt) {
+      console.log(`catch-up reminder skipped (Connect-Gen, consent unsigned) for ${collection}/${eventId}/${signupId}`);
+      return;
+    }
 
     // Determine candidate session dates within [today, today+5] HST.
     const todayKey = toHstDateKey(new Date());
