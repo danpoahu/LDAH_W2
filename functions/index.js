@@ -3508,10 +3508,15 @@ async function sendOneReminderEmail({
     if (!locationLabel) locationLabel = "Contact LDAH office";
   }
 
+  // sessionDate is REQUIRED in this URL for recurring/multi-date events —
+  // without it, the feedback doc gets written with no sessionDate and the
+  // Event Summary modal can't attribute it to the right session. Bug
+  // surfaced 2026-05-02 (Rommel del Mundo / Connect-Gen 4/30 session).
   const surveyUrl =
     "https://ldahawaii.org/feedback.html?signupId=" + encodeURIComponent(signupId) +
     "&eventId=" + encodeURIComponent(eventId) +
-    "&type=" + encodeURIComponent(type);
+    "&type=" + encodeURIComponent(type) +
+    (sessionDateKey ? "&sessionDate=" + encodeURIComponent(sessionDateKey) : "");
 
   const signatureHtml = await buildSignatureBlock('eventCoordinator');
   const donateHtml = await buildDonateBlock('universal');
