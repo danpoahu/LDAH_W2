@@ -941,14 +941,11 @@
             listContainer.innerHTML = '<div class="no-results"><h3>Loading resources...</h3></div>';
 
             try {
-                let snapshot;
-                try {
-                    snapshot = await db.collection('resources').orderBy('order').get();
-                } catch (indexError) {
-                    // Fallback if index doesn't exist
-                    console.log('Index not available, using unordered query');
-                    snapshot = await db.collection('resources').get();
-                }
+                // Plain .get() — we sort alphabetically by name client-side
+                // below. Don't .orderBy('order') here: Firestore silently
+                // EXCLUDES docs missing that field, which dropped any newly
+                // approved partner (the approve flow doesn't write `order`).
+                const snapshot = await db.collection('resources').get();
 
                 if (snapshot.empty) {
                     console.log('No resources in Firebase, using fallback data');
