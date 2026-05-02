@@ -1197,80 +1197,109 @@ async function handleSignupCreated(snap, context, collectionName) {
     // Non-blocking — continue to email logic
   }
 
-  // Only send email for pending signups
-  if (signupData.status !== "pending") {
-    console.log(`Signup ${signupId} status is "${signupData.status}", skipping email.`);
-    return null;
-  }
-
-  // Must have an email address
-  const recipientEmail = signupData.email;
-  if (!recipientEmail) {
-    console.log(`Signup ${signupId} has no email, skipping.`);
-    return null;
-  }
-
-  const signupName = signupData.name || signupData.firstName || "there";
-
-  // Fetch the parent event for title and date
-  let eventTitle = "an LDAH Event";
-  let eventDate = "";
-  try {
-    const eventDoc = await admin.firestore()
-      .collection(collectionName)
-      .doc(eventId)
-      .get();
-    if (eventDoc.exists) {
-      const eventData = eventDoc.data();
-      eventTitle = eventData.title || eventTitle;
-      const picked = Array.isArray(signupData.selectedDates) && signupData.selectedDates[0];
-      eventDate = picked || formatEventDate(eventData.eventDate || eventData.date);
-    }
-  } catch (err) {
-    console.error(`Error reading ${collectionName}/${eventId}:`, err.message);
-  }
-
-  // Derive the type string for register.html ("event" or "recurring")
-  const type = collectionName === "recurringEvents" ? "recurring" : "event";
-
-  // Build and send the email
-  const orgFooterHtml = await getOrgFooterHtml();
-  const htmlBody = buildRegistrationEmailHtml({
-    name: signupName,
-    eventTitle,
-    eventDate,
-    signupId,
-    eventId,
-    type,
-    orgFooterHtml,
-  });
-
-  const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
-
-  try {
-    await sendEmailViaResend({
-      from: `LDAH <${fromAddress}>`,
-      to: recipientEmail,
-      subject: `Complete Your Registration -- ${eventTitle}`,
-      html: htmlBody,
-      type: "registration",
-      relatedEventId: eventId,
-      relatedSignupId: signupId,
-      recipientName: signupName,
-    });
-    console.log(`Registration email sent to ${recipientEmail} for signup ${signupId}`);
-    await snap.ref.update({
-      registrationEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-  } catch (err) {
-    console.error(`Failed to send registration email to ${recipientEmail}:`, err.message);
-    await snap.ref.update({
-      registrationEmailError: err.message,
-    });
-  }
-
+  // ── No immediate "Complete Your Registration" email ──
+  // The previous behavior fired this email the instant a signup doc was
+  // created with status:"pending". Two-stage flow: signup modal creates
+  // pending → user fills the registration form on the same page → status
+  // flips to "confirmed" within minutes. The instant-fire meant inline
+  // completers received an unnecessary "please finish" email even though
+  // they did finish.
+  //
+  // The deferred sender (sendDeferredRegistrationEmails, scheduled every
+  // minute) handles this now with a 10-minute grace window: it only
+  // emails signups still pending after 10 minutes and not already sent.
   return null;
 }
+
+// ── Deferred Registration-Completion Email ─────────────────────────
+// Runs every minute. For any signup still status:"pending" 10+ minutes
+// after creation that hasn't been emailed yet, send the "Complete Your
+// Registration" email. This replaces the immediate on-create send,
+// which fired before inline-completers had a chance to finish their
+// registration form on the same page.
+const REGISTRATION_GRACE_MIN = 10;
+
+exports.sendDeferredRegistrationEmails = functions
+  .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .pubsub.schedule("every 1 minutes")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const cutoffMs = Date.now() - REGISTRATION_GRACE_MIN * 60 * 1000;
+    let scanned = 0, sent = 0, skipped = 0, failed = 0;
+
+    for (const collection of ["events", "recurringEvents"]) {
+      const evs = await db.collection(collection).get();
+      for (const ev of evs.docs) {
+        const eventId = ev.id;
+        const event = ev.data() || {};
+        const sigs = await db.collection(collection).doc(eventId).collection("signups")
+          .where("status", "==", "pending")
+          .get();
+
+        for (const s of sigs.docs) {
+          scanned++;
+          const data = s.data() || {};
+
+          if (data.archived === true) { skipped++; continue; }
+          if (!data.email) { skipped++; continue; }
+          if (data.registrationEmailSentAt) { skipped++; continue; }
+
+          // Skip Connect-Gen pending signups — those have a separate consent flow,
+          // and the consent-required email is sent by maybeSendRegistrationConfirmation
+          // when the contact's still missing consent. Don't double-up with a
+          // generic "Complete Your Registration" prompt.
+          if (event.zoomMode === "program") { skipped++; continue; }
+
+          // Grace period: skip if too fresh.
+          const tsMs = (data.timestamp && data.timestamp.toMillis)
+            ? data.timestamp.toMillis()
+            : (data.timestamp && data.timestamp.seconds ? data.timestamp.seconds * 1000 : 0);
+          if (!tsMs) { skipped++; continue; }
+          if (tsMs > cutoffMs) { skipped++; continue; }
+
+          // Build + send. Same body as before.
+          const signupName = data.name || data.firstName || "there";
+          let eventTitle = event.title || "an LDAH Event";
+          let eventDate = "";
+          try {
+            const picked = Array.isArray(data.selectedDates) && data.selectedDates[0];
+            eventDate = picked || formatEventDate(event.eventDate || event.date);
+          } catch (_) {}
+          const type = collection === "recurringEvents" ? "recurring" : "event";
+
+          try {
+            const orgFooterHtml = await getOrgFooterHtml();
+            const htmlBody = buildRegistrationEmailHtml({
+              name: signupName, eventTitle, eventDate,
+              signupId: s.id, eventId, type, orgFooterHtml,
+            });
+            const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+            await sendEmailViaResend({
+              from: `LDAH <${fromAddress}>`,
+              to: data.email,
+              subject: `Complete Your Registration -- ${eventTitle}`,
+              html: htmlBody,
+              type: "registration",
+              relatedEventId: eventId,
+              relatedSignupId: s.id,
+              recipientName: signupName,
+            });
+            await s.ref.update({
+              registrationEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            sent++;
+            console.log(`Deferred registration email sent to ${data.email} for ${collection}/${eventId}/${s.id}`);
+          } catch (err) {
+            failed++;
+            await s.ref.update({ registrationEmailError: err.message }).catch(() => {});
+            console.error(`Deferred registration email failed for ${collection}/${eventId}/${s.id}:`, err.message);
+          }
+        }
+      }
+    }
+    console.log(`sendDeferredRegistrationEmails: scanned=${scanned} sent=${sent} skipped=${skipped} failed=${failed}`);
+    return null;
+  });
 
 // ── Resend Registration Email (callable from LDAH-Int admin) ─────
 exports.resendRegistrationEmail = functions
