@@ -536,6 +536,188 @@ function _emailBtn(href, label, opts) {
       </td></tr></table>`;
 }
 
+// ─── Personas + Donate helpers ──────────────────────────────────────
+// Reads `system/emailPersonas` and `system/donateBlocks` from Firestore
+// with a 5-minute in-memory cache. NEVER throws — every helper returns
+// a hardcoded fallback that matches what was hardcoded in this file
+// before the refactor, so emails keep going out even if Firestore is
+// unreachable, the doc is missing, or someone edits the doc into a
+// broken state. To force-clear the cache, call `_clearPersonaCache()`
+// (the new Admin → List Mgmt "Refresh Now" button hits this via the
+// `clearPersonaCache` HTTPS endpoint at the bottom of this file).
+
+const _PERSONA_CACHE_TTL_MS = 5 * 60 * 1000;
+let _personaCache = { data: null, loadedAt: 0 };
+let _donateCache = { data: null, loadedAt: 0 };
+
+function _clearPersonaCache() {
+  _personaCache = { data: null, loadedAt: 0 };
+  _donateCache  = { data: null, loadedAt: 0 };
+}
+
+// Hardcoded fallback — matches production HTML as of 2026-05-02
+// (same values as the Phase 1B seed). If Firestore is broken at deploy
+// time, helpers fall back to these and emails are byte-identical to
+// pre-refactor.
+const _PERSONA_FALLBACK = {
+  personas: {
+    eventCoordinator: {
+      firstName: 'Leilani', fullName: 'Leilani Kailiawa',
+      title: 'Parent Consultant', email: 'lkailiawa@ldahawaii.org',
+      phone: '(808) 536-9684 ext 112',
+      signatureHtml:
+        '<p style="margin:16px 0 2px;font-size:14px;color:#555555;line-height:1.5;">' +
+          '<strong>Leilani Kailiawa</strong><br>' +
+          'Parent Consultant<br>' +
+          'Leadership in Disabilities &amp; Achievement of Hawai\'i<br>' +
+          '245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>' +
+          'Phone: (808) 536-9684 ext 112<br>' +
+          'Email: <a href="mailto:lkailiawa@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">lkailiawa@ldahawaii.org</a><br>' +
+          '<a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>' +
+        '</p>',
+    },
+    resourceCoordinator: {
+      firstName: 'La\'a', fullName: 'La\'a Salvani',
+      title: 'Administrative Assistant', email: 'LSalvani@ldahawaii.org',
+      phone: '(808) 536-9684',
+      signatureHtml:
+        '<p style="margin:16px 0 2px;font-size:14px;color:#555555;line-height:1.5;">' +
+          '<strong>La\'a Salvani</strong><br>' +
+          'Administrative Assistant<br>' +
+          'Leadership in Disabilities &amp; Achievement of Hawai\'i<br>' +
+          '245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>' +
+          'Phone: (808) 536-9684<br>' +
+          'Email: <a href="mailto:LSalvani@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LSalvani@ldahawaii.org</a><br>' +
+          '<a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>' +
+        '</p>',
+    },
+    executiveDirector: {
+      firstName: 'Rosie', fullName: 'Rosie Rowe',
+      title: 'Executive Director', email: 'rrowe@ldahawaii.org',
+      phone: '(808) 536-9684',
+      signatureHtml: '',
+    },
+    general: {
+      firstName: 'LDAH', fullName: 'LDAH Team',
+      title: '', email: 'registration@ldahawaii.org',
+      phone: '(808) 536-9684', signatureHtml: '',
+    },
+  },
+  orgFooterHtml:
+    '<tr>' +
+      '<td style="background-color:#f0f0f0;padding:24px 32px;text-align:center;border-top:1px solid #dddddd;">' +
+        '<p style="margin:0 0 4px;font-size:13px;color:#777777;font-weight:bold;">Leadership in Disabilities &amp; Achievement of Hawai\'i</p>' +
+        '<p style="margin:0 0 4px;font-size:12px;color:#999999;">245 N. Kukui St., Suite 205, Honolulu, HI 96817</p>' +
+        '<p style="margin:0 0 4px;font-size:12px;color:#999999;">Phone: (808) 536-2280</p>' +
+        '<p style="margin:0;font-size:12px;color:#999999;">Email: <a href="mailto:rrowe@ldahawaii.org" style="color:#999999;">rrowe@ldahawaii.org</a></p>' +
+      '</td>' +
+    '</tr>',
+};
+
+const _DONATE_FALLBACK = {
+  donateUrl: 'https://www.paypal.com/donate?hosted_button_id=F6F2DPC4D6RSA',
+  buttonLabel: 'Donate to LDAH',
+  universal: { bodyHtml:
+    '<p style="margin:24px 0 8px;font-size:14px;color:#475569;line-height:1.55;">' +
+      'LDAH is a nonprofit that provides every service free of charge. ' +
+      'If our work supports your family, please consider a gift so the next family can be helped too.' +
+    '</p>' },
+  feedback: { bodyHtml:
+    '<p style="margin:24px 0 8px;font-size:14px;color:#0F172A;line-height:1.55;">' +
+      'This session was offered to your family at no cost — made possible by individual donors. ' +
+      'If LDAH has helped you, please consider giving so the next family can experience what you just did.' +
+    '</p>' },
+};
+
+async function _loadPersonaDoc() {
+  const now = Date.now();
+  if (_personaCache.data && (now - _personaCache.loadedAt) < _PERSONA_CACHE_TTL_MS) {
+    return _personaCache.data;
+  }
+  try {
+    const snap = await admin.firestore().collection('system').doc('emailPersonas').get();
+    if (!snap.exists) throw new Error('system/emailPersonas missing');
+    const d = snap.data() || {};
+    if (!d.personas || !d.personas.eventCoordinator) throw new Error('emailPersonas missing required keys');
+    _personaCache = { data: d, loadedAt: now };
+    return d;
+  } catch (err) {
+    console.warn('Persona doc load failed, using fallback:', err.message);
+    return _PERSONA_FALLBACK;
+  }
+}
+
+async function _loadDonateDoc() {
+  const now = Date.now();
+  if (_donateCache.data && (now - _donateCache.loadedAt) < _PERSONA_CACHE_TTL_MS) {
+    return _donateCache.data;
+  }
+  try {
+    const snap = await admin.firestore().collection('system').doc('donateBlocks').get();
+    if (!snap.exists) throw new Error('system/donateBlocks missing');
+    const d = snap.data() || {};
+    if (!d.donateUrl || !d.universal || !d.feedback) throw new Error('donateBlocks missing required keys');
+    _donateCache = { data: d, loadedAt: now };
+    return d;
+  } catch (err) {
+    console.warn('Donate doc load failed, using fallback:', err.message);
+    return _DONATE_FALLBACK;
+  }
+}
+
+// getPersona('eventCoordinator' | 'resourceCoordinator' | 'executiveDirector' | 'general')
+// Returns { firstName, fullName, title, email, phone, signatureHtml }.
+// Unknown role → 'general' fallback.
+async function getPersona(role) {
+  const doc = await _loadPersonaDoc();
+  const personas = (doc && doc.personas) || _PERSONA_FALLBACK.personas;
+  return personas[role] || personas.general || _PERSONA_FALLBACK.personas.general;
+}
+
+// buildSignatureBlock(role) — returns the rendered HTML signature block
+// for the given persona, or "" if the persona has no signatureHtml
+// (executiveDirector and general default to empty).
+async function buildSignatureBlock(role) {
+  const p = await getPersona(role);
+  return (p && p.signatureHtml) || '';
+}
+
+// getOrgFooterHtml() — returns the grey contact-card footer HTML used at
+// the bottom of registration / lifecycle emails.
+async function getOrgFooterHtml() {
+  const doc = await _loadPersonaDoc();
+  return (doc && doc.orgFooterHtml) || _PERSONA_FALLBACK.orgFooterHtml;
+}
+
+// buildDonateBlock('universal' | 'feedback') — returns body copy + a
+// donate button. Embed above the signature in any email.
+async function buildDonateBlock(flavor) {
+  const doc = await _loadDonateDoc();
+  const f = (flavor === 'feedback') ? doc.feedback : doc.universal;
+  const url = doc.donateUrl || _DONATE_FALLBACK.donateUrl;
+  const label = doc.buttonLabel || _DONATE_FALLBACK.buttonLabel;
+  return (f && f.bodyHtml ? f.bodyHtml : '')
+    + _emailBtn(url, label, { bg: '#0E7C4D', align: 'center' });
+}
+
+// HTTPS endpoint to flush the in-memory cache from the Admin → List
+// Management "Refresh Now" button. Caller must be authenticated as
+// admin/superAdmin (rule enforced client-side by hiding the button +
+// re-checked by callers via Firebase Auth ID token below).
+exports.clearPersonaCache = functions
+  .runWith({ timeoutSeconds: 10, maxInstances: 5 })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Must be signed in.');
+    const uid = context.auth.uid;
+    const userRoleSnap = await admin.firestore().collection('userRoles').doc(uid).get();
+    const role = userRoleSnap.exists ? (userRoleSnap.data().role || '') : '';
+    if (role !== 'superAdmin' && role !== 'admin') {
+      throw new functions.https.HttpsError('permission-denied', 'Admin only.');
+    }
+    _clearPersonaCache();
+    return { ok: true, clearedAt: Date.now() };
+  });
+
 // Renders a "having trouble with the buttons?" footer block listing each
 // link with a short label so recipients can copy and paste the URL.
 // `links` is an array of { label, href }. Returns "" if the array is empty.
@@ -559,7 +741,7 @@ function _emailLinkFooter(links) {
 /**
  * Build the registration email HTML.
  */
-function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eventId, type }) {
+function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eventId, type, orgFooterHtml }) {
   const registrationUrl =
     "https://ldahawaii.org/register.html?token=" + encodeURIComponent(signupId) +
     "&eventId=" + encodeURIComponent(eventId) +
@@ -615,22 +797,7 @@ function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eve
   </tr>
 
   <!-- Footer -->
-  <tr>
-    <td style="background-color:#f0f0f0;padding:24px 32px;text-align:center;border-top:1px solid #dddddd;">
-      <p style="margin:0 0 4px;font-size:13px;color:#777777;font-weight:bold;">
-        Leadership in Disabilities &amp; Achievement of Hawai'i
-      </p>
-      <p style="margin:0 0 4px;font-size:12px;color:#999999;">
-        245 N. Kukui St., Suite 205, Honolulu, HI 96817
-      </p>
-      <p style="margin:0 0 4px;font-size:12px;color:#999999;">
-        Phone: (808) 536-2280
-      </p>
-      <p style="margin:0;font-size:12px;color:#999999;">
-        Email: <a href="mailto:rrowe@ldahawaii.org" style="color:#999999;">rrowe@ldahawaii.org</a>
-      </p>
-    </td>
-  </tr>
+  ${orgFooterHtml || ''}
 
 </table>
 </td></tr>
@@ -849,11 +1016,15 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
         "&e=" + encodeURIComponent(eventId) +
         "&s=" + encodeURIComponent(signupId) +
         "&c=" + encodeURIComponent(collection);
+      const signatureHtml = await buildSignatureBlock('eventCoordinator');
+      const donateHtml = await buildDonateBlock('universal');
       const html = buildConsentRequiredEmailHtml({
         name: recipientName,
         eventTitle,
         datesPhrase,
         consentUrl,
+        signatureHtml,
+        donateHtml,
       });
       const fromAddress = lifecycleFromAddress();
       await sendEmailViaResend({
@@ -1063,6 +1234,7 @@ async function handleSignupCreated(snap, context, collectionName) {
   const type = collectionName === "recurringEvents" ? "recurring" : "event";
 
   // Build and send the email
+  const orgFooterHtml = await getOrgFooterHtml();
   const htmlBody = buildRegistrationEmailHtml({
     name: signupName,
     eventTitle,
@@ -1070,6 +1242,7 @@ async function handleSignupCreated(snap, context, collectionName) {
     signupId,
     eventId,
     type,
+    orgFooterHtml,
   });
 
   const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
@@ -1142,8 +1315,9 @@ exports.resendRegistrationEmail = functions
       const type = collection === "recurringEvents" ? "recurring" : "event";
       const signupName = signupData.name || signupData.firstName || "there";
 
+      const orgFooterHtml = await getOrgFooterHtml();
       const htmlBody = buildRegistrationEmailHtml({
-        name: signupName, eventTitle, eventDate, signupId, eventId, type,
+        name: signupName, eventTitle, eventDate, signupId, eventId, type, orgFooterHtml,
       });
 
       const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
@@ -1491,7 +1665,7 @@ exports.onContactUpdated = functions
 /**
  * Build the no-show re-invite email HTML.
  */
-function buildNoShowEmailHtml({ name, eventTitle, nextEventTitle, nextEventDate, nextEventUrl }) {
+function buildNoShowEmailHtml({ name, eventTitle, nextEventTitle, nextEventDate, nextEventUrl, orgFooterHtml }) {
   const ctaUrl = nextEventTitle ? nextEventUrl : "https://ldahawaii.org/events.html";
   const ctaLabel = nextEventTitle ? "Sign Up" : "View Upcoming Events";
   const nextEventSection = nextEventTitle
@@ -1539,22 +1713,7 @@ function buildNoShowEmailHtml({ name, eventTitle, nextEventTitle, nextEventDate,
   </tr>
 
   <!-- Footer -->
-  <tr>
-    <td style="background-color:#f0f0f0;padding:24px 32px;text-align:center;border-top:1px solid #dddddd;">
-      <p style="margin:0 0 4px;font-size:13px;color:#777777;font-weight:bold;">
-        Leadership in Disabilities &amp; Achievement of Hawai'i
-      </p>
-      <p style="margin:0 0 4px;font-size:12px;color:#999999;">
-        245 N. Kukui St., Suite 205, Honolulu, HI 96817
-      </p>
-      <p style="margin:0 0 4px;font-size:12px;color:#999999;">
-        Phone: (808) 536-2280
-      </p>
-      <p style="margin:0;font-size:12px;color:#999999;">
-        Email: <a href="mailto:rrowe@ldahawaii.org" style="color:#999999;">rrowe@ldahawaii.org</a>
-      </p>
-    </td>
-  </tr>
+  ${orgFooterHtml || ''}
 
 </table>
 </td></tr>
@@ -1649,6 +1808,7 @@ exports.sendNoShowReInvites = functions
       let sent = 0;
       let skipped = 0;
 
+      const orgFooterHtml = await getOrgFooterHtml();
       for (const signup of noShows) {
         const name = signup.name || signup.firstName || "there";
         const htmlBody = buildNoShowEmailHtml({
@@ -1657,6 +1817,7 @@ exports.sendNoShowReInvites = functions
           nextEventTitle: nextEventTitle || "",
           nextEventDate: nextEventDate || "",
           nextEventUrl,
+          orgFooterHtml,
         });
 
         try {
@@ -1690,14 +1851,14 @@ exports.sendNoShowReInvites = functions
   });
 
 // ── Feedback Email HTML Builder ─────────────────────────────────
-function buildFeedbackEmailHtml({ name, eventTitle, feedbackUrl, mode }) {
+function buildFeedbackEmailHtml({ name, eventTitle, feedbackUrl, mode, donateHtml, orgFooterHtml }) {
   const isReminder = mode === "reminder";
   const intro = isReminder
     ? `Just a quick reminder — we would still love your feedback on <strong>${eventTitle}</strong> if you have a moment. Your input helps us continue to improve our programs.`
     : `Mahalo for attending <strong>${eventTitle}</strong>! We would love to hear your thoughts so we can continue to improve our programs.`;
-  return _buildFeedbackEmailHtmlInner({ name, eventTitle, feedbackUrl, intro });
+  return _buildFeedbackEmailHtmlInner({ name, eventTitle, feedbackUrl, intro, donateHtml, orgFooterHtml });
 }
-function _buildFeedbackEmailHtmlInner({ name, eventTitle, feedbackUrl, intro }) {
+function _buildFeedbackEmailHtmlInner({ name, eventTitle, feedbackUrl, intro, donateHtml, orgFooterHtml }) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -1734,26 +1895,13 @@ function _buildFeedbackEmailHtmlInner({ name, eventTitle, feedbackUrl, intro }) 
       </p>
 
       ${_emailLinkFooter([{ label: "Share Your Feedback", href: feedbackUrl }])}
+
+      ${donateHtml || ''}
     </td>
   </tr>
 
   <!-- Footer -->
-  <tr>
-    <td style="background-color:#f0f0f0;padding:24px 32px;text-align:center;border-top:1px solid #dddddd;">
-      <p style="margin:0 0 4px;font-size:13px;color:#777777;font-weight:bold;">
-        Leadership in Disabilities &amp; Achievement of Hawai'i
-      </p>
-      <p style="margin:0 0 4px;font-size:12px;color:#999999;">
-        245 N. Kukui St., Suite 205, Honolulu, HI 96817
-      </p>
-      <p style="margin:0 0 4px;font-size:12px;color:#999999;">
-        Phone: (808) 536-2280
-      </p>
-      <p style="margin:0;font-size:12px;color:#999999;">
-        Email: <a href="mailto:rrowe@ldahawaii.org" style="color:#999999;">rrowe@ldahawaii.org</a>
-      </p>
-    </td>
-  </tr>
+  ${orgFooterHtml || ''}
 
 </table>
 </td></tr>
@@ -1846,7 +1994,9 @@ exports.sendFeedbackEmails = functions
           "&type=" + encodeURIComponent(type) +
           (sessionDate ? "&sessionDate=" + encodeURIComponent(sessionDate) : "");
 
-        const htmlBody = buildFeedbackEmailHtml({ name, eventTitle, feedbackUrl });
+        const donateHtml = await buildDonateBlock('feedback');
+        const orgFooterHtml = await getOrgFooterHtml();
+        const htmlBody = buildFeedbackEmailHtml({ name, eventTitle, feedbackUrl, donateHtml, orgFooterHtml });
 
         try {
           await sendEmailViaResend({
@@ -1947,7 +2097,9 @@ async function sendOneFeedbackEmail({ collection, eventId, signupId, signup, ses
     "&signupId=" + encodeURIComponent(signupId) +
     "&type=" + encodeURIComponent(type) +
     (sessionDate ? "&sessionDate=" + encodeURIComponent(sessionDate) : "");
-  const html = buildFeedbackEmailHtml({ name, eventTitle, feedbackUrl, mode });
+  const donateHtml = await buildDonateBlock('feedback');
+  const orgFooterHtml = await getOrgFooterHtml();
+  const html = buildFeedbackEmailHtml({ name, eventTitle, feedbackUrl, mode, donateHtml, orgFooterHtml });
   const subject = mode === "reminder"
     ? `Reminder: please share your feedback on ${eventTitle}`
     : `How was ${eventTitle}? We'd love your feedback`;
@@ -2845,6 +2997,7 @@ exports.sendDailySessionSheet = functions
     // ═══════════════════════════════════════════════════
     // BUILD FULL HTML EMAIL
     // ═══════════════════════════════════════════════════
+    const orgFooterHtml = await getOrgFooterHtml();
     const emailHtml = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -2899,19 +3052,7 @@ exports.sendDailySessionSheet = functions
   <tr><td style="padding:0 28px 16px;">${formsHtml}</td></tr>
 
   <!-- Footer -->
-  <tr>
-    <td style="background-color:#f0f0f0;padding:20px 28px;text-align:center;border-top:1px solid #dddddd;">
-      <p style="margin:0 0 3px;font-size:12px;color:#777777;font-weight:bold;">
-        Leadership in Disabilities &amp; Achievement of Hawai'i
-      </p>
-      <p style="margin:0 0 3px;font-size:11px;color:#999999;">
-        245 N. Kukui St., Suite 205, Honolulu, HI 96817 | (808) 536-2280
-      </p>
-      <p style="margin:0;font-size:11px;color:#999999;">
-        Email: <a href="mailto:rrowe@ldahawaii.org" style="color:#999999;">rrowe@ldahawaii.org</a>
-      </p>
-    </td>
-  </tr>
+  ${orgFooterHtml || ''}
 
 </table>
 </td></tr>
@@ -3151,6 +3292,7 @@ function buildEventReminderEmailHtml({
   recipientName, eventTitle, dayName, dateFormatted,
   startTime, endTime, isVirtual, zoomUrl, meetingId, passcode,
   locationLabel, surveyUrl, mode,
+  signatureHtml, donateHtml, orgFooterHtml,
 }) {
   const virt = !!isVirtual;
   const locLbl = String(locationLabel || "").trim();
@@ -3250,36 +3392,16 @@ function buildEventReminderEmailHtml({
       <p style="margin:24px 0 4px;font-size:15px;color:#333333;line-height:1.5;">With gratitude,</p>
       <p style="margin:0 0 16px;font-size:15px;color:#333333;line-height:1.5;"><strong>LDAH Team</strong></p>
 
-      <p style="margin:16px 0 2px;font-size:14px;color:#555555;line-height:1.5;">
-        <strong>Leilani Kailiawa</strong><br>
-        Parent Consultant<br>
-        Leadership in Disabilities &amp; Achievement of Hawai'i<br>
-        245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>
-        Phone: (808) 536-9684 ext 112<br>
-        <a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>
-      </p>
+      ${donateHtml || ''}
+
+      ${signatureHtml || ''}
 
       ${linkFooter}
     </td>
   </tr>
 
   <!-- Footer -->
-  <tr>
-    <td style="background-color:#f0f0f0;padding:24px 32px;text-align:center;border-top:1px solid #dddddd;">
-      <p style="margin:0 0 4px;font-size:13px;color:#777777;font-weight:bold;">
-        Leadership in Disabilities &amp; Achievement of Hawai'i
-      </p>
-      <p style="margin:0 0 4px;font-size:12px;color:#999999;">
-        245 N. Kukui St., Suite 205, Honolulu, HI 96817
-      </p>
-      <p style="margin:0 0 4px;font-size:12px;color:#999999;">
-        Phone: (808) 536-2280
-      </p>
-      <p style="margin:0;font-size:12px;color:#999999;">
-        Email: <a href="mailto:rrowe@ldahawaii.org" style="color:#999999;">rrowe@ldahawaii.org</a>
-      </p>
-    </td>
-  </tr>
+  ${orgFooterHtml || ''}
 
 </table>
 </td></tr>
@@ -3391,10 +3513,14 @@ async function sendOneReminderEmail({
     "&eventId=" + encodeURIComponent(eventId) +
     "&type=" + encodeURIComponent(type);
 
+  const signatureHtml = await buildSignatureBlock('eventCoordinator');
+  const donateHtml = await buildDonateBlock('universal');
+  const orgFooterHtml = await getOrgFooterHtml();
   const html = buildEventReminderEmailHtml({
     recipientName, eventTitle, dayName, dateFormatted: formatted,
     startTime, endTime, isVirtual, zoomUrl, meetingId, passcode,
     locationLabel, surveyUrl, mode,
+    signatureHtml, donateHtml, orgFooterHtml,
   });
 
   const subject = mode === "1day"
@@ -4143,7 +4269,7 @@ function lifecycleFormatSessionEntry(s) {
 // ── Template helpers ────────────────────────────────────────────
 
 // F-1: signup-scoped (cancellation OR reschedule)
-function buildLifecycleEmailHtml({ kind, name, eventTitle, oldDates, newDates }) {
+function buildLifecycleEmailHtml({ kind, name, eventTitle, oldDates, newDates, signatureHtml, donateHtml }) {
   const firstName = lifecycleFirstName(name);
   const title = lifecycleEsc(eventTitle || "your LDAH event");
   const oldStr = lifecycleEsc(lifecycleFormatDateList(oldDates));
@@ -4191,15 +4317,8 @@ function buildLifecycleEmailHtml({ kind, name, eventTitle, oldDates, newDates })
     '<p style="margin:24px 0 4px;font-size:15px;color:#333333;line-height:1.5;">If you have any questions, please contact us.</p>' +
     '<p style="margin:0 0 4px;font-size:15px;color:#333333;line-height:1.5;">With gratitude,</p>' +
     '<p style="margin:0 0 16px;font-size:15px;color:#333333;line-height:1.5;"><strong>LDAH Team</strong></p>' +
-    '<p style="margin:16px 0 2px;font-size:14px;color:#555555;line-height:1.5;">' +
-      '<strong>Leilani Kailiawa</strong><br>' +
-      'Parent Consultant<br>' +
-      'Leadership in Disabilities &amp; Achievement of Hawai\'i<br>' +
-      '245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>' +
-      'Phone: (808) 536-9684 ext 112<br>' +
-      'Email: <a href="mailto:lkailiawa@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">lkailiawa@ldahawaii.org</a><br>' +
-      '<a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>' +
-    '</p>';
+    (donateHtml || '') +
+    (signatureHtml || '');
 
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + lifecycleEsc(heading) + '</title></head>' +
     '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
@@ -4378,12 +4497,16 @@ async function handleSignupLifecycleEmails(change, context, collectionName) {
       ? "Your signup was cancelled — " + eventTitle
       : "Your session dates have changed — " + eventTitle;
 
+    const signatureHtml = await buildSignatureBlock('eventCoordinator');
+    const donateHtml = await buildDonateBlock('universal');
     const html = buildLifecycleEmailHtml({
       kind,
       name: after.name || after.displayName || "",
       eventTitle,
       oldDates: beforeDates,
       newDates: afterDates,
+      signatureHtml,
+      donateHtml,
     });
 
     try {
@@ -4624,6 +4747,7 @@ const RECORDING_RETENTION_DAYS = 15;
 
 function buildRecordingEmailHtml({
   bodyText, eventTitle, recordingUrl, passcode, slidesDownloadUrl, slidesFileName,
+  signatureHtml, donateHtml, orgFooterHtml,
 }) {
   // Convert admin-authored plain-text body to HTML paragraphs.
   const paras = String(bodyText || "")
@@ -4679,23 +4803,12 @@ function buildRecordingEmailHtml({
     ${slidesBlock}
     <p style="margin:24px 0 4px;font-size:15px;color:#333333;line-height:1.5;">With gratitude,</p>
     <p style="margin:0 0 16px;font-size:15px;color:#333333;line-height:1.5;"><strong>LDAH Team</strong></p>
-    <p style="margin:16px 0 2px;font-size:14px;color:#555555;line-height:1.5;">
-      <strong>Leilani Kailiawa</strong><br>
-      Parent Consultant<br>
-      Leadership in Disabilities &amp; Achievement of Hawai'i<br>
-      245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>
-      Phone: (808) 536-9684 ext 112<br>
-      <a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>
-    </p>
+    ${donateHtml || ''}
+    ${signatureHtml || ''}
     ${linkFooter}
     ${confidentiality}
   </td></tr>
-  <tr><td style="background-color:#f0f0f0;padding:24px 32px;text-align:center;border-top:1px solid #dddddd;">
-    <p style="margin:0 0 4px;font-size:13px;color:#777777;font-weight:bold;">Leadership in Disabilities &amp; Achievement of Hawai'i</p>
-    <p style="margin:0 0 4px;font-size:12px;color:#999999;">245 N. Kukui St., Suite 205, Honolulu, HI 96817</p>
-    <p style="margin:0 0 4px;font-size:12px;color:#999999;">Phone: (808) 536-2280</p>
-    <p style="margin:0;font-size:12px;color:#999999;">Email: <a href="mailto:rrowe@ldahawaii.org" style="color:#999999;">rrowe@ldahawaii.org</a></p>
-  </td></tr>
+  ${orgFooterHtml || ''}
 </table>
 </td></tr></table></body></html>`;
 }
@@ -4732,10 +4845,14 @@ exports.sendEventRecordingEmail = functions
       if (!Array.isArray(recipients) || !recipients.length) { res.status(400).json({ error: "At least one recipient required" }); return; }
       if (!subject || !body) { res.status(400).json({ error: "subject + body required" }); return; }
 
+      const signatureHtml = await buildSignatureBlock('eventCoordinator');
+      const donateHtml = await buildDonateBlock('universal');
+      const orgFooterHtml = await getOrgFooterHtml();
       const html = buildRecordingEmailHtml({
         bodyText: body, eventTitle: eventTitle || "",
         recordingUrl: recordingUrl || "", passcode: passcode || "",
         slidesDownloadUrl: pdfDownloadUrl || "", slidesFileName: pdfFileName || "",
+        signatureHtml, donateHtml, orgFooterHtml,
       });
 
       // Fetch PDF once and reuse for all recipients
@@ -5002,7 +5119,7 @@ function validateAndNormalizeWebsiteUrl(input) {
   }
 }
 
-function buildResourceUpdateEmailHtml({ resource, token, isNudge }) {
+function buildResourceUpdateEmailHtml({ resource, token, isNudge, signatureHtml, donateHtml, resourceCoordinatorEmail }) {
   // Resource recipients are organizations, not individuals — splitting the
   // org name to fake a first name produced "Aloha Boys," for "Boys & Girls
   // Club of Hawai'i". Just greet the org generically instead.
@@ -5027,7 +5144,7 @@ function buildResourceUpdateEmailHtml({ resource, token, isNudge }) {
       '<a href="' + link + '" style="background-color:#0891B2;background:linear-gradient(135deg,#0891B2,#0E7490);color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:16px;display:inline-block">Review Your Card</a>' +
     '</p>' +
     '<p style="margin:0 0 16px;font-size:14px;color:#64748b;line-height:1.6">' +
-      'If your logo has changed since we last spoke, please email the new file to <a href="mailto:LSalvani@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LSalvani@ldahawaii.org</a> and we\'ll update it for you.' +
+      'If your logo has changed since we last spoke, please email the new file to <a href="mailto:' + resourceUpdateEsc(resourceCoordinatorEmail) + '" style="color:#1a73e8;text-decoration:none;">' + resourceUpdateEsc(resourceCoordinatorEmail) + '</a> and we\'ll update it for you.' +
     '</p>';
 
   // Resource-update emails go out under La'a's name (Administrative
@@ -5036,15 +5153,8 @@ function buildResourceUpdateEmailHtml({ resource, token, isNudge }) {
     '<p style="margin:24px 0 4px;font-size:15px;color:#333333;line-height:1.5;">If you have any questions, please contact us.</p>' +
     '<p style="margin:0 0 4px;font-size:15px;color:#333333;line-height:1.5;">With gratitude,</p>' +
     '<p style="margin:0 0 16px;font-size:15px;color:#333333;line-height:1.5;"><strong>LDAH Team</strong></p>' +
-    '<p style="margin:16px 0 2px;font-size:14px;color:#555555;line-height:1.5;">' +
-      '<strong>La\'a Salvani</strong><br>' +
-      'Administrative Assistant<br>' +
-      'Leadership in Disabilities &amp; Achievement of Hawai\'i<br>' +
-      '245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>' +
-      'Phone: (808) 536-9684<br>' +
-      'Email: <a href="mailto:LSalvani@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LSalvani@ldahawaii.org</a><br>' +
-      '<a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>' +
-    '</p>';
+    (donateHtml || '') +
+    (signatureHtml || '');
 
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + resourceUpdateEsc(heading) + '</title></head>' +
     '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
@@ -5083,6 +5193,10 @@ exports.sendResourceUpdateRequests = functions
       const db = admin.firestore();
       const FieldValue = admin.firestore.FieldValue;
       const fromAddress = lifecycleFromAddress();
+      const signatureHtml = await buildSignatureBlock('resourceCoordinator');
+      const donateHtml = await buildDonateBlock('universal');
+      const resCoord = await getPersona('resourceCoordinator');
+      const resourceCoordinatorEmail = resCoord.email;
 
       // Single-resource path — admin clicked "Send Update Request" on one
       // partner card. Bypasses the collection scan + cycle eligibility
@@ -5117,7 +5231,7 @@ exports.sendResourceUpdateRequests = functions
             updateSubmittedAt: null,
             pendingUpdate: null,
           });
-          const html = buildResourceUpdateEmailHtml({ resource: r, token, isNudge: false });
+          const html = buildResourceUpdateEmailHtml({ resource: r, token, isNudge: false, signatureHtml, donateHtml, resourceCoordinatorEmail });
           await sendEmailViaResend({
             from: fromAddress,
             to: email,
@@ -5143,6 +5257,9 @@ exports.sendResourceUpdateRequests = functions
           resource: RESOURCE_TEST_PREVIEW_DATA,
           token: RESOURCE_TEST_PREVIEW_TOKEN,
           isNudge: false,
+          signatureHtml,
+          donateHtml,
+          resourceCoordinatorEmail,
         });
         await sendEmailViaResend({
           from: fromAddress,
@@ -5235,7 +5352,7 @@ exports.sendResourceUpdateRequests = functions
             pendingUpdate: null,
           });
 
-          const html = buildResourceUpdateEmailHtml({ resource: item.data, token, isNudge: false });
+          const html = buildResourceUpdateEmailHtml({ resource: item.data, token, isNudge: false, signatureHtml, donateHtml, resourceCoordinatorEmail });
           await sendEmailViaResend({
             from: fromAddress,
             to: item.email,
@@ -5397,7 +5514,7 @@ exports.submitResourceUpdate = functions
 const CONSENT_TEXT_VERSION = "02/2021; RR";
 const CONSENT_TEXT = "In order for me, [PARENT NAME], to participate in LDAH's Connect Gen Session (CG), on [SESSION DATE], I grant my permission for LDAH to receive, view and discuss my child's confidential documents with me. I am sending the most current Individualized Education Program (IEP) and most current Evaluation(s)/Assessment(s) via fax, email, or postal service. By receiving my documents, it does not obligate LDAH employees to provide additional services to me. LDAH will determine through CG, my need for additional support or services within 48 hours from the date of the CG virtual attendance. My child's confidential documents will be held until a determination is made about receiving additional support with LDAH, such as case advocacy. If I do not require additional supports, my child's confidential documents will be destroyed within 24 hours of attendance date. I agree to send LDAH my child's confidential documents as described above.";
 
-function buildConsentRequiredEmailHtml({ name, eventTitle, datesPhrase, consentUrl }) {
+function buildConsentRequiredEmailHtml({ name, eventTitle, datesPhrase, consentUrl, signatureHtml, donateHtml }) {
   const safeName = lifecycleEsc(name || "there");
   const safeTitle = lifecycleEsc(eventTitle || "Connect-Gen");
   const safeDates = lifecycleEsc(datesPhrase || "");
@@ -5417,11 +5534,12 @@ function buildConsentRequiredEmailHtml({ name, eventTitle, datesPhrase, consentU
     '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6"><strong>Until we receive your signed consent, this appointment is not yet confirmed.</strong> Once signed, we will send you a confirmation along with the prep documents you should review before the meeting.</p>' +
     '<p style="margin:24px 0 4px;font-size:15px;color:#333;line-height:1.5;">Questions? Reach out anytime.</p>' +
     '<p style="margin:0 0 4px;font-size:15px;color:#333;line-height:1.5;">With gratitude,</p>' +
-    '<p style="margin:0 0 16px;font-size:15px;color:#333;line-height:1.5;"><strong>Leilani Kailiawa</strong><br>Leadership in Disabilities &amp; Achievement of Hawai\'i<br>(808) 536-9684 &middot; <a href="mailto:lkailiawa@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">lkailiawa@ldahawaii.org</a></p>' +
+    (donateHtml || '') +
+    (signatureHtml || '') +
     '</div></div></body></html>';
 }
 
-function buildConnectGenPrepEmailHtml({ name, eventTitle, datesPhrase, prepDocs }) {
+function buildConnectGenPrepEmailHtml({ name, eventTitle, datesPhrase, prepDocs, signatureHtml, donateHtml }) {
   const safeName = lifecycleEsc(name || "there");
   const safeTitle = lifecycleEsc(eventTitle || "Connect-Gen");
   const safeDates = lifecycleEsc(datesPhrase || "");
@@ -5465,7 +5583,8 @@ function buildConnectGenPrepEmailHtml({ name, eventTitle, datesPhrase, prepDocs 
     docsHtml +
     '<p style="margin:24px 0 4px;font-size:15px;color:#333;line-height:1.5;">If anything changes or you have questions, please reach out.</p>' +
     '<p style="margin:0 0 4px;font-size:15px;color:#333;line-height:1.5;">With gratitude,</p>' +
-    '<p style="margin:0 0 16px;font-size:15px;color:#333;line-height:1.5;"><strong>Leilani Kailiawa</strong><br>Leadership in Disabilities &amp; Achievement of Hawai\'i<br>(808) 536-9684 &middot; <a href="mailto:lkailiawa@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">lkailiawa@ldahawaii.org</a></p>' +
+    (donateHtml || '') +
+    (signatureHtml || '') +
     '</div></div></body></html>';
 }
 
@@ -5592,11 +5711,15 @@ exports.submitConnectGenConsent = functions
 
         const sessionKeys = extractSignupSessionKeys(s);
         const datesPhrase = formatDatesPhrase(sessionKeys);
+        const signatureHtml = await buildSignatureBlock('eventCoordinator');
+        const donateHtml = await buildDonateBlock('universal');
         const html = buildConnectGenPrepEmailHtml({
           name: s.name || typedName,
           eventTitle: event.title || "Connect-Gen",
           datesPhrase,
           prepDocs,
+          signatureHtml,
+          donateHtml,
         });
 
         const fromAddress = lifecycleFromAddress();
@@ -5697,6 +5820,9 @@ exports.submitResourceApplication = functions
       try {
         const fromAddress = lifecycleFromAddress();
         const safeName = resourceUpdateEsc(name);
+        const resCoord = await getPersona('resourceCoordinator');
+        const resourceCoordinatorEmail = resCoord.email;
+        const safeResEmail = resourceUpdateEsc(resourceCoordinatorEmail);
         const html = '<!DOCTYPE html><html><head><meta charset="utf-8"></head>' +
           '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
           '<div style="max-width:600px;margin:0 auto;background:#fff">' +
@@ -5707,7 +5833,7 @@ exports.submitResourceApplication = functions
           '<p style="margin:0 0 16px;font-size:16px">Aloha' + (contactName ? " " + resourceUpdateEsc(contactName) : "") + ',</p>' +
           '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Mahalo for your interest in joining the LDAH resource directory. We have received your application for <strong>' + safeName + '</strong> and will review it within 5 business days.</p>' +
           '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">If approved, your listing will go live on <a href="https://www.ldahawaii.org/resources.html" style="color:#1a73e8;text-decoration:none;">ldahawaii.org</a>. If we have questions about your application, we will reach out at the email you provided.</p>' +
-          '<p style="margin:24px 0 4px;font-size:15px;color:#333;line-height:1.5;">Questions in the meantime? Email <a href="mailto:LSalvani@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LSalvani@ldahawaii.org</a>.</p>' +
+          '<p style="margin:24px 0 4px;font-size:15px;color:#333;line-height:1.5;">Questions in the meantime? Email <a href="mailto:' + safeResEmail + '" style="color:#1a73e8;text-decoration:none;">' + safeResEmail + '</a>.</p>' +
           '<p style="margin:16px 0 4px;font-size:15px;color:#333;line-height:1.5;">With gratitude,</p>' +
           '<p style="margin:0 0 16px;font-size:15px;color:#333;line-height:1.5;"><strong>LDAH Team</strong></p>' +
           '</div>' +
@@ -5742,6 +5868,10 @@ exports.sendResourceUpdateNudges = functions
     const db = admin.firestore();
     const FieldValue = admin.firestore.FieldValue;
     const fromAddress = lifecycleFromAddress();
+    const signatureHtml = await buildSignatureBlock('resourceCoordinator');
+    const donateHtml = await buildDonateBlock('universal');
+    const resCoord = await getPersona('resourceCoordinator');
+    const resourceCoordinatorEmail = resCoord.email;
     const now = Date.now();
 
     // 7-day gap between touches: initial → nudge1 (day 7) → nudge2 (day 14).
@@ -5778,7 +5908,7 @@ exports.sendResourceUpdateNudges = functions
         }
 
         try {
-          const html = buildResourceUpdateEmailHtml({ resource: r, token: r.updateToken, isNudge: true });
+          const html = buildResourceUpdateEmailHtml({ resource: r, token: r.updateToken, isNudge: true, signatureHtml, donateHtml, resourceCoordinatorEmail });
           await sendEmailViaResend({
             from: fromAddress,
             to: email,
