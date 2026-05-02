@@ -1578,7 +1578,13 @@ async function handleSignupUpdated(change, context) {
       }
 
       if (Object.keys(childEntry).length > 0) {
-        childEntry.addedAt = admin.firestore.FieldValue.serverTimestamp();
+        // NB: FieldValue.serverTimestamp() throws inside array elements.
+        // Use a plain Timestamp (admin SDK converts on write) — the whole
+        // contact enrichment update was being rejected before this fix
+        // (silent failure caught by the outer try/catch). Bug surfaced
+        // 2026-05-02 when Jake Test's contact card showed empty
+        // demographics despite a complete registration submit.
+        childEntry.addedAt = admin.firestore.Timestamp.now();
         childEntry.sourceSignupId = context.params.signupId;
 
         const existingChildren = contactData.children || [];
