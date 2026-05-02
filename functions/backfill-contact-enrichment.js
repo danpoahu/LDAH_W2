@@ -86,6 +86,7 @@ async function enrichOne(signupRef, signup, signupId) {
 
   // Build child entry — Timestamp.now() (NOT serverTimestamp, which throws inside arrays)
   const childEntry = {};
+  if (registration.childName) childEntry.name = String(registration.childName).trim();
   if (registration.childAgeRange) childEntry.ageRange = _canonAgeRange(registration.childAgeRange);
   if (registration.childGender) childEntry.gender = registration.childGender;
   if (registration.ethnicity) childEntry.ethnicity = registration.ethnicity;
