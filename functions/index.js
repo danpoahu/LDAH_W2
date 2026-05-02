@@ -5934,3 +5934,4 @@ exports.sendResourceUpdateNudges = functions
     console.log("sendResourceUpdateNudges: scanned=" + scanned + " sent=" + sent + " failed=" + failed);
     return null;
   });
+
