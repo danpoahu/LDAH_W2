@@ -1498,6 +1498,28 @@ async function handleSignupUpdated(change, context) {
       }
     }
 
+    // Canonicalize legacy inputs from older form versions before mirroring.
+    // Canonical schema (see feedback_demographic-schema-canonical.md, v120.1.0):
+    //   militaryStatus → 'Not military' | 'Active Duty' | 'Veteran' | 'Reserves'
+    //   militaryBranch → 'Marine Corps' (not 'Marines')
+    //   child ageRange → drop 'yrs'/'H.S.' suffix on canonical keys
+    const _canonMilStatus = (v) => {
+      if (!v) return "";
+      const s = String(v).trim();
+      const lc = s.toLowerCase();
+      if (lc === "none" || lc === "not military" || lc === "not military affiliated") return "Not military";
+      if (lc === "active" || lc === "active duty" || lc === "active duty/military family") return "Active Duty";
+      if (lc === "veteran") return "Veteran";
+      if (lc === "reserves") return "Reserves";
+      return s;
+    };
+    const _canonMilBranch = (v) => {
+      if (!v) return "";
+      const s = String(v).trim();
+      if (s === "Marines") return "Marine Corps";
+      return s;
+    };
+
     // Enrich additional demographics — only if the contact field is empty/missing
     const stringFields = [
       "streetAddress", "city", "zipCode",
@@ -1508,8 +1530,10 @@ async function handleSignupUpdated(change, context) {
       "howHeard", "accommodations",
     ];
     stringFields.forEach((field) => {
-      const regVal = (registration[field] || "").trim();
+      let regVal = (registration[field] || "").trim();
       const contactVal = (contactData[field] || "").trim();
+      if (field === "militaryStatus") regVal = _canonMilStatus(regVal);
+      if (field === "militaryBranch") regVal = _canonMilBranch(regVal);
       if (regVal && !contactVal) {
         updates[field] = regVal;
       }
@@ -1525,9 +1549,28 @@ async function handleSignupUpdated(change, context) {
     }
 
     // Build child entry from registration child-specific fields
+    // Canonical schema (v120.1.0): writes child.ageRange + child.gender
+    // (legacy keys child.childAgeRange / child.childGender remain in old data
+    //  and are tolerated by readers via _childAgeRange/_childGender helpers).
+    // Strip legacy "yrs"/"H.S." suffix on age range so canonical values match
+    // the canonical option set: '0-2'|'3-5'|'6-12'|'13-17'|'High School'|'Adult'.
+    const _canonAgeRange = (v) => {
+      if (!v) return "";
+      const s = String(v).trim();
+      // Map legacy form labels → canonical
+      const map = {
+        "Birth-2 yrs": "0-2", "Birth-2": "0-2", "0-2": "0-2",
+        "3-5 yrs": "3-5", "3-5": "3-5",
+        "6-11 yrs": "6-12", "6-11": "6-12", "6-12": "6-12",
+        "12-14 yrs": "13-17", "12-14": "13-17", "15-18 yrs": "13-17", "15-18": "13-17", "13-17": "13-17",
+        "Beyond H.S.": "Adult", "Beyond HS": "Adult", "Adult": "Adult",
+        "High School": "High School",
+      };
+      return map[s] || s; // unknown — pass through
+    };
     try {
       const childEntry = {};
-      if (registration.childAgeRange) childEntry.ageRange = registration.childAgeRange;
+      if (registration.childAgeRange) childEntry.ageRange = _canonAgeRange(registration.childAgeRange);
       if (registration.childGender) childEntry.gender = registration.childGender;
       if (registration.ethnicity) childEntry.ethnicity = registration.ethnicity;
       if (Array.isArray(registration.disabilityCategories) && registration.disabilityCategories.length) {

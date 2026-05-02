@@ -2553,15 +2553,22 @@
           '<div style="margin-bottom: 14px;">' +
             '<label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">Military Status</label>' +
             '<div style="display: flex; flex-direction: column; gap: 8px;">' +
-              '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="radio" name="regMilitary" value="none"' + (pf.militaryStatus === 'none' ? ' checked' : '') + ' onchange="document.getElementById(\'regBranchWrap\').style.display=\'none\';" style="width: 18px; height: 18px; cursor: pointer;"><span style="font-size: 14px; color: #374151;">Not military affiliated</span></label>' +
-              '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="radio" name="regMilitary" value="active"' + (pf.militaryStatus === 'active' ? ' checked' : '') + ' onchange="document.getElementById(\'regBranchWrap\').style.display=\'block\';" style="width: 18px; height: 18px; cursor: pointer;"><span style="font-size: 14px; color: #374151;">Active Duty/Military Family</span></label>' +
+              // Canonical militaryStatus values (v120.1.0): 'Not military' | 'Active Duty' | 'Veteran' | 'Reserves'
+              // Tolerate legacy lowercase 'none'/'active' from prefill data.
+              '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="radio" name="regMilitary" value="Not military"' + ((pf.militaryStatus === 'Not military' || pf.militaryStatus === 'none') ? ' checked' : '') + ' onchange="document.getElementById(\'regBranchWrap\').style.display=\'none\';" style="width: 18px; height: 18px; cursor: pointer;"><span style="font-size: 14px; color: #374151;">Not military affiliated</span></label>' +
+              '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="radio" name="regMilitary" value="Active Duty"' + ((pf.militaryStatus === 'Active Duty' || pf.militaryStatus === 'active') ? ' checked' : '') + ' onchange="document.getElementById(\'regBranchWrap\').style.display=\'block\';" style="width: 18px; height: 18px; cursor: pointer;"><span style="font-size: 14px; color: #374151;">Active Duty/Military Family</span></label>' +
+              '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="radio" name="regMilitary" value="Veteran"' + (pf.militaryStatus === 'Veteran' ? ' checked' : '') + ' onchange="document.getElementById(\'regBranchWrap\').style.display=\'block\';" style="width: 18px; height: 18px; cursor: pointer;"><span style="font-size: 14px; color: #374151;">Veteran</span></label>' +
+              '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="radio" name="regMilitary" value="Reserves"' + (pf.militaryStatus === 'Reserves' ? ' checked' : '') + ' onchange="document.getElementById(\'regBranchWrap\').style.display=\'block\';" style="width: 18px; height: 18px; cursor: pointer;"><span style="font-size: 14px; color: #374151;">Reserves</span></label>' +
             '</div>' +
-            '<div id="regBranchWrap" style="display: ' + (pf.militaryStatus === 'active' ? 'block' : 'none') + '; margin-top: 10px; padding-left: 26px;">' +
+            '<div id="regBranchWrap" style="display: ' + ((pf.militaryStatus === 'Active Duty' || pf.militaryStatus === 'active' || pf.militaryStatus === 'Veteran' || pf.militaryStatus === 'Reserves') ? 'block' : 'none') + '; margin-top: 10px; padding-left: 26px;">' +
               '<label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">Branch</label>' +
               '<select id="regBranch" style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px; background: white;">' +
                 '<option value="">-- Select --</option>' +
-                ['Army', 'Navy', 'Marines', 'Air Force', 'Coast Guard', 'Reserves'].map(function(b) {
-                  return '<option value="' + b + '"' + (pf.militaryBranch === b ? ' selected' : '') + '>' + b + '</option>';
+                // Canonical branch list (v120.1.0): Marine Corps not Marines; Reserves removed (status, not branch)
+                ['Army', 'Marine Corps', 'Navy', 'Air Force', 'Space Force', 'Coast Guard'].map(function(b) {
+                  // Tolerate legacy 'Marines' value from existing data
+                  var sel = (pf.militaryBranch === b) || (b === 'Marine Corps' && pf.militaryBranch === 'Marines');
+                  return '<option value="' + b + '"' + (sel ? ' selected' : '') + '>' + b + '</option>';
                 }).join('') +
               '</select>' +
             '</div>' +
@@ -2576,23 +2583,28 @@
 
           '<div style="margin-bottom: 14px;">' +
             '<label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">Child\'s Age Range <span style="color: #DC2626;">*</span></label>' +
+            // Canonical childAgeRange values (v120.1.0): '0-2'|'3-5'|'6-12'|'13-17'|'High School'|'Adult'
+            // Visible labels stay friendly; only stored values are canonical.
             '<select id="regAgeRange" required style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px; background: white;">' +
               '<option value="">-- Select --</option>' +
-              '<option value="Birth-2 yrs">Birth-2 yrs</option>' +
-              '<option value="3-5 yrs">3-5 yrs</option>' +
-              '<option value="6-11 yrs">6-11 yrs</option>' +
-              '<option value="12-14 yrs">12-14 yrs</option>' +
-              '<option value="15-18 yrs">15-18 yrs</option>' +
-              '<option value="Beyond H.S.">Beyond H.S.</option>' +
+              '<option value="0-2">Birth-2 yrs</option>' +
+              '<option value="3-5">3-5 yrs</option>' +
+              '<option value="6-12">6-12 yrs</option>' +
+              '<option value="13-17">13-17 yrs</option>' +
+              '<option value="High School">High School</option>' +
+              '<option value="Adult">Adult (Beyond H.S.)</option>' +
             '</select>' +
           '</div>' +
 
           '<div style="margin-bottom: 14px;">' +
             '<label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">Child\'s Gender</label>' +
+            // Canonical childGender values (v120.1.0): Female | Male | Non-binary | Prefer not to say
             '<select id="regGender" style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px; background: white;">' +
               '<option value="">-- Select --</option>' +
-              '<option value="Male">Male</option>' +
               '<option value="Female">Female</option>' +
+              '<option value="Male">Male</option>' +
+              '<option value="Non-binary">Non-binary</option>' +
+              '<option value="Prefer not to say">Prefer not to say</option>' +
             '</select>' +
           '</div>' +
 
