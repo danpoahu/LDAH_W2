@@ -951,7 +951,14 @@
                     console.log('No resources in Firebase, using fallback data');
                     resourcesData = fallbackData;
                 } else {
-                    resourcesData = snapshot.docs.map((doc, index) => ({
+                    // The `resources` collection is overloaded — it also stores
+                    // Downloads file metadata (filename + downloadURL, no name).
+                    // Only show real partner directory entries on this page.
+                    const partnerDocs = snapshot.docs.filter(doc => {
+                        const d = doc.data() || {};
+                        return (d.name || '').trim() !== '';
+                    });
+                    resourcesData = partnerDocs.map((doc, index) => ({
                         id: doc.id,
                         ...doc.data(),
                         // Ensure all fields have defaults
