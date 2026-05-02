@@ -6019,3 +6019,227 @@ exports.sendResourceUpdateNudges = functions
     return null;
   });
 
+// ─────────────────────────────────────────────────────────────────────
+// Pre-fill verification (B'' flow — Daniel approved 2026-05-02)
+//
+// Returning families type their email on the signup form; we look up
+// their contact, send a 6-digit code to their email, they type it back,
+// and the form pre-populates with everything we have on file (name,
+// phone, address, demographics, children). Editable on the spot.
+//
+// Privacy gate: a stranger who knows somebody else's email can't see
+// their data. The OTP proves the requester has access to that inbox.
+//
+// Anti-enumeration: requestPrefillCode ALWAYS returns ok=true, even
+// when no contact exists. The legitimate user knows whether they have
+// an account; we don't reveal it to attackers.
+//
+// Rate limits:
+//   - Max 1 code request per email per 60 seconds (replay protection)
+//   - Code expires after 10 minutes
+//   - 5 wrong attempts locks the code (must request a new one)
+//
+// Storage: prefillCodes/{base64email} doc with {codeHash, expiresAt,
+// attempts, requestedAt}. Code is sha256-hashed at rest.
+// ─────────────────────────────────────────────────────────────────────
+
+const PREFILL_CODE_TTL_MS = 10 * 60 * 1000;
+const PREFILL_CODE_MIN_INTERVAL_MS = 60 * 1000;
+const PREFILL_CODE_MAX_ATTEMPTS = 5;
+
+function _prefillEmailKey(email) {
+  // Base64url(email-lowercase) — Firestore doc ID safe, deterministic.
+  return Buffer.from(String(email || "").trim().toLowerCase(), "utf8")
+    .toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function _hashCode(code, email) {
+  return crypto.createHash("sha256")
+    .update(String(code) + "|" + String(email || "").trim().toLowerCase())
+    .digest("hex");
+}
+function _generatePrefillCode() {
+  // 6 digits, leading zeros preserved.
+  return String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+}
+
+exports.requestPrefillCode = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const email = String((req.body || {}).email || "").trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      // Bad input — still return ok to avoid leaking format checks.
+      res.status(200).json({ ok: true });
+      return;
+    }
+
+    const db = admin.firestore();
+    const codeKey = _prefillEmailKey(email);
+    const codeRef = db.collection("prefillCodes").doc(codeKey);
+
+    try {
+      // Rate limit: refuse if a code was requested in the last 60s.
+      const existing = await codeRef.get();
+      if (existing.exists) {
+        const d = existing.data() || {};
+        const reqAtMs = (d.requestedAt && d.requestedAt.toMillis) ? d.requestedAt.toMillis() : 0;
+        if (reqAtMs && (Date.now() - reqAtMs) < PREFILL_CODE_MIN_INTERVAL_MS) {
+          // Within rate-limit window — still return ok (don't reveal we're rate-limiting).
+          res.status(200).json({ ok: true });
+          return;
+        }
+      }
+
+      // Look up the contact. If none exists, return ok WITHOUT sending an
+      // email or storing a code — anti-enumeration plus no wasted Resend send.
+      const contactSnap = await db.collection("contacts").where("email", "==", email).limit(1).get();
+      if (contactSnap.empty) {
+        res.status(200).json({ ok: true });
+        return;
+      }
+
+      // Generate + store the code (hashed).
+      const code = _generatePrefillCode();
+      const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + PREFILL_CODE_TTL_MS);
+      await codeRef.set({
+        codeHash: _hashCode(code, email),
+        expiresAt,
+        attempts: 0,
+        requestedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Send the email. Subject contains the code so it shows in inbox previews.
+      const fromAddress = process.env.SMTP_FROM || "registration@ldahawaii.org";
+      const html = '<!DOCTYPE html><html><head><meta charset="utf-8"></head>' +
+        '<body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">' +
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;">' +
+        '<tr><td align="center" style="padding:24px 16px;">' +
+        '<table role="presentation" width="500" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;max-width:500px;width:100%;">' +
+        '<tr><td style="background:#1a3c6e;padding:20px 24px;text-align:center;">' +
+          '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="100" style="display:block;margin:0 auto 8px;background:#fff;border-radius:8px;padding:8px;">' +
+          '<h1 style="margin:0;color:#fff;font-size:18px;">Verification Code</h1>' +
+        '</td></tr>' +
+        '<tr><td style="padding:32px 24px;">' +
+          '<p style="margin:0 0 16px;font-size:15px;color:#333;">Use this 6-digit code to pre-fill your LDAH registration with your information on file:</p>' +
+          '<div style="background:#f0f9ff;border:2px solid #1a3c6e;border-radius:10px;padding:20px;text-align:center;margin:18px 0;">' +
+            '<div style="font-size:36px;font-weight:700;letter-spacing:6px;color:#1a3c6e;font-family:Courier,monospace;">' + code + '</div>' +
+          '</div>' +
+          '<p style="margin:0 0 8px;font-size:13px;color:#666;">This code expires in 10 minutes. If you didn\'t request it, you can safely ignore this email.</p>' +
+        '</td></tr>' +
+        '</table></td></tr></table></body></html>';
+      try {
+        await sendEmailViaResend({
+          from: `LDAH <${fromAddress}>`,
+          to: email,
+          subject: "Your LDAH verification code: " + code,
+          html,
+          type: "prefill-code",
+          recipientName: "",
+        });
+      } catch (sendErr) {
+        // Logged but don't reveal failure to caller (anti-enumeration).
+        console.error("requestPrefillCode send failed for", email, ":", sendErr.message);
+      }
+      res.status(200).json({ ok: true });
+    } catch (err) {
+      console.error("requestPrefillCode error:", err.message);
+      // Still return ok — never leak server state.
+      res.status(200).json({ ok: true });
+    }
+  });
+
+exports.verifyPrefillCodeAndPrefill = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const email = String(body.email || "").trim().toLowerCase();
+    const code = String(body.code || "").trim();
+    if (!email || !code) { res.status(400).json({ error: "Missing email or code" }); return; }
+    if (!/^\d{6}$/.test(code)) { res.status(400).json({ error: "Code must be 6 digits" }); return; }
+
+    const db = admin.firestore();
+    const codeKey = _prefillEmailKey(email);
+    const codeRef = db.collection("prefillCodes").doc(codeKey);
+
+    try {
+      const snap = await codeRef.get();
+      if (!snap.exists) { res.status(400).json({ error: "Invalid or expired code. Please request a new one." }); return; }
+      const d = snap.data() || {};
+
+      // Expired?
+      const expiresMs = (d.expiresAt && d.expiresAt.toMillis) ? d.expiresAt.toMillis() : 0;
+      if (!expiresMs || expiresMs < Date.now()) {
+        await codeRef.delete().catch(() => {});
+        res.status(400).json({ error: "Code expired. Please request a new one." }); return;
+      }
+
+      // Locked?
+      if ((d.attempts || 0) >= PREFILL_CODE_MAX_ATTEMPTS) {
+        await codeRef.delete().catch(() => {});
+        res.status(400).json({ error: "Too many attempts. Please request a new code." }); return;
+      }
+
+      // Hash compare.
+      const submittedHash = _hashCode(code, email);
+      if (submittedHash !== d.codeHash) {
+        await codeRef.update({ attempts: admin.firestore.FieldValue.increment(1) });
+        const remaining = PREFILL_CODE_MAX_ATTEMPTS - ((d.attempts || 0) + 1);
+        res.status(400).json({ error: "Wrong code. " + (remaining > 0 ? remaining + " attempt(s) left." : "Please request a new code.") }); return;
+      }
+
+      // Verified — burn the code and return contact data.
+      await codeRef.delete().catch(() => {});
+
+      const contactSnap = await db.collection("contacts").where("email", "==", email).limit(1).get();
+      if (contactSnap.empty) {
+        res.status(404).json({ error: "Contact not found." }); return;
+      }
+      const c = contactSnap.docs[0].data() || {};
+
+      // Return the demographic shape the registration form needs. Match the
+      // canonical schema (feedback_demographic-schema-canonical.md) so the
+      // form can drop these straight into its inputs.
+      res.status(200).json({
+        ok: true,
+        prefill: {
+          firstName: c.firstName || "",
+          lastName: c.lastName || "",
+          displayName: c.displayName || "",
+          email: c.email || "",
+          phone: c.phone || "",
+          streetAddress: c.streetAddress || "",
+          city: c.city || "",
+          zipCode: c.zipCode || "",
+          militaryStatus: c.militaryStatus || "",
+          militaryBranch: c.militaryBranch || "",
+          ethnicity: c.ethnicity || "",
+          priorTraining: c.priorTraining || "",
+          priorTrainingDate: c.priorTrainingDate || "",
+          howHeard: c.howHeard || "",
+          accommodations: c.accommodations || "",
+          children: Array.isArray(c.children) ? c.children.map(ch => ({
+            name: ch.name || "",
+            ageRange: ch.ageRange || ch.childAgeRange || "",
+            gender: ch.gender || ch.childGender || "",
+            ethnicity: ch.ethnicity || "",
+            disabilityCategories: Array.isArray(ch.disabilityCategories) ? ch.disabilityCategories : [],
+          })) : [],
+        },
+      });
+    } catch (err) {
+      console.error("verifyPrefillCodeAndPrefill error:", err.message);
+      res.status(500).json({ error: "Server error. Please try again." });
+    }
+  });
+

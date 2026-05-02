@@ -130,6 +130,13 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin', 'admin'];
       allow create, delete: if false;
     }
+    // Pre-fill verification codes (B'' OTP-by-email flow). Only the
+    // requestPrefillCode + verifyPrefillCodeAndPrefill CFs (admin SDK)
+    // ever read or write these. Clients must never see them — the code
+    // is only valid against the verify CF.
+    match /prefillCodes/{docId} {
+      allow read, write: if false;
+    }
     match /resourceActivity/{document=**} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;

@@ -2205,8 +2205,11 @@
                     border-radius: 8px;
                     font-size: 14px;
                   ">
+                  <div style="margin-top: 6px; font-size: 13px;">
+                    <a href="javascript:void(0)" id="prefillTrigger" onclick="ldahOpenPrefill()" style="color: #1a73e8; text-decoration: none; font-weight: 600;">Returning family? Pre-fill from email</a>
+                  </div>
                 </div>
-                
+
                 <div style="margin-bottom: 20px;">
                   <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
                     Phone Number (for calls or texts) *
@@ -2387,6 +2390,140 @@
       if (event && event.target !== event.currentTarget) return;
       const modal = document.getElementById('signupModal');
       if (modal) modal.remove();
+    }
+
+    // ===== PRE-FILL VERIFICATION (B'' OTP-by-email flow) =====
+    // User clicks "Returning family? Pre-fill from email" → modal asks
+    // for the 6-digit code we email to their inbox. On verify, the form
+    // populates with everything we have on file (name, phone, address,
+    // demographics, children). They can edit anything before submit.
+
+    window.ldahOpenPrefill = async function() {
+      const emailEl = document.getElementById('signupEmail');
+      const email = (emailEl && emailEl.value || '').trim();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        alert('Please enter your email address above first, then click "Pre-fill from email".');
+        if (emailEl) emailEl.focus();
+        return;
+      }
+      // Prevent double-fire
+      const trigger = document.getElementById('prefillTrigger');
+      if (trigger) { trigger.style.pointerEvents = 'none'; trigger.style.opacity = '0.5'; trigger.textContent = 'Sending code...'; }
+      try {
+        await fetch('https://us-central1-ldah-932d5.cloudfunctions.net/requestPrefillCode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+      } catch (_) { /* swallow — modal still opens */ }
+      if (trigger) { trigger.style.pointerEvents = ''; trigger.style.opacity = ''; trigger.textContent = 'Returning family? Pre-fill from email'; }
+      ldahShowPrefillCodeModal(email);
+    };
+
+    function ldahShowPrefillCodeModal(email) {
+      // Remove any prior overlay
+      const prior = document.getElementById('prefillCodeModal');
+      if (prior) prior.remove();
+
+      const modal = document.createElement('div');
+      modal.id = 'prefillCodeModal';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;z-index:10001;padding:16px;';
+      modal.innerHTML =
+        '<div style="background:#fff;border-radius:12px;max-width:420px;width:100%;padding:28px 24px;box-shadow:0 12px 40px rgba(0,0,0,0.3);">' +
+          '<h2 style="margin:0 0 8px;color:#004E7C;font-size:20px;">Verify it\'s you</h2>' +
+          '<p style="margin:0 0 6px;font-size:14px;color:#374151;">If you have an LDAH account, we just emailed a 6-digit code to:</p>' +
+          '<p style="margin:0 0 16px;font-size:14px;color:#0f172a;font-weight:700;word-break:break-all;">' + (email || '').replace(/[<>&"]/g, '') + '</p>' +
+          '<p style="margin:0 0 12px;font-size:13px;color:#666;">Enter the code to pre-fill your information. Code expires in 10 minutes.</p>' +
+          '<input type="text" id="prefillCodeInput" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="123456" autocomplete="one-time-code" style="width:100%;padding:14px;font-size:24px;letter-spacing:8px;text-align:center;border:2px solid #1a3c6e;border-radius:8px;font-family:Courier,monospace;margin-bottom:8px;">' +
+          '<div id="prefillCodeError" style="display:none;color:#DC2626;font-size:13px;margin-bottom:8px;"></div>' +
+          '<div style="display:flex;gap:10px;margin-top:14px;">' +
+            '<button type="button" onclick="ldahCancelPrefill()" style="flex:0 0 auto;padding:12px 18px;background:#fff;color:#666;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Skip</button>' +
+            '<button type="button" id="prefillVerifyBtn" onclick="ldahVerifyPrefill()" style="flex:1;padding:12px;background:#1a3c6e;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">Verify &amp; Pre-fill</button>' +
+          '</div>' +
+          '<div style="margin-top:14px;font-size:12px;color:#94a3b8;text-align:center;">Didn\'t get it? Check spam, or <a href="javascript:void(0)" onclick="ldahCancelPrefill();ldahOpenPrefill()" style="color:#1a73e8;">resend</a>.</div>' +
+        '</div>';
+      document.body.appendChild(modal);
+      const input = document.getElementById('prefillCodeInput');
+      if (input) {
+        input.focus();
+        input.addEventListener('keydown', function(e) { if (e.key === 'Enter') ldahVerifyPrefill(); });
+      }
+    }
+
+    window.ldahCancelPrefill = function() {
+      const m = document.getElementById('prefillCodeModal');
+      if (m) m.remove();
+    };
+
+    window.ldahVerifyPrefill = async function() {
+      const input = document.getElementById('prefillCodeInput');
+      const errEl = document.getElementById('prefillCodeError');
+      const btn = document.getElementById('prefillVerifyBtn');
+      const code = (input && input.value || '').trim();
+      const email = (document.getElementById('signupEmail') || {}).value || '';
+      errEl.style.display = 'none';
+      if (!/^\d{6}$/.test(code)) {
+        errEl.textContent = 'Please enter the 6-digit code.';
+        errEl.style.display = 'block';
+        return;
+      }
+      btn.disabled = true; btn.textContent = 'Verifying...';
+      try {
+        const resp = await fetch('https://us-central1-ldah-932d5.cloudfunctions.net/verifyPrefillCodeAndPrefill', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email.trim(), code })
+        });
+        const result = await resp.json();
+        if (!resp.ok || !result.ok) {
+          errEl.textContent = result.error || 'Verification failed. Please try again.';
+          errEl.style.display = 'block';
+          btn.disabled = false; btn.textContent = 'Verify & Pre-fill';
+          return;
+        }
+        // Success — apply to stage 1 fields + stash demographics for stage 2.
+        ldahApplyPrefill(result.prefill || {});
+        ldahCancelPrefill();
+      } catch (err) {
+        errEl.textContent = 'Network error. Please try again.';
+        errEl.style.display = 'block';
+        btn.disabled = false; btn.textContent = 'Verify & Pre-fill';
+      }
+    };
+
+    function ldahApplyPrefill(pf) {
+      // Stage 1 visible fields
+      const setVal = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
+      setVal('signupName', pf.displayName || ((pf.firstName || '') + ' ' + (pf.lastName || '')).trim());
+      setVal('signupPhone', pf.phone || '');
+      // Stash full demographics for stage 2 (registration form). buildRegistrationForm
+      // already supports a `prefillData` arg from sibling-share — reuse the shape.
+      window._lastRegistration = {
+        streetAddress: pf.streetAddress || '',
+        city: pf.city || '',
+        zipCode: pf.zipCode || '',
+        militaryStatus: pf.militaryStatus || '',
+        militaryBranch: pf.militaryBranch || '',
+        ethnicity: pf.ethnicity || '',
+        priorTraining: pf.priorTraining || '',
+        priorTrainingDate: pf.priorTrainingDate || '',
+        howHeard: pf.howHeard || '',
+        accommodations: pf.accommodations || '',
+        // First child only for the single-child stage-2 form. Multi-child families
+        // get their first child pre-filled; additional children added via signup.
+        childName: (pf.children && pf.children[0] && pf.children[0].name) || '',
+        childAgeRange: (pf.children && pf.children[0] && pf.children[0].ageRange) || '',
+        childGender: (pf.children && pf.children[0] && pf.children[0].gender) || '',
+        disabilityCategories: (pf.children && pf.children[0] && pf.children[0].disabilityCategories) || [],
+      };
+      // Visible confirmation
+      const trigger = document.getElementById('prefillTrigger');
+      if (trigger) {
+        trigger.style.color = '#16A34A';
+        trigger.style.fontWeight = '700';
+        trigger.textContent = 'Pre-filled from your account on file. You can edit anything below.';
+        trigger.onclick = null;
+      }
     }
 
     // ===== REGISTRATION MODAL =====
@@ -3136,7 +3273,7 @@
             <p style="color: #555; font-size: 14px; margin-bottom: 24px;">
               Please remember to register each person who will be attending.
             </p>
-            <button onclick="closeSignupModal(); openRegistrationModal('${signupDocId}', '${eventId}', 'event');" style="
+            <button onclick="closeSignupModal(); openRegistrationModal('${signupDocId}', '${eventId}', 'event', window._lastRegistration || null);" style="
               display: inline-block;
               padding: 14px 32px;
               background: linear-gradient(135deg, #004E7C, #0066a1);
@@ -3558,7 +3695,7 @@
             </div>
             <h2 style="color:#004E7C;font-size:24px;font-weight:bold;margin-bottom:12px;">Mahalo! You're signed up.</h2>
             <p style="color:#666;font-size:16px;margin-bottom:24px;">Complete your registration to confirm your spot.</p>
-            <button onclick="closeSignupModal(); openRegistrationModal('${signupDocId}', '${programId}', 'recurring');" style="
+            <button onclick="closeSignupModal(); openRegistrationModal('${signupDocId}', '${programId}', 'recurring', window._lastRegistration || null);" style="
               display:inline-block;
               padding:14px 32px;
               background:linear-gradient(135deg, #004E7C, #0066a1);
