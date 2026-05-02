@@ -2727,6 +2727,21 @@ exports.sendDailySessionSheet = functions
       }
     } catch (_) {}
 
+    // Partner Resource Applications (Become a Partner Resource form)
+    try {
+      const raSnap = await db.collection("resourceApplications").where("status", "==", "new").get();
+      const raDocs = [];
+      raSnap.forEach((r) => { const rd = r.data() || {}; if (rd.archived !== true) raDocs.push(rd); });
+      if (raDocs.length > 0) {
+        let raRows = "";
+        raDocs.forEach((rd) => {
+          const cityIsland = [rd.city, rd.island].filter(Boolean).join(", ");
+          raRows += `<tr style="border-bottom:1px solid #eee;"><td style="padding:5px 8px;font-size:12px;font-weight:600;">${esc(rd.name)}</td><td style="padding:5px 8px;font-size:12px;">${esc(rd.contactName)}</td><td style="padding:5px 8px;font-size:12px;">${esc(rd.email)}</td><td style="padding:5px 8px;font-size:12px;">${esc(rd.type)}</td><td style="padding:5px 8px;font-size:12px;">${esc(cityIsland)}</td></tr>`;
+        });
+        formSections.push({ title: "Partner Resource Applications", count: raDocs.length, color: "#dc2626", headers: "Organization|Contact|Email|Type|Location", rows: raRows });
+      }
+    } catch (_) {}
+
     let formsHtml = "";
     if (formSections.length === 0) {
       formsHtml = `<p style="color:#666;font-style:italic;">No pending submissions.</p>`;
