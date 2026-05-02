@@ -119,6 +119,17 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin', 'admin'];
       allow create, delete: if false;
     }
+    // /system holds editable Cloud Function config: emailPersonas (sender
+    // names + signatures), donateBlocks (donate copy + button), zoomDefault
+    // (Zoom links), connectGenPrepDocs (consent prep PDF URLs), etc. CFs
+    // read via admin SDK (bypasses rules). Admin/superAdmin staff can read
+    // and update from the LDAH-Int Admin → List Management cards. No
+    // create/delete from clients — schema is fixed.
+    match /system/{docId} {
+      allow read, update: if request.auth != null
+        && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin', 'admin'];
+      allow create, delete: if false;
+    }
     match /resourceActivity/{document=**} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
