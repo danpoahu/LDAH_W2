@@ -6020,6 +6020,105 @@ exports.sendResourceUpdateNudges = functions
   });
 
 // ─────────────────────────────────────────────────────────────────────
+// cleanupStalePendings — daily 8 AM HST sweep of ghost-pending signups
+//
+// Why: signups can get stuck on status='pending' even after their lifecycle
+// is complete (session passed + attendance marked or feedback submitted).
+// The most common cause is share-registration chains where a parent signup
+// stays "pending" forever after its session passes. Result: the dashboard
+// pending count is inflated and admins see "2 pending" but only 1 visible.
+//
+// What: scans events + recurringEvents subcollections; for any signup where
+// status in ('pending','new'), archived !== true, ALL selectedSessions are
+// in the past, AND (sessionAttendance has at least one entry OR
+// feedbackSubmittedAt is set), flips it to status='completed', archived=true,
+// stamps closedReason. Refreshes parent's denormalized signupCount/pendingCount.
+//
+// Safe rerun: idempotent — only acts on docs that match the rule.
+// ─────────────────────────────────────────────────────────────────────
+exports.cleanupStalePendings = functions
+  .runWith({ timeoutSeconds: 540, maxInstances: 1 })
+  .pubsub.schedule("0 8 * * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const FieldValue = admin.firestore.FieldValue;
+    const todayKey = toHstDateKey(new Date());
+
+    function extractDate(s) {
+      if (!s) return null;
+      const m = String(s).match(/^(\d{4}-\d{2}-\d{2})/);
+      return m ? m[1] : null;
+    }
+
+    let scanned = 0;
+    let closed = 0;
+    const touchedParents = new Set();
+
+    for (const col of ["events", "recurringEvents"]) {
+      const parentSnap = await db.collection(col).get();
+      for (const parent of parentSnap.docs) {
+        const sigs = await parent.ref.collection("signups").get();
+        for (const s of sigs.docs) {
+          scanned++;
+          const d = s.data() || {};
+          if (d.archived === true) continue;
+          if (d.status !== "pending" && d.status !== "new") continue;
+
+          const dates = (d.selectedSessions || []).map(extractDate).filter(Boolean);
+          if (!dates.length) continue;
+          const allPast = dates.every((dt) => dt < todayKey);
+          if (!allPast) continue;
+
+          const hasAttendance = d.sessionAttendance && Object.keys(d.sessionAttendance).length > 0;
+          const hasFeedback = !!d.feedbackSubmittedAt;
+          if (!hasAttendance && !hasFeedback) continue;
+
+          try {
+            await s.ref.update({
+              status: "completed",
+              archived: true,
+              archivedAt: FieldValue.serverTimestamp(),
+              archivedBy: "cleanupStalePendings",
+              archivedReason: "Auto-closed: all sessions past, lifecycle complete (attendance=" +
+                hasAttendance + ", feedback=" + hasFeedback + ")",
+            });
+            closed++;
+            touchedParents.add(col + "/" + parent.id);
+            console.log("cleanupStalePendings: closed " + col + "/" + parent.id +
+              "/signups/" + s.id + " (" + (d.name || d.email || "?") + ")");
+          } catch (err) {
+            console.error("cleanupStalePendings: failed to close " + s.id + ":", err.message);
+          }
+        }
+      }
+    }
+
+    // Refresh denormalized counts on any parent that had a close-out
+    for (const path of touchedParents) {
+      try {
+        const [col, eventId] = path.split("/");
+        const allSnap = await db.collection(col).doc(eventId).collection("signups").get();
+        let pc = 0;
+        let sc = 0;
+        allSnap.forEach((doc) => {
+          const d = doc.data();
+          if (d.archived === true) return;
+          sc++;
+          if (d.status === "pending" || d.status === "new") pc++;
+        });
+        await db.collection(col).doc(eventId).update({ signupCount: sc, pendingCount: pc });
+      } catch (err) {
+        console.warn("cleanupStalePendings: count refresh skipped for " + path + ":", err.message);
+      }
+    }
+
+    console.log("cleanupStalePendings: scanned=" + scanned + " closed=" + closed +
+      " parentsRecounted=" + touchedParents.size);
+    return null;
+  });
+
+// ─────────────────────────────────────────────────────────────────────
 // Pre-fill verification (B'' flow — Daniel approved 2026-05-02)
 //
 // Returning families type their email on the signup form; we look up
