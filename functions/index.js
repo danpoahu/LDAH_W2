@@ -4112,7 +4112,8 @@ function _dayOfSubjectPhrase(startHst) {
  * tonight based on the session's HST start hour.
  */
 function buildDayOfEmail({
-  name, eventTitle, startTime, endTime, zoomUrl, meetingId, passcode,
+  name, eventTitle, startTime, endTime, isVirtual, locationLabel,
+  zoomUrl, meetingId, passcode,
   feedbackUrl, donateHtml, signatureHtml, orgFooterHtml,
 }) {
   const greetingName = _emailEsc(name || "there");
@@ -4120,13 +4121,34 @@ function buildDayOfEmail({
   const timeRange = startTime
     ? (endTime ? `${_emailEsc(startTime)} – ${_emailEsc(endTime)} HST` : `${_emailEsc(startTime)} HST`)
     : "";
+  const virt = !!isVirtual && !!zoomUrl;
 
-  const zoomDetailsBlock = (meetingId || passcode)
+  // Virtual: Zoom button + meeting details block. In-person: location block.
+  const zoomDetailsBlock = (virt && (meetingId || passcode))
     ? `<div style="margin:14px 0 0;padding:12px 16px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:6px;font-size:13px;color:#0C4A6E;line-height:1.6;">
          ${meetingId ? `<div><strong>Meeting ID:</strong> ${_emailEsc(meetingId)}</div>` : ""}
          ${passcode ? `<div><strong>Passcode:</strong> ${_emailEsc(passcode)}</div>` : ""}
        </div>`
     : "";
+  const zoomButton = virt
+    ? _emailBtn(zoomUrl, "Join the Zoom Session", { bg: "#0891B2", align: "center" })
+    : "";
+  const locBlock = (!virt && locationLabel)
+    ? `<div style="margin:14px 0 0;padding:14px 16px;background:#F4F8FC;border-left:4px solid #1A3C6E;border-radius:6px;font-size:15px;color:#1A3C6E;line-height:1.6;">
+         <div style="font-weight:bold;margin-bottom:4px;">In-person session</div>
+         <div>${_emailEsc(locationLabel)}</div>
+       </div>`
+    : "";
+
+  // Subject-paragraph copy is virtual-aware: "your Zoom link" vs "the details".
+  const reminderLine = virt
+    ? `<strong>Just in case the earlier confirmation got buried in your inbox</strong>, here's your Zoom link one more time so it's easy to find when you're ready to join.`
+    : `<strong>Just in case the earlier confirmation got buried in your inbox</strong>, here are the details one more time so they're easy to find. We look forward to seeing you in person${locationLabel ? ` at <strong>${_emailEsc(locationLabel)}</strong>` : ""}.`;
+
+  const linkRows = [
+    virt ? { label: "Join the Zoom Session", href: zoomUrl } : null,
+    { label: "Share After-Session Feedback", href: feedbackUrl },
+  ].filter(Boolean);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -4151,12 +4173,14 @@ function buildDayOfEmail({
       </p>
 
       <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
-        <strong>Just in case the earlier confirmation got buried in your inbox</strong>, here's your Zoom link one more time so it's easy to find when you're ready to join.
+        ${reminderLine}
       </p>
 
-      ${_emailBtn(zoomUrl, "Join the Zoom Session", { bg: "#0891B2", align: "center" })}
+      ${zoomButton}
 
       ${zoomDetailsBlock}
+
+      ${locBlock}
 
       <p style="margin:28px 0 8px;font-size:16px;color:#333333;line-height:1.5;">
         <strong>After the session</strong>, we would love to hear how it went. Your feedback helps us shape every session that comes next — it only takes a minute.
@@ -4170,10 +4194,7 @@ function buildDayOfEmail({
 
       ${donateHtml || ""}
 
-      ${_emailLinkFooter([
-        { label: "Join the Zoom Session", href: zoomUrl },
-        { label: "Share After-Session Feedback", href: feedbackUrl },
-      ])}
+      ${_emailLinkFooter(linkRows)}
 
       ${signatureHtml || ""}
     </td>
@@ -4214,9 +4235,15 @@ async function sendOneDayOfReminderEmail({
   const startTime = (event && (event.startTime || event.time)) || "";
   const endTime = (event && event.endTime) || "";
 
-  const zoomUrl = zoomDefault && zoomDefault.meetingUrl ? String(zoomDefault.meetingUrl).trim() : "";
-  const meetingId = zoomDefault && zoomDefault.meetingId ? String(zoomDefault.meetingId).trim() : "";
-  const passcode = zoomDefault && zoomDefault.passcode ? String(zoomDefault.passcode).trim() : "";
+  // CRITICAL: per-session virtual/in-person check. Connect-Gen has mixed
+  // schedules (Thursdays in-person, other days Zoom) — without this gate,
+  // every day-of email shipped a Zoom link including for in-person sessions.
+  const isVirtual = isSessionVirtual(event, sessionDateKey, signup);
+  const locationLabel = isVirtual ? "" : (getSessionLocationForDate(signup, sessionDateKey) || (event && event.location) || "");
+
+  const zoomUrl = isVirtual && zoomDefault && zoomDefault.meetingUrl ? String(zoomDefault.meetingUrl).trim() : "";
+  const meetingId = isVirtual && zoomDefault && zoomDefault.meetingId ? String(zoomDefault.meetingId).trim() : "";
+  const passcode = isVirtual && zoomDefault && zoomDefault.passcode ? String(zoomDefault.passcode).trim() : "";
 
   // Survey URL — must include sessionDate for proper feedback grouping.
   const surveyUrl =
@@ -4230,13 +4257,16 @@ async function sendOneDayOfReminderEmail({
   const orgFooterHtml = await getOrgFooterHtml();
   const html = buildDayOfEmail({
     name: recipientName, eventTitle, startTime, endTime,
+    isVirtual, locationLabel,
     zoomUrl, meetingId, passcode,
     feedbackUrl: surveyUrl,
     donateHtml, signatureHtml, orgFooterHtml,
   });
 
   const phrase = _dayOfSubjectPhrase(startHst);
-  const subject = `${phrase} -- ${eventTitle} Zoom link inside`;
+  const subject = isVirtual
+    ? `${phrase} -- ${eventTitle} Zoom link inside`
+    : `${phrase} -- ${eventTitle}`;
 
   const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
 
