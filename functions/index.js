@@ -3318,6 +3318,85 @@ function extractSignupSessionKeys(signup) {
 }
 
 /**
+ * Parse a "5:00 pm" / "5:00pm" / "5 pm" style time string to {hour, minute}
+ * in 24h. Returns null if not parseable. Used to pull session start times
+ * out of selectedSessions / selectedDates entries for the day-of reminder.
+ */
+function _parseTimeOfDayParts(raw) {
+  if (!raw) return null;
+  const m = String(raw).trim().match(/^(\d{1,2})(?::(\d{2}))?\s*([AaPp])\.?[Mm]?\.?/);
+  if (!m) return null;
+  let hour = parseInt(m[1], 10);
+  const minute = m[2] ? parseInt(m[2], 10) : 0;
+  const meridiem = m[3].toLowerCase();
+  if (isNaN(hour) || isNaN(minute)) return null;
+  if (meridiem === "p" && hour < 12) hour += 12;
+  if (meridiem === "a" && hour === 12) hour = 0;
+  return { hour, minute };
+}
+
+/**
+ * Build a JS Date that represents the session start as a wall-clock time
+ * in HST. Server runs UTC, so we construct via Date.UTC(y, m, d, h+10, min)
+ * — HST is UTC-10 with no DST in Hawaii.
+ *
+ * Inputs supported:
+ *   • Connect-Gen format "YYYY-MM-DD|venue|time" — parts[2] holds the time
+ *     range "5:00 pm-6:00 pm". Take everything before the dash.
+ *   • Learning Labs format "May 6, 2026, 5:00 pm-6:00 pm" — parseEventDateKey
+ *     extracts the date prefix; a separate regex captures the time range
+ *     (tolerant of inconsistent dash spacing per feedback_signupdates-parsing).
+ *   • If no time portion in rawSession, fall back to event.startTime then
+ *     event.time, paired with the date extracted from rawSession.
+ *
+ * Returns null when the date or start time can't be parsed.
+ */
+function extractSessionStartHst(rawSession, event) {
+  if (!rawSession) return null;
+  const raw = String(rawSession);
+
+  // Pull date key first.
+  let dateKey = "";
+  let timeStr = "";
+  if (raw.indexOf("|") !== -1) {
+    const parts = raw.split("|");
+    dateKey = toHstDateKey((parts[0] || "").trim());
+    timeStr = (parts[2] || "").trim();
+  } else {
+    dateKey = parseEventDateKey(raw);
+    // Strip the date prefix off and look for a "h:mm am-h:mm pm" range. Be
+    // permissive about dash spacing/dash type (en-dash, em-dash, plain).
+    const tm = raw.match(/(\d{1,2}(?::\d{2})?\s*[AaPp]\.?[Mm]?\.?)\s*[-–—]\s*(\d{1,2}(?::\d{2})?\s*[AaPp]\.?[Mm]?\.?)/);
+    if (tm) timeStr = tm[1];
+    else {
+      const single = raw.match(/(\d{1,2}(?::\d{2})?\s*[AaPp]\.?[Mm]?\.?)/);
+      if (single) timeStr = single[1];
+    }
+  }
+
+  if (!dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return null;
+
+  // Time range — take just the start portion (before any dash).
+  let startStr = "";
+  if (timeStr) {
+    const splitMatch = timeStr.split(/\s*[-–—]\s*/);
+    startStr = (splitMatch[0] || "").trim();
+  }
+
+  let parts = startStr ? _parseTimeOfDayParts(startStr) : null;
+  if (!parts && event) {
+    parts = _parseTimeOfDayParts(event.startTime || event.time || "");
+  }
+  if (!parts) return null;
+
+  const [y, m, d] = dateKey.split("-").map((n) => parseInt(n, 10));
+  if (!y || !m || !d) return null;
+  // HST = UTC-10 (no DST). To get the wall-clock moment in HST, shift forward
+  // 10 hours when constructing the UTC instant.
+  return new Date(Date.UTC(y, m - 1, d, parts.hour + 10, parts.minute));
+}
+
+/**
  * Parse a Learning-Labs-style date string like "May 6, 2026, 5:00 pm-6:00 pm"
  * by extracting the "Month Day, Year" prefix before any time range.
  * Builds the YYYY-MM-DD key directly from regex captures — NEVER routes
@@ -3721,12 +3800,10 @@ async function sendOneReminderEmail({
     signatureHtml, donateHtml, orgFooterHtml,
   });
 
-  const subject = mode === "1day"
-    ? `Tomorrow: ${eventTitle} -- ${formatted}`
-    : `Reminder: ${eventTitle} -- ${dayName}, ${formatted}`;
+  const subject = `Reminder: ${eventTitle} -- ${dayName}, ${formatted}`;
 
   const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
-  const emailType = mode === "1day" ? "event-reminder-1day" : "event-reminder-5day";
+  const emailType = "event-reminder-3day";
 
   return sendEmailViaResend({
     from: `LDAH <${fromAddress}>`,
@@ -3745,9 +3822,9 @@ async function sendOneReminderEmail({
 /**
  * Catch-up reminder: when a signup becomes confirmed (or registration
  * is just added), check whether any of its sessions fall inside the
- * next 5 days. For each one that does and hasn't already received a
- * 5-day reminder, send one immediately. This handles late registrants
- * who would otherwise miss the 5-day window entirely.
+ * next 3 days. For each one that does and hasn't already received a
+ * 3-day reminder, send one immediately. This handles late registrants
+ * who would otherwise miss the 3-day window entirely.
  */
 async function maybeSendCatchupReminder(change, context, collection) {
   try {
@@ -3791,10 +3868,10 @@ async function maybeSendCatchupReminder(change, context, collection) {
       return;
     }
 
-    // Determine candidate session dates within [today, today+5] HST.
+    // Determine candidate session dates within [today, today+3] HST.
     const todayKey = toHstDateKey(new Date());
     const windowKeys = {};
-    for (let d = 0; d <= 5; d++) {
+    for (let d = 0; d <= 3; d++) {
       const k = addDaysHst(todayKey, d);
       if (k) windowKeys[k] = true;
     }
@@ -3811,17 +3888,17 @@ async function maybeSendCatchupReminder(change, context, collection) {
       ? after.sessionReminders : {};
 
     for (const sessionDateKey of candidateDates) {
-      if (existing[sessionDateKey] && existing[sessionDateKey].fiveDay) continue;
+      if (existing[sessionDateKey] && existing[sessionDateKey].threeDay) continue;
       try {
         await sendOneReminderEmail({
           collection, eventId, signupId,
           signup: after, event,
-          sessionDateKey, mode: "5day", zoomDefault,
+          sessionDateKey, mode: "3day", zoomDefault,
         });
         await change.after.ref.set({
           sessionReminders: {
             [sessionDateKey]: {
-              fiveDay: admin.firestore.FieldValue.serverTimestamp(),
+              threeDay: admin.firestore.FieldValue.serverTimestamp(),
             },
           },
         }, { merge: true });
@@ -3858,16 +3935,13 @@ exports.sendEventReminders = functions
     // 2. Compute target dates in HST
     const now = new Date();
     const todayKey = toHstDateKey(now);
-    const target5d = addDaysHst(todayKey, 5);
-    const target1d = addDaysHst(todayKey, 1);
+    const target3d = addDaysHst(todayKey, 3);
     const targetSet = {};
-    targetSet[target5d] = "fiveDay";
-    targetSet[target1d] = "oneDay";
+    targetSet[target3d] = "threeDay";
 
-    console.log(`sendEventReminders: today=${todayKey} target5d=${target5d} target1d=${target1d}`);
+    console.log(`sendEventReminders: today=${todayKey} target3d=${target3d}`);
 
-    let sent5d = 0;
-    let sent1d = 0;
+    let sent3d = 0;
     let skipped = 0;
 
     // Helper: process one signup doc. For each matching session date,
@@ -3912,8 +3986,9 @@ exports.sendEventReminders = functions
         ? signup.sessionReminders : {};
 
       for (const sessionDateKey of candidateDates) {
-        const which = targetSet[sessionDateKey]; // "fiveDay" | "oneDay"
-        const mode = which === "oneDay" ? "1day" : "5day";
+        const which = targetSet[sessionDateKey]; // "threeDay"
+        const mode = which === "threeDay" ? "3day" : null;
+        if (!mode) { skipped++; continue; }
         const already = existing[sessionDateKey] && existing[sessionDateKey][which];
         if (already) { skipped++; continue; }
 
@@ -3931,7 +4006,7 @@ exports.sendEventReminders = functions
               },
             },
           }, { merge: true });
-          if (mode === "1day") sent1d++; else sent5d++;
+          sent3d++;
           console.log(`sendEventReminders: sent ${mode} to ${signup.email} for ${collection}/${eventId} on ${sessionDateKey}`);
         } catch (err) {
           // per-signup guard so a bad row doesn't kill the run
@@ -3947,7 +4022,7 @@ exports.sendEventReminders = functions
         const event = eDoc.data();
         // Build the event's full set of candidate dates (eventDate + parsed
         // signupDates entries) so multi-date events don't get skipped when
-        // the primary eventDate isn't in the 5/1-day target window.
+        // the primary eventDate isn't in the 3-day target window.
         const candidateKeys = extractEventCandidateDateKeys(event);
         if (!candidateKeys.some((k) => !!targetSet[k])) continue; // quick skip
         try {
@@ -3982,7 +4057,337 @@ exports.sendEventReminders = functions
       console.error("sendEventReminders: recurringEvents scan failed:", err.message);
     }
 
-    console.log(`sendEventReminders: 5day sent=${sent5d}, 1day sent=${sent1d}, skipped=${skipped}`);
+    console.log(`sendEventReminders: 3day sent=${sent3d}, skipped=${skipped}`);
+    return null;
+  });
+
+// ── Day-of reminder ────────────────────────────────────────────
+// Hourly cron at :30 (Pacific/Honolulu). For each confirmed,
+// non-archived signup, find sessions whose start time falls in
+// [now+15min, now+45min] HST and send a "just in case" email
+// lifted (subject + body) from send-learninglabs-justincase-2026-05-06.js.
+
+/**
+ * Build a per-signup map of dateKey -> raw session entry. The raw entry
+ * preserves the original time portion so the day-of cron can compute the
+ * actual session start time in HST. Pairs with extractSessionStartHst().
+ */
+function buildSignupRawSessionMap(signup) {
+  const map = {};
+  if (!signup) return map;
+  const entries = []
+    .concat(Array.isArray(signup.selectedDates) ? signup.selectedDates : [])
+    .concat(Array.isArray(signup.selectedSessions) ? signup.selectedSessions : []);
+  for (const raw of entries) {
+    const s = String(raw || "");
+    let key = "";
+    if (s.indexOf("|") !== -1) {
+      key = toHstDateKey(s.split("|")[0].trim());
+    } else {
+      key = parseEventDateKey(s);
+    }
+    if (key && !map[key]) map[key] = s;
+  }
+  return map;
+}
+
+/**
+ * Pick a "this morning / afternoon / tonight" subject phrase based on the
+ * session's HST start hour.
+ */
+function _dayOfSubjectPhrase(startHst) {
+  if (!startHst || isNaN(startHst.getTime())) return "See you soon";
+  const hourStr = startHst.toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: "Pacific/Honolulu" });
+  const hour = parseInt(hourStr, 10);
+  if (isNaN(hour)) return "See you soon";
+  if (hour < 12) return "See you this morning";
+  if (hour < 17) return "See you this afternoon";
+  return "See you tonight";
+}
+
+/**
+ * Day-of "just in case" email. Body lifted verbatim from
+ * functions/send-learninglabs-justincase-2026-05-06.js (kept untouched
+ * as historical record). Subject is time-aware — picks morning/afternoon/
+ * tonight based on the session's HST start hour.
+ */
+function buildDayOfEmail({
+  name, eventTitle, startTime, endTime, zoomUrl, meetingId, passcode,
+  feedbackUrl, donateHtml, signatureHtml, orgFooterHtml,
+}) {
+  const greetingName = _emailEsc(name || "there");
+  const safeTitle = _emailEsc(eventTitle || "your LDAH session");
+  const timeRange = startTime
+    ? (endTime ? `${_emailEsc(startTime)} – ${_emailEsc(endTime)} HST` : `${_emailEsc(startTime)} HST`)
+    : "";
+
+  const zoomDetailsBlock = (meetingId || passcode)
+    ? `<div style="margin:14px 0 0;padding:12px 16px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:6px;font-size:13px;color:#0C4A6E;line-height:1.6;">
+         ${meetingId ? `<div><strong>Meeting ID:</strong> ${_emailEsc(meetingId)}</div>` : ""}
+         ${passcode ? `<div><strong>Passcode:</strong> ${_emailEsc(passcode)}</div>` : ""}
+       </div>`
+    : "";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;">
+<tr><td align="center" style="padding:24px 16px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;max-width:600px;width:100%;">
+
+  <tr>
+    <td style="background-color:#ffffff;padding:28px 32px 20px;text-align:center;border-bottom:3px solid #1a3c6e;">
+      <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="150" style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;">
+    </td>
+  </tr>
+
+  <tr>
+    <td style="padding:32px;">
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha ${greetingName},</p>
+
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
+        We are so excited to see you in just a little while at <strong>${safeTitle}</strong>${timeRange ? `, today at <strong>${timeRange}</strong>` : ""}!
+      </p>
+
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
+        <strong>Just in case the earlier confirmation got buried in your inbox</strong>, here's your Zoom link one more time so it's easy to find when you're ready to join.
+      </p>
+
+      ${_emailBtn(zoomUrl, "Join the Zoom Session", { bg: "#0891B2", align: "center" })}
+
+      ${zoomDetailsBlock}
+
+      <p style="margin:28px 0 8px;font-size:16px;color:#333333;line-height:1.5;">
+        <strong>After the session</strong>, we would love to hear how it went. Your feedback helps us shape every session that comes next — it only takes a minute.
+      </p>
+
+      ${_emailBtn(feedbackUrl, "Share After-Session Feedback", { bg: "#004E7C", align: "center" })}
+
+      <p style="margin:24px 0 0;font-size:15px;color:#555555;line-height:1.5;">
+        Mahalo nui for being part of our LDAH 'ohana — it means the world to us, and to the families we serve together.
+      </p>
+
+      ${donateHtml || ""}
+
+      ${_emailLinkFooter([
+        { label: "Join the Zoom Session", href: zoomUrl },
+        { label: "Share After-Session Feedback", href: feedbackUrl },
+      ])}
+
+      ${signatureHtml || ""}
+    </td>
+  </tr>
+
+  ${orgFooterHtml || `
+  <tr>
+    <td style="background-color:#f0f0f0;padding:24px 32px;text-align:center;border-top:1px solid #dddddd;">
+      <p style="margin:0 0 4px;font-size:13px;color:#777777;font-weight:bold;">
+        Leadership in Disabilities &amp; Achievement of Hawai'i
+      </p>
+      <p style="margin:0 0 4px;font-size:12px;color:#999999;">
+        245 N. Kukui St., Suite 205, Honolulu, HI 96817
+      </p>
+      <p style="margin:0;font-size:12px;color:#999999;">
+        Phone: (808) 536-2280
+      </p>
+    </td>
+  </tr>`}
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
+/**
+ * Build params + send one day-of "just in case" email. Shared by the
+ * scheduled hourly job and the test endpoint.
+ */
+async function sendOneDayOfReminderEmail({
+  collection, eventId, signupId, signup, event, sessionDateKey, startHst, zoomDefault, skipBcc, cc,
+}) {
+  const type = collection === "recurringEvents" ? "recurring" : "event";
+  const recipientName = resolveReminderRecipientName(signup);
+  const eventTitle = (event && event.title) || "an LDAH Event";
+  const startTime = (event && (event.startTime || event.time)) || "";
+  const endTime = (event && event.endTime) || "";
+
+  const zoomUrl = zoomDefault && zoomDefault.meetingUrl ? String(zoomDefault.meetingUrl).trim() : "";
+  const meetingId = zoomDefault && zoomDefault.meetingId ? String(zoomDefault.meetingId).trim() : "";
+  const passcode = zoomDefault && zoomDefault.passcode ? String(zoomDefault.passcode).trim() : "";
+
+  // Survey URL — must include sessionDate for proper feedback grouping.
+  const surveyUrl =
+    "https://ldahawaii.org/feedback.html?signupId=" + encodeURIComponent(signupId) +
+    "&eventId=" + encodeURIComponent(eventId) +
+    "&type=" + encodeURIComponent(type) +
+    (sessionDateKey ? "&sessionDate=" + encodeURIComponent(sessionDateKey) : "");
+
+  const signatureHtml = await buildSignatureBlock('eventCoordinator');
+  const donateHtml = await buildDonateBlock('universal');
+  const orgFooterHtml = await getOrgFooterHtml();
+  const html = buildDayOfEmail({
+    name: recipientName, eventTitle, startTime, endTime,
+    zoomUrl, meetingId, passcode,
+    feedbackUrl: surveyUrl,
+    donateHtml, signatureHtml, orgFooterHtml,
+  });
+
+  const phrase = _dayOfSubjectPhrase(startHst);
+  const subject = `${phrase} -- ${eventTitle} Zoom link inside`;
+
+  const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+
+  return sendEmailViaResend({
+    from: `LDAH <${fromAddress}>`,
+    to: signup.email,
+    bcc: skipBcc ? undefined : REMINDER_BCC,
+    cc: cc,
+    subject,
+    html,
+    type: "event-reminder-dayof",
+    relatedEventId: eventId,
+    relatedSignupId: signupId,
+    recipientName,
+  });
+}
+
+// Hourly day-of "just in case" reminder. Cron fires at :30, scans every
+// confirmed signup, and emails any whose chosen session starts in the
+// next 15-45 minutes (a 30-minute window centered ~30 min before start).
+exports.sendDayOfReminders = functions
+  .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: EMAIL_SECRETS })
+  .pubsub.schedule("30 * * * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async (context) => {
+    const db = admin.firestore();
+
+    let zoomDoc = null;
+    try {
+      const zSnap = await db.collection("settings").doc("zoomDefault").get();
+      if (zSnap.exists) zoomDoc = zSnap.data() || null;
+    } catch (err) {
+      console.warn("sendDayOfReminders: failed to read settings/zoomDefault:", err.message);
+    }
+
+    const now = new Date();
+    const windowStartMs = now.getTime() + 15 * 60 * 1000;
+    const windowEndMs = now.getTime() + 45 * 60 * 1000;
+    const todayKey = toHstDateKey(now);
+
+    let sent = 0;
+    let skipped = 0;
+
+    async function processSignup({ collection, eventId, event, signupDoc }) {
+      const signup = signupDoc.data() || {};
+      const signupId = signupDoc.id;
+
+      if (signup.status !== "confirmed") { skipped++; return; }
+      if (signup.archived === true) { skipped++; return; }
+      if (!signup.email) { skipped++; return; }
+
+      // Connect-Gen consent gate — same logic as sendEventReminders.
+      if (event && event.zoomMode === "program" && !signup.consentSignedAt) {
+        skipped++;
+        return;
+      }
+      // Parent Talk Cafe — no Zoom reminders.
+      if (event && event.zoomMode === "parent_talk_cafe") {
+        skipped++;
+        return;
+      }
+
+      // Map dateKey -> raw entry so we can extract the time per session.
+      const sessionMap = buildSignupRawSessionMap(signup);
+      let candidateKeys = Object.keys(sessionMap);
+      if (candidateKeys.length === 0) {
+        const key = toHstDateKey((event && (event.eventDate || event.date)) || null);
+        if (key) {
+          candidateKeys = [key];
+          sessionMap[key] = ""; // forces fallback to event.startTime/event.time
+        }
+      }
+
+      // Quick narrow: only consider sessions whose date is today HST. The
+      // [+15, +45] minute window can never cross a date boundary at :30
+      // cron firings except at midnight, where same-day still applies.
+      candidateKeys = candidateKeys.filter((k) => k === todayKey);
+      if (candidateKeys.length === 0) return;
+
+      const existing = (signup.sessionReminders && typeof signup.sessionReminders === "object")
+        ? signup.sessionReminders : {};
+
+      for (const sessionDateKey of candidateKeys) {
+        try {
+          const startHst = extractSessionStartHst(sessionMap[sessionDateKey] || sessionDateKey, event);
+          if (!startHst) { skipped++; continue; }
+          const startMs = startHst.getTime();
+          if (startMs < windowStartMs || startMs > windowEndMs) { skipped++; continue; }
+
+          if (existing[sessionDateKey] && existing[sessionDateKey].dayOf) { skipped++; continue; }
+
+          const zoomDefault = pickZoomForEvent(zoomDoc, event, collection);
+          await sendOneDayOfReminderEmail({
+            collection, eventId, signupId, signup, event,
+            sessionDateKey, startHst, zoomDefault,
+          });
+          await signupDoc.ref.set({
+            sessionReminders: {
+              [sessionDateKey]: {
+                dayOf: admin.firestore.FieldValue.serverTimestamp(),
+              },
+            },
+          }, { merge: true });
+          sent++;
+          console.log(`sendDayOfReminders: sent dayof to ${signup.email} for ${collection}/${eventId} on ${sessionDateKey}`);
+        } catch (err) {
+          console.error(`sendDayOfReminders: failed ${collection}/${eventId}/signups/${signupId} on ${sessionDateKey}:`, err.message);
+        }
+      }
+    }
+
+    // 1. One-time events
+    try {
+      const eventsSnap = await db.collection("events").get();
+      for (const eDoc of eventsSnap.docs) {
+        const event = eDoc.data();
+        const candidateKeys = extractEventCandidateDateKeys(event);
+        if (!candidateKeys.includes(todayKey)) continue; // quick skip
+        try {
+          const sSnap = await db.collection("events").doc(eDoc.id).collection("signups").get();
+          for (const sDoc of sSnap.docs) {
+            await processSignup({ collection: "events", eventId: eDoc.id, event, signupDoc: sDoc });
+          }
+        } catch (err) {
+          console.error(`sendDayOfReminders: failed to list signups for events/${eDoc.id}:`, err.message);
+        }
+      }
+    } catch (err) {
+      console.error("sendDayOfReminders: events scan failed:", err.message);
+    }
+
+    // 2. Recurring events
+    try {
+      const recSnap = await db.collection("recurringEvents").get();
+      for (const eDoc of recSnap.docs) {
+        const event = eDoc.data();
+        if (event && event.active === false) continue;
+        try {
+          const sSnap = await db.collection("recurringEvents").doc(eDoc.id).collection("signups").get();
+          for (const sDoc of sSnap.docs) {
+            await processSignup({ collection: "recurringEvents", eventId: eDoc.id, event, signupDoc: sDoc });
+          }
+        } catch (err) {
+          console.error(`sendDayOfReminders: failed to list signups for recurringEvents/${eDoc.id}:`, err.message);
+        }
+      }
+    } catch (err) {
+      console.error("sendDayOfReminders: recurringEvents scan failed:", err.message);
+    }
+
+    console.log(`sendDayOfReminders: dayof sent=${sent}, skipped=${skipped}`);
     return null;
   });
 
@@ -4025,8 +4430,8 @@ exports.sendEventRemindersTest = functions
       res.status(400).json({ error: "Invalid collection" });
       return;
     }
-    if (mode !== "5day" && mode !== "1day") {
-      res.status(400).json({ error: "mode must be '5day' or '1day'" });
+    if (mode !== "3day" && mode !== "dayof") {
+      res.status(400).json({ error: "mode must be '3day' or 'dayof'" });
       return;
     }
 
@@ -4049,18 +4454,34 @@ exports.sendEventRemindersTest = functions
       const signup = signupDoc.data() || {};
       if (!signup.email) { res.status(400).json({ error: "Signup has no email" }); return; }
 
-      // Pick a session date for the subject/body.
+      // Pick a session date + raw entry for the subject/body.
       let sessionDateKey = "";
-      if (collection === "recurringEvents") {
-        const dates = Array.isArray(signup.selectedDates) ? signup.selectedDates : [];
-        if (dates.length > 0) sessionDateKey = toHstDateKey(dates[0]);
+      let rawSessionEntry = "";
+      const sessionMap = buildSignupRawSessionMap(signup);
+      const allKeys = Object.keys(sessionMap);
+      if (allKeys.length > 0) {
+        sessionDateKey = allKeys[0];
+        rawSessionEntry = sessionMap[sessionDateKey] || "";
       } else {
         sessionDateKey = toHstDateKey(event.eventDate || event.date);
       }
       if (!sessionDateKey) {
-        // Fallback: use today+1 or today+5 in HST so the email still renders sensibly
+        // Fallback: use today in HST so the email still renders sensibly
         const todayKey = toHstDateKey(new Date());
-        sessionDateKey = addDaysHst(todayKey, mode === "1day" ? 1 : 5);
+        sessionDateKey = mode === "dayof" ? todayKey : addDaysHst(todayKey, 3);
+      }
+
+      if (mode === "dayof") {
+        const startHst = extractSessionStartHst(rawSessionEntry, event)
+          || extractSessionStartHst(sessionDateKey, event); // fallback uses event.startTime
+        const result = await sendOneDayOfReminderEmail({
+          collection, eventId, signupId, signup, event,
+          sessionDateKey, startHst, zoomDefault,
+          skipBcc: skipBcc,
+          cc: ccList,
+        });
+        res.status(200).json({ success: true, id: (result && result.id) || null, to: signup.email, sessionDateKey });
+        return;
       }
 
       const result = await sendOneReminderEmail({
