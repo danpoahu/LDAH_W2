@@ -5454,6 +5454,25 @@ async function fetchStorageAsBase64(storagePath) {
   return buf.toString("base64");
 }
 
+// Fixed "sorry we missed you" body for no-show recipients. Not editable
+// from the LDAH-Int modal — the staff-edited body applies to attendees only.
+function buildNoShowRecordingBody({ eventTitle, nextSessionsBlurb }) {
+  const lines = [
+    "Aloha,",
+    "",
+    `We're sorry we missed you at ${eventTitle}. We hope everything is well, and we wanted to make sure you still have what was shared during the session.`,
+    "",
+    "The recording and slides are below — please take your time with them, and reach out anytime if you have questions about anything covered.",
+  ];
+  if (nextSessionsBlurb) {
+    lines.push("");
+    lines.push(nextSessionsBlurb);
+  }
+  lines.push("");
+  lines.push("Mahalo nui for being part of the LDAH 'ohana — we hope to connect with you at our next session.");
+  return lines.join("\n");
+}
+
 exports.sendEventRecordingEmail = functions
   .runWith({ timeoutSeconds: 540, memory: "512MB", maxInstances: 3, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
   .https.onRequest(async (req, res) => {
@@ -5470,17 +5489,40 @@ exports.sendEventRecordingEmail = functions
         subject, body, recordingUrl, passcode,
         pdfStoragePath, pdfDownloadUrl, pdfFileName,
         recipients,
+        nextSessionsBlurb,
       } = req.body || {};
 
       if (!collection || !eventId) { res.status(400).json({ error: "collection + eventId required" }); return; }
       if (!Array.isArray(recipients) || !recipients.length) { res.status(400).json({ error: "At least one recipient required" }); return; }
-      if (!subject || !body) { res.status(400).json({ error: "subject + body required" }); return; }
+      // For attendee sends, subject + body must be provided (admin-editable).
+      // For no-show-only sends, the CF generates them itself.
+      const hasAttendeeRecipient = recipients.some((r) => r && r.email && (r.audience || "attended") === "attended");
+      if (hasAttendeeRecipient && (!subject || !body)) {
+        res.status(400).json({ error: "subject + body required for attendee recipients" });
+        return;
+      }
 
       const signatureHtml = await buildSignatureBlock('eventCoordinator');
       const donateHtml = await buildDonateBlock('universal');
       const orgFooterHtml = await getOrgFooterHtml();
-      const html = buildRecordingEmailHtml({
-        bodyText: body, eventTitle: eventTitle || "",
+
+      // Pre-build both audience HTMLs so the loop can pick per recipient.
+      const attendeeHtml = (subject && body)
+        ? buildRecordingEmailHtml({
+            bodyText: body, eventTitle: eventTitle || "",
+            recordingUrl: recordingUrl || "", passcode: passcode || "",
+            slidesDownloadUrl: pdfDownloadUrl || "", slidesFileName: pdfFileName || "",
+            signatureHtml, donateHtml, orgFooterHtml,
+          })
+        : null;
+
+      const noShowSubject = `Sorry we missed you -- ${eventTitle || "LDAH session"}`;
+      const noShowBodyText = buildNoShowRecordingBody({
+        eventTitle: eventTitle || "the session",
+        nextSessionsBlurb: nextSessionsBlurb || "",
+      });
+      const noShowHtml = buildRecordingEmailHtml({
+        bodyText: noShowBodyText, eventTitle: eventTitle || "",
         recordingUrl: recordingUrl || "", passcode: passcode || "",
         slidesDownloadUrl: pdfDownloadUrl || "", slidesFileName: pdfFileName || "",
         signatureHtml, donateHtml, orgFooterHtml,
@@ -5498,12 +5540,19 @@ exports.sendEventRecordingEmail = functions
       const apiKey = process.env.RESEND_API_KEY;
       if (!apiKey) { res.status(500).json({ error: "RESEND_API_KEY missing" }); return; }
 
-      let sent = 0, failed = 0;
+      let sentAttended = 0, sentNoShow = 0, failed = 0;
       const errors = [];
 
       for (const r of recipients) {
         if (!r || !r.email) { failed++; continue; }
-        const resendBody = { from, to: [r.email], subject, html };
+        const audience = r.audience === "noShow" ? "noShow" : "attended";
+        const isNoShow = audience === "noShow";
+        const recipSubject = isNoShow ? noShowSubject : subject;
+        const recipHtml = isNoShow ? noShowHtml : attendeeHtml;
+        const recipType = isNoShow ? "event-recording-noshow" : "event-recording";
+        if (!recipHtml) { failed++; errors.push(r.email + ": missing html for audience " + audience); continue; }
+
+        const resendBody = { from, to: [r.email], subject: recipSubject, html: recipHtml };
         if (pdfBase64 && pdfFileName) {
           resendBody.attachments = [{ filename: pdfFileName, content: pdfBase64 }];
         }
@@ -5517,8 +5566,8 @@ exports.sendEventRecordingEmail = functions
             const t = await resp.text();
             failed++; errors.push(r.email + ": " + resp.status + " " + t);
             await logEmailSend({
-              from, to: r.email, bcc: "", subject, html,
-              type: "event-recording",
+              from, to: r.email, bcc: "", subject: recipSubject, html: recipHtml,
+              type: recipType,
               relatedEventId: eventId, relatedSignupId: r.signupId || "",
               recipientName: r.name || "",
               success: false,
@@ -5527,11 +5576,11 @@ exports.sendEventRecordingEmail = functions
             continue;
           }
           const result = await resp.json();
-          sent++;
+          if (isNoShow) sentNoShow++; else sentAttended++;
           // Log each send individually (mirrors other bulk email flows)
           await logEmailSend({
-            from, to: r.email, bcc: "", subject, html,
-            type: "event-recording",
+            from, to: r.email, bcc: "", subject: recipSubject, html: recipHtml,
+            type: recipType,
             relatedEventId: eventId, relatedSignupId: r.signupId || "",
             recipientName: r.name || "",
             success: true,
@@ -5542,7 +5591,7 @@ exports.sendEventRecordingEmail = functions
             const lastSnap = await admin.firestore().collection("emailLog")
               .where("relatedEventId", "==", eventId)
               .where("to", "==", r.email)
-              .where("type", "==", "event-recording")
+              .where("type", "==", recipType)
               .orderBy("sentAt", "desc").limit(1).get();
             if (!lastSnap.empty) {
               await lastSnap.docs[0].ref.update({
@@ -5556,22 +5605,29 @@ exports.sendEventRecordingEmail = functions
         }
       }
 
-      // Stamp event doc so the button state flips in the UI
+      const sent = sentAttended + sentNoShow;
+
+      // Stamp event doc so the button state flips in the UI.
+      // New shape: recordingEmailSent[key] = { attended: {...}, noShow: {...} }.
+      // Only stamp the audience(s) actually sent in this request — uses
+      // dot-paths so the other audience's prior state isn't clobbered.
       try {
         const evRef = admin.firestore().collection(collection).doc(eventId);
         const key = sessionKey || "_single";
-        await evRef.set({
-          recordingEmailSent: {
-            [key]: {
-              sentAt: admin.firestore.FieldValue.serverTimestamp(),
-              recipientCount: sent,
-              failedCount: failed,
-              sessionDate: sessionDate || "",
-              storagePath: pdfStoragePath || "",
-              recordingUrl: recordingUrl || "",
-            },
-          },
-        }, { merge: true });
+        const stamp = (count) => ({
+          sentAt: admin.firestore.FieldValue.serverTimestamp(),
+          recipientCount: count,
+          sessionDate: sessionDate || "",
+          storagePath: pdfStoragePath || "",
+          recordingUrl: recordingUrl || "",
+        });
+        const updates = {};
+        if (sentAttended > 0) updates[`recordingEmailSent.${key}.attended`] = stamp(sentAttended);
+        if (sentNoShow > 0) updates[`recordingEmailSent.${key}.noShow`] = stamp(sentNoShow);
+        if (failed > 0) updates[`recordingEmailSent.${key}.lastFailedCount`] = failed;
+        if (Object.keys(updates).length) {
+          await evRef.update(updates);
+        }
       } catch (e) { console.warn("Failed to stamp event doc recordingEmailSent:", e.message); }
 
       // Schedule auto-deletion of the PDF 15 days from now
@@ -5588,7 +5644,7 @@ exports.sendEventRecordingEmail = functions
         } catch (e) { console.warn("scheduledDeletions write failed:", e.message); }
       }
 
-      res.status(200).json({ success: true, sent, failed, errors });
+      res.status(200).json({ success: true, sent, sentAttended, sentNoShow, failed, errors });
     } catch (err) {
       console.error("sendEventRecordingEmail error:", err);
       res.status(500).json({ error: err.message || String(err) });
