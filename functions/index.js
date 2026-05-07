@@ -879,6 +879,89 @@ function buildConfirmationEmailHtml({ name, eventTitle, datesPhrase, modality })
 }
 
 /**
+ * Build the Parent Talk Cafe confirmation email HTML — sent once when a
+ * signup is confirmed for an event whose zoomMode === 'parent_talk_cafe'.
+ *
+ * This is the ONLY email Parent Talk Cafe attendees receive (no 5-day /
+ * 1-day Zoom reminders fire — sendEventReminders skips zoomMode='parent_talk_cafe').
+ * Includes the Facebook group button, the "join Facebook + PTC ahead of
+ * time" nudge, and a Donate button.
+ */
+function buildParentTalkCafeConfirmationEmailHtml({ name, eventTitle, datesPhrase, eventTime, donateHtml }) {
+  const greetingName = _emailEsc(name || "there");
+  const safeTitle = _emailEsc(eventTitle || "Parent Talk Cafe");
+  const datesSuffix = datesPhrase ? _emailEsc(datesPhrase) : "";
+  const timeLine = eventTime
+    ? `<p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">We'll see you at <strong>${_emailEsc(eventTime)}</strong>${datesSuffix ? ` ${_emailEsc(datesPhrase)}` : ""}.</p>`
+    : (datesSuffix
+        ? `<p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">We'll see you${datesSuffix}.</p>`
+        : "");
+  const ptcUrl = "https://www.facebook.com/groups/2659334410969387";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;">
+<tr><td align="center" style="padding:24px 16px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;max-width:600px;width:100%;">
+
+  <tr>
+    <td style="background-color:#ffffff;padding:28px 32px 20px;text-align:center;border-bottom:3px solid #1a3c6e;">
+      <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="150" style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;">
+    </td>
+  </tr>
+
+  <tr>
+    <td style="padding:32px;">
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha ${greetingName},</p>
+
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
+        Mahalo for signing up for <strong>${safeTitle}</strong>${datesSuffix}! We are so glad you'll be joining us for an evening of conversation, encouragement, and aloha with other Hawai'i families.
+      </p>
+
+      ${timeLine}
+
+      ${_emailBtn(ptcUrl, "Open Parent Talk Cafe", { bg: "#1877F2", align: "center" })}
+
+      <p style="margin:24px 0 16px;font-size:16px;color:#333333;line-height:1.5;">
+        <strong>One thing to do ahead of time:</strong> if you haven't already, please sign up for Facebook and request to join the Parent Talk Cafe group <em>before</em> the session, so you're all set when it's time to talk story.
+      </p>
+
+      <p style="margin:0 0 24px;font-size:16px;color:#333333;line-height:1.5;">
+        <strong>This is your only reminder for this session</strong> — please save the date and add it to your calendar so it doesn't slip by.
+      </p>
+
+      ${donateHtml || ""}
+
+      ${_emailLinkFooter([
+        { label: "Parent Talk Cafe (Facebook group)", href: ptcUrl },
+      ])}
+    </td>
+  </tr>
+
+  <tr>
+    <td style="background-color:#f0f0f0;padding:24px 32px;text-align:center;border-top:1px solid #dddddd;">
+      <p style="margin:0 0 4px;font-size:13px;color:#777777;font-weight:bold;">
+        Leadership in Disabilities &amp; Achievement of Hawai'i
+      </p>
+      <p style="margin:0 0 4px;font-size:12px;color:#999999;">
+        245 N. Kukui St., Suite 205, Honolulu, HI 96817
+      </p>
+      <p style="margin:0;font-size:12px;color:#999999;">
+        Phone: (808) 536-2280
+      </p>
+    </td>
+  </tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
+/**
  * Determine whether a signup is virtual, in-person, or mixed so the
  * confirmation email can promise the right "what's in the reminder" detail.
  *
@@ -997,12 +1080,43 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
     // catch-up reminder would also skip it (gated on consentSignedAt) —
     // and the parent gets nothing.
     const isConnectGen = event && event.zoomMode === "program";
+    const isParentTalkCafe = event && event.zoomMode === "parent_talk_cafe";
 
     // Status gate (deferred from earlier so we know if this is Connect-Gen).
     // Non-Connect-Gen requires status='confirmed'. Connect-Gen allows
     // status='pending' so the consent-required email can fire while the
     // signup waits on the parent's signature.
     if (after.status !== "confirmed" && !(isConnectGen && after.status === "pending")) return;
+
+    // Parent Talk Cafe branch — single-shot confirmation that doubles as
+    // the only reminder. Send regardless of session proximity (no 5-day
+    // catch-up email applies — sendEventReminders skips PTC entirely).
+    if (isParentTalkCafe) {
+      const donateHtml = await buildDonateBlock("universal");
+      const html = buildParentTalkCafeConfirmationEmailHtml({
+        name: recipientName,
+        eventTitle,
+        datesPhrase,
+        eventTime: (event && (event.time || event.startTime)) || "",
+        donateHtml,
+      });
+      const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+      await sendEmailViaResend({
+        from: `LDAH <${fromAddress}>`,
+        to: after.email,
+        subject: `You're signed up -- ${eventTitle}`,
+        html,
+        type: "confirmation-parent-talk-cafe",
+        relatedEventId: eventId,
+        relatedSignupId: signupId,
+        recipientName,
+      });
+      await change.after.ref.set({
+        confirmationEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      console.log(`Parent Talk Cafe confirmation sent to ${after.email} for ${collection}/${eventId}/${signupId}`);
+      return;
+    }
 
     if (isConnectGen && !after.consentSignedAt) {
       // Only send once.
@@ -3671,6 +3785,12 @@ async function maybeSendCatchupReminder(change, context, collection) {
       return;
     }
 
+    // Parent Talk Cafe — Zoom reminders never apply; the PTC confirmation
+    // email is the only touchpoint.
+    if (event.zoomMode === "parent_talk_cafe") {
+      return;
+    }
+
     // Determine candidate session dates within [today, today+5] HST.
     const todayKey = toHstDateKey(new Date());
     const windowKeys = {};
@@ -3766,6 +3886,12 @@ exports.sendEventReminders = functions
       // has NOT been received, skip reminders. The consent flow handles
       // its own emails (consent-required + prep-docs after signing).
       if (event && event.zoomMode === "program" && !signup.consentSignedAt) {
+        skipped++;
+        return;
+      }
+
+      // Parent Talk Cafe — the confirmation email IS the only reminder.
+      if (event && event.zoomMode === "parent_talk_cafe") {
         skipped++;
         return;
       }
