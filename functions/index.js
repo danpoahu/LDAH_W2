@@ -6975,3 +6975,132 @@ exports.verifyPrefillCodeAndPrefill = functions
     }
   });
 
+// ──────────────────────────────────────────────────────────────────────────
+// Anti-Bullying Pledge → confirmation email
+// Fires on Firestore create at pledges/{id}. Sends a thank-you email with
+// the pledge text restated, a link to the Bullying Response Kit on the
+// public community page, and a curated list of the most useful PDF
+// resources. Donate block included for Parent / Professional / Both;
+// SKIPPED for Student per Daniel's spec.
+// Idempotent: writes confirmationEmailSentAt — re-runs are no-ops.
+// ──────────────────────────────────────────────────────────────────────────
+
+const PLEDGE_TEXT =
+  "I pledge to help end bullying in my community. I will support others who have been hurt or harmed, treat others with kindness, be more accepting of people's differences, and help include those who are left out.";
+
+const PLEDGE_RESOURCES = [
+  { label: "Bullying Checklist", href: "https://www.ldahawaii.org/assets/docs/wp/Bullying-Check-list.pdf" },
+  { label: "IDEA Sample Letter to Principal", href: "https://www.ldahawaii.org/assets/docs/wp/IDEA-Sample-Letter-to-Principal.pdf" },
+  { label: "504 Sample Letter to Principal", href: "https://www.ldahawaii.org/assets/docs/wp/504-Sample-Letter-to-Principal.pdf" },
+  { label: "Elementary Cyberbullying Prevention", href: "https://www.ldahawaii.org/assets/docs/wp/BP-101-elementary-cyberbullying.pdf" },
+  { label: "Middle/High School Cyberbullying Prevention", href: "https://www.ldahawaii.org/assets/docs/wp/BP-101-middle-high-cyberbullying.pdf" },
+];
+
+function buildPledgeConfirmationEmailHtml({
+  name, role, signatureHtml, donateHtml, orgFooterHtml,
+}) {
+  const safeName = _emailEsc(name || "friend");
+  const greeting = `Aloha ${safeName},`;
+  const resourcesList = PLEDGE_RESOURCES
+    .map((r) => `<li style="margin:6px 0;font-size:15px;color:#333333;line-height:1.5;">
+      <a href="${_emailEsc(r.href)}" target="_blank" style="color:#1a3c6e;text-decoration:underline;">${_emailEsc(r.label)}</a>
+    </li>`).join("");
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;">
+<tr><td align="center" style="padding:24px 16px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;max-width:600px;width:100%;">
+  <tr><td style="background-color:#ffffff;padding:28px 32px 20px;text-align:center;border-bottom:3px solid #1a3c6e;">
+    <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="150" style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;">
+  </td></tr>
+  <tr><td style="padding:32px;">
+    <p style="margin:0 0 16px;font-size:16px;color:#333333;">${greeting}</p>
+
+    <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
+      <strong>Mahalo nui loa</strong> for taking the pledge to help end bullying in our community. Your commitment matters &mdash; together we can make our schools and neighborhoods safer for every keiki.
+    </p>
+
+    <div style="margin:16px 0;padding:16px 18px;background:#f4f8fc;border-left:4px solid #1a3c6e;border-radius:4px;">
+      <p style="margin:0 0 4px;font-size:14px;color:#1a3c6e;font-weight:bold;text-transform:uppercase;letter-spacing:.04em;">Your Pledge</p>
+      <p style="margin:0;font-size:15px;color:#333333;line-height:1.6;font-style:italic;">${_emailEsc(PLEDGE_TEXT)}</p>
+    </div>
+
+    <p style="margin:24px 0 12px;font-size:16px;color:#333333;line-height:1.5;">
+      We&rsquo;ve put together a <strong>Bullying Response Kit</strong> with practical tools you can use right away &mdash; sample letters, checklists, and prevention guides for every age group.
+    </p>
+
+    ${_emailBtn("https://www.ldahawaii.org/community.html", "View the Full Response Kit", { bg: "#1a3c6e", align: "center" })}
+
+    <p style="margin:28px 0 8px;font-size:15px;color:#333333;line-height:1.5;font-weight:700;">A few resources to start with:</p>
+    <ul style="margin:0 0 20px;padding-left:22px;">${resourcesList}</ul>
+
+    <p style="margin:20px 0 0;font-size:15px;color:#555555;line-height:1.6;">
+      If you ever need to talk through a specific situation, our team is here. Call us at <strong>(808) 536-9684</strong> or reply to this email.
+    </p>
+
+    <p style="margin:24px 0 4px;font-size:15px;color:#333333;line-height:1.5;">With gratitude,</p>
+    <p style="margin:0 0 16px;font-size:15px;color:#333333;line-height:1.5;"><strong>The LDAH Team</strong></p>
+
+    ${donateHtml || ""}
+    ${signatureHtml || ""}
+  </td></tr>
+  ${orgFooterHtml || ""}
+</table>
+</td></tr></table></body></html>`;
+}
+
+exports.onPledgeCreated = functions
+  .runWith({ timeoutSeconds: 60, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .firestore.document("pledges/{pledgeId}")
+  .onCreate(async (snap, context) => {
+    const pledge = snap.data() || {};
+    const email = (pledge.email || "").trim();
+    if (!email) {
+      console.log(`onPledgeCreated: no email on pledge ${snap.id}, skipping.`);
+      return null;
+    }
+    if (pledge.confirmationEmailSentAt) {
+      // Idempotent guard — re-runs (e.g., from data backfills) shouldn't double-send.
+      return null;
+    }
+
+    const name = (pledge.name || "").trim() || "friend";
+    const role = String(pledge.role || "").trim();
+
+    // Donate block conditional: Parent / Professional / Both → include; Student → skip.
+    const includeDonate = role !== "Student";
+    const signatureHtml = await buildSignatureBlock("eventCoordinator");
+    const donateHtml = includeDonate ? await buildDonateBlock("universal") : "";
+    const orgFooterHtml = await getOrgFooterHtml();
+
+    const html = buildPledgeConfirmationEmailHtml({
+      name, role, signatureHtml, donateHtml, orgFooterHtml,
+    });
+    const subject = "Mahalo for taking the pledge -- your Bullying Response Kit";
+    const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+
+    try {
+      await sendEmailViaResend({
+        from: `LDAH <${fromAddress}>`,
+        to: email,
+        subject,
+        html,
+        type: "anti-bullying-pledge-confirmation",
+        relatedSignupId: snap.id,
+        recipientName: name,
+      });
+      await snap.ref.update({
+        confirmationEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    } catch (err) {
+      console.error("onPledgeCreated send failed:", err.message);
+      await snap.ref.update({
+        confirmationEmailError: String(err.message || err),
+      }).catch(() => {});
+    }
+    return null;
+  });
+
