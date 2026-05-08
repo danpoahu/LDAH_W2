@@ -1647,6 +1647,11 @@ exports.onEventFeedbackCreated = functions
       const notes = (data.followUpDescription && String(data.followUpDescription).trim())
         || "(no detail provided in survey)";
 
+      // Today's HST date so the interaction lands in the dashboard's
+      // Follow-Ups KPI (which counts status='Open' AND followUpDate set).
+      // Staff can adjust the date once they pick it up.
+      const todayHst = toHstDateKey(new Date());
+
       await db.collection("interactions").add({
         channel: "Event Feedback",
         interactionType: "Follow-up",
@@ -1655,7 +1660,7 @@ exports.onEventFeedbackCreated = functions
         contactType: contactType,
         grantProgram: "",
         summary: summary,
-        followUpDate: "",
+        followUpDate: todayHst,
         status: "Open",
         notes: notes,
         isDraft: false,
