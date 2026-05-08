@@ -348,6 +348,19 @@
           <textarea id="improvementFeedback" placeholder="What could we do better?" required></textarea>
         </div>
 
+        <div class="question">
+          <label>Do you require any follow-up support?</label>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="requiresFollowUp" value="Yes" required onchange="document.getElementById('followUpDetailWrap').style.display=''"><span>Yes</span></label>
+            <label class="radio-option"><input type="radio" name="requiresFollowUp" value="No" onchange="document.getElementById('followUpDetailWrap').style.display='none';document.getElementById('followUpDescription').value=''"><span>No</span></label>
+          </div>
+        </div>
+
+        <div class="question" id="followUpDetailWrap" style="display:none;">
+          <label>Please describe what kind of support you need</label>
+          <textarea id="followUpDescription" placeholder="Tell us how we can help..."></textarea>
+        </div>
+
         <button type="submit" class="submit-btn" id="submitBtn">Submit Feedback</button>
       </form>
     </div>
@@ -472,9 +485,13 @@
     var likedBest = document.getElementById('likedBest').value.trim();
     var improvementFeedback = document.getElementById('improvementFeedback').value.trim();
 
+    // Q14 — follow-up support gate + optional detail
+    var requiresFollowUp = getRadioValue(form, 'requiresFollowUp');
+    var followUpDescription = document.getElementById('followUpDescription').value.trim();
+
     if (!participationMode || !presenterRating || !handoutsRating ||
         !increasedKnowledge || !relevantToChild || !usefulToMe || !overallSatisfied ||
-        !likedBest || !improvementFeedback) {
+        !likedBest || !improvementFeedback || !requiresFollowUp) {
       btn.disabled = false;
       btn.textContent = 'Submit Feedback';
       alert('Please answer all required questions.');
@@ -505,6 +522,8 @@
         priorImpactResolved: priorSectionShown ? (priorImpactResolved || null) : null,
         likedBest: likedBest,
         improvementFeedback: improvementFeedback,
+        requiresFollowUp: requiresFollowUp,
+        followUpDescription: requiresFollowUp === 'Yes' ? followUpDescription : '',
         source: 'email',
         submittedAt: firebase.firestore.FieldValue.serverTimestamp()
       };
