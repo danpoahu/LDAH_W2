@@ -5486,9 +5486,11 @@ async function fetchStorageAsBase64(storagePath) {
 
 // Fixed "sorry we missed you" body for no-show recipients. Not editable
 // from the LDAH-Int modal — the staff-edited body applies to attendees only.
-function buildNoShowRecordingBody({ eventTitle, nextSessionsBlurb }) {
+// v120.7.5: takes a `name` so the greeting can be personalized per recipient.
+function buildNoShowRecordingBody({ name, eventTitle, nextSessionsBlurb }) {
+  const safeName = (name && String(name).trim()) ? String(name).trim() : "there";
   const lines = [
-    "Aloha,",
+    `Aloha ${safeName},`,
     "",
     `We're sorry we missed you at ${eventTitle}. We hope everything is well, and we wanted to make sure you still have what was shared during the session.`,
     "",
@@ -5501,6 +5503,21 @@ function buildNoShowRecordingBody({ eventTitle, nextSessionsBlurb }) {
   lines.push("");
   lines.push("Mahalo nui for being part of the LDAH 'ohana — we hope to connect with you at our next session.");
   return lines.join("\n");
+}
+
+// v120.7.5: simple {name} placeholder substitution for attendee bodies. The
+// admin-edited body in the LDAH-Int modal can include `{name}` and we'll
+// replace it per recipient. Falls back to "there" when the signup has no
+// usable display name. Also strips the placeholder cleanly when no name
+// substitution is needed.
+function _firstNameOnly(full) {
+  const s = String(full == null ? "" : full).trim();
+  if (!s) return "";
+  return s.split(/\s+/)[0];
+}
+function applyRecipientNameMerge(template, recipientName) {
+  const first = _firstNameOnly(recipientName) || "there";
+  return String(template || "").replace(/\{name\}/gi, first);
 }
 
 exports.sendEventRecordingEmail = functions
@@ -5536,27 +5553,13 @@ exports.sendEventRecordingEmail = functions
       const donateHtml = await buildDonateBlock('universal');
       const orgFooterHtml = await getOrgFooterHtml();
 
-      // Pre-build both audience HTMLs so the loop can pick per recipient.
-      const attendeeHtml = (subject && body)
-        ? buildRecordingEmailHtml({
-            bodyText: body, eventTitle: eventTitle || "",
-            recordingUrl: recordingUrl || "", passcode: passcode || "",
-            slidesDownloadUrl: pdfDownloadUrl || "", slidesFileName: pdfFileName || "",
-            signatureHtml, donateHtml, orgFooterHtml,
-          })
-        : null;
-
+      // v120.7.5: HTML is now built per-recipient inside the send loop so
+      // the greeting can be personalized. {name} placeholder in the
+      // admin-edited attendee body is replaced with each recipient's first
+      // name; the no-show body is regenerated per recipient with their name
+      // baked into the greeting.
+      const attendeeBodyTemplate = (subject && body) ? body : null;
       const noShowSubject = `Sorry we missed you -- ${eventTitle || "LDAH session"}`;
-      const noShowBodyText = buildNoShowRecordingBody({
-        eventTitle: eventTitle || "the session",
-        nextSessionsBlurb: nextSessionsBlurb || "",
-      });
-      const noShowHtml = buildRecordingEmailHtml({
-        bodyText: noShowBodyText, eventTitle: eventTitle || "",
-        recordingUrl: recordingUrl || "", passcode: passcode || "",
-        slidesDownloadUrl: pdfDownloadUrl || "", slidesFileName: pdfFileName || "",
-        signatureHtml, donateHtml, orgFooterHtml,
-      });
 
       // Fetch PDF once and reuse for all recipients
       let pdfBase64 = null;
@@ -5578,7 +5581,30 @@ exports.sendEventRecordingEmail = functions
         const audience = r.audience === "noShow" ? "noShow" : "attended";
         const isNoShow = audience === "noShow";
         const recipSubject = isNoShow ? noShowSubject : subject;
-        const recipHtml = isNoShow ? noShowHtml : attendeeHtml;
+
+        // v120.7.5: build HTML per recipient so the name shows up.
+        let recipHtml = null;
+        if (isNoShow) {
+          const nsBody = buildNoShowRecordingBody({
+            name: r.name || "",
+            eventTitle: eventTitle || "the session",
+            nextSessionsBlurb: nextSessionsBlurb || "",
+          });
+          recipHtml = buildRecordingEmailHtml({
+            bodyText: nsBody, eventTitle: eventTitle || "",
+            recordingUrl: recordingUrl || "", passcode: passcode || "",
+            slidesDownloadUrl: pdfDownloadUrl || "", slidesFileName: pdfFileName || "",
+            signatureHtml, donateHtml, orgFooterHtml,
+          });
+        } else if (attendeeBodyTemplate) {
+          const merged = applyRecipientNameMerge(attendeeBodyTemplate, r.name || "");
+          recipHtml = buildRecordingEmailHtml({
+            bodyText: merged, eventTitle: eventTitle || "",
+            recordingUrl: recordingUrl || "", passcode: passcode || "",
+            slidesDownloadUrl: pdfDownloadUrl || "", slidesFileName: pdfFileName || "",
+            signatureHtml, donateHtml, orgFooterHtml,
+          });
+        }
         const recipType = isNoShow ? "event-recording-noshow" : "event-recording";
         if (!recipHtml) { failed++; errors.push(r.email + ": missing html for audience " + audience); continue; }
 
