@@ -1591,6 +1591,94 @@ exports.onRecurringEventSignupCreated = functions
     return handleSignupCreated(snap, context, "recurringEvents");
   });
 
+// ── Auto-Create Follow-Up Interaction from Feedback Survey ──────────
+// When an attendee submits feedback with requiresFollowUp === 'Yes',
+// drop an Open interaction so the home-page Recent Interactions panel
+// AND the contact card timeline both surface it for staff follow-up.
+exports.onEventFeedbackCreated = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .firestore.document("eventFeedback/{feedbackId}")
+  .onCreate(async (snap, context) => {
+    try {
+      const data = snap.data() || {};
+      if (data.requiresFollowUp !== "Yes") return null;
+
+      const db = admin.firestore();
+      const collection = data.eventCollection || "events";
+      const eventId = data.eventId;
+      const signupId = data.signupId;
+      if (!eventId) return null;
+
+      let contactId = data.linkedContactId || "";
+      let contactName = "";
+      let contactType = "";
+      let eventTitle = "Unknown event";
+
+      if (signupId) {
+        try {
+          const signupSnap = await db.collection(collection).doc(eventId)
+            .collection("signups").doc(signupId).get();
+          if (signupSnap.exists) {
+            const su = signupSnap.data() || {};
+            if (!contactId) contactId = su.linkedContactId || "";
+            contactName = su.name || su.firstName || "";
+          }
+        } catch (_) {}
+      }
+
+      if (contactId) {
+        try {
+          const contactSnap = await db.collection("contacts").doc(contactId).get();
+          if (contactSnap.exists) {
+            const c = contactSnap.data() || {};
+            contactName = c.displayName || contactName;
+            contactType = c.type || "";
+          }
+        } catch (_) {}
+      }
+
+      try {
+        const evSnap = await db.collection(collection).doc(eventId).get();
+        if (evSnap.exists) eventTitle = (evSnap.data() || {}).title || eventTitle;
+      } catch (_) {}
+
+      const sessionLabel = data.sessionDate ? " (" + data.sessionDate + ")" : "";
+      const summary = "Follow-up support requested after " + eventTitle + sessionLabel;
+      const notes = (data.followUpDescription && String(data.followUpDescription).trim())
+        || "(no detail provided in survey)";
+
+      await db.collection("interactions").add({
+        channel: "Event Feedback",
+        interactionType: "Follow-up",
+        contactId: contactId,
+        contactName: contactName || "Unknown",
+        contactType: contactType,
+        grantProgram: "",
+        summary: summary,
+        followUpDate: "",
+        status: "Open",
+        notes: notes,
+        isDraft: false,
+        owner: "System (auto)",
+        ownerUid: "",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        source: "event-feedback-auto",
+        sourceFeedbackId: snap.id,
+        sourceEventId: eventId,
+        sourceEventCollection: collection,
+        sourceSessionDate: data.sessionDate || null,
+      });
+
+      console.log(
+        `onEventFeedbackCreated: auto-interaction created for ${contactName || "unknown"} ` +
+        `(contact ${contactId || "--"}) from feedback ${snap.id}`,
+      );
+    } catch (err) {
+      console.error("onEventFeedbackCreated error:", err.message);
+    }
+    return null;
+  });
+
 // ── Contact Enrichment on Registration Completion ────────────────
 // When a signup transitions to status:"confirmed" with a registration
 // object and a linkedContactId, enrich the contact record with
@@ -2602,8 +2690,19 @@ exports.sendDailySessionSheet = functions
         // Multi-date one-time event (e.g. Learning Labs with May 6 + May 13):
         // emit one card per signupDates entry, mirroring the recurring layout.
         if (sigDates.length > 1) {
+          // Drop past dates (today inclusive — 6 AM HST report is for today's prep).
+          // Unparseable strings are kept rather than silently hidden.
+          const futureSigDates = sigDates.filter((dateStr) => {
+            const key = parseEventDateKey(dateStr);
+            if (!key) return true;
+            return key >= todayISO;
+          });
+          // All sessions complete — drop event entirely (orphan card would otherwise
+          // surface every signup since none matched a future date).
+          if (futureSigDates.length === 0) continue;
+
           const matchedIds = new Set();
-          for (const dateStr of sigDates) {
+          for (const dateStr of futureSigDates) {
             const dateSignups = signups.filter((su) => {
               const sd = su.selectedDates || [];
               return sd.indexOf(dateStr) !== -1;
@@ -2621,10 +2720,16 @@ exports.sendDailySessionSheet = functions
               sessionKey: dateStr,
             });
           }
-          // Surface any signups that don't match a current signupDates entry
-          // (legacy/orphaned) so they're still visible in the daily report.
-          // Skip cancelled/archived — they'd show as "0 active" and just clutter.
-          const orphans = signups.filter((su) => !matchedIds.has(su.id) && su.status !== "cancelled" && su.archived !== true);
+          // Orphan check uses FULL sigDates (not just future) so signups whose
+          // only date is past don't get surfaced as "Unmatched."
+          const matchedToAnySigDate = new Set();
+          for (const dateStr of sigDates) {
+            signups.forEach((su) => {
+              const sd = su.selectedDates || [];
+              if (sd.indexOf(dateStr) !== -1) matchedToAnySigDate.add(su.id);
+            });
+          }
+          const orphans = signups.filter((su) => !matchedToAnySigDate.has(su.id) && su.status !== "cancelled" && su.archived !== true);
           if (orphans.length > 0) {
             allSessions.push({
               title: (data.title || "Untitled Event") + " -- Unmatched signups",
