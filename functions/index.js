@@ -7092,8 +7092,14 @@ exports.onPledgeCreated = functions
         relatedSignupId: snap.id,
         recipientName: name,
       });
+      // Auto-acknowledge: flips the LDAH-Int pledge card out of the
+      // "new" alert bucket so staff don't see redundant action items
+      // for pledges the system already responded to.
       await snap.ref.update({
         confirmationEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+        status: "acknowledged",
+        statusChangedAt: admin.firestore.FieldValue.serverTimestamp(),
+        statusChangedBy: "system (auto-ack on email send)",
       });
     } catch (err) {
       console.error("onPledgeCreated send failed:", err.message);
