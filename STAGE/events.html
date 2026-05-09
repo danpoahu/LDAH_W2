@@ -1028,8 +1028,8 @@
             
             try {
                 const [headerResponse, footerResponse] = await Promise.all([
-                    fetch('header.html'),
-                    fetch('footer.html')
+                    fetch('header.html?v=55.2'),
+                    fetch('footer.html?v=55.2')
                 ]);
                 
                 if (headerResponse.ok && footerResponse.ok) {
@@ -3503,11 +3503,20 @@
                   <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">
                     Select ONE session you will be attending *
                   </label>
-                  <div style="display:flex;flex-direction:column;gap:8px;">
+                  <div id="recurringDateList" style="display:flex;flex-direction:column;gap:8px;">
                     ${occFormatted.length > 0 ? occFormatted.map(occ => {
                       const isFull = (sessionConfirmedCounts[occ.key] || 0) >= RECURRING_SESSION_CAPACITY;
+                      // Compute weekday via date-parts constructor (NEVER new Date(string) — UTC bugs).
+                      // occ.key starts with YYYY-MM-DD (pipe-delimited).
+                      let weekdayAttr = '';
+                      const datePrefix = (occ.key || '').split('|')[0];
+                      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePrefix);
+                      if (m) {
+                        const wd = new Date(+m[1], +m[2] - 1, +m[3]).getDay();
+                        weekdayAttr = ` data-weekday="${wd}"`;
+                      }
                       return `
-                      <label style="display:flex;align-items:flex-start;gap:8px;${isFull ? 'cursor:not-allowed;opacity:0.6;' : 'cursor:pointer;'}padding:10px 12px;background:${isFull ? '#fee2e2' : '#f0f9ff'};border-radius:8px;border:1px solid ${isFull ? '#fecaca' : '#e0f2fe'};">
+                      <label${weekdayAttr} style="display:flex;align-items:flex-start;gap:8px;${isFull ? 'cursor:not-allowed;opacity:0.6;' : 'cursor:pointer;'}padding:10px 12px;background:${isFull ? '#fee2e2' : '#f0f9ff'};border-radius:8px;border:1px solid ${isFull ? '#fecaca' : '#e0f2fe'};">
                         <input type="checkbox" class="signup-date-checkbox" value="${occ.key}" ${isFull ? 'disabled' : ''} onchange="updateMultiSessionPanel()" style="width:18px;height:18px;${isFull ? 'cursor:not-allowed;' : 'cursor:pointer;'}flex-shrink:0;margin-top:2px;">
                         <span style="font-size:14px;color:${isFull ? '#991b1b' : '#374151'};line-height:1.5;">${occ.display}${isFull ? ' <span style="background:#DC2626;color:white;padding:1px 8px;border-radius:50px;font-size:11px;font-weight:700;margin-left:6px;">FULL</span>' : ''}</span>
                       </label>`;
@@ -3605,6 +3614,24 @@
         </div>
       `;
       document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+      // Per-client soft block: hide Monday occurrences when a specific email is entered.
+      // Idempotent: each modal open produces a fresh #signupEmail node, so attaching once is safe.
+      (function attachMondayBlockListenerRecurring() {
+        const emailEl = document.getElementById('signupEmail');
+        const dateList = document.getElementById('recurringDateList');
+        if (!emailEl || !dateList) return;
+        if (emailEl.dataset.mondayBlockBound === '1') return;
+        emailEl.dataset.mondayBlockBound = '1';
+        emailEl.addEventListener('input', function () {
+          const v = (emailEl.value || '').trim().toLowerCase();
+          if (v === 'containerscapes@gmail.com') {
+            dateList.classList.add('signup-block-mondays');
+          } else {
+            dateList.classList.remove('signup-block-mondays');
+          }
+        });
+      })();
     }
 
     // Show/hide the multi-session reason panel inside the recurring signup form.
