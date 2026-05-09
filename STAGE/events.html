@@ -1028,8 +1028,8 @@
             
             try {
                 const [headerResponse, footerResponse] = await Promise.all([
-                    fetch('header.html?v=55.4'),
-                    fetch('footer.html?v=55.4')
+                    fetch('header.html?v=55.5'),
+                    fetch('footer.html?v=55.5')
                 ]);
                 
                 if (headerResponse.ok && footerResponse.ok) {
@@ -3591,15 +3591,17 @@
       document.body.insertAdjacentHTML('beforeend', modalHTML);
 
       // Per-client soft block: hide Monday occurrences when a specific email is entered.
-      // Only the recurring (Ongoing Program) modal applies this — Connect-Gen is the only Monday recurring program.
+      // Direct JS toggle on each Monday row's inline display — bypasses CSS specificity issue
+      // with the rows' inline style="display:flex".
       (function attachMondayBlockListenerRecurring() {
         const emailEl = document.getElementById('signupEmail');
         const dateList = document.getElementById('recurringDateList');
         if (!emailEl || !dateList) return;
+        const mondayRows = dateList.querySelectorAll('[data-weekday="1"]');
         const apply = () => {
           const v = (emailEl.value || '').trim().toLowerCase();
-          if (v === 'containerscapes@gmail.com') dateList.classList.add('signup-block-mondays');
-          else dateList.classList.remove('signup-block-mondays');
+          const hide = (v === 'containerscapes@gmail.com');
+          mondayRows.forEach(el => { el.style.display = hide ? 'none' : 'flex'; });
         };
         emailEl.addEventListener('input', apply);
         emailEl.addEventListener('change', apply);
