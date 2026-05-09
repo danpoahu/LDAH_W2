@@ -1596,7 +1596,7 @@ exports.onRecurringEventSignupCreated = functions
 // drop an Open interaction so the home-page Recent Interactions panel
 // AND the contact card timeline both surface it for staff follow-up.
 exports.onEventFeedbackCreated = functions
-  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: EMAIL_SECRETS })
   .firestore.document("eventFeedback/{feedbackId}")
   .onCreate(async (snap, context) => {
     try {
@@ -1669,6 +1669,53 @@ exports.onEventFeedbackCreated = functions
         ownerUid: "",
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+
+      // Audit log so the daily-report changelog picks it up the next morning.
+      try {
+        await db.collection("auditLog").add({
+          action: "Follow-up support requested",
+          details: (contactName || "Unknown") + " -- " + eventTitle + sessionLabel,
+          performedBy: "System (auto)",
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+      // Triage alert to La'a (resourceCoordinator persona) — gives her an
+      // immediate heads-up so she can claim the interaction and reach out.
+      try {
+        const triage = await getPersona("resourceCoordinator");
+        if (triage && triage.email) {
+          const alertHtml =
+            "<p style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;line-height:1.5;\">" +
+            "Aloha " + (triage.firstName || "La'a") + ",</p>" +
+            "<p style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;line-height:1.5;\">" +
+            "<strong>" + (contactName || "An attendee") + "</strong> requested follow-up support after " +
+            "<em>" + eventTitle + sessionLabel + "</em>.</p>" +
+            (notes && notes !== "(no detail provided in survey)"
+              ? "<blockquote style=\"margin:0 0 14px;padding:10px 14px;border-left:4px solid #1a3c6e;background:#F8FAFC;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#333;\">" +
+                String(notes).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>") +
+                "</blockquote>"
+              : "<p style=\"font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#666;font-style:italic;\">No additional detail was provided in the survey.</p>") +
+            "<p style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;line-height:1.5;\">" +
+            "An interaction has been created on the LDAH-Int dashboard with status <strong>Open</strong> " +
+            "and follow-up date <strong>" + followUpDate + "</strong>. Please claim it from the Interaction Detail panel.</p>" +
+            _emailBtn("https://danpoahu.github.io/LDAH-Int/", "Open LDAH-Int Dashboard", { bg: "#1a3c6e", align: "center" }) +
+            _emailLinkFooter([{ label: "LDAH-Int Dashboard", href: "https://danpoahu.github.io/LDAH-Int/" }]) +
+            "<p style=\"font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#888;margin-top:18px;\">" +
+            "This alert was sent automatically because the attendee answered Yes to \"Do you require follow-up support?\" on the post-event survey.</p>";
+
+          await sendEmailViaResend({
+            from: "LDAH <" + (process.env.SMTP_FROM || "registration@ldahawaii.org") + ">",
+            to: triage.email,
+            subject: "Follow-up support requested -- " + (contactName || "Unknown") + " (" + eventTitle + ")",
+            html: alertHtml,
+            type: "follow-up-triage-alert",
+            relatedEventId: eventId,
+            relatedSignupId: signupId,
+            recipientName: triage.fullName || "La'a",
+          });
+        }
+      } catch (e) { console.warn("triage alert send failed:", e.message); }
 
       console.log(
         `onEventFeedbackCreated: auto-interaction created for ${contactName || "unknown"} ` +
@@ -3068,6 +3115,11 @@ exports.sendDailySessionSheet = functions
       if (action === "Cancelled session") return { icon: "&#10060;", text: `Session cancelled — <em>${esc(details)}</em>` };
       if (action === "Restored session") return { icon: "&#9200;", text: `Session restored — <em>${esc(details)}</em>` };
       if (action === "Sent no-show re-invites") return { icon: "&#128231;", text: `No-show re-invites sent — <em>${esc(details)}</em>` };
+      if (action === "Follow-up support requested") {
+        m = details.match(/^(.*?)\s+--\s+(.*)$/);
+        if (m) return { icon: "&#128205;", text: `<strong>${esc(m[1])}</strong> requested follow-up support after <em>${esc(m[2])}</em>` };
+        return { icon: "&#128205;", text: `Follow-up support requested — <em>${esc(details)}</em>` };
+      }
       if (action === "Saved event summary") return { icon: "&#128203;", text: `Event summary saved — <em>${esc(details)}</em>` };
       if (action === "Updated signup notes") {
         m = details.match(/^(.*?)\s+—\s+(.*)$/);
