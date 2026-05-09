@@ -1028,8 +1028,8 @@
             
             try {
                 const [headerResponse, footerResponse] = await Promise.all([
-                    fetch('header.html?v=55.3'),
-                    fetch('footer.html?v=55.3')
+                    fetch('header.html?v=55.4'),
+                    fetch('footer.html?v=55.4')
                 ]);
                 
                 if (headerResponse.ok && footerResponse.ok) {
@@ -3590,25 +3590,21 @@
       `;
       document.body.insertAdjacentHTML('beforeend', modalHTML);
 
-      // Per-client soft block: hide Monday occurrences when a specific email is entered,
-      // BUT only on the Connect-Gen recurring program. Other recurring programs are unaffected.
-      // Idempotent: each modal open produces a fresh #signupEmail node, so attaching once is safe.
-      const _recurringTitleForBlock = (program && program.title) || '';
+      // Per-client soft block: hide Monday occurrences when a specific email is entered.
+      // Only the recurring (Ongoing Program) modal applies this — Connect-Gen is the only Monday recurring program.
       (function attachMondayBlockListenerRecurring() {
         const emailEl = document.getElementById('signupEmail');
         const dateList = document.getElementById('recurringDateList');
         if (!emailEl || !dateList) return;
-        if (emailEl.dataset.mondayBlockBound === '1') return;
-        emailEl.dataset.mondayBlockBound = '1';
-        const isConnectGen = (_recurringTitleForBlock || '').toLowerCase().replace(/[\s-]/g, '').includes('connectgen');
-        emailEl.addEventListener('input', function () {
+        const apply = () => {
           const v = (emailEl.value || '').trim().toLowerCase();
-          if (isConnectGen && v === 'containerscapes@gmail.com') {
-            dateList.classList.add('signup-block-mondays');
-          } else {
-            dateList.classList.remove('signup-block-mondays');
-          }
-        });
+          if (v === 'containerscapes@gmail.com') dateList.classList.add('signup-block-mondays');
+          else dateList.classList.remove('signup-block-mondays');
+        };
+        emailEl.addEventListener('input', apply);
+        emailEl.addEventListener('change', apply);
+        emailEl.addEventListener('blur', apply);
+        apply();
       })();
     }
 
