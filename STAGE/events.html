@@ -1028,8 +1028,8 @@
             
             try {
                 const [headerResponse, footerResponse] = await Promise.all([
-                    fetch('header.html?v=55.2'),
-                    fetch('footer.html?v=55.2')
+                    fetch('header.html?v=55.3'),
+                    fetch('footer.html?v=55.3')
                 ]);
                 
                 if (headerResponse.ok && footerResponse.ok) {
@@ -2267,19 +2267,12 @@
                       <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
                         Select the dates you're available to attend *
                       </label>
-                      <div id="signupDateList" style="display: flex; flex-direction: column; gap: 8px;">
+                      <div style="display: flex; flex-direction: column; gap: 8px;">
                         ${allDates.map((date) => {
                           const parsedDate = parseSignupDateString(date);
                           const isExpired = parsedDate ? (new Date(parsedDate + 'T23:59:59') < new Date()) : false;
-                          // Compute weekday via date-parts constructor (NEVER new Date(string) — UTC bugs)
-                          let weekdayAttr = '';
-                          if (parsedDate) {
-                            const [py, pm, pd] = parsedDate.split('-').map(Number);
-                            const wd = new Date(py, pm - 1, pd).getDay();
-                            weekdayAttr = ` data-weekday="${wd}"`;
-                          }
                           return `
-                            <label${weekdayAttr} style="display: flex; align-items: center; gap: 8px; cursor: ${isExpired ? 'not-allowed' : 'pointer'}; ${isExpired ? 'opacity: 0.6;' : ''}">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: ${isExpired ? 'not-allowed' : 'pointer'}; ${isExpired ? 'opacity: 0.6;' : ''}">
                               <input type="checkbox" class="signup-date-checkbox" value="${date}" ${isExpired ? 'disabled' : ''} style="width: 18px; height: 18px; cursor: ${isExpired ? 'not-allowed' : 'pointer'};">
                               <span style="font-size: 14px; color: #374151; ${isExpired ? 'text-decoration: line-through;' : ''}">${date}</span>
                             </label>
@@ -2394,24 +2387,6 @@
       `;
       
       document.body.insertAdjacentHTML('beforeend', modalHTML);
-
-      // Per-client soft block: hide Monday dates when a specific email is entered.
-      // Idempotent: each modal open produces a fresh #signupEmail node, so attaching once here is safe.
-      (function attachMondayBlockListener() {
-        const emailEl = document.getElementById('signupEmail');
-        const dateList = document.getElementById('signupDateList');
-        if (!emailEl || !dateList) return;
-        if (emailEl.dataset.mondayBlockBound === '1') return;
-        emailEl.dataset.mondayBlockBound = '1';
-        emailEl.addEventListener('input', function () {
-          const v = (emailEl.value || '').trim().toLowerCase();
-          if (v === 'containerscapes@gmail.com') {
-            dateList.classList.add('signup-block-mondays');
-          } else {
-            dateList.classList.remove('signup-block-mondays');
-          }
-        });
-      })();
     }
 
     function closeSignupModal(event) {
@@ -3615,17 +3590,20 @@
       `;
       document.body.insertAdjacentHTML('beforeend', modalHTML);
 
-      // Per-client soft block: hide Monday occurrences when a specific email is entered.
+      // Per-client soft block: hide Monday occurrences when a specific email is entered,
+      // BUT only on the Connect-Gen recurring program. Other recurring programs are unaffected.
       // Idempotent: each modal open produces a fresh #signupEmail node, so attaching once is safe.
+      const _recurringTitleForBlock = (program && program.title) || '';
       (function attachMondayBlockListenerRecurring() {
         const emailEl = document.getElementById('signupEmail');
         const dateList = document.getElementById('recurringDateList');
         if (!emailEl || !dateList) return;
         if (emailEl.dataset.mondayBlockBound === '1') return;
         emailEl.dataset.mondayBlockBound = '1';
+        const isConnectGen = (_recurringTitleForBlock || '').toLowerCase().replace(/[\s-]/g, '').includes('connectgen');
         emailEl.addEventListener('input', function () {
           const v = (emailEl.value || '').trim().toLowerCase();
-          if (v === 'containerscapes@gmail.com') {
+          if (isConnectGen && v === 'containerscapes@gmail.com') {
             dateList.classList.add('signup-block-mondays');
           } else {
             dateList.classList.remove('signup-block-mondays');
