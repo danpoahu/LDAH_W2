@@ -1651,8 +1651,8 @@ exports.onEventFeedbackCreated = functions
       // before the interaction shows as overdue in the Follow-Ups KPI.
       const followUpDate = addDaysHst(toHstDateKey(new Date()), 2);
 
-      // Match the canonical schema written by saveInteractionToFirestore —
-      // no extra source-trace fields.
+      // Match the canonical schema written by saveInteractionToFirestore.
+      // owner blank so it shows as Unassigned and an admin can claim it.
       await db.collection("interactions").add({
         channel: "Event Feedback",
         interactionType: "Follow-up",
@@ -1665,7 +1665,7 @@ exports.onEventFeedbackCreated = functions
         status: "Open",
         notes: notes,
         isDraft: false,
-        owner: "System (auto)",
+        owner: "",
         ownerUid: "",
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
