@@ -928,6 +928,9 @@
       font-size: 0.85rem;
     }
     .footer-bottom p { margin: 0.25rem 0; }
+
+    /* Per-client soft block: hide Monday signup dates for specific email (see #signupEmail listener) */
+    .signup-block-mondays [data-weekday="1"] { display: none; }
   </style>
 
   <!-- Hawaii Islands SVG Definition -->
@@ -2264,12 +2267,19 @@
                       <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
                         Select the dates you're available to attend *
                       </label>
-                      <div style="display: flex; flex-direction: column; gap: 8px;">
+                      <div id="signupDateList" style="display: flex; flex-direction: column; gap: 8px;">
                         ${allDates.map((date) => {
                           const parsedDate = parseSignupDateString(date);
                           const isExpired = parsedDate ? (new Date(parsedDate + 'T23:59:59') < new Date()) : false;
+                          // Compute weekday via date-parts constructor (NEVER new Date(string) — UTC bugs)
+                          let weekdayAttr = '';
+                          if (parsedDate) {
+                            const [py, pm, pd] = parsedDate.split('-').map(Number);
+                            const wd = new Date(py, pm - 1, pd).getDay();
+                            weekdayAttr = ` data-weekday="${wd}"`;
+                          }
                           return `
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: ${isExpired ? 'not-allowed' : 'pointer'}; ${isExpired ? 'opacity: 0.6;' : ''}">
+                            <label${weekdayAttr} style="display: flex; align-items: center; gap: 8px; cursor: ${isExpired ? 'not-allowed' : 'pointer'}; ${isExpired ? 'opacity: 0.6;' : ''}">
                               <input type="checkbox" class="signup-date-checkbox" value="${date}" ${isExpired ? 'disabled' : ''} style="width: 18px; height: 18px; cursor: ${isExpired ? 'not-allowed' : 'pointer'};">
                               <span style="font-size: 14px; color: #374151; ${isExpired ? 'text-decoration: line-through;' : ''}">${date}</span>
                             </label>
@@ -2384,8 +2394,26 @@
       `;
       
       document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+      // Per-client soft block: hide Monday dates when a specific email is entered.
+      // Idempotent: each modal open produces a fresh #signupEmail node, so attaching once here is safe.
+      (function attachMondayBlockListener() {
+        const emailEl = document.getElementById('signupEmail');
+        const dateList = document.getElementById('signupDateList');
+        if (!emailEl || !dateList) return;
+        if (emailEl.dataset.mondayBlockBound === '1') return;
+        emailEl.dataset.mondayBlockBound = '1';
+        emailEl.addEventListener('input', function () {
+          const v = (emailEl.value || '').trim().toLowerCase();
+          if (v === 'containerscapes@gmail.com') {
+            dateList.classList.add('signup-block-mondays');
+          } else {
+            dateList.classList.remove('signup-block-mondays');
+          }
+        });
+      })();
     }
-    
+
     function closeSignupModal(event) {
       if (event && event.target !== event.currentTarget) return;
       const modal = document.getElementById('signupModal');
