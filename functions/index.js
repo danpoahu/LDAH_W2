@@ -1647,11 +1647,12 @@ exports.onEventFeedbackCreated = functions
       const notes = (data.followUpDescription && String(data.followUpDescription).trim())
         || "(no detail provided in survey)";
 
-      // Today's HST date so the interaction lands in the dashboard's
-      // Follow-Ups KPI (which counts status='Open' AND followUpDate set).
-      // Staff can adjust the date once they pick it up.
-      const todayHst = toHstDateKey(new Date());
+      // +2 calendar days from today (HST) — gives staff a brief SLA window
+      // before the interaction shows as overdue in the Follow-Ups KPI.
+      const followUpDate = addDaysHst(toHstDateKey(new Date()), 2);
 
+      // Match the canonical schema written by saveInteractionToFirestore —
+      // no extra source-trace fields.
       await db.collection("interactions").add({
         channel: "Event Feedback",
         interactionType: "Follow-up",
@@ -1660,18 +1661,13 @@ exports.onEventFeedbackCreated = functions
         contactType: contactType,
         grantProgram: "",
         summary: summary,
-        followUpDate: todayHst,
+        followUpDate: followUpDate,
         status: "Open",
         notes: notes,
         isDraft: false,
         owner: "System (auto)",
         ownerUid: "",
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        source: "event-feedback-auto",
-        sourceFeedbackId: snap.id,
-        sourceEventId: eventId,
-        sourceEventCollection: collection,
-        sourceSessionDate: data.sessionDate || null,
       });
 
       console.log(
