@@ -852,7 +852,7 @@ function buildConfirmationEmailHtml({ name, eventTitle, datesPhrase, modality })
       </p>
 
       <p style="margin:0;font-size:16px;color:#333333;line-height:1.5;">
-        We'll email you a reminder <strong>5 days before</strong> your session and again <strong>the day before</strong>, ${reminderTail}.
+        We'll email you a reminder <strong>3 days before</strong> your session and again <strong>on the day of the session</strong>, ${reminderTail}.
       </p>
     </td>
   </tr>
@@ -1025,8 +1025,8 @@ function formatDatesPhrase(sessionKeys) {
 /**
  * After a signup transitions to "confirmed", send a registration-confirmed
  * email recapping what they signed up for and announcing the upcoming
- * 5-day / 1-day reminders. Skips if a reminder has already gone out
- * (catch-up reminder fired) or if any session is within the 5-day window
+ * 3-day + day-of reminders. Skips if a reminder has already gone out
+ * (catch-up reminder fired) or if any session is within the 3-day window
  * (catch-up reminder will fire shortly).
  */
 async function maybeSendRegistrationConfirmation(change, context, collection) {
@@ -1073,10 +1073,10 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
     const datesPhrase = formatDatesPhrase(sessionKeys);
     const modality = detectSignupModality(after, event);
 
-    // Connect-Gen branch — MUST run BEFORE the 5-day window skip below.
+    // Connect-Gen branch — MUST run BEFORE the 3-day window skip below.
     // For programs flagged Program Zoom, the consent gate is required
     // regardless of how close the session is. Without this ordering, a
-    // late signup (e.g. 4 days out) would skip the consent email AND the
+    // late signup (e.g. 2 days out) would skip the consent email AND the
     // catch-up reminder would also skip it (gated on consentSignedAt) —
     // and the parent gets nothing.
     const isConnectGen = event && event.zoomMode === "program";
@@ -1180,13 +1180,13 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
     // email always fires regardless of session proximity.
     const _todayKey = toHstDateKey(new Date());
     const _windowKeys = {};
-    for (let _d = 0; _d <= 5; _d++) {
+    for (let _d = 0; _d <= 3; _d++) {
       const _k = addDaysHst(_todayKey, _d);
       if (_k) _windowKeys[_k] = true;
     }
     const _withinWindow = sessionKeys.some(k => !!_windowKeys[k]);
     if (_withinWindow) {
-      console.log(`Confirmation skipped (within 5d window) for ${collection}/${eventId}/${signupId}`);
+      console.log(`Confirmation skipped (within 3d window) for ${collection}/${eventId}/${signupId}`);
       return;
     }
 
@@ -6447,11 +6447,11 @@ function buildConnectGenPrepEmailHtml({ name, eventTitle, datesPhrase, prepDocs,
 
   // Zoom link is intentionally NOT included here — the prep email goes out
   // as soon as consent is signed, which can be weeks before the session.
-  // The Zoom link reaches the parent in the 5-day + 1-day reminder emails
-  // (sendEventReminders cron), matching every other event flow.
+  // The Zoom link reaches the parent in the 3-day + day-of reminder emails
+  // (sendEventReminders + sendDayOfReminders), matching every other event flow.
   const zoomNoteBlock =
     '<div style="background:#F0F9FF;border:1px solid #BAE6FD;border-radius:10px;padding:14px 18px;margin:16px 0;font-size:.92rem;color:#0C4A6E;line-height:1.5;">' +
-      '<strong>Zoom details:</strong> we\'ll send you the Zoom link in our reminder emails — once 5 days before the session and again the day before, so it\'s easy to find when you need it.' +
+      '<strong>Zoom details:</strong> we\'ll send you the Zoom link in our reminder emails — once 3 days before the session and again on the day of the session, so it\'s easy to find when you need it.' +
     '</div>';
 
   let docsHtml = '';
