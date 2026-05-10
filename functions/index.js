@@ -7930,3 +7930,434 @@ exports.getConnectGenDocumentDownloadUrl = functions
     }
   });
 
+// ───────────────────────────────────────────────────────────────────────
+// scheduledConnectGenDocLifecycle (Phase E)
+// ───────────────────────────────────────────────────────────────────────
+// Hourly cron that enforces the 24-hour consent destruction promise:
+//   • T+23h after session end (no disposition marked): email the record
+//     owner + write an in-app notification so staff get one last chance
+//     to flip the signup to Case Advocacy (which retains documents).
+//   • T+24h after session end (still no disposition): hard-destroy both
+//     Storage files, clear connectGenDocuments on the signup, stamp the
+//     destruction metadata, audit log.
+//
+// Idempotency:
+//   • Alert branch gated by connectGenDocDestructAlertSentAt timestamp.
+//   • Destroy branch gated by connectGenDocumentsDestroyedAt timestamp
+//     (already set on whichever path destroys documents — manual disposition
+//     "No Additional Support", manual destroyConnectGenDocuments, or this CF).
+//
+// Scope (defensive):
+//   • Collection-group query on `signups` filtered in-memory to docs that
+//     have connectGenDocuments set, are not yet destroyed, do not yet have
+//     a disposition marked, and belong to a Connect-Gen event (parent doc
+//     id == known recurring event OR event title contains "Connect-Gen").
+//   • Per-signup parse errors are logged and skipped — one bad signup
+//     must never blow up the whole tick.
+//
+// Session end time:
+//   • Re-uses the time-parsing approach from extractSessionStartHst but
+//     takes the END portion of the range. If no time range can be parsed,
+//     defaults to 5 PM HST on the session date (matches Connect-Gen's
+//     usual late-afternoon scheduling).
+// ───────────────────────────────────────────────────────────────────────
+
+// Known Connect-Gen recurring event id — preferred match. Title regex is
+// the permissive fallback so a future one-off Connect-Gen-style event in
+// the `events` collection will also be in scope.
+const CONNECT_GEN_RECURRING_EVENT_ID = "CmkPXEpPwfAQ5sR377K2";
+const CONNECT_GEN_TITLE_REGEX = /connect-?gen/i;
+
+// Parse the END moment of a Connect-Gen session in HST.
+// Re-uses _parseTimeOfDayParts (defined earlier) and the same date-key
+// extraction logic as extractSessionStartHst, but pulls the trailing time
+// of the "start-end" range instead of the leading one. Returns a UTC Date
+// object positioned at HST wall-clock end of session, or null if neither
+// the date nor a usable fallback time can be parsed.
+function _extractSessionEndHst(rawSession, event) {
+  if (!rawSession) return null;
+  const raw = String(rawSession);
+
+  let dateKey = "";
+  let timeStr = "";
+  if (raw.indexOf("|") !== -1) {
+    const parts = raw.split("|");
+    dateKey = toHstDateKey((parts[0] || "").trim());
+    timeStr = (parts[2] || "").trim();
+  } else {
+    dateKey = parseEventDateKey(raw);
+    const tm = raw.match(/(\d{1,2}(?::\d{2})?\s*[AaPp]\.?[Mm]?\.?)\s*[-–—]\s*(\d{1,2}(?::\d{2})?\s*[AaPp]\.?[Mm]?\.?)/);
+    if (tm) timeStr = tm[1] + " - " + tm[2];
+  }
+
+  if (!dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return null;
+
+  // Take the END portion (after the dash) when present; fall back to the
+  // single time if there is no range; finally fall back to event.endTime
+  // then 5 PM HST.
+  let endStr = "";
+  if (timeStr) {
+    const splitMatch = timeStr.split(/\s*[-–—]\s*/);
+    if (splitMatch.length >= 2) endStr = (splitMatch[1] || "").trim();
+    else endStr = (splitMatch[0] || "").trim();
+  }
+  let parts = endStr ? _parseTimeOfDayParts(endStr) : null;
+  if (!parts && event) {
+    parts = _parseTimeOfDayParts(event.endTime || "");
+  }
+  if (!parts) {
+    // Conservative default: 5 PM HST. Connect-Gen sessions are typically
+    // 3-5 PM or 5-7 PM. Picking 5 PM keeps us inside the consent window
+    // for the common cases without being overly aggressive.
+    parts = { hour: 17, minute: 0 };
+  }
+
+  const [y, m, d] = dateKey.split("-").map((n) => parseInt(n, 10));
+  if (!y || !m || !d) return null;
+  return new Date(Date.UTC(y, m - 1, d, parts.hour + 10, parts.minute));
+}
+
+// Pretty date label for the alert email body. Uses HST date key parsed
+// from session string — never new Date() on the full string.
+function _formatSessionDateLabel(rawSession) {
+  if (!rawSession) return "an upcoming session";
+  const raw = String(rawSession);
+  let dateKey = "";
+  if (raw.indexOf("|") !== -1) {
+    dateKey = toHstDateKey((raw.split("|")[0] || "").trim());
+  } else {
+    dateKey = parseEventDateKey(raw);
+  }
+  if (!dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return String(raw);
+  const [y, m, d] = dateKey.split("-").map((n) => parseInt(n, 10));
+  const dt = new Date(y, m - 1, d);
+  if (isNaN(dt.getTime())) return dateKey;
+  return dt.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+}
+
+// Build the 23-hour destruction-alert email body. Matches LDAH styling —
+// header band, body card, blue accent, no emojis. Includes copy/paste
+// footer per feedback_email-link-pattern.
+function _buildConnectGenDestructAlertHtml({ ownerFirstName, familyName, sessionDateLabel, signatureHtml }) {
+  const safeOwner = lifecycleEsc(ownerFirstName || "team");
+  const safeFamily = lifecycleEsc(familyName || "(unknown family)");
+  const safeDate = lifecycleEsc(sessionDateLabel);
+  const portalUrl = "https://danpoahu.github.io/LDAH-Int/";
+  const btn = _emailBtn(portalUrl, "Open Staff Portal");
+  const linkFooter = _emailLinkFooter([{ label: "Staff Portal", href: portalUrl }]);
+  return [
+    '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f7;">',
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f4f4f7;padding:24px 0;">',
+    '<tr><td align="center">',
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">',
+    '<tr><td style="background:#1a3c6e;padding:18px 24px;">',
+    '<p style="margin:0;font-size:18px;color:#ffffff;font-weight:700;">Action needed: Connect-Gen documents</p>',
+    '</td></tr>',
+    '<tr><td style="padding:24px;">',
+    '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">Aloha ' + safeOwner + ',</p>',
+    '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">',
+    'The Connect-Gen documents for <strong>' + safeFamily + '</strong> (session on <strong>' + safeDate + '</strong>) ',
+    'will be <strong>automatically destroyed in approximately 1 hour</strong> because no disposition has been marked yet.',
+    '</p>',
+    '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">',
+    'Per the consent terms the family signed, documents are destroyed within 24 hours of attendance unless we are providing additional support such as case advocacy.',
+    '</p>',
+    '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">',
+    'If LDAH will be providing case advocacy for this family, please open their record in the Staff Portal and mark <strong>Case Advocacy</strong> now to retain the documents.',
+    '</p>',
+    btn,
+    '<p style="margin:18px 0 0;font-size:14px;color:#555;line-height:1.55;">If no action is taken, the documents will be destroyed automatically. Mahalo.</p>',
+    (signatureHtml || ''),
+    linkFooter,
+    '</td></tr>',
+    '</table>',
+    '</td></tr></table></body></html>',
+  ].join('');
+}
+
+// Resolve a record-owner-ish recipient for the alert. Connect-Gen signups
+// don't have a guaranteed owner field yet (the interaction collection has
+// ownerUid, but signups themselves don't), so we walk a small priority
+// list and finally fall back to the eventCoordinator persona (Leilani).
+// Returns { uid, email, firstName, name } — email always populated, uid
+// may be empty (in which case the in-app notification step is skipped).
+async function _resolveConnectGenRecordOwner(db, signup) {
+  // 1. Explicit owner fields on the signup itself (future-proof).
+  const candidateUid = String(signup && (signup.ownerUid || signup.assignedOwnerUid || signup.recordOwnerUid) || "").trim();
+  if (candidateUid) {
+    try {
+      const roleSnap = await db.collection("userRoles").doc(candidateUid).get();
+      if (roleSnap.exists) {
+        const r = roleSnap.data() || {};
+        const email = String(r.email || "").trim();
+        const name = String(r.name || "").trim();
+        if (email) {
+          return { uid: candidateUid, email, firstName: (name.split(/\s+/)[0] || ""), name };
+        }
+      }
+    } catch (e) {
+      console.warn("ownerUid lookup failed:", e.message);
+    }
+  }
+  // 2. linkedContact-side ownerUid (the interactions/contacts model).
+  const linkedContactId = String(signup && signup.linkedContactId || "").trim();
+  if (linkedContactId) {
+    try {
+      const cSnap = await db.collection("contacts").doc(linkedContactId).get();
+      if (cSnap.exists) {
+        const c = cSnap.data() || {};
+        const cuid = String(c.ownerUid || "").trim();
+        if (cuid) {
+          const roleSnap = await db.collection("userRoles").doc(cuid).get();
+          if (roleSnap.exists) {
+            const r = roleSnap.data() || {};
+            const email = String(r.email || "").trim();
+            const name = String(r.name || "").trim();
+            if (email) {
+              return { uid: cuid, email, firstName: (name.split(/\s+/)[0] || ""), name };
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("contact ownerUid lookup failed:", e.message);
+    }
+  }
+  // 3. Fallback: Leilani via eventCoordinator persona. No uid available
+  // (she may not have a userRoles doc keyed the same way) — the in-app
+  // notification step will skip when uid is empty, but the email still
+  // goes through.
+  try {
+    const persona = await getPersona('eventCoordinator');
+    return {
+      uid: "",
+      email: String(persona.email || "lkailiawa@ldahawaii.org").trim(),
+      firstName: String(persona.firstName || "Leilani").trim(),
+      name: String(persona.fullName || "Leilani Kailiawa").trim(),
+    };
+  } catch (e) {
+    return { uid: "", email: "lkailiawa@ldahawaii.org", firstName: "Leilani", name: "Leilani Kailiawa" };
+  }
+}
+
+exports.scheduledConnectGenDocLifecycle = functions
+  .runWith({ memory: "256MB", timeoutSeconds: 540, secrets: EMAIL_SECRETS })
+  .pubsub.schedule("every 60 minutes")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const FieldValue = admin.firestore.FieldValue;
+
+    let scanned = 0;
+    let alertsSent = 0;
+    let destroyed = 0;
+    let skipped = 0;
+    let errors = 0;
+
+    // Cache for parent event lookups so we don't refetch the same event
+    // 20 times when scanning a busy recurringEvent's signups.
+    const eventCache = new Map();
+    async function loadParentEvent(ref) {
+      const parentEventRef = ref.parent.parent;
+      if (!parentEventRef) return { collection: "", id: "", data: null };
+      const key = parentEventRef.parent.id + "/" + parentEventRef.id;
+      if (eventCache.has(key)) return eventCache.get(key);
+      let data = null;
+      try {
+        const snap = await parentEventRef.get();
+        data = snap.exists ? (snap.data() || {}) : {};
+      } catch (e) {
+        console.warn("scheduledConnectGenDocLifecycle: parent event load failed for " + key + ":", e.message);
+        data = {};
+      }
+      const out = { collection: parentEventRef.parent.id, id: parentEventRef.id, data };
+      eventCache.set(key, out);
+      return out;
+    }
+
+    let snap;
+    try {
+      // Collection-group query — `connectGenDocuments` is a map field on
+      // signup docs. We use `orderBy` on it to filter to docs where the
+      // field exists. (Firestore: orderBy implicitly filters out docs
+      // missing the field.)
+      snap = await db.collectionGroup("signups").orderBy("connectGenDocuments").get();
+    } catch (err) {
+      console.error("scheduledConnectGenDocLifecycle: collectionGroup query failed:", err.message);
+      return null;
+    }
+
+    const fromAddress = lifecycleFromAddress();
+    let signatureHtml = "";
+    try { signatureHtml = await buildSignatureBlock('eventCoordinator'); }
+    catch (e) { console.warn("signature build failed:", e.message); }
+
+    const nowMs = Date.now();
+
+    for (const sigDoc of snap.docs) {
+      scanned++;
+      try {
+        const signup = sigDoc.data() || {};
+
+        // Idempotency + status gates.
+        if (signup.connectGenDocumentsDestroyedAt) { skipped++; continue; }
+        if (signup.connectGenDisposition) { skipped++; continue; }
+        if (signup.archived === true) { skipped++; continue; }
+        if (signup.status === "cancelled" || signup.status === "canceled") { skipped++; continue; }
+        if (!signup.connectGenDocuments || typeof signup.connectGenDocuments !== "object") { skipped++; continue; }
+
+        // Scope: Connect-Gen only. Match by known recurring event id first,
+        // then permissive title-contains fallback.
+        const parent = await loadParentEvent(sigDoc.ref);
+        const isKnownRecurring = parent.collection === "recurringEvents" && parent.id === CONNECT_GEN_RECURRING_EVENT_ID;
+        const title = String(((parent.data || {}).title) || "");
+        const titleMatch = CONNECT_GEN_TITLE_REGEX.test(title);
+        if (!isKnownRecurring && !titleMatch) { skipped++; continue; }
+
+        // Compute most-recent past session end. Walk every session key,
+        // keep the latest one that is <= now. If none are in the past
+        // yet, the clock hasn't started — skip until after the session.
+        const sessionKeys = extractSignupSessionKeys(signup);
+        // We also walk selectedSessions raw for time portions (extractSignupSessionKeys
+        // returns date-only keys); collect the raw entries so we can parse end times.
+        const rawSessions = [];
+        if (Array.isArray(signup.selectedSessions)) rawSessions.push(...signup.selectedSessions);
+        if (Array.isArray(signup.selectedDates)) rawSessions.push(...signup.selectedDates);
+        if (!rawSessions.length && sessionKeys.length) {
+          // Reconstruct minimal raw entries from date-only keys so the
+          // parser still works (will fall through to 5 PM HST default).
+          for (const k of sessionKeys) rawSessions.push(k);
+        }
+
+        let mostRecentPastEnd = null;
+        let mostRecentPastRaw = "";
+        for (const raw of rawSessions) {
+          const end = _extractSessionEndHst(raw, parent.data || {});
+          if (!end || isNaN(end.getTime())) continue;
+          if (end.getTime() > nowMs) continue; // future session, skip
+          if (!mostRecentPastEnd || end.getTime() > mostRecentPastEnd.getTime()) {
+            mostRecentPastEnd = end;
+            mostRecentPastRaw = raw;
+          }
+        }
+        if (!mostRecentPastEnd) {
+          // Either no parseable date or no past session yet — defensive skip.
+          skipped++;
+          continue;
+        }
+
+        const hoursSince = (nowMs - mostRecentPastEnd.getTime()) / (1000 * 60 * 60);
+
+        // ── Destroy branch ── (>= 24h)
+        if (hoursSince >= 24) {
+          try {
+            const result = await _destroyConnectGenStorageFiles(signup.connectGenDocuments);
+            await sigDoc.ref.update({
+              connectGenDocuments: FieldValue.delete(),
+              connectGenDocumentsDestroyedAt: FieldValue.serverTimestamp(),
+              connectGenDocumentsDestroyedBy: "system (24h auto-destruct)",
+              connectGenDocumentsDestroyedReason: "No disposition marked within 24 hours of session attendance",
+            });
+            destroyed++;
+            try {
+              await db.collection("auditLog").add({
+                action: "Connect-Gen documents auto-destroyed (24h, no disposition)",
+                details: (signup.name || signup.firstName || "(unknown)") +
+                  " -- signup " + sigDoc.id + " -- session " + mostRecentPastRaw +
+                  " -- files deleted: " + (result.deleted.length || 0) +
+                  (result.errors.length ? " (errors: " + result.errors.join("; ") + ")" : ""),
+                performedBy: "system (auto)",
+                performedByRole: "system",
+                timestamp: FieldValue.serverTimestamp(),
+                signupPath: sigDoc.ref.path,
+              });
+            } catch (e) { console.warn("auditLog write failed:", e.message); }
+          } catch (e) {
+            errors++;
+            console.error("scheduledConnectGenDocLifecycle destroy failed for " + sigDoc.ref.path + ":", e.message);
+          }
+          continue;
+        }
+
+        // ── Alert branch ── (23 <= hoursSince < 24)
+        if (hoursSince >= 23 && hoursSince < 24) {
+          if (signup.connectGenDocDestructAlertSentAt) { skipped++; continue; }
+          try {
+            const owner = await _resolveConnectGenRecordOwner(db, signup);
+            const familyName = String(signup.name || signup.firstName || "(unknown family)").trim();
+            const sessionDateLabel = _formatSessionDateLabel(mostRecentPastRaw);
+            const html = _buildConnectGenDestructAlertHtml({
+              ownerFirstName: owner.firstName || "team",
+              familyName,
+              sessionDateLabel,
+              signatureHtml,
+            });
+            const subject = "Action needed: Connect-Gen documents auto-destroy in 1 hour -- " + familyName;
+
+            await sendEmailViaResend({
+              from: fromAddress,
+              to: owner.email,
+              subject,
+              html,
+              type: "connect-gen-destruct-alert",
+              relatedEventId: parent.id,
+              relatedSignupId: sigDoc.id,
+              recipientName: owner.name || owner.email,
+            });
+
+            // In-app notification (matches LDAH-Int notifications schema —
+            // see createNotification in index.html). Skip when no uid;
+            // email is already on the way to Leilani in that case.
+            if (owner.uid) {
+              try {
+                await db.collection("notifications").add({
+                  recipientUid: owner.uid,
+                  recipientName: owner.name || "",
+                  type: "connect-gen-destruct-alert",
+                  title: "Connect-Gen documents auto-destroy in 1 hour",
+                  message: "No disposition marked yet for " + familyName + ". Open the staff portal and mark Case Advocacy to retain documents.",
+                  interactionId: "",
+                  signupPath: sigDoc.ref.path,
+                  read: false,
+                  createdAt: FieldValue.serverTimestamp(),
+                });
+              } catch (e) { console.warn("notifications write failed:", e.message); }
+            }
+
+            await sigDoc.ref.update({
+              connectGenDocDestructAlertSentAt: FieldValue.serverTimestamp(),
+            });
+            alertsSent++;
+
+            try {
+              await db.collection("auditLog").add({
+                action: "Connect-Gen 23h destruction alert sent (no disposition marked)",
+                details: familyName + " -- signup " + sigDoc.id + " -- session " + mostRecentPastRaw +
+                  " -- notified " + owner.email + (owner.uid ? " (uid " + owner.uid + ")" : " (fallback persona)"),
+                performedBy: "system (auto)",
+                performedByRole: "system",
+                timestamp: FieldValue.serverTimestamp(),
+                signupPath: sigDoc.ref.path,
+              });
+            } catch (e) { console.warn("auditLog write failed:", e.message); }
+          } catch (e) {
+            errors++;
+            console.error("scheduledConnectGenDocLifecycle alert failed for " + sigDoc.ref.path + ":", e.message);
+          }
+          continue;
+        }
+
+        // Outside both windows (too early, or somehow between if cron drift) — skip.
+        skipped++;
+      } catch (err) {
+        errors++;
+        console.error("scheduledConnectGenDocLifecycle per-signup error for " + sigDoc.ref.path + ":", err.message);
+      }
+    }
+
+    console.log("scheduledConnectGenDocLifecycle: scanned=" + scanned +
+      " alertsSent=" + alertsSent + " destroyed=" + destroyed +
+      " skipped=" + skipped + " errors=" + errors);
+    return { scanned, alertsSent, destroyed, skipped, errors };
+  });
+
