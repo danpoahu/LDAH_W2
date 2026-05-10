@@ -6814,7 +6814,7 @@ exports.requestConnectGenUploadUrl = functions
 
 // Step 3: browser PUT'd the file at the signed URL; record it on the signup.
 exports.confirmConnectGenUpload = functions
-  .runWith({ memory: "512MB", timeoutSeconds: 120, maxInstances: 10 })
+  .runWith({ memory: "2GB", timeoutSeconds: 180, maxInstances: 10 })
   .https.onRequest(async (req, res) => {
     res.set("Access-Control-Allow-Origin", "*");
     res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -6960,7 +6960,7 @@ exports.confirmConnectGenUpload = functions
 //
 // Phase F promotion: flip CONNECT_GEN_UPLOAD_BASE_URL below from the STAGE
 // path to the live path. No other code changes required.
-const CONNECT_GEN_UPLOAD_BASE_URL = "https://www.ldahawaii.org/STAGE/connect-gen-upload.html";
+const CONNECT_GEN_UPLOAD_BASE_URL = "https://www.ldahawaii.org/connect-gen-upload.html";
 
 function _buildConnectGenUploadLaterEmailHtml({ firstName, uploadUrl, expiresFormatted, signatureHtml }) {
   const safeFirst = lifecycleEsc(firstName || "there");

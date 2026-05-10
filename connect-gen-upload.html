@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Sign your consent to participate in LDAH's Connect Gen session.">
+    <meta name="description" content="Securely upload your Connect-Gen documents to LDAH.">
     <meta name="robots" content="noindex, nofollow">
-    <title>Connect Gen Consent - LDAH</title>
+    <title>Upload Connect-Gen Documents - LDAH</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -138,38 +138,14 @@
         border: 1px solid rgba(8, 145, 178, 0.08);
     }
 
-    .card.message-card {
-        text-align: center;
-    }
-
-    .card.message-card h3 {
-        color: var(--primary-blue);
-        font-size: 1.4rem;
-        margin-bottom: 0.75rem;
-    }
-
-    .card.message-card p {
-        color: var(--text-light);
-        font-size: 1.02rem;
-    }
-
-    .card.message-card a {
-        color: var(--primary-blue);
-        text-decoration: none;
-        font-weight: 600;
-    }
-
-    .card.message-card a:hover {
-        text-decoration: underline;
-    }
+    .card.message-card { text-align: center; }
+    .card.message-card h3 { color: var(--primary-blue); font-size: 1.4rem; margin-bottom: 0.75rem; }
+    .card.message-card p { color: var(--text-light); font-size: 1.02rem; }
+    .card.message-card a { color: var(--primary-blue); text-decoration: none; font-weight: 600; }
+    .card.message-card a:hover { text-decoration: underline; }
 
     /* Status / loading state */
-    .loading-state {
-        text-align: center;
-        padding: 3rem 1rem;
-        color: var(--text-light);
-    }
-
+    .loading-state { text-align: center; padding: 3rem 1rem; color: var(--text-light); }
     .loading-spinner {
         display: inline-block;
         width: 36px;
@@ -180,96 +156,21 @@
         animation: spin 0.9s linear infinite;
         margin-bottom: 1rem;
     }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-    @keyframes spin {
-        to { transform: rotate(360deg); }
-    }
-
-    /* Form */
-    .resource-summary {
-        background: var(--bg-light);
-        border-radius: 12px;
-        padding: 1rem 1.25rem;
-        margin-bottom: 1.75rem;
-        font-size: 0.95rem;
-        color: var(--text-light);
-    }
-
-    .resource-summary strong {
-        color: var(--text-dark);
-    }
-
-    .form-group {
-        margin-bottom: 1.4rem;
-    }
-
-    .form-group label {
-        display: block;
-        font-weight: 600;
-        color: var(--text-dark);
-        margin-bottom: 0.4rem;
-        font-size: 0.97rem;
-    }
-
-    .form-group .helper-text {
-        display: block;
-        font-size: 0.85rem;
-        color: var(--text-light);
-        margin-top: 0.25rem;
-        margin-bottom: 0.45rem;
-        font-weight: 400;
-    }
-
-    .form-group input[type="text"],
-    .form-group input[type="url"],
-    .form-group input[type="email"],
-    .form-group select,
-    .form-group textarea {
-        width: 100%;
-        padding: 0.7rem 0.9rem;
-        font-family: inherit;
-        font-size: 1rem;
-        color: var(--text-dark);
-        background: white;
-        border: 1.5px solid #cbd5e1;
+    /* Urgency banner — matches consent-page banner */
+    .urgency-banner {
+        background: #FFFBEB;
+        border: 1.5px solid #F59E0B;
+        border-left: 4px solid #D97706;
+        color: #78350F;
         border-radius: 10px;
-        transition: border-color 0.2s, box-shadow 0.2s;
-    }
-
-    .form-group input:focus,
-    .form-group select:focus,
-    .form-group textarea:focus {
-        outline: none;
-        border-color: var(--primary-blue);
-        box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.15);
-    }
-
-    .form-group textarea {
-        resize: vertical;
-        min-height: 100px;
-        font-family: inherit;
-    }
-
-    /* Logo info box */
-    .logo-info-box {
-        background: #FEF9C3;
-        border: 1px solid #FDE68A;
-        border-radius: 12px;
-        padding: 1rem 1.25rem;
-        margin: 1.75rem 0;
-        color: #713F12;
+        padding: 0.85rem 1.1rem;
+        margin-bottom: 1.25rem;
         font-size: 0.95rem;
-        line-height: 1.5;
+        line-height: 1.55;
     }
-
-    .logo-info-box strong {
-        color: #713F12;
-    }
-
-    .logo-info-box a {
-        color: #713F12;
-        font-weight: 600;
-    }
+    .urgency-banner strong { color: #7C2D12; }
 
     /* Buttons */
     .button-row {
@@ -303,20 +204,7 @@
         box-shadow: 0 6px 18px rgba(8, 145, 178, 0.3);
     }
 
-    .btn-ghost {
-        background: white;
-        color: var(--primary-blue);
-        border-color: var(--primary-blue);
-    }
-
-    .btn-ghost:hover:not(:disabled) {
-        background: var(--bg-light);
-    }
-
-    .btn:disabled {
-        opacity: 0.55;
-        cursor: not-allowed;
-    }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
     /* Inline error */
     .inline-error {
@@ -329,12 +217,9 @@
         font-size: 0.95rem;
         display: none;
     }
+    .inline-error.visible { display: block; }
 
-    .inline-error.visible {
-        display: block;
-    }
-
-    /* Footer (loaded externally - styles match common pattern) */
+    /* Footer */
     footer {
         background: var(--text-dark);
         color: white;
@@ -344,10 +229,6 @@
         margin-top: auto;
     }
 
-    /* The decorative islands SVG MUST be positioned absolute, otherwise
-       the empty <use href="#hawaii-islands"/> element (whose target symbol
-       isn't defined on this page) takes up huge layout space and balloons
-       the footer height. Matches resources.html. */
     .footer-islands {
         position: absolute;
         right: -5%;
@@ -405,25 +286,9 @@
         z-index: 1;
         font-size: 0.85rem;
     }
-
     .footer-bottom p { margin: 0.25rem 0; }
 
-    /* Upload urgency banner (Phase B-urgency) */
-    .urgency-banner {
-        background: #FFFBEB;
-        border: 1.5px solid #F59E0B;
-        border-left: 4px solid #D97706;
-        color: #78350F;
-        border-radius: 10px;
-        padding: 0.85rem 1.1rem;
-        margin-bottom: 1.25rem;
-        font-size: 0.95rem;
-        line-height: 1.55;
-    }
-
-    .urgency-banner strong { color: #7C2D12; }
-
-    /* Upload Documents (Phase A) */
+    /* Upload card */
     .upload-card h3 {
         color: var(--primary-blue);
         font-size: 1.4rem;
@@ -447,7 +312,6 @@
         font-size: 0.95rem;
         display: none;
     }
-
     .upload-success.visible { display: block; }
 
     .file-picker {
@@ -481,9 +345,7 @@
         font-weight: 400;
     }
 
-    .file-picker input[type="file"] {
-        display: none;
-    }
+    .file-picker input[type="file"] { display: none; }
 
     .file-picker .file-pick-btn {
         display: inline-block;
@@ -498,7 +360,6 @@
         cursor: pointer;
         transition: background 0.2s;
     }
-
     .file-picker .file-pick-btn:hover { background: var(--bg-light); }
 
     .file-picker .file-meta {
@@ -512,7 +373,6 @@
         color: var(--text-dark);
         word-break: break-all;
     }
-
     .file-picker.has-file .file-meta { display: block; }
 
     .file-picker .file-meta .file-size {
@@ -529,23 +389,6 @@
         margin-top: 0.85rem;
         line-height: 1.5;
     }
-
-    .skip-upload-row {
-        text-align: center;
-        margin-top: 1.5rem;
-        padding-top: 1.25rem;
-        border-top: 1px solid #E2E8F0;
-    }
-
-    .skip-upload-row a {
-        color: var(--primary-blue);
-        font-weight: 600;
-        font-size: 0.93rem;
-        text-decoration: none;
-        cursor: pointer;
-    }
-
-    .skip-upload-row a:hover { text-decoration: underline; }
 
     @media (max-width: 600px) {
         .page-header-inner { padding: 0.75rem 1rem; gap: 0.75rem; }
@@ -569,26 +412,18 @@
         <div class="page-header-inner">
             <img src="logo_blue.png" alt="LDAH Logo">
             <div class="header-text">
-                <h1>Connect Gen Consent</h1>
+                <h1>Connect Gen Documents</h1>
                 <p>Leadership in Disabilities & Achievement of Hawai'i</p>
             </div>
         </div>
     </header>
 
     <section class="hero-section">
-        <h2>Connect Gen Consent</h2>
-        <p>Please read carefully and sign by typing your full name. Your appointment is not confirmed until we receive this consent.</p>
+        <h2>Upload your Connect-Gen Documents</h2>
+        <p>You've already signed the consent. Use this page to upload your child's IEP and Evaluation securely.</p>
     </section>
 
     <main class="main-wrap">
-
-        <!-- Loading state -->
-        <div id="loadingCard" class="card">
-            <div class="loading-state">
-                <div class="loading-spinner"></div>
-                <p>Loading your consent form...</p>
-            </div>
-        </div>
 
         <!-- Error / message states -->
         <div id="messageCard" class="card message-card" style="display: none;">
@@ -596,48 +431,12 @@
             <p id="messageBody"></p>
         </div>
 
-        <!-- Form state -->
-        <div id="formCard" class="card" style="display:none;">
-            <div id="signupSummary" style="background:#F0F9FF;border:1px solid #BAE6FD;border-radius:10px;padding:14px 16px;margin-bottom:18px;font-size:.92rem;line-height:1.5;color:#0C4A6E;"></div>
-
-            <!-- Consent text — verbatim, matches printed form revision 02/2021; RR. -->
-            <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:18px 20px;margin-bottom:20px;font-size:.95rem;line-height:1.65;color:#1f2937;">
-                <p style="margin:0 0 12px;">In order for me, <strong id="consentName">[your name]</strong>, to participate in LDAH's Connect Gen Session (CG), on <strong id="consentDate"></strong>, I grant my permission for LDAH to receive, view and discuss my child's confidential documents with me.</p>
-                <p style="margin:0 0 12px;">I am sending the most current Individualized Education Program (IEP) and most current Evaluation(s)/Assessment(s) via fax, email, postal service, or secure digital upload through LDAH's website.</p>
-                <p style="margin:0 0 12px;">By receiving my documents, it does not obligate LDAH employees to provide additional services to me. LDAH will determine through CG, my need for additional support or services within 48 hours from the date of the CG virtual attendance.</p>
-                <p style="margin:0 0 12px;">My child's confidential documents will be held until a determination is made about receiving additional support with LDAH, such as case advocacy. If I do not require additional supports, my child's confidential documents will be destroyed within 24 hours of attendance date. <strong>If LDAH provides additional supports such as case advocacy, my child's confidential documents will be retained for the duration of the advocacy and destroyed upon completion of that work.</strong></p>
-                <p style="margin:0;font-weight:700;">I agree to send LDAH my child's confidential documents as described above.</p>
-                <p style="margin:14px 0 0;font-size:.78rem;color:#92400E;">Form revision: 02/2021; RR</p>
-            </div>
-
-            <form id="consentForm" novalidate>
-                <div class="form-group">
-                    <label for="fld-typed-name">Type your full legal name to sign <span style="color: var(--sunset-coral);">*</span></label>
-                    <span class="helper-text">First and last name, exactly as on the IEP/Evaluation. By typing your name and submitting, you are providing a legally binding electronic signature.</span>
-                    <input type="text" id="fld-typed-name" name="typedName" required style="font-family:'Outfit',cursive;font-size:1.15rem;font-style:italic;">
-                </div>
-
-                <div class="form-group" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:12px 14px;">
-                    <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-weight:600;">
-                        <input type="checkbox" id="fld-agree" name="agree" required style="margin-top:3px;flex-shrink:0;">
-                        <span>I have read the consent above. I understand and agree to its terms. I am the parent or legal guardian of the child whose documents will be reviewed.</span>
-                    </label>
-                </div>
-
-                <div class="button-row">
-                    <button type="submit" id="submitBtn" class="btn btn-primary">Sign and Submit</button>
-                </div>
-
-                <div id="inlineError" class="inline-error"></div>
-            </form>
-        </div>
-
-        <!-- Upload Documents (Phase A) — revealed after successful consent submit -->
-        <div id="uploadCard" class="card upload-card" style="display:none;">
+        <!-- Upload card -->
+        <div id="uploadCard" class="card upload-card">
             <h3>Upload your IEP and Evaluation</h3>
-            <p class="upload-intro">Securely upload the documents you just consented to share. Your IEP and Evaluation will be reviewed by LDAH staff before your Connect-Gen session and destroyed per the consent terms above.</p>
+            <p class="upload-intro">Securely upload your child's most current IEP and the Evaluation that created it. LDAH staff will review them before your Connect-Gen session and destroy them per the consent you signed.</p>
 
-            <!-- Urgency banner — LDAH needs lead time to review documents. -->
+            <!-- Urgency banner — same copy as consent page. -->
             <div class="urgency-banner">
                 <strong>Please upload as soon as possible.</strong> LDAH staff needs several days before your session to review your child's IEP and Evaluation. Uploading promptly helps us prepare the most useful guidance for your family.
             </div>
@@ -672,10 +471,6 @@
 
             <div id="uploadInlineError" class="inline-error"></div>
             <div id="uploadSuccess" class="upload-success"></div>
-
-            <div class="skip-upload-row">
-                <a id="skipUploadLink">I'll upload later</a>
-            </div>
         </div>
 
     </main>
@@ -683,29 +478,14 @@
     <div id="footer-container"></div>
 
     <script>
-        const ENDPOINT_GET  = 'https://us-central1-ldah-932d5.cloudfunctions.net/getConnectGenConsent';
-        const ENDPOINT_POST = 'https://us-central1-ldah-932d5.cloudfunctions.net/submitConnectGenConsent';
         const ENDPOINT_REQUEST_UPLOAD = 'https://us-central1-ldah-932d5.cloudfunctions.net/requestConnectGenUploadUrl';
         const ENDPOINT_CONFIRM_UPLOAD = 'https://us-central1-ldah-932d5.cloudfunctions.net/confirmConnectGenUpload';
-        const ENDPOINT_UPLOAD_LATER_EMAIL = 'https://us-central1-ldah-932d5.cloudfunctions.net/sendConnectGenUploadLaterEmail';
 
-        // Element refs
-        const loadingCard = document.getElementById('loadingCard');
         const messageCard = document.getElementById('messageCard');
-        const formCard    = document.getElementById('formCard');
-        const uploadCard  = document.getElementById('uploadCard');
         const messageTitle = document.getElementById('messageTitle');
         const messageBody  = document.getElementById('messageBody');
-        const inlineError  = document.getElementById('inlineError');
-        const submitBtn    = document.getElementById('submitBtn');
-        const consentForm  = document.getElementById('consentForm');
-        const typedNameEl  = document.getElementById('fld-typed-name');
-        const agreeEl      = document.getElementById('fld-agree');
-        const consentNameEl = document.getElementById('consentName');
-        const consentDateEl = document.getElementById('consentDate');
-        const summaryEl    = document.getElementById('signupSummary');
+        const uploadCard   = document.getElementById('uploadCard');
 
-        // Upload UI refs (Phase A)
         const iepFileEl   = document.getElementById('fld-iep-file');
         const evalFileEl  = document.getElementById('fld-eval-file');
         const iepPickerEl = document.getElementById('iepPicker');
@@ -717,22 +497,18 @@
         const uploadBtn   = document.getElementById('uploadBtn');
         const uploadInlineError = document.getElementById('uploadInlineError');
         const uploadSuccessEl = document.getElementById('uploadSuccess');
-        const skipUploadLink = document.getElementById('skipUploadLink');
 
-        // Upload constraints (Phase A)
         const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25 MB
         const ALLOWED_UPLOAD_EXT = ['.pdf', '.jpg', '.jpeg', '.png', '.heic', '.heif'];
 
-        let token = null;
-        // Phase B: minted by submitConnectGenConsent and reused by the
-        // requestConnectGenUploadUrl + confirmConnectGenUpload calls.
+        // Token is read from the URL and passed straight to the CFs. No
+        // consent step — the parent signed earlier and clicked the magic
+        // link from the upload-later email.
         let uploadAuthToken = null;
 
         function showOnly(el) {
-            loadingCard.style.display = 'none';
             messageCard.style.display = 'none';
-            formCard.style.display = 'none';
-            if (uploadCard) uploadCard.style.display = 'none';
+            uploadCard.style.display = 'none';
             if (el) el.style.display = 'block';
         }
         function showMessage(title, bodyHtml) {
@@ -740,145 +516,7 @@
             messageBody.innerHTML = bodyHtml;
             showOnly(messageCard);
         }
-        function showInlineError(msg) {
-            inlineError.textContent = msg;
-            inlineError.classList.add('visible');
-        }
-        function clearInlineError() {
-            inlineError.textContent = '';
-            inlineError.classList.remove('visible');
-        }
-        function setBusy(busy) {
-            submitBtn.disabled = busy;
-            if (busy) {
-                submitBtn.dataset.origText = submitBtn.dataset.origText || submitBtn.textContent;
-                submitBtn.textContent = 'Signing...';
-            } else if (submitBtn.dataset.origText) {
-                submitBtn.textContent = submitBtn.dataset.origText;
-            }
-        }
-        function escapeHtml(s) {
-            return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-        }
-        // formatDatesPhrase on the server returns ", on Some Date" with a leading
-        // article. On this page the surrounding sentence already says "on", so
-        // strip any leading comma/space/"on " before display.
-        function cleanDatesPhrase(s) {
-            return String(s || '').replace(/^[\s,]*on\s+/i, '').replace(/^[\s,]+/, '');
-        }
 
-        // Live-update the consent text with the typed name as the user signs.
-        // When the input is cleared, fall back to the registered name on file
-        // (loaded from the GET endpoint) or the generic placeholder.
-        let registeredNameFallback = '[your name]';
-        typedNameEl.addEventListener('input', function() {
-            const v = typedNameEl.value.trim();
-            consentNameEl.textContent = v || registeredNameFallback;
-        });
-
-        async function loadConsentContext() {
-            try {
-                const res = await fetch(ENDPOINT_GET + '?token=' + encodeURIComponent(token));
-                if (res.status === 404) {
-                    showMessage('Link not found', "We couldn't find this consent request. The link may have expired or already been signed.");
-                    return;
-                }
-                if (res.status === 410) {
-                    showMessage('Already signed', "This consent has already been signed. Mahalo!");
-                    return;
-                }
-                if (!res.ok) {
-                    showMessage('Something went wrong', "We couldn't load your consent right now. Please try again later or contact <a href='mailto:lkailiawa@ldahawaii.org'>lkailiawa@ldahawaii.org</a>.");
-                    return;
-                }
-                const data = await res.json();
-                const cleanDate = cleanDatesPhrase(data.datesPhrase);
-                consentDateEl.textContent = cleanDate || 'the upcoming session date';
-                summaryEl.innerHTML = '<strong>Signing up for:</strong> ' + escapeHtml(data.eventTitle || 'Connect-Gen') +
-                    (cleanDate ? '<br><strong>Session:</strong> ' + escapeHtml(cleanDate) : '') +
-                    (data.signupName ? '<br><strong>Registered name on file:</strong> ' + escapeHtml(data.signupName) : '');
-                if (data.signupName) {
-                    typedNameEl.placeholder = data.signupName;
-                    // Pre-populate the consent paragraph with the registered name so
-                    // it reads naturally on first view. The input itself stays empty —
-                    // the parent must actively type to provide the e-signature.
-                    consentNameEl.textContent = data.signupName;
-                    registeredNameFallback = data.signupName;
-                }
-                showOnly(formCard);
-            } catch (err) {
-                console.error('Failed to load consent context:', err);
-                showMessage('Connection error', "We couldn't reach the server. Please check your internet connection and try again.");
-            }
-        }
-
-        async function postConsent() {
-            clearInlineError();
-            setBusy(true);
-            try {
-                const res = await fetch(ENDPOINT_POST, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        token: token,
-                        typedName: typedNameEl.value.trim(),
-                        agree: agreeEl.checked === true
-                    })
-                });
-                if (res.status === 410) {
-                    showMessage('Already signed', "This consent has already been signed. Mahalo!");
-                    return;
-                }
-                if (!res.ok) {
-                    let detail = '';
-                    try { const j = await res.json(); detail = j && j.error ? ' (' + j.error + ')' : ''; } catch (_) {}
-                    showInlineError("We couldn't save your signature" + detail + '.');
-                    setBusy(false);
-                    return;
-                }
-                // Capture the uploadAuthToken minted server-side. The original
-                // consentToken is now deleted, so this is the credential the
-                // upload-URL + confirm calls use to find the signup.
-                try {
-                    const data = await res.json();
-                    if (data && data.uploadAuthToken) {
-                        uploadAuthToken = data.uploadAuthToken;
-                    }
-                } catch (_) {}
-                // Consent saved — reveal the Upload Documents UI.
-                // Parents can either upload now or use the "I'll upload later"
-                // link, which falls back to the original thank-you message.
-                showOnly(uploadCard);
-            } catch (err) {
-                console.error('Submit failed:', err);
-                showInlineError("We couldn't reach the server. Please check your connection and try again.");
-                setBusy(false);
-            }
-        }
-
-        function showThankYou() {
-            showMessage('Mahalo — consent received',
-                'Your appointment is now confirmed. We\'ve sent you a confirmation email with your prep documents and Zoom details. <strong>Please bring your child\'s most current IEP and the Evaluation that created it</strong> to the session.');
-        }
-
-        function handleSubmit(e) {
-            e.preventDefault();
-            const typed = typedNameEl.value.trim();
-            if (typed.length < 3 || typed.indexOf(' ') === -1) {
-                showInlineError('Please type your first AND last name to sign.');
-                typedNameEl.focus();
-                return;
-            }
-            if (!agreeEl.checked) {
-                showInlineError('Please check the box to confirm you agree to the consent terms.');
-                agreeEl.focus();
-                return;
-            }
-            postConsent();
-        }
-        consentForm.addEventListener('submit', handleSubmit);
-
-        // ---------- Upload Documents (Phase A) ----------
         function formatFileSize(bytes) {
             if (!bytes && bytes !== 0) return '';
             if (bytes < 1024) return bytes + ' B';
@@ -930,9 +568,9 @@
         wireFilePicker(iepFileEl, iepPickerEl, iepNameEl, iepSizeEl);
         wireFilePicker(evalFileEl, evalPickerEl, evalNameEl, evalSizeEl);
 
-        // Map a picked File to the canonical mimeType the CF expects. Browsers
-        // sometimes leave file.type empty (especially for HEIC/HEIF on older
-        // Safari), so fall back to extension-based detection.
+        // Map a picked File to the canonical mimeType the CF expects.
+        // Browsers sometimes leave file.type empty (especially for HEIC/HEIF
+        // on older Safari), so fall back to extension-based detection.
         function resolveUploadMime(file) {
             const t = (file && file.type ? String(file.type) : '').toLowerCase();
             if (t === 'application/pdf' || t === 'image/jpeg' || t === 'image/png' ||
@@ -956,7 +594,6 @@
                 throw new Error(label + ' file type not recognized. Please use PDF, JPG, PNG, or HEIC.');
             }
 
-            // Step 1: ask the CF for a signed PUT URL.
             const reqRes = await fetch(ENDPOINT_REQUEST_UPLOAD, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -969,6 +606,9 @@
                 })
             });
             if (!reqRes.ok) {
+                if (reqRes.status === 401) {
+                    throw new Error('This upload link has expired or is invalid. Please contact LDAH directly.');
+                }
                 let detail = '';
                 try { const j = await reqRes.json(); detail = j && j.error ? j.error : ''; } catch (_) {}
                 throw new Error(detail || ('We couldn\'t prepare the ' + label + ' upload. Please try again.'));
@@ -978,9 +618,6 @@
                 throw new Error('We couldn\'t prepare the ' + label + ' upload. Please try again.');
             }
 
-            // Step 2: PUT the file bytes directly to Cloud Storage. The signed
-            // URL has the contentType baked in, so the header MUST match what
-            // we sent in step 1 or Storage will reject the request.
             const putRes = await fetch(reqJson.uploadUrl, {
                 method: 'PUT',
                 headers: { 'Content-Type': mimeType },
@@ -990,7 +627,6 @@
                 throw new Error('Upload of ' + label + ' failed (' + putRes.status + '). Please try again.');
             }
 
-            // Step 3: tell the CF the upload landed; it verifies and records.
             const confRes = await fetch(ENDPOINT_CONFIRM_UPLOAD, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1025,14 +661,8 @@
             const iepFile = iepFileEl.files && iepFileEl.files[0];
             const evalFile = evalFileEl.files && evalFileEl.files[0];
 
-            if (!iepFile) {
-                showUploadInlineError('Please choose an IEP file to upload.');
-                return;
-            }
-            if (!evalFile) {
-                showUploadInlineError('Please choose an Evaluation/Assessment file to upload.');
-                return;
-            }
+            if (!iepFile) { showUploadInlineError('Please choose an IEP file to upload.'); return; }
+            if (!evalFile) { showUploadInlineError('Please choose an Evaluation/Assessment file to upload.'); return; }
             if (!isAllowedUpload(iepFile)) {
                 showUploadInlineError('IEP file type not allowed. Please use PDF, JPG, PNG, or HEIC.');
                 return;
@@ -1050,13 +680,10 @@
                 return;
             }
             if (!uploadAuthToken) {
-                showUploadInlineError('Your upload session has expired. Please reload this page and sign the consent again.');
+                showUploadInlineError('This upload link is missing its token. Please use the link from your email.');
                 return;
             }
 
-            // Process serially (IEP first, then Evaluation) so a failure in
-            // either has a clear, file-specific error message rather than a
-            // mystery "one of two" error.
             try {
                 setUploadBusy(true, 'Uploading IEP...');
                 showUploadSuccess('Uploading IEP...');
@@ -1066,9 +693,7 @@
                 showUploadSuccess('Uploading Evaluation...');
                 await uploadOneDocument('evaluation', evalFile, 'Evaluation');
 
-                showUploadSuccess('Documents received. Mahalo! You can close this page.');
-                uploadBtn.disabled = true;
-                uploadBtn.textContent = 'Documents received';
+                showMessage('Mahalo!', 'Your documents have been received. You can close this page.');
             } catch (err) {
                 console.error('Upload failed:', err);
                 showUploadInlineError((err && err.message) ? err.message : 'Upload failed. Please try again.');
@@ -1076,52 +701,6 @@
             }
         }
         uploadBtn.addEventListener('click', handleUploadSubmit);
-
-        // "I'll upload later" — fire-and-show email with a magic link to the
-        // standalone upload page, so the parent can upload from any device
-        // when they're ready. Falls back to a clear error if the CF call
-        // fails so the parent has a path forward (reply-to-the-email).
-        async function handleUploadLater() {
-            // Hide the upload card and show an inline "Sending email…" state.
-            uploadCard.style.display = 'none';
-            messageTitle.textContent = 'Sending you the upload link...';
-            messageBody.innerHTML = '<div class="loading-spinner" style="margin-bottom:1rem;"></div>' +
-                'One moment — we\'re emailing you a secure link to upload your documents later.';
-            messageCard.style.display = 'block';
-
-            if (!uploadAuthToken) {
-                showMessage('Upload session expired',
-                    "Your upload link has expired. Please contact <a href='mailto:lkailiawa@ldahawaii.org'>lkailiawa@ldahawaii.org</a> and we'll send a fresh link.");
-                return;
-            }
-
-            try {
-                const res = await fetch(ENDPOINT_UPLOAD_LATER_EMAIL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ uploadAuthToken: uploadAuthToken })
-                });
-                if (!res.ok) {
-                    let detail = '';
-                    try { const j = await res.json(); detail = j && j.error ? j.error : ''; } catch (_) {}
-                    console.error('upload-later email failed:', res.status, detail);
-                    showMessage("We couldn't send the upload link",
-                        "Please try again, or reply to your consent confirmation email to send your documents directly to LDAH.");
-                    return;
-                }
-                showMessage('Mahalo — check your email',
-                    "We've sent you an email with a link to upload your documents. <strong>Please upload as soon as possible</strong> &mdash; LDAH staff needs several days before your session to review them.");
-            } catch (err) {
-                console.error('upload-later fetch failed:', err);
-                showMessage("We couldn't send the upload link",
-                    "Please check your connection and try again, or reply to your consent confirmation email to send your documents directly to LDAH.");
-            }
-        }
-        skipUploadLink.addEventListener('click', function(e) {
-            e.preventDefault();
-            handleUploadLater();
-        });
-        // ---------- End Upload Documents (Phase A) ----------
 
         async function loadFooter() {
             const footerContainer = document.getElementById('footer-container');
@@ -1139,12 +718,15 @@
         function init() {
             loadFooter();
             const params = new URLSearchParams(window.location.search);
-            token = params.get('token');
-            if (!token) {
-                showMessage('Invalid link', "This consent link is missing a token. Please check the link in your email or contact <a href='mailto:lkailiawa@ldahawaii.org'>lkailiawa@ldahawaii.org</a>.");
+            uploadAuthToken = params.get('upload');
+            if (!uploadAuthToken) {
+                showMessage('Invalid link',
+                    "This upload link is missing a token. Please use the link from your email or contact <a href='mailto:lkailiawa@ldahawaii.org'>lkailiawa@ldahawaii.org</a>.");
                 return;
             }
-            loadConsentContext();
+            // No server-side validation here — the request/confirm CFs will
+            // reject an invalid or expired token with a 401, which the upload
+            // handler surfaces to the parent as a clear "link expired" error.
         }
 
         if (document.readyState === 'loading') {
