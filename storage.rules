@@ -81,6 +81,17 @@ service firebase.storage {
       allow write: if request.auth != null;
     }
 
+    // Connect-Gen confidential documents (IEP + Evaluation).
+    // Highly sensitive: read restricted to LDAH admin staff only.
+    // Writes go through CF-minted resumable upload session URIs which
+    // use the App Engine SA's bucket-level credentials and bypass these
+    // rules; user-token writes are forbidden by design.
+    match /connectGen/{eventId}/{signupId}/{file=**} {
+      allow read: if request.auth != null
+        && firestore.get(/databases/(default)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin', 'admin'];
+      allow write: if false;
+    }
+
     // Logos uploaded by anonymous applicants from become-partner.html.
     // Public read so admins can display the logo while reviewing the
     // application. Public create-only with strict size + MIME constraints

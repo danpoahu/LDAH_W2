@@ -6567,6 +6567,17 @@ exports.submitConnectGenConsent = functions
       // confirms them), but for Connect-Gen the registration form leaves the
       // signup at 'pending' until this moment.
       const _statusUpdate = (s.status === "pending") ? { status: "confirmed" } : {};
+
+      // Phase B: mint an uploadAuthToken so the upload step (which runs after
+      // we've deleted the original consentToken) has its own short-lived
+      // credential. 7-day window — long enough for a parent who picks
+      // "I'll upload later" but short enough to avoid stale credentials
+      // sitting around forever. 24 random bytes vs. 16 for consentToken so
+      // the two are visibly distinct in logs/Firestore.
+      const uploadAuthToken = crypto.randomBytes(24).toString("hex");
+      const uploadExpiryDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      const uploadAuthExpiresAt = admin.firestore.Timestamp.fromDate(uploadExpiryDate);
+
       await doc.ref.update({
         consentSignedAt: FieldValue.serverTimestamp(),
         consentSignedName: typedName,
@@ -6574,6 +6585,8 @@ exports.submitConnectGenConsent = functions
         consentVersion: CONSENT_TEXT_VERSION,
         consentSignedIp: ip,
         consentToken: FieldValue.delete(),
+        uploadAuthToken,
+        uploadAuthExpiresAt,
         ..._statusUpdate,
       });
 
@@ -6642,9 +6655,257 @@ exports.submitConnectGenConsent = functions
         console.error("Prep-docs email failed (consent saved):", e.message);
       }
 
-      res.status(200).json({ ok: true });
+      // Phase B: return the uploadAuthToken so the consent page can hand it
+      // straight to requestConnectGenUploadUrl / confirmConnectGenUpload
+      // without the parent needing to authenticate again. Existing clients
+      // that ignore these extra fields keep working unchanged.
+      res.status(200).json({
+        ok: true,
+        uploadAuthToken,
+        uploadAuthExpiresAt: uploadExpiryDate.toISOString(),
+      });
     } catch (err) {
       console.error("submitConnectGenConsent error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+// ---------- Connect-Gen secure document upload (Phase B) ----------
+//
+// Three-step signed-Storage-URL pattern, picked over a single CF body-upload
+// because the CF onRequest body limit is ~10 MB and parents send 25 MB IEPs.
+//
+//   1. submitConnectGenConsent  -> mints + returns uploadAuthToken (above)
+//   2. requestConnectGenUploadUrl -> validates and returns a 10-minute
+//      signed PUT URL pointing at connectGen/{eventId}/{signupId}/...
+//   3. confirmConnectGenUpload  -> verifies the file landed in Storage,
+//      records connectGenDocuments.{iep|evaluation} on the signup, writes
+//      an audit-log entry, and best-effort deletes any prior version.
+//
+// The signed-URL approach means the bytes flow Browser -> Storage directly,
+// never crossing the Cloud Function. Firebase-admin's Storage SDK has v4
+// signed-URL support built in; no new npm dependency required.
+
+// Allowed mime types + matching file extensions for IEP / Evaluation docs.
+// Tight allowlist — anything else is rejected. HEIC/HEIF cover iPhone camera
+// captures so a parent can photograph the printed IEP without converting.
+const CONNECT_GEN_UPLOAD_MIME_EXT = {
+  "application/pdf": "pdf",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/heic": "heic",
+  "image/heif": "heif",
+};
+const CONNECT_GEN_UPLOAD_MAX_BYTES = 25 * 1024 * 1024; // 25 MB
+
+// Look up the active signup by uploadAuthToken AND verify the token hasn't
+// expired. Returns { doc, signup } or null.
+async function _findConnectGenSignupByUploadToken(db, token) {
+  const snap = await db.collectionGroup("signups")
+    .where("uploadAuthToken", "==", token)
+    .limit(1).get();
+  if (snap.empty) return null;
+  const doc = snap.docs[0];
+  const s = doc.data() || {};
+  const expiresAt = s.uploadAuthExpiresAt;
+  if (!expiresAt || typeof expiresAt.toDate !== "function") return null;
+  if (expiresAt.toDate().getTime() <= Date.now()) return null;
+  return { doc, signup: s };
+}
+
+// Returns true if any candidate session date is today (HST) or in the future.
+// Daniel's "pre-event only" rule — once the event has passed we shouldn't be
+// accepting fresh confidential documents through this flow.
+function _connectGenEventStillUpcoming(event, signup) {
+  const candidateKeys = new Set(extractEventCandidateDateKeys(event));
+  for (const k of extractSignupSessionKeys(signup)) candidateKeys.add(k);
+  if (candidateKeys.size === 0) return true; // no parseable date -> don't block
+  const todayKey = toHstDateKey(new Date());
+  for (const key of candidateKeys) {
+    if (key && key >= todayKey) return true;
+  }
+  return false;
+}
+
+// Step 2: parent picked their files; mint a 10-minute signed PUT URL the
+// browser can write directly to Cloud Storage with.
+exports.requestConnectGenUploadUrl = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const uploadAuthToken = (body.uploadAuthToken || "").toString().trim();
+    const documentType = (body.documentType || "").toString().trim();
+    const mimeType = (body.mimeType || "").toString().trim();
+    const sizeBytes = Number(body.sizeBytes);
+    const originalFilename = (body.originalFilename || "").toString().trim();
+
+    if (!uploadAuthToken) { res.status(400).json({ error: "Missing uploadAuthToken" }); return; }
+    if (documentType !== "iep" && documentType !== "evaluation") {
+      res.status(400).json({ error: "documentType must be 'iep' or 'evaluation'" }); return;
+    }
+    const ext = CONNECT_GEN_UPLOAD_MIME_EXT[mimeType];
+    if (!ext) {
+      res.status(400).json({ error: "File type not allowed. Please use PDF, JPG, PNG, or HEIC." }); return;
+    }
+    if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
+      res.status(400).json({ error: "Invalid file size." }); return;
+    }
+    if (sizeBytes > CONNECT_GEN_UPLOAD_MAX_BYTES) {
+      res.status(400).json({ error: "File is larger than 25 MB. Please choose a smaller file." }); return;
+    }
+    if (!originalFilename) {
+      res.status(400).json({ error: "Missing originalFilename" }); return;
+    }
+
+    try {
+      const db = admin.firestore();
+      const found = await _findConnectGenSignupByUploadToken(db, uploadAuthToken);
+      if (!found) {
+        res.status(401).json({ error: "Upload link has expired or is no longer valid. Please contact LDAH for a new consent link." }); return;
+      }
+      const { doc, signup } = found;
+      const eventId = doc.ref.parent.parent.id;
+      const signupId = doc.id;
+
+      // Pre-event-only gate: refuse new uploads once every session is past.
+      const collection = doc.ref.parent.parent.parent.id;
+      const eventSnap = await db.collection(collection).doc(eventId).get();
+      const event = eventSnap.exists ? (eventSnap.data() || {}) : {};
+      if (!_connectGenEventStillUpcoming(event, signup)) {
+        res.status(400).json({ error: "Your session has already passed. Please contact LDAH directly to share your documents." }); return;
+      }
+
+      const ts = Date.now();
+      const storagePath = `connectGen/${eventId}/${signupId}/${documentType}-${ts}.${ext}`;
+      // Explicitly target the correct bucket name. The default bucket on
+      // this project was migrated to the new firebasestorage.app naming;
+      // the old appspot.com name no longer resolves.
+      const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
+      console.log("requestConnectGenUploadUrl: bucket=", bucket.name, "path=", storagePath);
+      // Use a resumable-upload session URI instead of a V4 signed URL.
+      // Resumable sessions use the SA's regular Storage write permission
+      // (which the App Engine default SA has) and bypass the IAM-signing
+      // dance that V4 signed URLs require. The session URI is single-use,
+      // tied to the specific path, and expires automatically.
+      const [uploadUrl] = await bucket.file(storagePath).createResumableUpload({
+        origin: "https://www.ldahawaii.org",
+        metadata: { contentType: mimeType },
+      });
+
+      res.status(200).json({ ok: true, uploadUrl, storagePath });
+    } catch (err) {
+      console.error("requestConnectGenUploadUrl error:",
+        "msg=", err.message,
+        "code=", err.code,
+        "details=", err.details,
+        "errors=", JSON.stringify(err.errors || []),
+        "stack=", (err.stack || "").split("\n").slice(0, 5).join(" | ")
+      );
+      res.status(500).json({ error: err.message || ("FAILED_PRECONDITION code=" + err.code) });
+    }
+  });
+
+// Step 3: browser PUT'd the file at the signed URL; record it on the signup.
+exports.confirmConnectGenUpload = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const uploadAuthToken = (body.uploadAuthToken || "").toString().trim();
+    const documentType = (body.documentType || "").toString().trim();
+    const storagePath = (body.storagePath || "").toString().trim();
+    const originalFilename = (body.originalFilename || "").toString().trim();
+    const sizeBytes = Number(body.sizeBytes);
+    const mimeType = (body.mimeType || "").toString().trim();
+
+    if (!uploadAuthToken) { res.status(400).json({ error: "Missing uploadAuthToken" }); return; }
+    if (documentType !== "iep" && documentType !== "evaluation") {
+      res.status(400).json({ error: "documentType must be 'iep' or 'evaluation'" }); return;
+    }
+    if (!storagePath) { res.status(400).json({ error: "Missing storagePath" }); return; }
+    if (!originalFilename) { res.status(400).json({ error: "Missing originalFilename" }); return; }
+    if (!CONNECT_GEN_UPLOAD_MIME_EXT[mimeType]) {
+      res.status(400).json({ error: "File type not allowed." }); return;
+    }
+    if (!Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > CONNECT_GEN_UPLOAD_MAX_BYTES) {
+      res.status(400).json({ error: "Invalid file size." }); return;
+    }
+
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const found = await _findConnectGenSignupByUploadToken(db, uploadAuthToken);
+      if (!found) {
+        res.status(401).json({ error: "Upload link has expired or is no longer valid." }); return;
+      }
+      const { doc, signup } = found;
+      const eventId = doc.ref.parent.parent.id;
+      const signupId = doc.id;
+
+      // Path scoping — never let a confirm call attribute a file in someone
+      // else's signup folder to this signup. The signed URL minted in step 2
+      // also enforces this on the Storage side, but we re-check here so a
+      // tampered confirm body can't write a bad path on the signup doc.
+      const expectedPrefix = `connectGen/${eventId}/${signupId}/`;
+      if (!storagePath.startsWith(expectedPrefix)) {
+        res.status(400).json({ error: "Storage path does not belong to this signup." }); return;
+      }
+
+      const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
+      const [exists] = await bucket.file(storagePath).exists();
+      if (!exists) {
+        res.status(400).json({ error: "Upload not found in storage. Please try again." }); return;
+      }
+
+      // Best-effort: if a prior version of this same documentType is on file,
+      // delete its bytes from Storage now that the new one has landed. We
+      // intentionally swallow errors — the new pointer is what matters.
+      const existingDocs = (signup.connectGenDocuments && typeof signup.connectGenDocuments === "object")
+        ? signup.connectGenDocuments : {};
+      const prior = existingDocs[documentType];
+      if (prior && prior.storagePath && prior.storagePath !== storagePath) {
+        try { await bucket.file(prior.storagePath).delete(); }
+        catch (e) { console.warn("Prior Connect-Gen doc cleanup failed (non-fatal):", e.message); }
+      }
+
+      const updatedDocs = Object.assign({}, existingDocs, {
+        [documentType]: {
+          storagePath,
+          originalFilename,
+          sizeBytes,
+          mimeType,
+          uploadedAt: FieldValue.serverTimestamp(),
+        },
+      });
+      await doc.ref.update({ connectGenDocuments: updatedDocs });
+
+      // Audit log — matches the existing pattern (auditLog.add with action +
+      // details + performedBy + timestamp), so the daily-report changelog
+      // picks it up automatically. No new collection or schema.
+      try {
+        await db.collection("auditLog").add({
+          action: "Connect-Gen document uploaded",
+          details: documentType + ": " + originalFilename + " (" + sizeBytes + " bytes)",
+          performedBy: signup.email || "system",
+          timestamp: FieldValue.serverTimestamp(),
+          signupPath: doc.ref.path,
+        });
+      } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+      res.status(200).json({ ok: true });
+    } catch (err) {
+      console.error("confirmConnectGenUpload error:", err.message);
       res.status(500).json({ error: err.message });
     }
   });
