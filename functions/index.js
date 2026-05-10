@@ -1010,12 +1010,13 @@ function formatDatesPhrase(sessionKeys) {
     if (!m) return null;
     const dt = new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
     if (isNaN(dt.getTime())) return null;
+    const weekday = dt.toLocaleDateString("en-US", { weekday: "long" });
     const month = dt.toLocaleDateString("en-US", { month: "long" });
     const day = dt.getDate();
     const ord = (day >= 11 && day <= 13)
       ? "th"
       : ({ 1: "st", 2: "nd", 3: "rd" }[day % 10] || "th");
-    return `${month} ${day}${ord}`;
+    return `${weekday}, ${month} ${day}${ord}`;
   }).filter(Boolean);
   if (labels.length === 0) return "";
   if (labels.length === 1) return `, on ${labels[0]}`;
@@ -6428,7 +6429,7 @@ function buildConsentRequiredEmailHtml({ name, eventTitle, datesPhrase, consentU
     '<h1 style="margin:0;font-size:22px;font-weight:700">Action Required</h1></div>' +
     '<div style="padding:32px 24px">' +
     '<p style="margin:0 0 16px;font-size:16px">Aloha ' + safeName + ',</p>' +
-    '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Mahalo for signing up for <strong>' + safeTitle + '</strong>' + (safeDates ? ' on <strong>' + safeDates + '</strong>' : '') + '. Before we can confirm your appointment, we need a signed consent form on file.</p>' +
+    '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Mahalo for signing up for <strong>' + safeTitle + '</strong>' + (safeDates ? '<strong>' + safeDates + '</strong>' : '') + '. Before we can confirm your appointment, we need a signed consent form on file.</p>' +
     '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">The consent gives LDAH permission to view and discuss your child\'s confidential documents (IEP and Evaluation/Assessment) during the session. Please read it carefully and sign by clicking the button below.</p>' +
     '<p style="text-align:center;margin:32px 0">' +
     _emailBtn(consentUrl, "Read & Sign the Consent Form", { bg: "#0891B2" }) +
@@ -6441,19 +6442,27 @@ function buildConsentRequiredEmailHtml({ name, eventTitle, datesPhrase, consentU
     '</div></div></body></html>';
 }
 
-function buildConnectGenPrepEmailHtml({ name, eventTitle, datesPhrase, prepDocs, signatureHtml, donateHtml }) {
+function buildConnectGenPrepEmailHtml({ name, eventTitle, datesPhrase, prepDocs, signatureHtml, donateHtml, modality, locationLine }) {
   const safeName = lifecycleEsc(name || "there");
   const safeTitle = lifecycleEsc(eventTitle || "Connect-Gen");
   const safeDates = lifecycleEsc(datesPhrase || "");
+  const safeLocation = lifecycleEsc(locationLine || "");
 
-  // Zoom link is intentionally NOT included here — the prep email goes out
-  // as soon as consent is signed, which can be weeks before the session.
-  // The Zoom link reaches the parent in the 3-day + day-of reminder emails
-  // (sendEventReminders + sendDayOfReminders), matching every other event flow.
-  const zoomNoteBlock =
+  // Conditional session-detail block: virtual sessions get the Zoom note
+  // (the Zoom link itself arrives in the 3-day + day-of reminder emails);
+  // in-person sessions get the meeting location. Mixed signups get both.
+  const zoomNote =
     '<div style="background:#F0F9FF;border:1px solid #BAE6FD;border-radius:10px;padding:14px 18px;margin:16px 0;font-size:.92rem;color:#0C4A6E;line-height:1.5;">' +
       '<strong>Zoom details:</strong> we\'ll send you the Zoom link in our reminder emails — once 3 days before the session and again on the day of the session, so it\'s easy to find when you need it.' +
     '</div>';
+  const inPersonNote =
+    '<div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:14px 18px;margin:16px 0;font-size:.92rem;color:#14532D;line-height:1.5;">' +
+      '<strong>Location:</strong> Please join us in person at <strong>' + (safeLocation || 'the LDAH office') + '</strong>. We\'ll send a reminder with everything you need 3 days before the session and again on the day of.' +
+    '</div>';
+  let zoomNoteBlock;
+  if (modality === "in-person") zoomNoteBlock = inPersonNote;
+  else if (modality === "mixed") zoomNoteBlock = inPersonNote + zoomNote;
+  else zoomNoteBlock = zoomNote; // virtual (default)
 
   let docsHtml = '';
   if (prepDocs && prepDocs.length) {
@@ -6476,7 +6485,7 @@ function buildConnectGenPrepEmailHtml({ name, eventTitle, datesPhrase, prepDocs,
     '<h1 style="margin:0;font-size:22px;font-weight:700">You\'re Confirmed</h1></div>' +
     '<div style="padding:32px 24px">' +
     '<p style="margin:0 0 16px;font-size:16px">Aloha ' + safeName + ',</p>' +
-    '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Mahalo for returning your signed consent. Your appointment for <strong>' + safeTitle + '</strong>' + (safeDates ? ' on <strong>' + safeDates + '</strong>' : '') + ' is confirmed.</p>' +
+    '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Mahalo for returning your signed consent. Your appointment for <strong>' + safeTitle + '</strong>' + (safeDates ? '<strong>' + safeDates + '</strong>' : '') + ' is confirmed.</p>' +
     '<div style="background:#FFFBEB;border:2px solid #F59E0B;border-radius:10px;padding:14px 18px;margin:18px 0;">' +
       '<div style="font-weight:700;color:#92400E;font-size:1rem;margin-bottom:4px;">Important — please bring to the session</div>' +
       '<div style="font-size:.95rem;color:#78350F;line-height:1.5;">Your child\'s most current <strong>IEP</strong> and the <strong>Evaluation that created the IEP</strong>. We won\'t be able to do a meaningful review without both of these on hand.</div>' +
@@ -6626,6 +6635,25 @@ exports.submitConnectGenConsent = functions
 
         const sessionKeys = extractSignupSessionKeys(s);
         const datesPhrase = formatDatesPhrase(sessionKeys);
+        const modality = detectSignupModality(s, event);
+        // Collect every distinct non-virtual location from the signup.
+        // Connect-Gen meets at three separate physical locations (Oahu,
+        // Hilo, Kona) plus virtual Mondays, so a parent who signed up
+        // for sessions on multiple islands should see all of them
+        // listed, not just the first.
+        const sel = Array.isArray(s.selectedSessions) ? s.selectedSessions : [];
+        const locationSet = new Set();
+        for (const x of sel) {
+          const loc = (String(x).split("|")[1] || "").trim();
+          if (loc && !/\b(zoom|virtual|online|webinar)\b/i.test(loc)) {
+            locationSet.add(loc);
+          }
+        }
+        const locArr = Array.from(locationSet);
+        const locationLine = locArr.length === 0 ? ""
+          : locArr.length === 1 ? locArr[0]
+          : locArr.length === 2 ? locArr.join(" and ")
+          : locArr.slice(0, -1).join(", ") + ", and " + locArr[locArr.length - 1];
         const signatureHtml = await buildSignatureBlock('eventCoordinator');
         const donateHtml = await buildDonateBlock('universal');
         const html = buildConnectGenPrepEmailHtml({
@@ -6635,6 +6663,8 @@ exports.submitConnectGenConsent = functions
           prepDocs,
           signatureHtml,
           donateHtml,
+          modality,
+          locationLine,
         });
 
         const fromAddress = lifecycleFromAddress();
