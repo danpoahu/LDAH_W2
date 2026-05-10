@@ -665,6 +665,8 @@
     <script>
         const ENDPOINT_GET  = 'https://us-central1-ldah-932d5.cloudfunctions.net/getConnectGenConsent';
         const ENDPOINT_POST = 'https://us-central1-ldah-932d5.cloudfunctions.net/submitConnectGenConsent';
+        const ENDPOINT_REQUEST_UPLOAD = 'https://us-central1-ldah-932d5.cloudfunctions.net/requestConnectGenUploadUrl';
+        const ENDPOINT_CONFIRM_UPLOAD = 'https://us-central1-ldah-932d5.cloudfunctions.net/confirmConnectGenUpload';
 
         // Element refs
         const loadingCard = document.getElementById('loadingCard');
@@ -701,6 +703,9 @@
         const ALLOWED_UPLOAD_EXT = ['.pdf', '.jpg', '.jpeg', '.png', '.heic', '.heif'];
 
         let token = null;
+        // Phase B: minted by submitConnectGenConsent and reused by the
+        // requestConnectGenUploadUrl + confirmConnectGenUpload calls.
+        let uploadAuthToken = null;
 
         function showOnly(el) {
             loadingCard.style.display = 'none';
@@ -810,7 +815,16 @@
                     setBusy(false);
                     return;
                 }
-                // Consent saved — reveal the Upload Documents UI (Phase A).
+                // Capture the uploadAuthToken minted server-side. The original
+                // consentToken is now deleted, so this is the credential the
+                // upload-URL + confirm calls use to find the signup.
+                try {
+                    const data = await res.json();
+                    if (data && data.uploadAuthToken) {
+                        uploadAuthToken = data.uploadAuthToken;
+                    }
+                } catch (_) {}
+                // Consent saved — reveal the Upload Documents UI.
                 // Parents can either upload now or use the "I'll upload later"
                 // link, which falls back to the original thank-you message.
                 showOnly(uploadCard);
@@ -895,7 +909,97 @@
         wireFilePicker(iepFileEl, iepPickerEl, iepNameEl, iepSizeEl);
         wireFilePicker(evalFileEl, evalPickerEl, evalNameEl, evalSizeEl);
 
-        function handleUploadSubmit() {
+        // Map a picked File to the canonical mimeType the CF expects. Browsers
+        // sometimes leave file.type empty (especially for HEIC/HEIF on older
+        // Safari), so fall back to extension-based detection.
+        function resolveUploadMime(file) {
+            const t = (file && file.type ? String(file.type) : '').toLowerCase();
+            if (t === 'application/pdf' || t === 'image/jpeg' || t === 'image/png' ||
+                t === 'image/heic' || t === 'image/heif') {
+                return t;
+            }
+            const ext = getFileExt(file && file.name);
+            if (ext === '.pdf') return 'application/pdf';
+            if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
+            if (ext === '.png') return 'image/png';
+            if (ext === '.heic') return 'image/heic';
+            if (ext === '.heif') return 'image/heif';
+            return '';
+        }
+
+        // Run the 3-step upload flow for a single file: request signed URL ->
+        // PUT bytes to Storage -> confirm to record the upload on the signup.
+        async function uploadOneDocument(documentType, file, label) {
+            const mimeType = resolveUploadMime(file);
+            if (!mimeType) {
+                throw new Error(label + ' file type not recognized. Please use PDF, JPG, PNG, or HEIC.');
+            }
+
+            // Step 1: ask the CF for a signed PUT URL.
+            const reqRes = await fetch(ENDPOINT_REQUEST_UPLOAD, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    uploadAuthToken: uploadAuthToken,
+                    documentType: documentType,
+                    mimeType: mimeType,
+                    sizeBytes: file.size,
+                    originalFilename: file.name
+                })
+            });
+            if (!reqRes.ok) {
+                let detail = '';
+                try { const j = await reqRes.json(); detail = j && j.error ? j.error : ''; } catch (_) {}
+                throw new Error(detail || ('We couldn\'t prepare the ' + label + ' upload. Please try again.'));
+            }
+            const reqJson = await reqRes.json();
+            if (!reqJson || !reqJson.uploadUrl || !reqJson.storagePath) {
+                throw new Error('We couldn\'t prepare the ' + label + ' upload. Please try again.');
+            }
+
+            // Step 2: PUT the file bytes directly to Cloud Storage. The signed
+            // URL has the contentType baked in, so the header MUST match what
+            // we sent in step 1 or Storage will reject the request.
+            const putRes = await fetch(reqJson.uploadUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': mimeType },
+                body: file
+            });
+            if (!putRes.ok) {
+                throw new Error('Upload of ' + label + ' failed (' + putRes.status + '). Please try again.');
+            }
+
+            // Step 3: tell the CF the upload landed; it verifies and records.
+            const confRes = await fetch(ENDPOINT_CONFIRM_UPLOAD, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    uploadAuthToken: uploadAuthToken,
+                    documentType: documentType,
+                    storagePath: reqJson.storagePath,
+                    originalFilename: file.name,
+                    sizeBytes: file.size,
+                    mimeType: mimeType
+                })
+            });
+            if (!confRes.ok) {
+                let detail = '';
+                try { const j = await confRes.json(); detail = j && j.error ? j.error : ''; } catch (_) {}
+                throw new Error(detail || ('We couldn\'t finalize the ' + label + ' upload. Please try again.'));
+            }
+        }
+
+        function setUploadBusy(busy, label) {
+            uploadBtn.disabled = busy;
+            if (busy) {
+                uploadBtn.dataset.origText = uploadBtn.dataset.origText || uploadBtn.textContent;
+                uploadBtn.textContent = label || 'Uploading...';
+            } else if (uploadBtn.dataset.origText) {
+                uploadBtn.textContent = uploadBtn.dataset.origText;
+            }
+        }
+
+        async function handleUploadSubmit() {
             clearUploadInlineError();
             const iepFile = iepFileEl.files && iepFileEl.files[0];
             const evalFile = evalFileEl.files && evalFileEl.files[0];
@@ -924,17 +1028,31 @@
                 showUploadInlineError('Evaluation file is larger than 25 MB. Please choose a smaller file.');
                 return;
             }
+            if (!uploadAuthToken) {
+                showUploadInlineError('Your upload session has expired. Please reload this page and sign the consent again.');
+                return;
+            }
 
-            // PHASE A STUB — Phase B replaces with real CF call to uploadConnectGenDocument
-            console.log('[Phase A stub] Would upload IEP:', {
-                name: iepFile.name, size: iepFile.size, type: iepFile.type
-            });
-            console.log('[Phase A stub] Would upload Evaluation:', {
-                name: evalFile.name, size: evalFile.size, type: evalFile.type
-            });
-            showUploadSuccess('Documents received (Phase A stub — Phase B wires the real upload). You can close this page.');
-            uploadBtn.disabled = true;
-            uploadBtn.textContent = 'Documents received';
+            // Process serially (IEP first, then Evaluation) so a failure in
+            // either has a clear, file-specific error message rather than a
+            // mystery "one of two" error.
+            try {
+                setUploadBusy(true, 'Uploading IEP...');
+                showUploadSuccess('Uploading IEP...');
+                await uploadOneDocument('iep', iepFile, 'IEP');
+
+                setUploadBusy(true, 'Uploading Evaluation...');
+                showUploadSuccess('Uploading Evaluation...');
+                await uploadOneDocument('evaluation', evalFile, 'Evaluation');
+
+                showUploadSuccess('Documents received. Mahalo! You can close this page.');
+                uploadBtn.disabled = true;
+                uploadBtn.textContent = 'Documents received';
+            } catch (err) {
+                console.error('Upload failed:', err);
+                showUploadInlineError((err && err.message) ? err.message : 'Upload failed. Please try again.');
+                setUploadBusy(false);
+            }
         }
         uploadBtn.addEventListener('click', handleUploadSubmit);
 
