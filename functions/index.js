@@ -2,6 +2,7 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const Anthropic = require("@anthropic-ai/sdk");
 const crypto = require("crypto");
+const heicConvert = require("heic-convert");
 // nodemailer removed — Firebase 1st Gen blocks outbound SMTP (port 465/587).
 // Using Resend HTTP API instead (HTTPS on port 443, always allowed).
 
@@ -6813,7 +6814,7 @@ exports.requestConnectGenUploadUrl = functions
 
 // Step 3: browser PUT'd the file at the signed URL; record it on the signup.
 exports.confirmConnectGenUpload = functions
-  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .runWith({ memory: "512MB", timeoutSeconds: 120, maxInstances: 10 })
   .https.onRequest(async (req, res) => {
     res.set("Access-Control-Allow-Origin", "*");
     res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -6824,10 +6825,10 @@ exports.confirmConnectGenUpload = functions
     const body = req.body || {};
     const uploadAuthToken = (body.uploadAuthToken || "").toString().trim();
     const documentType = (body.documentType || "").toString().trim();
-    const storagePath = (body.storagePath || "").toString().trim();
-    const originalFilename = (body.originalFilename || "").toString().trim();
-    const sizeBytes = Number(body.sizeBytes);
-    const mimeType = (body.mimeType || "").toString().trim();
+    let storagePath = (body.storagePath || "").toString().trim();
+    let originalFilename = (body.originalFilename || "").toString().trim();
+    let sizeBytes = Number(body.sizeBytes);
+    let mimeType = (body.mimeType || "").toString().trim();
 
     if (!uploadAuthToken) { res.status(400).json({ error: "Missing uploadAuthToken" }); return; }
     if (documentType !== "iep" && documentType !== "evaluation") {
@@ -6868,6 +6869,40 @@ exports.confirmConnectGenUpload = functions
         res.status(400).json({ error: "Upload not found in storage. Please try again." }); return;
       }
 
+      // Inline HEIC/HEIF -> JPG conversion. iPhone uploads land as HEIC,
+      // which most browsers won't render inline. Staff need to view these
+      // in the document review modal, so we convert at confirm-time and
+      // rewrite storagePath/mimeType/sizeBytes before the metadata write.
+      // Conversion failures are non-fatal: we keep the original HEIC so the
+      // file is never lost, and the audit log notes the failure.
+      let convertedFromHeic = false;
+      let conversionError = null;
+      if (mimeType === "image/heic" || mimeType === "image/heif") {
+        try {
+          const [heicBuffer] = await bucket.file(storagePath).download();
+          const jpgBuffer = await heicConvert({
+            buffer: heicBuffer,
+            format: "JPEG",
+            quality: 0.85,
+          });
+          const newPath = storagePath.replace(/\.(heic|heif)$/i, ".jpg");
+          await bucket.file(newPath).save(jpgBuffer, {
+            metadata: { contentType: "image/jpeg" },
+            resumable: false,
+          });
+          const originalPath = storagePath;
+          await bucket.file(originalPath).delete().catch(() => {});
+          storagePath = newPath;
+          mimeType = "image/jpeg";
+          originalFilename = originalFilename.replace(/\.(heic|heif)$/i, ".jpg");
+          sizeBytes = jpgBuffer.length;
+          convertedFromHeic = true;
+        } catch (convErr) {
+          console.error("HEIC conversion failed (keeping original):", convErr.message);
+          conversionError = convErr.message;
+        }
+      }
+
       // Best-effort: if a prior version of this same documentType is on file,
       // delete its bytes from Storage now that the new one has landed. We
       // intentionally swallow errors — the new pointer is what matters.
@@ -6894,9 +6929,15 @@ exports.confirmConnectGenUpload = functions
       // details + performedBy + timestamp), so the daily-report changelog
       // picks it up automatically. No new collection or schema.
       try {
+        let details = documentType + ": " + originalFilename + " (" + sizeBytes + " bytes)";
+        if (convertedFromHeic) {
+          details += " (converted from HEIC)";
+        } else if (conversionError) {
+          details += " (HEIC conversion failed: " + conversionError + ")";
+        }
         await db.collection("auditLog").add({
           action: "Connect-Gen document uploaded",
-          details: documentType + ": " + originalFilename + " (" + sizeBytes + " bytes)",
+          details,
           performedBy: signup.email || "system",
           timestamp: FieldValue.serverTimestamp(),
           signupPath: doc.ref.path,
