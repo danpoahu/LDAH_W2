@@ -7555,3 +7555,337 @@ exports.onPledgeCreated = functions
     return null;
   });
 
+// ───────────────────────────────────────────────────────────────────────
+// Connect-Gen Phase D: staff-side document review CFs
+//
+// These complement Phase A-C (parent upload). They are POST endpoints
+// authenticated via a Firebase Auth ID token in the request body — the CF
+// verifies the token, looks up userRoles/{uid}, and enforces
+// admin/superAdmin only. All writes/deletes route through here so audit
+// logging is server-authoritative and Storage rules continue to block
+// direct client deletes.
+//
+//   - setConnectGenDisposition   : mark family as noSupport or caseAdvocacy.
+//                                  noSupport also destroys files immediately
+//                                  (consent: destroyed within 24h of session).
+//   - destroyConnectGenDocuments : manual destroy regardless of disposition.
+// ───────────────────────────────────────────────────────────────────────
+
+// Verify the ID token in the request body, then look up userRoles/{uid} and
+// confirm admin/superAdmin. Returns { uid, email, role, name } on success,
+// or throws an Error tagged with .statusCode = 401/403 for the caller.
+async function _verifyStaffIdToken(idTokenRaw) {
+  const idToken = String(idTokenRaw || "").trim();
+  if (!idToken) { const e = new Error("Missing idToken"); e.statusCode = 401; throw e; }
+  let decoded;
+  try {
+    decoded = await admin.auth().verifyIdToken(idToken);
+  } catch (err) {
+    const e = new Error("Invalid or expired idToken");
+    e.statusCode = 401;
+    throw e;
+  }
+  const uid = decoded.uid;
+  const roleSnap = await admin.firestore().collection("userRoles").doc(uid).get();
+  if (!roleSnap.exists) {
+    const e = new Error("No staff role on file for this user");
+    e.statusCode = 403;
+    throw e;
+  }
+  const data = roleSnap.data() || {};
+  const role = data.role || "";
+  if (role !== "admin" && role !== "superAdmin") {
+    const e = new Error("Admin only");
+    e.statusCode = 403;
+    throw e;
+  }
+  return {
+    uid,
+    email: decoded.email || data.email || "",
+    role,
+    name: data.name || decoded.name || decoded.email || uid,
+  };
+}
+
+// Best-effort delete of both Connect-Gen storage files referenced by the
+// signup's connectGenDocuments map. Swallows not-found errors. Returns the
+// list of paths actually deleted (for audit detail).
+async function _destroyConnectGenStorageFiles(connectGenDocuments) {
+  const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
+  const deleted = [];
+  const errors = [];
+  const docs = (connectGenDocuments && typeof connectGenDocuments === "object") ? connectGenDocuments : {};
+  for (const type of ["iep", "evaluation"]) {
+    const rec = docs[type];
+    if (!rec || !rec.storagePath) continue;
+    try {
+      await bucket.file(rec.storagePath).delete();
+      deleted.push(rec.storagePath);
+    } catch (err) {
+      // Treat "not found" as success — file may have been removed earlier.
+      if (err && (err.code === 404 || /no such object/i.test(err.message || ""))) {
+        deleted.push(rec.storagePath + " (already gone)");
+      } else {
+        errors.push(type + ": " + (err.message || String(err)));
+      }
+    }
+  }
+  return { deleted, errors };
+}
+
+// Resolve the signup doc, accepting either an explicit collection override
+// or defaulting to recurringEvents -> events. Connect-Gen lives at
+// recurringEvents/CmkPXEpPwfAQ5sR377K2/signups/{id} but we keep events/
+// support so a one-off Connect-Gen-style event could reuse this CF later.
+async function _findConnectGenSignupDoc(eventId, signupId, preferredCollection) {
+  const db = admin.firestore();
+  const order = preferredCollection === "events"
+    ? ["events", "recurringEvents"]
+    : ["recurringEvents", "events"];
+  for (const col of order) {
+    const ref = db.collection(col).doc(eventId).collection("signups").doc(signupId);
+    const snap = await ref.get();
+    if (snap.exists) return { ref, snap, collection: col };
+  }
+  return null;
+}
+
+exports.setConnectGenDisposition = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const eventId = String(body.eventId || "").trim();
+    const signupId = String(body.signupId || "").trim();
+    const disposition = String(body.disposition || "").trim();
+    const preferredCollection = String(body.collection || "").trim();
+
+    if (!eventId) { res.status(400).json({ error: "Missing eventId" }); return; }
+    if (!signupId) { res.status(400).json({ error: "Missing signupId" }); return; }
+    if (disposition !== "noSupport" && disposition !== "caseAdvocacy") {
+      res.status(400).json({ error: "disposition must be 'noSupport' or 'caseAdvocacy'" });
+      return;
+    }
+
+    let staff;
+    try {
+      staff = await _verifyStaffIdToken(body.idToken);
+    } catch (err) {
+      res.status(err.statusCode || 401).json({ error: err.message }); return;
+    }
+
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const found = await _findConnectGenSignupDoc(eventId, signupId, preferredCollection);
+      if (!found) { res.status(404).json({ error: "Signup not found" }); return; }
+      const { ref, snap } = found;
+      const signup = snap.data() || {};
+
+      const performedBy = staff.email || staff.name || staff.uid;
+      const updates = {
+        connectGenDisposition: disposition,
+        connectGenDispositionAt: FieldValue.serverTimestamp(),
+        connectGenDispositionBy: performedBy,
+      };
+
+      let destroyDetail = "";
+      if (disposition === "noSupport") {
+        // Same-day destroy per consent terms.
+        const result = await _destroyConnectGenStorageFiles(signup.connectGenDocuments);
+        destroyDetail = " — files deleted: " + (result.deleted.length || 0) +
+          (result.errors.length ? " (errors: " + result.errors.join("; ") + ")" : "");
+        updates.connectGenDocuments = FieldValue.delete();
+        updates.connectGenDocumentsDestroyedAt = FieldValue.serverTimestamp();
+        updates.connectGenDocumentsDestroyedBy = performedBy;
+        updates.connectGenDocumentsDestroyedReason = "disposition: No Additional Support";
+      }
+
+      await ref.update(updates);
+
+      const dispLabel = disposition === "noSupport"
+        ? "No Additional Support (documents destroyed)"
+        : "Case Advocacy (documents retained)";
+      try {
+        await db.collection("auditLog").add({
+          action: "Connect-Gen disposition: " + dispLabel,
+          details: (signup.name || signup.firstName || "(unknown)") +
+            " — signup " + signupId + destroyDetail,
+          performedBy,
+          performedByRole: staff.role,
+          timestamp: FieldValue.serverTimestamp(),
+          signupPath: ref.path,
+        });
+      } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+      res.status(200).json({ ok: true });
+    } catch (err) {
+      console.error("setConnectGenDisposition error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+exports.destroyConnectGenDocuments = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const eventId = String(body.eventId || "").trim();
+    const signupId = String(body.signupId || "").trim();
+    const reasonRaw = String(body.reason || "").trim();
+    const reason = reasonRaw || "manual destroy";
+    const preferredCollection = String(body.collection || "").trim();
+
+    if (!eventId) { res.status(400).json({ error: "Missing eventId" }); return; }
+    if (!signupId) { res.status(400).json({ error: "Missing signupId" }); return; }
+
+    let staff;
+    try {
+      staff = await _verifyStaffIdToken(body.idToken);
+    } catch (err) {
+      res.status(err.statusCode || 401).json({ error: err.message }); return;
+    }
+
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const found = await _findConnectGenSignupDoc(eventId, signupId, preferredCollection);
+      if (!found) { res.status(404).json({ error: "Signup not found" }); return; }
+      const { ref, snap } = found;
+      const signup = snap.data() || {};
+
+      const result = await _destroyConnectGenStorageFiles(signup.connectGenDocuments);
+      const performedBy = staff.email || staff.name || staff.uid;
+
+      await ref.update({
+        connectGenDocuments: FieldValue.delete(),
+        connectGenDocumentsDestroyedAt: FieldValue.serverTimestamp(),
+        connectGenDocumentsDestroyedBy: performedBy,
+        connectGenDocumentsDestroyedReason: reason,
+      });
+
+      try {
+        await db.collection("auditLog").add({
+          action: "Connect-Gen documents destroyed: " + reason,
+          details: (signup.name || signup.firstName || "(unknown)") +
+            " — signup " + signupId + " — files deleted: " + (result.deleted.length || 0) +
+            (result.errors.length ? " (errors: " + result.errors.join("; ") + ")" : ""),
+          performedBy,
+          performedByRole: staff.role,
+          timestamp: FieldValue.serverTimestamp(),
+          signupPath: ref.path,
+        });
+      } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+      res.status(200).json({ ok: true, deleted: result.deleted.length, errors: result.errors });
+    } catch (err) {
+      console.error("destroyConnectGenDocuments error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+// ───────────────────────────────────────────────────────────────────────
+// getConnectGenDocumentDownloadUrl
+// ───────────────────────────────────────────────────────────────────────
+// Returns a short-lived V4 signed READ URL for a Connect-Gen confidential
+// document (IEP or Evaluation). All staff document reads route through
+// this CF instead of client-side firebase.storage().getDownloadURL() so:
+//   1. Storage rules can keep `allow read: if false` (no client SDK reads).
+//   2. Every URL issuance is audit-logged with staff identity.
+//   3. Signed URLs expire in 10 minutes — easy to invalidate by policy.
+// V4 signing relies on the App Engine default SA having the
+// roles/iam.serviceAccountTokenCreator role on itself, plus the
+// iamcredentials.googleapis.com API enabled (both set up 2026-05-10).
+// ───────────────────────────────────────────────────────────────────────
+exports.getConnectGenDocumentDownloadUrl = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const eventId = String(body.eventId || "").trim();
+    const signupId = String(body.signupId || "").trim();
+    const documentType = String(body.documentType || "").trim();
+    const preferredCollection = String(body.collection || "").trim();
+
+    if (!eventId) { res.status(400).json({ error: "Missing eventId" }); return; }
+    if (!signupId) { res.status(400).json({ error: "Missing signupId" }); return; }
+    if (documentType !== "iep" && documentType !== "evaluation") {
+      res.status(400).json({ error: "documentType must be 'iep' or 'evaluation'" });
+      return;
+    }
+
+    let staff;
+    try {
+      staff = await _verifyStaffIdToken(body.idToken);
+    } catch (err) {
+      res.status(err.statusCode || 401).json({ error: err.message }); return;
+    }
+
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const found = await _findConnectGenSignupDoc(eventId, signupId, preferredCollection);
+      if (!found) { res.status(404).json({ error: "Signup not found" }); return; }
+      const { ref, snap } = found;
+      const signup = snap.data() || {};
+
+      const docs = (signup.connectGenDocuments && typeof signup.connectGenDocuments === "object")
+        ? signup.connectGenDocuments : {};
+      const rec = docs[documentType];
+      if (!rec || !rec.storagePath) {
+        res.status(404).json({ error: "Document not found on signup" });
+        return;
+      }
+      const storagePath = String(rec.storagePath || "");
+      const expectedPrefix = "connectGen/" + eventId + "/" + signupId + "/";
+      if (storagePath.indexOf(expectedPrefix) !== 0) {
+        // Defense-in-depth: the storagePath on the doc must live under the
+        // event/signup folder it claims to belong to. Refuse to sign any
+        // other path even if the caller is admin.
+        res.status(400).json({ error: "storagePath does not match event/signup folder" });
+        return;
+      }
+
+      const expiresAt = Date.now() + 10 * 60 * 1000;
+      const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
+      const [url] = await bucket.file(storagePath).getSignedUrl({
+        version: "v4",
+        action: "read",
+        expires: expiresAt,
+      });
+
+      const performedBy = staff.email || staff.name || staff.uid;
+      try {
+        await db.collection("auditLog").add({
+          action: "Connect-Gen document URL issued",
+          details: (signup.name || signup.firstName || "(unknown)") +
+            " — signup " + signupId + " — " + documentType + " — " + storagePath,
+          performedBy,
+          performedByRole: staff.role,
+          timestamp: FieldValue.serverTimestamp(),
+          signupPath: ref.path,
+        });
+      } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+      res.status(200).json({ ok: true, url, expiresAt });
+    } catch (err) {
+      console.error("getConnectGenDocumentDownloadUrl error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+

@@ -82,13 +82,12 @@ service firebase.storage {
     }
 
     // Connect-Gen confidential documents (IEP + Evaluation).
-    // Highly sensitive: read restricted to LDAH admin staff only.
-    // Writes go through CF-minted resumable upload session URIs which
-    // use the App Engine SA's bucket-level credentials and bypass these
-    // rules; user-token writes are forbidden by design.
+    // All reads go through CF-mediated V4 signed download URLs which the
+    // staff-side viewer requests via getConnectGenDocumentDownloadUrl.
+    // Direct user-token reads/writes are forbidden by design (the CF auths
+    // the staff role and audit-logs every URL issuance).
     match /connectGen/{eventId}/{signupId}/{file=**} {
-      allow read: if request.auth != null
-        && firestore.get(/databases/(default)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin', 'admin'];
+      allow read: if false;
       allow write: if false;
     }
 
