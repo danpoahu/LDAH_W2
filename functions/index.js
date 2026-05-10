@@ -6951,6 +6951,168 @@ exports.confirmConnectGenUpload = functions
     }
   });
 
+// ---------- Connect-Gen "I'll upload later" email ----------
+//
+// When the parent has signed the consent but isn't ready to upload yet, the
+// consent page POSTs the minted uploadAuthToken here and we email a magic
+// link to the standalone connect-gen-upload.html page. The link is valid
+// for the same window as the uploadAuthToken itself (7 days from consent).
+//
+// Phase F promotion: flip CONNECT_GEN_UPLOAD_BASE_URL below from the STAGE
+// path to the live path. No other code changes required.
+const CONNECT_GEN_UPLOAD_BASE_URL = "https://www.ldahawaii.org/STAGE/connect-gen-upload.html";
+
+function _buildConnectGenUploadLaterEmailHtml({ firstName, uploadUrl, expiresFormatted, signatureHtml }) {
+  const safeFirst = lifecycleEsc(firstName || "there");
+  const safeExpires = lifecycleEsc(expiresFormatted || "");
+  const btn = _emailBtn(uploadUrl, "Upload Documents", { bg: "#1a3c6e" });
+  const linkFooter = _emailLinkFooter([{ label: "Upload your documents", href: uploadUrl }]);
+  return [
+    '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f7;">',
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f4f4f7;padding:24px 0;">',
+    '<tr><td align="center">',
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">',
+    '<tr><td style="background:#1a3c6e;padding:18px 24px;">',
+    '<p style="margin:0;font-size:18px;color:#ffffff;font-weight:700;">Upload your Connect-Gen documents</p>',
+    '</td></tr>',
+    '<tr><td style="padding:24px;">',
+    '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">Aloha ' + safeFirst + ',</p>',
+    '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">',
+    'Mahalo for signing your Connect-Gen consent. When you\'re ready, please upload your child\'s most recent IEP and Evaluation using the secure link below:',
+    '</p>',
+    btn,
+    '<div style="background:#FFFBEB;border:1.5px solid #F59E0B;border-left:4px solid #D97706;border-radius:8px;padding:12px 16px;margin:18px 0;color:#78350F;font-size:14px;line-height:1.55;">',
+    '<strong style="color:#7C2D12;">Please upload as soon as possible.</strong> LDAH staff needs several days before your session to review the documents and prepare the most useful guidance for your family.',
+    '</div>',
+    (safeExpires
+      ? '<p style="margin:0 0 14px;font-size:14px;color:#555;line-height:1.55;">This link will work until <strong>' + safeExpires + ' HST</strong>. If it expires before you upload, reply to this email and we\'ll send you a fresh link.</p>'
+      : '<p style="margin:0 0 14px;font-size:14px;color:#555;line-height:1.55;">If the link stops working, reply to this email and we\'ll send you a fresh one.</p>'),
+    '<p style="margin:18px 0 4px;font-size:15px;color:#333;line-height:1.55;">Mahalo,</p>',
+    (signatureHtml || ''),
+    linkFooter,
+    '</td></tr>',
+    '</table>',
+    '</td></tr></table></body></html>',
+  ].join('');
+}
+
+// Format a JS Date as a human-friendly HST string (e.g. "May 17, 2026, 3:42 PM").
+function _formatHstDateTime(d) {
+  if (!d || isNaN(d.getTime())) return "";
+  try {
+    return d.toLocaleString("en-US", {
+      timeZone: "Pacific/Honolulu",
+      month: "long", day: "numeric", year: "numeric",
+      hour: "numeric", minute: "2-digit",
+    });
+  } catch (_) {
+    return d.toISOString();
+  }
+}
+
+exports.sendConnectGenUploadLaterEmail = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 5, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const uploadAuthToken = (body.uploadAuthToken || "").toString().trim();
+    if (!uploadAuthToken) {
+      res.status(400).json({ error: "Missing uploadAuthToken" });
+      return;
+    }
+
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+
+      // _findConnectGenSignupByUploadToken already enforces token presence
+      // AND uploadAuthExpiresAt > now, so a null return == invalid or expired.
+      const found = await _findConnectGenSignupByUploadToken(db, uploadAuthToken);
+      if (!found) {
+        res.status(401).json({ error: "Upload link has expired or is no longer valid." });
+        return;
+      }
+      const { doc, signup } = found;
+
+      // Resolve recipient email. Match the rest of the lifecycle: signup.email
+      // is the canonical address (set by handleSignupCreated from the form),
+      // with registration.email as a backup if a legacy signup is missing it.
+      const recipientEmail = String(
+        (signup && signup.email) ||
+        (signup && signup.registration && signup.registration.email) ||
+        ""
+      ).trim();
+      if (!recipientEmail) {
+        res.status(400).json({ error: "Signup has no email on file. Please contact LDAH." });
+        return;
+      }
+
+      // Names — same priority as setConnectGenDisposition / destruct-alert.
+      const familyName = String(
+        (signup && signup.name) ||
+        (signup && signup.firstName) ||
+        ""
+      ).trim();
+      const firstName = lifecycleFirstName(familyName || recipientEmail);
+
+      const uploadUrl = CONNECT_GEN_UPLOAD_BASE_URL +
+        "?upload=" + encodeURIComponent(uploadAuthToken);
+
+      // Format the existing expiry (set at consent-submit time, 7-day window)
+      // for the email so the parent knows their window.
+      let expiresFormatted = "";
+      try {
+        if (signup.uploadAuthExpiresAt && typeof signup.uploadAuthExpiresAt.toDate === "function") {
+          expiresFormatted = _formatHstDateTime(signup.uploadAuthExpiresAt.toDate());
+        }
+      } catch (_) {}
+
+      const signatureHtml = await buildSignatureBlock("eventCoordinator");
+      const html = _buildConnectGenUploadLaterEmailHtml({
+        firstName, uploadUrl, expiresFormatted, signatureHtml,
+      });
+
+      const subject = "Upload your Connect-Gen documents -- " +
+        (familyName || "LDAH");
+      const fromAddress = lifecycleFromAddress();
+      const eventId = doc.ref.parent.parent.id;
+
+      await sendEmailViaResend({
+        from: fromAddress,
+        to: recipientEmail,
+        subject,
+        html,
+        type: "connect-gen-upload-later",
+        relatedEventId: eventId,
+        relatedSignupId: doc.id,
+        recipientName: familyName || "",
+      });
+
+      // Audit log so the daily-report changelog picks it up automatically.
+      try {
+        await db.collection("auditLog").add({
+          action: "Connect-Gen upload-later email sent",
+          details: "email=" + recipientEmail + ", signupPath=" + doc.ref.path,
+          performedBy: recipientEmail,
+          timestamp: FieldValue.serverTimestamp(),
+          signupPath: doc.ref.path,
+        });
+      } catch (e) {
+        console.warn("auditLog write failed (non-fatal):", e.message);
+      }
+
+      res.status(200).json({ ok: true });
+    } catch (err) {
+      console.error("sendConnectGenUploadLaterEmail error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
 // Public submission endpoint for "Want to become a partner resource".
 // Writes to a separate resourceApplications collection so a junk submission
 // can't accidentally surface on the public Resources directory. An admin
