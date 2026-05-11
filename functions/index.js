@@ -4494,6 +4494,13 @@ async function maybeSendCatchupReminder(change, context, collection) {
 }
 
 // Scheduled daily at 7 AM HST.
+// Stage 3b-2 step 2 (2026-05-11): primary session-derivation now flows
+// through getSignupSessions(signup, event) — the canonical accessor added
+// in Stage 3b-1. Falls back to legacySessionsForSignup() on empty result
+// so signups attached to events with non-standard shapes are never
+// silently dropped. Idempotency key shape is unchanged
+// (signup.sessionReminders[<dateKey>].threeDay) so existing dedupe state
+// continues to match. Window logic (3 days out, HST) is preserved verbatim.
 exports.sendEventReminders = functions
   .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: EMAIL_SECRETS })
   .pubsub.schedule("0 16 * * *")
@@ -4521,8 +4528,12 @@ exports.sendEventReminders = functions
 
     console.log(`sendEventReminders: today=${todayKey} target3d=${target3d}`);
 
-    let sent3d = 0;
+    let candidates = 0;
+    let viaAccessor = 0;
+    let viaLegacy = 0;
+    let sent = 0;
     let skipped = 0;
+    let skippedExisting = 0;
 
     // Helper: process one signup doc. For each matching session date,
     // send (with dedupe) and update sessionReminders.
@@ -4550,27 +4561,40 @@ exports.sendEventReminders = functions
         return;
       }
 
-      // Candidate session dates: per-signup selections take precedence
-      // (covers Learning Labs multi-date + Connect-Gen selectedSessions).
-      // Fall back to the event's own eventDate if the signup has none.
-      let signupSessionKeys = extractSignupSessionKeys(signup);
-      if (signupSessionKeys.length === 0) {
-        const key = toHstDateKey((event && (event.eventDate || event.date)) || null);
-        if (key) signupSessionKeys = [key];
-      }
-      const candidateDates = signupSessionKeys.filter((k) => !!targetSet[k]);
+      candidates++;
 
-      if (candidateDates.length === 0) return; // nothing to do
+      // Stage 3b-2 primary path: canonical accessor.
+      let sessions = getSignupSessions(signup, event);
+      let usedLegacy = false;
+      if (!sessions || sessions.length === 0) {
+        // Defensive fallback — preserves pre-migration behavior for any
+        // event/signup combo the accessor can't synthesize from.
+        sessions = legacySessionsForSignup(signup, event);
+        usedLegacy = sessions.length > 0;
+      }
+      if (!sessions || sessions.length === 0) return;
+
+      if (usedLegacy) viaLegacy++; else viaAccessor++;
+
+      // Filter to sessions in the 3-day target window. Same semantics as
+      // the legacy code's `signupSessionKeys.filter((k) => !!targetSet[k])`
+      // but operating on the canonical session entries so downstream code
+      // gets startTime/endTime/location/modality without legacy lookups.
+      const matching = sessions.filter((s) => s && s.dateKey && !!targetSet[s.dateKey]);
+      if (matching.length === 0) return;
 
       const existing = (signup.sessionReminders && typeof signup.sessionReminders === "object")
         ? signup.sessionReminders : {};
 
-      for (const sessionDateKey of candidateDates) {
+      for (const session of matching) {
+        const sessionDateKey = session.dateKey;
         const which = targetSet[sessionDateKey]; // "threeDay"
         const mode = which === "threeDay" ? "3day" : null;
         if (!mode) { skipped++; continue; }
-        const already = existing[sessionDateKey] && existing[sessionDateKey][which];
-        if (already) { skipped++; continue; }
+        if (existing[sessionDateKey] && existing[sessionDateKey][which]) {
+          skippedExisting++;
+          continue;
+        }
 
         try {
           const zoomDefault = pickZoomForEvent(zoomDoc, event, collection);
@@ -4586,7 +4610,7 @@ exports.sendEventReminders = functions
               },
             },
           }, { merge: true });
-          sent3d++;
+          sent++;
           console.log(`sendEventReminders: sent ${mode} to ${signup.email} for ${collection}/${eventId} on ${sessionDateKey}`);
         } catch (err) {
           // per-signup guard so a bad row doesn't kill the run
@@ -4637,7 +4661,7 @@ exports.sendEventReminders = functions
       console.error("sendEventReminders: recurringEvents scan failed:", err.message);
     }
 
-    console.log(`sendEventReminders: 3day sent=${sent3d}, skipped=${skipped}`);
+    console.log(`sendEventReminders: candidates=${candidates}, viaAccessor=${viaAccessor}, viaLegacy=${viaLegacy}, sent=${sent}, skippedExisting=${skippedExisting}, skipped=${skipped}`);
     return null;
   });
 
