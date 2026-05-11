@@ -4864,9 +4864,60 @@ async function sendOneDayOfReminderEmail({
   });
 }
 
+/**
+ * Stage 3b-2 (step 1) — legacy session-derivation factored out of
+ * sendDayOfReminders. Returns canonical-shape session entries built from
+ * the pre-3b-1 helpers (buildSignupRawSessionMap + extractSessionStartHst
+ * + getSessionLocationForDate + isSessionVirtual). Used as a defensive
+ * fallback when getSignupSessions(signup, event) returns [] for a signup
+ * whose event has a non-standard shape that hasn't been re-saved since
+ * Stage 1. Mirrors the canonical shape so the caller can treat both paths
+ * uniformly: { dateKey, startTime, endTime, location, modality, rawString }.
+ *
+ * startTime is left null when the legacy helper cannot derive it — the
+ * caller falls back to extractSessionStartHst for window math, which is
+ * exactly how the pre-migration code behaved.
+ */
+function legacySessionsForSignup(signup, event) {
+  if (!signup || !event) return [];
+  const sessionMap = buildSignupRawSessionMap(signup) || {};
+  let dateKeys = Object.keys(sessionMap);
+  if (dateKeys.length === 0) {
+    const key = toHstDateKey((event && (event.eventDate || event.date)) || null);
+    if (key) {
+      dateKeys = [key];
+      sessionMap[key] = ""; // forces extractSessionStartHst to use event.startTime
+    }
+  }
+  const out = [];
+  for (const dateKey of dateKeys) {
+    if (!dateKey) continue;
+    const rawString = sessionMap[dateKey] || "";
+    const location = getSessionLocationForDate(signup, dateKey) || (event.location || "");
+    const isVirtual = isSessionVirtual(event, dateKey, signup);
+    out.push({
+      dateKey,
+      startTime: null,
+      endTime: null,
+      location,
+      modality: isVirtual ? "virtual" : "in-person",
+      rawString,
+    });
+  }
+  return out;
+}
+
 // Hourly day-of "just in case" reminder. Cron fires at :30, scans every
 // confirmed signup, and emails any whose chosen session starts in the
 // next 15-45 minutes (a 30-minute window centered ~30 min before start).
+//
+// Stage 3b-2 step 1 (2026-05-11): primary session-derivation now flows
+// through getSignupSessions(signup, event) — the canonical accessor added
+// in Stage 3b-1. Falls back to legacySessionsForSignup() on empty result
+// so signups attached to events with non-standard shapes are never
+// silently dropped. Idempotency key remains sessionDateKey (stored at
+// signup.sessionReminders[<dateKey>].dayOf) so existing dedupe state
+// continues to match.
 exports.sendDayOfReminders = functions
   .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: EMAIL_SECRETS })
   .pubsub.schedule("30 * * * *")
@@ -4887,8 +4938,12 @@ exports.sendDayOfReminders = functions
     const windowEndMs = now.getTime() + 45 * 60 * 1000;
     const todayKey = toHstDateKey(now);
 
+    let candidates = 0;
+    let viaAccessor = 0;
+    let viaLegacy = 0;
     let sent = 0;
     let skipped = 0;
+    let skippedExisting = 0;
 
     async function processSignup({ collection, eventId, event, signupDoc }) {
       const signup = signupDoc.data() || {};
@@ -4909,34 +4964,44 @@ exports.sendDayOfReminders = functions
         return;
       }
 
-      // Map dateKey -> raw entry so we can extract the time per session.
-      const sessionMap = buildSignupRawSessionMap(signup);
-      let candidateKeys = Object.keys(sessionMap);
-      if (candidateKeys.length === 0) {
-        const key = toHstDateKey((event && (event.eventDate || event.date)) || null);
-        if (key) {
-          candidateKeys = [key];
-          sessionMap[key] = ""; // forces fallback to event.startTime/event.time
-        }
-      }
+      candidates++;
 
-      // Quick narrow: only consider sessions whose date is today HST. The
-      // [+15, +45] minute window can never cross a date boundary at :30
-      // cron firings except at midnight, where same-day still applies.
-      candidateKeys = candidateKeys.filter((k) => k === todayKey);
-      if (candidateKeys.length === 0) return;
+      // Stage 3b-2 primary path: canonical accessor.
+      let sessions = getSignupSessions(signup, event);
+      let usedLegacy = false;
+      if (!sessions || sessions.length === 0) {
+        // Defensive fallback — preserves pre-migration behavior for any
+        // event/signup combo the accessor can't synthesize from.
+        sessions = legacySessionsForSignup(signup, event);
+        usedLegacy = sessions.length > 0;
+      }
+      if (!sessions || sessions.length === 0) return;
+
+      if (usedLegacy) viaLegacy++; else viaAccessor++;
+
+      // Quick narrow: only sessions whose date is today HST. The [+15, +45]
+      // minute window cannot cross a date boundary at :30 cron firings
+      // except at midnight, where same-day still applies.
+      const todaySessions = sessions.filter((s) => s && s.dateKey === todayKey);
+      if (todaySessions.length === 0) return;
 
       const existing = (signup.sessionReminders && typeof signup.sessionReminders === "object")
         ? signup.sessionReminders : {};
 
-      for (const sessionDateKey of candidateKeys) {
+      for (const session of todaySessions) {
+        const sessionDateKey = session.dateKey;
         try {
-          const startHst = extractSessionStartHst(sessionMap[sessionDateKey] || sessionDateKey, event);
+          // Prefer the canonical session's startTime when present; fall
+          // back to legacy parse for synthesized/dateless entries.
+          const startHst = extractSessionStartHst(session.rawString || sessionDateKey, event);
           if (!startHst) { skipped++; continue; }
           const startMs = startHst.getTime();
           if (startMs < windowStartMs || startMs > windowEndMs) { skipped++; continue; }
 
-          if (existing[sessionDateKey] && existing[sessionDateKey].dayOf) { skipped++; continue; }
+          if (existing[sessionDateKey] && existing[sessionDateKey].dayOf) {
+            skippedExisting++;
+            continue;
+          }
 
           const zoomDefault = pickZoomForEvent(zoomDoc, event, collection);
           await sendOneDayOfReminderEmail({
@@ -4997,7 +5062,7 @@ exports.sendDayOfReminders = functions
       console.error("sendDayOfReminders: recurringEvents scan failed:", err.message);
     }
 
-    console.log(`sendDayOfReminders: dayof sent=${sent}, skipped=${skipped}`);
+    console.log(`sendDayOfReminders: candidates=${candidates}, viaAccessor=${viaAccessor}, viaLegacy=${viaLegacy}, sent=${sent}, skippedExisting=${skippedExisting}, skipped=${skipped}`);
     return null;
   });
 
