@@ -3717,6 +3717,426 @@ function addDaysHst(ymd, days) {
   return toHstDateKey(d);
 }
 
+// ── Stage 3b-1: server-side session accessors ─────────────────────
+// Mirror of the LDAH-Internal client helpers (_parseSessionString /
+// _buildSessionsForOneTimeEvent / _buildSessionsForRecurringEvent /
+// _getEventSessions / _getEventDateKeys), plus a new getSignupSessions
+// helper that filters event sessions[] down to the entries this
+// signup is attending. These are DORMANT in Stage 3b-1 — no email
+// CF wires them up yet. Stage 3b-2 will migrate the email CFs one
+// at a time. Every helper is non-throwing; failures degrade to [].
+
+/** Classify a location string as virtual or in-person. */
+function _sessionsModalityFor(location) {
+  return /\b(zoom|virtual|online|webinar)\b/i.test(String(location || ""))
+    ? "virtual" : "in-person";
+}
+
+/**
+ * Parse a single signupDates[]-style raw entry to a structured session
+ * record. Mirrors the client-side _parseSessionString shape:
+ *   { dateKey, startTime, endTime, location, modality, rawString }
+ * Returns null when the date can't be parsed. Wrapped in try/catch —
+ * a single bad entry never throws.
+ *
+ * Inputs supported:
+ *   • Connect-Gen pipe form  "YYYY-MM-DD|venue|5:00 pm-6:00 pm"
+ *   • Learning Labs form     "May 6, 2026, 5:00 pm-6:00 pm"
+ *   • Plain ISO date string  "2026-05-06"
+ *   • Any Date-parsable form (Firestore Timestamp, etc.)
+ */
+function parseSessionString(rawString, fallbackLocation) {
+  try {
+    if (rawString == null) return null;
+    const raw = String(rawString);
+
+    // 1. Date — pipe form vs. Learning-Labs/plain form.
+    let dateKey = "";
+    let rest = "";
+    let locFromEntry = "";
+    if (raw.indexOf("|") !== -1) {
+      const parts = raw.split("|");
+      dateKey = toHstDateKey((parts[0] || "").trim());
+      locFromEntry = (parts[1] || "").trim();
+      rest = (parts[2] || "").trim();
+    } else {
+      dateKey = parseEventDateKey(raw);
+      // Strip the date prefix to isolate "5:00 pm-6:00 pm[ | loc]" tail.
+      rest = raw.replace(/^[A-Za-z]+\s+\d{1,2}(?:st|nd|rd|th)?,?\s*\d{4}\s*,?\s*/, "").trim();
+      if (rest.indexOf("|") !== -1) {
+        const pieces = rest.split("|");
+        rest = pieces[0].trim();
+        locFromEntry = (pieces[1] || "").trim();
+      }
+    }
+    if (!dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return null;
+
+    const location = locFromEntry || String(fallbackLocation || "").trim();
+
+    // 2. Time range. Tolerate hyphen, en-dash, em-dash, missing seconds,
+    // and ":mm" absent ("5 pm-6 pm"). The minutes default to "00" when
+    // omitted so server output is stable HH:MM 24h.
+    const toHHMM = (h, mn, ap) => {
+      let hh = parseInt(h, 10);
+      const ampm = String(ap || "").toLowerCase();
+      const mins = (mn == null || mn === "") ? "00" : String(mn).padStart(2, "0");
+      if (isNaN(hh)) return null;
+      if (ampm === "pm" && hh < 12) hh += 12;
+      if (ampm === "am" && hh === 12) hh = 0;
+      return String(hh).padStart(2, "0") + ":" + mins;
+    };
+    let startTime = null;
+    let endTime = null;
+    const rangeRe = /(\d{1,2})(?::(\d{2}))?\s*([AaPp]\.?[Mm]?\.?)?\s*[-–—]\s*(\d{1,2})(?::(\d{2}))?\s*([AaPp]\.?[Mm]?\.?)?/;
+    const rm = rest.match(rangeRe);
+    if (rm) {
+      const sAp = String(rm[3] || rm[6] || "").replace(/\./g, "");
+      const eAp = String(rm[6] || rm[3] || "").replace(/\./g, "");
+      startTime = toHHMM(rm[1], rm[2], sAp.charAt(0).toLowerCase() + (sAp.length > 1 ? "m" : ""));
+      endTime = toHHMM(rm[4], rm[5], eAp.charAt(0).toLowerCase() + (eAp.length > 1 ? "m" : ""));
+    } else {
+      const single = rest.match(/(\d{1,2})(?::(\d{2}))?\s*([AaPp]\.?[Mm]?\.?)/);
+      if (single) {
+        const ap = String(single[3] || "").replace(/\./g, "");
+        startTime = toHHMM(single[1], single[2], ap.charAt(0).toLowerCase() + (ap.length > 1 ? "m" : ""));
+      }
+    }
+
+    return {
+      dateKey,
+      startTime,
+      endTime,
+      location,
+      modality: _sessionsModalityFor(location),
+      rawString: raw,
+    };
+  } catch (err) {
+    console.warn("parseSessionString: failed", err && err.message, rawString);
+    return null;
+  }
+}
+
+/**
+ * Build sessions[] for a one-time event. Prefers event.signupDates (multi-date
+ * one-time events like Learning Labs) and falls back to a single entry
+ * derived from event.eventDate + event.startTime/endTime/time. Returns []
+ * when nothing parses. Mirrors client _buildSessionsForOneTimeEvent.
+ */
+function buildSessionsForOneTimeEvent(event) {
+  try {
+    if (!event) return [];
+    const fallbackLoc = event.location || "";
+    const out = [];
+    if (Array.isArray(event.signupDates) && event.signupDates.length > 0) {
+      for (const entry of event.signupDates) {
+        const sess = parseSessionString(entry, fallbackLoc);
+        if (sess) out.push(sess);
+      }
+      if (out.length > 0) return out;
+    }
+    if (event.eventDate || event.date) {
+      const dateKey = toHstDateKey(event.eventDate || event.date);
+      if (dateKey) {
+        const toHHMM = (raw) => {
+          if (!raw) return null;
+          const m = String(raw).match(/^(\d{1,2}):(\d{2})/);
+          if (!m) return null;
+          return m[1].padStart(2, "0") + ":" + m[2];
+        };
+        out.push({
+          dateKey,
+          startTime: toHHMM(event.startTime || event.time),
+          endTime: toHHMM(event.endTime),
+          location: fallbackLoc,
+          modality: _sessionsModalityFor(fallbackLoc),
+          rawString: String(event.eventDate || event.date),
+        });
+      }
+    }
+    return out;
+  } catch (err) {
+    console.warn("buildSessionsForOneTimeEvent: failed", err && err.message, event && event.id);
+    return [];
+  }
+}
+
+/**
+ * Project a recurring event's schedules[] across [fromDateKey, toDateKey],
+ * skipping dates listed in event.cancelledDates. Defaults to today HST
+ * through +90 days when opts is omitted. Mirrors client
+ * _buildSessionsForRecurringEvent. Tolerates schedule.dayOfWeek as either
+ * a 0-6 number OR a weekday name string ("Monday"-"Sunday").
+ */
+function buildSessionsForRecurringEvent(event, opts) {
+  try {
+    if (!event || !Array.isArray(event.schedules) || event.schedules.length === 0) return [];
+    opts = opts || {};
+    const todayKey = toHstDateKey(new Date());
+    const fromKey = opts.fromDateKey || todayKey;
+    const toKey = opts.toDateKey || addDaysHst(todayKey, 90);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fromKey) || !/^\d{4}-\d{2}-\d{2}$/.test(toKey)) return [];
+
+    // Day-of-week name → number lookup. Matches what the LDAH-Int CMS writes.
+    const DOW_NAME_TO_NUM = {
+      sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
+      thursday: 4, friday: 5, saturday: 6,
+    };
+    const normalizeDow = (raw) => {
+      if (raw == null) return null;
+      if (typeof raw === "number" && raw >= 0 && raw <= 6) return raw;
+      const n = parseInt(raw, 10);
+      if (!isNaN(n) && n >= 0 && n <= 6) return n;
+      const lookup = DOW_NAME_TO_NUM[String(raw).trim().toLowerCase()];
+      return (lookup == null) ? null : lookup;
+    };
+
+    const cancelled = Array.isArray(event.cancelledDates) ? event.cancelledDates : [];
+    const isCancelled = (dateKey, sch) => {
+      return cancelled.some((cd) => {
+        if (!cd) return false;
+        if (typeof cd === "string") return cd === dateKey;
+        if (cd.date !== dateKey) return false;
+        if (!cd.location) return true;
+        if (cd.location !== (sch.location || "")) return false;
+        if (cd.venue && cd.venue !== (sch.venue || "")) return false;
+        return true;
+      });
+    };
+
+    const toHHMM = (raw) => {
+      if (!raw) return null;
+      const mm = String(raw).match(/^(\d{1,2}):(\d{2})/);
+      if (!mm) return null;
+      return mm[1].padStart(2, "0") + ":" + mm[2];
+    };
+
+    // Iterate days in [fromKey, toKey]. Build dates as HST-local midnight so
+    // getDay() returns the correct HST weekday (no UTC shift bugs).
+    const out = [];
+    let cursor = fromKey;
+    let guard = 0;
+    while (cursor <= toKey && guard < 4000) {
+      guard++;
+      const [cy, cm, cd] = cursor.split("-").map((n) => parseInt(n, 10));
+      const cursorDate = new Date(cy, cm - 1, cd); // local-midnight is fine for getDay()
+      const dow = cursorDate.getDay();
+      const dayOfMonth = cursorDate.getDate();
+      const weekNum = Math.ceil(dayOfMonth / 7);
+
+      for (const sch of event.schedules) {
+        if (!sch) continue;
+        const schDow = normalizeDow(sch.dayOfWeek);
+        if (schDow == null || schDow !== dow) continue;
+        let match = false;
+        if (!sch.frequency || sch.frequency === "weekly") match = true;
+        else if (sch.frequency === "monthly-nth") {
+          if (weekNum === sch.weekOfMonth) match = true;
+        } else {
+          // Unknown frequency — default to weekly to avoid silent skips.
+          match = true;
+        }
+        if (!match) continue;
+        if (isCancelled(cursor, sch)) continue;
+        const loc = sch.location || "";
+        out.push({
+          dateKey: cursor,
+          startTime: toHHMM(sch.startTime),
+          endTime: toHHMM(sch.endTime),
+          location: loc,
+          modality: _sessionsModalityFor(loc),
+          rawString: cursor + "|" + loc + "|" + (sch.startTime || "") + "-" + (sch.endTime || ""),
+        });
+      }
+      cursor = addDaysHst(cursor, 1);
+      if (!cursor) break;
+    }
+
+    out.sort((a, b) => {
+      if (a.dateKey !== b.dateKey) return a.dateKey < b.dateKey ? -1 : 1;
+      return String(a.startTime || "").localeCompare(String(b.startTime || ""));
+    });
+    return out;
+  } catch (err) {
+    console.warn("buildSessionsForRecurringEvent: failed", err && err.message, event && event.id);
+    return [];
+  }
+}
+
+/**
+ * Preferred accessor: returns a structured sessions[] for any event.
+ * Priority order (matches LDAH-Internal _getEventSessions):
+ *   1. event.sessions[] non-empty (Stage 1 canonical array on the doc)
+ *   2. recurring projection (if event has schedules[] or opts.isRecurring)
+ *   3. one-time fallback via buildSessionsForOneTimeEvent
+ *   4. last-resort synthesis from event.eventDate + event.startTime/time
+ *   5. [] if nothing parses
+ * Always returns an array; never throws. opts: { fromDateKey, toDateKey,
+ * isRecurring } — date keys bound the recurring projector window.
+ */
+function getEventSessions(event, opts) {
+  opts = opts || {};
+  try {
+    if (!event) return [];
+    if (Array.isArray(event.sessions) && event.sessions.length > 0) {
+      return event.sessions;
+    }
+    const isRecurring = opts.isRecurring === true ||
+      event.collection === "recurringEvents" ||
+      (Array.isArray(event.schedules) && event.schedules.length > 0);
+    if (isRecurring) {
+      const rec = buildSessionsForRecurringEvent(event, opts) || [];
+      if (rec.length > 0) return rec;
+    }
+    const one = buildSessionsForOneTimeEvent(event) || [];
+    if (one.length > 0) return one;
+    // Last-resort synthesis from top-level fields.
+    const rawDate = event.eventDate || event.startDate || event.date || null;
+    if (rawDate) {
+      const dateKey = toHstDateKey(rawDate);
+      if (dateKey) {
+        const toHHMM = (raw) => {
+          if (!raw) return null;
+          const m = String(raw).match(/^(\d{1,2}):(\d{2})/);
+          if (!m) return null;
+          return m[1].padStart(2, "0") + ":" + m[2];
+        };
+        const loc = event.location || "";
+        return [{
+          dateKey,
+          startTime: toHHMM(event.startTime || event.time),
+          endTime: toHHMM(event.endTime),
+          location: loc,
+          modality: _sessionsModalityFor(loc),
+          rawString: String(rawDate),
+        }];
+      }
+    }
+    return [];
+  } catch (err) {
+    console.warn("getEventSessions: unexpected event shape", err && err.message, event && event.id);
+    return [];
+  }
+}
+
+/** Thin wrapper for callers that only need dateKey strings. */
+function getEventDateKeys(event, opts) {
+  try {
+    return getEventSessions(event, opts)
+      .map((s) => s && s.dateKey)
+      .filter(Boolean);
+  } catch (err) {
+    console.warn("getEventDateKeys: failed", err && err.message, event && event.id);
+    return [];
+  }
+}
+
+/**
+ * Stage 3b-1 NEW: filter event sessions down to the entries THIS signup is
+ * attending. This is the central helper the email CFs will adopt in Stage
+ * 3b-2 so they iterate the correct sessions for the parent.
+ *
+ * Algorithm:
+ *   1. eventSessions = getEventSessions(event)
+ *   2. signupKeys    = extractSignupSessionKeys(signup)
+ *   3. Filter eventSessions to those whose dateKey appears in signupKeys.
+ *   4. When the signup uses selectedSessions (pipe-delimited Connect-Gen
+ *      shape with location embedded), refine multi-session same-day matches
+ *      by also matching on location — so a parent who picked Hilo doesn't
+ *      get the Oahu session record back.
+ *   5. Sort by dateKey ascending. Returns [] if nothing matches.
+ *
+ * Never throws — wraps in try/catch and degrades to [].
+ */
+function getSignupSessions(signup, event) {
+  try {
+    if (!signup || !event) return [];
+    const eventSessions = getEventSessions(event) || [];
+    if (eventSessions.length === 0) return [];
+
+    const signupKeys = extractSignupSessionKeys(signup);
+    if (signupKeys.length === 0) return [];
+    const signupKeySet = new Set(signupKeys);
+
+    // Build a per-date location refinement map from selectedSessions (the
+    // pipe-delimited Connect-Gen shape carries "YYYY-MM-DD|Location|time").
+    // We only refine when a date has 2+ event sessions AND the signup string
+    // pins a location — otherwise the date-only match is authoritative.
+    const dateLocationMap = {}; // dateKey -> Set of location substrings
+    if (Array.isArray(signup.selectedSessions)) {
+      for (const raw of signup.selectedSessions) {
+        const s = String(raw || "");
+        const parts = s.split("|");
+        if (parts.length < 2) continue;
+        const dk = toHstDateKey((parts[0] || "").trim());
+        const loc = (parts[1] || "").trim();
+        if (!dk || !loc) continue;
+        if (!dateLocationMap[dk]) dateLocationMap[dk] = new Set();
+        dateLocationMap[dk].add(loc);
+      }
+    }
+    // Also tolerate selectedDates entries with "@ Location" suffix.
+    if (Array.isArray(signup.selectedDates)) {
+      for (const raw of signup.selectedDates) {
+        const s = String(raw || "");
+        if (s.indexOf("@ ") === -1) continue;
+        const dk = parseEventDateKey(s);
+        const loc = s.split("@ ").slice(1).join("@ ").trim();
+        if (!dk || !loc) continue;
+        if (!dateLocationMap[dk]) dateLocationMap[dk] = new Set();
+        dateLocationMap[dk].add(loc);
+      }
+    }
+
+    // Group event sessions by dateKey so we can detect same-day duplicates.
+    const sessionsByDate = {};
+    for (const sess of eventSessions) {
+      if (!sess || !sess.dateKey) continue;
+      if (!sessionsByDate[sess.dateKey]) sessionsByDate[sess.dateKey] = [];
+      sessionsByDate[sess.dateKey].push(sess);
+    }
+
+    const out = [];
+    for (const dateKey of Object.keys(sessionsByDate)) {
+      if (!signupKeySet.has(dateKey)) continue;
+      const sessions = sessionsByDate[dateKey];
+      const locHints = dateLocationMap[dateKey];
+      if (sessions.length === 1 || !locHints || locHints.size === 0) {
+        // No ambiguity — push every event session for that date the signup
+        // is attending (typically just one).
+        for (const sess of sessions) out.push(sess);
+        continue;
+      }
+      // Multiple same-day event sessions AND the signup pinned location(s) —
+      // include only those whose location matches a hint (substring either
+      // direction, case-insensitive).
+      const hintLowers = Array.from(locHints).map((h) => String(h).toLowerCase());
+      const matched = sessions.filter((sess) => {
+        const sl = String(sess.location || "").toLowerCase();
+        if (!sl) return false;
+        return hintLowers.some((h) => h === sl || sl.indexOf(h) !== -1 || h.indexOf(sl) !== -1);
+      });
+      if (matched.length > 0) {
+        for (const sess of matched) out.push(sess);
+      } else {
+        // Fallback: signup picked a location that no event session matches
+        // (data drift). Surface all same-day sessions rather than dropping
+        // the parent silently.
+        for (const sess of sessions) out.push(sess);
+      }
+    }
+
+    out.sort((a, b) => {
+      if (a.dateKey !== b.dateKey) return a.dateKey < b.dateKey ? -1 : 1;
+      return String(a.startTime || "").localeCompare(String(b.startTime || ""));
+    });
+    return out;
+  } catch (err) {
+    console.warn("getSignupSessions: failed", err && err.message,
+      signup && signup.id, event && event.id);
+    return [];
+  }
+}
+
 /**
  * Build the event reminder email HTML. Mirrors Leilani's template.
  */
