@@ -1,0 +1,225 @@
+<!-- Native Hawaiian Family Survey Modal — injected on homepages -->
+<div id="nhSurveyBackdrop" class="nh-survey-backdrop" role="dialog" aria-modal="true" aria-labelledby="nhSurveyTitle" aria-hidden="true">
+  <div class="nh-survey-modal">
+    <div class="nh-survey-header">
+      <h3 class="nh-survey-header-title" id="nhSurveyTitle">Native Hawaiian Family Survey</h3>
+      <button type="button" class="nh-survey-close" aria-label="Close survey" id="nhSurveyCloseBtn">&times;</button>
+    </div>
+
+    <div class="nh-survey-progress-wrap" id="nhSurveyProgressWrap">
+      <div class="nh-survey-progress-label" id="nhSurveyProgressLabel">Step 1 of 5</div>
+      <div class="nh-survey-progress-bar"><div class="nh-survey-progress-fill" id="nhSurveyProgressFill" style="width: 0%;"></div></div>
+    </div>
+
+    <div class="nh-survey-body" id="nhSurveyBody">
+      <div class="nh-survey-error" id="nhSurveyError" role="alert"></div>
+
+      <!-- Hidden honeypot -->
+      <input type="text" name="website" id="nhSurveyHoneypot" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;opacity:0;height:0;width:0;" aria-hidden="true">
+
+      <!-- SCREEN 0: Intro -->
+      <div class="nh-survey-screen active" data-screen="intro">
+        <h2>Native Hawaiian Family Survey</h2>
+        <p class="nh-survey-subtitle">Access to Translated Special Education Materials in Hawai&#699;i Public Schools</p>
+        <p class="nh-survey-intro">Aloha! LDAH (Leadership in Disabilities and Achievement of Hawai&#699;i) is working to better understand how Native Hawaiian families experience and access special education information. Your responses will help us identify gaps in translated materials, family-friendly resources, and culturally relevant supports for children with disabilities and their &#699;ohana.</p>
+        <p class="nh-survey-intro">This survey is anonymous &mdash; no names or contact information are collected. All answers are optional.</p>
+        <div class="nh-survey-graphic-placeholder">La&#699;akea&#699;s survey graphic will appear here</div>
+        <p class="nh-survey-time">Estimated Time: 5&ndash;7 minutes</p>
+      </div>
+
+      <!-- SCREEN 1: Family Information -->
+      <div class="nh-survey-screen" data-screen="1">
+        <h2>Family Information</h2>
+        <p class="nh-survey-subtitle">Tell us a little about your &#699;ohana.</p>
+
+        <div class="nh-survey-question">
+          <label class="nh-survey-q-label">1. Do you or someone in your &#699;ohana identify as Native Hawaiian?</label>
+          <div class="nh-survey-options">
+            <label class="nh-survey-option"><input type="radio" name="q1" value="yes"><span>Yes</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q1" value="no"><span>No</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q1" value="unsure"><span>Unsure</span></label>
+          </div>
+        </div>
+
+        <div class="nh-survey-question">
+          <label class="nh-survey-q-label">2. Which island do you currently live on?</label>
+          <div class="nh-survey-options">
+            <label class="nh-survey-option"><input type="radio" name="q2" value="oahu"><span>O&#699;ahu</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q2" value="hawaii_island"><span>Hawai&#699;i Island</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q2" value="maui"><span>Maui</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q2" value="kauai"><span>Kaua&#699;i</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q2" value="molokai"><span>Moloka&#699;i</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q2" value="lanai"><span>L&#257;na&#699;i</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q2" value="other"><span>Other</span></label>
+          </div>
+          <div class="nh-survey-conditional" data-conditional-for="q2" data-conditional-on="other">
+            <input type="text" class="nh-survey-other-input" name="q2_other" maxlength="100" placeholder="Please specify">
+          </div>
+        </div>
+
+        <div class="nh-survey-question">
+          <label class="nh-survey-q-label">3. What language(s) are spoken at home? (Select all that apply)</label>
+          <div class="nh-survey-options">
+            <label class="nh-survey-option"><input type="checkbox" name="q3" value="english"><span>English</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q3" value="olelo_hawaii"><span>&#699;&#332;lelo Hawai&#699;i</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q3" value="hawaiian_pidgin"><span>Hawaiian Pidgin</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q3" value="chuukese"><span>Chuukese</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q3" value="marshallese"><span>Marshallese</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q3" value="samoan"><span>Samoan</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q3" value="ilocano_tagalog"><span>Ilocano / Tagalog</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q3" value="other"><span>Other</span></label>
+          </div>
+          <div class="nh-survey-conditional" data-conditional-for="q3" data-conditional-on="other">
+            <input type="text" class="nh-survey-other-input" name="q3_other" maxlength="100" placeholder="Please specify">
+          </div>
+        </div>
+      </div>
+
+      <!-- SCREEN 2: Understanding of Special Education Information -->
+      <div class="nh-survey-screen" data-screen="2">
+        <h2>Understanding of Special Education Information</h2>
+
+        <div class="nh-survey-question">
+          <label class="nh-survey-q-label">4. How often do you receive special education information that is easy to understand?</label>
+          <div class="nh-survey-options">
+            <label class="nh-survey-option"><input type="radio" name="q4" value="frequently"><span>Frequently</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q4" value="sometimes"><span>Sometimes</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q4" value="rarely"><span>Rarely</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q4" value="never"><span>Never</span></label>
+          </div>
+        </div>
+
+        <div class="nh-survey-question">
+          <label class="nh-survey-q-label">5. Which special education topics do you feel you need more information about? (Select all that apply)</label>
+          <div class="nh-survey-options">
+            <label class="nh-survey-option"><input type="checkbox" name="q5" value="idea"><span>IDEA (Individuals with Disabilities Education Act)</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q5" value="har_chapter_60"><span>HAR Chapter 60</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q5" value="evaluation_eligibility"><span>Evaluation &amp; Eligibility</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q5" value="iep_meetings"><span>IEP Meetings</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q5" value="parent_rights"><span>Parent Rights</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q5" value="dispute_resolution"><span>Dispute Resolution</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q5" value="transition_planning"><span>Transition Planning</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q5" value="sped_forms_notices"><span>Special Education Forms &amp; Notices</span></label>
+          </div>
+        </div>
+
+        <div class="nh-survey-question">
+          <label class="nh-survey-q-label">6. How important is it for special education materials to be available in &#699;&#332;lelo Hawai&#699;i or in a culturally familiar format?</label>
+          <div class="nh-survey-options">
+            <label class="nh-survey-option"><input type="radio" name="q6" value="very_important"><span>Very important</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q6" value="important"><span>Important</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q6" value="somewhat_important"><span>Somewhat important</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q6" value="not_important"><span>Not important</span></label>
+          </div>
+        </div>
+
+        <div class="nh-survey-question">
+          <label class="nh-survey-q-label">7. Would you use special education materials translated into &#699;&#332;lelo Hawai&#699;i if they were available?</label>
+          <div class="nh-survey-options">
+            <label class="nh-survey-option"><input type="radio" name="q7" value="yes"><span>Yes</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q7" value="maybe"><span>Maybe</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q7" value="no"><span>No</span></label>
+          </div>
+        </div>
+
+        <div class="nh-survey-question">
+          <label class="nh-survey-q-label">8. What kinds of resources would be most helpful to your &#699;ohana? (Select up to 3)</label>
+          <div class="nh-survey-options" id="nhQ8Options">
+            <label class="nh-survey-option"><input type="checkbox" name="q8" value="printed_handouts"><span>Printed handouts</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q8" value="videos"><span>Videos</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q8" value="online_workshops"><span>Online workshops</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q8" value="one_on_one"><span>One-on-one help</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q8" value="visual_guides"><span>Visual guides / infographics</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q8" value="social_media"><span>Social media posts</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q8" value="audio_podcasts"><span>Audio recordings / podcasts</span></label>
+          </div>
+          <div class="nh-survey-helper" id="nhQ8Helper"></div>
+        </div>
+      </div>
+
+      <!-- SCREEN 3: Experiences with the IEP Process -->
+      <div class="nh-survey-screen" data-screen="3">
+        <h2>Experiences with the IEP Process</h2>
+
+        <div class="nh-survey-question">
+          <label class="nh-survey-q-label">9. Have you ever attended an IEP meeting for your child?</label>
+          <div class="nh-survey-options">
+            <label class="nh-survey-option"><input type="radio" name="q9" value="yes"><span>Yes</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q9" value="somewhat"><span>Somewhat</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q9" value="no"><span>No</span></label>
+          </div>
+        </div>
+
+        <div class="nh-survey-question">
+          <label class="nh-survey-q-label">10. In which areas of the IEP process do you feel you need more information or support? (Select all that apply)</label>
+          <div class="nh-survey-options">
+            <label class="nh-survey-option"><input type="checkbox" name="q10" value="referral"><span>Referral</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q10" value="assessment_results"><span>Understanding assessment results</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q10" value="eligibility"><span>Eligibility decisions</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q10" value="writing_iep"><span>Writing the IEP</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q10" value="services_supports"><span>Services &amp; supports</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q10" value="transition_planning"><span>Transition planning</span></label>
+            <label class="nh-survey-option"><input type="checkbox" name="q10" value="disagreements"><span>Handling disagreements</span></label>
+          </div>
+        </div>
+
+        <div class="nh-survey-question">
+          <label class="nh-survey-q-label">11. Do you feel that your cultural values and language are respected in IEP meetings?</label>
+          <div class="nh-survey-options">
+            <label class="nh-survey-option"><input type="radio" name="q11" value="yes"><span>Yes</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q11" value="sometimes"><span>Sometimes</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q11" value="no"><span>No</span></label>
+          </div>
+        </div>
+
+        <div class="nh-survey-question">
+          <label class="nh-survey-q-label">12. Would you be interested in attending workshops or trainings designed specifically for Native Hawaiian &#699;ohana?</label>
+          <div class="nh-survey-options">
+            <label class="nh-survey-option"><input type="radio" name="q12" value="yes"><span>Yes</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q12" value="maybe"><span>Maybe</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q12" value="no"><span>No</span></label>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCREEN 4: Final Thoughts -->
+      <div class="nh-survey-screen" data-screen="4">
+        <h2>Final Thoughts</h2>
+
+        <div class="nh-survey-question">
+          <label class="nh-survey-q-label" for="nhQ13">13. What barriers, if any, have you experienced when trying to access special education information?</label>
+          <textarea class="nh-survey-textarea" id="nhQ13" name="q13" maxlength="1000" placeholder="Share your experience..."></textarea>
+          <div class="nh-survey-char-count" id="nhQ13Count">0 / 1000</div>
+        </div>
+
+        <div class="nh-survey-question">
+          <label class="nh-survey-q-label" for="nhQ14">14. What would help your &#699;ohana most in understanding and accessing special education services?</label>
+          <textarea class="nh-survey-textarea" id="nhQ14" name="q14" maxlength="1000" placeholder="Share your thoughts..."></textarea>
+          <div class="nh-survey-char-count" id="nhQ14Count">0 / 1000</div>
+        </div>
+
+        <div class="nh-survey-question">
+          <label class="nh-survey-q-label">15. Would you like LDAH to develop more Native Hawaiian-focused special education resources?</label>
+          <div class="nh-survey-options">
+            <label class="nh-survey-option"><input type="radio" name="q15" value="yes"><span>Yes</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q15" value="no"><span>No</span></label>
+            <label class="nh-survey-option"><input type="radio" name="q15" value="maybe"><span>Maybe</span></label>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCREEN 5: Mahalo -->
+      <div class="nh-survey-screen" data-screen="mahalo">
+        <div class="nh-survey-mahalo">
+          <h2>Mahalo</h2>
+          <p>Mahalo for sharing your mana&#699;o. Your voice is important in improving educational access and participation for Native Hawaiian families and children with disabilities.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="nh-survey-footer" id="nhSurveyFooter">
+      <button type="button" class="nh-survey-btn nh-survey-btn-secondary" id="nhSurveyBackBtn">Back</button>
+      <button type="button" class="nh-survey-btn nh-survey-btn-primary" id="nhSurveyNextBtn">Begin Survey</button>
+    </div>
+  </div>
+</div>

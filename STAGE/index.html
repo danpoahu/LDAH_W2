@@ -23,6 +23,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="nh-survey-modal.css">
 
     <style>
     :root {
@@ -768,6 +769,21 @@
 <link rel="stylesheet" href="logo-story.css">
 <script src="logo-story.js"></script>
 <script src="analytics-tracker.js"></script>
+<script src="nh-survey-modal.js" defer></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.NHSurveyModal && typeof window.NHSurveyModal.init === 'function') {
+        window.NHSurveyModal.init();
+    } else {
+        // nh-survey-modal.js loaded with defer; wait until parsed
+        window.addEventListener('load', function() {
+            if (window.NHSurveyModal && typeof window.NHSurveyModal.init === 'function') {
+                window.NHSurveyModal.init();
+            }
+        });
+    }
+});
+</script>
 <script>
 // Home page logo: big at top, shrinks into nav on scroll
 (function() {
