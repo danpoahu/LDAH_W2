@@ -9910,3 +9910,535 @@ exports.acceptConnectGenReschedule = functions
       res.status(500).json({ success: false, error: "Something went wrong. Please reply to our email and we'll help." });
     }
   });
+
+// ── Native Hawaiian Family Survey ──────────────────────────────────
+// Public-facing anonymous survey on LDAH W2. No PII captured — just
+// question answers + a timestamp + a SHA-256-hashed IP for rate
+// limiting (3 submissions/IP/24h). Survey allows partial answers
+// (all q-fields optional). Honeypot field silently swallows bots.
+//
+// Two CFs:
+//   submitNativeHawaiianSurvey     — POST endpoint (HTTPS onRequest)
+//   sendNativeHawaiianSurveyReport — daily 8 AM HST report to Rosie
+
+const NH_SURVEY_ALLOWED_ORIGINS = [
+  "https://www.ldahawaii.org",
+  "https://danpoahu.github.io",
+];
+
+const NH_ENUMS = {
+  q1: ["yes", "no", "unsure"],
+  q2: ["oahu", "hawaii_island", "maui", "kauai", "molokai", "lanai", "other"],
+  q3: ["english", "olelo_hawaii", "hawaiian_pidgin", "chuukese", "marshallese", "samoan", "ilocano_tagalog", "other"],
+  q4: ["frequently", "sometimes", "rarely", "never"],
+  q5: ["idea", "har_chapter_60", "evaluation_eligibility", "iep_meetings", "parent_rights", "dispute_resolution", "transition_planning", "sped_forms_notices"],
+  q6: ["very_important", "important", "somewhat_important", "not_important"],
+  q7: ["yes", "maybe", "no"],
+  q8: ["printed_handouts", "videos", "online_workshops", "one_on_one", "visual_guides", "social_media", "audio_podcasts"],
+  q9: ["yes", "somewhat", "no"],
+  q10: ["referral", "assessment_results", "eligibility", "writing_iep", "services_supports", "transition_planning", "disagreements"],
+  q11: ["yes", "sometimes", "no"],
+  q12: ["yes", "maybe", "no"],
+  q15: ["yes", "no", "maybe"],
+};
+
+// Human-readable labels for the report email.
+const NH_LABELS = {
+  q1: { yes: "Yes", no: "No", unsure: "Unsure" },
+  q2: { oahu: "O'ahu", hawaii_island: "Hawai'i Island", maui: "Maui", kauai: "Kaua'i", molokai: "Moloka'i", lanai: "Lana'i", other: "Other" },
+  q3: { english: "English", olelo_hawaii: "'Olelo Hawai'i", hawaiian_pidgin: "Hawaiian Pidgin", chuukese: "Chuukese", marshallese: "Marshallese", samoan: "Samoan", ilocano_tagalog: "Ilocano/Tagalog", other: "Other" },
+  q4: { frequently: "Frequently", sometimes: "Sometimes", rarely: "Rarely", never: "Never" },
+  q5: { idea: "IDEA", har_chapter_60: "HAR Chapter 60", evaluation_eligibility: "Evaluation/Eligibility", iep_meetings: "IEP Meetings", parent_rights: "Parent Rights", dispute_resolution: "Dispute Resolution", transition_planning: "Transition Planning", sped_forms_notices: "SpEd Forms & Notices" },
+  q6: { very_important: "Very important", important: "Important", somewhat_important: "Somewhat important", not_important: "Not important" },
+  q7: { yes: "Yes", maybe: "Maybe", no: "No" },
+  q8: { printed_handouts: "Printed handouts", videos: "Videos", online_workshops: "Online workshops", one_on_one: "One-on-one", visual_guides: "Visual guides", social_media: "Social media", audio_podcasts: "Audio podcasts" },
+  q9: { yes: "Yes", somewhat: "Somewhat", no: "No" },
+  q10: { referral: "Referral", assessment_results: "Assessment Results", eligibility: "Eligibility", writing_iep: "Writing the IEP", services_supports: "Services & Supports", transition_planning: "Transition Planning", disagreements: "Disagreements" },
+  q11: { yes: "Yes", sometimes: "Sometimes", no: "No" },
+  q12: { yes: "Yes", maybe: "Maybe", no: "No" },
+  q15: { yes: "Yes", no: "No", maybe: "Maybe" },
+};
+
+// Strip-tag guard. Reject if any HTML/script tag-looking sequence appears.
+const NH_TAG_RE = /<[^>]+>/;
+
+function _nhEscHtml(str) {
+  return String(str == null ? "" : str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function _nhValidateEnum(val, allowed) {
+  if (val === null || val === undefined || val === "") return { ok: true, value: null };
+  if (typeof val !== "string") return { ok: false };
+  if (NH_TAG_RE.test(val)) return { ok: false };
+  if (allowed.indexOf(val) === -1) return { ok: false };
+  return { ok: true, value: val };
+}
+
+function _nhValidateMultiSelect(arr, allowed, maxLen) {
+  if (arr === null || arr === undefined) return { ok: true, value: [] };
+  if (!Array.isArray(arr)) return { ok: false };
+  const seen = new Set();
+  for (const v of arr) {
+    if (typeof v !== "string") return { ok: false };
+    if (NH_TAG_RE.test(v)) return { ok: false };
+    if (allowed.indexOf(v) === -1) return { ok: false };
+    seen.add(v);
+  }
+  const out = Array.from(seen);
+  if (typeof maxLen === "number" && out.length > maxLen) return { ok: false };
+  return { ok: true, value: out };
+}
+
+function _nhValidateOtherWrap(raw, allowed, fieldName) {
+  // For q2 (single) and q3 (multi) — both have shape { value/values, other }.
+  if (raw === null || raw === undefined) {
+    if (fieldName === "q2") return { ok: true, value: { value: null, other: null } };
+    return { ok: true, value: { values: [], other: null } };
+  }
+  if (typeof raw !== "object" || Array.isArray(raw)) return { ok: false };
+
+  let other = raw.other;
+  if (other === undefined || other === "") other = null;
+  if (other !== null) {
+    if (typeof other !== "string") return { ok: false };
+    if (NH_TAG_RE.test(other)) return { ok: false };
+    other = other.trim();
+    if (other.length === 0) other = null;
+    if (other && other.length > 200) return { ok: false };
+  }
+
+  if (fieldName === "q2") {
+    const v = _nhValidateEnum(raw.value, allowed);
+    if (!v.ok) return { ok: false };
+    if (other && v.value !== "other") return { ok: false };
+    return { ok: true, value: { value: v.value, other } };
+  }
+  // q3 — multi-select
+  const v = _nhValidateMultiSelect(raw.values, allowed);
+  if (!v.ok) return { ok: false };
+  if (other && v.value.indexOf("other") === -1) return { ok: false };
+  return { ok: true, value: { values: v.value, other } };
+}
+
+function _nhValidateOpenText(val) {
+  if (val === null || val === undefined || val === "") return { ok: true, value: null };
+  if (typeof val !== "string") return { ok: false };
+  if (NH_TAG_RE.test(val)) return { ok: false };
+  const trimmed = val.trim();
+  if (trimmed.length === 0) return { ok: true, value: null };
+  if (trimmed.length > 1000) return { ok: false };
+  return { ok: true, value: trimmed };
+}
+
+exports.submitNativeHawaiianSurvey = functions
+  .region("us-central1")
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    // ── CORS ──
+    const origin = req.headers.origin || "";
+    if (NH_SURVEY_ALLOWED_ORIGINS.indexOf(origin) !== -1) {
+      res.set("Access-Control-Allow-Origin", origin);
+    }
+    res.set("Vary", "Origin");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Access-Control-Max-Age", "3600");
+
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+    if (req.method !== "POST") {
+      res.status(405).json({ success: false, error: "Method not allowed" });
+      return;
+    }
+
+    try {
+      const body = req.body || {};
+
+      // ── Honeypot: empty string for humans. If filled, silently swallow. ──
+      if (typeof body.honeypot !== "string" || body.honeypot.length > 0) {
+        // Per spec: silently return success, don't tip off the bot, don't write to Firestore.
+        res.status(200).json({ success: true });
+        return;
+      }
+
+      // ── Validate each field ──
+      const v1 = _nhValidateEnum(body.q1, NH_ENUMS.q1);
+      const v2 = _nhValidateOtherWrap(body.q2, NH_ENUMS.q2, "q2");
+      const v3 = _nhValidateOtherWrap(body.q3, NH_ENUMS.q3, "q3");
+      const v4 = _nhValidateEnum(body.q4, NH_ENUMS.q4);
+      const v5 = _nhValidateMultiSelect(body.q5, NH_ENUMS.q5);
+      const v6 = _nhValidateEnum(body.q6, NH_ENUMS.q6);
+      const v7 = _nhValidateEnum(body.q7, NH_ENUMS.q7);
+      const v8 = _nhValidateMultiSelect(body.q8, NH_ENUMS.q8, 3);
+      const v9 = _nhValidateEnum(body.q9, NH_ENUMS.q9);
+      const v10 = _nhValidateMultiSelect(body.q10, NH_ENUMS.q10);
+      const v11 = _nhValidateEnum(body.q11, NH_ENUMS.q11);
+      const v12 = _nhValidateEnum(body.q12, NH_ENUMS.q12);
+      const v13 = _nhValidateOpenText(body.q13);
+      const v14 = _nhValidateOpenText(body.q14);
+      const v15 = _nhValidateEnum(body.q15, NH_ENUMS.q15);
+
+      const allValid = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15].every((r) => r.ok);
+      if (!allValid) {
+        res.status(400).json({ success: false, error: "Invalid submission. Please check your answers and try again." });
+        return;
+      }
+
+      // ── IP rate limit (3 per IP per 24h) ──
+      const rawIp = (req.headers["x-forwarded-for"] || "").toString().split(",")[0].trim() || req.ip || "unknown";
+      const ipHash = crypto.createHash("sha256").update(rawIp).digest("hex");
+
+      const db = admin.firestore();
+      const Timestamp = admin.firestore.Timestamp;
+      const FieldValue = admin.firestore.FieldValue;
+      const ipDocRef = db.collection("nhSurveyIpHistory").doc(ipHash);
+      const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
+
+      const ipSnap = await ipDocRef.get();
+      let submissions = [];
+      if (ipSnap.exists) {
+        const data = ipSnap.data() || {};
+        const arr = Array.isArray(data.submissions) ? data.submissions : [];
+        for (const ts of arr) {
+          let ms = null;
+          if (ts && typeof ts.toMillis === "function") ms = ts.toMillis();
+          else if (ts && typeof ts.seconds === "number") ms = ts.seconds * 1000;
+          if (ms !== null && ms >= cutoffMs) submissions.push(ts);
+        }
+      }
+
+      if (submissions.length >= 3) {
+        res.status(429).json({ success: false, error: "Rate limit exceeded. Please try again tomorrow." });
+        return;
+      }
+
+      // Append current submission timestamp. Use Timestamp.now() — serverTimestamp()
+      // is REJECTED inside array elements (see Firestore Array Timestamp memory).
+      submissions.push(Timestamp.now());
+      await ipDocRef.set({ submissions }, { merge: false });
+
+      // ── Write the survey doc ──
+      await db.collection("nativeHawaiianSurveys").add({
+        q1: v1.value,
+        q2: v2.value,
+        q3: v3.value,
+        q4: v4.value,
+        q5: v5.value,
+        q6: v6.value,
+        q7: v7.value,
+        q8: v8.value,
+        q9: v9.value,
+        q10: v10.value,
+        q11: v11.value,
+        q12: v12.value,
+        q13: v13.value,
+        q14: v14.value,
+        q15: v15.value,
+        submittedAt: FieldValue.serverTimestamp(),
+        ipHash, // for duplicate flagging in the report; do NOT store raw IP
+      });
+
+      res.status(200).json({ success: true });
+    } catch (err) {
+      console.error("submitNativeHawaiianSurvey error:", err && err.message);
+      res.status(500).json({ success: false, error: "Something went wrong. Please try again." });
+    }
+  });
+
+// ── sendNativeHawaiianSurveyReport ────────────────────────────────
+// Scheduled daily at 8 AM HST. Emails Rosie a digest of all responses
+// from the past 24h (with aggregated counts + open-text answers).
+// Skips send when there are zero new submissions. No BCC.
+
+exports.sendNativeHawaiianSurveyReport = functions
+  .region("us-central1")
+  .runWith({ timeoutSeconds: 120, maxInstances: 1, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .pubsub.schedule("0 8 * * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const now = new Date();
+    const cutoffMs = now.getTime() - 24 * 60 * 60 * 1000;
+
+    // Query all surveys ordered by submittedAt. The dataset is small
+    // (one anonymous survey, low volume) so a full scan is fine.
+    let allDocs = [];
+    try {
+      const snap = await db.collection("nativeHawaiianSurveys").orderBy("submittedAt", "asc").get();
+      snap.forEach((doc) => { allDocs.push(doc.data()); });
+    } catch (err) {
+      console.error("sendNativeHawaiianSurveyReport: query failed:", err && err.message);
+      return null;
+    }
+
+    const newDocs = allDocs.filter((d) => {
+      const ts = d.submittedAt;
+      if (!ts) return false;
+      let ms = null;
+      if (typeof ts.toMillis === "function") ms = ts.toMillis();
+      else if (typeof ts.seconds === "number") ms = ts.seconds * 1000;
+      return ms !== null && ms >= cutoffMs;
+    });
+
+    if (newDocs.length === 0) {
+      console.log("sendNativeHawaiianSurveyReport: 0 new submissions in last 24h, skipping send.");
+      return null;
+    }
+
+    // ── Duplicate flag: group new submissions by ipHash ──
+    const ipCounts = {};
+    for (const d of newDocs) {
+      const h = d.ipHash || "";
+      if (!h) continue;
+      ipCounts[h] = (ipCounts[h] || 0) + 1;
+    }
+    let duplicateIps = 0;
+    let duplicateSubs = 0;
+    for (const h of Object.keys(ipCounts)) {
+      if (ipCounts[h] > 1) {
+        duplicateIps++;
+        duplicateSubs += ipCounts[h];
+      }
+    }
+
+    // ── Aggregate helpers ──
+    function tallyEnum(docs, field, options) {
+      const counts = {};
+      let nonNull = 0;
+      for (const opt of options) counts[opt] = 0;
+      for (const d of docs) {
+        let v = d[field];
+        if (v && typeof v === "object" && "value" in v) v = v.value; // for q2
+        if (v === null || v === undefined || v === "") continue;
+        if (options.indexOf(v) === -1) continue;
+        counts[v]++;
+        nonNull++;
+      }
+      return { counts, nonNull };
+    }
+    function tallyMulti(docs, field, options) {
+      const counts = {};
+      for (const opt of options) counts[opt] = 0;
+      for (const d of docs) {
+        let arr = d[field];
+        if (arr && typeof arr === "object" && Array.isArray(arr.values)) arr = arr.values; // for q3
+        if (!Array.isArray(arr)) continue;
+        for (const v of arr) {
+          if (options.indexOf(v) !== -1) counts[v]++;
+        }
+      }
+      return { counts };
+    }
+    function enumTableHtml(field, options, labels) {
+      const { counts, nonNull } = tallyEnum(newDocs, field, options);
+      const rows = options.map((opt) => {
+        const c = counts[opt];
+        const pct = nonNull > 0 ? Math.round((c / nonNull) * 100) : 0;
+        return `<tr>
+          <td style="padding:4px 8px;border-bottom:1px solid #eee;">${_nhEscHtml(labels[opt] || opt)}</td>
+          <td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;">${c}</td>
+          <td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;color:#666;">${pct}%</td>
+        </tr>`;
+      }).join("");
+      return `<table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;font-size:13px;margin:6px 0 14px;">
+        <thead><tr style="background:#f4f6f8;">
+          <th style="padding:5px 8px;text-align:left;border-bottom:2px solid #1a3c6e;">Option</th>
+          <th style="padding:5px 8px;text-align:right;border-bottom:2px solid #1a3c6e;width:60px;">Count</th>
+          <th style="padding:5px 8px;text-align:right;border-bottom:2px solid #1a3c6e;width:60px;">%</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr><td colspan="3" style="padding:4px 8px;font-size:11px;color:#666;">${nonNull} answered (of ${newDocs.length} new)</td></tr></tfoot>
+      </table>`;
+    }
+    function multiTableHtml(field, options, labels) {
+      const { counts } = tallyMulti(newDocs, field, options);
+      const total = newDocs.length;
+      const rows = options.map((opt) => {
+        const c = counts[opt];
+        return `<tr>
+          <td style="padding:4px 8px;border-bottom:1px solid #eee;">${_nhEscHtml(labels[opt] || opt)}</td>
+          <td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;">${c}</td>
+        </tr>`;
+      }).join("");
+      return `<table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;font-size:13px;margin:6px 0 14px;">
+        <thead><tr style="background:#f4f6f8;">
+          <th style="padding:5px 8px;text-align:left;border-bottom:2px solid #1a3c6e;">Option</th>
+          <th style="padding:5px 8px;text-align:right;border-bottom:2px solid #1a3c6e;width:60px;">Count</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr><td colspan="2" style="padding:4px 8px;font-size:11px;color:#666;">Out of ${total} new (overlaps allowed)</td></tr></tfoot>
+      </table>`;
+    }
+
+    // ── "Other" fill-ins from new submissions ──
+    const q2Others = new Set();
+    const q3Others = new Set();
+    for (const d of newDocs) {
+      if (d.q2 && typeof d.q2.other === "string" && d.q2.other.trim()) q2Others.add(d.q2.other.trim());
+      if (d.q3 && typeof d.q3.other === "string" && d.q3.other.trim()) q3Others.add(d.q3.other.trim());
+    }
+    const q2OtherList = Array.from(q2Others);
+    const q3OtherList = Array.from(q3Others);
+
+    function otherListHtml(items, fallback) {
+      if (!items.length) return `<p style="margin:4px 0 14px;font-size:13px;color:#888;">${fallback}</p>`;
+      return `<ul style="margin:6px 0 14px;padding-left:22px;font-size:13px;">${items.map((s) => `<li style="margin:2px 0;">${_nhEscHtml(s)}</li>`).join("")}</ul>`;
+    }
+
+    // ── Open-text Q13/Q14 from NEW submissions only ──
+    const q13New = newDocs.map((d) => d.q13).filter((s) => typeof s === "string" && s.trim());
+    const q14New = newDocs.map((d) => d.q14).filter((s) => typeof s === "string" && s.trim());
+
+    function openTextHtml(items, fallback) {
+      if (!items.length) return `<p style="margin:4px 0 14px;font-size:13px;color:#888;">${fallback}</p>`;
+      return `<ol style="margin:6px 0 14px;padding-left:22px;font-size:13px;">${items.map((s) => `<li style="margin:6px 0;line-height:1.45;">${_nhEscHtml(s)}</li>`).join("")}</ol>`;
+    }
+
+    // ── Header date (HST) ──
+    const hawaiiNow = new Date(now.toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
+    const todayLong = hawaiiNow.toLocaleDateString("en-US", {
+      weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "Pacific/Honolulu",
+    });
+    const yyyy = hawaiiNow.getFullYear();
+    const mm = String(hawaiiNow.getMonth() + 1).padStart(2, "0");
+    const dd = String(hawaiiNow.getDate()).padStart(2, "0");
+    const todayISO = `${yyyy}-${mm}-${dd}`;
+
+    const dupNote = duplicateIps > 0
+      ? `<p style="margin:6px 0 0;padding:8px 12px;background:#fff8e1;border-left:3px solid #f5a623;font-size:13px;color:#5a3e00;">${duplicateSubs} responses from ${duplicateIps} IP(s) submitted multiple times today — possible duplicates.</p>`
+      : "";
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;">
+<tr><td align="center" style="padding:24px 16px;">
+<table role="presentation" width="800" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;max-width:800px;width:100%;">
+  <tr>
+    <td style="background-color:#1a3c6e;padding:24px 32px;text-align:center;">
+      <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:bold;letter-spacing:0.5px;">
+        Native Hawaiian Family Survey &mdash; Daily Report
+      </h1>
+      <p style="margin:4px 0 0;color:#b0c4de;font-size:14px;">${_nhEscHtml(todayLong)}</p>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:20px 28px 8px;">
+      <p style="margin:0;font-size:14px;color:#1a3c6e;font-weight:600;">
+        ${allDocs.length} total responses to date, ${newDocs.length} new in the last 24 hours.
+      </p>
+      ${dupNote}
+    </td>
+  </tr>
+
+  <tr><td style="padding:18px 28px 4px;">
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q1. Do you identify as Native Hawaiian?</h2>
+    ${enumTableHtml("q1", NH_ENUMS.q1, NH_LABELS.q1)}
+  </td></tr>
+
+  <tr><td style="padding:0 28px 4px;">
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q2. Which island do you live on?</h2>
+    ${enumTableHtml("q2", NH_ENUMS.q2, NH_LABELS.q2)}
+    <p style="margin:8px 0 4px;font-size:13px;font-weight:600;">"Other" fill-ins:</p>
+    ${otherListHtml(q2OtherList, "(none)")}
+  </td></tr>
+
+  <tr><td style="padding:0 28px 4px;">
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q3. What languages are spoken in your home?</h2>
+    ${multiTableHtml("q3", NH_ENUMS.q3, NH_LABELS.q3)}
+    <p style="margin:8px 0 4px;font-size:13px;font-weight:600;">"Other" fill-ins:</p>
+    ${otherListHtml(q3OtherList, "(none)")}
+  </td></tr>
+
+  <tr><td style="padding:0 28px 4px;">
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q4. How often do you interact with the special education system?</h2>
+    ${enumTableHtml("q4", NH_ENUMS.q4, NH_LABELS.q4)}
+  </td></tr>
+
+  <tr><td style="padding:0 28px 4px;">
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q5. Which topics would you like to learn more about?</h2>
+    ${multiTableHtml("q5", NH_ENUMS.q5, NH_LABELS.q5)}
+  </td></tr>
+
+  <tr><td style="padding:0 28px 4px;">
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q6. How important is culturally relevant information to you?</h2>
+    ${enumTableHtml("q6", NH_ENUMS.q6, NH_LABELS.q6)}
+  </td></tr>
+
+  <tr><td style="padding:0 28px 4px;">
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q7. Would you attend a workshop or training?</h2>
+    ${enumTableHtml("q7", NH_ENUMS.q7, NH_LABELS.q7)}
+  </td></tr>
+
+  <tr><td style="padding:0 28px 4px;">
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q8. Preferred ways to receive information (top 3):</h2>
+    ${multiTableHtml("q8", NH_ENUMS.q8, NH_LABELS.q8)}
+  </td></tr>
+
+  <tr><td style="padding:0 28px 4px;">
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q9. Do you feel your voice is heard in the special education process?</h2>
+    ${enumTableHtml("q9", NH_ENUMS.q9, NH_LABELS.q9)}
+  </td></tr>
+
+  <tr><td style="padding:0 28px 4px;">
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q10. Where in the SpEd process do you need the most support?</h2>
+    ${multiTableHtml("q10", NH_ENUMS.q10, NH_LABELS.q10)}
+  </td></tr>
+
+  <tr><td style="padding:0 28px 4px;">
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q11. Do you feel LDAH services have been helpful?</h2>
+    ${enumTableHtml("q11", NH_ENUMS.q11, NH_LABELS.q11)}
+  </td></tr>
+
+  <tr><td style="padding:0 28px 4px;">
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q12. Would you recommend LDAH to other families?</h2>
+    ${enumTableHtml("q12", NH_ENUMS.q12, NH_LABELS.q12)}
+  </td></tr>
+
+  <tr><td style="padding:0 28px 4px;">
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q13. What barriers have you faced? (open responses, new only)</h2>
+    ${openTextHtml(q13New, "No new open-text responses in the last 24 hours.")}
+  </td></tr>
+
+  <tr><td style="padding:0 28px 4px;">
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q14. What else would help your family? (open responses, new only)</h2>
+    ${openTextHtml(q14New, "No new open-text responses in the last 24 hours.")}
+  </td></tr>
+
+  <tr><td style="padding:0 28px 24px;">
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q15. May we contact you for follow-up?</h2>
+    ${enumTableHtml("q15", NH_ENUMS.q15, NH_LABELS.q15)}
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+
+    const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+    const subject = `Native Hawaiian Family Survey -- Daily Report (${todayISO} HST)`;
+
+    try {
+      await sendEmailViaResend({
+        from: `LDAH <${fromAddress}>`,
+        to: "rrowe@ldahawaii.org",
+        subject,
+        html,
+        type: "nh-survey-daily-report",
+        recipientName: "Rosie Rowe",
+      });
+      console.log(`sendNativeHawaiianSurveyReport: sent to rrowe@ldahawaii.org (${newDocs.length} new of ${allDocs.length} total).`);
+    } catch (err) {
+      console.error("sendNativeHawaiianSurveyReport: send failed:", err && err.message);
+    }
+    return null;
+  });
