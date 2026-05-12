@@ -9488,11 +9488,20 @@ exports.enforceConnectGenDocDeadline = functions
 
     // Feature flag — required gate per the brief. Daniel will flip it on
     // after testing the cron in isolation.
+    let cutoff = null;
     try {
       const flagsSnap = await db.doc("settings/featureFlags").get();
-      const enabled = !!(flagsSnap.exists && flagsSnap.data() && flagsSnap.data().cgDeadlineEnforcementEnabled);
+      const flags = (flagsSnap.exists && flagsSnap.data()) || {};
+      const enabled = !!flags.cgDeadlineEnforcementEnabled;
       if (!enabled) {
         console.log("[enforceConnectGenDocDeadline] disabled via flag — skipping");
+        return null;
+      }
+      cutoff = flags.cgDeadlineEnforcementCutoff; // Firestore Timestamp
+
+      // Safety: if flag is on but no cutoff set, log + abort (require explicit cutoff)
+      if (!cutoff) {
+        console.error("[enforceConnectGenDocDeadline] enabled but no cutoff timestamp set — aborting for safety");
         return null;
       }
     } catch (flagErr) {
@@ -9528,6 +9537,12 @@ exports.enforceConnectGenDocDeadline = functions
           scanned++;
           try {
             const signup = sigDoc.data() || {};
+            // Grandfather: signup pre-dates enforcement cutoff (e.g., snail-mail docs path).
+            // Signup docs use `timestamp` (serverTimestamp at creation) across all W2/App
+            // write paths (events.html L2902, L3229, L3712).
+            if (!signup.timestamp || signup.timestamp.toMillis() < cutoff.toMillis()) {
+              skipped++; continue;
+            }
             if (signup.archived === true) { skipped++; continue; }
             if (!signup.email) { skipped++; continue; }
             if (!signup.consentSignedAt) { skipped++; continue; }
