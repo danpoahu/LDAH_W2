@@ -19,21 +19,17 @@
     var CF_ENDPOINT = 'https://us-central1-ldah-932d5.cloudfunctions.net/submitNativeHawaiianSurvey';
     var MODAL_HTML_URL = 'nh-survey-modal.html';
 
-    // Screens in order. -1 sentinel = intro (no progress bar shown), 1..5 = numbered form steps, 'mahalo' = final.
-    // Match user spec: 5 form steps with progress 1-5 + intro + mahalo screen.
+    // Screens in order. Intro = branded splash (no progress bar), 1..4 = numbered form steps (Step 1-4 of 4), 'mahalo' = final.
     var SCREEN_ORDER = ['intro', '1', '2', '3', '4', 'mahalo'];
-    // Progress label only shown for screens 1..4 (which we render as "Step N of 5"). Submit is step 5.
-    // The spec says progress 1-5 across form steps. Intro is screen 1 of 5 in plain count, but it doesn't ask questions.
-    // We'll treat: intro = step 1 of 5, family = step 2 of 5, understanding = step 3, IEP = step 4, final = step 5.
+    // Progress label only shown for screens 1..4. The intro is a splash and has no step number.
+    // Step 1 of 4 starts on Family Information.
     var STEP_LABEL = {
-        'intro': 'Step 1 of 5',
-        '1':     'Step 2 of 5',
-        '2':     'Step 3 of 5',
-        '3':     'Step 4 of 5',
-        '4':     'Step 5 of 5'
+        '1':     'Step 1 of 4',
+        '2':     'Step 2 of 4',
+        '3':     'Step 3 of 4',
+        '4':     'Step 4 of 4'
     };
     var STEP_PROGRESS_PCT = {
-        'intro': 5,
         '1':     25,
         '2':     50,
         '3':     75,
@@ -81,6 +77,11 @@
         var progressLabel = $('#nhSurveyProgressLabel');
         var progressFill = $('#nhSurveyProgressFill');
 
+        // Toggle splash mode on the inner .nh-survey-modal so CSS can hide
+        // the header title + progress and strip body padding while on intro.
+        var modalInner = state.modalRoot ? state.modalRoot.querySelector('.nh-survey-modal') : null;
+        if (modalInner) modalInner.classList.toggle('nh-survey-on-intro', key === 'intro');
+
         if (key === 'mahalo') {
             if (progressWrap) progressWrap.style.display = 'none';
             if (backBtn) backBtn.style.display = 'none';
@@ -95,7 +96,8 @@
 
         if (footer) footer.style.justifyContent = 'space-between';
 
-        if (progressWrap) progressWrap.style.display = '';
+        // Hide progress on intro (splash); show on steps 1-4.
+        if (progressWrap) progressWrap.style.display = (key === 'intro') ? 'none' : '';
         if (progressLabel) progressLabel.textContent = STEP_LABEL[key] || '';
         if (progressFill) progressFill.style.width = (STEP_PROGRESS_PCT[key] || 0) + '%';
 
@@ -110,7 +112,7 @@
             nextBtn.style.display = 'inline-block';
             nextBtn.disabled = state.submitting;
             if (key === 'intro') {
-                nextBtn.textContent = 'Begin Survey';
+                nextBtn.textContent = 'Take Survey';
             } else if (key === '4') {
                 nextBtn.textContent = state.submitting ? 'Submitting...' : 'Submit';
             } else {

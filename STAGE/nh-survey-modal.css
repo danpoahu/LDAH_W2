@@ -403,6 +403,55 @@
     display: block;
 }
 
+/* === Branded splash on intro screen === */
+.nh-survey-splash {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: 100%;
+    max-height: 70vh;
+    object-fit: contain;
+    border-radius: 20px 20px 0 0;
+    background: #FFFFFF;
+}
+
+/* While on the intro splash: hide header title + progress, strip body
+   padding so the image hugs the modal edges. The X close button stays
+   visible (absolutely positioned over the splash, top-right). */
+.nh-survey-modal.nh-survey-on-intro .nh-survey-header-title,
+.nh-survey-modal.nh-survey-on-intro .nh-survey-progress-wrap {
+    display: none;
+}
+
+.nh-survey-modal.nh-survey-on-intro .nh-survey-header {
+    background: transparent;
+    padding: 0;
+    position: absolute;
+    top: 0.6rem;
+    right: 0.6rem;
+    z-index: 2;
+    pointer-events: none;
+}
+
+.nh-survey-modal.nh-survey-on-intro .nh-survey-close {
+    background: rgba(255, 255, 255, 0.92);
+    color: #0891B2;
+    pointer-events: auto;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.nh-survey-modal.nh-survey-on-intro .nh-survey-close:hover {
+    background: #FFFFFF;
+}
+
+.nh-survey-modal.nh-survey-on-intro .nh-survey-body {
+    padding: 0;
+}
+
+.nh-survey-modal.nh-survey-on-intro .nh-survey-error {
+    margin: 1rem;
+}
+
 @media (max-width: 600px) {
     .nh-survey-backdrop { padding: 0; }
     .nh-survey-modal {
@@ -417,4 +466,8 @@
     .nh-survey-progress-wrap { padding: 0.7rem 1.1rem 0; }
     .nh-survey-footer { padding: 0.85rem 1.1rem; }
     .nh-survey-btn { padding: 0.65rem 1rem; min-width: 90px; font-size: 0.9rem; }
+    .nh-survey-splash {
+        border-radius: 16px 16px 0 0;
+        max-height: 55vh;
+    }
 }
