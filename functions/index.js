@@ -1133,7 +1133,39 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
       return;
     }
 
-    if (isConnectGen && !after.consentSignedAt) {
+    // Narrow Connect-Gen consent flow to Monday-virtual signups only.
+    // Single-date enforcement (in place since 2026-05-12) means each CG signup
+    // has exactly one session, so we inspect the first session deterministically.
+    // Non-Monday OR in-person CG signups skip the consent gate entirely and
+    // confirm like a standard signup — no IEP/Eval needed for those sessions.
+    let _cgMondayVirtual = false;
+    if (isConnectGen) {
+      try {
+        const _sSessions = (getSignupSessions(after, event) || []);
+        const _firstKey = (_sSessions[0] && _sSessions[0].dateKey)
+          || (sessionKeys && sessionKeys[0]) || "";
+        let _firstIsMonday = false;
+        if (_firstKey && /^\d{4}-\d{2}-\d{2}$/.test(_firstKey)) {
+          const _d = new Date(_firstKey + "T00:00:00-10:00");
+          if (!isNaN(_d.getTime())) {
+            const _dayName = _d.toLocaleDateString("en-US", { weekday: "long", timeZone: "Pacific/Honolulu" });
+            _firstIsMonday = (_dayName === "Monday");
+          }
+        }
+        const _firstIsVirtual = _firstKey ? isSessionVirtual(event, _firstKey, after) : false;
+        _cgMondayVirtual = _firstIsMonday && _firstIsVirtual;
+        if (!_cgMondayVirtual) {
+          console.log(`Connect-Gen consent narrowing: ${collection}/${eventId}/${signupId} skipped consent gate (key=${_firstKey || "?"}, monday=${_firstIsMonday}, virtual=${_firstIsVirtual})`);
+        }
+      } catch (_narrowErr) {
+        console.warn(`Connect-Gen narrowing failed (${collection}/${eventId}/${signupId}):`, _narrowErr.message);
+        // Conservative fallback: original behavior — keep consent flow on
+        // so a parsing glitch never silently drops a real Connect-Gen parent.
+        _cgMondayVirtual = true;
+      }
+    }
+
+    if (isConnectGen && _cgMondayVirtual && !after.consentSignedAt) {
       // Only send once.
       if (after.consentRequiredEmailSentAt) return;
       const consentToken = crypto.randomBytes(16).toString("hex");
@@ -1177,8 +1209,9 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
 
     // Connect-Gen + consent already signed → send the prep-docs email
     // (in case status flipped from pending to confirmed AFTER consent was
-    // already on file from a prior run).
-    if (isConnectGen && after.consentSignedAt) {
+    // already on file from a prior run). Only relevant for Monday-virtual
+    // CG signups — non-Monday-virtual CG skips the consent flow entirely.
+    if (isConnectGen && _cgMondayVirtual && after.consentSignedAt) {
       // submitConnectGenConsent already sent the prep email when the form
       // was submitted. Don't double-send. Just stamp confirmationEmailSentAt
       // so this branch doesn't keep re-firing.
@@ -9125,3 +9158,740 @@ exports.scheduledConnectGenDocLifecycle = functions
     return { scanned, alertsSent, destroyed, skipped, errors, viaAccessor, viaLegacy };
   });
 
+
+// ============================================================
+// Connect-Gen Monday-virtual document gate + reschedule flow
+// ============================================================
+//
+// Pipeline:
+//   1. Parent signs up for a Monday-virtual Connect-Gen session
+//   2. maybeSendRegistrationConfirmation sends the consent invite (narrowed
+//      to Monday-virtual only — see _cgMondayVirtual gate above)
+//   3. Parent signs consent → submitConnectGenConsent emails an upload link
+//   4. T-7 days: if docs still missing, enforceConnectGenDocDeadline sends
+//      the reschedule-offer email with 4 future Monday buttons
+//   5. T-4 days: if docs still missing AND >=3 days since offer, send firm
+//      reminder. Parent can still reschedule.
+//   6. Parent clicks a Monday button → acceptConnectGenReschedule HTTPS CF
+//      validates the signed token, updates selectedSessions to the new
+//      Monday, clears reschedule/reminder stamps, and fires a fresh
+//      upload-later email pointing at the parent's existing upload token.
+//
+// Feature flag: settings/featureFlags.cgDeadlineEnforcementEnabled gates the
+// daily cron. Daniel flips it on after testing.
+// ============================================================
+
+// HMAC helpers for reschedule tokens. The secret is supplied via env var
+// (Firebase Functions secret CG_RESCHEDULE_HMAC_SECRET) so the cron CF and
+// the HTTPS accept CF can validate independently — no Firestore round trip
+// needed for token verification. Token payload is base64url-encoded JSON
+// with a separate base64url signature.
+const _CG_RESCHEDULE_TOKEN_VERSION = "v1";
+
+function _cgRescheduleHmacSecret() {
+  // The deploy command attaches this as a secret. If unset (local emulator
+  // or first deploy before the secret is created), fall back to a stable
+  // per-project value so tokens are still self-consistent — Daniel can
+  // rotate by setting the real secret later.
+  const fromSecret = process.env.CG_RESCHEDULE_HMAC_SECRET;
+  if (fromSecret && fromSecret.length >= 16) return fromSecret;
+  const proj = process.env.GCP_PROJECT || process.env.GCLOUD_PROJECT || "ldah-932d5";
+  return "cg-reschedule-fallback-" + proj + "-" + _CG_RESCHEDULE_TOKEN_VERSION;
+}
+
+function _b64urlEncode(buf) {
+  return Buffer.from(buf)
+    .toString("base64")
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function _b64urlDecode(str) {
+  const s = String(str || "").replace(/-/g, "+").replace(/_/g, "/");
+  const pad = s.length % 4 === 0 ? "" : "=".repeat(4 - (s.length % 4));
+  return Buffer.from(s + pad, "base64");
+}
+
+/**
+ * Sign a reschedule token. Payload: { sid, eid, col, ndk, exp }
+ *   sid = signupId, eid = eventId, col = collection name,
+ *   ndk = new session dateKey (YYYY-MM-DD), exp = unix epoch seconds.
+ * Returns a single base64url string "<payload>.<sig>".
+ */
+function _signRescheduleToken({ signupId, eventId, collection, newSessionDateKey, expSeconds }) {
+  const payload = {
+    v: _CG_RESCHEDULE_TOKEN_VERSION,
+    sid: String(signupId || ""),
+    eid: String(eventId || ""),
+    col: String(collection || ""),
+    ndk: String(newSessionDateKey || ""),
+    exp: Number(expSeconds || 0),
+  };
+  const payloadStr = _b64urlEncode(Buffer.from(JSON.stringify(payload)));
+  const sig = crypto.createHmac("sha256", _cgRescheduleHmacSecret())
+    .update(payloadStr)
+    .digest();
+  return payloadStr + "." + _b64urlEncode(sig);
+}
+
+/**
+ * Verify and decode a reschedule token. Returns the payload object or null
+ * if the token is malformed, the signature doesn't match, or it's expired.
+ */
+function _verifyRescheduleToken(token) {
+  try {
+    const raw = String(token || "");
+    const dot = raw.indexOf(".");
+    if (dot <= 0) return null;
+    const payloadStr = raw.substring(0, dot);
+    const sigStr = raw.substring(dot + 1);
+    const expected = crypto.createHmac("sha256", _cgRescheduleHmacSecret())
+      .update(payloadStr).digest();
+    const provided = _b64urlDecode(sigStr);
+    if (provided.length !== expected.length) return null;
+    if (!crypto.timingSafeEqual(provided, expected)) return null;
+    const payload = JSON.parse(_b64urlDecode(payloadStr).toString("utf8"));
+    if (!payload || payload.v !== _CG_RESCHEDULE_TOKEN_VERSION) return null;
+    if (!payload.sid || !payload.eid || !payload.ndk) return null;
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (typeof payload.exp !== "number" || payload.exp < nowSec) return null;
+    return payload;
+  } catch (_) {
+    return null;
+  }
+}
+
+// Resolve the public origin for reschedule links. Live site preferred; STAGE
+// is supported on the GitHub Pages domain for testing. The brief specifies
+// "https://www.ldahawaii.org/connect-gen-reschedule.html" for the live link;
+// STAGE testing happens via the GH Pages mirror.
+const CONNECT_GEN_RESCHEDULE_BASE_URL = "https://www.ldahawaii.org/connect-gen-reschedule.html";
+const CONNECT_GEN_RESCHEDULE_BASE_URL_STAGE = "https://danpoahu.github.io/LDAH_W2/STAGE/connect-gen-reschedule.html";
+
+// Pretty "Monday, May 19" for buttons.
+function _formatMondayLabel(dateKey) {
+  if (!dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return dateKey;
+  const d = new Date(dateKey + "T00:00:00-10:00");
+  if (isNaN(d.getTime())) return dateKey;
+  return d.toLocaleDateString("en-US", {
+    weekday: "long", month: "long", day: "numeric",
+    timeZone: "Pacific/Honolulu",
+  });
+}
+
+// Pretty "Monday, May 19, 2026" for body copy.
+function _formatSessionLongLabel(dateKey) {
+  if (!dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return dateKey;
+  const d = new Date(dateKey + "T00:00:00-10:00");
+  if (isNaN(d.getTime())) return dateKey;
+  return d.toLocaleDateString("en-US", {
+    weekday: "long", month: "long", day: "numeric", year: "numeric",
+    timeZone: "Pacific/Honolulu",
+  });
+}
+
+/**
+ * Walk an event's sessions[] and return up to N future Monday + virtual
+ * dateKeys that are at least 14 days from today HST. Skips the signup's
+ * current session if it happens to match (avoids "move to the date you're
+ * already on" buttons).
+ */
+function _findUpcomingMondaysForEvent(event, signup, opts) {
+  const minDaysOut = (opts && Number.isFinite(opts.minDaysOut)) ? opts.minDaysOut : 14;
+  const max = (opts && Number.isFinite(opts.max)) ? opts.max : 4;
+  const currentKey = (opts && opts.currentKey) || "";
+
+  const todayKey = toHstDateKey(new Date());
+  const cutoffKey = addDaysHst(todayKey, minDaysOut);
+  const seen = new Set();
+  const out = [];
+
+  let sessions = [];
+  try { sessions = getEventSessions(event) || []; } catch (_) { sessions = []; }
+
+  // Sort by dateKey ascending for deterministic "next 4" output.
+  sessions.sort((a, b) => String(a.dateKey || "").localeCompare(String(b.dateKey || "")));
+
+  for (const sess of sessions) {
+    if (!sess || !sess.dateKey) continue;
+    if (seen.has(sess.dateKey)) continue;
+    if (sess.dateKey === currentKey) continue;
+    if (sess.dateKey < cutoffKey) continue;
+    // Monday check (HST weekday)
+    const d = new Date(sess.dateKey + "T00:00:00-10:00");
+    if (isNaN(d.getTime())) continue;
+    const dayName = d.toLocaleDateString("en-US", { weekday: "long", timeZone: "Pacific/Honolulu" });
+    if (dayName !== "Monday") continue;
+    // Virtual check — pass through isSessionVirtual with the signup so
+    // per-signup overrides apply.
+    if (!isSessionVirtual(event, sess.dateKey, signup)) continue;
+    seen.add(sess.dateKey);
+    out.push({
+      dateKey: sess.dateKey,
+      session: sess,
+    });
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+/**
+ * Build the reschedule-offer or firm-reminder email HTML.
+ * mode: "offer" | "reminder"
+ */
+function _buildCgRescheduleEmailHtml({
+  mode, firstName, sessionDateLabel,
+  uploadUrl, mondayOptions, signatureHtml,
+}) {
+  const safeFirst = lifecycleEsc(firstName || "there");
+  const safeDate = lifecycleEsc(sessionDateLabel || "your Monday session");
+  const uploadBtn = _emailBtn(uploadUrl, "Upload Documents Now", { bg: "#1a3c6e", align: "left" });
+
+  const mondayBtns = (mondayOptions || []).map((opt) => {
+    const label = "Monday, " + opt.label;
+    return _emailBtn(opt.url, label, { bg: "#0891B2", align: "left" });
+  }).join("");
+
+  const intro = (mode === "reminder")
+    ? '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">' +
+        'This is a friendly reminder that we still haven\'t received the IEP and evaluation documents for your Connect-Gen session on Monday, ' + safeDate + '. ' +
+        'Without these documents, our advocates can\'t fully prepare, and we won\'t be able to send you the Zoom meeting link for that session.' +
+      '</p>'
+    : '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">' +
+        'I\'m reaching out about your Connect-Gen registration for Monday, ' + safeDate + '. ' +
+        'We haven\'t received your child\'s IEP and evaluation documents yet, and we need those one week before the session so our advocates can prepare to best support your family.' +
+      '</p>';
+
+  const uploadLead = (mode === "reminder")
+    ? '<p style="margin:0 0 8px;font-size:15px;color:#222;line-height:1.55;">' +
+        'To stay on this Monday, please upload your documents as soon as possible:' +
+      '</p>'
+    : '<p style="margin:0 0 8px;font-size:15px;color:#222;line-height:1.55;">' +
+        'If you can upload the documents in the next few days:' +
+      '</p>';
+
+  const mondayLead = (mode === "reminder")
+    ? '<p style="margin:18px 0 8px;font-size:15px;color:#222;line-height:1.55;">' +
+        'Or if this Monday no longer works, you can still move to one of these upcoming Mondays:' +
+      '</p>'
+    : '<p style="margin:18px 0 8px;font-size:15px;color:#222;line-height:1.55;">' +
+        'If you need more time, you\'re welcome to move to one of these upcoming Mondays instead:' +
+      '</p>';
+
+  const closing = (mode === "reminder")
+    ? ''
+    : '<p style="margin:18px 0 8px;font-size:15px;color:#222;line-height:1.55;">' +
+        'Once you pick a new Monday, we\'ll send a fresh upload link for the documents.' +
+      '</p>';
+
+  const linkFooter = _emailLinkFooter([{ label: "Upload documents", href: uploadUrl }]);
+  const headerLabel = (mode === "reminder") ? "Connect-Gen Documents Reminder" : "Connect-Gen Monday";
+  return [
+    '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f7;">',
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f4f4f7;padding:24px 0;">',
+    '<tr><td align="center">',
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">',
+    '<tr><td style="background:#1a3c6e;padding:18px 24px;">',
+    '<p style="margin:0;font-size:18px;color:#ffffff;font-weight:700;">' + lifecycleEsc(headerLabel) + '</p>',
+    '</td></tr>',
+    '<tr><td style="padding:24px;">',
+    '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">Aloha ' + safeFirst + ',</p>',
+    intro,
+    uploadLead,
+    uploadBtn,
+    (mondayBtns ? (mondayLead + mondayBtns) : ''),
+    closing,
+    '<p style="margin:18px 0 14px;font-size:15px;color:#222;line-height:1.55;">If you have any questions or need help, please reply to this email — we\'re here to support you.</p>',
+    '<p style="margin:18px 0 4px;font-size:15px;color:#333;line-height:1.55;">Mahalo,</p>',
+    (signatureHtml || ''),
+    linkFooter,
+    '</td></tr>',
+    '</table>',
+    '</td></tr></table></body></html>',
+  ].join('');
+}
+
+/**
+ * Internal helper to send a fresh upload-later email. Mirrors
+ * sendConnectGenUploadLaterEmail (HTTPS) but callable in-process so the
+ * reschedule CF can fire it without an HTTP round trip.
+ */
+async function _sendConnectGenUploadLaterEmailFor({ db, signupRef, signupData, eventId }) {
+  const recipientEmail = String(
+    (signupData && signupData.email) ||
+    (signupData && signupData.registration && signupData.registration.email) ||
+    ""
+  ).trim();
+  if (!recipientEmail) throw new Error("Signup has no email on file");
+
+  const familyName = String(
+    (signupData && signupData.name) ||
+    (signupData && signupData.firstName) ||
+    ""
+  ).trim();
+  const firstName = lifecycleFirstName(familyName || recipientEmail);
+  const uploadAuthToken = signupData && signupData.uploadAuthToken;
+  if (!uploadAuthToken) throw new Error("Signup is missing uploadAuthToken");
+
+  const uploadUrl = CONNECT_GEN_UPLOAD_BASE_URL + "?upload=" + encodeURIComponent(uploadAuthToken);
+  let expiresFormatted = "";
+  try {
+    if (signupData.uploadAuthExpiresAt && typeof signupData.uploadAuthExpiresAt.toDate === "function") {
+      expiresFormatted = _formatHstDateTime(signupData.uploadAuthExpiresAt.toDate());
+    }
+  } catch (_) {}
+
+  const signatureHtml = await buildSignatureBlock("eventCoordinator");
+  const html = _buildConnectGenUploadLaterEmailHtml({
+    firstName, uploadUrl, expiresFormatted, signatureHtml,
+  });
+
+  const subject = "Upload your Connect-Gen documents -- " + (familyName || "LDAH");
+  const fromAddress = lifecycleFromAddress();
+
+  await sendEmailViaResend({
+    from: fromAddress,
+    to: recipientEmail,
+    subject,
+    html,
+    type: "connect-gen-upload-later",
+    relatedEventId: eventId,
+    relatedSignupId: signupRef.id,
+    recipientName: familyName || "",
+  });
+
+  try {
+    await db.collection("auditLog").add({
+      action: "Connect-Gen upload-later email sent (reschedule)",
+      details: "email=" + recipientEmail + ", signupPath=" + signupRef.path,
+      performedBy: recipientEmail,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      signupPath: signupRef.path,
+    });
+  } catch (e) { console.warn("auditLog write failed:", e.message); }
+}
+
+// ─── Part 2: enforceConnectGenDocDeadline (scheduled) ────────────────
+// Runs daily at 8 AM HST. Scans Connect-Gen events for Monday-virtual
+// signups missing docs and sends T-7 reschedule offers and T-4 firm
+// reminders. Gated by settings/featureFlags.cgDeadlineEnforcementEnabled.
+exports.enforceConnectGenDocDeadline = functions
+  .runWith({
+    timeoutSeconds: 540,
+    maxInstances: 1,
+    secrets: ["RESEND_API_KEY", "SMTP_FROM", "CG_RESCHEDULE_HMAC_SECRET"],
+  })
+  .pubsub.schedule("0 8 * * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const FieldValue = admin.firestore.FieldValue;
+
+    // Feature flag — required gate per the brief. Daniel will flip it on
+    // after testing the cron in isolation.
+    try {
+      const flagsSnap = await db.doc("settings/featureFlags").get();
+      const enabled = !!(flagsSnap.exists && flagsSnap.data() && flagsSnap.data().cgDeadlineEnforcementEnabled);
+      if (!enabled) {
+        console.log("[enforceConnectGenDocDeadline] disabled via flag — skipping");
+        return null;
+      }
+    } catch (flagErr) {
+      console.warn("[enforceConnectGenDocDeadline] flag read failed, treating as disabled:", flagErr.message);
+      return null;
+    }
+
+    const todayKey = toHstDateKey(new Date());
+    const offerKey = addDaysHst(todayKey, 7);
+    const reminderKey = addDaysHst(todayKey, 4);
+
+    let scanned = 0, offersSent = 0, remindersSent = 0, skipped = 0, errors = 0;
+
+    async function processCollection(collection) {
+      const evsSnap = await db.collection(collection)
+        .where("zoomMode", "==", "program")
+        .get();
+      for (const evDoc of evsSnap.docs) {
+        const event = evDoc.data() || {};
+        const eventId = evDoc.id;
+        let sigsSnap;
+        try {
+          sigsSnap = await db.collection(collection).doc(eventId).collection("signups")
+            .where("status", "==", "pending")
+            .get();
+        } catch (e) {
+          errors++;
+          console.error("enforceConnectGenDocDeadline: signups query failed for " + collection + "/" + eventId, e.message);
+          continue;
+        }
+
+        for (const sigDoc of sigsSnap.docs) {
+          scanned++;
+          try {
+            const signup = sigDoc.data() || {};
+            if (signup.archived === true) { skipped++; continue; }
+            if (!signup.email) { skipped++; continue; }
+            if (!signup.consentSignedAt) { skipped++; continue; }
+
+            // Docs already received → skip
+            const docs = signup.connectGenDocuments;
+            if (docs && docs.iep && docs.iep.storagePath && docs.evaluation && docs.evaluation.storagePath) {
+              skipped++; continue;
+            }
+
+            // Single-date: pick the session
+            const sSessions = getSignupSessions(signup, event) || [];
+            const sessionKey = (sSessions[0] && sSessions[0].dateKey) || "";
+            if (!sessionKey) { skipped++; continue; }
+            // Monday + virtual gate
+            const dObj = new Date(sessionKey + "T00:00:00-10:00");
+            if (isNaN(dObj.getTime())) { skipped++; continue; }
+            const dayName = dObj.toLocaleDateString("en-US", { weekday: "long", timeZone: "Pacific/Honolulu" });
+            if (dayName !== "Monday") { skipped++; continue; }
+            if (!isSessionVirtual(event, sessionKey, signup)) { skipped++; continue; }
+
+            // Determine branch
+            const isOfferDay = (sessionKey === offerKey);
+            const isReminderDay = (sessionKey === reminderKey);
+            if (!isOfferDay && !isReminderDay) { skipped++; continue; }
+
+            // Compute the next 4 Mondays once — reused for both branches.
+            const upcoming = _findUpcomingMondaysForEvent(event, signup, {
+              currentKey: sessionKey, minDaysOut: 14, max: 4,
+            });
+
+            // Branch: T-7 reschedule offer
+            if (isOfferDay) {
+              if (signup.rescheduleOfferSentAt) { skipped++; continue; }
+              // If fewer than 2 future Mondays, brief says skip the offer
+              // entirely and let the firm reminder handle this signup.
+              if (upcoming.length < 2) {
+                console.log("enforceConnectGenDocDeadline: skipping offer for " + sigDoc.ref.path + " — fewer than 2 future Mondays available");
+                skipped++; continue;
+              }
+              await _sendCgRescheduleEmail({
+                db, mode: "offer", collection, eventId,
+                signupRef: sigDoc.ref, signupData: signup,
+                sessionKey, upcoming,
+              });
+              await sigDoc.ref.set({
+                rescheduleOfferSentAt: FieldValue.serverTimestamp(),
+              }, { merge: true });
+              offersSent++;
+              continue;
+            }
+
+            // Branch: T-4 firm reminder
+            if (isReminderDay) {
+              if (signup.firmReminderSentAt) { skipped++; continue; }
+              // The brief requires the offer to be ≥3 days old. Compute on
+              // rescheduleOfferSentAt if present; if missing, still allow
+              // the firm reminder (edge case from <2 Mondays available).
+              const offerStamp = signup.rescheduleOfferSentAt;
+              if (offerStamp && typeof offerStamp.toDate === "function") {
+                const ageMs = Date.now() - offerStamp.toDate().getTime();
+                if (ageMs < 3 * 24 * 60 * 60 * 1000) {
+                  skipped++; continue;
+                }
+              }
+              await _sendCgRescheduleEmail({
+                db, mode: "reminder", collection, eventId,
+                signupRef: sigDoc.ref, signupData: signup,
+                sessionKey, upcoming,
+              });
+              await sigDoc.ref.set({
+                firmReminderSentAt: FieldValue.serverTimestamp(),
+              }, { merge: true });
+              remindersSent++;
+              continue;
+            }
+
+            skipped++;
+          } catch (e) {
+            errors++;
+            console.error("enforceConnectGenDocDeadline per-signup error for " + sigDoc.ref.path + ":", e.message);
+          }
+        }
+      }
+    }
+
+    try {
+      await processCollection("events");
+      await processCollection("recurringEvents");
+    } catch (err) {
+      console.error("enforceConnectGenDocDeadline: scan failed:", err.message);
+    }
+
+    console.log("enforceConnectGenDocDeadline: scanned=" + scanned +
+      ", offersSent=" + offersSent + ", remindersSent=" + remindersSent +
+      ", skipped=" + skipped + ", errors=" + errors);
+    return null;
+  });
+
+async function _sendCgRescheduleEmail({
+  db, mode, collection, eventId, signupRef, signupData, sessionKey, upcoming,
+}) {
+  const recipientEmail = String(
+    (signupData && signupData.email) ||
+    (signupData && signupData.registration && signupData.registration.email) ||
+    ""
+  ).trim();
+  if (!recipientEmail) throw new Error("Signup has no email on file");
+
+  const familyName = String((signupData && signupData.name) || (signupData && signupData.firstName) || "").trim();
+  const firstName = lifecycleFirstName(familyName || recipientEmail);
+
+  const uploadAuthToken = signupData && signupData.uploadAuthToken;
+  if (!uploadAuthToken) throw new Error("Signup is missing uploadAuthToken (expected from consent flow)");
+  const uploadUrl = CONNECT_GEN_UPLOAD_BASE_URL + "?upload=" + encodeURIComponent(uploadAuthToken);
+
+  // Build Monday options — sign one token per option, 14d expiry from now.
+  const exp = Math.floor(Date.now() / 1000) + 14 * 24 * 60 * 60;
+  const mondayOptions = (upcoming || []).map((opt) => {
+    const token = _signRescheduleToken({
+      signupId: signupRef.id,
+      eventId,
+      collection,
+      newSessionDateKey: opt.dateKey,
+      expSeconds: exp,
+    });
+    const url = CONNECT_GEN_RESCHEDULE_BASE_URL + "?token=" + encodeURIComponent(token);
+    return { dateKey: opt.dateKey, label: _formatMondayLabel(opt.dateKey).replace(/^Monday,\s*/, ""), url };
+  });
+
+  const sessionDateLabel = (function () {
+    const long = _formatSessionLongLabel(sessionKey);
+    // strip leading "Monday, " so the body says "Monday, May 19, 2026"
+    return long.replace(/^Monday,\s*/, "");
+  })();
+
+  const signatureHtml = await buildSignatureBlock("eventCoordinator");
+  const html = _buildCgRescheduleEmailHtml({
+    mode, firstName, sessionDateLabel,
+    uploadUrl, mondayOptions, signatureHtml,
+  });
+
+  const subject = (mode === "reminder")
+    ? "Connect-Gen Documents Reminder"
+    : "Connect-Gen Monday -- IEP + Evaluation Needed";
+
+  const fromAddress = lifecycleFromAddress();
+  await sendEmailViaResend({
+    from: fromAddress,
+    to: recipientEmail,
+    subject,
+    html,
+    type: mode === "reminder" ? "connect-gen-firm-reminder" : "connect-gen-reschedule-offer",
+    relatedEventId: eventId,
+    relatedSignupId: signupRef.id,
+    recipientName: familyName || "",
+  });
+
+  try {
+    await db.collection("auditLog").add({
+      action: mode === "reminder"
+        ? "Connect-Gen firm reminder sent"
+        : "Connect-Gen reschedule offer sent",
+      details: "email=" + recipientEmail + ", signupPath=" + signupRef.path + ", session=" + sessionKey,
+      performedBy: "system",
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      signupPath: signupRef.path,
+    });
+  } catch (e) { console.warn("auditLog write failed:", e.message); }
+}
+
+// ─── Part 3: acceptConnectGenReschedule (HTTPS) ──────────────────────
+// Parent clicks a "Monday, May 19" button in the reschedule offer or firm
+// reminder email. The button URL carries a signed token. This CF validates
+// the token, updates the signup, and fires a fresh upload-later email.
+exports.acceptConnectGenReschedule = functions
+  .runWith({
+    timeoutSeconds: 30,
+    maxInstances: 10,
+    secrets: ["RESEND_API_KEY", "SMTP_FROM", "CG_RESCHEDULE_HMAC_SECRET"],
+  })
+  .https.onRequest(async (req, res) => {
+    // CORS — allow live + STAGE GH Pages mirror.
+    const origin = req.headers.origin || "";
+    const allowed = [
+      "https://www.ldahawaii.org",
+      "https://ldahawaii.org",
+      "https://danpoahu.github.io",
+    ];
+    if (allowed.indexOf(origin) !== -1) {
+      res.set("Access-Control-Allow-Origin", origin);
+    } else {
+      res.set("Access-Control-Allow-Origin", "https://www.ldahawaii.org");
+    }
+    res.set("Vary", "Origin");
+    res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "GET" && req.method !== "POST") {
+      res.status(405).json({ success: false, error: "Method not allowed" });
+      return;
+    }
+
+    const token = String(
+      (req.query && req.query.token) ||
+      (req.body && req.body.token) ||
+      ""
+    ).trim();
+    if (!token) {
+      res.status(400).json({ success: false, error: "Missing token." });
+      return;
+    }
+
+    const payload = _verifyRescheduleToken(token);
+    if (!payload) {
+      res.status(401).json({ success: false, error: "This link is invalid or has expired. Please contact us at registration@ldahawaii.org." });
+      return;
+    }
+
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+
+      const collection = (payload.col === "recurringEvents") ? "recurringEvents" : "events";
+      const eventId = payload.eid;
+      const signupId = payload.sid;
+      const newKey = payload.ndk;
+
+      const signupRef = db.collection(collection).doc(eventId).collection("signups").doc(signupId);
+      const signupSnap = await signupRef.get();
+      if (!signupSnap.exists) {
+        res.status(404).json({ success: false, error: "We couldn't find your signup. Please contact us at registration@ldahawaii.org." });
+        return;
+      }
+      const signup = signupSnap.data() || {};
+
+      const evSnap = await db.collection(collection).doc(eventId).get();
+      const event = evSnap.exists ? (evSnap.data() || {}) : {};
+
+      // Sanity checks
+      if (signup.archived === true) {
+        res.status(400).json({ success: false, error: "This signup has been archived. Please contact us at registration@ldahawaii.org." });
+        return;
+      }
+      if (signup.status !== "pending") {
+        res.status(400).json({ success: false, error: "This signup is no longer pending. Please contact us at registration@ldahawaii.org." });
+        return;
+      }
+      if (event.zoomMode !== "program") {
+        res.status(400).json({ success: false, error: "This link is not valid for this event." });
+        return;
+      }
+      const existingDocs = signup.connectGenDocuments;
+      if (existingDocs && existingDocs.iep && existingDocs.iep.storagePath
+        && existingDocs.evaluation && existingDocs.evaluation.storagePath) {
+        res.status(400).json({ success: false, error: "Your documents are already on file. No need to reschedule." });
+        return;
+      }
+
+      // Idempotency: if already on newKey, return success (parent re-clicked).
+      const currentKeys = extractSignupSessionKeys(signup);
+      const recipientName = String(signup.name || signup.firstName || "").trim();
+      const firstName = lifecycleFirstName(recipientName || signup.email || "");
+      if (currentKeys.length === 1 && currentKeys[0] === newKey) {
+        res.status(200).json({
+          success: true,
+          alreadyOnDate: true,
+          newSessionDate: _formatSessionLongLabel(newKey),
+          parentFirstName: firstName,
+        });
+        return;
+      }
+
+      // Look up the new session on the event so we can build a canonical
+      // pipe-delimited selectedSessions[] entry (matches Connect-Gen shape).
+      const evSessions = getEventSessions(event) || [];
+      const newSession = evSessions.find((s) => s && s.dateKey === newKey);
+      if (!newSession) {
+        res.status(400).json({ success: false, error: "The selected Monday is no longer available. Please reply to our email and we'll help you pick another date." });
+        return;
+      }
+      // Verify Monday + virtual on the chosen session
+      const dObj = new Date(newKey + "T00:00:00-10:00");
+      if (isNaN(dObj.getTime())) {
+        res.status(400).json({ success: false, error: "Invalid session date." });
+        return;
+      }
+      const dayName = dObj.toLocaleDateString("en-US", { weekday: "long", timeZone: "Pacific/Honolulu" });
+      if (dayName !== "Monday") {
+        res.status(400).json({ success: false, error: "Only Monday sessions can be selected here." });
+        return;
+      }
+      if (!isSessionVirtual(event, newKey, signup)) {
+        res.status(400).json({ success: false, error: "The selected session is no longer virtual. Please reply to our email." });
+        return;
+      }
+
+      // Reconstruct a pipe-delimited "YYYY-MM-DD|location|HH:MM AM-HH:MM PM"
+      // entry so the rest of the pipeline (reminders, daily report) still
+      // recognises the session. Fall back to the rawString from the event's
+      // canonical sessions[] when present.
+      const pipeEntry = newSession.rawString && newSession.rawString.indexOf("|") !== -1
+        ? newSession.rawString
+        : (function () {
+            const loc = String(newSession.location || event.location || "Virtual / Zoom").trim();
+            // Convert HH:MM 24h back to "H:MM AM/PM-H:MM AM/PM" if we have them.
+            const fmt12 = (hhmm) => {
+              if (!hhmm || !/^\d{2}:\d{2}$/.test(hhmm)) return "";
+              const h = parseInt(hhmm.substring(0, 2), 10);
+              const m = hhmm.substring(3);
+              const ap = h >= 12 ? "PM" : "AM";
+              const h12 = ((h + 11) % 12) + 1;
+              return h12 + ":" + m + " " + ap;
+            };
+            const st = fmt12(newSession.startTime);
+            const et = fmt12(newSession.endTime);
+            const time = st && et ? (st + "-" + et) : (st || "");
+            return newKey + "|" + loc + (time ? ("|" + time) : "");
+          })();
+
+      // Apply the update
+      await signupRef.update({
+        selectedSessions: [pipeEntry],
+        selectedDates: [newKey],
+        rescheduleOfferSentAt: FieldValue.delete(),
+        firmReminderSentAt: FieldValue.delete(),
+        // sessionReminders cleared so the new T-7/T-1 reminders fire fresh.
+        sessionReminders: FieldValue.delete(),
+        rescheduledAt: FieldValue.serverTimestamp(),
+        rescheduledTo: newKey,
+        rescheduledFrom: currentKeys[0] || null,
+      });
+
+      // Fresh upload-later email — use the existing uploadAuthToken (still
+      // valid; consent flow already minted it). If the token has somehow
+      // already expired, the upload page itself will surface that to the
+      // parent.
+      const updatedSnap = await signupRef.get();
+      const updatedSignup = updatedSnap.data() || {};
+      try {
+        await _sendConnectGenUploadLaterEmailFor({
+          db, signupRef, signupData: updatedSignup, eventId,
+        });
+      } catch (sendErr) {
+        console.warn("acceptConnectGenReschedule: upload-later email failed (non-fatal):", sendErr.message);
+      }
+
+      try {
+        await db.collection("auditLog").add({
+          action: "Connect-Gen reschedule accepted",
+          details: "from=" + (currentKeys[0] || "?") + " to=" + newKey + ", signupPath=" + signupRef.path,
+          performedBy: signup.email || "parent",
+          timestamp: FieldValue.serverTimestamp(),
+          signupPath: signupRef.path,
+        });
+      } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+      res.status(200).json({
+        success: true,
+        newSessionDate: _formatSessionLongLabel(newKey),
+        parentFirstName: firstName,
+      });
+    } catch (err) {
+      console.error("acceptConnectGenReschedule error:", err.message);
+      res.status(500).json({ success: false, error: "Something went wrong. Please reply to our email and we'll help." });
+    }
+  });
