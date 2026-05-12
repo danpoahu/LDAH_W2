@@ -17,10 +17,13 @@
     var STORAGE_KEY = 'ldah_nh_survey_shown';
     var SESSION_OPEN_KEY = 'ldah_nh_survey_open';
     var CF_ENDPOINT = 'https://us-central1-ldah-932d5.cloudfunctions.net/submitNativeHawaiianSurvey';
+    var CONTACT_CF_ENDPOINT = 'https://us-central1-ldah-932d5.cloudfunctions.net/addNativeHawaiianSurveyContact';
     var MODAL_HTML_URL = 'nh-survey-modal.html';
+    var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    // Screens in order. Intro = branded splash (no progress bar), 1..4 = numbered form steps (Step 1-4 of 4), 'mahalo' = final.
-    var SCREEN_ORDER = ['intro', '1', '2', '3', '4', 'mahalo'];
+    // Screens in order. Intro = branded splash (no progress bar), 1..4 = numbered form steps (Step 1-4 of 4),
+    // 'contact' = optional post-submit contact screen (no step number), 'mahalo' = final.
+    var SCREEN_ORDER = ['intro', '1', '2', '3', '4', 'contact', 'mahalo'];
     // Progress label only shown for screens 1..4. The intro is a splash and has no step number.
     // Step 1 of 4 starts on Family Information.
     var STEP_LABEL = {
@@ -42,7 +45,9 @@
         injected: false,
         submitting: false,
         completed: false,
-        wired: false              // wireEvents() only runs once even if markup is re-used
+        wired: false,             // wireEvents() only runs once even if markup is re-used
+        surveyDocId: null,        // set after successful submit; used by contact CF
+        contactSending: false
     };
 
     function $(sel, root) { return (root || document).querySelector(sel); }
@@ -77,10 +82,15 @@
         var progressLabel = $('#nhSurveyProgressLabel');
         var progressFill = $('#nhSurveyProgressFill');
 
-        // Toggle splash mode on the inner .nh-survey-modal so CSS can hide
-        // the header title + progress and strip body padding while on intro.
+        // Toggle splash mode on the inner .nh-survey-modal. The 'nh-survey-on-intro'
+        // class hides the header title + progress and strips body padding (used for
+        // the branded splash). The 'nh-survey-on-contact' class also hides header
+        // title + progress (post-survey contact screen) without stripping padding.
         var modalInner = state.modalRoot ? state.modalRoot.querySelector('.nh-survey-modal') : null;
-        if (modalInner) modalInner.classList.toggle('nh-survey-on-intro', key === 'intro');
+        if (modalInner) {
+            modalInner.classList.toggle('nh-survey-on-intro', key === 'intro');
+            modalInner.classList.toggle('nh-survey-on-contact', key === 'contact');
+        }
 
         if (key === 'mahalo') {
             if (progressWrap) progressWrap.style.display = 'none';
@@ -91,6 +101,23 @@
                 nextBtn.disabled = false;
             }
             if (footer) footer.style.justifyContent = 'center';
+            return;
+        }
+
+        if (key === 'contact') {
+            // Hide progress; Skip on left (always enabled), Send on right (disabled until any field has text).
+            if (progressWrap) progressWrap.style.display = 'none';
+            if (footer) footer.style.justifyContent = 'space-between';
+            if (backBtn) {
+                backBtn.style.display = 'inline-block';
+                backBtn.textContent = "Skip — I'm done";
+                backBtn.disabled = false;
+            }
+            if (nextBtn) {
+                nextBtn.style.display = 'inline-block';
+                nextBtn.textContent = state.contactSending ? 'Sending...' : 'Send Contact Info';
+                nextBtn.disabled = state.contactSending || !contactHasContent();
+            }
             return;
         }
 
@@ -129,12 +156,37 @@
         }
     }
 
+    function contactHasContent() {
+        var root = state.modalRoot;
+        if (!root) return false;
+        var n = (root.querySelector('#nhSurveyContactName') || {}).value || '';
+        var e = (root.querySelector('#nhSurveyContactEmail') || {}).value || '';
+        var p = (root.querySelector('#nhSurveyContactPhone') || {}).value || '';
+        return (n.trim().length + e.trim().length + p.trim().length) > 0;
+    }
+
+    function clearContactError() {
+        var err = $('#nhSurveyContactError');
+        if (err) { err.textContent = ''; err.style.display = 'none'; }
+    }
+    function showContactError(msg) {
+        var err = $('#nhSurveyContactError');
+        if (!err) return;
+        err.textContent = msg;
+        err.style.display = 'block';
+    }
+
     function goNext() {
         clearError();
         var key = SCREEN_ORDER[state.currentIdx];
         if (key === 'mahalo') {
             // After submit success, flag is already set; this is just closing the Mahalo screen.
             closeModal({ permanent: true });
+            return;
+        }
+        if (key === 'contact') {
+            // Primary button on contact screen = "Send Contact Info"
+            sendContactInfo();
             return;
         }
         if (key === '4') {
@@ -156,11 +208,22 @@
             closeModal({ permanent: false });
             return;
         }
+        if (key === 'contact') {
+            // "Skip — I'm done" on contact screen jumps straight to Mahalo, no CF call.
+            jumpToMahalo();
+            return;
+        }
         if (state.currentIdx > 0) {
             state.currentIdx -= 1;
             setScreenByKey(SCREEN_ORDER[state.currentIdx]);
             updateChrome();
         }
+    }
+
+    function jumpToMahalo() {
+        state.currentIdx = SCREEN_ORDER.indexOf('mahalo');
+        setScreenByKey('mahalo');
+        updateChrome();
     }
 
     function collectFormState() {
@@ -226,9 +289,17 @@
                 state.completed = true;
                 // Submit success — permanently dismiss going forward
                 try { localStorage.setItem(STORAGE_KEY, 'true'); } catch (e) {}
-                // Jump to mahalo
-                state.currentIdx = SCREEN_ORDER.indexOf('mahalo');
-                setScreenByKey('mahalo');
+                // If we got a surveyDocId back, route through the optional contact screen first.
+                // Honeypot silent-success and any legacy response without an ID jump straight to mahalo.
+                if (result.data.surveyDocId) {
+                    state.surveyDocId = result.data.surveyDocId;
+                    state.currentIdx = SCREEN_ORDER.indexOf('contact');
+                    setScreenByKey('contact');
+                    clearContactError();
+                } else {
+                    state.currentIdx = SCREEN_ORDER.indexOf('mahalo');
+                    setScreenByKey('mahalo');
+                }
                 updateChrome();
             } else if (result.status === 429) {
                 showError("You've reached today's submission limit. Mahalo for participating.");
@@ -241,6 +312,62 @@
         }).catch(function() {
             state.submitting = false;
             showError('Something went wrong. Please try again later.');
+            updateChrome();
+        });
+    }
+
+    function sendContactInfo() {
+        if (state.contactSending) return;
+        clearContactError();
+
+        var root = state.modalRoot;
+        if (!root || !state.surveyDocId) {
+            // No docId — should never happen on this screen, but bail gracefully to mahalo.
+            jumpToMahalo();
+            return;
+        }
+
+        var nameVal = ((root.querySelector('#nhSurveyContactName') || {}).value || '').trim();
+        var emailVal = ((root.querySelector('#nhSurveyContactEmail') || {}).value || '').trim();
+        var phoneVal = ((root.querySelector('#nhSurveyContactPhone') || {}).value || '').trim();
+
+        if (!nameVal && !emailVal && !phoneVal) {
+            // Button shouldn't be enabled in this case, but guard anyway.
+            return;
+        }
+        if (emailVal && !EMAIL_RE.test(emailVal)) {
+            showContactError("Email address doesn't look right. Please check and try again.");
+            return;
+        }
+
+        var payload = { surveyDocId: state.surveyDocId };
+        if (nameVal) payload.fullName = nameVal;
+        if (emailVal) payload.email = emailVal;
+        if (phoneVal) payload.phone = phoneVal;
+
+        state.contactSending = true;
+        updateChrome();
+
+        fetch(CONTACT_CF_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(function(res) {
+            return res.json().then(function(data) { return { status: res.status, data: data }; }).catch(function() {
+                return { status: res.status, data: null };
+            });
+        }).then(function(result) {
+            state.contactSending = false;
+            if (result.status === 200 && result.data && result.data.success) {
+                jumpToMahalo();
+            } else {
+                var msg = (result.data && result.data.error) || 'Something went wrong. Please try again.';
+                showContactError(msg);
+                updateChrome();
+            }
+        }).catch(function() {
+            state.contactSending = false;
+            showContactError('Something went wrong. Please try again.');
             updateChrome();
         });
     }
@@ -362,6 +489,18 @@
         }
         wireCount('nhQ13', 'nhQ13Count');
         wireCount('nhQ14', 'nhQ14Count');
+
+        // Contact screen: refresh Send button enabled-state as user types.
+        ['nhSurveyContactName', 'nhSurveyContactEmail', 'nhSurveyContactPhone'].forEach(function(id) {
+            var el = $('#' + id, root);
+            if (!el) return;
+            el.addEventListener('input', function() {
+                if (SCREEN_ORDER[state.currentIdx] === 'contact') {
+                    clearContactError();
+                    updateChrome();
+                }
+            });
+        });
     }
 
     function injectMarkup() {

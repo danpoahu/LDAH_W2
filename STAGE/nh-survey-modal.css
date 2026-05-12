@@ -288,6 +288,24 @@
     border-color: #0891B2;
 }
 
+.nh-survey-text-input {
+    width: 100%;
+    padding: 0.7rem 0.95rem;
+    border: 1.5px solid #E2E8F0;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    color: #1E293B;
+    line-height: 1.4;
+    transition: border-color 0.2s ease;
+    box-sizing: border-box;
+}
+
+.nh-survey-text-input:focus {
+    outline: none;
+    border-color: #0891B2;
+}
+
 .nh-survey-char-count {
     font-size: 0.8rem;
     color: #94A3B8;
@@ -450,6 +468,13 @@
 
 .nh-survey-modal.nh-survey-on-intro .nh-survey-error {
     margin: 1rem;
+}
+
+/* Optional post-submit contact screen: hide header title + progress (like intro),
+   but keep body padding so the form has breathing room. */
+.nh-survey-modal.nh-survey-on-contact .nh-survey-header-title,
+.nh-survey-modal.nh-survey-on-contact .nh-survey-progress-wrap {
+    display: none;
 }
 
 @media (max-width: 600px) {

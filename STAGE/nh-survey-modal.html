@@ -203,6 +203,29 @@
         </div>
       </div>
 
+      <!-- SCREEN: Optional contact info (post-submit, pre-mahalo) -->
+      <div class="nh-survey-screen" data-screen="contact">
+        <h2>Mahalo for sharing your mana&#699;o!</h2>
+        <p class="nh-survey-intro">Your responses are saved anonymously. If you'd like LDAH to follow up with you about this survey or related family resources, you can share your contact info below. <strong>This is completely optional</strong> &mdash; leave any field blank to skip.</p>
+
+        <div class="nh-survey-question">
+          <label class="nh-survey-q-label" for="nhSurveyContactName">Full Name</label>
+          <input type="text" id="nhSurveyContactName" class="nh-survey-text-input" maxlength="120" autocomplete="name">
+        </div>
+
+        <div class="nh-survey-question">
+          <label class="nh-survey-q-label" for="nhSurveyContactEmail">Email</label>
+          <input type="email" id="nhSurveyContactEmail" class="nh-survey-text-input" maxlength="120" autocomplete="email">
+        </div>
+
+        <div class="nh-survey-question">
+          <label class="nh-survey-q-label" for="nhSurveyContactPhone">Phone</label>
+          <input type="tel" id="nhSurveyContactPhone" class="nh-survey-text-input" maxlength="30" autocomplete="tel">
+        </div>
+
+        <div class="nh-survey-error" id="nhSurveyContactError" role="alert" style="display:none;"></div>
+      </div>
+
       <!-- SCREEN 5: Mahalo -->
       <div class="nh-survey-screen" data-screen="mahalo">
         <div class="nh-survey-mahalo">

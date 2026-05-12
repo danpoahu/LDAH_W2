@@ -10125,7 +10125,7 @@ exports.submitNativeHawaiianSurvey = functions
       await ipDocRef.set({ submissions }, { merge: false });
 
       // ── Write the survey doc ──
-      await db.collection("nativeHawaiianSurveys").add({
+      const surveyDocRef = await db.collection("nativeHawaiianSurveys").add({
         q1: v1.value,
         q2: v2.value,
         q3: v3.value,
@@ -10145,9 +10145,138 @@ exports.submitNativeHawaiianSurvey = functions
         ipHash, // for duplicate flagging in the report; do NOT store raw IP
       });
 
-      res.status(200).json({ success: true });
+      res.status(200).json({ success: true, surveyDocId: surveyDocRef.id });
     } catch (err) {
       console.error("submitNativeHawaiianSurvey error:", err && err.message);
+      res.status(500).json({ success: false, error: "Something went wrong. Please try again." });
+    }
+  });
+
+// ── addNativeHawaiianSurveyContact ────────────────────────────────
+// Optional follow-up: after submitNativeHawaiianSurvey returns a
+// surveyDocId, the modal offers a contact-info screen. Any/all of
+// fullName/email/phone can be supplied; at least one must be non-empty.
+// Idempotent: rejects if contactAddedAt is already set on the doc.
+// Shares the same per-IP 24h bucket as the submit CF (3/24h ceiling).
+
+const NH_CONTACT_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+exports.addNativeHawaiianSurveyContact = functions
+  .region("us-central1")
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    // ── CORS ──
+    const origin = req.headers.origin || "";
+    if (NH_SURVEY_ALLOWED_ORIGINS.indexOf(origin) !== -1) {
+      res.set("Access-Control-Allow-Origin", origin);
+    }
+    res.set("Vary", "Origin");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Access-Control-Max-Age", "3600");
+
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+    if (req.method !== "POST") {
+      res.status(405).json({ success: false, error: "Method not allowed" });
+      return;
+    }
+
+    try {
+      const body = req.body || {};
+      const surveyDocId = typeof body.surveyDocId === "string" ? body.surveyDocId.trim() : "";
+      if (!surveyDocId || surveyDocId.length > 100 || /[^A-Za-z0-9_-]/.test(surveyDocId)) {
+        res.status(400).json({ success: false, error: "Missing or invalid surveyDocId." });
+        return;
+      }
+
+      function _sanitize(raw, maxLen) {
+        if (raw === null || raw === undefined) return null;
+        if (typeof raw !== "string") return null;
+        if (NH_TAG_RE.test(raw)) return "__INVALID__";
+        const trimmed = raw.trim();
+        if (!trimmed.length) return null;
+        if (trimmed.length > maxLen) return "__INVALID__";
+        return trimmed;
+      }
+
+      const fullName = _sanitize(body.fullName, 120);
+      const email = _sanitize(body.email, 120);
+      const phone = _sanitize(body.phone, 30);
+
+      if (fullName === "__INVALID__" || email === "__INVALID__" || phone === "__INVALID__") {
+        res.status(400).json({ success: false, error: "Invalid contact info. Please check your entries and try again." });
+        return;
+      }
+
+      if (!fullName && !email && !phone) {
+        res.status(400).json({ success: false, error: "Please provide at least one contact field." });
+        return;
+      }
+
+      if (email && !NH_CONTACT_EMAIL_RE.test(email)) {
+        res.status(400).json({ success: false, error: "Email address doesn't look right. Please check and try again." });
+        return;
+      }
+
+      const db = admin.firestore();
+      const Timestamp = admin.firestore.Timestamp;
+      const FieldValue = admin.firestore.FieldValue;
+
+      // ── IP rate-limit (shared bucket with submit CF) ──
+      const rawIp = (req.headers["x-forwarded-for"] || "").toString().split(",")[0].trim() || req.ip || "unknown";
+      const ipHash = crypto.createHash("sha256").update(rawIp).digest("hex");
+      const ipDocRef = db.collection("nhSurveyIpHistory").doc(ipHash);
+      const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
+
+      const ipSnap = await ipDocRef.get();
+      let submissions = [];
+      if (ipSnap.exists) {
+        const data = ipSnap.data() || {};
+        const arr = Array.isArray(data.submissions) ? data.submissions : [];
+        for (const ts of arr) {
+          let ms = null;
+          if (ts && typeof ts.toMillis === "function") ms = ts.toMillis();
+          else if (ts && typeof ts.seconds === "number") ms = ts.seconds * 1000;
+          if (ms !== null && ms >= cutoffMs) submissions.push(ts);
+        }
+      }
+
+      if (submissions.length >= 3) {
+        res.status(429).json({ success: false, error: "Rate limit exceeded. Please try again tomorrow." });
+        return;
+      }
+
+      // ── Load survey doc + idempotency check ──
+      const surveyRef = db.collection("nativeHawaiianSurveys").doc(surveyDocId);
+      const surveySnap = await surveyRef.get();
+      if (!surveySnap.exists) {
+        res.status(400).json({ success: false, error: "Survey response not found." });
+        return;
+      }
+      const surveyData = surveySnap.data() || {};
+      if (surveyData.contactAddedAt) {
+        res.status(400).json({ success: false, error: "Contact info has already been added to this response." });
+        return;
+      }
+
+      // ── Build update payload (only included supplied fields) ──
+      const updatePayload = { contactAddedAt: FieldValue.serverTimestamp() };
+      if (fullName) updatePayload.contactFullName = fullName;
+      if (email) updatePayload.contactEmail = email;
+      if (phone) updatePayload.contactPhone = phone;
+
+      await surveyRef.update(updatePayload);
+
+      // Count this contact-add toward today's IP bucket.
+      submissions.push(Timestamp.now());
+      await ipDocRef.set({ submissions }, { merge: false });
+
+      res.status(200).json({ success: true });
+    } catch (err) {
+      console.error("addNativeHawaiianSurveyContact error:", err && err.message);
       res.status(500).json({ success: false, error: "Something went wrong. Please try again." });
     }
   });
@@ -10292,6 +10421,49 @@ exports.sendNativeHawaiianSurveyReport = functions
       return `<ul style="margin:6px 0 14px;padding-left:22px;font-size:13px;">${items.map((s) => `<li style="margin:2px 0;">${_nhEscHtml(s)}</li>`).join("")}</ul>`;
     }
 
+    // ── Contact Info from NEW submissions whose contact was also added in the last 24h ──
+    const contactRows = [];
+    for (const d of newDocs) {
+      const cTs = d.contactAddedAt;
+      if (!cTs) continue;
+      let cMs = null;
+      if (typeof cTs.toMillis === "function") cMs = cTs.toMillis();
+      else if (typeof cTs.seconds === "number") cMs = cTs.seconds * 1000;
+      if (cMs === null || cMs < cutoffMs) continue;
+
+      const fmtHst = new Date(cMs).toLocaleString("en-US", {
+        timeZone: "Pacific/Honolulu",
+        month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true,
+      });
+      contactRows.push({
+        name: typeof d.contactFullName === "string" ? d.contactFullName : "",
+        email: typeof d.contactEmail === "string" ? d.contactEmail : "",
+        phone: typeof d.contactPhone === "string" ? d.contactPhone : "",
+        when: fmtHst,
+      });
+    }
+
+    function contactTableHtml(rows) {
+      if (!rows.length) {
+        return `<p style="margin:4px 0 14px;font-size:13px;color:#888;">No contact info shared in the last 24 hours.</p>`;
+      }
+      const trs = rows.map((r) => `<tr>
+        <td style="padding:6px 8px;border-bottom:1px solid #eee;">${_nhEscHtml(r.name || "(not provided)")}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #eee;">${_nhEscHtml(r.email || "(not provided)")}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #eee;">${_nhEscHtml(r.phone || "(not provided)")}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #eee;color:#666;font-size:12px;">${_nhEscHtml(r.when)}</td>
+      </tr>`).join("");
+      return `<table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;font-size:13px;margin:6px 0 14px;">
+        <thead><tr style="background:#f4f6f8;">
+          <th style="padding:5px 8px;text-align:left;border-bottom:2px solid #1a3c6e;">Name</th>
+          <th style="padding:5px 8px;text-align:left;border-bottom:2px solid #1a3c6e;">Email</th>
+          <th style="padding:5px 8px;text-align:left;border-bottom:2px solid #1a3c6e;">Phone</th>
+          <th style="padding:5px 8px;text-align:left;border-bottom:2px solid #1a3c6e;">Submitted (HST)</th>
+        </tr></thead>
+        <tbody>${trs}</tbody>
+      </table>`;
+    }
+
     // ── Open-text Q13/Q14 from NEW submissions only ──
     const q13New = newDocs.map((d) => d.q13).filter((s) => typeof s === "string" && s.trim());
     const q14New = newDocs.map((d) => d.q14).filter((s) => typeof s === "string" && s.trim());
@@ -10401,6 +10573,11 @@ exports.sendNativeHawaiianSurveyReport = functions
   <tr><td style="padding:0 28px 4px;">
     <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q12. Would you recommend LDAH to other families?</h2>
     ${enumTableHtml("q12", NH_ENUMS.q12, NH_LABELS.q12)}
+  </td></tr>
+
+  <tr><td style="padding:0 28px 4px;">
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Contact Info Shared (${contactRows.length} today)</h2>
+    ${contactTableHtml(contactRows)}
   </td></tr>
 
   <tr><td style="padding:0 28px 4px;">
