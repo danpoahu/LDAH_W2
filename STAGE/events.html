@@ -1028,8 +1028,8 @@
             
             try {
                 const [headerResponse, footerResponse] = await Promise.all([
-                    fetch('header.html?v=55.5'),
-                    fetch('footer.html?v=55.5')
+                    fetch('header.html?v=55.6'),
+                    fetch('footer.html?v=55.6')
                 ]);
                 
                 if (headerResponse.ok && footerResponse.ok) {
@@ -3490,9 +3490,14 @@
                         const wd = new Date(+m[1], +m[2] - 1, +m[3]).getDay();
                         weekdayAttr = ` data-weekday="${wd}"`;
                       }
+                      // Connect-Gen (zoomMode === 'program') is single-date: render radios so the
+                      // browser enforces one-and-only-one. Other recurring programs keep checkboxes.
+                      const isCG = program && program.zoomMode === 'program';
+                      const inputType = isCG ? 'radio' : 'checkbox';
+                      const inputNameAttr = isCG ? ` name="cg-session-${programId}"` : '';
                       return `
                       <label${weekdayAttr} style="display:flex;align-items:flex-start;gap:8px;${isFull ? 'cursor:not-allowed;opacity:0.6;' : 'cursor:pointer;'}padding:10px 12px;background:${isFull ? '#fee2e2' : '#f0f9ff'};border-radius:8px;border:1px solid ${isFull ? '#fecaca' : '#e0f2fe'};">
-                        <input type="checkbox" class="signup-date-checkbox" value="${occ.key}" ${isFull ? 'disabled' : ''} onchange="updateMultiSessionPanel()" style="width:18px;height:18px;${isFull ? 'cursor:not-allowed;' : 'cursor:pointer;'}flex-shrink:0;margin-top:2px;">
+                        <input type="${inputType}"${inputNameAttr} class="signup-date-checkbox" value="${occ.key}" ${isFull ? 'disabled' : ''} onchange="updateMultiSessionPanel()" style="width:18px;height:18px;${isFull ? 'cursor:not-allowed;' : 'cursor:pointer;'}flex-shrink:0;margin-top:2px;">
                         <span style="font-size:14px;color:${isFull ? '#991b1b' : '#374151'};line-height:1.5;">${occ.display}${isFull ? ' <span style="background:#DC2626;color:white;padding:1px 8px;border-radius:50px;font-size:11px;font-weight:700;margin-left:6px;">FULL</span>' : ''}</span>
                       </label>`;
                     }).join('') :
@@ -3616,6 +3621,14 @@
       const panel = document.getElementById('multiSessionPanel');
       const countEl = document.getElementById('multiSessionCount');
       if (!panel) return;
+      // Connect-Gen renders the session inputs as radios (single-select). The "tell us why
+      // you picked more than one" panel can never apply there — keep it hidden.
+      // Inline style beats class — direct JS style.display, not a class toggle.
+      const isCG = !!document.querySelector('.signup-date-checkbox[type="radio"]');
+      if (isCG) {
+        panel.style.display = 'none';
+        return;
+      }
       const checked = document.querySelectorAll('.signup-date-checkbox:checked').length;
       if (countEl) countEl.textContent = checked;
       panel.style.display = checked > 1 ? 'block' : 'none';
@@ -3663,9 +3676,12 @@
       }
       // Multi-session reason gate — same content each week, anything beyond
       // one session needs a written reason (e.g. signing up multiple kids).
+      // Connect-Gen (zoomMode === 'program') is single-date by design (radios), so
+      // multi-select is impossible and this gate must not fire.
+      const isCG = program && program.zoomMode === 'program';
       const reasonEl = document.getElementById('multipleSessionsReason');
       const reason = reasonEl ? reasonEl.value.trim() : '';
-      if (formData.selectedSessions.length > 1 && reason.length < 10) {
+      if (!isCG && formData.selectedSessions.length > 1 && reason.length < 10) {
         alert('Each session covers the same content. Please tell us briefly why you need more than one (for example, signing up multiple children).');
         if (reasonEl) reasonEl.focus();
         return;
