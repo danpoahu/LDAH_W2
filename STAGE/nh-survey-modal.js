@@ -1,11 +1,21 @@
 /* Native Hawaiian Family Survey Modal — controller
  * Exposed as window.NHSurveyModal with init().
  * One-time per browser via localStorage key 'ldah_nh_survey_shown'.
+ *
+ * Flag rules (updated 2026-05-12):
+ *   - localStorage 'ldah_nh_survey_shown' is set ONLY on X-close, backdrop click,
+ *     Escape key, or Submit success. It is NOT set on auto-open.
+ *   - "Maybe Later" button on the intro screen closes the modal WITHOUT setting
+ *     the flag, so the modal reappears on the next page load (after the 2s init delay).
+ *   - sessionStorage 'ldah_nh_survey_open' guards against a refresh while mid-survey
+ *     re-popping the modal immediately within the same tab session. Cleared on any close.
+ *   - openManual() (called from the footer link) bypasses BOTH flags and never sets them.
  */
 (function() {
     'use strict';
 
     var STORAGE_KEY = 'ldah_nh_survey_shown';
+    var SESSION_OPEN_KEY = 'ldah_nh_survey_open';
     var CF_ENDPOINT = 'https://us-central1-ldah-932d5.cloudfunctions.net/submitNativeHawaiianSurvey';
     var MODAL_HTML_URL = 'nh-survey-modal.html';
 
@@ -35,7 +45,8 @@
         modalRoot: null,
         injected: false,
         submitting: false,
-        completed: false
+        completed: false,
+        wired: false              // wireEvents() only runs once even if markup is re-used
     };
 
     function $(sel, root) { return (root || document).querySelector(sel); }
@@ -120,7 +131,8 @@
         clearError();
         var key = SCREEN_ORDER[state.currentIdx];
         if (key === 'mahalo') {
-            closeModal();
+            // After submit success, flag is already set; this is just closing the Mahalo screen.
+            closeModal({ permanent: true });
             return;
         }
         if (key === '4') {
@@ -138,8 +150,8 @@
         clearError();
         var key = SCREEN_ORDER[state.currentIdx];
         if (key === 'intro') {
-            // "Maybe Later" — dismiss
-            closeModal();
+            // "Maybe Later" — defer only, do NOT set the permanent flag
+            closeModal({ permanent: false });
             return;
         }
         if (state.currentIdx > 0) {
@@ -210,6 +222,8 @@
             state.submitting = false;
             if (result.status === 200 && result.data && result.data.success) {
                 state.completed = true;
+                // Submit success — permanently dismiss going forward
+                try { localStorage.setItem(STORAGE_KEY, 'true'); } catch (e) {}
                 // Jump to mahalo
                 state.currentIdx = SCREEN_ORDER.indexOf('mahalo');
                 setScreenByKey('mahalo');
@@ -219,7 +233,7 @@
                 updateChrome();
             } else {
                 showError('Something went wrong. Please try again later.');
-                // Don't set completion flag — let them retry next visit (already set at open, see openModal note)
+                // Don't set the permanent flag — let them retry next visit
                 updateChrome();
             }
         }).catch(function() {
@@ -236,13 +250,23 @@
         state.currentIdx = 0;
         setScreenByKey('intro');
         updateChrome();
-        // Set the one-time flag immediately on open so a refresh during the modal doesn't re-trigger it.
-        try { localStorage.setItem(STORAGE_KEY, 'true'); } catch (e) {}
+        // Mark the modal as open for this tab session so a mid-survey refresh
+        // doesn't immediately re-pop the modal. Cleared on any close.
+        try { sessionStorage.setItem(SESSION_OPEN_KEY, 'true'); } catch (e) {}
         document.body.style.overflow = 'hidden';
     }
 
-    function closeModal() {
+    // closeModal(opts):
+    //   opts.permanent === true  -> set localStorage flag (never reopen automatically)
+    //   opts.permanent === false -> defer only (clear sessionStorage, leave localStorage alone)
+    //   opts undefined           -> treat as permanent (back-compat for X / Escape / backdrop)
+    function closeModal(opts) {
         if (!state.modalRoot) return;
+        var permanent = !opts || opts.permanent !== false;
+        if (permanent) {
+            try { localStorage.setItem(STORAGE_KEY, 'true'); } catch (e) {}
+        }
+        try { sessionStorage.removeItem(SESSION_OPEN_KEY); } catch (e) {}
         state.modalRoot.classList.remove('active');
         state.modalRoot.setAttribute('aria-hidden', 'true');
         document.body.style.overflow = '';
@@ -251,19 +275,22 @@
     function wireEvents() {
         var root = state.modalRoot;
         if (!root) return;
+        if (state.wired) return;
+        state.wired = true;
 
         $('#nhSurveyNextBtn').addEventListener('click', goNext);
         $('#nhSurveyBackBtn').addEventListener('click', goBack);
-        $('#nhSurveyCloseBtn').addEventListener('click', closeModal);
+        // X-close button: permanent dismiss
+        $('#nhSurveyCloseBtn').addEventListener('click', function() { closeModal({ permanent: true }); });
 
-        // Click backdrop to close
+        // Click backdrop to close — permanent dismiss
         root.addEventListener('click', function(ev) {
-            if (ev.target === root) closeModal();
+            if (ev.target === root) closeModal({ permanent: true });
         });
 
-        // Escape to close
+        // Escape to close — permanent dismiss
         document.addEventListener('keydown', function(ev) {
-            if (ev.key === 'Escape' && root.classList.contains('active')) closeModal();
+            if (ev.key === 'Escape' && root.classList.contains('active')) closeModal({ permanent: true });
         });
 
         // Highlight checked options
@@ -349,25 +376,46 @@
         });
     }
 
-    function init() {
-        // If flag already set, do nothing
-        var shown = null;
-        try { shown = localStorage.getItem(STORAGE_KEY); } catch (e) {}
-        if (shown === 'true') return;
-
-        // If markup already present (rare), wire it up immediately
+    // Ensure modal markup + wiring exist. Returns a Promise.
+    function ensureReady() {
         var existing = document.getElementById('nhSurveyBackdrop');
         if (existing) {
             state.modalRoot = existing;
             state.injected = true;
             wireEvents();
-            setTimeout(openModal, 2000);
-            return;
+            return Promise.resolve();
         }
-
-        injectMarkup().then(function() {
+        return injectMarkup().then(function() {
             wireEvents();
+        });
+    }
+
+    function init() {
+        // If permanently dismissed, do nothing
+        var shown = null;
+        try { shown = localStorage.getItem(STORAGE_KEY); } catch (e) {}
+        if (shown === 'true') return;
+
+        // If the modal was open in this tab session (e.g. user refreshed
+        // while mid-survey), skip the auto-pop. The session flag stays set until
+        // closeModal() runs, so repeated refreshes won't re-pop within this session.
+        // openManual() (footer link) still works as a way back in.
+        var sessionOpen = null;
+        try { sessionOpen = sessionStorage.getItem(SESSION_OPEN_KEY); } catch (e) {}
+        if (sessionOpen === 'true') return;
+
+        ensureReady().then(function() {
             setTimeout(openModal, 2000);
+        }).catch(function(err) {
+            console.error('[NHSurveyModal] failed to load modal markup:', err);
+        });
+    }
+
+    // Manual open from footer link / programmatic trigger.
+    // Bypasses both flags entirely; does NOT mark the survey as shown.
+    function openManual() {
+        ensureReady().then(function() {
+            openModal();
         }).catch(function(err) {
             console.error('[NHSurveyModal] failed to load modal markup:', err);
         });
@@ -376,11 +424,24 @@
     window.NHSurveyModal = {
         init: init,
         open: openModal,
+        openManual: openManual,
         close: closeModal,
         // For Daniel: clear the one-time flag from console
         reset: function() {
             try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
-            console.log('[NHSurveyModal] localStorage flag cleared. Reload to retrigger.');
+            try { sessionStorage.removeItem(SESSION_OPEN_KEY); } catch (e) {}
+            console.log('[NHSurveyModal] localStorage + sessionStorage flags cleared. Reload to retrigger.');
         }
     };
+
+    // Global helper for the footer "Native Hawaiian Survey" link. The
+    // header-footer-loader defines an equivalent fallback for pages where this
+    // script hasn't loaded yet; this version wins once the controller is ready.
+    if (typeof window.openNHSurvey !== 'function' || !window.openNHSurvey.__nhReal) {
+        window.openNHSurvey = function(ev) {
+            if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
+            openManual();
+        };
+        window.openNHSurvey.__nhReal = true;
+    }
 })();
