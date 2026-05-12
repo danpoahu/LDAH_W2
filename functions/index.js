@@ -1064,7 +1064,19 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
     if (!eventSnap.exists) return;
     const event = eventSnap.data() || {};
 
-    let sessionKeys = extractSignupSessionKeys(after);
+    // Stage 3b-2 step 4 (2026-05-11): primary session-derivation now flows
+    // through getSignupSessions(signup, event) — the canonical accessor added
+    // in Stage 3b-1. Falls back to legacySessionsForSignup() on empty result.
+    let viaAccessor = 0;
+    let viaLegacy = 0;
+    let _sessions = getSignupSessions(after, event);
+    let _usedLegacy = false;
+    if (!_sessions || _sessions.length === 0) {
+      _sessions = legacySessionsForSignup(after, event);
+      _usedLegacy = _sessions.length > 0;
+    }
+    if (_usedLegacy) viaLegacy++; else if (_sessions && _sessions.length) viaAccessor++;
+    let sessionKeys = (_sessions || []).map((s) => s && s.dateKey).filter(Boolean);
     if (sessionKeys.length === 0) {
       const k = toHstDateKey(event.eventDate || event.date);
       if (k) sessionKeys = [k];
@@ -1117,6 +1129,7 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
         confirmationEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
       console.log(`Parent Talk Cafe confirmation sent to ${after.email} for ${collection}/${eventId}/${signupId}`);
+      console.log(`maybeSendRegistrationConfirmation: scanned=1, sent=1, skipped=0, errors=0, viaAccessor=${viaAccessor}, viaLegacy=${viaLegacy}`);
       return;
     }
 
@@ -1158,6 +1171,7 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
         consentRequiredEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
       console.log(`Consent-required email sent to ${after.email} for ${collection}/${eventId}/${signupId}`);
+      console.log(`maybeSendRegistrationConfirmation: scanned=1, sent=1, skipped=0, errors=0, viaAccessor=${viaAccessor}, viaLegacy=${viaLegacy}`);
       return; // do NOT mark confirmationEmailSentAt — the prep email later does that
     }
 
@@ -1189,6 +1203,7 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
     const _withinWindow = sessionKeys.some(k => !!_windowKeys[k]);
     if (_withinWindow) {
       console.log(`Confirmation skipped (within 3d window) for ${collection}/${eventId}/${signupId}`);
+      console.log(`maybeSendRegistrationConfirmation: scanned=1, sent=0, skipped=1, errors=0, viaAccessor=${viaAccessor}, viaLegacy=${viaLegacy}`);
       return;
     }
 
@@ -1215,6 +1230,7 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
       confirmationEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
     console.log(`Confirmation email sent to ${after.email} for ${collection}/${eventId}/${signupId}`);
+    console.log(`maybeSendRegistrationConfirmation: scanned=1, sent=1, skipped=0, errors=0, viaAccessor=${viaAccessor}, viaLegacy=${viaLegacy}`);
   } catch (err) {
     console.error(`maybeSendRegistrationConfirmation error (${collection}/${context.params.eventId}/${context.params.signupId}):`, err.message);
   }
@@ -7142,23 +7158,31 @@ exports.submitConnectGenConsent = functions
         const prepSnap = await db.collection("system").doc("connectGenPrepDocs").get();
         const prepDocs = (prepSnap.exists && Array.isArray(prepSnap.data().docs)) ? prepSnap.data().docs : [];
 
-        const sessionKeys = extractSignupSessionKeys(s);
+        // Stage 3b-2 step 5 (2026-05-11): location collection now sources
+        // from getSignupSessions(signup, event) — the canonical accessor
+        // added in Stage 3b-1. Falls back to legacySessionsForSignup() on
+        // empty result so signups attached to events with non-standard
+        // shapes still get a populated location list.
+        let viaAccessor = 0;
+        let viaLegacy = 0;
+        let sessions = getSignupSessions(s, event);
+        let usedLegacy = false;
+        if (!sessions || sessions.length === 0) {
+          sessions = legacySessionsForSignup(s, event);
+          usedLegacy = sessions.length > 0;
+        }
+        if (usedLegacy) viaLegacy++; else if (sessions && sessions.length) viaAccessor++;
+
+        const sessionKeys = (sessions || []).map((x) => x && x.dateKey).filter(Boolean);
         const datesPhrase = formatDatesPhrase(sessionKeys);
         const modality = detectSignupModality(s, event);
-        // Collect every distinct non-virtual location from the signup.
-        // Connect-Gen meets at three separate physical locations (Oahu,
-        // Hilo, Kona) plus virtual Mondays, so a parent who signed up
-        // for sessions on multiple islands should see all of them
-        // listed, not just the first.
-        const sel = Array.isArray(s.selectedSessions) ? s.selectedSessions : [];
-        const locationSet = new Set();
-        for (const x of sel) {
-          const loc = (String(x).split("|")[1] || "").trim();
-          if (loc && !/\b(zoom|virtual|online|webinar)\b/i.test(loc)) {
-            locationSet.add(loc);
-          }
-        }
-        const locArr = Array.from(locationSet);
+        // Collect every distinct non-virtual location from the signup's
+        // canonical sessions. Connect-Gen meets at three separate physical
+        // locations (Oahu, Hilo, Kona) plus virtual Mondays, so a parent
+        // who signed up for sessions on multiple islands should see all
+        // of them listed, not just the first.
+        const inPersonSessions = (sessions || []).filter((x) => x && x.modality !== "virtual" && !!x.location);
+        const locArr = Array.from(new Set(inPersonSessions.map((x) => x.location)));
         const locationLine = locArr.length === 0 ? ""
           : locArr.length === 1 ? locArr[0]
           : locArr.length === 2 ? locArr.join(" and ")
@@ -7191,6 +7215,7 @@ exports.submitConnectGenConsent = functions
           confirmationEmailSentAt: FieldValue.serverTimestamp(),
           prepDocsEmailSentAt: FieldValue.serverTimestamp(),
         });
+        console.log(`submitConnectGenConsent: scanned=1, sent=1, skipped=0, errors=0, viaAccessor=${viaAccessor}, viaLegacy=${viaLegacy}`);
       } catch (e) {
         console.error("Prep-docs email failed (consent saved):", e.message);
       }
@@ -8841,6 +8866,13 @@ async function _resolveConnectGenRecordOwner(db, signup) {
   }
 }
 
+// Stage 3b-2 step 3 (2026-05-11): primary session-derivation now flows
+// through getSignupSessions(signup, event) — the canonical accessor added
+// in Stage 3b-1. Falls back to legacySessionsForSignup() on empty result
+// so signups attached to events with non-standard shapes are never
+// silently dropped. The 5 PM HST endTime default from _extractSessionEndHst
+// is preserved inline below for sessions whose endTime is null (the
+// accessor synthesizes null when no time range parses).
 exports.scheduledConnectGenDocLifecycle = functions
   .runWith({ memory: "256MB", timeoutSeconds: 540, secrets: EMAIL_SECRETS })
   .pubsub.schedule("every 60 minutes")
@@ -8854,6 +8886,8 @@ exports.scheduledConnectGenDocLifecycle = functions
     let destroyed = 0;
     let skipped = 0;
     let errors = 0;
+    let viaAccessor = 0;
+    let viaLegacy = 0;
 
     // Cache for parent event lookups so we don't refetch the same event
     // 20 times when scanning a busy recurringEvent's signups.
@@ -8915,30 +8949,58 @@ exports.scheduledConnectGenDocLifecycle = functions
         const titleMatch = CONNECT_GEN_TITLE_REGEX.test(title);
         if (!isKnownRecurring && !titleMatch) { skipped++; continue; }
 
-        // Compute most-recent past session end. Walk every session key,
-        // keep the latest one that is <= now. If none are in the past
-        // yet, the clock hasn't started — skip until after the session.
-        const sessionKeys = extractSignupSessionKeys(signup);
-        // We also walk selectedSessions raw for time portions (extractSignupSessionKeys
-        // returns date-only keys); collect the raw entries so we can parse end times.
-        const rawSessions = [];
-        if (Array.isArray(signup.selectedSessions)) rawSessions.push(...signup.selectedSessions);
-        if (Array.isArray(signup.selectedDates)) rawSessions.push(...signup.selectedDates);
-        if (!rawSessions.length && sessionKeys.length) {
-          // Reconstruct minimal raw entries from date-only keys so the
-          // parser still works (will fall through to 5 PM HST default).
-          for (const k of sessionKeys) rawSessions.push(k);
+        // Stage 3b-2 step 3: canonical accessor first, legacy fallback.
+        let sessions = getSignupSessions(signup, parent.data || {});
+        let usedLegacy = false;
+        if (!sessions || sessions.length === 0) {
+          sessions = legacySessionsForSignup(signup, parent.data || {});
+          usedLegacy = sessions.length > 0;
         }
+        if (!sessions || sessions.length === 0) {
+          // Either no parseable date or no sessions for this signup — defensive skip.
+          skipped++;
+          continue;
+        }
+        if (usedLegacy) viaLegacy++; else viaAccessor++;
 
+        // Compute most-recent past session end. Walk every canonical
+        // session, keep the latest endpoint that is <= now. If none are
+        // in the past yet, the clock hasn't started — skip until after
+        // the session.
+        //
+        // 5 PM HST default preserved from _extractSessionEndHst: when
+        // session.endTime is null (synthesized fallback OR schedule
+        // without an explicit endTime), default to 17:00 HST.
         let mostRecentPastEnd = null;
         let mostRecentPastRaw = "";
-        for (const raw of rawSessions) {
-          const end = _extractSessionEndHst(raw, parent.data || {});
-          if (!end || isNaN(end.getTime())) continue;
+        for (const sess of sessions) {
+          if (!sess || !sess.dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(sess.dateKey)) continue;
+          const [y, m, d] = sess.dateKey.split("-").map((n) => parseInt(n, 10));
+          if (!y || !m || !d) continue;
+          let hour = 17;
+          let minute = 0;
+          const et = sess.endTime ? String(sess.endTime) : "";
+          const tm = et.match(/^(\d{1,2}):(\d{2})/);
+          if (tm) {
+            hour = parseInt(tm[1], 10);
+            minute = parseInt(tm[2], 10);
+          } else {
+            // Try event.endTime as a secondary fallback (matches
+            // _extractSessionEndHst's prior fallback chain) before 5 PM.
+            const evEnd = String((parent.data || {}).endTime || "");
+            const tm2 = evEnd.match(/^(\d{1,2}):(\d{2})/);
+            if (tm2) {
+              hour = parseInt(tm2[1], 10);
+              minute = parseInt(tm2[2], 10);
+            }
+          }
+          // HST = UTC-10, so wall-clock HST -> UTC by adding 10 hours.
+          const end = new Date(Date.UTC(y, m - 1, d, hour + 10, minute));
+          if (isNaN(end.getTime())) continue;
           if (end.getTime() > nowMs) continue; // future session, skip
           if (!mostRecentPastEnd || end.getTime() > mostRecentPastEnd.getTime()) {
             mostRecentPastEnd = end;
-            mostRecentPastRaw = raw;
+            mostRecentPastRaw = sess.rawString || sess.dateKey;
           }
         }
         if (!mostRecentPastEnd) {
@@ -9057,8 +9119,9 @@ exports.scheduledConnectGenDocLifecycle = functions
     }
 
     console.log("scheduledConnectGenDocLifecycle: scanned=" + scanned +
-      " alertsSent=" + alertsSent + " destroyed=" + destroyed +
-      " skipped=" + skipped + " errors=" + errors);
-    return { scanned, alertsSent, destroyed, skipped, errors };
+      ", alertsSent=" + alertsSent + ", destroyed=" + destroyed +
+      ", skipped=" + skipped + ", errors=" + errors +
+      ", viaAccessor=" + viaAccessor + ", viaLegacy=" + viaLegacy);
+    return { scanned, alertsSent, destroyed, skipped, errors, viaAccessor, viaLegacy };
   });
 
