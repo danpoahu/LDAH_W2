@@ -9946,14 +9946,14 @@ const NH_ENUMS = {
 const NH_LABELS = {
   q1: { yes: "Yes", no: "No", unsure: "Unsure" },
   q2: { oahu: "O'ahu", hawaii_island: "Hawai'i Island", maui: "Maui", kauai: "Kaua'i", molokai: "Moloka'i", lanai: "Lana'i", other: "Other" },
-  q3: { english: "English", olelo_hawaii: "'Olelo Hawai'i", hawaiian_pidgin: "Hawaiian Pidgin", chuukese: "Chuukese", marshallese: "Marshallese", samoan: "Samoan", ilocano_tagalog: "Ilocano/Tagalog", other: "Other" },
+  q3: { english: "English", olelo_hawaii: "'Olelo Hawai'i (Hawaiian language)", hawaiian_pidgin: "Hawaiian Pidgin", chuukese: "Chuukese", marshallese: "Marshallese", samoan: "Samoan", ilocano_tagalog: "Ilocano/Tagalog", other: "Other" },
   q4: { frequently: "Frequently", sometimes: "Sometimes", rarely: "Rarely", never: "Never" },
-  q5: { idea: "IDEA", har_chapter_60: "HAR Chapter 60", evaluation_eligibility: "Evaluation/Eligibility", iep_meetings: "IEP Meetings", parent_rights: "Parent Rights", dispute_resolution: "Dispute Resolution", transition_planning: "Transition Planning", sped_forms_notices: "SpEd Forms & Notices" },
-  q6: { very_important: "Very important", important: "Important", somewhat_important: "Somewhat important", not_important: "Not important" },
+  q5: { idea: "IDEA (Individuals with Disabilities Education Act)", har_chapter_60: "Hawai'i Administrative Rules (HAR Chapter 60)", evaluation_eligibility: "Evaluation and eligibility process", iep_meetings: "Individualized Education Program (IEP) meetings", parent_rights: "Parent rights and protections", dispute_resolution: "Dispute resolution options", transition_planning: "Transition planning after high school", sped_forms_notices: "Special education forms and notices" },
+  q6: { very_important: "Very Important", important: "Important", somewhat_important: "Somewhat Important", not_important: "Not Important" },
   q7: { yes: "Yes", maybe: "Maybe", no: "No" },
-  q8: { printed_handouts: "Printed handouts", videos: "Videos", online_workshops: "Online workshops", one_on_one: "One-on-one", visual_guides: "Visual guides", social_media: "Social media", audio_podcasts: "Audio podcasts" },
+  q8: { printed_handouts: "Printed handouts", videos: "Videos", online_workshops: "Online workshops/webinars", one_on_one: "One-on-one explanation/support", visual_guides: "Visual guides or flowcharts", social_media: "Social media posts", audio_podcasts: "Audio recordings/podcasts" },
   q9: { yes: "Yes", somewhat: "Somewhat", no: "No" },
-  q10: { referral: "Referral", assessment_results: "Assessment Results", eligibility: "Eligibility", writing_iep: "Writing the IEP", services_supports: "Services & Supports", transition_planning: "Transition Planning", disagreements: "Disagreements" },
+  q10: { referral: "Referral for evaluation", assessment_results: "Understanding assessment results", eligibility: "Eligibility determination", writing_iep: "Writing the IEP", services_supports: "Understanding services/supports", transition_planning: "Transition planning", disagreements: "Resolving disagreements with the school" },
   q11: { yes: "Yes", sometimes: "Sometimes", no: "No" },
   q12: { yes: "Yes", maybe: "Maybe", no: "No" },
   q15: { yes: "Yes", no: "No", maybe: "Maybe" },
@@ -10512,66 +10512,66 @@ exports.sendNativeHawaiianSurveyReport = functions
   </tr>
 
   <tr><td style="padding:18px 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q1. Do you identify as Native Hawaiian?</h2>
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q1. Are you a parent, caregiver, or family member of a child receiving special education services?</h2>
     ${enumTableHtml("q1", NH_ENUMS.q1, NH_LABELS.q1)}
   </td></tr>
 
   <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q2. Which island do you live on?</h2>
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q2. Which island do you currently live on?</h2>
     ${enumTableHtml("q2", NH_ENUMS.q2, NH_LABELS.q2)}
     <p style="margin:8px 0 4px;font-size:13px;font-weight:600;">"Other" fill-ins:</p>
     ${otherListHtml(q2OtherList, "(none)")}
   </td></tr>
 
   <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q3. What languages are spoken in your home?</h2>
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q3. What language(s) are primarily spoken in your home?</h2>
     ${multiTableHtml("q3", NH_ENUMS.q3, NH_LABELS.q3)}
     <p style="margin:8px 0 4px;font-size:13px;font-weight:600;">"Other" fill-ins:</p>
     ${otherListHtml(q3OtherList, "(none)")}
   </td></tr>
 
   <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q4. How often do you interact with the special education system?</h2>
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q4. Have you ever received special education forms or documents that were difficult to understand?</h2>
     ${enumTableHtml("q4", NH_ENUMS.q4, NH_LABELS.q4)}
   </td></tr>
 
   <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q5. Which topics would you like to learn more about?</h2>
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q5. Would translated or simplified materials help you better understand:</h2>
     ${multiTableHtml("q5", NH_ENUMS.q5, NH_LABELS.q5)}
   </td></tr>
 
   <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q6. How important is culturally relevant information to you?</h2>
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q6. How important is it for schools to provide materials in culturally responsive language?</h2>
     ${enumTableHtml("q6", NH_ENUMS.q6, NH_LABELS.q6)}
   </td></tr>
 
   <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q7. Would you attend a workshop or training?</h2>
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q7. Would you feel more comfortable in IEP meetings if materials were translated or explained more simply?</h2>
     ${enumTableHtml("q7", NH_ENUMS.q7, NH_LABELS.q7)}
   </td></tr>
 
   <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q8. Preferred ways to receive information (top 3):</h2>
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q8. Which formats would be most helpful for learning about special education services? (Top 3)</h2>
     ${multiTableHtml("q8", NH_ENUMS.q8, NH_LABELS.q8)}
   </td></tr>
 
   <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q9. Do you feel your voice is heard in the special education process?</h2>
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q9. Do you feel you fully understand the IEP process from beginning to end?</h2>
     ${enumTableHtml("q9", NH_ENUMS.q9, NH_LABELS.q9)}
   </td></tr>
 
   <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q10. Where in the SpEd process do you need the most support?</h2>
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q10. At what point in the process do families need the most support?</h2>
     ${multiTableHtml("q10", NH_ENUMS.q10, NH_LABELS.q10)}
   </td></tr>
 
   <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q11. Do you feel LDAH services have been helpful?</h2>
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q11. Have you ever avoided asking questions during an IEP meeting because the info felt too confusing?</h2>
     ${enumTableHtml("q11", NH_ENUMS.q11, NH_LABELS.q11)}
   </td></tr>
 
   <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q12. Would you recommend LDAH to other families?</h2>
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q12. Would Native Hawaiian cultural values/practices in materials help your family feel more connected?</h2>
     ${enumTableHtml("q12", NH_ENUMS.q12, NH_LABELS.q12)}
   </td></tr>
 
@@ -10581,17 +10581,17 @@ exports.sendNativeHawaiianSurveyReport = functions
   </td></tr>
 
   <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q13. What barriers have you faced? (open responses, new only)</h2>
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q13. What type of translated or culturally responsive support would help your family the most?</h2>
     ${openTextHtml(q13New, "No new open-text responses in the last 24 hours.")}
   </td></tr>
 
   <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q14. What else would help your family? (open responses, new only)</h2>
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q14. Is there anything schools could do differently to improve communication for Native Hawaiian families?</h2>
     ${openTextHtml(q14New, "No new open-text responses in the last 24 hours.")}
   </td></tr>
 
   <tr><td style="padding:0 28px 24px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q15. May we contact you for follow-up?</h2>
+    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q15. Would you be interested in participating in future family discussions or trainings?</h2>
     ${enumTableHtml("q15", NH_ENUMS.q15, NH_LABELS.q15)}
   </td></tr>
 
