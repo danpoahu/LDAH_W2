@@ -1414,12 +1414,6 @@ exports.sendDeferredRegistrationEmails = functions
           if (!data.email) { skipped++; continue; }
           if (data.registrationEmailSentAt) { skipped++; continue; }
 
-          // Skip Connect-Gen pending signups — those have a separate consent flow,
-          // and the consent-required email is sent by maybeSendRegistrationConfirmation
-          // when the contact's still missing consent. Don't double-up with a
-          // generic "Complete Your Registration" prompt.
-          if (event.zoomMode === "program") { skipped++; continue; }
-
           // Grace period: skip if too fresh.
           const tsMs = (data.timestamp && data.timestamp.toMillis)
             ? data.timestamp.toMillis()
