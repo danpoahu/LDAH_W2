@@ -1222,22 +1222,27 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
     }
 
     // For non-Connect-Gen events: skip the standard confirmation if any
-    // session is within the 5-day catch-up window — the catch-up reminder
+    // session is within the 3-day catch-up window — the catch-up reminder
     // (which fires from maybeSendCatchupReminder above this in the trigger
     // chain) carries the same info and is the more useful email at that
-    // point. Connect-Gen returns above before reaching this so its consent
-    // email always fires regardless of session proximity.
-    const _todayKey = toHstDateKey(new Date());
-    const _windowKeys = {};
-    for (let _d = 0; _d <= 3; _d++) {
-      const _k = addDaysHst(_todayKey, _d);
-      if (_k) _windowKeys[_k] = true;
-    }
-    const _withinWindow = sessionKeys.some(k => !!_windowKeys[k]);
-    if (_withinWindow) {
-      console.log(`Confirmation skipped (within 3d window) for ${collection}/${eventId}/${signupId}`);
-      console.log(`maybeSendRegistrationConfirmation: scanned=1, sent=0, skipped=1, errors=0, viaAccessor=${viaAccessor}, viaLegacy=${viaLegacy}`);
-      return;
+    // point. Connect-Gen signups bypass this skip: their non-Monday-virtual
+    // signups fall through the narrowing above and need the standard
+    // confirmation here regardless of session proximity (2026-05-12 fix —
+    // previously caused Thursday-in-person CG signups within 3 days to get
+    // no email at all).
+    if (!isConnectGen) {
+      const _todayKey = toHstDateKey(new Date());
+      const _windowKeys = {};
+      for (let _d = 0; _d <= 3; _d++) {
+        const _k = addDaysHst(_todayKey, _d);
+        if (_k) _windowKeys[_k] = true;
+      }
+      const _withinWindow = sessionKeys.some(k => !!_windowKeys[k]);
+      if (_withinWindow) {
+        console.log(`Confirmation skipped (within 3d window) for ${collection}/${eventId}/${signupId}`);
+        console.log(`maybeSendRegistrationConfirmation: scanned=1, sent=0, skipped=1, errors=0, viaAccessor=${viaAccessor}, viaLegacy=${viaLegacy}`);
+        return;
+      }
     }
 
     // Standard non-Connect-Gen path.
