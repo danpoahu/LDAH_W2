@@ -4367,7 +4367,7 @@ function pickZoomForEvent(zoomDoc, event, collection) {
  * scheduled job and the test endpoint. Returns the Resend result.
  */
 async function sendOneReminderEmail({
-  collection, eventId, signupId, signup, event, sessionDateKey, mode, zoomDefault, skipBcc, cc,
+  collection, eventId, signupId, signup, event, sessionDateKey, sessionDateRaw, mode, zoomDefault, skipBcc, cc,
 }) {
   const type = collection === "recurringEvents" ? "recurring" : "event";
   const { dayName, formatted } = formatHstDateParts(sessionDateKey);
@@ -4412,11 +4412,18 @@ async function sendOneReminderEmail({
   // without it, the feedback doc gets written with no sessionDate and the
   // Event Summary modal can't attribute it to the right session. Bug
   // surfaced 2026-05-02 (Rommel del Mundo / Connect-Gen 4/30 session).
+  //
+  // CANONICAL SHAPE: verbatim event.signupDates entry (NOT ISO yyyy-mm-dd).
+  // See feedback_canonical-sessiondate.md. Mirror of 2026-05-14 day-of fix
+  // (d6b0b24); without sessionDateRaw the 3-day reminder URL splits the
+  // Feedback Report into two groups (verbatim from attendance-trigger paths
+  // vs ISO from reminder paths). Falls back to ISO only if raw is missing.
+  const sessionDateForUrl = sessionDateRaw || sessionDateKey;
   const surveyUrl =
     "https://ldahawaii.org/feedback.html?signupId=" + encodeURIComponent(signupId) +
     "&eventId=" + encodeURIComponent(eventId) +
     "&type=" + encodeURIComponent(type) +
-    (sessionDateKey ? "&sessionDate=" + encodeURIComponent(sessionDateKey) : "");
+    (sessionDateForUrl ? "&sessionDate=" + encodeURIComponent(sessionDateForUrl) : "");
 
   const signatureHtml = await buildSignatureBlock('eventCoordinator');
   const donateHtml = await buildDonateBlock('universal');
@@ -4515,13 +4522,19 @@ async function maybeSendCatchupReminder(change, context, collection) {
     const existing = (after.sessionReminders && typeof after.sessionReminders === "object")
       ? after.sessionReminders : {};
 
+    // Look up the verbatim signupDates entry per ISO date so the feedback
+    // URL carries the canonical shape (2026-05-14 fix, mirrors d6b0b24).
+    const rawSessionMap = buildSignupRawSessionMap(after) || {};
+
     for (const sessionDateKey of candidateDates) {
       if (existing[sessionDateKey] && existing[sessionDateKey].threeDay) continue;
       try {
         await sendOneReminderEmail({
           collection, eventId, signupId,
           signup: after, event,
-          sessionDateKey, mode: "3day", zoomDefault,
+          sessionDateKey,
+          sessionDateRaw: rawSessionMap[sessionDateKey] || "",
+          mode: "3day", zoomDefault,
         });
         await change.after.ref.set({
           sessionReminders: {
@@ -4648,7 +4661,12 @@ exports.sendEventReminders = functions
           const zoomDefault = pickZoomForEvent(zoomDoc, event, collection);
           await sendOneReminderEmail({
             collection, eventId, signupId, signup, event,
-            sessionDateKey, mode, zoomDefault,
+            sessionDateKey,
+            // Pass verbatim rawString so the feedback URL embeds the canonical
+            // shape that matches event.signupDates (not ISO). 2026-05-14 fix
+            // (mirrors d6b0b24 day-of fix).
+            sessionDateRaw: (session && session.rawString) || "",
+            mode, zoomDefault,
           });
           // Dedupe write — merge so other session keys + the other flag survive.
           await signupDoc.ref.set({
@@ -5245,7 +5263,9 @@ exports.sendEventRemindersTest = functions
 
       const result = await sendOneReminderEmail({
         collection, eventId, signupId, signup, event,
-        sessionDateKey, mode, zoomDefault,
+        sessionDateKey,
+        sessionDateRaw: rawSessionEntry,
+        mode, zoomDefault,
         skipBcc: skipBcc,
         cc: ccList,
       });
