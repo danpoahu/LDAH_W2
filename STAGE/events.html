@@ -1845,6 +1845,51 @@
       return null;
     }
     
+    // Resolve the location for a SPECIFIC occurrence of a recurring program.
+    // Connect-Gen example: Mondays = All Islands Virtual, Thursdays = Oahu in-person,
+    // 2nd Thursday = Hilo, 3rd Thursday = Kona. Schedules carry frequency/dayOfWeek/weekOfMonth.
+    // cancelledDates may also carry per-date location/venue overrides.
+    // Returns "Location – Venue" string, or null if no match.
+    function resolveRecurringSessionLocation(prog, isoDate) {
+      if (!prog || !isoDate) return null;
+      const schedules = Array.isArray(prog.schedules) ? prog.schedules : [];
+      if (!schedules.length) return null;
+
+      // Compute day-of-week + week-of-month in Pacific/Honolulu.
+      // HST has no DST; using noon-local avoids any edge wobble.
+      let d;
+      try {
+        d = new Date(isoDate + 'T12:00:00-10:00');
+        if (isNaN(d.getTime())) return null;
+      } catch (e) { return null; }
+      const dow = d.getUTCDay(); // safe: noon HST → same calendar day in UTC
+      const dayNum = parseInt(isoDate.slice(8, 10), 10);
+      const weekOfMonth = Math.ceil(dayNum / 7); // 1..5
+
+      // Pass 1: prefer monthly-nth match (e.g., 2nd Thursday = Hilo) over weekly.
+      let match = schedules.find(s =>
+        s && s.frequency === 'monthly-nth' &&
+        Number(s.dayOfWeek) === dow &&
+        Number(s.weekOfMonth) === weekOfMonth
+      );
+      // Pass 2: fall back to weekly match for that dayOfWeek.
+      if (!match) {
+        match = schedules.find(s =>
+          s && s.frequency === 'weekly' && Number(s.dayOfWeek) === dow
+        );
+      }
+      // Pass 3: any schedule on this dayOfWeek.
+      if (!match) {
+        match = schedules.find(s => s && Number(s.dayOfWeek) === dow);
+      }
+      if (!match) return null;
+
+      const loc = (match.location || '').trim();
+      const venue = (match.venue || '').trim();
+      if (loc && venue) return `${loc} – ${venue}`;
+      return loc || venue || null;
+    }
+
     function showCalendarEventDetail(eventId, isEventRequest = false, isRecurring = false, occurrenceDate = '') {
       let event;
 
@@ -1855,14 +1900,18 @@
         // Recurring programs live in window._recurringPrograms (recurringEvents collection)
         const prog = (window._recurringPrograms || {})[eventId];
         if (prog) {
-          const locations = [...new Set((prog.schedules || []).map(s => s.location))].filter(Boolean).join(', ');
+          const occDate = occurrenceDate || new Date().toISOString().slice(0, 10);
+          // Per-session location: resolve from schedules[] for the clicked occurrence.
+          // Falls back to a comma-joined list of all schedule locations if no match.
+          const resolved = resolveRecurringSessionLocation(prog, occDate);
+          const allLocations = [...new Set((prog.schedules || []).map(s => s.location))].filter(Boolean).join(', ');
           event = {
             id: prog.id,
             title: prog.title,
             description: prog.description,
             imageUrl: prog.imageUrl,
-            location: locations,
-            eventDate: occurrenceDate || new Date().toISOString().slice(0, 10),
+            location: resolved || allLocations,
+            eventDate: occDate,
             isRecurring: true,
             registrationUrl: prog.registrationUrl,
             time: prog.time
