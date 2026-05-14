@@ -3658,6 +3658,21 @@
                       <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">${q}</label>
                       <textarea class="custom-answer" data-index="${i}" placeholder="Your answer" rows="3" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;"></textarea>
                     </div>`).join('') : ''}
+                ${program && program.zoomMode === 'program' ? `
+                <div style="margin-bottom:20px;">
+                  <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Have you ever participated in a Connect-Gen session before? *</label>
+                  <div style="display:flex;gap:20px;flex-wrap:wrap;">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                      <input type="radio" name="priorConnectGen" value="Yes" required style="width:18px;height:18px;accent-color:#0369a1;">
+                      <span style="font-size:14px;color:#374151;">Yes</span>
+                    </label>
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                      <input type="radio" name="priorConnectGen" value="No" required style="width:18px;height:18px;accent-color:#0369a1;">
+                      <span style="font-size:14px;color:#374151;">No</span>
+                    </label>
+                  </div>
+                </div>
+                ` : ''}
                 <div style="margin-bottom:20px;">
                   <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Any additional comments or special accommodations?</label>
                   <textarea id="special-accommodations" placeholder="Your answer" rows="4" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;"></textarea>
@@ -3790,6 +3805,17 @@
 
       const customAnswerEls = document.querySelectorAll('.custom-answer');
       formData.customAnswers = Array.from(customAnswerEls).map(ta => ta.value);
+
+      // Connect-Gen only: returning-family signal (front-end). The CF also
+      // checks the signups collection for matching email as a backend signal.
+      if (isCG) {
+        const priorEl = document.querySelector('input[name="priorConnectGen"]:checked');
+        if (!priorEl) {
+          alert('Please tell us whether you have ever participated in a Connect-Gen session before.');
+          return;
+        }
+        formData.priorConnectGen = priorEl.value;
+      }
 
       const formContent = document.getElementById('signupFormContent');
       if (formContent) formContent.innerHTML = `
