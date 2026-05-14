@@ -1367,6 +1367,19 @@ async function handleSignupCreated(snap, context, collectionName) {
     // Non-blocking — continue to email logic
   }
 
+  // ── Connect-Gen returning-family detection ──────────────────────
+  // For the Connect-Gen recurring program, flag signups where the family
+  // has done a Connect-Gen before (either by the form question they just
+  // answered OR by a prior signup row under the same email). When a flag
+  // fires, auto-create an Open interaction so La'a can pre-call them.
+  try {
+    if (collectionName === "recurringEvents" && eventId === "CmkPXEpPwfAQ5sR377K2") {
+      await detectAndFlagReturningCG(snap, signupData, signupId);
+    }
+  } catch (cgErr) {
+    console.error(`returning-CG detection failed for signup ${signupId}:`, cgErr.message);
+  }
+
   // ── No immediate "Complete Your Registration" email ──
   // The previous behavior fired this email the instant a signup doc was
   // created with status:"pending". Two-stage flow: signup modal creates
@@ -1379,6 +1392,133 @@ async function handleSignupCreated(snap, context, collectionName) {
   // minute) handles this now with a 10-minute grace window: it only
   // emails signups still pending after 10 minutes and not already sent.
   return null;
+}
+
+// ── Returning-Connect-Gen detection helper ───────────────────────
+// Two independent signals: form answer (priorConnectGen === "Yes") OR
+// a prior non-cancelled signup row under the same email. If either
+// fires, write isReturningCGFamily + returningCGSource on the new
+// signup and auto-create an Open interaction owned by La'a so she can
+// call the family 2 days before their session.
+async function detectAndFlagReturningCG(snap, signupData, signupId) {
+  const db = admin.firestore();
+
+  // Idempotency: don't re-run on re-trigger / replay.
+  if (signupData.isReturningCGFamily === true) return;
+
+  // Signal A: the front-end form question. The CG signup modal renders
+  // a required Yes/No radio for Connect-Gen events only.
+  const formSignal = signupData.priorConnectGen === "Yes";
+
+  // Signal B: any prior signup row under recurringEvents/<CG>/signups
+  // with the same email (case-insensitive) AND status !== "cancelled"
+  // AND a different doc id.
+  let backendSignal = false;
+  const email = (signupData.email || "").trim().toLowerCase();
+  if (email) {
+    try {
+      const sigSnap = await db.collection("recurringEvents")
+        .doc("CmkPXEpPwfAQ5sR377K2").collection("signups").get();
+      for (const d of sigSnap.docs) {
+        if (d.id === signupId) continue;
+        const sd = d.data() || {};
+        const other = (sd.email || "").trim().toLowerCase();
+        if (!other || other !== email) continue;
+        if (sd.status === "cancelled") continue;
+        backendSignal = true;
+        break;
+      }
+    } catch (err) {
+      console.warn(`returning-CG backend signal scan failed: ${err.message}`);
+    }
+  }
+
+  if (!formSignal && !backendSignal) return;
+
+  let source = "both";
+  if (formSignal && !backendSignal) source = "form";
+  else if (!formSignal && backendSignal) source = "backend";
+
+  // Idempotency: skip if an interactions doc already references this signup.
+  try {
+    const existing = await db.collection("interactions")
+      .where("relatedSignupId", "==", signupId).limit(1).get();
+    if (!existing.empty) {
+      console.log(`returning-CG: interaction already exists for signup ${signupId}, skipping`);
+      // Still set the flag on the signup if it's missing.
+      if (signupData.isReturningCGFamily !== true) {
+        await snap.ref.update({ isReturningCGFamily: true, returningCGSource: source });
+      }
+      return;
+    }
+  } catch (_) { /* non-blocking */ }
+
+  // Flip the flag on the signup itself.
+  try {
+    await snap.ref.update({ isReturningCGFamily: true, returningCGSource: source });
+  } catch (err) {
+    console.warn(`returning-CG: signup flag update failed: ${err.message}`);
+  }
+
+  // Resolve owner via system/emailPersonas.personas.resourceCoordinator.uid
+  // (set 2026-05-14). Fall back to the canonical La'a uid + persona name if
+  // the doc is unreachable, so the interaction is never orphaned.
+  let ownerUid = "";
+  let ownerName = "";
+  try {
+    const p = await getPersona("resourceCoordinator");
+    ownerUid = p && p.uid ? p.uid : "";
+    ownerName = p && p.fullName ? p.fullName : "";
+  } catch (_) {}
+  if (!ownerUid) ownerUid = "hj6YnfnZ66Yul9mtnULRW5FTWKH3";
+  if (!ownerName) ownerName = "La'a Salvani";
+
+  const followUpDate = addDaysHst(toHstDateKey(new Date()), 2);
+
+  const clientName = signupData.name
+    || [signupData.firstName, signupData.lastName].filter(Boolean).join(" ").trim()
+    || "Unknown";
+
+  const sessionLabel = (Array.isArray(signupData.selectedSessions) && signupData.selectedSessions[0])
+    || (Array.isArray(signupData.selectedDates) && signupData.selectedDates[0])
+    || "(session not specified)";
+
+  const interaction = {
+    channel: "Connect-Gen Follow-Up",
+    interactionType: "Returning Family Pre-Call",
+    contactId: signupData.linkedContactId || null,
+    contactName: clientName,
+    contactType: "Parent/Guardian",
+    grantProgram: "",
+    summary: "Returning Connect-Gen family — verify they know what to expect. Session: "
+      + sessionLabel + ". Signal: " + source + ".",
+    followUpDate: followUpDate,
+    status: "Open",
+    notes: "Auto-created from Connect-Gen signup. Pre-call this family 2 days before their session date to confirm they know the format and what to bring.",
+    isDraft: false,
+    owner: ownerName,
+    ownerUid: ownerUid,
+    relatedSignupId: signupId,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  try {
+    const intRef = await db.collection("interactions").add(interaction);
+    console.log(`returning-CG: interaction ${intRef.id} created for signup ${signupId} (source=${source})`);
+  } catch (err) {
+    console.error(`returning-CG: interaction write failed: ${err.message}`);
+  }
+
+  // Audit log so daily-report changelog picks it up automatically.
+  try {
+    await db.collection("auditLog").add({
+      action: "Flagged returning Connect-Gen family",
+      details: clientName + " -- session " + sessionLabel + " (signal: " + source + ")",
+      performedBy: "System (auto)",
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (e) { console.warn("returning-CG: auditLog write failed:", e.message); }
 }
 
 // ── Deferred Registration-Completion Email ─────────────────────────
@@ -3066,6 +3206,48 @@ exports.sendDailySessionSheet = functions
     }
 
     // ═══════════════════════════════════════════════════
+    // SECTION 1B: Returning Connect-Gen Families (last 24h)
+    // ═══════════════════════════════════════════════════
+    // Surface any signups created in the report window flagged as
+    // returning Connect-Gen families so La'a + admins see the pre-call
+    // workload at a glance.
+    const returningCGRows = [];
+    try {
+      const cgSigSnap = await db.collection("recurringEvents")
+        .doc("CmkPXEpPwfAQ5sR377K2").collection("signups")
+        .where("isReturningCGFamily", "==", true).get();
+      cgSigSnap.forEach((d) => {
+        const r = d.data() || {};
+        const tsMs = (r.timestamp && r.timestamp.toMillis)
+          ? r.timestamp.toMillis()
+          : (r.timestamp && r.timestamp.seconds ? r.timestamp.seconds * 1000 : 0);
+        if (!tsMs || tsMs < cutoffTimestamp.toMillis()) return;
+        if (r.archived === true) return;
+        const session = (Array.isArray(r.selectedSessions) && r.selectedSessions[0])
+          || (Array.isArray(r.selectedDates) && r.selectedDates[0])
+          || "(session not specified)";
+        returningCGRows.push({
+          name: r.name || [r.firstName, r.lastName].filter(Boolean).join(" ") || "Unknown",
+          session: session,
+          source: r.returningCGSource || "",
+        });
+      });
+    } catch (err) { console.warn("Returning-CG section:", err.message); }
+
+    let returningCGHtml = "";
+    if (returningCGRows.length > 0) {
+      returningCGHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;">`;
+      returningCGRows.forEach((r, idx) => {
+        const bg = idx % 2 === 0 ? "#fafafa" : "#ffffff";
+        const srcLabel = r.source ? ` <span style="color:#92400E;font-size:11px;background:#FEF3C7;padding:1px 6px;border-radius:8px;">${esc(r.source)}</span>` : "";
+        returningCGHtml += `<tr style="background:${bg};">`
+          + `<td style="padding:8px 14px;font-size:13px;color:#333;"><strong>${esc(r.name)}</strong>${srcLabel}</td>`
+          + `<td style="padding:8px 14px;font-size:12px;color:#555;text-align:right;">${esc(r.session)}</td></tr>`;
+      });
+      returningCGHtml += `</table>`;
+    }
+
+    // ═══════════════════════════════════════════════════
     // SECTION 2: What Changed Since Yesterday (detailed)
     // ═══════════════════════════════════════════════════
     const changelog = [];
@@ -3430,6 +3612,19 @@ exports.sendDailySessionSheet = functions
     </td>
   </tr>
   <tr><td style="padding:0 28px 16px;">${sessionsHtml}</td></tr>
+
+  ${returningCGRows.length > 0 ? `
+  <!-- Section 1B: Returning Connect-Gen Families -->
+  <tr>
+    <td style="padding:24px 28px 8px;">
+      <h2 style="margin:0;font-size:17px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:6px;">
+        Returning Connect-Gen Families
+      </h2>
+      <p style="margin:4px 0 12px;font-size:12px;color:#666;">${returningCGRows.length} flagged in last 24 hours &mdash; pre-call 2 days before session</p>
+    </td>
+  </tr>
+  <tr><td style="padding:0 28px 16px;">${returningCGHtml}</td></tr>
+  ` : ""}
 
   <!-- Section 2: What Changed (Last 24 Hours) -->
   <tr>
