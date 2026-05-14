@@ -422,7 +422,50 @@
         return;
       }
       var signupData = signupDoc.data();
-      if (signupData.feedbackSubmittedAt) {
+
+      // Per-session dedup (multi-session events): if URL has sessionDate, check
+      // eventFeedback for a matching doc instead of the signup-level flag.
+      // Falls back to legacy signup-level check when sessionDate is absent so
+      // single-session events still work.
+      var alreadySubmitted = false;
+      if (sessionDate) {
+        try {
+          var fbSnap = await db.collection('eventFeedback')
+            .where('signupId', '==', signupId)
+            .get();
+          var isoRe = /^\d{4}-\d{2}-\d{2}$/;
+          var urlIsIso = isoRe.test(sessionDate);
+          fbSnap.forEach(function(d) {
+            if (alreadySubmitted) return;
+            var f = d.data() || {};
+            var docSd = f.sessionDate;
+            if (!docSd) return;
+            if (docSd === sessionDate) {
+              alreadySubmitted = true;
+              return;
+            }
+            // Defensive: URL is ISO (YYYY-MM-DD) but a legacy doc may have
+            // stored the session as a verbatim string. Accept a match if the
+            // verbatim string contains the same month/day prefix.
+            if (urlIsIso && typeof docSd === 'string') {
+              // Try to find YYYY-MM-DD inside the verbatim string
+              var m = docSd.match(/\d{4}-\d{2}-\d{2}/);
+              if (m && m[0] === sessionDate) {
+                alreadySubmitted = true;
+              }
+            }
+          });
+        } catch (qerr) {
+          console.error('Per-session dedup query failed:', qerr);
+          // On query failure, do NOT fall back to the signup-level flag —
+          // better to let the user submit (and risk a dup) than lock them out.
+          alreadySubmitted = false;
+        }
+      } else {
+        // No sessionDate in URL — preserve legacy single-session behavior.
+        alreadySubmitted = !!signupData.feedbackSubmittedAt;
+      }
+      if (alreadySubmitted) {
         showState('alreadyState');
         return;
       }
@@ -533,10 +576,10 @@
 
       await db.collection('eventFeedback').add(feedbackData);
 
-      // Mark signup as feedback submitted
-      await db.collection(collection).doc(eventId).collection('signups').doc(signupId).update({
-        feedbackSubmittedAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
+      // Per-session model: eventFeedback collection is now the source of truth.
+      // We deliberately do NOT update signup.feedbackSubmittedAt anymore — that
+      // signup-level flag locked the same signup out of every future session on
+      // multi-session events (Connect-Gen, Learning Labs).
 
       showState('successState');
     } catch (err) {
