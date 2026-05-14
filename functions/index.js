@@ -4879,7 +4879,7 @@ function buildDayOfEmail({
  * scheduled hourly job and the test endpoint.
  */
 async function sendOneDayOfReminderEmail({
-  collection, eventId, signupId, signup, event, sessionDateKey, startHst, zoomDefault, skipBcc, cc,
+  collection, eventId, signupId, signup, event, sessionDateKey, sessionDateRaw, startHst, zoomDefault, skipBcc, cc,
 }) {
   const type = collection === "recurringEvents" ? "recurring" : "event";
   const recipientName = resolveReminderRecipientName(signup);
@@ -4898,11 +4898,17 @@ async function sendOneDayOfReminderEmail({
   const passcode = isVirtual && zoomDefault && zoomDefault.passcode ? String(zoomDefault.passcode).trim() : "";
 
   // Survey URL — must include sessionDate for proper feedback grouping.
+  // CANONICAL SHAPE: verbatim event.signupDates entry (NOT ISO yyyy-mm-dd).
+  // See feedback_canonical-sessiondate.md. Prior bug (fixed 2026-05-14)
+  // wrote ISO here, which split the Feedback Report into two groups
+  // (e.g. "Session: May 13, 2026, 5:00 pm - 6:00 pm" + "Session: 2026-05-13").
+  // Falls back to ISO sessionDateKey ONLY if the verbatim string is unavailable.
+  const sessionDateForUrl = sessionDateRaw || sessionDateKey;
   const surveyUrl =
     "https://ldahawaii.org/feedback.html?signupId=" + encodeURIComponent(signupId) +
     "&eventId=" + encodeURIComponent(eventId) +
     "&type=" + encodeURIComponent(type) +
-    (sessionDateKey ? "&sessionDate=" + encodeURIComponent(sessionDateKey) : "");
+    (sessionDateForUrl ? "&sessionDate=" + encodeURIComponent(sessionDateForUrl) : "");
 
   const signatureHtml = await buildSignatureBlock('eventCoordinator');
   const donateHtml = await buildDonateBlock('universal');
@@ -5078,7 +5084,11 @@ exports.sendDayOfReminders = functions
           const zoomDefault = pickZoomForEvent(zoomDoc, event, collection);
           await sendOneDayOfReminderEmail({
             collection, eventId, signupId, signup, event,
-            sessionDateKey, startHst, zoomDefault,
+            sessionDateKey,
+            // Pass verbatim rawString so the feedback URL embeds the canonical
+            // shape that matches event.signupDates (not ISO). 2026-05-14 fix.
+            sessionDateRaw: (session && session.rawString) || "",
+            startHst, zoomDefault,
           });
           await signupDoc.ref.set({
             sessionReminders: {
@@ -5223,7 +5233,9 @@ exports.sendEventRemindersTest = functions
           || extractSessionStartHst(sessionDateKey, event); // fallback uses event.startTime
         const result = await sendOneDayOfReminderEmail({
           collection, eventId, signupId, signup, event,
-          sessionDateKey, startHst, zoomDefault,
+          sessionDateKey,
+          sessionDateRaw: rawSessionEntry,
+          startHst, zoomDefault,
           skipBcc: skipBcc,
           cc: ccList,
         });
