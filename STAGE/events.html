@@ -1887,7 +1887,7 @@
       // For regular and recurring events, show the flyer image — graceful fallback when none exists
       if (!isEventRequest) {
         if (event.imageUrl && !event.imageUrl.toLowerCase().includes('.pdf')) {
-          bodyHtml += `<img src="${event.imageUrl}" alt="${event.title}" class="event-detail-image" style="cursor: pointer;" onclick="window.open('${event.imageUrl}', '_blank')">`;
+          bodyHtml += `<img src="${event.imageUrl}" alt="${event.title}" class="event-detail-image" style="cursor: pointer;" onclick="openFlyerLightbox('${event.imageUrl}', '${(event.title||'').replace(/'/g, "\\'")}')">`;
         } else if (!event.imageUrl) {
           bodyHtml += `<div style="padding: 1.25rem; background: #f7fafc; border: 1px dashed #cbd5e0; border-radius: 8px; color: #64748b; text-align: center; margin-bottom: 1rem; font-size: 0.95rem;">No flyer available for this event.</div>`;
         }
@@ -1980,9 +1980,9 @@
           const isPDF = event.imageUrl.toLowerCase().includes('.pdf');
           bodyHtml += `
             <div style="margin-top: ${event.enableSignup || event.registrationUrl ? '0.75rem' : '1.5rem'}; text-align: center;">
-              <a href="${event.imageUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 0.5rem 1.5rem; background: white; color: #004E7C; text-decoration: none; border-radius: 50px; font-weight: 600; border: 2px solid #004E7C; font-size: 0.9rem;">
+              <button type="button" onclick="openFlyerLightbox('${event.imageUrl}', '${(event.title||'').replace(/'/g, "\\'")}')" style="display: inline-block; padding: 0.5rem 1.5rem; background: white; color: #004E7C; border-radius: 50px; font-weight: 600; border: 2px solid #004E7C; font-size: 0.9rem; cursor: pointer; font-family: inherit;">
                 ${isPDF ? 'View Event PDF' : 'View Full Poster'}
-              </a>
+              </button>
             </div>
           `;
         }
