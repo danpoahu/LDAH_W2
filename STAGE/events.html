@@ -1701,13 +1701,9 @@
             if (isRequest) eventClasses += ' event-request';
             if (isRecurring) eventClasses += ' recurring-event';
 
-            if (isRequest) {
-              // Event requests open modal
-              html += `<div class="${eventClasses}" onclick="showCalendarEventDetail('${event.id}', true)" title="${event.title}">${event.title}</div>`;
-            } else {
-              // Regular and recurring events scroll to current events section
-              html += `<div class="${eventClasses}" onclick="scrollToCurrentEvents()" title="${event.title}">${event.title}</div>`;
-            }
+            // All pills (regular, recurring, request) open the event flyer/detail modal for THIS specific event
+            const safeDateAttr = event.eventDate ? event.eventDate : '';
+            html += `<div class="${eventClasses}" onclick="showCalendarEventDetail('${event.id}', ${isRequest}, ${isRecurring}, '${safeDateAttr}')" title="${event.title}">${event.title}</div>`;
           });
           if (dayEvents.length > 2) {
             html += `<div class="day-event more-events" onclick="scrollToCurrentEvents()">+${dayEvents.length - 2} more</div>`;
@@ -1849,29 +1845,52 @@
       return null;
     }
     
-    function showCalendarEventDetail(eventId, isEventRequest = false) {
+    function showCalendarEventDetail(eventId, isEventRequest = false, isRecurring = false, occurrenceDate = '') {
       let event;
-      
+
       if (isEventRequest) {
         // Find in approved event requests
-        event = window.approvedEventRequests.find(e => e.id === eventId);
+        event = (window.approvedEventRequests || []).find(e => e.id === eventId);
+      } else if (isRecurring) {
+        // Recurring programs live in window._recurringPrograms (recurringEvents collection)
+        const prog = (window._recurringPrograms || {})[eventId];
+        if (prog) {
+          const locations = [...new Set((prog.schedules || []).map(s => s.location))].filter(Boolean).join(', ');
+          event = {
+            id: prog.id,
+            title: prog.title,
+            description: prog.description,
+            imageUrl: prog.imageUrl,
+            location: locations,
+            eventDate: occurrenceDate || new Date().toISOString().slice(0, 10),
+            isRecurring: true,
+            registrationUrl: prog.registrationUrl,
+            time: prog.time
+          };
+        }
       } else {
         // Find in regular events
-        event = window.allEventsData.find(e => e.id === eventId);
+        event = (window.allEventsData || []).find(e => e.id === eventId);
       }
-      
+
       if (!event) return;
-      
+
       const eventDate = new Date(event.eventDate + 'T00:00:00');
-      const formattedDate = eventDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-      
+      const formattedDate = isNaN(eventDate.getTime())
+        ? ''
+        : eventDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
       document.getElementById('eventDetailTitle').textContent = isEventRequest ? 'Community Event Request' : event.title;
       
       let bodyHtml = '';
-      
-      // For regular events, show the image/poster
-      if (!isEventRequest && event.imageUrl && !event.imageUrl.toLowerCase().includes('.pdf')) {
-        bodyHtml += `<img src="${event.imageUrl}" alt="${event.title}" class="event-detail-image" style="cursor: pointer;" onclick="window.open('${event.imageUrl}', '_blank')">`;
+
+      // For regular and recurring events, show the flyer image — graceful fallback when none exists
+      if (!isEventRequest) {
+        if (event.imageUrl && !event.imageUrl.toLowerCase().includes('.pdf')) {
+          bodyHtml += `<img src="${event.imageUrl}" alt="${event.title}" class="event-detail-image" style="cursor: pointer;" onclick="window.open('${event.imageUrl}', '_blank')">`;
+        } else if (!event.imageUrl) {
+          bodyHtml += `<div style="padding: 1.25rem; background: #f7fafc; border: 1px dashed #cbd5e0; border-radius: 8px; color: #64748b; text-align: center; margin-bottom: 1rem; font-size: 0.95rem;">No flyer available for this event.</div>`;
+        }
       }
       
       // Event request badge
@@ -1892,10 +1911,12 @@
         `;
       }
       
-      bodyHtml += `
-        <div class="event-detail-item"><div><strong>Date:</strong> ${formattedDate}</div>
-        </div>
-      `;
+      if (formattedDate) {
+        bodyHtml += `
+          <div class="event-detail-item"><div><strong>${event.isRecurring ? 'This occurrence' : 'Date'}:</strong> ${formattedDate}</div>
+          </div>
+        `;
+      }
       
       if (event.time) {
         bodyHtml += `
@@ -1934,7 +1955,13 @@
       
       // For regular events - add sign up or registration buttons
       if (!isEventRequest) {
-        if (event.enableSignup) {
+        if (event.isRecurring) {
+          bodyHtml += `
+            <div style="margin-top: 1.5rem; text-align: center;">
+              <button onclick="closeEventDetailModal(); openRecurringSignupModal('${event.id}');" style="display: inline-block; padding: 0.75rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border: none; border-radius: 50px; font-weight: 600; cursor: pointer;">Sign Up for a Session →</button>
+            </div>
+          `;
+        } else if (event.enableSignup) {
           bodyHtml += `
             <div style="margin-top: 1.5rem; text-align: center;">
               <button onclick="closeEventDetailModal(); openSignupModal('${event.id}');" style="display: inline-block; padding: 0.75rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border: none; border-radius: 50px; font-weight: 600; cursor: pointer;">Sign Up →</button>
