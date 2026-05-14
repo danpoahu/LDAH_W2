@@ -1610,7 +1610,7 @@
       const programs = window._recurringPrograms || {};
       const items = [];
       Object.values(programs).forEach(prog => {
-        (prog.schedules || []).forEach(sch => {
+        (prog.schedules || []).forEach((sch, schIdx) => {
           const dayNum = Number(sch.dayOfWeek);
           if (sch.frequency === 'weekly') {
             const firstOfMonth = new Date(year, month, 1);
@@ -1623,7 +1623,8 @@
                 eventDate: d.toISOString().slice(0, 10),
                 isRecurring: true,
                 location: sch.location,
-                schedule: sch
+                schedule: sch,
+                scheduleIdx: schIdx
               });
               d.setDate(d.getDate() + 7);
             }
@@ -1639,7 +1640,8 @@
                 eventDate: nth.toISOString().slice(0, 10),
                 isRecurring: true,
                 location: sch.location,
-                schedule: sch
+                schedule: sch,
+                scheduleIdx: schIdx
               });
             }
           }
@@ -1701,13 +1703,11 @@
             if (isRequest) eventClasses += ' event-request';
             if (isRecurring) eventClasses += ' recurring-event';
 
-            if (isRequest) {
-              // Event requests open modal
-              html += `<div class="${eventClasses}" onclick="showCalendarEventDetail('${event.id}', true)" title="${event.title}">${event.title}</div>`;
-            } else {
-              // Regular and recurring events scroll to current events section
-              html += `<div class="${eventClasses}" onclick="scrollToCurrentEvents()" title="${event.title}">${event.title}</div>`;
-            }
+            // All pills (regular, recurring, request) open the event flyer/detail modal for THIS specific event
+            const safeDateAttr = event.eventDate ? event.eventDate : '';
+            // Pass scheduleIdx for recurring pills so each pill resolves to its OWN schedule (e.g. weekly Oahu vs monthly-nth Hilo on same Thursday)
+            const schIdxAttr = (isRecurring && Number.isInteger(event.scheduleIdx)) ? event.scheduleIdx : -1;
+            html += `<div class="${eventClasses}" onclick="showCalendarEventDetail('${event.id}', ${isRequest}, ${isRecurring}, '${safeDateAttr}', ${schIdxAttr})" title="${event.title}">${event.title}</div>`;
           });
           if (dayEvents.length > 2) {
             html += `<div class="day-event more-events" onclick="scrollToCurrentEvents()">+${dayEvents.length - 2} more</div>`;
@@ -1849,29 +1849,121 @@
       return null;
     }
     
-    function showCalendarEventDetail(eventId, isEventRequest = false) {
+    // Resolve the location for a SPECIFIC occurrence of a recurring program.
+    // Connect-Gen example: Mondays = All Islands Virtual, Thursdays = Oahu in-person,
+    // 2nd Thursday = Hilo, 3rd Thursday = Kona. Schedules carry frequency/dayOfWeek/weekOfMonth.
+    // cancelledDates may also carry per-date location/venue overrides.
+    // When scheduleIdx is provided (>=0), resolves DIRECTLY against that schedule entry —
+    // necessary when a single date has multiple pills (e.g. 2nd Thu shows BOTH weekly Oahu
+    // AND monthly-nth Hilo). When omitted, falls back to best-match (legacy behavior).
+    // Returns "Location – Venue" string, or null if no match.
+    function resolveRecurringSessionLocation(prog, isoDate, scheduleIdx) {
+      if (!prog || !isoDate) return null;
+      const schedules = Array.isArray(prog.schedules) ? prog.schedules : [];
+      if (!schedules.length) return null;
+
+      let match = null;
+      // Direct schedule lookup when caller knows which pill was clicked.
+      if (Number.isInteger(scheduleIdx) && scheduleIdx >= 0 && schedules[scheduleIdx]) {
+        match = schedules[scheduleIdx];
+      }
+
+      if (!match) {
+        // Legacy best-match path: compute day-of-week + week-of-month in Pacific/Honolulu.
+        // HST has no DST; using noon-local avoids any edge wobble.
+        let d;
+        try {
+          d = new Date(isoDate + 'T12:00:00-10:00');
+          if (isNaN(d.getTime())) return null;
+        } catch (e) { return null; }
+        const dow = d.getUTCDay(); // safe: noon HST → same calendar day in UTC
+        const dayNum = parseInt(isoDate.slice(8, 10), 10);
+        const weekOfMonth = Math.ceil(dayNum / 7); // 1..5
+
+        // Pass 1: prefer monthly-nth match (e.g., 2nd Thursday = Hilo) over weekly.
+        match = schedules.find(s =>
+          s && s.frequency === 'monthly-nth' &&
+          Number(s.dayOfWeek) === dow &&
+          Number(s.weekOfMonth) === weekOfMonth
+        );
+        // Pass 2: fall back to weekly match for that dayOfWeek.
+        if (!match) {
+          match = schedules.find(s =>
+            s && s.frequency === 'weekly' && Number(s.dayOfWeek) === dow
+          );
+        }
+        // Pass 3: any schedule on this dayOfWeek.
+        if (!match) {
+          match = schedules.find(s => s && Number(s.dayOfWeek) === dow);
+        }
+      }
+      if (!match) return null;
+
+      const loc = (match.location || '').trim();
+      const venue = (match.venue || '').trim();
+      if (loc && venue) return `${loc} – ${venue}`;
+      return loc || venue || null;
+    }
+
+    function showCalendarEventDetail(eventId, isEventRequest = false, isRecurring = false, occurrenceDate = '', scheduleIdx = -1) {
       let event;
-      
+
       if (isEventRequest) {
         // Find in approved event requests
-        event = window.approvedEventRequests.find(e => e.id === eventId);
+        event = (window.approvedEventRequests || []).find(e => e.id === eventId);
+      } else if (isRecurring) {
+        // Recurring programs live in window._recurringPrograms (recurringEvents collection)
+        const prog = (window._recurringPrograms || {})[eventId];
+        if (prog) {
+          const occDate = occurrenceDate || new Date().toISOString().slice(0, 10);
+          // Per-session location/time: resolve from the SPECIFIC schedule entry that produced this pill.
+          // Without scheduleIdx, both pills on a 2nd/3rd-Thursday would collapse to the monthly-nth match.
+          const resolved = resolveRecurringSessionLocation(prog, occDate, scheduleIdx);
+          const allLocations = [...new Set((prog.schedules || []).map(s => s.location))].filter(Boolean).join(', ');
+          // Time row should mirror the clicked schedule (Oahu 11–1 vs Hilo 9–11), not a single program-wide string.
+          let sessionTime = prog.time || '';
+          const schedules = Array.isArray(prog.schedules) ? prog.schedules : [];
+          if (Number.isInteger(scheduleIdx) && scheduleIdx >= 0 && schedules[scheduleIdx]) {
+            const sch = schedules[scheduleIdx];
+            if (sch.startTime && sch.endTime) {
+              sessionTime = `${fmt12(sch.startTime)} – ${fmt12(sch.endTime)}`;
+            }
+          }
+          event = {
+            id: prog.id,
+            title: prog.title,
+            description: prog.description,
+            imageUrl: prog.imageUrl,
+            location: resolved || allLocations,
+            eventDate: occDate,
+            isRecurring: true,
+            registrationUrl: prog.registrationUrl,
+            time: sessionTime
+          };
+        }
       } else {
         // Find in regular events
-        event = window.allEventsData.find(e => e.id === eventId);
+        event = (window.allEventsData || []).find(e => e.id === eventId);
       }
-      
+
       if (!event) return;
-      
+
       const eventDate = new Date(event.eventDate + 'T00:00:00');
-      const formattedDate = eventDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-      
+      const formattedDate = isNaN(eventDate.getTime())
+        ? ''
+        : eventDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
       document.getElementById('eventDetailTitle').textContent = isEventRequest ? 'Community Event Request' : event.title;
       
       let bodyHtml = '';
-      
-      // For regular events, show the image/poster
-      if (!isEventRequest && event.imageUrl && !event.imageUrl.toLowerCase().includes('.pdf')) {
-        bodyHtml += `<img src="${event.imageUrl}" alt="${event.title}" class="event-detail-image" style="cursor: pointer;" onclick="window.open('${event.imageUrl}', '_blank')">`;
+
+      // For regular and recurring events, show the flyer image — graceful fallback when none exists
+      if (!isEventRequest) {
+        if (event.imageUrl && !event.imageUrl.toLowerCase().includes('.pdf')) {
+          bodyHtml += `<img src="${event.imageUrl}" alt="${event.title}" class="event-detail-image" style="cursor: pointer;" onclick="openFlyerLightbox('${event.imageUrl}', '${(event.title||'').replace(/'/g, "\\'")}')">`;
+        } else if (!event.imageUrl) {
+          bodyHtml += `<div style="padding: 1.25rem; background: #f7fafc; border: 1px dashed #cbd5e0; border-radius: 8px; color: #64748b; text-align: center; margin-bottom: 1rem; font-size: 0.95rem;">No flyer available for this event.</div>`;
+        }
       }
       
       // Event request badge
@@ -1892,10 +1984,12 @@
         `;
       }
       
-      bodyHtml += `
-        <div class="event-detail-item"><div><strong>Date:</strong> ${formattedDate}</div>
-        </div>
-      `;
+      if (formattedDate) {
+        bodyHtml += `
+          <div class="event-detail-item"><div><strong>${event.isRecurring ? 'This occurrence' : 'Date'}:</strong> ${formattedDate}</div>
+          </div>
+        `;
+      }
       
       if (event.time) {
         bodyHtml += `
@@ -1934,7 +2028,13 @@
       
       // For regular events - add sign up or registration buttons
       if (!isEventRequest) {
-        if (event.enableSignup) {
+        if (event.isRecurring) {
+          bodyHtml += `
+            <div style="margin-top: 1.5rem; text-align: center;">
+              <button onclick="closeEventDetailModal(); openRecurringSignupModal('${event.id}');" style="display: inline-block; padding: 0.75rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border: none; border-radius: 50px; font-weight: 600; cursor: pointer;">Sign Up for a Session →</button>
+            </div>
+          `;
+        } else if (event.enableSignup) {
           bodyHtml += `
             <div style="margin-top: 1.5rem; text-align: center;">
               <button onclick="closeEventDetailModal(); openSignupModal('${event.id}');" style="display: inline-block; padding: 0.75rem 2rem; background: linear-gradient(135deg, #004E7C, #0066a1); color: white; border: none; border-radius: 50px; font-weight: 600; cursor: pointer;">Sign Up →</button>
@@ -1953,9 +2053,9 @@
           const isPDF = event.imageUrl.toLowerCase().includes('.pdf');
           bodyHtml += `
             <div style="margin-top: ${event.enableSignup || event.registrationUrl ? '0.75rem' : '1.5rem'}; text-align: center;">
-              <a href="${event.imageUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 0.5rem 1.5rem; background: white; color: #004E7C; text-decoration: none; border-radius: 50px; font-weight: 600; border: 2px solid #004E7C; font-size: 0.9rem;">
+              <button type="button" onclick="openFlyerLightbox('${event.imageUrl}', '${(event.title||'').replace(/'/g, "\\'")}')" style="display: inline-block; padding: 0.5rem 1.5rem; background: white; color: #004E7C; border-radius: 50px; font-weight: 600; border: 2px solid #004E7C; font-size: 0.9rem; cursor: pointer; font-family: inherit;">
                 ${isPDF ? 'View Event PDF' : 'View Full Poster'}
-              </a>
+              </button>
             </div>
           `;
         }
