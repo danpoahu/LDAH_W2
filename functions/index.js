@@ -10521,9 +10521,104 @@ exports.addNativeHawaiianSurveyContact = functions
   });
 
 // ── sendNativeHawaiianSurveyReport ────────────────────────────────
-// Scheduled daily at 8 AM HST. Emails Rosie a digest of all responses
-// from the past 24h (with aggregated counts + open-text answers).
-// Skips send when there are zero new submissions. No BCC.
+// Scheduled daily at 8 AM HST. Emails Rosie a CUMULATIVE graphic
+// digest of all responses to date (header tiles, per-question
+// horizontal bars, 14-day sparkline, data-quality footer).
+//
+// Cumulative format approved 2026-05-14. Sends only if total
+// responses > 0 (suppresses entirely-empty heartbeat). All Outlook-
+// safety: nested <table> tile rows, inline styles, no external assets.
+
+// Short labels for horizontal-bar rows. Kept short so bars don't wrap.
+const NH_BAR_LABELS = {
+  q1: { yes: "Yes", no: "No", unsure: "Unsure" },
+  q2: { oahu: "O'ahu", hawaii_island: "Hawai'i Island", maui: "Maui", kauai: "Kaua'i", molokai: "Moloka'i", lanai: "Lana'i", other: "Other" },
+  q3: { english: "English", olelo_hawaii: "'Olelo Hawai'i", hawaiian_pidgin: "Hawaiian Pidgin", chuukese: "Chuukese", marshallese: "Marshallese", samoan: "Samoan", ilocano_tagalog: "Ilocano/Tagalog", other: "Other" },
+  q4: { frequently: "Frequently", sometimes: "Sometimes", rarely: "Rarely", never: "Never" },
+  q5: { idea: "IDEA", har_chapter_60: "HAR Chapter 60", evaluation_eligibility: "Eval & eligibility", iep_meetings: "IEP meetings", parent_rights: "Parent rights", dispute_resolution: "Dispute resolution", transition_planning: "Transition planning", sped_forms_notices: "SPED forms & notices" },
+  q6: { very_important: "Very Important", important: "Important", somewhat_important: "Somewhat Important", not_important: "Not Important" },
+  q7: { yes: "Yes", maybe: "Maybe", no: "No" },
+  q8: { printed_handouts: "Printed handouts", videos: "Videos", online_workshops: "Online workshops", one_on_one: "One-on-one support", visual_guides: "Visual guides / flowcharts", social_media: "Social media posts", audio_podcasts: "Audio / podcasts" },
+  q9: { yes: "Yes", somewhat: "Somewhat", no: "No" },
+  q10: { referral: "Referral for evaluation", assessment_results: "Understanding assessment results", eligibility: "Eligibility determination", writing_iep: "Writing the IEP", services_supports: "Understanding services / supports", transition_planning: "Transition planning", disagreements: "Resolving disagreements" },
+  q11: { yes: "Yes", sometimes: "Sometimes", no: "No" },
+  q12: { yes: "Yes", maybe: "Maybe", no: "No" },
+  q15: { yes: "Yes", maybe: "Maybe", no: "No" },
+};
+
+// Color palette for bar fills, per-question. Indexed by option order.
+const NH_BAR_COLORS = {
+  q1: ["#10B981", "#DC2626", "#F59E0B"],
+  q2: ["#0891B2", "#06B6D4", "#67e8f9", "#67e8f9", "#a5f3fc", "#a5f3fc", "#fde68a"],
+  q3: ["#0891B2", "#06B6D4", "#06B6D4", "#67e8f9", "#67e8f9", "#a5f3fc", "#a5f3fc", "#fde68a"],
+  q4: ["#0891B2", "#06B6D4", "#67e8f9", "#a5f3fc"],
+  q5: ["#0891B2", "#0891B2", "#06B6D4", "#06B6D4", "#67e8f9", "#67e8f9", "#a5f3fc", "#a5f3fc"],
+  q6: ["#0891B2", "#06B6D4", "#67e8f9", "#a5f3fc"],
+  q7: ["#10B981", "#F59E0B", "#DC2626"],
+  q8: ["#0891B2", "#06B6D4", "#06B6D4", "#67e8f9", "#67e8f9", "#a5f3fc", "#a5f3fc"],
+  q9: ["#10B981", "#F59E0B", "#DC2626"],
+  q10: ["#0891B2", "#0891B2", "#06B6D4", "#06B6D4", "#67e8f9", "#67e8f9", "#a5f3fc"],
+  q11: ["#DC2626", "#F59E0B", "#10B981"],
+  q12: ["#10B981", "#F59E0B", "#DC2626"],
+  q15: ["#10B981", "#F59E0B", "#DC2626"],
+};
+
+// Display order for bars (some questions reordered from validation enum for readability).
+const NH_BAR_ORDER = {
+  q1: ["yes", "no", "unsure"],
+  q2: ["oahu", "hawaii_island", "maui", "kauai", "molokai", "lanai", "other"],
+  q3: ["english", "olelo_hawaii", "hawaiian_pidgin", "chuukese", "marshallese", "samoan", "ilocano_tagalog", "other"],
+  q4: ["frequently", "sometimes", "rarely", "never"],
+  q5: ["har_chapter_60", "idea", "evaluation_eligibility", "parent_rights", "iep_meetings", "sped_forms_notices", "dispute_resolution", "transition_planning"],
+  q6: ["very_important", "important", "somewhat_important", "not_important"],
+  q7: ["yes", "maybe", "no"],
+  q8: ["printed_handouts", "online_workshops", "one_on_one", "videos", "visual_guides", "social_media", "audio_podcasts"],
+  q9: ["yes", "somewhat", "no"],
+  q10: ["services_supports", "assessment_results", "eligibility", "referral", "writing_iep", "disagreements", "transition_planning"],
+  q11: ["yes", "sometimes", "no"],
+  q12: ["yes", "maybe", "no"],
+  q15: ["yes", "maybe", "no"],
+};
+
+// Build a "tile" cell (Outlook-safe via nested table).
+function _nhTileCell(num, lbl, colorClass, isLast) {
+  let color = "#0891B2";
+  if (colorClass === "flag") color = "#DC2626";
+  else if (colorClass === "ok") color = "#10B981";
+  const borderRight = isLast ? "" : "border-right:1px solid #e5e7eb;";
+  return `<td width="25%" align="center" valign="top" style="padding:16px 8px;${borderRight}">
+    <div style="font-size:26px;font-weight:700;color:${color};line-height:1;margin-bottom:4px;">${num}</div>
+    <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.4px;line-height:1.2;">${lbl}</div>
+  </td>`;
+}
+
+// Build a horizontal bar row (uses a table so Outlook renders the 3 cells side-by-side).
+function _nhBarRow(label, count, denominator, color, opts) {
+  opts = opts || {};
+  const pct = denominator > 0 ? Math.round((count / denominator) * 100) : 0;
+  const fillWidth = Math.min(100, Math.max(0, pct));
+  const isNa = !!opts.na;
+  const rowOpacity = isNa ? "opacity:0.65;" : "";
+  const valueText = opts.valueText || (isNa ? `${count} of ${denominator}` : `${count} (${pct}%)`);
+  const fillColor = isNa ? "#9ca3af" : color;
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin-bottom:5px;${rowOpacity}">
+    <tr>
+      <td width="36%" style="padding-right:8px;font-size:12px;color:#374151;vertical-align:middle;">${_nhEscHtml(label)}</td>
+      <td width="50%" style="vertical-align:middle;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;background:#f3f4f6;border-radius:7px;">
+          <tr>
+            <td style="height:14px;line-height:14px;font-size:0;border-radius:7px;background:#f3f4f6;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="${fillWidth}%" style="border-collapse:collapse;background:${fillColor};border-radius:7px;">
+                <tr><td style="height:14px;line-height:14px;font-size:0;">&nbsp;</td></tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+      <td width="14%" align="right" style="padding-left:8px;font-size:12px;color:#6b7280;white-space:nowrap;vertical-align:middle;">${_nhEscHtml(valueText)}</td>
+    </tr>
+  </table>`;
+}
 
 exports.sendNativeHawaiianSurveyReport = functions
   .region("us-central1")
@@ -10531,330 +10626,350 @@ exports.sendNativeHawaiianSurveyReport = functions
   .pubsub.schedule("0 8 * * *")
   .timeZone("Pacific/Honolulu")
   .onRun(async () => {
-    const db = admin.firestore();
-    const now = new Date();
-    const cutoffMs = now.getTime() - 24 * 60 * 60 * 1000;
+    return await _nhBuildAndSendReport({ send: true });
+  });
 
-    // Query all surveys ordered by submittedAt. The dataset is small
-    // (one anonymous survey, low volume) so a full scan is fine.
-    let allDocs = [];
-    try {
-      const snap = await db.collection("nativeHawaiianSurveys").orderBy("submittedAt", "asc").get();
-      snap.forEach((doc) => { allDocs.push(doc.data()); });
-    } catch (err) {
-      console.error("sendNativeHawaiianSurveyReport: query failed:", err && err.message);
-      return null;
+// Extracted builder so a preview script can call it without sending.
+// Returns { html, subject, allDocs, skipped }.
+async function _nhBuildAndSendReport(opts) {
+  opts = opts || {};
+  const db = admin.firestore();
+  const now = new Date();
+
+  // ── Query ALL surveys (cumulative). Dataset is small; full scan is fine. ──
+  let allDocs = [];
+  try {
+    const snap = await db.collection("nativeHawaiianSurveys").orderBy("submittedAt", "asc").get();
+    snap.forEach((doc) => { allDocs.push(doc.data()); });
+  } catch (err) {
+    console.error("sendNativeHawaiianSurveyReport: query failed:", err && err.message);
+    return { skipped: true, reason: "query_failed" };
+  }
+
+  // Conservative guard: if literally zero responses exist, suppress send entirely.
+  // (Daniel: "send only if total > 0" — picked as the safer option.)
+  if (allDocs.length === 0) {
+    console.log("sendNativeHawaiianSurveyReport: 0 total responses, skipping send.");
+    if (opts.send) return { skipped: true, reason: "no_data" };
+    // Preview still renders an empty-state shell so callers can inspect.
+  }
+
+  // ── Header date (HST) ──
+  const hawaiiNow = new Date(now.toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
+  const todayLong = hawaiiNow.toLocaleDateString("en-US", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "Pacific/Honolulu",
+  });
+  const yyyy = hawaiiNow.getFullYear();
+  const mm = String(hawaiiNow.getMonth() + 1).padStart(2, "0");
+  const dd = String(hawaiiNow.getDate()).padStart(2, "0");
+  const todayISO = `${yyyy}-${mm}-${dd}`;
+
+  // ── Submission-time helpers ──
+  function tsToMs(ts) {
+    if (!ts) return null;
+    if (typeof ts.toMillis === "function") return ts.toMillis();
+    if (typeof ts.seconds === "number") return ts.seconds * 1000;
+    return null;
+  }
+  function hstDateKey(ms) {
+    // Returns YYYY-MM-DD in Pacific/Honolulu for grouping.
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Pacific/Honolulu", year: "numeric", month: "2-digit", day: "numeric",
+    }).formatToParts(new Date(ms));
+    const y = parts.find((p) => p.type === "year").value;
+    const mo = parts.find((p) => p.type === "month").value;
+    const d = parts.find((p) => p.type === "day").value;
+    return `${y}-${mo}-${d}`;
+  }
+
+  // ── KPIs ──
+  const sevenDaysAgoMs = now.getTime() - 7 * 24 * 60 * 60 * 1000;
+  let last7Count = 0;
+  let contactCount = 0;
+  let lastSubmissionMs = null;
+  for (const d of allDocs) {
+    const ms = tsToMs(d.submittedAt);
+    if (ms !== null && ms >= sevenDaysAgoMs) last7Count++;
+    if (ms !== null && (lastSubmissionMs === null || ms > lastSubmissionMs)) lastSubmissionMs = ms;
+    const hasContact =
+      (typeof d.contactFullName === "string" && d.contactFullName.trim()) ||
+      (typeof d.contactEmail === "string" && d.contactEmail.trim()) ||
+      (typeof d.contactPhone === "string" && d.contactPhone.trim());
+    if (hasContact) contactCount++;
+  }
+
+  // ── Duplicate-IP clusters (cumulative, all docs). Anonymity preserved — only the cluster count is surfaced. ──
+  const ipCounts = {};
+  for (const d of allDocs) {
+    const h = d.ipHash || "";
+    if (!h) continue;
+    ipCounts[h] = (ipCounts[h] || 0) + 1;
+  }
+  let duplicateClusters = 0;
+  for (const h of Object.keys(ipCounts)) if (ipCounts[h] > 1) duplicateClusters++;
+
+  // ── Aggregate helpers ──
+  function tallyEnum(field, options) {
+    const counts = {};
+    let nonNull = 0;
+    for (const opt of options) counts[opt] = 0;
+    for (const d of allDocs) {
+      let v = d[field];
+      if (v && typeof v === "object" && "value" in v) v = v.value; // q2 wrap
+      if (v === null || v === undefined || v === "") continue;
+      if (options.indexOf(v) === -1) continue;
+      counts[v]++;
+      nonNull++;
     }
-
-    const newDocs = allDocs.filter((d) => {
-      const ts = d.submittedAt;
-      if (!ts) return false;
-      let ms = null;
-      if (typeof ts.toMillis === "function") ms = ts.toMillis();
-      else if (typeof ts.seconds === "number") ms = ts.seconds * 1000;
-      return ms !== null && ms >= cutoffMs;
-    });
-
-    if (newDocs.length === 0) {
-      console.log("sendNativeHawaiianSurveyReport: 0 new submissions in last 24h, skipping send.");
-      return null;
-    }
-
-    // ── Duplicate flag: group new submissions by ipHash ──
-    const ipCounts = {};
-    for (const d of newDocs) {
-      const h = d.ipHash || "";
-      if (!h) continue;
-      ipCounts[h] = (ipCounts[h] || 0) + 1;
-    }
-    let duplicateIps = 0;
-    let duplicateSubs = 0;
-    for (const h of Object.keys(ipCounts)) {
-      if (ipCounts[h] > 1) {
-        duplicateIps++;
-        duplicateSubs += ipCounts[h];
+    return { counts, nonNull };
+  }
+  function tallyMulti(field, options) {
+    const counts = {};
+    for (const opt of options) counts[opt] = 0;
+    let respondents = 0;
+    for (const d of allDocs) {
+      let arr = d[field];
+      if (arr && typeof arr === "object" && Array.isArray(arr.values)) arr = arr.values; // q3 wrap
+      if (!Array.isArray(arr)) continue;
+      let touched = false;
+      for (const v of arr) {
+        if (options.indexOf(v) !== -1) { counts[v]++; touched = true; }
       }
+      if (touched) respondents++;
     }
+    return { counts, respondents };
+  }
 
-    // ── Aggregate helpers ──
-    function tallyEnum(docs, field, options) {
-      const counts = {};
-      let nonNull = 0;
-      for (const opt of options) counts[opt] = 0;
-      for (const d of docs) {
-        let v = d[field];
-        if (v && typeof v === "object" && "value" in v) v = v.value; // for q2
-        if (v === null || v === undefined || v === "") continue;
-        if (options.indexOf(v) === -1) continue;
-        counts[v]++;
-        nonNull++;
-      }
-      return { counts, nonNull };
-    }
-    function tallyMulti(docs, field, options) {
-      const counts = {};
-      for (const opt of options) counts[opt] = 0;
-      for (const d of docs) {
-        let arr = d[field];
-        if (arr && typeof arr === "object" && Array.isArray(arr.values)) arr = arr.values; // for q3
-        if (!Array.isArray(arr)) continue;
-        for (const v of arr) {
-          if (options.indexOf(v) !== -1) counts[v]++;
-        }
-      }
-      return { counts };
-    }
-    function enumTableHtml(field, options, labels) {
-      const { counts, nonNull } = tallyEnum(newDocs, field, options);
-      const rows = options.map((opt) => {
-        const c = counts[opt];
-        const pct = nonNull > 0 ? Math.round((c / nonNull) * 100) : 0;
-        return `<tr>
-          <td style="padding:4px 8px;border-bottom:1px solid #eee;">${_nhEscHtml(labels[opt] || opt)}</td>
-          <td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;">${c}</td>
-          <td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;color:#666;">${pct}%</td>
-        </tr>`;
-      }).join("");
-      return `<table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;font-size:13px;margin:6px 0 14px;">
-        <thead><tr style="background:#f4f6f8;">
-          <th style="padding:5px 8px;text-align:left;border-bottom:2px solid #1a3c6e;">Option</th>
-          <th style="padding:5px 8px;text-align:right;border-bottom:2px solid #1a3c6e;width:60px;">Count</th>
-          <th style="padding:5px 8px;text-align:right;border-bottom:2px solid #1a3c6e;width:60px;">%</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-        <tfoot><tr><td colspan="3" style="padding:4px 8px;font-size:11px;color:#666;">${nonNull} answered (of ${newDocs.length} new)</td></tr></tfoot>
-      </table>`;
-    }
-    function multiTableHtml(field, options, labels) {
-      const { counts } = tallyMulti(newDocs, field, options);
-      const total = newDocs.length;
-      const rows = options.map((opt) => {
-        const c = counts[opt];
-        return `<tr>
-          <td style="padding:4px 8px;border-bottom:1px solid #eee;">${_nhEscHtml(labels[opt] || opt)}</td>
-          <td style="padding:4px 8px;border-bottom:1px solid #eee;text-align:right;">${c}</td>
-        </tr>`;
-      }).join("");
-      return `<table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;font-size:13px;margin:6px 0 14px;">
-        <thead><tr style="background:#f4f6f8;">
-          <th style="padding:5px 8px;text-align:left;border-bottom:2px solid #1a3c6e;">Option</th>
-          <th style="padding:5px 8px;text-align:right;border-bottom:2px solid #1a3c6e;width:60px;">Count</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-        <tfoot><tr><td colspan="2" style="padding:4px 8px;font-size:11px;color:#666;">Out of ${total} new (overlaps allowed)</td></tr></tfoot>
-      </table>`;
-    }
-
-    // ── "Other" fill-ins from new submissions ──
-    const q2Others = new Set();
-    const q3Others = new Set();
-    for (const d of newDocs) {
-      if (d.q2 && typeof d.q2.other === "string" && d.q2.other.trim()) q2Others.add(d.q2.other.trim());
-      if (d.q3 && typeof d.q3.other === "string" && d.q3.other.trim()) q3Others.add(d.q3.other.trim());
-    }
-    const q2OtherList = Array.from(q2Others);
-    const q3OtherList = Array.from(q3Others);
-
-    function otherListHtml(items, fallback) {
-      if (!items.length) return `<p style="margin:4px 0 14px;font-size:13px;color:#888;">${fallback}</p>`;
-      return `<ul style="margin:6px 0 14px;padding-left:22px;font-size:13px;">${items.map((s) => `<li style="margin:2px 0;">${_nhEscHtml(s)}</li>`).join("")}</ul>`;
-    }
-
-    // ── Contact Info from NEW submissions whose contact was also added in the last 24h ──
-    const contactRows = [];
-    for (const d of newDocs) {
-      const cTs = d.contactAddedAt;
-      if (!cTs) continue;
-      let cMs = null;
-      if (typeof cTs.toMillis === "function") cMs = cTs.toMillis();
-      else if (typeof cTs.seconds === "number") cMs = cTs.seconds * 1000;
-      if (cMs === null || cMs < cutoffMs) continue;
-
-      const fmtHst = new Date(cMs).toLocaleString("en-US", {
-        timeZone: "Pacific/Honolulu",
-        month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true,
-      });
-      contactRows.push({
-        name: typeof d.contactFullName === "string" ? d.contactFullName : "",
-        email: typeof d.contactEmail === "string" ? d.contactEmail : "",
-        phone: typeof d.contactPhone === "string" ? d.contactPhone : "",
-        when: fmtHst,
-      });
-    }
-
-    function contactTableHtml(rows) {
-      if (!rows.length) {
-        return `<p style="margin:4px 0 14px;font-size:13px;color:#888;">No contact info shared in the last 24 hours.</p>`;
-      }
-      const trs = rows.map((r) => `<tr>
-        <td style="padding:6px 8px;border-bottom:1px solid #eee;">${_nhEscHtml(r.name || "(not provided)")}</td>
-        <td style="padding:6px 8px;border-bottom:1px solid #eee;">${_nhEscHtml(r.email || "(not provided)")}</td>
-        <td style="padding:6px 8px;border-bottom:1px solid #eee;">${_nhEscHtml(r.phone || "(not provided)")}</td>
-        <td style="padding:6px 8px;border-bottom:1px solid #eee;color:#666;font-size:12px;">${_nhEscHtml(r.when)}</td>
-      </tr>`).join("");
-      return `<table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;font-size:13px;margin:6px 0 14px;">
-        <thead><tr style="background:#f4f6f8;">
-          <th style="padding:5px 8px;text-align:left;border-bottom:2px solid #1a3c6e;">Name</th>
-          <th style="padding:5px 8px;text-align:left;border-bottom:2px solid #1a3c6e;">Email</th>
-          <th style="padding:5px 8px;text-align:left;border-bottom:2px solid #1a3c6e;">Phone</th>
-          <th style="padding:5px 8px;text-align:left;border-bottom:2px solid #1a3c6e;">Submitted (HST)</th>
-        </tr></thead>
-        <tbody>${trs}</tbody>
-      </table>`;
-    }
-
-    // ── Open-text Q13/Q14 from NEW submissions only ──
-    const q13New = newDocs.map((d) => d.q13).filter((s) => typeof s === "string" && s.trim());
-    const q14New = newDocs.map((d) => d.q14).filter((s) => typeof s === "string" && s.trim());
-
-    function openTextHtml(items, fallback) {
-      if (!items.length) return `<p style="margin:4px 0 14px;font-size:13px;color:#888;">${fallback}</p>`;
-      return `<ol style="margin:6px 0 14px;padding-left:22px;font-size:13px;">${items.map((s) => `<li style="margin:6px 0;line-height:1.45;">${_nhEscHtml(s)}</li>`).join("")}</ol>`;
-    }
-
-    // ── Header date (HST) ──
-    const hawaiiNow = new Date(now.toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
-    const todayLong = hawaiiNow.toLocaleDateString("en-US", {
-      weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "Pacific/Honolulu",
-    });
-    const yyyy = hawaiiNow.getFullYear();
-    const mm = String(hawaiiNow.getMonth() + 1).padStart(2, "0");
-    const dd = String(hawaiiNow.getDate()).padStart(2, "0");
-    const todayISO = `${yyyy}-${mm}-${dd}`;
-
-    const dupNote = duplicateIps > 0
-      ? `<p style="margin:6px 0 0;padding:8px 12px;background:#fff8e1;border-left:3px solid #f5a623;font-size:13px;color:#5a3e00;">${duplicateSubs} responses from ${duplicateIps} IP(s) submitted multiple times today — possible duplicates.</p>`
+  // Per-question card builder for single-select.
+  function enumCard(qNum, field, qText) {
+    const order = NH_BAR_ORDER[field];
+    const colors = NH_BAR_COLORS[field];
+    const labels = NH_BAR_LABELS[field];
+    const { counts, nonNull } = tallyEnum(field, NH_ENUMS[field]);
+    const total = allDocs.length;
+    const naCount = total - nonNull;
+    const pctAnswered = total > 0 ? Math.round((nonNull / total) * 100) : 0;
+    const rowsHtml = order.map((opt, i) => _nhBarRow(labels[opt] || opt, counts[opt] || 0, nonNull, colors[i] || "#0891B2")).join("");
+    const naRow = naCount > 0
+      ? _nhBarRow("Not answered", naCount, total, "#9ca3af", { na: true })
       : "";
+    return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;background:#ffffff;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:16px;">
+      <tr><td style="padding:14px 20px 18px;">
+        <div style="font-size:11px;color:#06B6D4;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;margin-bottom:2px;">Q${qNum}</div>
+        <h2 style="margin:0 0 4px;font-size:14px;font-weight:700;color:#0e7490;line-height:1.35;">${_nhEscHtml(qText)}</h2>
+        <div style="font-size:11px;color:#6b7280;margin-bottom:10px;">n=${nonNull} of ${total} (${pctAnswered}% answered)</div>
+        ${rowsHtml}
+        ${naRow}
+      </td></tr>
+    </table>`;
+  }
 
-    const html = `<!DOCTYPE html>
+  // Per-question card builder for multi-select.
+  function multiCard(qNum, field, qText, suffix) {
+    const order = NH_BAR_ORDER[field];
+    const colors = NH_BAR_COLORS[field];
+    const labels = NH_BAR_LABELS[field];
+    const { counts, respondents } = tallyMulti(field, NH_ENUMS[field]);
+    const total = allDocs.length;
+    const denom = respondents > 0 ? respondents : 1;
+    const rowsHtml = order.map((opt, i) => _nhBarRow(labels[opt] || opt, counts[opt] || 0, denom, colors[i] || "#0891B2")).join("");
+    const suffixText = suffix ? ` &middot; ${suffix}` : "";
+    return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;background:#ffffff;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:16px;">
+      <tr><td style="padding:14px 20px 18px;">
+        <div style="font-size:11px;color:#06B6D4;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;margin-bottom:2px;">Q${qNum}${suffixText}</div>
+        <h2 style="margin:0 0 4px;font-size:14px;font-weight:700;color:#0e7490;line-height:1.35;">${_nhEscHtml(qText)}</h2>
+        <div style="font-size:11px;color:#6b7280;margin-bottom:10px;">n=${respondents} respondents of ${total} (overlapping selections)</div>
+        ${rowsHtml}
+      </td></tr>
+    </table>`;
+  }
+
+  // Open-text card builder.
+  function openTextCard(qNum, field, qText) {
+    const total = allDocs.length;
+    const answers = allDocs
+      .map((d) => d[field])
+      .filter((s) => typeof s === "string" && s.trim());
+    const pct = total > 0 ? Math.round((answers.length / total) * 100) : 0;
+    const quotesHtml = answers.length
+      ? answers.map((s) => `<div style="background:#f9fafb;border-left:3px solid #0891B2;padding:8px 12px;margin:8px 0;font-size:12px;color:#374151;font-style:italic;line-height:1.5;">${_nhEscHtml(s)}</div>`).join("")
+      : `<p style="margin:8px 0 0;font-size:12px;color:#9ca3af;font-style:italic;">No written answers yet.</p>`;
+    return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;background:#ffffff;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:16px;">
+      <tr><td style="padding:14px 20px 18px;">
+        <div style="font-size:11px;color:#06B6D4;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;margin-bottom:2px;">Q${qNum} &middot; Open text</div>
+        <h2 style="margin:0 0 4px;font-size:14px;font-weight:700;color:#0e7490;line-height:1.35;">${_nhEscHtml(qText)}</h2>
+        <div style="font-size:11px;color:#6b7280;margin-bottom:6px;">${answers.length} of ${total} respondents wrote an answer (${pct}%)</div>
+        ${quotesHtml}
+      </td></tr>
+    </table>`;
+  }
+
+  // ── 14-day SVG sparkline ──
+  // Buckets are HST calendar days. Today is the rightmost bucket.
+  const dayBuckets = []; // [{ key, label, count }]
+  for (let i = 13; i >= 0; i--) {
+    const ms = now.getTime() - i * 24 * 60 * 60 * 1000;
+    const key = hstDateKey(ms);
+    const label = new Date(ms).toLocaleDateString("en-US", { timeZone: "Pacific/Honolulu", month: "numeric", day: "numeric" });
+    dayBuckets.push({ key, label, count: 0 });
+  }
+  for (const d of allDocs) {
+    const ms = tsToMs(d.submittedAt);
+    if (ms === null) continue;
+    const k = hstDateKey(ms);
+    const bucket = dayBuckets.find((b) => b.key === k);
+    if (bucket) bucket.count++;
+  }
+  const maxDay = Math.max(1, ...dayBuckets.map((b) => b.count));
+  const svgWidth = 600, svgHeight = 60, axisBaseline = 55, axisTop = 10;
+  const stepX = svgWidth / (dayBuckets.length - 1);
+  const pointXY = dayBuckets.map((b, i) => {
+    const x = i * stepX;
+    const y = axisBaseline - (b.count / maxDay) * (axisBaseline - axisTop);
+    return { x, y, count: b.count, label: b.label, key: b.key };
+  });
+  const polyPoints = pointXY.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ");
+  const todayPoint = pointXY[pointXY.length - 1];
+  const todayCount = todayPoint.count;
+  const firstLabel = dayBuckets[0].label;
+  const lastLabel = dayBuckets[dayBuckets.length - 1].label;
+  const sparklineSvg = `<svg width="100%" viewBox="0 0 ${svgWidth} ${svgHeight}" preserveAspectRatio="none" style="display:block;border:1px solid #e5e7eb;background:#ffffff;border-radius:4px;" xmlns="http://www.w3.org/2000/svg" aria-label="Daily submissions sparkline">
+    <line x1="0" y1="${axisBaseline}" x2="${svgWidth}" y2="${axisBaseline}" stroke="#e5e7eb" stroke-width="1"></line>
+    <polyline points="${polyPoints}" fill="none" stroke="#0891B2" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></polyline>
+    <circle cx="${todayPoint.x.toFixed(2)}" cy="${todayPoint.y.toFixed(2)}" r="4" fill="#F59E0B" stroke="#ffffff" stroke-width="1.5"></circle>
+    <text x="${(svgWidth - 5).toFixed(0)}" y="8" font-size="8" fill="#92400e" text-anchor="end" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">Today: ${todayCount}</text>
+    <text x="2" y="13" font-size="8" fill="#9ca3af" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">${maxDay}</text>
+    <text x="2" y="53" font-size="8" fill="#9ca3af" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">0</text>
+    <text x="0" y="59" font-size="7" fill="#9ca3af" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">${firstLabel}</text>
+    <text x="${svgWidth}" y="59" font-size="7" fill="#9ca3af" text-anchor="end" font-family="-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">${lastLabel}</text>
+  </svg>`;
+
+  // ── Data-quality footer items ──
+  const contactPct = allDocs.length > 0 ? Math.round((contactCount / allDocs.length) * 100) : 0;
+  let lastSubText = "n/a";
+  if (lastSubmissionMs !== null) {
+    const diffMs = now.getTime() - lastSubmissionMs;
+    const diffH = Math.floor(diffMs / (60 * 60 * 1000));
+    const diffD = Math.floor(diffH / 24);
+    let rel;
+    if (diffH < 1) rel = "less than an hour ago";
+    else if (diffH < 24) rel = `~${diffH} hour${diffH === 1 ? "" : "s"} ago`;
+    else rel = `~${diffD} day${diffD === 1 ? "" : "s"} ago`;
+    const stamp = new Date(lastSubmissionMs).toLocaleString("en-US", {
+      timeZone: "Pacific/Honolulu", month: "short", day: "numeric", year: "numeric",
+      hour: "numeric", minute: "2-digit", hour12: true,
+    });
+    lastSubText = `${rel} (${stamp} HST)`;
+  }
+  const q13Answered = allDocs.filter((d) => typeof d.q13 === "string" && d.q13.trim()).length;
+  const q14Answered = allDocs.filter((d) => typeof d.q14 === "string" && d.q14.trim()).length;
+  const q13Pct = allDocs.length > 0 ? Math.round((q13Answered / allDocs.length) * 100) : 0;
+  const q14Pct = allDocs.length > 0 ? Math.round((q14Answered / allDocs.length) * 100) : 0;
+
+  // ── Build HTML ──
+  // KPI tile row (Outlook-safe nested table).
+  const tilesRow = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+    <tr>
+      ${_nhTileCell(allDocs.length, "Total<br>Responses", "default", false)}
+      ${_nhTileCell(last7Count, "Last 7<br>Days New", "ok", false)}
+      ${_nhTileCell(contactCount, "Contact Info<br>Provided", "default", false)}
+      ${_nhTileCell(duplicateClusters, "Duplicate IP<br>Clusters", duplicateClusters > 0 ? "flag" : "default", true)}
+    </tr>
+  </table>`;
+
+  const headerCard = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;background:#ffffff;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:16px;overflow:hidden;">
+    <tr><td style="background:#0891B2;color:#ffffff;padding:22px 24px;text-align:center;">
+      <h1 style="margin:0;font-size:20px;font-weight:700;letter-spacing:0.3px;color:#ffffff;">Native Hawaiian Family Survey</h1>
+      <div style="margin:6px 0 0;font-size:13px;color:#cffafe;">Cumulative Report &mdash; As of ${_nhEscHtml(todayLong)} (HST)</div>
+    </td></tr>
+    <tr><td>${tilesRow}</td></tr>
+  </table>`;
+
+  // Question cards in order.
+  const cards = [];
+  cards.push(enumCard(1, "q1", "Are you a parent, caregiver, or family member of a child receiving special education services?"));
+  cards.push(enumCard(2, "q2", "Which island do you currently live on?"));
+  cards.push(multiCard(3, "q3", "What language(s) are primarily spoken in your home?", "Multi-select"));
+  cards.push(enumCard(4, "q4", "Have you ever received special education forms or documents from your child's school that were difficult to understand?"));
+  cards.push(multiCard(5, "q5", "Would translated or simplified materials help you better understand:", "Multi-select"));
+  cards.push(enumCard(6, "q6", "How important is it for schools to provide materials in culturally responsive language and examples relevant to Native Hawaiian families?"));
+  cards.push(enumCard(7, "q7", "Would you feel more comfortable participating in IEP meetings if materials were translated or explained in more family-friendly language?"));
+  cards.push(multiCard(8, "q8", "Which formats would be most helpful for learning about special education services?", "Multi-select (max 3)"));
+  cards.push(enumCard(9, "q9", "Do you feel you fully understand the IEP process from beginning to end?"));
+  cards.push(multiCard(10, "q10", "At what point in the process do families need the most support?", "Multi-select"));
+  cards.push(enumCard(11, "q11", "Have you ever avoided asking questions during an IEP meeting because the information felt too confusing or overwhelming?"));
+  cards.push(enumCard(12, "q12", "Would access to Native Hawaiian cultural values, practices, or examples within special education materials help your family feel more connected and supported?"));
+  cards.push(openTextCard(13, "q13", "What type of translated or culturally responsive support would help your family the most?"));
+  cards.push(openTextCard(14, "q14", "Is there anything schools could do differently to improve communication and understanding for Native Hawaiian families navigating special education?"));
+  cards.push(enumCard(15, "q15", "Would you be interested in participating in future family discussions or trainings related to special education access and support?"));
+
+  // Timeline card.
+  const timelineCard = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:16px;">
+    <tr><td style="padding:14px 20px 18px;">
+      <h2 style="margin:0 0 6px;font-size:14px;font-weight:700;color:#0e7490;">Submission Timeline &mdash; Last 14 days</h2>
+      ${sparklineSvg}
+      <div style="font-size:12px;color:#6b7280;margin-top:6px;">Submissions today: <strong>${todayCount}</strong> &middot; Last 7 days: <strong>${last7Count}</strong> &middot; All-time: <strong>${allDocs.length}</strong></div>
+    </td></tr>
+  </table>`;
+
+  // Data-quality footer card.
+  const qualityCard = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;background:#FFFBEB;border:1px solid #fde68a;border-radius:8px;margin-bottom:16px;">
+    <tr><td style="padding:14px 20px;font-size:12px;color:#78350f;">
+      <div style="margin-bottom:4px;"><strong style="color:#92400e;">${contactPct}%</strong> of respondents provided optional contact info (${contactCount} of ${allDocs.length})</div>
+      <div style="margin-bottom:4px;"><strong style="color:#92400e;">${duplicateClusters}</strong> duplicate IP-hash cluster${duplicateClusters === 1 ? "" : "s"} flagged &mdash; anonymity preserved (IPs are hashed; we only flag clusters of repeat submissions, never identify them)</div>
+      <div style="margin-bottom:4px;"><strong style="color:#92400e;">Last submission:</strong> ${_nhEscHtml(lastSubText)}</div>
+      <div style="margin-bottom:0;"><strong style="color:#92400e;">Open-text response rate:</strong> Q13 = ${q13Pct}% (${q13Answered} of ${allDocs.length}), Q14 = ${q14Pct}% (${q14Answered} of ${allDocs.length})</div>
+    </td></tr>
+  </table>`;
+
+  // Footer card.
+  const footerCard = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;background:#ffffff;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:16px;">
+    <tr><td style="padding:16px 20px 22px;text-align:center;font-size:11px;color:#6b7280;line-height:1.5;">
+      Generated by <code>sendNativeHawaiianSurveyReport</code> &mdash; cumulative graphic format<br>
+      Sent to: rrowe@ldahawaii.org &middot; Scheduled: daily at 8:00 AM HST
+    </td></tr>
+  </table>`;
+
+  const html = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;">
-<tr><td align="center" style="padding:24px 16px;">
-<table role="presentation" width="800" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;max-width:800px;width:100%;">
-  <tr>
-    <td style="background-color:#1a3c6e;padding:24px 32px;text-align:center;">
-      <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:bold;letter-spacing:0.5px;">
-        Native Hawaiian Family Survey &mdash; Daily Report
-      </h1>
-      <p style="margin:4px 0 0;color:#b0c4de;font-size:14px;">${_nhEscHtml(todayLong)}</p>
-    </td>
-  </tr>
-  <tr>
-    <td style="padding:20px 28px 8px;">
-      <p style="margin:0;font-size:14px;color:#1a3c6e;font-weight:600;">
-        ${allDocs.length} total responses to date, ${newDocs.length} new in the last 24 hours.
-      </p>
-      ${dupNote}
-    </td>
-  </tr>
-
-  <tr><td style="padding:18px 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q1. Are you a parent, caregiver, or family member of a child receiving special education services?</h2>
-    ${enumTableHtml("q1", NH_ENUMS.q1, NH_LABELS.q1)}
-  </td></tr>
-
-  <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q2. Which island do you currently live on?</h2>
-    ${enumTableHtml("q2", NH_ENUMS.q2, NH_LABELS.q2)}
-    <p style="margin:8px 0 4px;font-size:13px;font-weight:600;">"Other" fill-ins:</p>
-    ${otherListHtml(q2OtherList, "(none)")}
-  </td></tr>
-
-  <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q3. What language(s) are primarily spoken in your home?</h2>
-    ${multiTableHtml("q3", NH_ENUMS.q3, NH_LABELS.q3)}
-    <p style="margin:8px 0 4px;font-size:13px;font-weight:600;">"Other" fill-ins:</p>
-    ${otherListHtml(q3OtherList, "(none)")}
-  </td></tr>
-
-  <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q4. Have you ever received special education forms or documents that were difficult to understand?</h2>
-    ${enumTableHtml("q4", NH_ENUMS.q4, NH_LABELS.q4)}
-  </td></tr>
-
-  <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q5. Would translated or simplified materials help you better understand:</h2>
-    ${multiTableHtml("q5", NH_ENUMS.q5, NH_LABELS.q5)}
-  </td></tr>
-
-  <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q6. How important is it for schools to provide materials in culturally responsive language?</h2>
-    ${enumTableHtml("q6", NH_ENUMS.q6, NH_LABELS.q6)}
-  </td></tr>
-
-  <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q7. Would you feel more comfortable in IEP meetings if materials were translated or explained more simply?</h2>
-    ${enumTableHtml("q7", NH_ENUMS.q7, NH_LABELS.q7)}
-  </td></tr>
-
-  <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q8. Which formats would be most helpful for learning about special education services? (Top 3)</h2>
-    ${multiTableHtml("q8", NH_ENUMS.q8, NH_LABELS.q8)}
-  </td></tr>
-
-  <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q9. Do you feel you fully understand the IEP process from beginning to end?</h2>
-    ${enumTableHtml("q9", NH_ENUMS.q9, NH_LABELS.q9)}
-  </td></tr>
-
-  <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q10. At what point in the process do families need the most support?</h2>
-    ${multiTableHtml("q10", NH_ENUMS.q10, NH_LABELS.q10)}
-  </td></tr>
-
-  <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q11. Have you ever avoided asking questions during an IEP meeting because the info felt too confusing?</h2>
-    ${enumTableHtml("q11", NH_ENUMS.q11, NH_LABELS.q11)}
-  </td></tr>
-
-  <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q12. Would Native Hawaiian cultural values/practices in materials help your family feel more connected?</h2>
-    ${enumTableHtml("q12", NH_ENUMS.q12, NH_LABELS.q12)}
-  </td></tr>
-
-  <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Contact Info Shared (${contactRows.length} today)</h2>
-    ${contactTableHtml(contactRows)}
-  </td></tr>
-
-  <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q13. What type of translated or culturally responsive support would help your family the most?</h2>
-    ${openTextHtml(q13New, "No new open-text responses in the last 24 hours.")}
-  </td></tr>
-
-  <tr><td style="padding:0 28px 4px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q14. Is there anything schools could do differently to improve communication for Native Hawaiian families?</h2>
-    ${openTextHtml(q14New, "No new open-text responses in the last 24 hours.")}
-  </td></tr>
-
-  <tr><td style="padding:0 28px 24px;">
-    <h2 style="margin:0;font-size:16px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:4px;">Q15. Would you be interested in participating in future family discussions or trainings?</h2>
-    ${enumTableHtml("q15", NH_ENUMS.q15, NH_LABELS.q15)}
-  </td></tr>
-
+<body style="margin:0;padding:0;background-color:#FFFBEB;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1f2937;line-height:1.45;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFBEB;">
+<tr><td align="center" style="padding:16px;">
+<table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="max-width:640px;width:100%;">
+  <tr><td>${headerCard}</td></tr>
+  ${cards.map((c) => `<tr><td>${c}</td></tr>`).join("")}
+  <tr><td>${timelineCard}</td></tr>
+  <tr><td>${qualityCard}</td></tr>
+  <tr><td>${footerCard}</td></tr>
 </table>
 </td></tr>
 </table>
 </body>
 </html>`;
 
-    const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
-    const subject = `Native Hawaiian Family Survey -- Daily Report (${todayISO} HST)`;
+  const subject = `Native Hawaiian Family Survey -- Cumulative Report (${todayISO} HST)`;
 
-    try {
-      await sendEmailViaResend({
-        from: `LDAH <${fromAddress}>`,
-        to: "rrowe@ldahawaii.org",
-        subject,
-        html,
-        type: "nh-survey-daily-report",
-        recipientName: "Rosie Rowe",
-      });
-      console.log(`sendNativeHawaiianSurveyReport: sent to rrowe@ldahawaii.org (${newDocs.length} new of ${allDocs.length} total).`);
-    } catch (err) {
-      console.error("sendNativeHawaiianSurveyReport: send failed:", err && err.message);
-    }
-    return null;
-  });
+  if (!opts.send) {
+    return { skipped: false, html, subject, allDocs };
+  }
+
+  const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+  try {
+    await sendEmailViaResend({
+      from: `LDAH <${fromAddress}>`,
+      to: "rrowe@ldahawaii.org",
+      subject,
+      html,
+      type: "nh-survey-cumulative-report",
+      recipientName: "Rosie Rowe",
+    });
+    console.log(`sendNativeHawaiianSurveyReport: sent to rrowe@ldahawaii.org (cumulative; ${allDocs.length} total responses).`);
+  } catch (err) {
+    console.error("sendNativeHawaiianSurveyReport: send failed:", err && err.message);
+  }
+  return { skipped: false, sent: true, html, subject, allDocs };
+}
+
+// Exported for preview scripts (do not call as an HTTPS endpoint).
+exports._nhBuildAndSendReport = _nhBuildAndSendReport;
