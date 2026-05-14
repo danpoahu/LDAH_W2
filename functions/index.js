@@ -5440,12 +5440,15 @@ exports.sendEventAnnouncement = functions
     if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
     if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
-    const { eventId, collection, testMode, testEmail, dryRun } = req.body || {};
+    const { eventId, collection, testMode, testEmail, dryRun, audienceFilter } = req.body || {};
     if (!eventId || !collection) { res.status(400).json({ error: 'Missing eventId or collection' }); return; }
     if (collection !== 'events' && collection !== 'recurringEvents') {
       res.status(400).json({ error: 'Invalid collection' });
       return;
     }
+    // audienceFilter: 'all' (default, backwards-compat) or 'parents' (strict
+    // match on contact.type === 'Parent/Guardian' — see canonical schema doc).
+    const _audience = (audienceFilter === 'parents') ? 'parents' : 'all';
 
     try {
       const db = admin.firestore();
@@ -5472,9 +5475,18 @@ exports.sendEventAnnouncement = functions
           const email = (c.email || '').trim();
           if (!email) return;
           if (!c.unsubscribeToken) return;
+          // Parents-only filter: STRICT match on canonical 'Parent/Guardian'.
+          // Legacy/empty/other types are excluded by design — no backfill.
+          if (_audience === 'parents' && (c.type || '').trim() !== 'Parent/Guardian') return;
           const displayName = (c.displayName || [c.firstName, c.lastName].filter(Boolean).join(' ')).trim() || 'Friend';
           recipients.push({ id: d.id, displayName, email, unsubscribeToken: c.unsubscribeToken });
         });
+        // Guard: if a filter selected zero recipients, fail loudly instead of
+        // silently sending to nobody (dryRun returns counts; real send errors).
+        if (!dryRun && _audience === 'parents' && recipients.length === 0) {
+          res.status(400).json({ error: 'No contacts match the Parents-only filter (type === "Parent/Guardian"). Nothing was sent.' });
+          return;
+        }
       }
 
       const recipientColl = eventRef.collection('announcementRecipients');
@@ -5515,6 +5527,7 @@ exports.sendEventAnnouncement = functions
           alreadySent: alreadySent.size,
           alreadySignedUp,
           willSendTo: newRecipients.length,
+          audienceFilter: _audience,
         });
         return;
       }
