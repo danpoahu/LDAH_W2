@@ -1264,10 +1264,21 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
       relatedSignupId: signupId,
       recipientName,
     });
-    await change.after.ref.set({
+    // Stamp the idempotency marker AND, for non-Monday-virtual Connect-Gen
+    // (Thursday in-person sessions that bypass the consent flow), promote
+    // status from "pending" to "confirmed" in the same write. Without the
+    // status flip, the sendDeferredRegistrationEmails cron would treat
+    // these signups as still-incomplete 10 minutes later and email
+    // "Complete Your Registration" — a redundant nudge after we just
+    // emailed "Confirmed" (2026-05-15 Villalobos case).
+    const _stamp = {
       confirmationEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true });
-    console.log(`Confirmation email sent to ${after.email} for ${collection}/${eventId}/${signupId}`);
+    };
+    if (isConnectGen && after.status !== "confirmed") {
+      _stamp.status = "confirmed";
+    }
+    await change.after.ref.set(_stamp, { merge: true });
+    console.log(`Confirmation email sent to ${after.email} for ${collection}/${eventId}/${signupId}${_stamp.status ? ' (status -> confirmed)' : ''}`);
     console.log(`maybeSendRegistrationConfirmation: scanned=1, sent=1, skipped=0, errors=0, viaAccessor=${viaAccessor}, viaLegacy=${viaLegacy}`);
   } catch (err) {
     console.error(`maybeSendRegistrationConfirmation error (${collection}/${context.params.eventId}/${context.params.signupId}):`, err.message);
