@@ -3738,7 +3738,22 @@ function extractSignupSessionKeys(signup) {
  */
 function _parseTimeOfDayParts(raw) {
   if (!raw) return null;
-  const m = String(raw).trim().match(/^(\d{1,2})(?::(\d{2}))?\s*([AaPp])\.?[Mm]?\.?/);
+  const s = String(raw).trim();
+  // 24-hour form first ("15:00"). Required because
+  // buildSessionsForRecurringEvent emits rawString times verbatim from
+  // schedules[i].startTime, which the CMS writes as 24h. Without this branch
+  // the day-of cron silently skipped Connect-Gen Monday-Virtual signups
+  // (2026-05-18 incident).
+  const m24 = s.match(/^(\d{1,2}):(\d{2})$/);
+  if (m24) {
+    const h = parseInt(m24[1], 10);
+    const mi = parseInt(m24[2], 10);
+    if (!isNaN(h) && !isNaN(mi) && h >= 0 && h <= 23 && mi >= 0 && mi <= 59) {
+      return { hour: h, minute: mi };
+    }
+  }
+  // 12-hour form ("3:00 PM", "3pm", "3:00pm")
+  const m = s.match(/^(\d{1,2})(?::(\d{2}))?\s*([AaPp])\.?[Mm]?\.?/);
   if (!m) return null;
   let hour = parseInt(m[1], 10);
   const minute = m[2] ? parseInt(m[2], 10) : 0;
