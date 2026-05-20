@@ -2744,6 +2744,17 @@ exports.sendFeedbackFollowups = functions
 
     let sent = 0, skipped = 0;
 
+    // A session key may be composite "YYYY-MM-DD|loc|time" (recurring +
+    // migrated events) or a raw "May 13, 2026, 5:00 pm - 6:00 pm" string
+    // (one-time events). Reduce either to a YYYY-MM-DD date for the window
+    // comparison below — comparing the raw key directly skipped every
+    // one-time event, since "May..." sorts past any ISO date string.
+    const sessionKeyDate = (sd) => {
+      const head = String(sd || "").split("|")[0].trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(head)) return head;
+      return parseEventDateKey(head) || "";
+    };
+
     async function processEvent(collection, evDoc) {
       const event = evDoc.data();
       const eventId = evDoc.id;
@@ -2775,7 +2786,8 @@ exports.sendFeedbackFollowups = functions
         if (sa) {
           for (const sd of Object.keys(sa)) {
             if (sa[sd].status !== "attended") continue;
-            if (sd < windowStart || sd > windowEnd) continue;
+            const sdDate = sessionKeyDate(sd);
+            if (!sdDate || sdDate < windowStart || sdDate > windowEnd) continue;
             if (!data.feedbackEmailsSent || !data.feedbackEmailsSent[sd]) { skipped++; continue; }
             if (data.feedbackRemindersSent && data.feedbackRemindersSent[sd]) { skipped++; continue; }
             if (subSet && (subSet.has(sd) || subSet.has("FLAT"))) { skipped++; continue; }
