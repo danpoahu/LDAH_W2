@@ -2883,20 +2883,24 @@ exports.sendDailySessionSheet = functions
 
     // Convert to Hawaii time for display and date matching
     const hawaiiNow = new Date(now.toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
-    const todayStr = hawaiiNow.toLocaleDateString("en-US", {
+    // Display strings format directly from `now` with the HST timeZone —
+    // a single conversion. Formatting from `hawaiiNow` (already shifted to
+    // HST wall-clock) double-converts and lands a day earlier when the
+    // 6 AM cron fires, e.g. subject "May 19" on a May 20 report.
+    const todayStr = now.toLocaleDateString("en-US", {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
       timeZone: "Pacific/Honolulu",
     });
-    const todayFormatted = hawaiiNow.toLocaleDateString("en-US", {
+    const todayFormatted = now.toLocaleDateString("en-US", {
       year: "numeric",
       month: "long",
       day: "numeric",
       timeZone: "Pacific/Honolulu",
     });
-    const todayDayOfWeek = hawaiiNow.toLocaleDateString("en-US", {
+    const todayDayOfWeek = now.toLocaleDateString("en-US", {
       weekday: "long",
       timeZone: "Pacific/Honolulu",
     });
