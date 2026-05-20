@@ -446,46 +446,73 @@ async function sendEmailViaResend({
   if (bccList.length) body.bcc = bccList;
   if (ccList.length) body.cc = ccList;
 
-  try {
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Authorization": "Bearer " + apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
+  // Retry transient failures — HTTP 429 (Resend's 5 req/sec rate-limit),
+  // 5xx, and network errors. Bulk attendance marking fires many feedback
+  // triggers near-simultaneously and trips 429s; without retry the loser
+  // signups are silently dropped (no stamp, no retry path). Exponential
+  // backoff with jitter lets the herd self-space. Only the FINAL outcome
+  // is written to emailLog, so retries never pollute it.
+  const MAX_ATTEMPTS = 4;
+  const backoffMs = (attempt) =>
+    Math.round(400 * Math.pow(2, attempt - 1) * (1 + Math.random()));
 
-    if (!response.ok) {
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + apiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        await logEmailSend({
+          from, to, bcc: bccLogValue, subject, html,
+          type, relatedEventId, relatedSignupId, recipientName,
+          success: true, resendId: (result && result.id) || null,
+        });
+        return result;
+      }
+
       const errorBody = await response.text();
       const msg = "Resend API error (" + response.status + "): " + errorBody;
+      const retryable = response.status === 429 || response.status >= 500;
+      if (retryable && attempt < MAX_ATTEMPTS) {
+        const wait = backoffMs(attempt);
+        console.warn(`sendEmailViaResend: ${response.status} for ${to}, retry ${attempt}/${MAX_ATTEMPTS - 1} in ${wait}ms`);
+        await new Promise((r) => setTimeout(r, wait));
+        continue;
+      }
+      // Non-retryable, or retries exhausted — log the failure and throw.
       await logEmailSend({
         from, to, bcc: bccLogValue, subject, html,
         type, relatedEventId, relatedSignupId, recipientName,
         success: false, error: msg,
       });
       throw new Error(msg);
-    }
-
-    const result = await response.json();
-    await logEmailSend({
-      from, to, bcc: bccLogValue, subject, html,
-      type, relatedEventId, relatedSignupId, recipientName,
-      success: true, resendId: (result && result.id) || null,
-    });
-    return result;
-  } catch (err) {
-    // If we already logged the error above, this will just rethrow;
-    // if the fetch itself threw, catch it here so we still log.
-    if (!err.message || err.message.indexOf("Resend API error") !== 0) {
+    } catch (err) {
+      // A logged Resend-API-error is final — rethrow untouched.
+      if (err.message && err.message.indexOf("Resend API error") === 0) throw err;
+      // Network/fetch-level error — retry if attempts remain.
+      if (attempt < MAX_ATTEMPTS) {
+        const wait = backoffMs(attempt);
+        console.warn(`sendEmailViaResend: network error for ${to} (${err.message}), retry ${attempt}/${MAX_ATTEMPTS - 1} in ${wait}ms`);
+        await new Promise((r) => setTimeout(r, wait));
+        continue;
+      }
       await logEmailSend({
         from, to, bcc: bccLogValue, subject, html,
         type, relatedEventId, relatedSignupId, recipientName,
         success: false, error: err.message || String(err),
       });
+      throw err;
     }
-    throw err;
   }
+  // Loop always returns or throws above; this is defensive only.
+  throw new Error("sendEmailViaResend: exhausted retries for " + to);
 }
 
 /**
