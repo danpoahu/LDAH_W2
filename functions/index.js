@@ -8140,8 +8140,9 @@ exports.sendResourceUpdateNudges = functions
     const resourceCoordinatorEmail = resCoord.email;
     const now = Date.now();
 
-    // 7-day gap between touches: initial → nudge1 (day 7) → nudge2 (day 14).
-    // 30-day cycle ceiling stops further nudges if the partner never responds.
+    // 7-day gap between touches: initial → nudge1 (day 7) → nudge2 (day 14)
+    // → nudge3 (day 21). 30-day cycle ceiling stops further nudges if the
+    // partner never responds.
     const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
     const cycleCutoffMs = now - (RESOURCE_UPDATE_RESEND_DAYS * 24 * 60 * 60 * 1000);
 
@@ -8164,7 +8165,7 @@ exports.sendResourceUpdateNudges = functions
         if (!reqAt || reqAt <= cycleCutoffMs) continue;
 
         const nudgeCount = Number(r.updateNudgeCount || 0);
-        if (nudgeCount >= 2) continue;
+        if (nudgeCount >= 3) continue;
 
         const lastNudgeAt = r.lastUpdateNudgeAt && r.lastUpdateNudgeAt.toMillis ? r.lastUpdateNudgeAt.toMillis() : 0;
         if (nudgeCount === 0) {
