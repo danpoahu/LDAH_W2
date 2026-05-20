@@ -6587,7 +6587,7 @@ exports.sendEventRecordingEmail = functions
       const apiKey = process.env.RESEND_API_KEY;
       if (!apiKey) { res.status(500).json({ error: "RESEND_API_KEY missing" }); return; }
 
-      let sentAttended = 0, sentNoShow = 0, failed = 0;
+      let sentAttended = 0, sentNoShow = 0, failed = 0, skippedDuplicate = 0;
       const errors = [];
 
       for (const r of recipients) {
@@ -6621,6 +6621,27 @@ exports.sendEventRecordingEmail = functions
         }
         const recipType = isNoShow ? "event-recording-noshow" : "event-recording";
         if (!recipHtml) { failed++; errors.push(r.email + ": missing html for audience " + audience); continue; }
+
+        // Idempotency guard — never double-deliver the recording email for
+        // the same session + audience. Catches a re-clicked / double-submitted
+        // send (one happened 2026-05-15). The stamp lives on the signup doc,
+        // mirroring feedbackEmailsSent. Intentional resends use the separate
+        // resendEventRecordingEmail endpoint. Recipients with no signupId
+        // can't be guarded and fall through to send.
+        const recKey = sessionKey || "_single";
+        let signupRef = null;
+        if (r.signupId) {
+          signupRef = admin.firestore().collection(collection).doc(eventId)
+            .collection("signups").doc(r.signupId);
+          try {
+            const sgSnap = await signupRef.get();
+            const res = sgSnap.exists ? (sgSnap.data().recordingEmailSent || null) : null;
+            if (res && res[recKey] && res[recKey][audience]) {
+              skippedDuplicate++;
+              continue;
+            }
+          } catch (e) { /* read failed — fall through and send */ }
+        }
 
         const resendBody = { from, to: [r.email], subject: recipSubject, html: recipHtml };
         if (pdfBase64 && pdfFileName) {
@@ -6656,6 +6677,16 @@ exports.sendEventRecordingEmail = functions
             success: true,
             resendId: (result && result.id) || null,
           });
+          // Stamp the signup so a re-clicked send can't double-deliver.
+          if (signupRef) {
+            try {
+              await signupRef.set({
+                recordingEmailSent: {
+                  [recKey]: { [audience]: admin.firestore.FieldValue.serverTimestamp() },
+                },
+              }, { merge: true });
+            } catch (e) { console.warn("recordingEmailSent stamp failed:", e.message); }
+          }
           // Attach extra metadata so Email Log can detect the attachment+expiry
           try {
             const lastSnap = await admin.firestore().collection("emailLog")
@@ -6714,7 +6745,7 @@ exports.sendEventRecordingEmail = functions
         } catch (e) { console.warn("scheduledDeletions write failed:", e.message); }
       }
 
-      res.status(200).json({ success: true, sent, sentAttended, sentNoShow, failed, errors });
+      res.status(200).json({ success: true, sent, sentAttended, sentNoShow, failed, skippedDuplicate, errors });
     } catch (err) {
       console.error("sendEventRecordingEmail error:", err);
       res.status(500).json({ error: err.message || String(err) });
