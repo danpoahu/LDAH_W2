@@ -296,77 +296,54 @@ exports.checkResourceUrl = functions
     }
   });
 
-// ── Android Beta: Auto-add tester to Google Group via Cloud Identity API ──
-const { google } = require("googleapis");
-const BETA_GROUP_EMAIL = "ldah-beta-testers@googlegroups.com";
-
-async function addToGoogleGroup(email) {
-  const keyJson = JSON.parse(process.env.GOOGLE_PLAY_SERVICE_ACCOUNT);
-  const auth = new google.auth.GoogleAuth({
-    credentials: keyJson,
-    scopes: ["https://www.googleapis.com/auth/cloud-identity.groups"],
-  });
-  const client = await auth.getClient();
-  const token = await client.getAccessToken();
-  const headers = { Authorization: "Bearer " + token.token, "Content-Type": "application/json" };
-
-  // Step 1: Look up the group by email to get its Cloud Identity ID
-  const lookupRes = await fetch(
-    "https://cloudidentity.googleapis.com/v1/groups:lookup?groupKey.id=" + encodeURIComponent(BETA_GROUP_EMAIL),
-    { headers }
-  );
-  const lookupData = await lookupRes.json();
-  if (!lookupRes.ok) throw new Error("Group lookup failed: " + JSON.stringify(lookupData));
-  const groupName = lookupData.name; // e.g. "groups/abc123"
-  console.log("Group found:", groupName);
-
-  // Step 2: Add the email as a member
-  const addRes = await fetch(
-    "https://cloudidentity.googleapis.com/v1/" + groupName + "/memberships",
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        preferredMemberKey: { id: email },
-        roles: [{ name: "MEMBER" }],
-      }),
-    }
-  );
-  const addData = await addRes.json();
-  if (!addRes.ok) {
-    // 409 = already a member
-    if (addRes.status === 409) return { added: false, reason: "already_member" };
-    throw new Error("Add member failed: " + JSON.stringify(addData));
-  }
-  console.log("Member added:", JSON.stringify(addData));
-  return { added: true };
-}
+// ── Android Beta: email a heads-up when a tester requests access ──
+// Testers are added to the Play Console internal-tester list manually —
+// the Cloud Identity API cannot manage a consumer @googlegroups.com group
+// (every auto-add attempt 403'd). Requests also surface in the LDAH-Int
+// CMS; this CF just emails Daniel so a request isn't missed.
+const BETA_NOTIFY_TO = "danpellegrini63@gmail.com";
 
 exports.notifyAndroidBetaRequest = functions
   .runWith({
     timeoutSeconds: 30,
     maxInstances: 5,
-    secrets: ["GOOGLE_PLAY_SERVICE_ACCOUNT"],
+    secrets: ["RESEND_API_KEY", "SMTP_FROM"],
   })
   .firestore.document("androidBetaRequests/{docId}")
   .onCreate(async (snap) => {
-    const data = snap.data();
-    const email = data.email || "unknown";
+    const data = snap.data() || {};
+    const email = data.email || "(no email provided)";
     console.log("Android beta request received:", email);
 
+    const requestedAt = (data.requestedAt && data.requestedAt.toDate)
+      ? data.requestedAt.toDate() : new Date();
+    const whenHst = requestedAt.toLocaleString("en-US", { timeZone: "Pacific/Honolulu" });
+    const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+    const html = `<!DOCTYPE html><html><body style="font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
+      <h2 style="color:#004E7C;margin:0 0 12px;">New Android beta request</h2>
+      <p style="margin:0 0 8px;font-size:15px;"><strong>Tester email:</strong> ${_emailEsc(email)}</p>
+      <p style="margin:0 0 16px;font-size:15px;"><strong>Requested:</strong> ${_emailEsc(whenHst)} HST</p>
+      <p style="margin:0;font-size:14px;color:#374151;line-height:1.5;">
+        Add this address to the Play Console internal-tester list to grant access.
+        This request also appears in the LDAH-Int CMS.
+      </p>
+    </body></html>`;
+
     try {
-      const result = await addToGoogleGroup(email);
-      console.log("Google Group result:", email, result);
+      await sendEmailViaResend({
+        from: `LDAH <${fromAddress}>`,
+        to: BETA_NOTIFY_TO,
+        subject: `New Android beta request -- ${email}`,
+        html,
+        type: "android-beta-request-notify",
+      });
       await snap.ref.update({
-        addedToGroup: result.added,
-        groupResult: result.added ? "added" : result.reason,
-        processedAt: admin.firestore.FieldValue.serverTimestamp(),
+        notifiedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     } catch (err) {
-      console.error("Google Group API error:", err.message);
+      console.error("notifyAndroidBetaRequest: notification email failed:", err.message);
       await snap.ref.update({
-        addedToGroup: false,
-        groupError: err.message,
+        notifyError: err.message,
         processedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     }
