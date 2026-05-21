@@ -232,7 +232,13 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin', 'admin'];
     }
     match /notifications/{notifId} {
-      allow read: if request.auth != null && resource.data.recipientUid == request.auth.uid;
+      // Recipients read their own. Daniel's account also reads any — the
+      // LDAH-Int My Day "Viewing as" picker shows another staff member's
+      // alerts read-only. Writes stay strictly recipient-scoped.
+      allow read: if request.auth != null && (
+        resource.data.recipientUid == request.auth.uid
+        || request.auth.uid == 'YmGV2TlBGqR01dVdxZ0rtFLEFCG3'
+      );
       allow create: if request.auth != null;
       allow update: if request.auth != null && resource.data.recipientUid == request.auth.uid;
     }
