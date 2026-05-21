@@ -3916,6 +3916,29 @@ function isSessionVirtual(event, sessionDateKey, signup) {
   return /virtual|zoom|online/i.test(evLoc);
 }
 
+/**
+ * Session-level virtuality, honoring a per-date dateStatusOverrides entry
+ * (a reschedule can flip a single date virtual/in-person). Falls back to
+ * the session's own location via isSessionVirtual().
+ */
+function sessionIsVirtual(event, sessionDateKey, signup) {
+  const override = getModeOverride(signup, sessionDateKey);
+  if (override === "confirmed-virtual") return true;
+  if (override === "confirmed-in-person") return false;
+  return isSessionVirtual(event, sessionDateKey, signup);
+}
+
+/**
+ * Connect-Gen requires a signed consent form before reminders go out — but
+ * ONLY for virtual sessions (the Monday "All Islands Virtual" program).
+ * In-person attendees (Thursday Oahu / Hilo / Kona) sign the consent form
+ * on arrival, so their reminders are never gated on consentSignedAt.
+ */
+function sessionRequiresConsent(event, sessionDateKey, signup) {
+  return !!(event && event.zoomMode === "program"
+    && sessionIsVirtual(event, sessionDateKey, signup));
+}
+
 function parseEventDateKey(raw) {
   if (!raw) return "";
   if (typeof raw !== "string") return toHstDateKey(raw);
@@ -4729,20 +4752,13 @@ async function maybeSendCatchupReminder(change, context, collection) {
     const zoomDoc = zoomSnap.exists ? (zoomSnap.data() || null) : null;
     const zoomDefault = pickZoomForEvent(zoomDoc, event, collection);
 
-    // Connect-Gen gate — skip the catch-up reminder if consent isn't signed
-    // yet. The reminder would carry the Zoom link, which we don't want
-    // until the parent has signed the consent. The consent-required email
-    // (fired in maybeSendRegistrationConfirmation) handles their next step.
-    if (event.zoomMode === "program" && !after.consentSignedAt) {
-      console.log(`catch-up reminder skipped (Connect-Gen, consent unsigned) for ${collection}/${eventId}/${signupId}`);
-      return;
-    }
-
     // Parent Talk Cafe — Zoom reminders never apply; the PTC confirmation
     // email is the only touchpoint.
     if (event.zoomMode === "parent_talk_cafe") {
       return;
     }
+    // (Connect-Gen consent gate is applied per-session in the loop below —
+    // only virtual sessions require a signed consent.)
 
     // Determine candidate session dates within [today, today+3] HST.
     const todayKey = toHstDateKey(new Date());
@@ -4769,6 +4785,10 @@ async function maybeSendCatchupReminder(change, context, collection) {
 
     for (const sessionDateKey of candidateDates) {
       if (existing[sessionDateKey] && existing[sessionDateKey].threeDay) continue;
+      if (sessionRequiresConsent(event, sessionDateKey, after) && !after.consentSignedAt) {
+        console.log(`catch-up reminder skipped (virtual Connect-Gen, consent unsigned) ${collection}/${eventId}/${signupId} ${sessionDateKey}`);
+        continue;
+      }
       try {
         await sendOneReminderEmail({
           collection, eventId, signupId,
@@ -4848,14 +4868,8 @@ exports.sendEventReminders = functions
       if (signup.archived === true) { skipped++; return; }
       if (!signup.email) { skipped++; return; }
 
-      // Connect-Gen gate — if the event uses Program Zoom (Connect-Gen and
-      // any future programs flagged the same way) and the signed consent
-      // has NOT been received, skip reminders. The consent flow handles
-      // its own emails (consent-required + prep-docs after signing).
-      if (event && event.zoomMode === "program" && !signup.consentSignedAt) {
-        skipped++;
-        return;
-      }
+      // (Connect-Gen consent gate is applied per-session in the loop below —
+      // only virtual sessions require a signed consent.)
 
       // Parent Talk Cafe — the confirmation email IS the only reminder.
       if (event && event.zoomMode === "parent_talk_cafe") {
@@ -4893,6 +4907,10 @@ exports.sendEventReminders = functions
         const which = targetSet[sessionDateKey]; // "threeDay"
         const mode = which === "threeDay" ? "3day" : null;
         if (!mode) { skipped++; continue; }
+        if (sessionRequiresConsent(event, sessionDateKey, signup) && !signup.consentSignedAt) {
+          skipped++;
+          continue;
+        }
         if (existing[sessionDateKey] && existing[sessionDateKey][which]) {
           skippedExisting++;
           continue;
@@ -5244,9 +5262,11 @@ function legacySessionsForSignup(signup, event) {
   return out;
 }
 
-// Hourly day-of "just in case" reminder. Cron fires at :30, scans every
-// confirmed signup, and emails any whose chosen session starts in the
-// next 15-45 minutes (a 30-minute window centered ~30 min before start).
+// Day-of "just in case" reminder. Cron fires every :00 and :30.
+//  - Virtual sessions: email any signup whose session starts in the next
+//    15-45 minutes (~30 min before start).
+//  - In-person sessions: attendees travel to the venue, so email at the
+//    first run at/after 8 AM HST instead — well ahead of start.
 //
 // Stage 3b-2 step 1 (2026-05-11): primary session-derivation now flows
 // through getSignupSessions(signup, event) — the canonical accessor added
@@ -5257,7 +5277,7 @@ function legacySessionsForSignup(signup, event) {
 // continues to match.
 exports.sendDayOfReminders = functions
   .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: EMAIL_SECRETS })
-  .pubsub.schedule("30 * * * *")
+  .pubsub.schedule("0,30 * * * *")
   .timeZone("Pacific/Honolulu")
   .onRun(async (context) => {
     const db = admin.firestore();
@@ -5274,6 +5294,7 @@ exports.sendDayOfReminders = functions
     const windowStartMs = now.getTime() + 15 * 60 * 1000;
     const windowEndMs = now.getTime() + 45 * 60 * 1000;
     const todayKey = toHstDateKey(now);
+    const hstHour = new Date(now.getTime() - 10 * 3600 * 1000).getUTCHours(); // HST = UTC-10
 
     let candidates = 0;
     let viaAccessor = 0;
@@ -5290,11 +5311,7 @@ exports.sendDayOfReminders = functions
       if (signup.archived === true) { skipped++; return; }
       if (!signup.email) { skipped++; return; }
 
-      // Connect-Gen consent gate — same logic as sendEventReminders.
-      if (event && event.zoomMode === "program" && !signup.consentSignedAt) {
-        skipped++;
-        return;
-      }
+      // (Connect-Gen consent gate is applied per-session in the loop below.)
       // Parent Talk Cafe — no Zoom reminders.
       if (event && event.zoomMode === "parent_talk_cafe") {
         skipped++;
@@ -5328,12 +5345,29 @@ exports.sendDayOfReminders = functions
       for (const session of todaySessions) {
         const sessionDateKey = session.dateKey;
         try {
+          // Virtual Connect-Gen sessions need a signed consent first;
+          // in-person sessions do not.
+          if (sessionRequiresConsent(event, sessionDateKey, signup) && !signup.consentSignedAt) {
+            skipped++;
+            continue;
+          }
           // Prefer the canonical session's startTime when present; fall
           // back to legacy parse for synthesized/dateless entries.
           const startHst = extractSessionStartHst(session.rawString || sessionDateKey, event);
           if (!startHst) { skipped++; continue; }
           const startMs = startHst.getTime();
-          if (startMs < windowStartMs || startMs > windowEndMs) { skipped++; continue; }
+
+          // Virtual → ~30 min before start ([+15,+45] window). In-person →
+          // attendees travel, so send at the first run at/after 8 AM HST,
+          // as long as the session hasn't started yet.
+          const virtual = sessionIsVirtual(event, sessionDateKey, signup);
+          const inPerson = !virtual && !!(session && session.location
+            && String(session.location).trim());
+          if (inPerson) {
+            if (hstHour < 8 || startMs <= now.getTime()) { skipped++; continue; }
+          } else {
+            if (startMs < windowStartMs || startMs > windowEndMs) { skipped++; continue; }
+          }
 
           if (existing[sessionDateKey] && existing[sessionDateKey].dayOf) {
             skippedExisting++;
