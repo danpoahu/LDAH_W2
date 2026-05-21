@@ -8186,10 +8186,17 @@ exports.sendResourceUpdateNudges = functions
     const resourceCoordinatorEmail = resCoord.email;
     const now = Date.now();
 
-    // 7-day gap between touches: initial → nudge1 (day 7) → nudge2 (day 14)
+    // ~7-day gap between touches: initial → nudge1 (day 7) → nudge2 (day 14)
     // → nudge3 (day 21). 30-day cycle ceiling stops further nudges if the
     // partner never responds.
-    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    //
+    // The threshold carries 12h of slack (6.5 days, not exactly 7). The cron
+    // runs once daily; the prior nudge was stamped mid-run, so a full 7×24h
+    // is only reached if today's run starts no earlier than last week's
+    // per-resource write. It often doesn't (startup latency varies), which
+    // skipped every day-21 nudge by ~15 seconds. 6.5d cleanly separates the
+    // day-6 run (skip) from the day-7 run (send) with no millisecond edge.
+    const nudgeGapMs = 6.5 * 24 * 60 * 60 * 1000;
     const cycleCutoffMs = now - (RESOURCE_UPDATE_RESEND_DAYS * 24 * 60 * 60 * 1000);
 
     let sent = 0;
@@ -8215,9 +8222,9 @@ exports.sendResourceUpdateNudges = functions
 
         const lastNudgeAt = r.lastUpdateNudgeAt && r.lastUpdateNudgeAt.toMillis ? r.lastUpdateNudgeAt.toMillis() : 0;
         if (nudgeCount === 0) {
-          if ((now - reqAt) < sevenDaysMs) continue;
+          if ((now - reqAt) < nudgeGapMs) continue;
         } else {
-          if (!lastNudgeAt || (now - lastNudgeAt) < sevenDaysMs) continue;
+          if (!lastNudgeAt || (now - lastNudgeAt) < nudgeGapMs) continue;
         }
 
         try {
