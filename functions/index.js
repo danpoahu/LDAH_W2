@@ -11092,3 +11092,135 @@ async function _nhBuildAndSendReport(opts) {
 
 // Exported for preview scripts (do not call as an HTTPS endpoint).
 exports._nhBuildAndSendReport = _nhBuildAndSendReport;
+
+// ============================================================================
+// EVENT-LIFECYCLE INTERACTIONS
+//   Spec: docs/superpowers/specs/2026-05-22-event-lifecycle-interactions-design.md
+//   Plan: docs/superpowers/plans/2026-05-22-event-lifecycle-interactions.md
+//
+//   onCreate(events/{id})       -> seed setup interactions (Verify Display +
+//                                  per-session Assign Presenter & Send
+//                                  Announcements)
+//   onUpdate(interactions/{id}) -> chain (presenter capture, takeAttendance
+//                                  -> eventSummary, all-summaries -> complete)
+//   pubsub daily 5am HST        -> day-of Take Attendance creation
+//   onUpdate(events/{id})       -> archive cleanup + Event Summary auto-close
+// ============================================================================
+
+// La'a Salvani's userRoles document id — verified 2026-05-22 against live
+// userRoles collection (displayName "La'a Salvani", LSalvani@LDAHawaii.org).
+const LIFECYCLE_LAA_UID = "hj6YnfnZ66Yul9mtnULRW5FTWKH3";
+
+const LIFECYCLE_CHANNELS = {
+  assignPresenter:  { channel: "Event Setup",   type: "Assign Presenter" },
+  verifyDisplay:    { channel: "Event Setup",   type: "Verify Display" },
+  sendAnnouncement: { channel: "Event Setup",   type: "Send Announcements" },
+  takeAttendance:   { channel: "Event Day",     type: "Take Attendance" },
+  eventSummary:     { channel: "Event Wrap-Up", type: "Event Summary" }
+};
+
+async function _lcResolveStaffName(db, uid) {
+  if (!uid) return "";
+  try {
+    const s = await db.collection("userRoles").doc(uid).get();
+    return (s.exists && s.data() && s.data().displayName) || "";
+  } catch (e) { return ""; }
+}
+
+function _lcSessionKey(s) {
+  if (!s) return "";
+  return s.dateKey || s.rawString || "";
+}
+
+function _lcBuildInteractionDoc(opts) {
+  // opts: { eventId, eventTitle, step, sessionKey, ownerUid, ownerName, dueDate, extra }
+  const c = LIFECYCLE_CHANNELS[opts.step];
+  const suffix = opts.sessionKey ? " (" + opts.sessionKey + ")" : "";
+  const doc = {
+    channel: c.channel,
+    interactionType: c.type,
+    contactId: "",
+    contactName: (opts.eventTitle || "(untitled event)") + (opts.sessionKey ? " — " + opts.sessionKey : ""),
+    contactType: "",
+    grantProgram: "",
+    summary: c.type + " for: " + (opts.eventTitle || "") + suffix,
+    followUpDate: opts.dueDate || "",
+    status: "Open",
+    notes: "",
+    isDraft: false,
+    owner: opts.ownerName || "",
+    ownerUid: opts.ownerUid || "",
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    workflowEventId: opts.eventId,
+    workflowEventCollection: "events",
+    workflowStep: opts.step,
+    workflowSessionKey: opts.sessionKey || ""
+  };
+  if (opts.extra) Object.assign(doc, opts.extra);
+  return doc;
+}
+
+async function _lcCreateIfMissing(db, opts) {
+  const q = await db.collection("interactions")
+    .where("workflowEventId", "==", opts.eventId)
+    .where("workflowStep", "==", opts.step)
+    .where("workflowSessionKey", "==", opts.sessionKey || "")
+    .limit(1).get();
+  if (!q.empty) return null;
+  return await db.collection("interactions").add(_lcBuildInteractionDoc(opts));
+}
+
+exports.onEventCreatedLifecycle = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 10 })
+  .firestore.document("events/{eventId}")
+  .onCreate(async (snap, context) => {
+    const db = admin.firestore();
+    const ev = snap.data() || {};
+    const eventId = context.params.eventId;
+
+    if (ev.archived === true) return null;
+    if (!ev.createdByUid) {
+      console.log("onEventCreatedLifecycle: skipping", eventId, "— no createdByUid (pre-workflow event)");
+      return null;
+    }
+
+    const sessions = getEventSessions(ev) || [];
+    if (sessions.length === 0) {
+      console.warn("onEventCreatedLifecycle:", eventId, "has no sessions; skipping");
+      return null;
+    }
+
+    const dueDate = ev.startDate || ev.eventDate || "";
+    const title = ev.title || "(untitled event)";
+    const laaName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID);
+    const creatorUid = ev.createdByUid;
+    const creatorName = ev.createdByName || (await _lcResolveStaffName(db, creatorUid));
+
+    // 1 Verify Display (event-wide)
+    await _lcCreateIfMissing(db, {
+      eventId, eventTitle: title, step: "verifyDisplay", sessionKey: "",
+      ownerUid: creatorUid, ownerName: creatorName, dueDate
+    });
+
+    // Per session: Assign Presenter (La'a) + Send Announcements (creator)
+    for (const s of sessions) {
+      const key = _lcSessionKey(s);
+      if (!key) continue;
+      await _lcCreateIfMissing(db, {
+        eventId, eventTitle: title, step: "assignPresenter", sessionKey: key,
+        ownerUid: LIFECYCLE_LAA_UID, ownerName: laaName, dueDate
+      });
+      await _lcCreateIfMissing(db, {
+        eventId, eventTitle: title, step: "sendAnnouncement", sessionKey: key,
+        ownerUid: creatorUid, ownerName: creatorName, dueDate
+      });
+    }
+
+    await snap.ref.update({
+      lifecycleStatus: "setup",
+      lifecycleSetupAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return null;
+  });
