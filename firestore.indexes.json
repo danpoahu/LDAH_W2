@@ -105,6 +105,20 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "interactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "workflowEventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "workflowStep",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": [

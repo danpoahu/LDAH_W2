@@ -11224,3 +11224,119 @@ exports.onEventCreatedLifecycle = functions
 
     return null;
   });
+
+exports.onInteractionUpdatedLifecycle = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 10 })
+  .firestore.document("interactions/{interactionId}")
+  .onUpdate(async (change, context) => {
+    const before = change.before.data() || {};
+    const after  = change.after.data()  || {};
+    if (!after.workflowStep) return null;
+    if (before.status === after.status) return null;
+    if (after.status !== "Closed") return null;
+
+    const db = admin.firestore();
+    const eventId = after.workflowEventId;
+    if (!eventId) return null;
+    const step = after.workflowStep;
+    const sessionKey = after.workflowSessionKey || "";
+
+    // --- assignPresenter closed: write presenter into Event Summary's
+    //     storage (unified field, also feeds the Event Attendance Report).
+    if (step === "assignPresenter") {
+      const uid  = after.assignedPresenterUid  || "";
+      const name = after.assignedPresenterName || "";
+      if (!uid) {
+        // Guardrail: client should have blocked this. Re-open.
+        await change.after.ref.update({
+          status: "Open",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          notes: ((after.notes || "") + "\n[auto] Re-opened: no presenter selected at close.").trim()
+        });
+        console.warn("assignPresenter closed without presenter; re-opened", change.after.id);
+        return null;
+      }
+      const evSnap = await db.collection("events").doc(eventId).get();
+      if (!evSnap.exists) return null;
+      const ev = evSnap.data() || {};
+      const sessions = getEventSessions(ev) || [];
+      const isSingleSession = sessions.length === 1;
+
+      const updates = {
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+      if (isSingleSession) {
+        updates["summary.presenter"]    = name;
+        updates["summary.presenterUid"] = uid;
+      } else {
+        updates["sessionSummaries." + sessionKey + ".presenter"]    = name;
+        updates["sessionSummaries." + sessionKey + ".presenterUid"] = uid;
+      }
+      await evSnap.ref.update(updates);
+      return null;
+    }
+
+    // --- takeAttendance closed: spawn Event Summary task for same event+session.
+    if (step === "takeAttendance") {
+      const existing = await db.collection("interactions")
+        .where("workflowEventId", "==", eventId)
+        .where("workflowStep", "==", "eventSummary")
+        .where("workflowSessionKey", "==", sessionKey)
+        .limit(1).get();
+      if (!existing.empty) return null;
+
+      const evSnap = await db.collection("events").doc(eventId).get();
+      if (!evSnap.exists) return null;
+      const ev = evSnap.data() || {};
+      const sessions = getEventSessions(ev) || [];
+      const isSingleSession = sessions.length === 1;
+      const presenterSrc = isSingleSession
+        ? (ev.summary || {})
+        : ((ev.sessionSummaries && ev.sessionSummaries[sessionKey]) || {});
+      const ownerUid  = presenterSrc.presenterUid || ev.createdByUid  || "";
+      const ownerName = presenterSrc.presenter    || ev.createdByName || "";
+
+      // Due = sessionKey (YYYY-MM-DD) + 10 days, in HST
+      const sd = new Date(sessionKey + "T12:00:00-10:00");
+      const due = new Date(sd.getTime() + 10 * 24 * 60 * 60 * 1000);
+      const dueIso = due.toISOString().slice(0, 10);
+
+      await db.collection("interactions").add(_lcBuildInteractionDoc({
+        eventId, eventTitle: ev.title || "", step: "eventSummary",
+        sessionKey, ownerUid, ownerName, dueDate: dueIso
+      }));
+      return null;
+    }
+
+    // --- eventSummary closed: flip event to complete if every session's
+    //     eventSummary interaction is closed.
+    if (step === "eventSummary") {
+      const evSnap = await db.collection("events").doc(eventId).get();
+      if (!evSnap.exists) return null;
+      const ev = evSnap.data() || {};
+      const sessions = getEventSessions(ev) || [];
+      if (sessions.length === 0) return null;
+      const wantKeys = sessions.map(_lcSessionKey).filter(Boolean);
+
+      const all = await db.collection("interactions")
+        .where("workflowEventId", "==", eventId)
+        .where("workflowStep", "==", "eventSummary")
+        .get();
+      const closedKeys = new Set();
+      all.forEach(d => {
+        const x = d.data() || {};
+        if (x.status === "Closed") closedKeys.add(x.workflowSessionKey || "");
+      });
+      const allDone = wantKeys.every(k => closedKeys.has(k));
+      if (allDone) {
+        await evSnap.ref.update({
+          lifecycleStatus: "complete",
+          lifecycleCompletedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+      return null;
+    }
+
+    // verifyDisplay / sendAnnouncement closes: no chaining action
+    return null;
+  });
