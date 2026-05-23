@@ -11262,17 +11262,35 @@ exports.onInteractionUpdatedLifecycle = functions
       const sessions = getEventSessions(ev) || [];
       const isSingleSession = sessions.length === 1;
 
-      const updates = {
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      };
       if (isSingleSession) {
-        updates["summary.presenter"]    = name;
-        updates["summary.presenterUid"] = uid;
+        // event.summary is a single object on the event doc — dotted-path is safe.
+        await evSnap.ref.update({
+          "summary.presenter":    name,
+          "summary.presenterUid": uid,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
       } else {
-        updates["sessionSummaries." + sessionKey + ".presenter"]    = name;
-        updates["sessionSummaries." + sessionKey + ".presenterUid"] = uid;
+        // Multi-session: the existing Event Summary form keys sessionSummaries by
+        // the RAW signupDate string (e.g. "May 25th, 2026 - 5 PM"), not the
+        // workflow's normalized dateKey. Find the matching session's rawString,
+        // then read-modify-write the whole sessionSummaries map so we preserve
+        // any existing fields (and so spaces/punctuation in the key don't break
+        // a dotted-path update — see feedback_firestore-attribute-gotchas).
+        const matchingSession = sessions.find(s => _lcSessionKey(s) === sessionKey);
+        const summaryKey = (matchingSession && matchingSession.rawString) || sessionKey;
+        const existingSessionSummaries = ev.sessionSummaries || {};
+        const existingEntry = existingSessionSummaries[summaryKey] || {};
+        const mergedSessionSummaries = Object.assign({}, existingSessionSummaries, {
+          [summaryKey]: Object.assign({}, existingEntry, {
+            presenter:    name,
+            presenterUid: uid
+          })
+        });
+        await evSnap.ref.update({
+          sessionSummaries: mergedSessionSummaries,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
       }
-      await evSnap.ref.update(updates);
       return null;
     }
 
@@ -11290,9 +11308,16 @@ exports.onInteractionUpdatedLifecycle = functions
       const ev = evSnap.data() || {};
       const sessions = getEventSessions(ev) || [];
       const isSingleSession = sessions.length === 1;
-      const presenterSrc = isSingleSession
-        ? (ev.summary || {})
-        : ((ev.sessionSummaries && ev.sessionSummaries[sessionKey]) || {});
+      let presenterSrc;
+      if (isSingleSession) {
+        presenterSrc = ev.summary || {};
+      } else {
+        // sessionSummaries is keyed by the session's rawString (see assignPresenter
+        // branch); map the workflow sessionKey -> rawString.
+        const matchingSession = sessions.find(s => _lcSessionKey(s) === sessionKey);
+        const summaryKey = (matchingSession && matchingSession.rawString) || sessionKey;
+        presenterSrc = (ev.sessionSummaries && ev.sessionSummaries[summaryKey]) || {};
+      }
       const ownerUid  = presenterSrc.presenterUid || ev.createdByUid  || "";
       const ownerName = presenterSrc.presenter    || ev.createdByName || "";
 
