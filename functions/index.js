@@ -11365,3 +11365,87 @@ exports.onInteractionUpdatedLifecycle = functions
     // verifyDisplay / sendAnnouncement closes: no chaining action
     return null;
   });
+
+async function _lcVerifyDisplayClosed(db, eventId) {
+  const q = await db.collection("interactions")
+    .where("workflowEventId", "==", eventId)
+    .where("workflowStep", "==", "verifyDisplay")
+    .limit(1).get();
+  if (q.empty) return false;
+  const x = q.docs[0].data() || {};
+  return x.status === "Closed";
+}
+
+exports.createDayOfAttendanceTasks = functions
+  .runWith({ timeoutSeconds: 540, maxInstances: 1 })
+  .pubsub.schedule("0 5 * * *").timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    // Today's date in HST as YYYY-MM-DD.
+    const nowHst = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
+    const todayKey = nowHst.getFullYear()
+      + "-" + String(nowHst.getMonth() + 1).padStart(2, "0")
+      + "-" + String(nowHst.getDate()).padStart(2, "0");
+
+    // Only events that went through the workflow (have lifecycleStatus set).
+    // 'setup' is the only state with potentially-pending sessions; 'complete'
+    // events have already wrapped all sessions.
+    const snap = await db.collection("events")
+      .where("lifecycleStatus", "==", "setup")
+      .get();
+
+    let created = 0;
+    for (const doc of snap.docs) {
+      const ev = doc.data() || {};
+      if (ev.archived === true) continue;
+      const sessions = getEventSessions(ev) || [];
+      const todaySession = sessions.find(s => _lcSessionKey(s) === todayKey);
+      if (!todaySession) continue;
+
+      const sessionKey = todayKey; // workflowSessionKey on the interaction = normalized dateKey
+
+      // Idempotency
+      const existing = await db.collection("interactions")
+        .where("workflowEventId", "==", doc.id)
+        .where("workflowStep", "==", "takeAttendance")
+        .where("workflowSessionKey", "==", sessionKey)
+        .limit(1).get();
+      if (!existing.empty) continue;
+
+      // Owner selection. Presenter is stored in the existing Event Summary
+      // location: event.summary (single-session) or event.sessionSummaries
+      // keyed by the session's RAW signupDate string (NOT the workflow dateKey).
+      // See Phase 5 fix: feedback_firestore-attribute-gotchas + project_ll-
+      // composite-key-migration — one-time events still use raw signupDate keys.
+      const isSingleSession = sessions.length === 1;
+      let presenterSrc;
+      if (isSingleSession) {
+        presenterSrc = ev.summary || {};
+      } else {
+        const summaryKey = todaySession.rawString || sessionKey;
+        presenterSrc = (ev.sessionSummaries && ev.sessionSummaries[summaryKey]) || {};
+      }
+
+      const verifyDone = await _lcVerifyDisplayClosed(db, doc.id);
+      let ownerUid, ownerName;
+      if (presenterSrc.presenterUid && verifyDone) {
+        ownerUid  = presenterSrc.presenterUid;
+        ownerName = presenterSrc.presenter || "";
+      } else {
+        ownerUid  = ev.createdByUid  || "";
+        ownerName = ev.createdByName || "";
+        if (!ownerUid) {
+          console.warn("createDayOfAttendanceTasks: no presenter or creator uid for event", doc.id, "— Take Attendance will be unassigned");
+        }
+      }
+
+      await db.collection("interactions").add(_lcBuildInteractionDoc({
+        eventId: doc.id, eventTitle: ev.title || "",
+        step: "takeAttendance", sessionKey,
+        ownerUid, ownerName, dueDate: todayKey
+      }));
+      created++;
+    }
+    console.log("createDayOfAttendanceTasks:", todayKey, "created", created, "tasks");
+    return null;
+  });
