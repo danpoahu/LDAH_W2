@@ -14,7 +14,7 @@
             <a href="volunteer.html">Volunteer</a>
             <a href="resources.html">Resources</a>
             <a href="contact.html">Contact Us</a>
-            <a href="javascript:void(0)" onclick="openNHSurvey(event)">Native Hawaiian Survey</a>
+            <a href="javascript:void(0)" onclick="(function(e){if(e&&e.preventDefault)e.preventDefault();if(typeof window.openNHSurvey==='function'){window.openNHSurvey(e);return;}if(!document.querySelector('link[href$=&quot;nh-survey-modal.css&quot;]')){var l=document.createElement('link');l.rel='stylesheet';l.href='nh-survey-modal.css';document.head.appendChild(l);}if(!document.querySelector('script[src$=&quot;nh-survey-modal.js&quot;]')){var s=document.createElement('script');s.src='nh-survey-modal.js';s.defer=true;document.body.appendChild(s);}var n=0;(function go(){if(window.NHSurveyModal&&window.NHSurveyModal.openManual){window.NHSurveyModal.openManual();return;}if(++n&lt;40)setTimeout(go,100);})();})(event)">Native Hawaiian Survey</a>
         </div>
 
         <div class="footer-section">
@@ -36,6 +36,6 @@
 
     <div class="footer-bottom">
         <p>&copy; <span class="dynamic-year"></span> Leadership in Disabilities and Achievement of Hawai'i. All rights reserved.</p>
-        <p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal('DP Consulting', 'https://oahuappdesign.com')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a> <a href="cms.html" style="margin-left: 12px; color: rgba(255,255,255,0.5); text-decoration: none; font-size: 1.1rem;" title="Admin CMS">⚙️</a> <span style="color: rgba(255,255,255,0.25); font-size: 0.7rem; margin-left: 8px;">v61.13</span></p>
+        <p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal('DP Consulting', 'https://oahuappdesign.com')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a> <a href="cms.html" style="margin-left: 12px; color: rgba(255,255,255,0.5); text-decoration: none; font-size: 1.1rem;" title="Admin CMS">⚙️</a> <span style="color: rgba(255,255,255,0.25); font-size: 0.7rem; margin-left: 8px;">v61.15</span></p>
     </div>
 </footer>
