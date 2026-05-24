@@ -11449,3 +11449,137 @@ exports.createDayOfAttendanceTasks = functions
     console.log("createDayOfAttendanceTasks:", todayKey, "created", created, "tasks");
     return null;
   });
+
+exports.onEventUpdatedLifecycle = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 10 })
+  .firestore.document("events/{eventId}")
+  .onUpdate(async (change, context) => {
+    const before = change.before.data() || {};
+    const after  = change.after.data()  || {};
+    const eventId = context.params.eventId;
+    if (!after.lifecycleStatus) return null; // not a workflow event
+    const db = admin.firestore();
+
+    // (a) Event newly archived -> auto-close open workflow interactions.
+    const becameArchived = after.archived === true && before.archived !== true;
+    if (becameArchived) {
+      const open = await db.collection("interactions")
+        .where("workflowEventId", "==", eventId)
+        .where("status", "==", "Open")
+        .get();
+      if (!open.empty) {
+        const batch = db.batch();
+        open.forEach(d => {
+          const update = {
+            status: "Closed",
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            notes: ((d.data().notes || "") + "\n[auto] Closed: event archived.").trim()
+          };
+          // assignPresenter has a chain-engine re-open guard if assignedPresenterUid is
+          // missing — set a non-empty marker so the re-open is bypassed.
+          if (d.data().workflowStep === "assignPresenter" && !d.data().assignedPresenterUid) {
+            update.assignedPresenterUid  = "(archived)";
+            update.assignedPresenterName = "(event archived)";
+          }
+          batch.update(d.ref, update);
+        });
+        await batch.commit();
+      }
+    }
+
+    // Helper: extract per-session summary state (presenter + completedAt) keyed by
+    // the sessionSummaries map key (rawString for multi-session). Single-session events
+    // use a synthetic key "__summary__" because event.summary has no dynamic key.
+    function snapshotSummaries(ev) {
+      const out = {};
+      if (ev.summary && typeof ev.summary === "object") {
+        out["__summary__"] = {
+          presenter:   ev.summary.presenter   || "",
+          completedAt: ev.summary.completedAt || null
+        };
+      }
+      if (ev.sessionSummaries && typeof ev.sessionSummaries === "object") {
+        Object.keys(ev.sessionSummaries).forEach(k => {
+          const s = ev.sessionSummaries[k] || {};
+          out[k] = {
+            presenter:   s.presenter   || "",
+            completedAt: s.completedAt || null
+          };
+        });
+      }
+      return out;
+    }
+    const beforeSummaries = snapshotSummaries(before);
+    const afterSummaries  = snapshotSummaries(after);
+
+    // Build a map: summaryMapKey -> workflowSessionKey (dateKey)
+    // For single-session: "__summary__" -> sessions[0].dateKey
+    // For multi-session:  session.rawString -> session.dateKey
+    const sessions = getEventSessions(after) || [];
+    const summaryKeyToWorkflowKey = {};
+    if (sessions.length === 1) {
+      summaryKeyToWorkflowKey["__summary__"] = _lcSessionKey(sessions[0]);
+    } else {
+      sessions.forEach(s => {
+        const dk = _lcSessionKey(s);
+        const raw = s.rawString || dk;
+        if (raw && dk) summaryKeyToWorkflowKey[raw] = dk;
+      });
+    }
+
+    // (b) Event Summary form saved -> auto-close matching eventSummary interaction.
+    for (const summaryMapKey of Object.keys(afterSummaries)) {
+      const beforeCompleted = !!(beforeSummaries[summaryMapKey] && beforeSummaries[summaryMapKey].completedAt);
+      const afterCompleted  = !!(afterSummaries[summaryMapKey]  && afterSummaries[summaryMapKey].completedAt);
+      if (!afterCompleted || beforeCompleted) continue; // not newly completed
+      const wfKey = summaryKeyToWorkflowKey[summaryMapKey];
+      if (!wfKey) continue;
+      const q = await db.collection("interactions")
+        .where("workflowEventId", "==", eventId)
+        .where("workflowStep", "==", "eventSummary")
+        .where("workflowSessionKey", "==", wfKey)
+        .where("status", "==", "Open")
+        .limit(1).get();
+      if (q.empty) continue;
+      await q.docs[0].ref.update({
+        status: "Closed",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        notes: ((q.docs[0].data().notes || "") + "\n[auto] Closed: Event Summary form saved.").trim()
+      });
+    }
+
+    // (c) Reverse direction: presenter newly set via form save -> auto-close the
+    //     matching open assignPresenter interaction, capturing the presenter.
+    for (const summaryMapKey of Object.keys(afterSummaries)) {
+      const beforeName = (beforeSummaries[summaryMapKey] && beforeSummaries[summaryMapKey].presenter) || "";
+      const afterName  = (afterSummaries[summaryMapKey]  && afterSummaries[summaryMapKey].presenter)  || "";
+      if (!afterName || afterName === beforeName) continue; // no change or cleared
+      const wfKey = summaryKeyToWorkflowKey[summaryMapKey];
+      if (!wfKey) continue;
+      const q = await db.collection("interactions")
+        .where("workflowEventId", "==", eventId)
+        .where("workflowStep", "==", "assignPresenter")
+        .where("workflowSessionKey", "==", wfKey)
+        .where("status", "==", "Open")
+        .limit(1).get();
+      if (q.empty) continue;
+      // Look up uid from userRoles by displayName (best-effort).
+      let uid = "";
+      try {
+        const ur = await db.collection("userRoles").where("displayName", "==", afterName).limit(1).get();
+        if (!ur.empty) uid = ur.docs[0].id;
+      } catch (e) { /* tolerate */ }
+      // If still empty (external presenter not in userRoles), use a non-empty marker so
+      // the chain engine's re-open guard is bypassed.
+      const persistedUid = uid || "(form-set)";
+      await q.docs[0].ref.update({
+        status: "Closed",
+        assignedPresenterUid:  persistedUid,
+        assignedPresenterName: afterName,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        notes: ((q.docs[0].data().notes || "") + "\n[auto] Closed: presenter set via Event Summary form (" + afterName + ").").trim()
+      });
+    }
+
+    return null;
+  });
