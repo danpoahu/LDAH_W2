@@ -2104,6 +2104,166 @@ exports.onCalendarRequestCreated = functions
     return null;
   });
 
+// ── Auto-Create Interaction from Partner Resource Application ────
+// When submitResourceApplication writes a new resourceApplications/{id}
+// doc with status:"new", drop an Open interaction on La'a's queue with
+// a +3 day follow-up. Closure happens automatically via
+// onResourceApplicationUpdated when the CMS approve/decline buttons run.
+exports.onResourceApplicationCreated = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .firestore.document("resourceApplications/{appId}")
+  .onCreate(async (snap, context) => {
+    try {
+      const data = snap.data() || {};
+      if (data.status !== "new") return null;
+
+      const db = admin.firestore();
+      const appId = context.params.appId;
+
+      // Idempotency: skip if an interaction already references this application.
+      const existing = await db.collection("interactions")
+        .where("partnerApplicationId", "==", appId)
+        .limit(1).get();
+      if (!existing.empty) {
+        console.log(`onResourceApplicationCreated: interaction already exists for ${appId}, skipping`);
+        return null;
+      }
+
+      // Owner: La'a Salvani (resource partner intake).
+      const ownerUid = LIFECYCLE_LAA_UID;
+      let ownerName = await _lcResolveStaffName(db, ownerUid);
+      if (!ownerName) ownerName = "La'a Salvani";
+
+      const orgName = (data.name || "").trim() || "Unknown organization";
+      const contactName = (data.contactName || "").trim();
+      const followUpDate = addDaysHst(toHstDateKey(new Date()), 3);
+
+      const headerParts = [];
+      if (contactName) headerParts.push(contactName);
+      if (data.email)  headerParts.push(data.email);
+      if (data.phone)  headerParts.push(data.phone);
+      const locationLine = [data.city, data.island].filter(function (x) { return x; }).join(", ");
+      const noteLines = [];
+      if (headerParts.length) noteLines.push(headerParts.join(" -- "));
+      if (locationLine)  noteLines.push("Location: " + locationLine);
+      if (data.type)     noteLines.push("Type: " + data.type);
+      if (data.services) noteLines.push("Services: " + data.services);
+      if (data.website)  noteLines.push("Website: " + data.website);
+      if (data.notes)    noteLines.push("\nApplicant notes:\n" + data.notes);
+      const notes = noteLines.join("\n");
+
+      await db.collection("interactions").add({
+        channel: "Partner Onboarding",
+        interactionType: "Partner Application",
+        contactId: "",
+        contactName: orgName,
+        contactType: "",
+        grantProgram: "",
+        summary: "New partner resource application from " + orgName,
+        followUpDate: followUpDate,
+        status: "Open",
+        notes: notes,
+        isDraft: false,
+        owner: ownerName,
+        ownerUid: ownerUid,
+        partnerApplicationId: appId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      try {
+        await db.collection("auditLog").add({
+          action: "Partner application received",
+          details: orgName + (contactName ? " -- " + contactName : ""),
+          performedBy: "System (auto)",
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+      console.log(
+        `onResourceApplicationCreated: interaction created for ${orgName} ` +
+        `(app ${appId}, owner ${ownerName})`,
+      );
+    } catch (err) {
+      console.error("onResourceApplicationCreated error:", err.message);
+    }
+    return null;
+  });
+
+// ── Close Partner Application Interaction on Approve / Decline ────
+// When the LDAH-Int CMS approves or declines an application, the doc
+// status flips new -> approved | declined. Find the matching open
+// interaction by partnerApplicationId, append a closing note recording
+// who acted and when, then set status:"Closed".
+exports.onResourceApplicationUpdated = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .firestore.document("resourceApplications/{appId}")
+  .onUpdate(async (change, context) => {
+    try {
+      const before = change.before.data() || {};
+      const after  = change.after.data()  || {};
+      if (before.status === after.status) return null;
+      if (before.status !== "new") return null;
+      if (after.status !== "approved" && after.status !== "declined") return null;
+
+      const db = admin.firestore();
+      const appId = context.params.appId;
+
+      const ints = await db.collection("interactions")
+        .where("partnerApplicationId", "==", appId)
+        .limit(5).get();
+      if (ints.empty) {
+        console.log(`onResourceApplicationUpdated: no interaction found for ${appId}, skipping`);
+        return null;
+      }
+
+      // Resolve actor: approvedBy / declinedBy is stamped by the CMS as an
+      // email. Look up the userRoles displayName so the note reads cleanly.
+      const actorEmail = (after.status === "approved")
+        ? (after.approvedBy || "")
+        : (after.declinedBy || "");
+      let actorName = "";
+      if (actorEmail) {
+        try {
+          const urSnap = await db.collection("userRoles")
+            .where("email", "==", actorEmail)
+            .limit(1).get();
+          if (!urSnap.empty) actorName = urSnap.docs[0].data().displayName || "";
+        } catch (_) {}
+      }
+      if (!actorName) actorName = actorEmail || "an admin";
+
+      const hstStamp = new Date().toLocaleString("en-US", {
+        timeZone: "Pacific/Honolulu",
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+      const verb = after.status === "approved" ? "Approved" : "Declined";
+      let closingNote = "\n\n— " + verb + " by " + actorName + " on " + hstStamp + " HST.";
+      if (after.status === "approved" && after.linkedResourceId) {
+        closingNote += " New resource: " + after.linkedResourceId + ".";
+      }
+
+      let closed = 0;
+      for (const d of ints.docs) {
+        if (d.data().status === "Closed") continue;
+        const existingNotes = d.data().notes || "";
+        await d.ref.update({
+          notes: existingNotes + closingNote,
+          status: "Closed",
+          closedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        closed++;
+      }
+      console.log(
+        `onResourceApplicationUpdated: closed ${closed} interaction(s) for ${appId} ` +
+        `(${verb.toLowerCase()} by ${actorName})`,
+      );
+    } catch (err) {
+      console.error("onResourceApplicationUpdated error:", err.message);
+    }
+    return null;
+  });
+
 // ── Contact Enrichment on Registration Completion ────────────────
 // When a signup transitions to status:"confirmed" with a registration
 // object and a linkedContactId, enrich the contact record with
