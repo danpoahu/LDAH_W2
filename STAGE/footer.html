@@ -36,6 +36,44 @@
 
     <div class="footer-bottom">
         <p>&copy; <span class="dynamic-year"></span> Leadership in Disabilities and Achievement of Hawai'i. All rights reserved.</p>
-        <p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal('DP Consulting', 'https://oahuappdesign.com')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a> <a href="cms.html" style="margin-left: 12px; color: rgba(255,255,255,0.5); text-decoration: none; font-size: 1.1rem;" title="Admin CMS">⚙️</a> <span style="color: rgba(255,255,255,0.25); font-size: 0.7rem; margin-left: 8px;">v61.13</span></p>
+        <p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal('DP Consulting', 'https://oahuappdesign.com')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a> <a href="cms.html" style="margin-left: 12px; color: rgba(255,255,255,0.5); text-decoration: none; font-size: 1.1rem;" title="Admin CMS">⚙️</a> <span style="color: rgba(255,255,255,0.25); font-size: 0.7rem; margin-left: 8px;">v61.14</span></p>
     </div>
 </footer>
+
+<!-- Self-contained handler for the "Native Hawaiian Survey" footer link.
+     Most W2 pages have their own inline loadHeaderFooter and don't include
+     header-footer-loader.js, so we can't rely on the shared loader to wire
+     up the modal. Defining openNHSurvey + lazy-loading the assets here
+     guarantees the link works on every page that injects this footer. -->
+<script>
+(function() {
+    if (typeof window.openNHSurvey === 'function' && window.openNHSurvey.__nhReal) return;
+    function ensureNHSurveyAssets() {
+        if (!document.querySelector('link[href$="nh-survey-modal.css"]')) {
+            var link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = 'nh-survey-modal.css';
+            document.head.appendChild(link);
+        }
+        if (!document.querySelector('script[src$="nh-survey-modal.js"]')) {
+            var script = document.createElement('script');
+            script.src = 'nh-survey-modal.js';
+            script.defer = true;
+            document.body.appendChild(script);
+        }
+    }
+    window.openNHSurvey = function(ev) {
+        if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
+        ensureNHSurveyAssets();
+        var tries = 0;
+        (function tryOpen() {
+            if (window.NHSurveyModal && typeof window.NHSurveyModal.openManual === 'function') {
+                window.NHSurveyModal.openManual();
+                return;
+            }
+            if (++tries < 40) setTimeout(tryOpen, 100);
+            else console.warn('[NHSurvey] modal controller never loaded');
+        })();
+    };
+})();
+</script>
