@@ -1842,9 +1842,13 @@ exports.onEventFeedbackCreated = functions
         } catch (_) {}
       }
 
+      let evData = {};
       try {
         const evSnap = await db.collection(collection).doc(eventId).get();
-        if (evSnap.exists) eventTitle = (evSnap.data() || {}).title || eventTitle;
+        if (evSnap.exists) {
+          evData = evSnap.data() || {};
+          eventTitle = evData.title || eventTitle;
+        }
       } catch (_) {}
 
       const sessionLabel = data.sessionDate ? " (" + data.sessionDate + ")" : "";
@@ -1856,8 +1860,40 @@ exports.onEventFeedbackCreated = functions
       // before the interaction shows as overdue in the Follow-Ups KPI.
       const followUpDate = addDaysHst(toHstDateKey(new Date()), 2);
 
-      // Match the canonical schema written by saveInteractionToFirestore.
-      // owner blank so it shows as Unassigned and an admin can claim it.
+      // Resolve owner: prefer the session's presenter (multi-session map first,
+      // single-session summary second), otherwise default to La'a as resource
+      // coordinator. Interaction lands directly in the owner's LDAH-Int queue.
+      // Event Summary form save may overwrite summary without preserving
+      // presenterUid, so we also accept the presenter NAME and look up the uid.
+      const sessionDateRaw = (data.sessionDate || "").trim();
+      let ownerUid = "";
+      let presenterNameFromEvent = "";
+      if (sessionDateRaw
+          && evData.sessionSummaries
+          && evData.sessionSummaries[sessionDateRaw]) {
+        const sEntry = evData.sessionSummaries[sessionDateRaw] || {};
+        ownerUid = sEntry.presenterUid || "";
+        presenterNameFromEvent = sEntry.presenter || "";
+      }
+      if (!ownerUid && evData.summary) {
+        ownerUid = evData.summary.presenterUid || "";
+        if (!presenterNameFromEvent) presenterNameFromEvent = evData.summary.presenter || "";
+      }
+      if (!ownerUid && presenterNameFromEvent) {
+        try {
+          const urSnap = await db.collection("userRoles")
+            .where("displayName", "==", presenterNameFromEvent)
+            .limit(1).get();
+          if (!urSnap.empty) ownerUid = urSnap.docs[0].id;
+        } catch (_) {}
+      }
+      if (!ownerUid) ownerUid = LIFECYCLE_LAA_UID;
+      let ownerName = await _lcResolveStaffName(db, ownerUid);
+      if (!ownerName) {
+        ownerName = presenterNameFromEvent
+          || (ownerUid === LIFECYCLE_LAA_UID ? "La'a Salvani" : "");
+      }
+
       await db.collection("interactions").add({
         channel: "Event Feedback",
         interactionType: "Follow-up",
@@ -1870,8 +1906,8 @@ exports.onEventFeedbackCreated = functions
         status: "Open",
         notes: notes,
         isDraft: false,
-        owner: "",
-        ownerUid: "",
+        owner: ownerName,
+        ownerUid: ownerUid,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
@@ -1884,43 +1920,6 @@ exports.onEventFeedbackCreated = functions
           timestamp: admin.firestore.FieldValue.serverTimestamp(),
         });
       } catch (e) { console.warn("auditLog write failed:", e.message); }
-
-      // Triage alert to La'a (resourceCoordinator persona) — gives her an
-      // immediate heads-up so she can claim the interaction and reach out.
-      try {
-        const triage = await getPersona("resourceCoordinator");
-        if (triage && triage.email) {
-          const alertHtml =
-            "<p style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;line-height:1.5;\">" +
-            "Aloha " + (triage.firstName || "La'a") + ",</p>" +
-            "<p style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;line-height:1.5;\">" +
-            "<strong>" + (contactName || "An attendee") + "</strong> requested follow-up support after " +
-            "<em>" + eventTitle + sessionLabel + "</em>.</p>" +
-            (notes && notes !== "(no detail provided in survey)"
-              ? "<blockquote style=\"margin:0 0 14px;padding:10px 14px;border-left:4px solid #1a3c6e;background:#F8FAFC;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#333;\">" +
-                String(notes).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>") +
-                "</blockquote>"
-              : "<p style=\"font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#666;font-style:italic;\">No additional detail was provided in the survey.</p>") +
-            "<p style=\"font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;line-height:1.5;\">" +
-            "An interaction has been created on the LDAH-Int dashboard with status <strong>Open</strong> " +
-            "and follow-up date <strong>" + followUpDate + "</strong>. Please claim it from the Interaction Detail panel.</p>" +
-            _emailBtn("https://danpoahu.github.io/LDAH-Int/", "Open LDAH-Int Dashboard", { bg: "#1a3c6e", align: "center" }) +
-            _emailLinkFooter([{ label: "LDAH-Int Dashboard", href: "https://danpoahu.github.io/LDAH-Int/" }]) +
-            "<p style=\"font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#888;margin-top:18px;\">" +
-            "This alert was sent automatically because the attendee answered Yes to \"Do you require follow-up support?\" on the post-event survey.</p>";
-
-          await sendEmailViaResend({
-            from: "LDAH <" + (process.env.SMTP_FROM || "registration@ldahawaii.org") + ">",
-            to: triage.email,
-            subject: "Follow-up support requested -- " + (contactName || "Unknown") + " (" + eventTitle + ")",
-            html: alertHtml,
-            type: "follow-up-triage-alert",
-            relatedEventId: eventId,
-            relatedSignupId: signupId,
-            recipientName: triage.fullName || "La'a",
-          });
-        }
-      } catch (e) { console.warn("triage alert send failed:", e.message); }
 
       console.log(
         `onEventFeedbackCreated: auto-interaction created for ${contactName || "unknown"} ` +
