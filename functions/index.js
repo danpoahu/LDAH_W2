@@ -2019,6 +2019,91 @@ exports.onProviderRequestCreated = functions
     return null;
   });
 
+// ── Auto-Create Interaction from Calendar Request ──────────────────
+// When the public "Request an Event" form (events.html) writes a new
+// `eventRequests/{id}` doc with status:"pending", drop an Open interaction
+// on La'a's queue with a +3 day follow-up. Same shape as the Provider
+// Request workflow.
+exports.onCalendarRequestCreated = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .firestore.document("eventRequests/{requestId}")
+  .onCreate(async (snap, context) => {
+    try {
+      const data = snap.data() || {};
+      if (data.status !== "pending") return null;
+
+      const db = admin.firestore();
+      const requestId = context.params.requestId;
+
+      // Idempotency: skip if an interaction already references this request.
+      const existing = await db.collection("interactions")
+        .where("calendarRequestId", "==", requestId)
+        .limit(1).get();
+      if (!existing.empty) {
+        console.log(`onCalendarRequestCreated: interaction already exists for ${requestId}, skipping`);
+        return null;
+      }
+
+      // Owner: La'a Salvani. He's superAdmin so userRoles should always exist,
+      // but defensive resolve for display name.
+      const ownerUid = LIFECYCLE_LAA_UID;
+      let ownerName = await _lcResolveStaffName(db, ownerUid);
+      if (!ownerName) ownerName = "La'a Salvani";
+
+      const requesterName = (data.name || "").trim() || "Unknown requester";
+      const preferredDate = (data.preferredDate || "").trim();
+      const preferredTime = (data.preferredTime || "").trim();
+      const followUpDate = addDaysHst(toHstDateKey(new Date()), 3);
+      const notesParts = [];
+      if (data.email) notesParts.push(data.email);
+      if (data.phone) notesParts.push(data.phone);
+      if (preferredDate || preferredTime) {
+        notesParts.push("Preferred: " + [preferredDate, preferredTime].filter(Boolean).join(" @ "));
+      }
+      if (data.sponsor) notesParts.push("Sponsor: " + data.sponsor);
+      const notesHead = notesParts.join(" -- ");
+      const notes = notesHead + (data.eventInfo ? "\n\n" + data.eventInfo : "");
+
+      const summary = "New calendar request from " + requesterName
+        + (preferredDate ? " for " + preferredDate : "");
+
+      await db.collection("interactions").add({
+        channel: "Calendar Onboarding",
+        interactionType: "Calendar Request",
+        contactId: "",
+        contactName: requesterName,
+        contactType: "",
+        grantProgram: "",
+        summary: summary,
+        followUpDate: followUpDate,
+        status: "Open",
+        notes: notes,
+        isDraft: false,
+        owner: ownerName,
+        ownerUid: ownerUid,
+        calendarRequestId: requestId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      try {
+        await db.collection("auditLog").add({
+          action: "Calendar request received",
+          details: requesterName + (preferredDate ? " (" + preferredDate + ")" : ""),
+          performedBy: "System (auto)",
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+      console.log(
+        `onCalendarRequestCreated: interaction created for ${requesterName} ` +
+        `(request ${requestId}, owner ${ownerName})`,
+      );
+    } catch (err) {
+      console.error("onCalendarRequestCreated error:", err.message);
+    }
+    return null;
+  });
+
 // ── Contact Enrichment on Registration Completion ────────────────
 // When a signup transitions to status:"confirmed" with a registration
 // object and a linkedContactId, enrich the contact record with
