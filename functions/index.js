@@ -1931,6 +1931,94 @@ exports.onEventFeedbackCreated = functions
     return null;
   });
 
+// ── Auto-Create Interaction from Provider Listing Request ──────────
+// When the public Provider Request form (readiness.html) writes a new
+// `providers/{id}` doc with status:"new", drop an Open interaction on
+// Chassidy Kruse's queue with a +3 day follow-up. Interaction lands
+// directly in LDAH-Int; no triage email — per-user alerts handle the ping.
+exports.onProviderRequestCreated = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .firestore.document("providers/{providerId}")
+  .onCreate(async (snap, context) => {
+    try {
+      const data = snap.data() || {};
+      if (data.status !== "new") return null;
+
+      const db = admin.firestore();
+      const providerId = context.params.providerId;
+
+      // Idempotency: skip if an interaction already references this provider.
+      const existing = await db.collection("interactions")
+        .where("providerRequestId", "==", providerId)
+        .limit(1).get();
+      if (!existing.empty) {
+        console.log(`onProviderRequestCreated: interaction already exists for ${providerId}, skipping`);
+        return null;
+      }
+
+      // Owner resolution: Chassidy Kruse (provider intake). Falls back to
+      // La'a if her userRoles doc is missing or marked inactive.
+      const PROVIDER_INTAKE_UID = "B9iq7O46KJabCE3Skke4HXy8RV43";
+      let ownerUid = PROVIDER_INTAKE_UID;
+      try {
+        const urDoc = await db.collection("userRoles").doc(ownerUid).get();
+        if (!urDoc.exists || urDoc.data().active === false) {
+          ownerUid = LIFECYCLE_LAA_UID;
+        }
+      } catch (_) {
+        ownerUid = LIFECYCLE_LAA_UID;
+      }
+      let ownerName = await _lcResolveStaffName(db, ownerUid);
+      if (!ownerName) {
+        ownerName = ownerUid === LIFECYCLE_LAA_UID ? "La'a Salvani" : "Chassidy Kruse";
+      }
+
+      const orgName = (data.organizationName || "").trim() || "Unknown organization";
+      const contactName = ((data.firstName || "") + " " + (data.lastName || "")).trim();
+      const followUpDate = addDaysHst(toHstDateKey(new Date()), 3);
+      const notesParts = [];
+      if (contactName) notesParts.push(contactName);
+      if (data.email)  notesParts.push(data.email);
+      if (data.phone)  notesParts.push(data.phone);
+      const notes = notesParts.join(" -- ") + (data.message ? "\n\n" + data.message : "");
+
+      await db.collection("interactions").add({
+        channel: "Provider Onboarding",
+        interactionType: "Provider Request",
+        contactId: "",
+        contactName: orgName,
+        contactType: "",
+        grantProgram: "",
+        summary: "New provider listing request from " + orgName,
+        followUpDate: followUpDate,
+        status: "Open",
+        notes: notes,
+        isDraft: false,
+        owner: ownerName,
+        ownerUid: ownerUid,
+        providerRequestId: providerId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      try {
+        await db.collection("auditLog").add({
+          action: "Provider request received",
+          details: orgName + (contactName ? " -- " + contactName : ""),
+          performedBy: "System (auto)",
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+      console.log(
+        `onProviderRequestCreated: interaction created for ${orgName} ` +
+        `(provider ${providerId}, owner ${ownerName})`,
+      );
+    } catch (err) {
+      console.error("onProviderRequestCreated error:", err.message);
+    }
+    return null;
+  });
+
 // ── Contact Enrichment on Registration Completion ────────────────
 // When a signup transitions to status:"confirmed" with a registration
 // object and a linkedContactId, enrich the contact record with
