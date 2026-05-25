@@ -2264,6 +2264,152 @@ exports.onResourceApplicationUpdated = functions
     return null;
   });
 
+// ── Auto-Create Interaction from Volunteer Application ─────────────
+// When the public Volunteer form (volunteer.html) writes a new
+// volunteers/{id} doc with status:"new", drop an Open interaction on
+// Chassidy Kruse's queue with a +3 day follow-up. Closure happens
+// automatically via onVolunteerApplicationUpdated when an admin moves
+// the application to "accepted" or "declined" in the CMS.
+exports.onVolunteerApplicationCreated = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .firestore.document("volunteers/{appId}")
+  .onCreate(async (snap, context) => {
+    try {
+      const data = snap.data() || {};
+      if (data.status !== "new") return null;
+
+      const db = admin.firestore();
+      const appId = context.params.appId;
+
+      const existing = await db.collection("interactions")
+        .where("volunteerApplicationId", "==", appId)
+        .limit(1).get();
+      if (!existing.empty) {
+        console.log(`onVolunteerApplicationCreated: interaction already exists for ${appId}, skipping`);
+        return null;
+      }
+
+      // Owner: Chassidy Kruse (volunteer intake). Fallback to La'a if
+      // Chassidy's userRoles doc is missing or marked inactive.
+      const VOLUNTEER_INTAKE_UID = "B9iq7O46KJabCE3Skke4HXy8RV43";
+      let ownerUid = VOLUNTEER_INTAKE_UID;
+      try {
+        const urDoc = await db.collection("userRoles").doc(ownerUid).get();
+        if (!urDoc.exists || urDoc.data().active === false) {
+          ownerUid = LIFECYCLE_LAA_UID;
+        }
+      } catch (_) {
+        ownerUid = LIFECYCLE_LAA_UID;
+      }
+      let ownerName = await _lcResolveStaffName(db, ownerUid);
+      if (!ownerName) {
+        ownerName = ownerUid === LIFECYCLE_LAA_UID ? "La'a Salvani" : "Chassidy Kruse";
+      }
+
+      const applicantName = [data.firstName, data.lastName]
+        .filter(function (x) { return x; }).join(" ").trim() || "Unknown applicant";
+      const followUpDate = addDaysHst(toHstDateKey(new Date()), 3);
+
+      const noteLines = [];
+      if (data.email) noteLines.push(data.email);
+      if (data.opportunityId) noteLines.push("Opportunity: " + data.opportunityId);
+      if (data.subject) noteLines.push("\nApplicant message:\n" + data.subject);
+      if (data.notes) noteLines.push("\nAdditional notes:\n" + data.notes);
+      const notes = noteLines.join("\n");
+
+      await db.collection("interactions").add({
+        channel: "Volunteer Onboarding",
+        interactionType: "Volunteer Application",
+        contactId: "",
+        contactName: applicantName,
+        contactType: "",
+        grantProgram: "",
+        summary: "New volunteer application from " + applicantName,
+        followUpDate: followUpDate,
+        status: "Open",
+        notes: notes,
+        isDraft: false,
+        owner: ownerName,
+        ownerUid: ownerUid,
+        volunteerApplicationId: appId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      try {
+        await db.collection("auditLog").add({
+          action: "Volunteer application received",
+          details: applicantName + (data.email ? " -- " + data.email : ""),
+          performedBy: "System (auto)",
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+      console.log(
+        `onVolunteerApplicationCreated: interaction created for ${applicantName} ` +
+        `(app ${appId}, owner ${ownerName})`,
+      );
+    } catch (err) {
+      console.error("onVolunteerApplicationCreated error:", err.message);
+    }
+    return null;
+  });
+
+// ── Close Volunteer Interaction on accepted / declined ─────────────
+// When a volunteer application reaches its terminal status (accepted
+// or declined), find the matching open interaction by
+// volunteerApplicationId, append a closing note, and set status:"Closed".
+// Intermediate statuses (contacted, interviewing) leave it open.
+exports.onVolunteerApplicationUpdated = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .firestore.document("volunteers/{appId}")
+  .onUpdate(async (change, context) => {
+    try {
+      const before = change.before.data() || {};
+      const after  = change.after.data()  || {};
+      if (before.status === after.status) return null;
+      const TERMINAL = ["accepted", "declined"];
+      if (!TERMINAL.includes(after.status)) return null;
+      if (TERMINAL.includes(before.status)) return null;
+
+      const db = admin.firestore();
+      const appId = context.params.appId;
+
+      const ints = await db.collection("interactions")
+        .where("volunteerApplicationId", "==", appId)
+        .limit(5).get();
+      if (ints.empty) {
+        console.log(`onVolunteerApplicationUpdated: no interaction found for ${appId}, skipping`);
+        return null;
+      }
+
+      const hstStamp = new Date().toLocaleString("en-US", {
+        timeZone: "Pacific/Honolulu",
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+      const verb = after.status === "accepted" ? "Accepted" : "Declined";
+      const closingNote = "\n\n— Application " + verb.toLowerCase() + " on " + hstStamp + " HST.";
+
+      let closed = 0;
+      for (const d of ints.docs) {
+        if (d.data().status === "Closed") continue;
+        const existingNotes = d.data().notes || "";
+        await d.ref.update({
+          notes: existingNotes + closingNote,
+          status: "Closed",
+          closedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        closed++;
+      }
+      console.log(
+        `onVolunteerApplicationUpdated: closed ${closed} interaction(s) for ${appId} (${verb.toLowerCase()})`,
+      );
+    } catch (err) {
+      console.error("onVolunteerApplicationUpdated error:", err.message);
+    }
+    return null;
+  });
+
 // ── Contact Enrichment on Registration Completion ────────────────
 // When a signup transitions to status:"confirmed" with a registration
 // object and a linkedContactId, enrich the contact record with
