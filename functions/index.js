@@ -8650,87 +8650,149 @@ exports.submitResourceApplication = functions
     }
   });
 
-exports.sendResourceUpdateNudges = functions
-  .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: EMAIL_SECRETS })
-  .pubsub.schedule("0 9 * * *")
-  .timeZone("Pacific/Honolulu")
-  .onRun(async () => {
-    const db = admin.firestore();
-    const FieldValue = admin.firestore.FieldValue;
-    const fromAddress = lifecycleFromAddress();
-    const signatureHtml = await buildSignatureBlock('resourceCoordinator');
-    const donateHtml = await buildDonateBlock('universal');
-    const resCoord = await getPersona('resourceCoordinator');
-    const resourceCoordinatorEmail = resCoord.email;
-    const now = Date.now();
+// Deadline for the current semi-annual nudge cycle. Cron stops sending after
+// this date even if partners haven't responded. UPDATE THIS each cycle:
+// current value is the end of the May→Nov 2026 cycle's enforcement window.
+const RESOURCE_UPDATE_NUDGE_DEADLINE_HST = "2026-07-31";
 
-    // ~7-day gap between touches: initial → nudge1 (day 7) → nudge2 (day 14)
-    // → nudge3 (day 21). 30-day cycle ceiling stops further nudges if the
-    // partner never responds.
-    //
-    // The threshold carries 12h of slack (6.5 days, not exactly 7). The cron
-    // runs once daily; the prior nudge was stamped mid-run, so a full 7×24h
-    // is only reached if today's run starts no earlier than last week's
-    // per-resource write. It often doesn't (startup latency varies), which
-    // skipped every day-21 nudge by ~15 seconds. 6.5d cleanly separates the
-    // day-6 run (skip) from the day-7 run (send) with no millisecond edge.
-    const nudgeGapMs = 6.5 * 24 * 60 * 60 * 1000;
-    const cycleCutoffMs = now - (RESOURCE_UPDATE_RESEND_DAYS * 24 * 60 * 60 * 1000);
+// Cycle start matches the CMS dashboard logic in LDAH-Int/index.html
+// (cmsLoadResourcesPanel, ~line 29659): semi-annual cycles flip on May 1 and
+// Nov 1. A 7-day grace window before the cycle start means a partner who
+// updated late in the previous cycle still counts as "confirmed" early on.
+function _resourceUpdateCycleWindow(now) {
+  const yr = new Date(now).getFullYear();
+  const may1 = new Date(yr, 4, 1).getTime();
+  const nov1 = new Date(yr, 10, 1).getTime();
+  let cycleStart;
+  if (now >= nov1) cycleStart = nov1;
+  else if (now >= may1) cycleStart = may1;
+  else cycleStart = new Date(yr - 1, 10, 1).getTime();
+  const graceMs = 7 * 24 * 60 * 60 * 1000;
+  return { cycleStart, graceWindow: cycleStart - graceMs };
+}
 
-    let sent = 0;
-    let failed = 0;
-    let scanned = 0;
+function _isAfterNudgeDeadline(now) {
+  const [y, m, d] = RESOURCE_UPDATE_NUDGE_DEADLINE_HST.split("-").map(function (s) { return parseInt(s, 10); });
+  // 23:59:59 HST on the deadline date == (00:59:59 the next day in UTC).
+  const deadlineUtcMs = Date.UTC(y, m - 1, d, 23 + 10, 59, 59);
+  return now > deadlineUtcMs;
+}
+
+// Shared helper used by the Wednesday cron and the manual HTTPS trigger.
+// Eligibility matches the CMS dashboard's "awaiting" bucket exactly:
+//   - Is a partner directory entry (has non-empty `name`)
+//   - Not archived
+//   - Has email
+//   - Has an updateToken (so the form link works)
+//   - lastUpdateAt AND updateSubmittedAt both older than the 7-day grace
+//     window before the current cycle start (May 1 / Nov 1)
+//
+// Notes:
+//   - No per-resource cadence (the Wednesday cron is the cadence)
+//   - No nudge cap (we keep nudging until they respond or deadline)
+//   - updateNudgeCount + lastUpdateNudgeAt still increment for reporting,
+//     just not used as gates
+async function _runResourceUpdateNudges(opts) {
+  const dryRun = !!(opts && opts.dryRun);
+  const db = admin.firestore();
+  const FieldValue = admin.firestore.FieldValue;
+  const now = Date.now();
+
+  if (_isAfterNudgeDeadline(now)) {
+    console.log("_runResourceUpdateNudges: past deadline " + RESOURCE_UPDATE_NUDGE_DEADLINE_HST + ", skipping all sends");
+    return { scanned: 0, eligible: 0, sent: 0, failed: 0, skippedDeadline: true };
+  }
+
+  const { graceWindow } = _resourceUpdateCycleWindow(now);
+  const fromAddress = lifecycleFromAddress();
+  const signatureHtml = await buildSignatureBlock("resourceCoordinator");
+  const donateHtml = await buildDonateBlock("universal");
+  const resCoord = await getPersona("resourceCoordinator");
+  const resourceCoordinatorEmail = resCoord ? resCoord.email : "";
+
+  const snap = await db.collection("resources").get();
+  let scanned = 0;
+  let eligible = 0;
+  let sent = 0;
+  let failed = 0;
+  const eligibleList = [];
+
+  for (const d of snap.docs) {
+    scanned++;
+    const r = d.data() || {};
+    if (r.archived === true) continue;
+    const name = String(r.name || "").trim();
+    if (!name) continue; // skip Downloads-metadata docs in the same collection
+    const email = String(r.email || "").trim();
+    if (!email) continue;
+    if (!r.updateToken) continue;
+    const lu = r.lastUpdateAt && r.lastUpdateAt.toMillis ? r.lastUpdateAt.toMillis() : 0;
+    const subAt = r.updateSubmittedAt && r.updateSubmittedAt.toMillis ? r.updateSubmittedAt.toMillis() : 0;
+    if (lu >= graceWindow || subAt >= graceWindow) continue;
+
+    eligible++;
+    eligibleList.push({ id: d.id, name, email });
+    if (dryRun) continue;
 
     try {
-      const snap = await db.collection("resources").get();
-      for (const d of snap.docs) {
-        scanned++;
-        const r = d.data() || {};
-        if (r.archived === true) continue;
-        if (!r.updateToken) continue;
-        if (r.updateSubmittedAt) continue;
-        const email = String(r.email || "").trim();
-        if (!email) continue;
-
-        const reqAt = r.updateRequestedAt && r.updateRequestedAt.toMillis ? r.updateRequestedAt.toMillis() : 0;
-        if (!reqAt || reqAt <= cycleCutoffMs) continue;
-
-        const nudgeCount = Number(r.updateNudgeCount || 0);
-        if (nudgeCount >= 3) continue;
-
-        const lastNudgeAt = r.lastUpdateNudgeAt && r.lastUpdateNudgeAt.toMillis ? r.lastUpdateNudgeAt.toMillis() : 0;
-        if (nudgeCount === 0) {
-          if ((now - reqAt) < nudgeGapMs) continue;
-        } else {
-          if (!lastNudgeAt || (now - lastNudgeAt) < nudgeGapMs) continue;
-        }
-
-        try {
-          const html = buildResourceUpdateEmailHtml({ resource: r, token: r.updateToken, isNudge: true, signatureHtml, donateHtml, resourceCoordinatorEmail });
-          await sendEmailViaResend({
-            from: fromAddress,
-            to: email,
-            subject: "Reminder: Update your LDAH Resource Card",
-            html,
-            type: "resource-update-nudge",
-            recipientName: r.name || "",
-          });
-          await d.ref.update({
-            updateNudgeCount: FieldValue.increment(1),
-            lastUpdateNudgeAt: FieldValue.serverTimestamp(),
-          });
-          sent++;
-        } catch (err) {
-          failed++;
-          console.error("sendResourceUpdateNudges failed for " + email + ":", err.message);
-        }
-      }
+      const html = buildResourceUpdateEmailHtml({
+        resource: r, token: r.updateToken, isNudge: true,
+        signatureHtml, donateHtml, resourceCoordinatorEmail,
+      });
+      await sendEmailViaResend({
+        from: fromAddress,
+        to: email,
+        subject: "Reminder: Update your LDAH Resource Card",
+        html,
+        type: "resource-update-nudge",
+        recipientName: name,
+      });
+      await d.ref.update({
+        updateNudgeCount: FieldValue.increment(1),
+        lastUpdateNudgeAt: FieldValue.serverTimestamp(),
+      });
+      sent++;
     } catch (err) {
-      console.error("sendResourceUpdateNudges scan failed:", err.message);
+      failed++;
+      console.error("_runResourceUpdateNudges failed for " + email + ":", err.message);
     }
+  }
 
-    console.log("sendResourceUpdateNudges: scanned=" + scanned + " sent=" + sent + " failed=" + failed);
+  console.log("_runResourceUpdateNudges: scanned=" + scanned + " eligible=" + eligible + " sent=" + sent + " failed=" + failed + (dryRun ? " (dryRun)" : ""));
+  return { scanned, eligible, sent, failed, eligibleList };
+}
+
+// Weekly Wednesday 9am HST. Synchronous nudge wave to every partner whose
+// resource card hasn't been confirmed this cycle. Replaces the previous
+// per-resource daily cadence with 3-nudge cap — the cron itself is the
+// cadence now.
+exports.sendResourceUpdateNudges = functions
+  .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: EMAIL_SECRETS })
+  .pubsub.schedule("0 9 * * 3")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    await _runResourceUpdateNudges({});
     return null;
+  });
+
+// Manual fire button. Same logic as the cron. Pass ?dryRun=1 to get the
+// eligible-partner list without sending. No auth — the URL is admin-scoped
+// by being unguessable (same posture as sendResourceUpdateRequests).
+exports.triggerResourceUpdateNudgesNow = functions
+  .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    const dryRun = req.query.dryRun === "1" || req.query.dryRun === "true" || (req.body && req.body.dryRun === true);
+    try {
+      const stats = await _runResourceUpdateNudges({ dryRun });
+      res.status(200).json({ ok: true, dryRun, ...stats });
+    } catch (err) {
+      console.error("triggerResourceUpdateNudgesNow error:", err);
+      res.status(500).json({ ok: false, error: err.message || String(err) });
+    }
   });
 
 // ─────────────────────────────────────────────────────────────────────
