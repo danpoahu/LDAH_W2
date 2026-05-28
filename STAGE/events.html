@@ -1169,6 +1169,58 @@
     (function() {
       'use strict';
 
+      // ── Mobile-friendly Date of Birth pickers ──
+      // Replaces <input type="date"> for DOB fields because the iOS scroll
+      // wheel is brutal for dates 10+ years back. Used as three selects
+      // (Month / Day / Year) that combine into a hidden YYYY-MM-DD input
+      // matching the original field id, so existing submit code is unchanged.
+      window._dobMonthOptions = function() {
+        var m = ['January','February','March','April','May','June',
+                 'July','August','September','October','November','December'];
+        var s = '<option value="">Month</option>';
+        for (var i = 0; i < 12; i++) {
+          var v = i + 1 < 10 ? '0' + (i + 1) : String(i + 1);
+          s += '<option value="' + v + '">' + m[i] + '</option>';
+        }
+        return s;
+      };
+      window._dobDayOptions = function() {
+        var s = '<option value="">Day</option>';
+        for (var d = 1; d <= 31; d++) {
+          var dd = d < 10 ? '0' + d : String(d);
+          s += '<option value="' + dd + '">' + d + '</option>';
+        }
+        return s;
+      };
+      window._dobYearOptions = function() {
+        var max = new Date().getFullYear();
+        var min = max - 100;
+        var s = '<option value="">Year</option>';
+        for (var y = max; y >= min; y--) s += '<option value="' + y + '">' + y + '</option>';
+        return s;
+      };
+      window._updateDobHidden = function(prefix) {
+        var y = document.getElementById(prefix + 'Year');
+        var m = document.getElementById(prefix + 'Month');
+        var d = document.getElementById(prefix + 'Day');
+        var hidden = document.getElementById(prefix);
+        var msg = document.getElementById(prefix + 'Msg');
+        if (!hidden) return;
+        hidden.value = '';
+        if (msg) msg.textContent = '';
+        if (!y || !m || !d || !y.value || !m.value || !d.value) return;
+        var iso = y.value + '-' + m.value + '-' + d.value;
+        var dt = new Date(iso + 'T12:00:00Z');
+        if (isNaN(dt.getTime()) ||
+            dt.getUTCFullYear() !== parseInt(y.value, 10) ||
+            dt.getUTCMonth() !== parseInt(m.value, 10) - 1 ||
+            dt.getUTCDate() !== parseInt(d.value, 10)) {
+          if (msg) msg.textContent = iso + ' is not a valid date — please check the day for that month.';
+          return;
+        }
+        hidden.value = iso;
+      };
+
       let currentSwiper = null;
       let pastSwiper = null;
 
@@ -3624,7 +3676,13 @@
                     </div>
                     <div style="flex:1;min-width:220px;">
                       <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:6px;font-size:13px;">Date of Birth *</label>
-                      <input type="date" required id="studentDOB" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                      <input type="hidden" id="studentDOB">
+                      <div style="display:flex;gap:6px;">
+                        <select required id="studentDOBMonth" onchange="_updateDobHidden('studentDOB')" style="flex:1.6;min-width:0;padding:10px 8px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;background:#fff;box-sizing:border-box;">${window._dobMonthOptions()}</select>
+                        <select required id="studentDOBDay" onchange="_updateDobHidden('studentDOB')" style="flex:1;min-width:0;padding:10px 8px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;background:#fff;box-sizing:border-box;">${window._dobDayOptions()}</select>
+                        <select required id="studentDOBYear" onchange="_updateDobHidden('studentDOB')" style="flex:1.2;min-width:0;padding:10px 8px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;background:#fff;box-sizing:border-box;">${window._dobYearOptions()}</select>
+                      </div>
+                      <div id="studentDOBMsg" style="margin-top:4px;font-size:12px;color:#B45309;"></div>
                     </div>
                     <div style="flex:1;min-width:220px;">
                       <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:6px;font-size:13px;">ID # *</label>
