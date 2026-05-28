@@ -2348,7 +2348,29 @@
                     text-transform: capitalize;
                   ">
                 </div>
-                
+
+                <div style="margin-bottom: 20px;">
+                  <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">I am a... *</label>
+                  <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                      <input type="radio" name="registrantType" value="Parent/Guardian" required style="width: 18px; height: 18px; accent-color: #0369a1;">
+                      <span style="font-size: 14px; color: #374151;">Parent / Guardian</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                      <input type="radio" name="registrantType" value="Professional" required style="width: 18px; height: 18px; accent-color: #0369a1;">
+                      <span style="font-size: 14px; color: #374151;">Professional</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                      <input type="radio" name="registrantType" value="Student" required style="width: 18px; height: 18px; accent-color: #0369a1;">
+                      <span style="font-size: 14px; color: #374151;">Student</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                      <input type="radio" name="registrantType" value="Community Member" required style="width: 18px; height: 18px; accent-color: #0369a1;">
+                      <span style="font-size: 14px; color: #374151;">Community Member</span>
+                    </label>
+                  </div>
+                </div>
+
                 <div style="margin-bottom: 20px;">
                   <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
                     Email Address *
@@ -2657,6 +2679,10 @@
         streetAddress: pf.streetAddress || '',
         city: pf.city || '',
         zipCode: pf.zipCode || '',
+        // Role is normally captured at signup now (v61.18) and bridged into the
+        // registration form; carry it here too so the sibling-draft path keeps it.
+        role: pf.role || '',
+        reasonForAttending: pf.reasonForAttending || '',
         militaryStatus: pf.militaryStatus || '',
         militaryBranch: pf.militaryBranch || '',
         ethnicity: pf.ethnicity || '',
@@ -2780,7 +2806,14 @@
 
           const registrantName = data.name || 'Attendee';
 
-          contentEl.innerHTML = buildRegistrationForm(registrantName, token, eventId, type, prefillData);
+          // Bridge the role captured at signup into the registration form so we
+          // don't re-ask "About You" (v61.18). Prefer the signup doc's role /
+          // registrantType; fall back to any prior-registration prefill.
+          var regPrefill = Object.assign({}, prefillData || {});
+          var signupRole = data.role || data.registrantType || regPrefill.role || '';
+          if (signupRole) regPrefill.role = signupRole;
+
+          contentEl.innerHTML = buildRegistrationForm(registrantName, token, eventId, type, regPrefill);
           toggleParentSections();
         })
         .catch(function(error) {
@@ -2819,17 +2852,13 @@
         '</div>' +
 
         // --- Section: About You ---
+        // "I am a..." was removed here (v61.18) — role is captured at signup
+        // and carried in via pf.role. The hidden regRole field below keeps the
+        // gating (toggleParentSections) + submit logic working unchanged.
         '<div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 18px; margin-bottom: 20px;">' +
           '<h3 style="color: #004E7C; font-size: 16px; font-weight: bold; margin-bottom: 14px;">About You</h3>' +
 
-          '<div style="margin-bottom: 14px;">' +
-            '<label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">I am a... <span style="color: #DC2626;">*</span></label>' +
-            '<div style="display: flex; flex-direction: column; gap: 8px;">' +
-              ['Parent/Guardian', 'Professional', 'Student', 'Community Member'].map(function(opt) {
-                return '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="radio" name="regRole" value="' + opt + '" required onchange="toggleParentSections()"' + (pf.role === opt ? ' checked' : '') + ' style="width: 18px; height: 18px; cursor: pointer;"><span style="font-size: 14px; color: #374151;">' + opt + '</span></label>';
-              }).join('') +
-            '</div>' +
-          '</div>' +
+          '<input type="hidden" id="regRole" value="' + String(pf.role || '').replace(/"/g, '&quot;') + '">' +
 
           '<div style="margin-bottom: 14px;">' +
             '<label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">Reason for Attending <span style="color: #DC2626;">*</span></label>' +
@@ -2969,7 +2998,7 @@
     }
 
     function toggleParentSections() {
-      var role = (document.querySelector('input[name="regRole"]:checked') || {}).value || '';
+      var role = (document.getElementById('regRole') || {}).value || '';
       var isParent = role === 'Parent/Guardian';
       var milWrap = document.getElementById('regMilitaryWrap');
       var childWrap = document.getElementById('regChildInfoWrap');
@@ -2986,7 +3015,7 @@
     async function submitRegistration(evt, token, eventId, type) {
       evt.preventDefault();
 
-      var role = (document.querySelector('input[name="regRole"]:checked') || {}).value || '';
+      var role = (document.getElementById('regRole') || {}).value || '';
       var isParent = role === 'Parent/Guardian';
 
       // Validate disability checkboxes (at least one required) — only for Parent/Guardian
@@ -3332,6 +3361,11 @@
         email: document.getElementById('signupEmail').value,
         phone: document.getElementById('signupPhone').value,
         preferredContact: document.querySelector('input[name="preferredContact"]:checked')?.value || '',
+        // Role captured at signup (v61.18) — written to both registrantType
+        // (legacy) and role so the registration step reads it and skips the
+        // "About You" question.
+        registrantType: document.querySelector('input[name="registrantType"]:checked')?.value || '',
+        role: document.querySelector('input[name="registrantType"]:checked')?.value || '',
         selectedDates: [],
         customAnswers: [],
         additionalComments: document.getElementById('special-accommodations').value,
@@ -3606,6 +3640,14 @@
                       <input type="radio" name="registrantType" value="Professional" required style="width:18px;height:18px;accent-color:#0369a1;">
                       <span style="font-size:14px;color:#374151;">Professional</span>
                     </label>
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                      <input type="radio" name="registrantType" value="Student" required style="width:18px;height:18px;accent-color:#0369a1;">
+                      <span style="font-size:14px;color:#374151;">Student</span>
+                    </label>
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                      <input type="radio" name="registrantType" value="Community Member" required style="width:18px;height:18px;accent-color:#0369a1;">
+                      <span style="font-size:14px;color:#374151;">Community Member</span>
+                    </label>
                   </div>
                 </div>
                 <div style="margin-bottom:20px;">
@@ -3823,8 +3865,12 @@
         selectedSessions: [],
         customAnswers: [],
         additionalComments: getVal('special-accommodations'),
-        // Student information fields
+        // Role captured at signup. Written to BOTH registrantType (legacy) and
+        // role (the field the registration "About You" question used to set) so
+        // the registration step can read it and skip re-asking. v61.18.
         registrantType:  document.querySelector('input[name="registrantType"]:checked')?.value || '',
+        role:            document.querySelector('input[name="registrantType"]:checked')?.value || '',
+        // Student information fields
         studentName:     getVal('studentName').trim(),
         studentDOB:      getVal('studentDOB'),
         studentId:       getVal('studentId').trim(),
