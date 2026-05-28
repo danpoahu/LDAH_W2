@@ -2812,6 +2812,9 @@
           var regPrefill = Object.assign({}, prefillData || {});
           var signupRole = data.role || data.registrantType || regPrefill.role || '';
           if (signupRole) regPrefill.role = signupRole;
+          // Bridge the child/student name from signup so registration doesn't
+          // re-ask it (v61.19). CG signup collects studentName inline.
+          if (data.studentName && !regPrefill.childName) regPrefill.childName = data.studentName;
 
           contentEl.innerHTML = buildRegistrationForm(registrantName, token, eventId, type, regPrefill);
           toggleParentSections();
@@ -2904,7 +2907,7 @@
 
           '<div style="margin-bottom: 14px;">' +
             '<label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">Child\'s full name <span style="color: #DC2626;">*</span></label>' +
-            '<input type="text" id="regChildName" required style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">' +
+            '<input type="text" id="regChildName" required' + (pf.childName ? ' value="' + String(pf.childName).replace(/"/g, '&quot;') + '"' : '') + ' style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">' +
           '</div>' +
 
           '<div style="margin-bottom: 14px;">' +
