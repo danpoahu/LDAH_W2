@@ -1662,6 +1662,11 @@
       const programs = window._recurringPrograms || {};
       const items = [];
       Object.values(programs).forEach(prog => {
+        // Skip cancelled occurrences so the calendar matches the offered
+        // sessions in the signup list (getOccurrencesInNext30Days). Mirrors
+        // that function: cancelledDates entries are { date } or "YYYY-MM-DD"
+        // strings; we key on date only (ignoring venue/location fields).
+        const cancelledSet = new Set((prog.cancelledDates || []).map(cd => cd.date || cd));
         (prog.schedules || []).forEach((sch, schIdx) => {
           const dayNum = Number(sch.dayOfWeek);
           if (sch.frequency === 'weekly') {
@@ -1669,15 +1674,18 @@
             const offset = (dayNum - firstOfMonth.getDay() + 7) % 7;
             let d = new Date(year, month, 1 + offset);
             while (d.getMonth() === month) {
-              items.push({
-                id: prog.id,
-                title: prog.title,
-                eventDate: d.toISOString().slice(0, 10),
-                isRecurring: true,
-                location: sch.location,
-                schedule: sch,
-                scheduleIdx: schIdx
-              });
+              const ds = d.toISOString().slice(0, 10);
+              if (!cancelledSet.has(ds)) {
+                items.push({
+                  id: prog.id,
+                  title: prog.title,
+                  eventDate: ds,
+                  isRecurring: true,
+                  location: sch.location,
+                  schedule: sch,
+                  scheduleIdx: schIdx
+                });
+              }
               d.setDate(d.getDate() + 7);
             }
           } else { // monthly-nth
@@ -1686,15 +1694,18 @@
             const dayOffset = (dayNum - firstOfMonth.getDay() + 7) % 7;
             const nth = new Date(year, month, 1 + dayOffset + (weekNum - 1) * 7);
             if (nth.getMonth() === month) {
-              items.push({
-                id: prog.id,
-                title: prog.title,
-                eventDate: nth.toISOString().slice(0, 10),
-                isRecurring: true,
-                location: sch.location,
-                schedule: sch,
-                scheduleIdx: schIdx
-              });
+              const ds = nth.toISOString().slice(0, 10);
+              if (!cancelledSet.has(ds)) {
+                items.push({
+                  id: prog.id,
+                  title: prog.title,
+                  eventDate: ds,
+                  isRecurring: true,
+                  location: sch.location,
+                  schedule: sch,
+                  scheduleIdx: schIdx
+                });
+              }
             }
           }
         });
