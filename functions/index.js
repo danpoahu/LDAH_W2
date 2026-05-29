@@ -11737,22 +11737,27 @@ exports.onEventCreatedLifecycle = functions
     const creatorUid = ev.createdByUid;
     const creatorName = ev.createdByName || (await _lcResolveStaffName(db, creatorUid));
 
-    // 1 Verify Display (event-wide)
+    // 1 Verify Display (event-wide, one-time — never per session)
     await _lcCreateIfMissing(db, {
       eventId, eventTitle: title, step: "verifyDisplay", sessionKey: "",
       ownerUid: creatorUid, ownerName: creatorName, dueDate
     });
 
-    // Per session: Assign Presenter (La'a) + Send Announcements (creator)
-    for (const s of sessions) {
-      const key = _lcSessionKey(s);
-      if (!key) continue;
+    // Seed setup tasks for the FIRST (earliest) date only: Assign Presenter
+    // (La'a) + Send Announcements (creator). Later dates are DEFERRED — their
+    // tasks are seeded by createDayOfAttendanceTasks on the prior date's event
+    // day, so staff never see (and can't mis-close) a future date's tasks early.
+    const firstSession = sessions.slice().sort(
+      (a, b) => _lcSessionKey(a).localeCompare(_lcSessionKey(b))
+    )[0];
+    const firstKey = _lcSessionKey(firstSession);
+    if (firstKey) {
       await _lcCreateIfMissing(db, {
-        eventId, eventTitle: title, step: "assignPresenter", sessionKey: key,
+        eventId, eventTitle: title, step: "assignPresenter", sessionKey: firstKey,
         ownerUid: LIFECYCLE_LAA_UID, ownerName: laaName, dueDate
       });
       await _lcCreateIfMissing(db, {
-        eventId, eventTitle: title, step: "sendAnnouncement", sessionKey: key,
+        eventId, eventTitle: title, step: "sendAnnouncement", sessionKey: firstKey,
         ownerUid: creatorUid, ownerName: creatorName, dueDate
       });
     }
@@ -11941,6 +11946,36 @@ exports.createDayOfAttendanceTasks = functions
       const sessions = getEventSessions(ev) || [];
       const todaySession = sessions.find(s => _lcSessionKey(s) === todayKey);
       if (!todaySession) continue;
+
+      // Deferred multi-date seeding: today is one of this event's session dates,
+      // so surface the NEXT date's setup tasks (Send Announcements + Select
+      // Presenter) to the event creator now. This is how 2nd/3rd/Nth dates get
+      // their tasks — kept hidden until the preceding session's day. Idempotent
+      // via _lcCreateIfMissing, and only the immediate next date is seeded (so a
+      // 3rd date waits for the 2nd date's day). Owner = event creator.
+      const sortedSessions = sessions.slice().sort(
+        (a, b) => _lcSessionKey(a).localeCompare(_lcSessionKey(b))
+      );
+      const nextSession = sortedSessions.find(s => _lcSessionKey(s) > todayKey);
+      if (nextSession) {
+        const nextKey = _lcSessionKey(nextSession);
+        const creatorUid  = ev.createdByUid  || "";
+        const creatorName = ev.createdByName || (await _lcResolveStaffName(db, ev.createdByUid));
+        const baseMs = new Date(todayKey + "T12:00:00-10:00").getTime();
+        const tomorrowKey = new Date(baseMs + 1 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const plus5Key    = new Date(baseMs + 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        await _lcCreateIfMissing(db, {
+          eventId: doc.id, eventTitle: ev.title || "", step: "sendAnnouncement",
+          sessionKey: nextKey, ownerUid: creatorUid, ownerName: creatorName,
+          dueDate: tomorrowKey,
+          extra: { notes: "Send the announcement first thing tomorrow (" + tomorrowKey + ")." }
+        });
+        await _lcCreateIfMissing(db, {
+          eventId: doc.id, eventTitle: ev.title || "", step: "assignPresenter",
+          sessionKey: nextKey, ownerUid: creatorUid, ownerName: creatorName,
+          dueDate: plus5Key
+        });
+      }
 
       const sessionKey = todayKey; // workflowSessionKey on the interaction = normalized dateKey
 
