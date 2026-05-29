@@ -6750,6 +6750,37 @@ async function handleEventLifecycleEmails(change, context, collectionName) {
     const db = admin.firestore();
     const eventRef = db.collection(collectionName).doc(eventId);
 
+    // Today's date key in HST — used to skip past-only signups so a
+    // recurring-program archive doesn't email already-attended registrants.
+    // (Daniel's incident 5-29: archiving Connect-Gen emailed 12 past-only.)
+    const nowHst = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
+    const todayKey = nowHst.getFullYear() + "-" + String(nowHst.getMonth()+1).padStart(2,"0") + "-" + String(nowHst.getDate()).padStart(2,"0");
+
+    function _lifecycleSignupHasUpcomingDate(sd, ev) {
+      const dates = Array.isArray(sd.selectedDates) ? sd.selectedDates :
+                    Array.isArray(sd.selectedSessions) ? sd.selectedSessions : [];
+      if (dates.length > 0) {
+        return dates.some(function(s){
+          const m = String(s).match(/(\d{4}-\d{2}-\d{2})/);
+          return m && m[1] >= todayKey;
+        });
+      }
+      // No selectedDates: fall back to the event's own date(s)
+      const evDates = Array.isArray(ev && ev.signupDates) ? ev.signupDates : [];
+      if (evDates.length > 0) {
+        return evDates.some(function(s){
+          const m = String(s).match(/(\d{4}-\d{2}-\d{2})/);
+          return m && m[1] >= todayKey;
+        });
+      }
+      if (ev && ev.eventDate) {
+        const m = String(ev.eventDate).match(/(\d{4}-\d{2}-\d{2})/);
+        if (m) return m[1] >= todayKey;
+      }
+      // Indeterminate — don't filter out (safety).
+      return true;
+    }
+
     // Safeguard: don't spam right after an announcement blast.
     if (after.announcementSent && !before.announcementSent) return;
 
@@ -6791,8 +6822,19 @@ async function handleEventLifecycleEmails(change, context, collectionName) {
       const email = (sd.email || "").trim();
       if (!email) return;
       if (sd.status === "cancelled") return;
+      // Skip past-only signups — they don't need to hear about a cancellation
+      // or reschedule that no longer affects them. (Daniel's incident 5-29:
+      // archiving a recurring program emailed 12 already-attended registrants.)
+      if ((mode === "event-cancelled" || mode === "event-rescheduled") &&
+          !_lifecycleSignupHasUpcomingDate(sd, after)) {
+        return;
+      }
       recipients.push({ id: d.id, data: sd, email });
     });
+
+    if (mode === "event-cancelled" || mode === "event-rescheduled") {
+      console.log("handleEventLifecycleEmails(" + collectionName + "/" + eventId + ") mode=" + mode + " recipients=" + recipients.length + " (past-date filtered)");
+    }
 
     if (recipients.length === 0) return;
 
@@ -6856,6 +6898,11 @@ async function handleEventLifecycleEmails(change, context, collectionName) {
     } else if (mode === "session-cancelled") {
       // For each newly cancelled date, email recipients whose selectedDates include it.
       for (const dateStr of newlyCancelledDates) {
+        const _m = String(dateStr).match(/(\d{4}-\d{2}-\d{2})/);
+        if (_m && _m[1] < todayKey) {
+          console.log("handleEventLifecycleEmails: skipping past session-cancelled date " + dateStr);
+          continue;
+        }
         for (const r of recipients) {
           const selected = Array.isArray(r.data.selectedDates) ? r.data.selectedDates.map(String) : [];
           if (selected.indexOf(String(dateStr)) === -1) continue;
