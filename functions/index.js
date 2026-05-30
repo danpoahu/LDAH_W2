@@ -6716,6 +6716,15 @@ function sleepMs(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Escapes a composite session key so it can be used as a Firestore field name.
+// Regex MUST match crEscapeSessionKey in LDAH-Internal index.html EXACTLY —
+// divergence produces silent lookup misses in the C&R skip-check below.
+// Frontend regex: /[.~\/\[\]#?*$ |]/g  (includes pipe and space, preserves en-dash)
+function crEscapeSessionKey(key) {
+  if (key == null) return "";
+  return String(key).replace(/[.~\/\[\]#?*$ |]/g, "_");
+}
+
 // Build a human-readable version of an event's one-time date for subjects/body.
 function eventDateDisplay(eventData) {
   if (!eventData) return "";
@@ -6795,10 +6804,18 @@ async function handleEventLifecycleEmails(change, context, collectionName) {
 
     const beforeCancelled = Array.isArray(before.cancelledDates) ? before.cancelledDates : [];
     const afterCancelled = Array.isArray(after.cancelledDates) ? after.cancelledDates : [];
-    const beforeSet = new Set(beforeCancelled.map(String));
+    // cancelledDates entries may be plain strings (legacy) or {date,location,venue,reason}
+    // objects (written by cmsToggleSessionCancel / crApplyDispositions). Normalize both
+    // shapes to a stable fingerprint string so Set-based diff works correctly.
+    const _cdFingerprint = (cd) => {
+      if (!cd) return "";
+      if (typeof cd === "string") return cd;
+      return [cd.date || "", cd.location || "", cd.venue || ""].join("|");
+    };
+    const beforeSet = new Set(beforeCancelled.map(_cdFingerprint));
+    // Keep the original entry object so we can reconstruct the session key later.
     const newlyCancelledDates = afterCancelled
-      .map(String)
-      .filter((d) => d && !beforeSet.has(d));
+      .filter((cd) => { const fp = _cdFingerprint(cd); return fp && !beforeSet.has(fp); });
 
     if (!justCancelled && !datesChanged && newlyCancelledDates.length === 0) return;
 
@@ -6896,18 +6913,66 @@ async function handleEventLifecycleEmails(change, context, collectionName) {
         await sleepMs(LIFECYCLE_SEND_DELAY_MS);
       }
     } else if (mode === "session-cancelled") {
-      // For each newly cancelled date, email recipients whose selectedDates include it.
-      for (const dateStr of newlyCancelledDates) {
-        const _m = String(dateStr).match(/(\d{4}-\d{2}-\d{2})/);
+      // For each newly cancelled date, email recipients whose selectedDates/selectedSessions
+      // include it. newlyCancelledDates entries may be plain strings (legacy) or
+      // {date,location,venue,reason} objects (current CMS + C&R modal format).
+      for (const cdEntry of newlyCancelledDates) {
+        // Normalise: extract the ISO date key and a human-readable label from either shape.
+        const _cdIsObj = cdEntry && typeof cdEntry === "object";
+        const _cdDateKey = _cdIsObj ? (cdEntry.date || "") : String(cdEntry || "");
+        const _cdLabel   = _cdIsObj
+          ? [cdEntry.date, cdEntry.location, cdEntry.venue].filter(Boolean).join(" – ")
+          : String(cdEntry || "");
+
+        const _m = _cdDateKey.match(/(\d{4}-\d{2}-\d{2})/);
         if (_m && _m[1] < todayKey) {
-          console.log("handleEventLifecycleEmails: skipping past session-cancelled date " + dateStr);
+          console.log("handleEventLifecycleEmails: skipping past session-cancelled date " + _cdDateKey);
           continue;
         }
-        for (const r of recipients) {
-          const selected = Array.isArray(r.data.selectedDates) ? r.data.selectedDates.map(String) : [];
-          if (selected.indexOf(String(dateStr)) === -1) continue;
+        if (!_cdDateKey) continue;
 
-          const markerId = r.id + "-session-cancelled-" + String(dateStr).replace(/[^0-9A-Za-z-]/g, "_");
+        for (const r of recipients) {
+          // Match against both selectedDates (bare strings / Learning Labs) and
+          // selectedSessions (composite pipe-keys / Connect-Gen). For object-format
+          // cancelledDates, a session matches if:
+          //   • selectedDates contains the bare date string, OR
+          //   • a selectedSessions entry starts with "DATE|" (and location/venue match
+          //     when present — match by date prefix is sufficient for the skip-check).
+          const _selDates = Array.isArray(r.data.selectedDates) ? r.data.selectedDates.map(String) : [];
+          const _selSess  = Array.isArray(r.data.selectedSessions) ? r.data.selectedSessions.map(String) : [];
+          const _dateMatch = _selDates.indexOf(_cdDateKey) !== -1;
+          // A selectedSessions entry covers this date if it starts with "DATE|".
+          const _sessMatch = _selSess.some((sk) => {
+            if (!sk.startsWith(_cdDateKey + "|")) return false;
+            // If the cancelledDates entry has location info, verify it appears in the key.
+            if (_cdIsObj && cdEntry.location && sk.indexOf(cdEntry.location) === -1) return false;
+            return true;
+          });
+          if (!_dateMatch && !_sessMatch) continue;
+
+          // Cancel & Reschedule modal skip-check (Task 8):
+          // crApplyDispositions (LDAH-Int Task 7) writes rescheduledFrom[escapedKey] or
+          // cancelledFromSession[escapedKey] on each signup BEFORE writing the parent
+          // cancelledDates entry. The escaped key starts with crEscapeSessionKey(date + "|")
+          // = "DATE_" (pipe → underscore). Check any marker key whose first 10 chars match
+          // _cdDateKey; that's sufficient because ISO dates never contain underscores.
+          const _crDatePrefix = _cdDateKey + "_"; // e.g. "2026-06-13_"
+          const _handledByModal = (markerMap) => {
+            if (!markerMap || typeof markerMap !== "object") return false;
+            return Object.keys(markerMap).some((k) => k.startsWith(_crDatePrefix));
+          };
+          if (
+            _handledByModal(r.data.rescheduledFrom) ||
+            _handledByModal(r.data.cancelledFromSession)
+          ) {
+            console.log(
+              "handleEventLifecycleEmails: skipping signup " + r.id +
+              " for date " + _cdDateKey + " — handled by Cancel & Reschedule modal"
+            );
+            continue;
+          }
+
+          const markerId = r.id + "-session-cancelled-" + _cdDateKey.replace(/[^0-9A-Za-z-]/g, "_");
           try {
             const markerSnap = await markerColl.doc(markerId).get();
             if (markerSnap.exists) continue;
@@ -6916,10 +6981,10 @@ async function handleEventLifecycleEmails(change, context, collectionName) {
           const html = buildSessionCancelledEmailHtml({
             name: r.data.name || r.data.displayName || "",
             eventTitle,
-            sessionDate: dateStr,
+            sessionDate: _cdLabel,
             reason,
           });
-          const subject = "Session cancelled on " + dateStr + " — " + eventTitle;
+          const subject = "Session cancelled on " + _cdLabel + " — " + eventTitle;
 
           try {
             await sendEmailViaResend({
@@ -6935,7 +7000,7 @@ async function handleEventLifecycleEmails(change, context, collectionName) {
             await markerColl.doc(markerId).set({
               signupId: r.id,
               kind: "session-cancelled",
-              sessionDate: dateStr,
+              sessionDate: _cdLabel,
               email: r.email,
               sentAt: admin.firestore.FieldValue.serverTimestamp(),
             });
