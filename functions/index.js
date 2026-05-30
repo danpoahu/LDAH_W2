@@ -6725,6 +6725,26 @@ function crEscapeSessionKey(key) {
   return String(key).replace(/[.~\/\[\]#?*$ |]/g, "_");
 }
 
+// Returns true if markerKey (an escaped composite session key written by crApplyDispositions)
+// corresponds to the given cancelledEntry ({date, location?, venue?}).
+// The key MUST start with escapedDate. If cancelledEntry has no location, any key starting
+// with escapedDate matches (legacy date-wide cancel). Otherwise location AND (if present)
+// venue must also appear anywhere in the key.
+function _markerKeyMatchesCancelledEntry(markerKey, cancelledEntry) {
+  if (!markerKey || !cancelledEntry || !cancelledEntry.date) return false;
+  var escapedDate = crEscapeSessionKey(cancelledEntry.date);
+  if (markerKey.indexOf(escapedDate) !== 0) return false; // must START with the date
+  // If the cancelled entry has no location, legacy date-wide cancel — match by date only.
+  if (!cancelledEntry.location) return true;
+  var escapedLoc = crEscapeSessionKey(cancelledEntry.location);
+  if (markerKey.indexOf(escapedLoc) === -1) return false;
+  if (cancelledEntry.venue) {
+    var escapedVenue = crEscapeSessionKey(cancelledEntry.venue);
+    if (markerKey.indexOf(escapedVenue) === -1) return false;
+  }
+  return true;
+}
+
 // Build a human-readable version of an event's one-time date for subjects/body.
 function eventDateDisplay(eventData) {
   if (!eventData) return "";
@@ -6950,24 +6970,36 @@ async function handleEventLifecycleEmails(change, context, collectionName) {
           });
           if (!_dateMatch && !_sessMatch) continue;
 
-          // Cancel & Reschedule modal skip-check (Task 8):
+          // Cancel & Reschedule modal skip-check (Task 8, tightened):
           // crApplyDispositions (LDAH-Int Task 7) writes rescheduledFrom[escapedKey] or
           // cancelledFromSession[escapedKey] on each signup BEFORE writing the parent
-          // cancelledDates entry. The escaped key starts with crEscapeSessionKey(date + "|")
-          // = "DATE_" (pipe → underscore). Check any marker key whose first 10 chars match
-          // _cdDateKey; that's sufficient because ISO dates never contain underscores.
-          const _crDatePrefix = _cdDateKey + "_"; // e.g. "2026-06-13_"
-          const _handledByModal = (markerMap) => {
-            if (!markerMap || typeof markerMap !== "object") return false;
-            return Object.keys(markerMap).some((k) => k.startsWith(_crDatePrefix));
-          };
-          if (
-            _handledByModal(r.data.rescheduledFrom) ||
-            _handledByModal(r.data.cancelledFromSession)
-          ) {
+          // cancelledDates entry. Match on date + location + venue so that a rescheduled
+          // Pearl City slot does NOT suppress a Hilo cancellation email on the same date.
+          var _wasHandled = false;
+          if (r.data.rescheduledFrom && typeof r.data.rescheduledFrom === "object") {
+            var rfKeys = Object.keys(r.data.rescheduledFrom);
+            for (var rfi = 0; rfi < rfKeys.length; rfi++) {
+              if (_markerKeyMatchesCancelledEntry(rfKeys[rfi], _cdIsObj ? cdEntry : { date: _cdDateKey })) {
+                _wasHandled = true;
+                break;
+              }
+            }
+          }
+          if (!_wasHandled && r.data.cancelledFromSession && typeof r.data.cancelledFromSession === "object") {
+            var cfsKeys = Object.keys(r.data.cancelledFromSession);
+            for (var ci = 0; ci < cfsKeys.length; ci++) {
+              if (_markerKeyMatchesCancelledEntry(cfsKeys[ci], _cdIsObj ? cdEntry : { date: _cdDateKey })) {
+                _wasHandled = true;
+                break;
+              }
+            }
+          }
+          if (_wasHandled) {
             console.log(
               "handleEventLifecycleEmails: skipping signup " + r.id +
-              " for date " + _cdDateKey + " — handled by Cancel & Reschedule modal"
+              " for date " + _cdDateKey +
+              (_cdIsObj && cdEntry.location ? " / " + cdEntry.location : "") +
+              " — handled by Cancel & Reschedule modal"
             );
             continue;
           }
