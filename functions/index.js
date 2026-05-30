@@ -2604,6 +2604,126 @@ exports.onRecurringEventSignupUpdated = functions
     return null;
   });
 
+// ── Cancel & Reschedule Modal: per-signup cancellation email ──────
+// Fires when crApplyDispositions (LDAH-Int Task 7) writes a new entry to
+// the cancelledFromSession map on a signup in the flat `signups` collection.
+// The flat collection is the write target for the C&R modal; it is distinct
+// from the event-subcollection signups that onEventSignupUpdated watches.
+//
+// Idempotency: after sending we write cancellationEmailedAt back to the
+// same map entry. On re-trigger (CF retry or concurrent invocations) we
+// check that field and skip — so a retry storm sends at most one email
+// per escapedKey.
+
+async function handleCancelledFromSessionEmails(change, context) {
+  try {
+    const before = change.before.data() || {};
+    const after = change.after.data() || {};
+
+    const toEmail = (after.email || "").trim();
+    if (!toEmail) return null;
+
+    const beforeMap = (before.cancelledFromSession && typeof before.cancelledFromSession === "object")
+      ? before.cancelledFromSession : {};
+    const afterMap = (after.cancelledFromSession && typeof after.cancelledFromSession === "object")
+      ? after.cancelledFromSession : {};
+
+    // Identify keys that are newly present (not in beforeMap).
+    const newKeys = Object.keys(afterMap).filter(function(k) { return !(k in beforeMap); });
+    if (newKeys.length === 0) return null;
+
+    const db = admin.firestore();
+    const signupId = context.params.signupId;
+    const signupRef = change.after.ref;
+    const fromAddr = lifecycleFromAddress();
+    const signupName = after.name || after.displayName || "";
+    const eventTitle = after.eventTitle || "your LDAH program";
+
+    for (const escapedKey of newKeys) {
+      const entry = afterMap[escapedKey];
+      if (!entry || !entry.fromKey) continue;
+
+      // Idempotency: skip if we already sent for this entry (handles CF retries).
+      if (entry.cancellationEmailedAt) continue;
+
+      // Derive a human-readable session date from the composite key
+      // format: "YYYY-MM-DD|Loc – Venue|time" (pipes and spaces escaped to _
+      // in the key, but fromKey retains the original composite form).
+      const fromKey = String(entry.fromKey);
+      let sessionDateDisplay = "";
+      try {
+        // Extract the date prefix from the original composite key (before first "|").
+        const datePart = fromKey.split("|")[0].trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+          const d = new Date(datePart + "T00:00:00");
+          if (!isNaN(d.getTime())) {
+            sessionDateDisplay = d.toLocaleDateString("en-US", {
+              weekday: "long", month: "long", day: "numeric", year: "numeric",
+              timeZone: "Pacific/Honolulu",
+            });
+          } else {
+            sessionDateDisplay = datePart;
+          }
+        } else {
+          sessionDateDisplay = datePart || fromKey;
+        }
+      } catch (_) {
+        sessionDateDisplay = fromKey;
+      }
+
+      if (!sessionDateDisplay) {
+        console.warn("onSignupCancelledFromSession: could not parse session date from fromKey=" + fromKey + " (signupId=" + signupId + "); skipping email");
+        continue;
+      }
+
+      const html = buildSessionCancelledEmailHtml({
+        name: signupName,
+        eventTitle: eventTitle,
+        sessionDate: sessionDateDisplay,
+        reason: "a session cancellation",
+      });
+      const subject = "Session cancelled on " + sessionDateDisplay + " — " + eventTitle;
+
+      try {
+        await sendEmailViaResend({
+          from: fromAddr,
+          to: toEmail,
+          subject: subject,
+          html: html,
+          type: "session-cancelled-cr-modal",
+          relatedSignupId: signupId,
+          recipientName: signupName,
+        });
+
+        // Write idempotency marker back to the entry. Use Timestamp.now() per
+        // [[feedback-firestore-array-timestamp]]: serverTimestamp() is not allowed
+        // inside map values. Dotted-path update avoids touching sibling keys.
+        await signupRef.update({
+          ["cancelledFromSession." + escapedKey + ".cancellationEmailedAt"]: admin.firestore.Timestamp.now(),
+        });
+        console.log("onSignupCancelledFromSession: sent session-cancelled email to " + toEmail + " for key=" + escapedKey + " signupId=" + signupId);
+      } catch (sendErr) {
+        console.error("onSignupCancelledFromSession: send failed (signupId=" + signupId + " key=" + escapedKey + "):", sendErr.message);
+        // Continue to next key — don't let one failure abort the batch.
+      }
+    }
+  } catch (err) {
+    console.error("onSignupCancelledFromSession error (signupId=" + context.params.signupId + "):", err.message);
+  }
+  return null;
+}
+
+// crApplyDispositions (LDAH-Int) writes to the flat `signups` collection —
+// a separate root collection from the subcollections under events/{id}/signups.
+// This trigger watches only that flat collection; it does NOT fire for normal
+// signup mutations (those hit onEventSignupUpdated / onRecurringEventSignupUpdated).
+exports.onSignupCancelledFromSession = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 10, secrets: EMAIL_SECRETS })
+  .firestore.document("signups/{signupId}")
+  .onUpdate(async (change, context) => {
+    return handleCancelledFromSessionEmails(change, context);
+  });
+
 // ── Contact → Signup Sync ────────────────────────────────────────
 // When a contact's name, email, or phone changes, propagate the new
 // value to every signup doc that has a matching linkedContactId so
