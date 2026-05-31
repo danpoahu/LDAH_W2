@@ -11549,7 +11549,11 @@ exports.sendNativeHawaiianSurveyReport = functions
   .pubsub.schedule("0 8 * * *")
   .timeZone("Pacific/Honolulu")
   .onRun(async () => {
-    return await _nhBuildAndSendReport({ send: true });
+    // DISABLED 2026-05-31 per Rosie's request — stop daily aggregate emails.
+    // To re-enable, remove this early return and restore the line below.
+    console.log("sendNativeHawaiianSurveyReport: disabled, skipping run.");
+    return null;
+    // return await _nhBuildAndSendReport({ send: true });
   });
 
 // Extracted builder so a preview script can call it without sending.

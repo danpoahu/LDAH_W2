@@ -23,7 +23,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="nh-survey-modal.css">
+    <!-- nh-survey-modal.css removed from auto-load 2026-05-31 per Rosie's request — survey disabled -->
 
     <style>
     :root {
@@ -769,47 +769,9 @@
 <link rel="stylesheet" href="logo-story.css">
 <script src="logo-story.js"></script>
 <script src="analytics-tracker.js"></script>
-<script src="nh-survey-modal.js" defer></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // ?survey=nh deep-link: bypass the dismissal flag and open the modal
-    // manually, mirroring the footer link's polling pattern. If the param is
-    // present, skip the normal init() auto-pop so the modal doesn't double-open.
-    var deepLinkSurvey = false;
-    try {
-        deepLinkSurvey = new URLSearchParams(window.location.search).get('survey') === 'nh';
-    } catch (e) {}
-
-    if (deepLinkSurvey) {
-        // Strip the param so a refresh doesn't re-trigger.
-        try {
-            var url = new URL(window.location.href);
-            url.searchParams.delete('survey');
-            history.replaceState({}, '', url.toString());
-        } catch (e) {}
-        var tries = 0;
-        (function pollOpen() {
-            if (window.NHSurveyModal && typeof window.NHSurveyModal.openManual === 'function') {
-                window.NHSurveyModal.openManual();
-                return;
-            }
-            if (++tries < 40) setTimeout(pollOpen, 100);
-        })();
-        return;
-    }
-
-    if (window.NHSurveyModal && typeof window.NHSurveyModal.init === 'function') {
-        window.NHSurveyModal.init();
-    } else {
-        // nh-survey-modal.js loaded with defer; wait until parsed
-        window.addEventListener('load', function() {
-            if (window.NHSurveyModal && typeof window.NHSurveyModal.init === 'function') {
-                window.NHSurveyModal.init();
-            }
-        });
-    }
-});
-</script>
+<!-- nh-survey-modal.js script, ?survey=nh deep-link handler, and auto-pop init
+     all removed 2026-05-31 per Rosie's request — NH survey disabled.
+     Modal files (nh-survey-modal.js/.html/.css) retained in repo for easy restore. -->
 <script>
 // Home page logo: big at top, shrinks into nav on scroll
 (function() {
