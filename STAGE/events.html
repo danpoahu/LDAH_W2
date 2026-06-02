@@ -1028,8 +1028,8 @@
             
             try {
                 const [headerResponse, footerResponse] = await Promise.all([
-                    fetch('header.html?v=62.3'),
-                    fetch('footer.html?v=62.3')
+                    fetch('header.html?v=62.3.1'),
+                    fetch('footer.html?v=62.3.1')
                 ]);
                 
                 if (headerResponse.ok && footerResponse.ok) {
@@ -2040,7 +2040,13 @@
         ? ''
         : eventDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
-      document.getElementById('eventDetailTitle').textContent = isEventRequest ? 'Community Event Request' : event.title;
+      // Use date-specific title when this occurrence has a matching signupDates
+      // entry (Learning Labs etc.), matching the calendar pill format.
+      var _detailTitle = event.title;
+      if (!isEventRequest && event.displayDate && typeof reportEventPrefix === 'function') {
+        _detailTitle = reportEventPrefix(event.title) + ': For ' + event.displayDate;
+      }
+      document.getElementById('eventDetailTitle').textContent = isEventRequest ? 'Community Event Request' : _detailTitle;
       
       let bodyHtml = '';
 
