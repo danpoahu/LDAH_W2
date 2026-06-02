@@ -111,7 +111,7 @@ function buildParentTalkCafeConfirmationEmailHtml({ name, eventTitle, datesPhras
         245 N. Kukui St., Suite 205, Honolulu, HI 96817
       </p>
       <p style="margin:0;font-size:12px;color:#999999;">
-        Phone: (808) 536-2280
+        Phone: (808) 536-9684
       </p>
     </td>
   </tr>

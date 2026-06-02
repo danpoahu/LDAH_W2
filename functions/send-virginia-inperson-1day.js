@@ -101,7 +101,7 @@ function buildInPersonReminderHtml({ recipientName, eventTitle, dayName, dateFor
   <tr><td style="background-color:#f0f0f0;padding:24px 32px;text-align:center;border-top:1px solid #dddddd;">
     <p style="margin:0 0 4px;font-size:13px;color:#777777;font-weight:bold;">Leadership in Disabilities &amp; Achievement of Hawai'i</p>
     <p style="margin:0 0 4px;font-size:12px;color:#999999;">245 N. Kukui St., Suite 205, Honolulu, HI 96817</p>
-    <p style="margin:0 0 4px;font-size:12px;color:#999999;">Phone: (808) 536-2280</p>
+    <p style="margin:0 0 4px;font-size:12px;color:#999999;">Phone: (808) 536-9684</p>
     <p style="margin:0;font-size:12px;color:#999999;">Email: <a href="mailto:rrowe@ldahawaii.org" style="color:#999999;">rrowe@ldahawaii.org</a></p>
   </td></tr>
 </table>
