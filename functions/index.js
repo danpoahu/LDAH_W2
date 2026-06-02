@@ -12047,14 +12047,21 @@ function _lcSessionKey(s) {
 }
 
 function _lcBuildInteractionDoc(opts) {
-  // opts: { eventId, eventTitle, step, sessionKey, ownerUid, ownerName, dueDate, extra }
+  // opts: { eventId, eventTitle, step, sessionKey, ownerUid, ownerName, dueDate,
+  //         collection, sessionLabel, extra }
   const c = LIFECYCLE_CHANNELS[opts.step];
-  const suffix = opts.sessionKey ? " (" + opts.sessionKey + ")" : "";
+  // sessionLabel is a human-friendly session descriptor (e.g. "May 28 (Oahu)")
+  // shown in the name/summary; sessionKey is the canonical key stored on
+  // workflowSessionKey. For recurring programs sessionKey is the composite key
+  // ("DATE|Loc – Venue|time") — accurate but ugly — so prefer the label for
+  // display while keeping the composite key for matching.
+  const display = opts.sessionLabel || opts.sessionKey || "";
+  const suffix = display ? " (" + display + ")" : "";
   const doc = {
     channel: c.channel,
     interactionType: c.type,
     contactId: "",
-    contactName: (opts.eventTitle || "(untitled event)") + (opts.sessionKey ? " — " + opts.sessionKey : ""),
+    contactName: (opts.eventTitle || "(untitled event)") + (display ? " — " + display : ""),
     contactType: "",
     grantProgram: "",
     summary: c.type + " for: " + (opts.eventTitle || "") + suffix,
@@ -12067,7 +12074,7 @@ function _lcBuildInteractionDoc(opts) {
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     workflowEventId: opts.eventId,
-    workflowEventCollection: "events",
+    workflowEventCollection: opts.collection || "events",
     workflowStep: opts.step,
     workflowSessionKey: opts.sessionKey || ""
   };
@@ -12083,6 +12090,143 @@ async function _lcCreateIfMissing(db, opts) {
     .limit(1).get();
   if (!q.empty) return null;
   return await db.collection("interactions").add(_lcBuildInteractionDoc(opts));
+}
+
+// ===========================================================================
+// Recurring-program lifecycle helpers
+// ---------------------------------------------------------------------------
+// Recurring programs (Connect-Gen, etc.) have no per-session "event created"
+// hook like one-time events. Their sessions are computed from schedules and
+// identified by a COMPOSITE key ("DATE|Loc – Venue|time"); signups, attendance,
+// and summaries are all keyed by that composite. These helpers mirror the
+// LDAH-Int client's gate (crGetAffectedSignups / crIsSessionCancelled) so the
+// backend's notion of "this session has signups" matches the app exactly.
+// ===========================================================================
+
+// Active signup statuses that count toward "this session has signups".
+const _LC_ACTIVE_SIGNUP_STATUSES = ["confirmed", "pending", "new", "confirmed-virtual", "confirmed-in-person"];
+const _LC_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function _lcEscapeSessionKey(key) {
+  return String(key == null ? "" : key).replace(/[.~/[\]#?*$ |]/g, "_");
+}
+
+// Program-level cancellation for a composite key. No location on the
+// cancelledDates entry = legacy date-wide cancellation; else the location must
+// appear in the key. Mirrors crIsSessionCancelled.
+function _lcSessionCancelled(ev, candidateKey) {
+  const cds = ev.cancelledDates;
+  if (!Array.isArray(cds)) return false;
+  const datePrefix = String(candidateKey).split("|")[0];
+  for (const cd of cds) {
+    if (!cd || !cd.date) continue;
+    if (cd.date !== datePrefix) continue;
+    if (!cd.location) return true;
+    if (String(candidateKey).indexOf(cd.location) !== -1) return true;
+  }
+  return false;
+}
+
+// Does this signup actively count for the given composite session key?
+// Mirrors the per-signup test inside crGetAffectedSignups.
+function _lcSignupActiveForSession(s, sessionKey) {
+  if (!s || _LC_ACTIVE_SIGNUP_STATUSES.indexOf(s.status) === -1) return false;
+  if (s.archived === true) return false;
+  const sessions = s.selectedSessions || s.selectedDates || [];
+  if (!Array.isArray(sessions) || sessions.indexOf(sessionKey) === -1) return false;
+  const ov = s.dateStatusOverrides && s.dateStatusOverrides[sessionKey];
+  if (ov === "cancelled" || ov === "no-show") return false;
+  if (s.cancelledFromSession && s.cancelledFromSession[_lcEscapeSessionKey(sessionKey)]) return false;
+  return true;
+}
+
+// "DATE|Loc – Venue|time" -> "May 28 (Oahu)" for friendly task names.
+function _lcSessionLabel(compositeKey) {
+  const parts = String(compositeKey).split("|");
+  const dateStr = parts[0] || "";
+  const location = (parts[1] || "").split(" – ")[0].trim();
+  let dateLabel = dateStr;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (m) dateLabel = _LC_MONTHS[parseInt(m[2], 10) - 1] + " " + parseInt(m[3], 10);
+  return dateLabel + (location ? " (" + location + ")" : "");
+}
+
+// Whole days from todayKey (HST) to the session's date (composite key prefix).
+function _lcDaysUntilSession(compositeKey, todayKey) {
+  const dateStr = String(compositeKey).split("|")[0];
+  const a = new Date(todayKey + "T12:00:00-10:00").getTime();
+  const b = new Date(dateStr + "T12:00:00-10:00").getTime();
+  return Math.round((b - a) / (24 * 60 * 60 * 1000));
+}
+
+// Idempotent catch-up: ensure the right tasks exist for one recurring session,
+// given how many days out it is. Shared by the daily cron and the new-signup
+// trigger. Lead windows:
+//   Assign Presenter : 0 <= D <= 5  -> La'a (due now, before prep)
+//   Present Event    : 0 <= D <= 3  -> presenter (fallback La'a), follow-up day after
+//   Take Attendance  : D == 0       -> presenter (fallback La'a)
+// Event Summary is NOT created here — it chains from takeAttendance close.
+// Returns the number of tasks created.
+async function _lcEnsureRecurringSessionTasks(db, eventId, ev, compositeKey, todayKey, laaName) {
+  const D = _lcDaysUntilSession(compositeKey, todayKey);
+  // !(0<=D<=5) is NaN-safe: malformed keys (no valid YYYY-MM-DD prefix, e.g. a
+  // legacy "Thursday|09:00-11:00") yield NaN and are skipped, never crashing on
+  // a later Invalid-Date computation.
+  if (!(D >= 0 && D <= 5)) return 0;
+  if (_lcSessionCancelled(ev, compositeKey)) return 0;
+
+  const title = ev.title || "Connect-Gen";
+  const label = _lcSessionLabel(compositeKey);
+  const presenterSrc = (ev.sessionSummaries && ev.sessionSummaries[compositeKey]) || {};
+  const dateStr = String(compositeKey).split("|")[0];
+  const baseMs = new Date(dateStr + "T12:00:00-10:00").getTime();
+  const dayAfterKey = new Date(baseMs + 1 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const common = { eventId, eventTitle: title, sessionKey: compositeKey, sessionLabel: label, collection: "recurringEvents" };
+
+  let created = 0;
+  if (D <= 5) {
+    const r = await _lcCreateIfMissing(db, Object.assign({}, common, {
+      step: "assignPresenter", ownerUid: LIFECYCLE_LAA_UID, ownerName: laaName, dueDate: todayKey
+    }));
+    if (r) created++;
+  }
+  if (D <= 3) {
+    const r = await _lcCreateIfMissing(db, Object.assign({}, common, {
+      step: "presenterPrep",
+      ownerUid: presenterSrc.presenterUid || LIFECYCLE_LAA_UID,
+      ownerName: presenterSrc.presenter || laaName,
+      dueDate: dayAfterKey
+    }));
+    if (r) created++;
+  }
+  if (D === 0) {
+    const r = await _lcCreateIfMissing(db, Object.assign({}, common, {
+      step: "takeAttendance",
+      ownerUid: presenterSrc.presenterUid || LIFECYCLE_LAA_UID,
+      ownerName: presenterSrc.presenter || laaName,
+      dueDate: dateStr
+    }));
+    if (r) created++;
+  }
+  return created;
+}
+
+// Distinct composite session keys (today .. +5 days) that have >=1 active
+// signup, for one recurring program.
+async function _lcRecurringSessionsWithSignups(db, eventId, todayKey) {
+  const sus = await db.collection("recurringEvents").doc(eventId).collection("signups").get();
+  const keys = new Set();
+  sus.forEach(doc => {
+    const s = doc.data() || {};
+    const sessions = s.selectedSessions || s.selectedDates || [];
+    if (!Array.isArray(sessions)) return;
+    sessions.forEach(k => {
+      const D = _lcDaysUntilSession(k, todayKey);
+      if (!(D >= 0 && D <= 5)) return; // NaN-safe: skips malformed/undated keys
+      if (_lcSignupActiveForSession(s, k)) keys.add(k);
+    });
+  });
+  return Array.from(keys);
 }
 
 exports.onEventCreatedLifecycle = functions
@@ -12159,6 +12303,8 @@ exports.onInteractionUpdatedLifecycle = functions
     if (!eventId) return null;
     const step = after.workflowStep;
     const sessionKey = after.workflowSessionKey || "";
+    const collection = after.workflowEventCollection || "events";
+    const isRecurring = collection === "recurringEvents";
 
     // --- assignPresenter closed: write presenter into Event Summary's
     //     storage (unified field, also feeds the Event Attendance Report).
@@ -12175,9 +12321,26 @@ exports.onInteractionUpdatedLifecycle = functions
         console.warn("assignPresenter closed without presenter; re-opened", change.after.id);
         return null;
       }
-      const evSnap = await db.collection("events").doc(eventId).get();
+      const evSnap = await db.collection(collection).doc(eventId).get();
       if (!evSnap.exists) return null;
       const ev = evSnap.data() || {};
+
+      if (isRecurring) {
+        // Recurring: sessionSummaries is keyed by the composite session key,
+        // which IS the workflow sessionKey. Read-modify-write to preserve the
+        // session's other fields (and avoid dotted-path issues with the key).
+        const summaryKey = sessionKey;
+        const existing = ev.sessionSummaries || {};
+        const entry = existing[summaryKey] || {};
+        await evSnap.ref.update({
+          sessionSummaries: Object.assign({}, existing, {
+            [summaryKey]: Object.assign({}, entry, { presenter: name, presenterUid: uid })
+          }),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        return null;
+      }
+
       const sessions = getEventSessions(ev) || [];
       const isSingleSession = sessions.length === 1;
 
@@ -12222,34 +12385,46 @@ exports.onInteractionUpdatedLifecycle = functions
         .limit(1).get();
       if (!existing.empty) return null;
 
-      const evSnap = await db.collection("events").doc(eventId).get();
+      const evSnap = await db.collection(collection).doc(eventId).get();
       if (!evSnap.exists) return null;
       const ev = evSnap.data() || {};
-      const sessions = getEventSessions(ev) || [];
-      const isSingleSession = sessions.length === 1;
-      let presenterSrc;
-      if (isSingleSession) {
-        presenterSrc = ev.summary || {};
-      } else {
-        // sessionSummaries is keyed by the session's rawString (see assignPresenter
-        // branch); map the workflow sessionKey -> rawString.
-        const matchingSession = sessions.find(s => _lcSessionKey(s) === sessionKey);
-        const summaryKey = (matchingSession && matchingSession.rawString) || sessionKey;
-        presenterSrc = (ev.sessionSummaries && ev.sessionSummaries[summaryKey]) || {};
-      }
-      const ownerUid  = presenterSrc.presenterUid || ev.createdByUid  || "";
-      const ownerName = presenterSrc.presenter    || ev.createdByName || "";
 
-      // Due = sessionKey (YYYY-MM-DD) + 5 days, in HST. Five days (not the
-      // original ten) keeps the Event Summary follow-up open long enough for
-      // participant feedback to arrive, but still chases the paperwork promptly.
-      const sd = new Date(sessionKey + "T12:00:00-10:00");
+      // Resolve the session's presenter + a human label + the date the +5-day
+      // follow-up is measured from. Recurring keys sessionSummaries by the
+      // composite key (= sessionKey) and the date is its prefix; one-time events
+      // use summary / rawString-keyed sessionSummaries and a YYYY-MM-DD key.
+      let presenterSrc, sessionLabel = null, dueBaseDateStr;
+      if (isRecurring) {
+        presenterSrc = (ev.sessionSummaries && ev.sessionSummaries[sessionKey]) || {};
+        sessionLabel = _lcSessionLabel(sessionKey);
+        dueBaseDateStr = String(sessionKey).split("|")[0];
+      } else {
+        const sessions = getEventSessions(ev) || [];
+        if (sessions.length === 1) {
+          presenterSrc = ev.summary || {};
+        } else {
+          const matchingSession = sessions.find(s => _lcSessionKey(s) === sessionKey);
+          const summaryKey = (matchingSession && matchingSession.rawString) || sessionKey;
+          presenterSrc = (ev.sessionSummaries && ev.sessionSummaries[summaryKey]) || {};
+        }
+        dueBaseDateStr = sessionKey;
+      }
+      let ownerUid  = presenterSrc.presenterUid || "";
+      let ownerName = presenterSrc.presenter    || "";
+      if (!ownerUid) {
+        if (isRecurring) { ownerUid = LIFECYCLE_LAA_UID; ownerName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID); }
+        else { ownerUid = ev.createdByUid || ""; ownerName = ev.createdByName || ""; }
+      }
+
+      // Due = session date + 5 days, in HST. Five days keeps the Event Summary
+      // follow-up open long enough for participant feedback to arrive.
+      const sd = new Date(dueBaseDateStr + "T12:00:00-10:00");
       const due = new Date(sd.getTime() + 5 * 24 * 60 * 60 * 1000);
       const dueIso = due.toISOString().slice(0, 10);
 
       await db.collection("interactions").add(_lcBuildInteractionDoc({
         eventId, eventTitle: ev.title || "", step: "eventSummary",
-        sessionKey, ownerUid, ownerName, dueDate: dueIso
+        sessionKey, ownerUid, ownerName, dueDate: dueIso, collection, sessionLabel
       }));
       return null;
     }
@@ -12257,6 +12432,7 @@ exports.onInteractionUpdatedLifecycle = functions
     // --- eventSummary closed: flip event to complete if every session's
     //     eventSummary interaction is closed.
     if (step === "eventSummary") {
+      if (isRecurring) return null; // recurring programs run indefinitely — no "complete" state
       const evSnap = await db.collection("events").doc(eventId).get();
       if (!evSnap.exists) return null;
       const ev = evSnap.data() || {};
@@ -12471,6 +12647,84 @@ exports.createPresenterPrepTasks = functions
       if (res) created++;
     }
     console.log("createPresenterPrepTasks: target", targetKey, "created", created, "tasks");
+    return null;
+  });
+
+// ----------------------------------------------------------------------------
+// createRecurringLifecycleTasks — daily 5 AM HST.
+// Recurring programs (Connect-Gen) have no per-session "event created" hook, so
+// this scans each active recurring program for upcoming sessions (today .. +5
+// days) that have active signups and ensures the right lifecycle tasks exist
+// for each — idempotent catch-up via _lcEnsureRecurringSessionTasks:
+//   Assign Presenter (<=5d, La'a), Present Event prep (<=3d, presenter/La'a),
+//   Take Attendance (day-of, presenter/La'a). Event Summary chains from the
+//   takeAttendance close. Sessions are identified by composite keys taken
+//   straight from the signups, so the gate + keys always match the app.
+// ----------------------------------------------------------------------------
+exports.createRecurringLifecycleTasks = functions
+  .runWith({ timeoutSeconds: 540, maxInstances: 1 })
+  .pubsub.schedule("0 5 * * *").timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const nowHst = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
+    const todayKey = nowHst.getFullYear()
+      + "-" + String(nowHst.getMonth() + 1).padStart(2, "0")
+      + "-" + String(nowHst.getDate()).padStart(2, "0");
+    const laaName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID);
+
+    const progs = await db.collection("recurringEvents").get();
+    let created = 0, scanned = 0;
+    for (const doc of progs.docs) {
+      const ev = doc.data() || {};
+      if (ev.archived === true || ev.active === false) continue;
+      scanned++;
+      const keys = await _lcRecurringSessionsWithSignups(db, doc.id, todayKey);
+      for (const k of keys) {
+        created += await _lcEnsureRecurringSessionTasks(db, doc.id, ev, k, todayKey, laaName);
+      }
+    }
+    console.log("createRecurringLifecycleTasks:", todayKey, "scanned", scanned, "programs, created", created, "tasks");
+    return null;
+  });
+
+// ----------------------------------------------------------------------------
+// onRecurringSignupCreatedLifecycle — fires the instant a recurring-program
+// signup is created. For each selected session that is imminent (today .. +5d)
+// and active, ensure the lifecycle tasks exist now — closing the gap the
+// once-a-day cron can't for true last-minute (day-before / same-day) signups.
+// ----------------------------------------------------------------------------
+exports.onRecurringSignupCreatedLifecycle = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 10 })
+  .firestore.document("recurringEvents/{eventId}/signups/{signupId}")
+  .onCreate(async (snap, context) => {
+    const db = admin.firestore();
+    const s = snap.data() || {};
+    const eventId = context.params.eventId;
+    const sessions = s.selectedSessions || s.selectedDates || [];
+    if (!Array.isArray(sessions) || sessions.length === 0) return null;
+
+    const nowHst = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
+    const todayKey = nowHst.getFullYear()
+      + "-" + String(nowHst.getMonth() + 1).padStart(2, "0")
+      + "-" + String(nowHst.getDate()).padStart(2, "0");
+
+    const imminent = sessions.filter(k => {
+      const D = _lcDaysUntilSession(k, todayKey);
+      return D >= 0 && D <= 5 && _lcSignupActiveForSession(s, k);
+    });
+    if (imminent.length === 0) return null;
+
+    const evSnap = await db.collection("recurringEvents").doc(eventId).get();
+    if (!evSnap.exists) return null;
+    const ev = evSnap.data() || {};
+    if (ev.archived === true) return null;
+    const laaName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID);
+
+    let created = 0;
+    for (const k of imminent) {
+      created += await _lcEnsureRecurringSessionTasks(db, eventId, ev, k, todayKey, laaName);
+    }
+    if (created) console.log("onRecurringSignupCreatedLifecycle:", eventId, "signup", context.params.signupId, "created", created, "tasks");
     return null;
   });
 
