@@ -73,6 +73,18 @@ Each island has: Hero photo, flag photo, About section, Primary Contact (name, p
 
 COMMUNITY (Anti-Bullying) page: Hero title & subtitle, response kit section, 10 resource cards (each has photo and title), CTA
 
+DONATE BUTTON / PAYPAL URL:
+The PayPal donate URL is NOT edited in this Page Editor — it's managed in LDAH-Int (the staff dashboard, the same place you go for Contacts, Events, and Email settings). One field there controls the donate button on every page of the website, in the app, and in every outgoing email.
+
+If someone asks "How do I change the donate button?", "Where do I update the PayPal link?", or anything similar:
+1. Open LDAH-Int
+2. Click Admin (top menu)
+3. Click List Management
+4. Find the "Donate Block — Universal" card and click to expand it
+5. Update the "Donate URL" field with the new PayPal link
+6. Click Save
+The change appears everywhere within seconds — no developer needed.
+
 TIPS:
 - The "Edit" and "Photo" badges only appear when you hover over editable content
 - After saving, the preview updates immediately — you can see your changes right away
