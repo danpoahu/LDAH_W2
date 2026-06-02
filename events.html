@@ -1028,8 +1028,8 @@
             
             try {
                 const [headerResponse, footerResponse] = await Promise.all([
-                    fetch('header.html?v=62.0'),
-                    fetch('footer.html?v=62.0')
+                    fetch('header.html?v=62.1'),
+                    fetch('footer.html?v=62.1')
                 ]);
                 
                 if (headerResponse.ok && footerResponse.ok) {
@@ -2348,6 +2348,20 @@
               <form id="signupForm" onsubmit="submitSignup(event, '${eventId}')">
                 <div style="margin-bottom: 20px;">
                   <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
+                    Email Address *
+                  </label>
+                  <input type="email" required id="signupEmail" placeholder="Your answer" autofocus oninput="ldahScheduleEmailLookup()" onblur="ldahEmailBlurLookup()" style="
+                    width: 100%;
+                    padding: 12px;
+                    border: 1px solid #D1D5DB;
+                    border-radius: 8px;
+                    font-size: 14px;
+                  ">
+                  <!-- "Returning family? Pre-fill from email" OTP link removed 2026-06-01 — replaced by silent on-blur lookup via getContactForPrefill?email= -->
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                  <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
                     Full Name *
                   </label>
                   <input type="text" required id="signupName" placeholder="Your answer" style="
@@ -2380,20 +2394,6 @@
                       <span style="font-size: 14px; color: #374151;">Community Member</span>
                     </label>
                   </div>
-                </div>
-
-                <div style="margin-bottom: 20px;">
-                  <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
-                    Email Address *
-                  </label>
-                  <input type="email" required id="signupEmail" placeholder="Your answer" oninput="ldahScheduleEmailLookup()" onblur="ldahEmailBlurLookup()" style="
-                    width: 100%;
-                    padding: 12px;
-                    border: 1px solid #D1D5DB;
-                    border-radius: 8px;
-                    font-size: 14px;
-                  ">
-                  <!-- "Returning family? Pre-fill from email" OTP link removed 2026-06-01 — replaced by silent on-blur lookup via getContactForPrefill?email= -->
                 </div>
 
                 <div style="margin-bottom: 20px;">
@@ -3978,6 +3978,10 @@
               </p>
               <form id="signupForm" onsubmit="submitRecurringSignup(event,'${programId}')">
                 <div style="margin-bottom:20px;">
+                  <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Email Address *</label>
+                  <input type="email" required id="signupEmail" placeholder="Your answer" autofocus oninput="ldahScheduleEmailLookup()" onblur="ldahEmailBlurLookup()" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
+                </div>
+                <div style="margin-bottom:20px;">
                   <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Full Name *</label>
                   <input type="text" required id="signupName" placeholder="Your answer" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;text-transform:capitalize;">
                 </div>
@@ -4001,10 +4005,6 @@
                       <span style="font-size:14px;color:#374151;">Community Member</span>
                     </label>
                   </div>
-                </div>
-                <div style="margin-bottom:20px;">
-                  <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Email Address *</label>
-                  <input type="email" required id="signupEmail" placeholder="Your answer" oninput="ldahScheduleEmailLookup()" onblur="ldahEmailBlurLookup()" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
                 </div>
                 <div style="margin-bottom:20px;">
                   <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Phone Number (for calls or texts) *</label>
