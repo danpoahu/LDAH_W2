@@ -1023,8 +1023,8 @@
             
             try {
                 const [headerResponse, footerResponse] = await Promise.all([
-                    fetch('header.html?v=62.3.4'),
-                    fetch('footer.html?v=62.3.4')
+                    fetch('header.html?v=62.3.5'),
+                    fetch('footer.html?v=62.3.5')
                 ]);
                 
                 if (headerResponse.ok && footerResponse.ok) {
@@ -1761,8 +1761,15 @@
             if (isRequest) eventClasses += ' event-request';
             if (isRecurring) eventClasses += ' recurring-event';
 
-            // All pills (regular, recurring, request) open the event flyer/detail modal for THIS specific event
-            const safeDateAttr = event.eventDate ? event.eventDate : '';
+            // All pills (regular, recurring, request) open the event flyer/detail modal for THIS specific event.
+            // For multi-date events, the per-occurrence pill carries its own displayDate (e.g. "June 24, 2026 - …")
+            // — use that to derive the occurrence's ISO date so the modal knows WHICH date was clicked,
+            // not just the event's primary eventDate.
+            var _occIso = '';
+            if (event.displayDate && typeof parseSignupDateString === 'function') {
+              _occIso = parseSignupDateString(event.displayDate) || '';
+            }
+            const safeDateAttr = _occIso || (event.eventDate ? event.eventDate : '');
             // Pass scheduleIdx for recurring pills so each pill resolves to its OWN schedule (e.g. weekly Oahu vs monthly-nth Hilo on same Thursday)
             const schIdxAttr = (isRecurring && Number.isInteger(event.scheduleIdx)) ? event.scheduleIdx : -1;
             // Pill shows just the event prefix (everything before first colon) so all
