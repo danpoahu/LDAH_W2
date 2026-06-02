@@ -1028,8 +1028,8 @@
             
             try {
                 const [headerResponse, footerResponse] = await Promise.all([
-                    fetch('header.html?v=62.3.2'),
-                    fetch('footer.html?v=62.3.2')
+                    fetch('header.html?v=62.3.3'),
+                    fetch('footer.html?v=62.3.3')
                 ]);
                 
                 if (headerResponse.ok && footerResponse.ok) {
@@ -1770,13 +1770,17 @@
             const safeDateAttr = event.eventDate ? event.eventDate : '';
             // Pass scheduleIdx for recurring pills so each pill resolves to its OWN schedule (e.g. weekly Oahu vs monthly-nth Hilo on same Thursday)
             const schIdxAttr = (isRecurring && Number.isInteger(event.scheduleIdx)) ? event.scheduleIdx : -1;
-            // For multi-date events whose signupDates entries carry a topic suffix, show
-            // "<prefix>: For <signupDates entry>" so each occurrence has a unique title.
-            // Falls back to the plain event.title for recurring programs and single-date events.
-            const displayTitle = event.displayDate
+            // Pill shows just the event prefix (everything before first colon) so all
+            // pills read consistently — "Learning Labs", "Connect-Gen", etc. The full
+            // date-topic-time title is shown in the detail modal on click.
+            const pillTitle = (typeof reportEventPrefix === 'function')
+              ? reportEventPrefix(event.title) || event.title
+              : event.title;
+            // Tooltip on hover gets the long form when there's a per-date occurrence.
+            const hoverTitle = event.displayDate
               ? reportEventPrefix(event.title) + ': For ' + event.displayDate
               : event.title;
-            html += `<div class="${eventClasses}" onclick="showCalendarEventDetail('${event.id}', ${isRequest}, ${isRecurring}, '${safeDateAttr}', ${schIdxAttr})" title="${displayTitle}">${displayTitle}</div>`;
+            html += `<div class="${eventClasses}" onclick="showCalendarEventDetail('${event.id}', ${isRequest}, ${isRecurring}, '${safeDateAttr}', ${schIdxAttr})" title="${hoverTitle}">${pillTitle}</div>`;
           });
           if (dayEvents.length > 2) {
             html += `<div class="day-event more-events" onclick="scrollToCurrentEvents()">+${dayEvents.length - 2} more</div>`;
