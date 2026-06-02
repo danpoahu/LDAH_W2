@@ -819,8 +819,12 @@ function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eve
  * Intentionally minimal: just confirms they're handled and tells them
  * reminder emails are coming. Session details, Zoom/location, and any
  * prep info live in the 5-day and 1-day reminder emails.
+ *
+ * When inlineFlow is true (registrationFlow === 'inline-at-signup'), the
+ * "Complete Your Registration" CTA is omitted and replaced with a plain
+ * "You're all set" line. (v62.0.0)
  */
-function buildConfirmationEmailHtml({ name, eventTitle, datesPhrase, modality }) {
+function buildConfirmationEmailHtml({ name, eventTitle, datesPhrase, modality, inlineFlow }) {
   const greetingName = _emailEsc(name || "there");
   const safeTitle = _emailEsc(eventTitle || "your LDAH session");
   const datesSuffix = datesPhrase ? _emailEsc(datesPhrase) : "";
@@ -856,9 +860,10 @@ function buildConfirmationEmailHtml({ name, eventTitle, datesPhrase, modality })
         You're all set for <strong>${safeTitle}</strong>${datesSuffix}. Mahalo for completing your registration!
       </p>
 
-      <p style="margin:0;font-size:16px;color:#333333;line-height:1.5;">
-        We'll email you a reminder <strong>3 days before</strong> your session and again <strong>on the day of the session</strong>, ${reminderTail}.
-      </p>
+      ${inlineFlow
+        ? '<p style="margin:0;font-size:16px;color:#333333;line-height:1.5;">You\'re all set — we have everything we need. We\'ll see you' + (datesSuffix || " at the event") + '.</p>'
+        : '<p style="margin:0;font-size:16px;color:#333333;line-height:1.5;">We\'ll email you a reminder <strong>3 days before</strong> your session and again <strong>on the day of the session</strong>, ' + reminderTail + '.</p>'
+      }
     </td>
   </tr>
 
@@ -1250,11 +1255,15 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
     }
 
     // Standard non-Connect-Gen path.
+    // Inline-flow signups (registrationFlow === 'inline-at-signup') skip the
+    // "Complete Your Registration" CTA and show a plain "You're all set" message.
+    const _inlineFlow = after.registrationFlow === "inline-at-signup";
     const html = buildConfirmationEmailHtml({
       name: recipientName,
       eventTitle,
       datesPhrase,
       modality,
+      inlineFlow: _inlineFlow,
     });
 
     const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
@@ -6291,13 +6300,35 @@ exports.getContactForPrefill = functions
     if (req.method !== "GET") { res.status(405).json({ error: "Method not allowed" }); return; }
 
     const token = (req.query && req.query.token) ? String(req.query.token).trim() : "";
-    if (!token) { res.status(400).json({ error: "Missing token" }); return; }
+    const emailParam = (req.query && req.query.email) ? String(req.query.email).trim().toLowerCase() : "";
+
+    // Must provide either a token (announcement-email deep-link) or an email (on-blur lookup)
+    if (!token && !emailParam) { res.status(400).json({ error: "Missing token or email" }); return; }
 
     try {
       const db = admin.firestore();
-      const snap = await db.collection("contacts").where("unsubscribeToken", "==", token).limit(1).get();
-      if (snap.empty) { res.status(404).json({ error: "Not found" }); return; }
-      const doc = snap.docs[0];
+      let doc;
+
+      if (token) {
+        // Original path: unsubscribeToken lookup (announcement-email prefill)
+        const snap = await db.collection("contacts").where("unsubscribeToken", "==", token).limit(1).get();
+        if (snap.empty) { res.status(404).json({ error: "Not found" }); return; }
+        doc = snap.docs[0];
+      } else {
+        // New path: email lookup for on-blur prefill (v62.0.0)
+        // If multiple contacts share the email, use the most-recently-updated one.
+        const snap = await db.collection("contacts").where("email", "==", emailParam).get();
+        if (snap.empty) { res.status(404).json({ error: "Not found" }); return; }
+        // Pick most-recently-updated doc
+        let best = snap.docs[0];
+        snap.docs.forEach(function(d) {
+          const dUp = (d.data().updatedAt && d.data().updatedAt.toMillis) ? d.data().updatedAt.toMillis() : 0;
+          const bUp = (best.data().updatedAt && best.data().updatedAt.toMillis) ? best.data().updatedAt.toMillis() : 0;
+          if (dUp > bUp) best = d;
+        });
+        doc = best;
+      }
+
       const c = doc.data() || {};
       res.status(200).json({
         contactId: doc.id,
@@ -6306,6 +6337,20 @@ exports.getContactForPrefill = functions
         displayName: c.displayName || "",
         email: c.email || "",
         phone: c.phone || "",
+        // Extra fields returned for on-blur prefill (v62.0.0)
+        streetAddress: c.streetAddress || "",
+        city: c.city || "",
+        zipCode: c.zipCode || "",
+        reasonForAttending: c.reasonForAttending || "",
+        priorTraining: c.priorTraining || "",
+        priorTrainingDate: c.priorTrainingDate || "",
+        howHeard: c.howHeard || "",
+        howHeardOther: c.howHeardOther || "",
+        accommodations: c.accommodations || "",
+        ethnicity: c.ethnicity || "",
+        militaryStatus: c.militaryStatus || "",
+        militaryBranch: c.militaryBranch || "",
+        role: c.type || c.role || "",
       });
     } catch (err) {
       console.error("getContactForPrefill error:", err);

@@ -1028,8 +1028,8 @@
             
             try {
                 const [headerResponse, footerResponse] = await Promise.all([
-                    fetch('header.html?v=61.2'),
-                    fetch('footer.html?v=61.2')
+                    fetch('header.html?v=62.0'),
+                    fetch('footer.html?v=62.0')
                 ]);
                 
                 if (headerResponse.ok && footerResponse.ok) {
@@ -2364,19 +2364,19 @@
                   <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">I am a... *</label>
                   <div style="display: flex; gap: 20px; flex-wrap: wrap;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                      <input type="radio" name="registrantType" value="Parent/Guardian" required style="width: 18px; height: 18px; accent-color: #0369a1;">
+                      <input type="radio" name="registrantType" value="Parent/Guardian" required style="width: 18px; height: 18px; accent-color: #0369a1;" onchange="ldahToggleInlineRegBlock()">
                       <span style="font-size: 14px; color: #374151;">Parent / Guardian</span>
                     </label>
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                      <input type="radio" name="registrantType" value="Professional" required style="width: 18px; height: 18px; accent-color: #0369a1;">
+                      <input type="radio" name="registrantType" value="Professional" required style="width: 18px; height: 18px; accent-color: #0369a1;" onchange="ldahToggleInlineRegBlock()">
                       <span style="font-size: 14px; color: #374151;">Professional</span>
                     </label>
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                      <input type="radio" name="registrantType" value="Student" required style="width: 18px; height: 18px; accent-color: #0369a1;">
+                      <input type="radio" name="registrantType" value="Student" required style="width: 18px; height: 18px; accent-color: #0369a1;" onchange="ldahToggleInlineRegBlock()">
                       <span style="font-size: 14px; color: #374151;">Student</span>
                     </label>
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                      <input type="radio" name="registrantType" value="Community Member" required style="width: 18px; height: 18px; accent-color: #0369a1;">
+                      <input type="radio" name="registrantType" value="Community Member" required style="width: 18px; height: 18px; accent-color: #0369a1;" onchange="ldahToggleInlineRegBlock()">
                       <span style="font-size: 14px; color: #374151;">Community Member</span>
                     </label>
                   </div>
@@ -2386,7 +2386,7 @@
                   <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
                     Email Address *
                   </label>
-                  <input type="email" required id="signupEmail" placeholder="Your answer" style="
+                  <input type="email" required id="signupEmail" placeholder="Your answer" onblur="ldahEmailBlurLookup()" style="
                     width: 100%;
                     padding: 12px;
                     border: 1px solid #D1D5DB;
@@ -2549,6 +2549,79 @@
                 </div>
                 ` : ''}
                 
+                <!-- Inline registration block (v62.0.0) — revealed for non-Parent/Guardian roles -->
+                <div id="inlineRegBlock" style="display:none; background:#f0f9ff; border:1px solid #bae6fd; border-radius:10px; padding:18px; margin-bottom:20px;">
+                  <h3 style="color:#004E7C; font-size:16px; font-weight:bold; margin-bottom:14px;">Tell us a bit more</h3>
+
+                  <!-- Mailing Address -->
+                  <div style="margin-bottom:14px;">
+                    <label style="display:block; color:#004E7C; font-weight:bold; margin-bottom:8px; font-size:14px;">Street Address</label>
+                    <input type="text" id="inlineStreet" placeholder="Your answer" style="width:100%; padding:12px; border:1px solid #D1D5DB; border-radius:8px; font-size:14px;">
+                  </div>
+                  <div style="display:flex; gap:12px; margin-bottom:14px;">
+                    <div style="flex:2;">
+                      <label style="display:block; color:#004E7C; font-weight:bold; margin-bottom:8px; font-size:14px;">City <span style="color:#DC2626;">*</span></label>
+                      <input type="text" id="inlineCity" placeholder="Your answer" style="width:100%; padding:12px; border:1px solid #D1D5DB; border-radius:8px; font-size:14px;">
+                    </div>
+                    <div style="flex:1;">
+                      <label style="display:block; color:#004E7C; font-weight:bold; margin-bottom:8px; font-size:14px;">Zip Code <span style="color:#DC2626;">*</span></label>
+                      <input type="text" id="inlineZip" placeholder="96XXX" style="width:100%; padding:12px; border:1px solid #D1D5DB; border-radius:8px; font-size:14px;">
+                    </div>
+                  </div>
+
+                  <!-- Reason for Attending -->
+                  <div style="margin-bottom:14px;">
+                    <label style="display:block; color:#004E7C; font-weight:bold; margin-bottom:8px; font-size:14px;">Reason for Attending <span style="color:#DC2626;">*</span></label>
+                    <select id="inlineReason" style="width:100%; padding:12px; border:1px solid #D1D5DB; border-radius:8px; font-size:14px; background:white;">
+                      <option value="">-- Select --</option>
+                      <option value="Parent/Guardian">Parent/Guardian</option>
+                      <option value="Surrogate Parent">Surrogate Parent</option>
+                      <option value="Grandparent">Grandparent</option>
+                      <option value="Student">Student</option>
+                      <option value="Professional">Professional</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  <!-- Prior Training -->
+                  <div style="margin-bottom:14px;">
+                    <label style="display:block; color:#004E7C; font-weight:bold; margin-bottom:8px; font-size:14px;">Prior LDAH training in the past 12 months?</label>
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                      <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="radio" name="inlinePriorTraining" value="No" onchange="document.getElementById('inlinePriorDateWrap').style.display='none';" style="width:18px; height:18px; cursor:pointer;"><span style="font-size:14px; color:#374151;">No</span></label>
+                      <label style="display:flex; align-items:center; gap:8px; cursor:pointer;"><input type="radio" name="inlinePriorTraining" value="Yes" onchange="document.getElementById('inlinePriorDateWrap').style.display='block';" style="width:18px; height:18px; cursor:pointer;"><span style="font-size:14px; color:#374151;">Yes</span></label>
+                    </div>
+                    <div id="inlinePriorDateWrap" style="display:none; margin-top:10px; padding-left:26px;">
+                      <label style="display:block; color:#004E7C; font-weight:bold; margin-bottom:8px; font-size:14px;">Date of last training</label>
+                      <input type="date" id="inlinePriorDate" style="width:100%; padding:12px; border:1px solid #D1D5DB; border-radius:8px; font-size:14px;">
+                    </div>
+                  </div>
+
+                  <!-- How Heard -->
+                  <div style="margin-bottom:14px;">
+                    <label style="display:block; color:#004E7C; font-weight:bold; margin-bottom:8px; font-size:14px;">How did you hear about this training? <span style="color:#DC2626;">*</span></label>
+                    <select id="inlineHearAbout" onchange="var w=document.getElementById('inlineHearAboutOtherWrap');var o=document.getElementById('inlineHearAboutOther');if(this.value==='Other'){w.style.display='block';o.setAttribute('required','');}else{w.style.display='none';o.removeAttribute('required');o.value='';}" style="width:100%; padding:12px; border:1px solid #D1D5DB; border-radius:8px; font-size:14px; background:white;">
+                      <option value="">-- Select --</option>
+                      <option value="Agency">Agency</option>
+                      <option value="Newspaper">Newspaper</option>
+                      <option value="School">School</option>
+                      <option value="Radio">Radio</option>
+                      <option value="Website">Website</option>
+                      <option value="Facebook">Facebook</option>
+                      <option value="Other">Other</option>
+                    </select>
+                    <div id="inlineHearAboutOtherWrap" style="display:none; margin-top:10px;">
+                      <label style="display:block; color:#004E7C; font-weight:600; margin-bottom:6px; font-size:13px;">Please specify <span style="color:#DC2626;">*</span></label>
+                      <input type="text" id="inlineHearAboutOther" maxlength="200" placeholder="Tell us how you heard about us" style="width:100%; padding:10px; border:1px solid #D1D5DB; border-radius:8px; font-size:14px;">
+                    </div>
+                  </div>
+
+                  <!-- Accommodations -->
+                  <div style="margin-bottom:0;">
+                    <label style="display:block; color:#004E7C; font-weight:bold; margin-bottom:8px; font-size:14px;">Accommodations Needed</label>
+                    <textarea id="inlineAccommodations" placeholder="Please let us know at least 2 weeks prior to the event..." rows="3" style="width:100%; padding:12px; border:1px solid #D1D5DB; border-radius:8px; font-size:14px; font-family:inherit; resize:vertical;"></textarea>
+                  </div>
+                </div>
+
                 <button type="submit" style="
                   width: 100%;
                   padding: 16px;
@@ -2570,7 +2643,7 @@
           </div>
         </div>
       `;
-      
+
       document.body.insertAdjacentHTML('beforeend', modalHTML);
     }
 
@@ -2718,6 +2791,138 @@
       }
     }
 
+    // ===== NON-PARENT INLINE REGISTRATION (v62.0.0) =====
+
+    function roleNeedsRegistration(role) {
+      return role === 'Parent/Guardian';
+    }
+
+    // Show/hide the "Tell us a bit more" block based on the selected role.
+    // Values are NOT cleared on hide so the user can switch roles without data loss.
+    function ldahToggleInlineRegBlock() {
+      var role = (document.querySelector('input[name="registrantType"]:checked') || {}).value || '';
+      var block = document.getElementById('inlineRegBlock');
+      if (!block) return;
+      var show = role && !roleNeedsRegistration(role);
+      block.style.display = show ? 'block' : 'none';
+
+      // City + zip + reason + howHeard require required attr only when block is visible
+      var cityEl = document.getElementById('inlineCity');
+      var zipEl  = document.getElementById('inlineZip');
+      var reasonEl = document.getElementById('inlineReason');
+      var hearEl = document.getElementById('inlineHearAbout');
+      if (show) {
+        if (cityEl) cityEl.setAttribute('required', '');
+        if (zipEl)  zipEl.setAttribute('required', '');
+        if (reasonEl) reasonEl.setAttribute('required', '');
+        if (hearEl) hearEl.setAttribute('required', '');
+      } else {
+        if (cityEl) cityEl.removeAttribute('required');
+        if (zipEl)  zipEl.removeAttribute('required');
+        if (reasonEl) reasonEl.removeAttribute('required');
+        if (hearEl) hearEl.removeAttribute('required');
+        // Also clear required on the "Other" textarea if it was set
+        var otherEl = document.getElementById('inlineHearAboutOther');
+        if (otherEl) otherEl.removeAttribute('required');
+      }
+    }
+
+    // On email blur: silently look up the contact and pre-fill fields (v62.0.0).
+    // Uses getContactForPrefill?email=<addr> — no OTP required (no PII gate).
+    // Silent on failure. Does NOT overwrite fields the user already typed.
+    window.ldahEmailBlurLookup = async function() {
+      var emailEl = document.getElementById('signupEmail');
+      var email = (emailEl && emailEl.value || '').trim();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+      try {
+        var resp = await fetch('https://us-central1-ldah-932d5.cloudfunctions.net/getContactForPrefill?email=' + encodeURIComponent(email.toLowerCase()));
+        if (!resp.ok) return;
+        var c = await resp.json();
+        if (!c || !c.firstName) return;
+
+        // Pre-fill signup fields only if currently empty
+        var setIfEmpty = function(id, val) {
+          if (!val) return;
+          var el = document.getElementById(id);
+          if (el && !el.value) el.value = val;
+        };
+
+        var fullName = (c.displayName || ((c.firstName || '') + ' ' + (c.lastName || '')).trim()) || '';
+        setIfEmpty('signupName', fullName);
+        setIfEmpty('signupPhone', c.phone || '');
+
+        // Pre-fill inline reg block fields (may not be visible yet)
+        setIfEmpty('inlineStreet', c.streetAddress || '');
+        setIfEmpty('inlineCity', c.city || '');
+        setIfEmpty('inlineZip', c.zipCode || '');
+        setIfEmpty('inlineReason', c.reasonForAttending || '');
+        setIfEmpty('inlineAccommodations', c.accommodations || '');
+        setIfEmpty('inlinePriorDate', c.priorTrainingDate || '');
+
+        // Prior training radio
+        if (c.priorTraining) {
+          var ptRadios = document.querySelectorAll('input[name="inlinePriorTraining"]');
+          ptRadios.forEach(function(r) {
+            if (r.value === c.priorTraining && !document.querySelector('input[name="inlinePriorTraining"]:checked')) {
+              r.checked = true;
+              if (c.priorTraining === 'Yes') {
+                var wrap = document.getElementById('inlinePriorDateWrap');
+                if (wrap) wrap.style.display = 'block';
+              }
+            }
+          });
+        }
+
+        // How Heard select
+        var hearEl = document.getElementById('inlineHearAbout');
+        if (hearEl && !hearEl.value && c.howHeard) {
+          hearEl.value = c.howHeard;
+          if (c.howHeard === 'Other') {
+            var otherWrap = document.getElementById('inlineHearAboutOtherWrap');
+            if (otherWrap) otherWrap.style.display = 'block';
+            var otherEl = document.getElementById('inlineHearAboutOther');
+            if (otherEl) { otherEl.setAttribute('required', ''); if (c.howHeardOther) otherEl.value = c.howHeardOther; }
+          }
+        }
+
+        // Stash for registration form in case role switches to Parent/Guardian
+        var existing = window._lastRegistration || {};
+        window._lastRegistration = Object.assign({
+          streetAddress: c.streetAddress || '',
+          city: c.city || '',
+          zipCode: c.zipCode || '',
+          role: c.role || '',
+          reasonForAttending: c.reasonForAttending || '',
+          militaryStatus: c.militaryStatus || '',
+          militaryBranch: c.militaryBranch || '',
+          ethnicity: c.ethnicity || '',
+          priorTraining: c.priorTraining || '',
+          priorTrainingDate: c.priorTrainingDate || '',
+          howHeard: c.howHeard || '',
+          howHeardOther: c.howHeardOther || '',
+          accommodations: c.accommodations || ''
+        }, existing);
+
+        // Show welcome-back banner
+        var formContent = document.getElementById('signupFormContent');
+        if (formContent && !document.getElementById('emailPrefillBanner')) {
+          var firstName = c.firstName || fullName.split(' ')[0] || '';
+          var banner = document.createElement('div');
+          banner.id = 'emailPrefillBanner';
+          banner.style.cssText = 'background:#FEF3C7;border:1px solid #FBBF24;border-radius:10px;padding:12px 16px;margin-bottom:18px;font-size:13px;color:#78350F;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;';
+          banner.innerHTML =
+            '<span style="line-height:1.5;">Welcome back' + (firstName ? ', ' + firstName : '') + ' — we\'ve pre-filled some fields below from your last visit. Edit anything that\'s changed.</span>' +
+            '<button type="button" onclick="document.getElementById(\'emailPrefillBanner\').remove();" style="flex-shrink:0;background:transparent;border:none;cursor:pointer;color:#78350F;font-size:16px;line-height:1;padding:0;">×</button>';
+          var form = document.getElementById('signupForm');
+          if (form && form.parentNode) form.parentNode.insertBefore(banner, form);
+        }
+
+        window._emailBlurContact = c;
+      } catch (err) {
+        // Silent on failure
+      }
+    };
+
     // ===== REGISTRATION MODAL =====
 
     function openRegistrationModal(token, eventId, type, prefillData) {
@@ -2802,6 +3007,20 @@
 
           // Store signup info for potential "Register Another Child" flow
           window._lastSignupInfo = { name: data.name || '', email: data.email || '', phone: data.phone || '', selectedDates: Array.isArray(data.selectedDates) ? data.selectedDates.slice() : [], eventId: eventId, type: type };
+
+          // Inline-flow dead-end (v62.0.0): this signup was already fully registered
+          // at signup time. No form needed — show a clean "you're all set" state.
+          if (data.registrationFlow === 'inline-at-signup') {
+            contentEl.innerHTML =
+              '<div style="text-align:center;padding:40px;">' +
+                '<div style="width:56px;height:56px;border-radius:50%;background:#22c55e;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">' +
+                  '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
+                '</div>' +
+                '<h2 style="color:#004E7C;font-size:24px;font-weight:bold;margin-bottom:12px;">You\'re already fully registered for this event — nothing else to do.</h2>' +
+                '<button onclick="closeRegistrationModal()" style="padding:12px 32px;background:linear-gradient(135deg,#004E7C,#0066a1);color:white;border:none;border-radius:50px;font-weight:600;font-size:15px;cursor:pointer;">View confirmation</button>' +
+              '</div>';
+            return;
+          }
 
           if (data.status === 'confirmed') {
             var confirmedRole = (data.registration && data.registration.role) || '';
@@ -3365,10 +3584,10 @@
     
     async function submitSignup(event, eventId) {
       event.preventDefault();
-      
+
       const eventData = window.allEventsData.find(e => e.id === eventId);
       if (!eventData) return;
-      
+
       // Get form values
       const formData = {
         name: document.getElementById('signupName').value,
@@ -3396,24 +3615,45 @@
       // Get selected dates
       const dateCheckboxes = document.querySelectorAll('.signup-date-checkbox:checked');
       formData.selectedDates = Array.from(dateCheckboxes).map(cb => cb.value);
-      
+
       if (eventData.signupDates && eventData.signupDates.length > 0 && formData.selectedDates.length === 0) {
         document.getElementById('dateError').style.display = 'block';
         return;
       }
-      
+
       // Get custom answers
       const customAnswers = document.querySelectorAll('.custom-answer');
       formData.customAnswers = Array.from(customAnswers).map(ta => ta.value);
-      
+
+      // Inline-flow branch (v62.0.0): non-Parent/Guardian roles collect the 7
+      // registration-equivalent fields inline and confirm immediately.
+      // Connect-Gen (zoomMode === 'program') non-parents also go straight to confirmed —
+      // the CG consent gate only applies to Parent/Guardian.
+      const _isInlineFlow = !roleNeedsRegistration(formData.role);
+
+      // For inline-flow, validate required inline fields before showing loading
+      if (_isInlineFlow) {
+        var _inlineCity = (document.getElementById('inlineCity') || {}).value || '';
+        var _inlineZip  = (document.getElementById('inlineZip')  || {}).value || '';
+        var _inlineReason = (document.getElementById('inlineReason') || {}).value || '';
+        var _inlineHear = (document.getElementById('inlineHearAbout') || {}).value || '';
+        if (!_inlineCity || !_inlineZip || !_inlineReason || !_inlineHear) {
+          // Reveal block in case it's hidden (shouldn't be if validation fired, but just in case)
+          var _block = document.getElementById('inlineRegBlock');
+          if (_block) _block.style.display = 'block';
+          alert('Please complete the required fields in the "Tell us a bit more" section.');
+          return;
+        }
+      }
+
       // Show loading
       document.getElementById('signupFormContent').innerHTML = `
         <div style="text-align: center; padding: 40px;">
-          
+
           <p style="color: #004E7C; font-weight: 600;">Submitting...</p>
         </div>
       `;
-      
+
       // Attribution: stamp source + contactId if the form was opened via the
       // announcement-email autoOpen flow and the user didn't click "Not you?".
       const attribution = window._announcementAttribution || null;
@@ -3422,78 +3662,161 @@
         : {};
 
       try {
-        const signupDocRef = await db.collection('events').doc(eventId).collection('signups').add({
-          ...formData,
-          ...sourceFields,
-          status: 'pending',
-          timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-          eventTitle: eventData.title
-        });
-        const signupDocId = signupDocRef.id;
-        // Update denormalized counts on parent doc (may fail for unauthenticated users — Cloud Function handles this)
-        try {
-          await db.collection('events').doc(eventId).update({
-            signupCount: firebase.firestore.FieldValue.increment(1),
-            pendingCount: firebase.firestore.FieldValue.increment(1)
-          });
-        } catch (countErr) {
-          console.warn('Count update deferred to Cloud Function:', countErr.message);
-        }
-        if (window.ldahAnalytics) ldahAnalytics.trackFormSubmit('event_signup');
+        var signupDocRef, signupDocId;
 
-        // Track analytics
-        try {
-          await db.collection('analytics').add({
-            eventType: 'event_signup',
+        if (_isInlineFlow) {
+          // ── Non-parent inline flow (v62.0.0) ──────────────────────────────
+          // Collect the 7 registration-equivalent fields from the inline block.
+          const _priorTrainingVal = (document.querySelector('input[name="inlinePriorTraining"]:checked') || {}).value || '';
+          const _hearVal = (document.getElementById('inlineHearAbout') || {}).value || '';
+          const _inlineReg = {
+            streetAddress:    (document.getElementById('inlineStreet')         || {}).value || '',
+            city:             (document.getElementById('inlineCity')            || {}).value || '',
+            zipCode:          (document.getElementById('inlineZip')             || {}).value || '',
+            role:             formData.role,
+            reasonForAttending: (document.getElementById('inlineReason')        || {}).value || '',
+            priorTraining:    _priorTrainingVal,
+            priorTrainingDate: _priorTrainingVal === 'Yes' ? ((document.getElementById('inlinePriorDate') || {}).value || '') : '',
+            howHeard:         _hearVal,
+            howHeardOther:    _hearVal === 'Other' ? ((document.getElementById('inlineHearAboutOther') || {}).value || '').trim() : '',
+            accommodations:   (document.getElementById('inlineAccommodations')  || {}).value || '',
+            // Non-parents have no child info; military fields not collected
+            militaryStatus: '', militaryBranch: '',
+            childName: '', childAgeRange: '', childGender: '', ethnicity: '',
+            disabilityCategories: []
+          };
+
+          signupDocRef = await db.collection('events').doc(eventId).collection('signups').add({
+            ...formData,
+            ...sourceFields,
+            registration: _inlineReg,
+            registrantType: formData.role,
+            status: 'confirmed',
+            registrationFlow: 'inline-at-signup',
+            registrationCompletedAt: firebase.firestore.FieldValue.serverTimestamp(),
             timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-            page: window.location.pathname,
-            eventId: eventId,
             eventTitle: eventData.title
           });
+          signupDocId = signupDocRef.id;
 
-          if (typeof gtag !== 'undefined') {
-            gtag('event', 'event_signup', {
-              event_category: 'engagement',
-              event_label: eventData.title
+          // Update denormalized counts
+          try {
+            await db.collection('events').doc(eventId).update({
+              signupCount: firebase.firestore.FieldValue.increment(1)
             });
+          } catch (countErr) {
+            console.warn('Count update deferred to Cloud Function:', countErr.message);
           }
-        } catch (analyticsError) {
-          console.error('Analytics error:', analyticsError);
+          if (window.ldahAnalytics) ldahAnalytics.trackFormSubmit('event_signup');
+          try {
+            await db.collection('analytics').add({
+              eventType: 'event_signup',
+              timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+              page: window.location.pathname,
+              eventId: eventId,
+              eventTitle: eventData.title
+            });
+            if (typeof gtag !== 'undefined') {
+              gtag('event', 'event_signup', { event_category: 'engagement', event_label: eventData.title });
+            }
+          } catch (analyticsError) { console.error('Analytics error:', analyticsError); }
+
+          // Success — no "Complete Registration" CTA
+          document.getElementById('signupFormContent').innerHTML = `
+            <div style="text-align: center; padding: 40px;">
+              <div style="width: 56px; height: 56px; border-radius: 50%; background: #22c55e; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </div>
+              <h2 style="color: #004E7C; font-size: 24px; font-weight: bold; margin-bottom: 12px;">
+                Mahalo! You're all set.
+              </h2>
+              <p style="color: #666; font-size: 16px; margin-bottom: 24px;">
+                We have everything we need. Watch for a confirmation email and we'll see you at the event.
+              </p>
+              <div style="background:rgba(8,145,178,0.08);border-left:4px solid #0891B2;border-radius:0 8px 8px 0;padding:14px 18px;margin:0 auto 16px;max-width:440px;text-align:left;">
+                <p style="margin:0 0 6px;color:#004E7C;font-weight:700;font-size:14px;">Watch your email for reminders</p>
+                <p style="margin:0;color:#1E293B;font-size:13.5px;line-height:1.5;">We will send you a reminder <strong>3 days before</strong> your session and again <strong>on the day of the session</strong>.</p>
+              </div>
+            </div>
+          `;
+
+        } else {
+          // ── Parent/Guardian path — unchanged (v61.18 behavior) ────────────
+          signupDocRef = await db.collection('events').doc(eventId).collection('signups').add({
+            ...formData,
+            ...sourceFields,
+            status: 'pending',
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            eventTitle: eventData.title
+          });
+          signupDocId = signupDocRef.id;
+
+          // Update denormalized counts on parent doc (may fail for unauthenticated users — Cloud Function handles this)
+          try {
+            await db.collection('events').doc(eventId).update({
+              signupCount: firebase.firestore.FieldValue.increment(1),
+              pendingCount: firebase.firestore.FieldValue.increment(1)
+            });
+          } catch (countErr) {
+            console.warn('Count update deferred to Cloud Function:', countErr.message);
+          }
+          if (window.ldahAnalytics) ldahAnalytics.trackFormSubmit('event_signup');
+
+          // Track analytics
+          try {
+            await db.collection('analytics').add({
+              eventType: 'event_signup',
+              timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+              page: window.location.pathname,
+              eventId: eventId,
+              eventTitle: eventData.title
+            });
+
+            if (typeof gtag !== 'undefined') {
+              gtag('event', 'event_signup', {
+                event_category: 'engagement',
+                event_label: eventData.title
+              });
+            }
+          } catch (analyticsError) {
+            console.error('Analytics error:', analyticsError);
+          }
+
+          // Show success with Complete Registration step
+          document.getElementById('signupFormContent').innerHTML = `
+            <div style="text-align: center; padding: 40px;">
+              <div style="width: 56px; height: 56px; border-radius: 50%; background: #22c55e; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </div>
+              <h2 style="color: #004E7C; font-size: 24px; font-weight: bold; margin-bottom: 12px;">
+                Mahalo! You're signed up.
+              </h2>
+              <p style="color: #666; font-size: 16px; margin-bottom: 8px;">
+                One more step -- please complete your registration so we can reserve your spot.
+              </p>
+              <p style="color: #555; font-size: 14px; margin-bottom: 24px;">
+                Please remember to register each person who will be attending.
+              </p>
+              <button onclick="closeSignupModal(); openRegistrationModal('${signupDocId}', '${eventId}', 'event', window._lastRegistration || null);" style="
+                display: inline-block;
+                padding: 14px 32px;
+                background: linear-gradient(135deg, #004E7C, #0066a1);
+                color: white;
+                border: none;
+                border-radius: 50px;
+                font-weight: 600;
+                font-size: 16px;
+                cursor: pointer;
+                transition: transform 0.15s, box-shadow 0.15s;
+                box-shadow: 0 2px 8px rgba(0, 78, 124, 0.3);
+              " onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(0,78,124,0.4)';"
+                 onmouseout="this.style.transform='';this.style.boxShadow='0 2px 8px rgba(0,78,124,0.3)';">
+                Complete Registration
+              </button>
+            </div>
+          `;
         }
 
-        // Show success with Complete Registration step
-        document.getElementById('signupFormContent').innerHTML = `
-          <div style="text-align: center; padding: 40px;">
-            <div style="width: 56px; height: 56px; border-radius: 50%; background: #22c55e; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            </div>
-            <h2 style="color: #004E7C; font-size: 24px; font-weight: bold; margin-bottom: 12px;">
-              Mahalo! You're signed up.
-            </h2>
-            <p style="color: #666; font-size: 16px; margin-bottom: 8px;">
-              One more step -- please complete your registration so we can reserve your spot.
-            </p>
-            <p style="color: #555; font-size: 14px; margin-bottom: 24px;">
-              Please remember to register each person who will be attending.
-            </p>
-            <button onclick="closeSignupModal(); openRegistrationModal('${signupDocId}', '${eventId}', 'event', window._lastRegistration || null);" style="
-              display: inline-block;
-              padding: 14px 32px;
-              background: linear-gradient(135deg, #004E7C, #0066a1);
-              color: white;
-              border: none;
-              border-radius: 50px;
-              font-weight: 600;
-              font-size: 16px;
-              cursor: pointer;
-              transition: transform 0.15s, box-shadow 0.15s;
-              box-shadow: 0 2px 8px rgba(0, 78, 124, 0.3);
-            " onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(0,78,124,0.4)';"
-               onmouseout="this.style.transform='';this.style.boxShadow='0 2px 8px rgba(0,78,124,0.3)';">
-              Complete Registration
-            </button>
-          </div>
-        `;
       } catch (error) {
         console.error('Error submitting signup:', error);
         alert('There was an error submitting your signup. Please try again.');
@@ -3647,26 +3970,26 @@
                   <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">I am a... *</label>
                   <div style="display:flex;gap:20px;flex-wrap:wrap;">
                     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                      <input type="radio" name="registrantType" value="Parent/Guardian" required style="width:18px;height:18px;accent-color:#0369a1;">
+                      <input type="radio" name="registrantType" value="Parent/Guardian" required style="width:18px;height:18px;accent-color:#0369a1;" onchange="ldahToggleInlineRegBlock()">
                       <span style="font-size:14px;color:#374151;">Parent / Guardian</span>
                     </label>
                     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                      <input type="radio" name="registrantType" value="Professional" required style="width:18px;height:18px;accent-color:#0369a1;">
+                      <input type="radio" name="registrantType" value="Professional" required style="width:18px;height:18px;accent-color:#0369a1;" onchange="ldahToggleInlineRegBlock()">
                       <span style="font-size:14px;color:#374151;">Professional</span>
                     </label>
                     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                      <input type="radio" name="registrantType" value="Student" required style="width:18px;height:18px;accent-color:#0369a1;">
+                      <input type="radio" name="registrantType" value="Student" required style="width:18px;height:18px;accent-color:#0369a1;" onchange="ldahToggleInlineRegBlock()">
                       <span style="font-size:14px;color:#374151;">Student</span>
                     </label>
                     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                      <input type="radio" name="registrantType" value="Community Member" required style="width:18px;height:18px;accent-color:#0369a1;">
+                      <input type="radio" name="registrantType" value="Community Member" required style="width:18px;height:18px;accent-color:#0369a1;" onchange="ldahToggleInlineRegBlock()">
                       <span style="font-size:14px;color:#374151;">Community Member</span>
                     </label>
                   </div>
                 </div>
                 <div style="margin-bottom:20px;">
                   <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Email Address *</label>
-                  <input type="email" required id="signupEmail" placeholder="Your answer" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
+                  <input type="email" required id="signupEmail" placeholder="Your answer" onblur="ldahEmailBlurLookup()" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
                 </div>
                 <div style="margin-bottom:20px;">
                   <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Phone Number (for calls or texts) *</label>
@@ -3790,6 +4113,68 @@
                 <div style="margin-bottom:20px;">
                   <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Any additional comments or special accommodations?</label>
                   <textarea id="special-accommodations" placeholder="Your answer" rows="4" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;"></textarea>
+                </div>
+                <!-- Inline registration block (v62.0.0) — revealed for non-Parent/Guardian roles -->
+                <div id="inlineRegBlock" style="display:none;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:18px;margin-bottom:20px;">
+                  <h3 style="color:#004E7C;font-size:16px;font-weight:bold;margin-bottom:14px;">Tell us a bit more</h3>
+                  <div style="margin-bottom:14px;">
+                    <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Street Address</label>
+                    <input type="text" id="inlineStreet" placeholder="Your answer" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
+                  </div>
+                  <div style="display:flex;gap:12px;margin-bottom:14px;">
+                    <div style="flex:2;">
+                      <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">City <span style="color:#DC2626;">*</span></label>
+                      <input type="text" id="inlineCity" placeholder="Your answer" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
+                    </div>
+                    <div style="flex:1;">
+                      <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Zip Code <span style="color:#DC2626;">*</span></label>
+                      <input type="text" id="inlineZip" placeholder="96XXX" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
+                    </div>
+                  </div>
+                  <div style="margin-bottom:14px;">
+                    <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Reason for Attending <span style="color:#DC2626;">*</span></label>
+                    <select id="inlineReason" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;background:white;">
+                      <option value="">-- Select --</option>
+                      <option value="Parent/Guardian">Parent/Guardian</option>
+                      <option value="Surrogate Parent">Surrogate Parent</option>
+                      <option value="Grandparent">Grandparent</option>
+                      <option value="Student">Student</option>
+                      <option value="Professional">Professional</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div style="margin-bottom:14px;">
+                    <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Prior LDAH training in the past 12 months?</label>
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="radio" name="inlinePriorTraining" value="No" onchange="document.getElementById('inlinePriorDateWrap').style.display='none';" style="width:18px;height:18px;cursor:pointer;"><span style="font-size:14px;color:#374151;">No</span></label>
+                      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="radio" name="inlinePriorTraining" value="Yes" onchange="document.getElementById('inlinePriorDateWrap').style.display='block';" style="width:18px;height:18px;cursor:pointer;"><span style="font-size:14px;color:#374151;">Yes</span></label>
+                    </div>
+                    <div id="inlinePriorDateWrap" style="display:none;margin-top:10px;padding-left:26px;">
+                      <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Date of last training</label>
+                      <input type="date" id="inlinePriorDate" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
+                    </div>
+                  </div>
+                  <div style="margin-bottom:14px;">
+                    <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">How did you hear about this training? <span style="color:#DC2626;">*</span></label>
+                    <select id="inlineHearAbout" onchange="var w=document.getElementById('inlineHearAboutOtherWrap');var o=document.getElementById('inlineHearAboutOther');if(this.value==='Other'){w.style.display='block';o.setAttribute('required','');}else{w.style.display='none';o.removeAttribute('required');o.value='';}" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;background:white;">
+                      <option value="">-- Select --</option>
+                      <option value="Agency">Agency</option>
+                      <option value="Newspaper">Newspaper</option>
+                      <option value="School">School</option>
+                      <option value="Radio">Radio</option>
+                      <option value="Website">Website</option>
+                      <option value="Facebook">Facebook</option>
+                      <option value="Other">Other</option>
+                    </select>
+                    <div id="inlineHearAboutOtherWrap" style="display:none;margin-top:10px;">
+                      <label style="display:block;color:#004E7C;font-weight:600;margin-bottom:6px;font-size:13px;">Please specify <span style="color:#DC2626;">*</span></label>
+                      <input type="text" id="inlineHearAboutOther" maxlength="200" placeholder="Tell us how you heard about us" style="width:100%;padding:10px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
+                    </div>
+                  </div>
+                  <div style="margin-bottom:0;">
+                    <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Accommodations Needed</label>
+                    <textarea id="inlineAccommodations" placeholder="Please let us know at least 2 weeks prior to the event..." rows="3" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;"></textarea>
+                  </div>
                 </div>
                 ${program.showGroupField ? `
                 <div style="margin-bottom:20px;">
@@ -3935,6 +4320,24 @@
         formData.priorConnectGen = priorEl.value;
       }
 
+      // Inline-flow branch (v62.0.0): non-Parent/Guardian roles confirm immediately.
+      // Connect-Gen non-parents also skip consent gate.
+      const _isInlineFlowR = !roleNeedsRegistration(formData.role);
+
+      // For inline-flow, validate required inline fields before loading state
+      if (_isInlineFlowR) {
+        var _iCityR = (document.getElementById('inlineCity') || {}).value || '';
+        var _iZipR  = (document.getElementById('inlineZip')  || {}).value || '';
+        var _iReasonR = (document.getElementById('inlineReason') || {}).value || '';
+        var _iHearR = (document.getElementById('inlineHearAbout') || {}).value || '';
+        if (!_iCityR || !_iZipR || !_iReasonR || !_iHearR) {
+          var _blk = document.getElementById('inlineRegBlock');
+          if (_blk) _blk.style.display = 'block';
+          alert('Please complete the required fields in the "Tell us a bit more" section.');
+          return;
+        }
+      }
+
       const formContent = document.getElementById('signupFormContent');
       if (formContent) formContent.innerHTML = `
         <div style="text-align:center;padding:40px;">
@@ -3948,62 +4351,136 @@
         : {};
 
       try {
-        const signupDocRef = await db.collection('recurringEvents').doc(programId).collection('signups').add({
-          ...formData,
-          ..._sourceFields,
-          status: 'pending',
-          archived: false,
-          timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-          eventTitle: program.title
-        });
-        const signupDocId = signupDocRef.id;
-        // Update denormalized counts on parent doc (may fail for unauthenticated users — Cloud Function handles this)
-        try {
-          await db.collection('recurringEvents').doc(programId).update({
-            signupCount: firebase.firestore.FieldValue.increment(1),
-            pendingCount: firebase.firestore.FieldValue.increment(1)
-          });
-        } catch (countErr) {
-          console.warn('Count update deferred to Cloud Function:', countErr.message);
-        }
-        if (window.ldahAnalytics) ldahAnalytics.trackFormSubmit('recurring_event_signup');
+        var signupDocRef, signupDocId;
 
-        try {
-          await db.collection('analytics').add({
-            eventType: 'recurring_signup',
+        if (_isInlineFlowR) {
+          // ── Non-parent inline flow for recurring events (v62.0.0) ─────────
+          const _priorTrainingValR = (document.querySelector('input[name="inlinePriorTraining"]:checked') || {}).value || '';
+          const _hearValR = (document.getElementById('inlineHearAbout') || {}).value || '';
+          const _inlineRegR = {
+            streetAddress:    (document.getElementById('inlineStreet')         || {}).value || '',
+            city:             (document.getElementById('inlineCity')            || {}).value || '',
+            zipCode:          (document.getElementById('inlineZip')             || {}).value || '',
+            role:             formData.role,
+            reasonForAttending: (document.getElementById('inlineReason')        || {}).value || '',
+            priorTraining:    _priorTrainingValR,
+            priorTrainingDate: _priorTrainingValR === 'Yes' ? ((document.getElementById('inlinePriorDate') || {}).value || '') : '',
+            howHeard:         _hearValR,
+            howHeardOther:    _hearValR === 'Other' ? ((document.getElementById('inlineHearAboutOther') || {}).value || '').trim() : '',
+            accommodations:   (document.getElementById('inlineAccommodations')  || {}).value || '',
+            militaryStatus: '', militaryBranch: '',
+            childName: '', childAgeRange: '', childGender: '', ethnicity: '',
+            disabilityCategories: []
+          };
+
+          signupDocRef = await db.collection('recurringEvents').doc(programId).collection('signups').add({
+            ...formData,
+            ..._sourceFields,
+            registration: _inlineRegR,
+            registrantType: formData.role,
+            status: 'confirmed',
+            registrationFlow: 'inline-at-signup',
+            registrationCompletedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            archived: false,
             timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-            page: window.location.pathname,
-            programId,
             eventTitle: program.title
           });
-        } catch(e) { /* analytics non-critical */ }
+          signupDocId = signupDocRef.id;
 
-        const successContent = document.getElementById('signupFormContent');
-        if (successContent) successContent.innerHTML = `
-          <div style="text-align:center;padding:40px;">
-            <div style="width:56px;height:56px;border-radius:50%;background:#22c55e;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          try {
+            await db.collection('recurringEvents').doc(programId).update({
+              signupCount: firebase.firestore.FieldValue.increment(1)
+            });
+          } catch (countErr) {
+            console.warn('Count update deferred to Cloud Function:', countErr.message);
+          }
+          if (window.ldahAnalytics) ldahAnalytics.trackFormSubmit('recurring_event_signup');
+          try {
+            await db.collection('analytics').add({
+              eventType: 'recurring_signup',
+              timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+              page: window.location.pathname,
+              programId,
+              eventTitle: program.title
+            });
+          } catch(e) { /* analytics non-critical */ }
+
+          const successContent = document.getElementById('signupFormContent');
+          if (successContent) successContent.innerHTML = `
+            <div style="text-align:center;padding:40px;">
+              <div style="width:56px;height:56px;border-radius:50%;background:#22c55e;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </div>
+              <h2 style="color:#004E7C;font-size:24px;font-weight:bold;margin-bottom:12px;">Mahalo! You're all set.</h2>
+              <p style="color:#666;font-size:16px;margin-bottom:24px;">We have everything we need. Watch for a confirmation email and we'll see you at the session.</p>
+              <div style="background:rgba(8,145,178,0.08);border-left:4px solid #0891B2;border-radius:0 8px 8px 0;padding:14px 18px;margin:0 auto 16px;max-width:440px;text-align:left;">
+                <p style="margin:0 0 6px;color:#004E7C;font-weight:700;font-size:14px;">Watch your email for reminders</p>
+                <p style="margin:0;color:#1E293B;font-size:13.5px;line-height:1.5;">We will send you a reminder <strong>3 days before</strong> your session and again <strong>on the day of the session</strong>.</p>
+              </div>
             </div>
-            <h2 style="color:#004E7C;font-size:24px;font-weight:bold;margin-bottom:12px;">Mahalo! You're signed up.</h2>
-            <p style="color:#666;font-size:16px;margin-bottom:24px;">Complete your registration to confirm your spot.</p>
-            <button onclick="closeSignupModal(); openRegistrationModal('${signupDocId}', '${programId}', 'recurring', window._lastRegistration || null);" style="
-              display:inline-block;
-              padding:14px 32px;
-              background:linear-gradient(135deg, #004E7C, #0066a1);
-              color:white;
-              border:none;
-              border-radius:50px;
-              font-weight:600;
-              font-size:16px;
-              cursor:pointer;
-              transition:transform 0.15s, box-shadow 0.15s;
-              box-shadow:0 2px 8px rgba(0,78,124,0.3);
-            " onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(0,78,124,0.4)';"
-               onmouseout="this.style.transform='';this.style.boxShadow='0 2px 8px rgba(0,78,124,0.3)';">
-              Complete Registration
-            </button>
-          </div>
-        `;
+          `;
+
+        } else {
+          // ── Parent/Guardian path — unchanged ─────────────────────────────
+          signupDocRef = await db.collection('recurringEvents').doc(programId).collection('signups').add({
+            ...formData,
+            ..._sourceFields,
+            status: 'pending',
+            archived: false,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            eventTitle: program.title
+          });
+          signupDocId = signupDocRef.id;
+
+          // Update denormalized counts on parent doc (may fail for unauthenticated users — Cloud Function handles this)
+          try {
+            await db.collection('recurringEvents').doc(programId).update({
+              signupCount: firebase.firestore.FieldValue.increment(1),
+              pendingCount: firebase.firestore.FieldValue.increment(1)
+            });
+          } catch (countErr) {
+            console.warn('Count update deferred to Cloud Function:', countErr.message);
+          }
+          if (window.ldahAnalytics) ldahAnalytics.trackFormSubmit('recurring_event_signup');
+
+          try {
+            await db.collection('analytics').add({
+              eventType: 'recurring_signup',
+              timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+              page: window.location.pathname,
+              programId,
+              eventTitle: program.title
+            });
+          } catch(e) { /* analytics non-critical */ }
+
+          const successContent = document.getElementById('signupFormContent');
+          if (successContent) successContent.innerHTML = `
+            <div style="text-align:center;padding:40px;">
+              <div style="width:56px;height:56px;border-radius:50%;background:#22c55e;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </div>
+              <h2 style="color:#004E7C;font-size:24px;font-weight:bold;margin-bottom:12px;">Mahalo! You're signed up.</h2>
+              <p style="color:#666;font-size:16px;margin-bottom:24px;">Complete your registration to confirm your spot.</p>
+              <button onclick="closeSignupModal(); openRegistrationModal('${signupDocId}', '${programId}', 'recurring', window._lastRegistration || null);" style="
+                display:inline-block;
+                padding:14px 32px;
+                background:linear-gradient(135deg, #004E7C, #0066a1);
+                color:white;
+                border:none;
+                border-radius:50px;
+                font-weight:600;
+                font-size:16px;
+                cursor:pointer;
+                transition:transform 0.15s, box-shadow 0.15s;
+                box-shadow:0 2px 8px rgba(0,78,124,0.3);
+              " onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(0,78,124,0.4)';"
+                 onmouseout="this.style.transform='';this.style.boxShadow='0 2px 8px rgba(0,78,124,0.3)';">
+                Complete Registration
+              </button>
+            </div>
+          `;
+        }
+
       } catch (error) {
         console.error('Error submitting recurring signup:', error);
         alert('There was an error submitting your signup. Please try again.');
