@@ -3576,8 +3576,9 @@ exports.sendDailySessionSheet = functions
             });
             if (dateSignups.length === 0) continue;
             dateSignups.forEach((su) => matchedIds.add(su.id));
+            // v129.0.2 — "prefix: For <signupDates string>"
             allSessions.push({
-              title: (data.title || "Untitled Event") + " -- " + dateStr,
+              title: reportEventPrefix(data.title || "Untitled Event") + ": For " + dateStr,
               date: "",
               time: "",
               location: data.location || "",
@@ -3599,7 +3600,7 @@ exports.sendDailySessionSheet = functions
           const orphans = signups.filter((su) => !matchedToAnySigDate.has(su.id) && su.status !== "cancelled" && su.archived !== true);
           if (orphans.length > 0) {
             allSessions.push({
-              title: (data.title || "Untitled Event") + " -- Unmatched signups",
+              title: reportEventPrefix(data.title || "Untitled Event") + ": Unmatched signups",
               date: "",
               time: "",
               location: data.location || "",
@@ -3729,8 +3730,9 @@ exports.sendDailySessionSheet = functions
               const sDates = su.selectedSessions || su.selectedDates || [];
               return sDates.some((sd) => String(sd).indexOf(sg.key.split("|")[0]) !== -1);
             });
+            // v129.0.2 — "prefix: For <dateLabel [-- timeLabel]>"
             allSessions.push({
-              title: data.title + " -- " + sg.dateLabel + (sg.timeLabel ? " -- " + sg.timeLabel : ""),
+              title: reportEventPrefix(data.title) + ": For " + sg.dateLabel + (sg.timeLabel ? " -- " + sg.timeLabel : ""),
               date: "",
               time: "",
               location: sg.location,
@@ -3744,6 +3746,13 @@ exports.sendDailySessionSheet = functions
       }
     } catch (err) {
       console.error("sendDailySessionSheet: error fetching recurring events:", err.message);
+    }
+
+    // v129.0.2 — Shared prefix helper: everything before the first colon, or full title.
+    function reportEventPrefix(eventTitle) {
+      if (!eventTitle) return "";
+      var idx = eventTitle.indexOf(":");
+      return (idx > 0 ? eventTitle.slice(0, idx) : eventTitle).trim();
     }
 
     // Build session card HTML (email-safe, no JS — all expanded)
@@ -3810,7 +3819,7 @@ exports.sendDailySessionSheet = functions
         // Dark header bar with title + badge
         + `<tr><td style="padding:10px 14px;background:#1a3c6e;color:white;">`
         + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>`
-        + `<td style="font-size:14px;font-weight:800;color:white;">${esc(s.title)} --</td>`
+        + `<td style="font-size:14px;font-weight:800;color:white;">${esc(s.title)}</td>`
         + `<td style="text-align:right;"><span style="background:#4a7fb5;color:white;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;">${badgeText}</span></td>`
         + `</tr></table></td></tr>`
         // Detail lines (date, location, etc.)
