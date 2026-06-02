@@ -688,13 +688,8 @@
       background: linear-gradient(135deg, #9ca3af, #6b7280);
     }
     
-    .day-event.additional-date {
-      background: linear-gradient(135deg, #9ca3af, #6b7280);
-    }
-    
-    .day-event.additional-date:hover {
-      background: linear-gradient(135deg, #6b7280, #4b5563);
-    }
+    /* Additional-date pills are styled the same as primary-date pills — multi-date
+       events all read equally on the calendar. Past-event styling still applies. */
     
     .day-event.event-request {
       background: linear-gradient(135deg, #14b8a6, #0d9488);
@@ -1028,8 +1023,8 @@
             
             try {
                 const [headerResponse, footerResponse] = await Promise.all([
-                    fetch('header.html?v=62.3.3'),
-                    fetch('footer.html?v=62.3.3')
+                    fetch('header.html?v=62.3.4'),
+                    fetch('footer.html?v=62.3.4')
                 ]);
                 
                 if (headerResponse.ok && footerResponse.ok) {
@@ -2039,24 +2034,34 @@
 
       if (!event) return;
 
-      const eventDate = new Date(event.eventDate + 'T00:00:00');
+      // Resolve the SPECIFIC occurrence the user clicked. For multi-date events,
+      // each pill carries its own occurrenceDate + matching signupDates entry —
+      // use those instead of the event's primary eventDate / time fields.
+      var _detailTitle = event.title;
+      var _matchedSignupEntry = '';
+      var _occurrenceTime = event.time || '';
+      if (!isEventRequest && occurrenceDate && Array.isArray(event.signupDates)) {
+        _matchedSignupEntry = event.signupDates.find(function(s) {
+          return parseSignupDateString(s) === occurrenceDate;
+        }) || '';
+        if (_matchedSignupEntry) {
+          if (typeof reportEventPrefix === 'function') {
+            _detailTitle = reportEventPrefix(event.title) + ': For ' + _matchedSignupEntry;
+          }
+          // Extract time component from the signupDates entry (e.g., "5:00 PM" or "9:00 AM - 11:00 AM")
+          var _timeMatch = _matchedSignupEntry.match(/(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)(?:\s*[-–]\s*\d{1,2}:\d{2}\s*(?:AM|PM|am|pm))?)/);
+          if (_timeMatch) _occurrenceTime = _timeMatch[1];
+        }
+      }
+
+      // Date displayed: the specific occurrence the user clicked, if known;
+      // otherwise the event's primary eventDate.
+      var _displayIso = (occurrenceDate && /^\d{4}-\d{2}-\d{2}$/.test(occurrenceDate)) ? occurrenceDate : event.eventDate;
+      const eventDate = new Date(_displayIso + 'T00:00:00');
       const formattedDate = isNaN(eventDate.getTime())
         ? ''
         : eventDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
-      // Use date-specific title when this occurrence has a matching signupDates
-      // entry (Learning Labs etc.), matching the calendar pill format.
-      // event.displayDate isn't on the master-list event, so re-resolve from
-      // occurrenceDate against signupDates here.
-      var _detailTitle = event.title;
-      if (!isEventRequest && occurrenceDate && Array.isArray(event.signupDates) && typeof reportEventPrefix === 'function') {
-        var _matchEntry = event.signupDates.find(function(s) {
-          return parseSignupDateString(s) === occurrenceDate;
-        });
-        if (_matchEntry) {
-          _detailTitle = reportEventPrefix(event.title) + ': For ' + _matchEntry;
-        }
-      }
       document.getElementById('eventDetailTitle').textContent = isEventRequest ? 'Community Event Request' : _detailTitle;
       
       let bodyHtml = '';
@@ -2095,9 +2100,9 @@
         `;
       }
       
-      if (event.time) {
+      if (_occurrenceTime) {
         bodyHtml += `
-          <div class="event-detail-item"><div><strong>Time:</strong> ${event.time}</div>
+          <div class="event-detail-item"><div><strong>Time:</strong> ${_occurrenceTime}</div>
           </div>
         `;
       }
