@@ -2386,7 +2386,7 @@
                   <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
                     Email Address *
                   </label>
-                  <input type="email" required id="signupEmail" placeholder="Your answer" onblur="ldahEmailBlurLookup()" style="
+                  <input type="email" required id="signupEmail" placeholder="Your answer" oninput="ldahScheduleEmailLookup()" onblur="ldahEmailBlurLookup()" style="
                     width: 100%;
                     padding: 12px;
                     border: 1px solid #D1D5DB;
@@ -2828,12 +2828,27 @@
     // On email blur: silently look up the contact and pre-fill fields (v62.0.0).
     // Uses getContactForPrefill?email=<addr> — no OTP required (no PII gate).
     // Silent on failure. Does NOT overwrite fields the user already typed.
+    // Debounced/in-flight guard so the lookup fires once per unique email,
+    // even though oninput + onblur both call it.
+    window._ldahLastLookupEmail = '';
+    window._ldahLookupInFlight = false;
+    window._ldahLookupDebounce = null;
+
+    window.ldahScheduleEmailLookup = function() {
+      clearTimeout(window._ldahLookupDebounce);
+      window._ldahLookupDebounce = setTimeout(window.ldahEmailBlurLookup, 350);
+    };
+
     window.ldahEmailBlurLookup = async function() {
       var emailEl = document.getElementById('signupEmail');
-      var email = (emailEl && emailEl.value || '').trim();
+      var email = (emailEl && emailEl.value || '').trim().toLowerCase();
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+      if (email === window._ldahLastLookupEmail) return;
+      if (window._ldahLookupInFlight) return;
+      window._ldahLastLookupEmail = email;
+      window._ldahLookupInFlight = true;
       try {
-        var resp = await fetch('https://us-central1-ldah-932d5.cloudfunctions.net/getContactForPrefill?email=' + encodeURIComponent(email.toLowerCase()));
+        var resp = await fetch('https://us-central1-ldah-932d5.cloudfunctions.net/getContactForPrefill?email=' + encodeURIComponent(email));
         if (!resp.ok) return;
         var c = await resp.json();
         if (!c || !c.firstName) return;
@@ -2901,16 +2916,16 @@
           accommodations: c.accommodations || ''
         }, existing);
 
-        // Show welcome-back banner
+        // Welcome-back banner — in-brand, persistent, no dismiss.
         var formContent = document.getElementById('signupFormContent');
         if (formContent && !document.getElementById('emailPrefillBanner')) {
           var firstName = c.firstName || fullName.split(' ')[0] || '';
           var banner = document.createElement('div');
           banner.id = 'emailPrefillBanner';
-          banner.style.cssText = 'background:#FEF3C7;border:1px solid #FBBF24;border-radius:10px;padding:12px 16px;margin-bottom:18px;font-size:13px;color:#78350F;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;';
+          banner.style.cssText = 'background:#EFF6FF;border-left:4px solid #004E7C;border-radius:6px;padding:14px 18px;margin-bottom:20px;font-size:14px;line-height:1.55;color:#1E3A5F;display:flex;align-items:center;gap:12px;';
           banner.innerHTML =
-            '<span style="line-height:1.5;">Welcome back' + (firstName ? ', ' + firstName : '') + ' — we\'ve pre-filled some fields below from your last visit. Edit anything that\'s changed.</span>' +
-            '<button type="button" onclick="document.getElementById(\'emailPrefillBanner\').remove();" style="flex-shrink:0;background:transparent;border:none;cursor:pointer;color:#78350F;font-size:16px;line-height:1;padding:0;">×</button>';
+            '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#004E7C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>' +
+            '<span><strong style="color:#004E7C;">Welcome back' + (firstName ? ', ' + firstName : '') + '.</strong> We pre-filled what we have on file below — please review and edit anything that needs updating.</span>';
           var form = document.getElementById('signupForm');
           if (form && form.parentNode) form.parentNode.insertBefore(banner, form);
         }
@@ -2918,6 +2933,8 @@
         window._emailBlurContact = c;
       } catch (err) {
         // Silent on failure
+      } finally {
+        window._ldahLookupInFlight = false;
       }
     };
 
@@ -3987,7 +4004,7 @@
                 </div>
                 <div style="margin-bottom:20px;">
                   <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Email Address *</label>
-                  <input type="email" required id="signupEmail" placeholder="Your answer" onblur="ldahEmailBlurLookup()" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
+                  <input type="email" required id="signupEmail" placeholder="Your answer" oninput="ldahScheduleEmailLookup()" onblur="ldahEmailBlurLookup()" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
                 </div>
                 <div style="margin-bottom:20px;">
                   <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Phone Number (for calls or texts) *</label>
