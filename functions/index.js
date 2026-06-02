@@ -12028,6 +12028,7 @@ const LIFECYCLE_CHANNELS = {
   assignPresenter:  { channel: "Event Setup",   type: "Assign Presenter" },
   verifyDisplay:    { channel: "Event Setup",   type: "Verify Display" },
   sendAnnouncement: { channel: "Event Setup",   type: "Send Announcements" },
+  presenterPrep:    { channel: "Event Prep",    type: "Present Event" },
   takeAttendance:   { channel: "Event Day",     type: "Take Attendance" },
   eventSummary:     { channel: "Event Wrap-Up", type: "Event Summary" }
 };
@@ -12239,9 +12240,11 @@ exports.onInteractionUpdatedLifecycle = functions
       const ownerUid  = presenterSrc.presenterUid || ev.createdByUid  || "";
       const ownerName = presenterSrc.presenter    || ev.createdByName || "";
 
-      // Due = sessionKey (YYYY-MM-DD) + 10 days, in HST
+      // Due = sessionKey (YYYY-MM-DD) + 5 days, in HST. Five days (not the
+      // original ten) keeps the Event Summary follow-up open long enough for
+      // participant feedback to arrive, but still chases the paperwork promptly.
       const sd = new Date(sessionKey + "T12:00:00-10:00");
-      const due = new Date(sd.getTime() + 10 * 24 * 60 * 60 * 1000);
+      const due = new Date(sd.getTime() + 5 * 24 * 60 * 60 * 1000);
       const dueIso = due.toISOString().slice(0, 10);
 
       await db.collection("interactions").add(_lcBuildInteractionDoc({
@@ -12395,6 +12398,79 @@ exports.createDayOfAttendanceTasks = functions
       created++;
     }
     console.log("createDayOfAttendanceTasks:", todayKey, "created", created, "tasks");
+    return null;
+  });
+
+// ----------------------------------------------------------------------------
+// createPresenterPrepTasks — daily 5 AM HST.
+// Three days before each session, give the presenter a "Present Event" task so
+// they prepare to present. Owner = the session's assigned presenter; if no
+// presenter is recorded yet (the Assign Presenter task hasn't been closed),
+// the task falls back to La'a (same owner who handles Assign Presenter), so the
+// reminder still lands on someone accountable. Follow-up is the day AFTER the
+// session. Per session — recurring series get one prep task before each date.
+// Idempotent via _lcCreateIfMissing (event + step + sessionKey).
+// ----------------------------------------------------------------------------
+exports.createPresenterPrepTasks = functions
+  .runWith({ timeoutSeconds: 540, maxInstances: 1 })
+  .pubsub.schedule("0 5 * * *").timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    // Today in HST as YYYY-MM-DD, then the session date we target (today + 3)
+    // and the follow-up date (the session date + 1). Anchor at noon HST so the
+    // day arithmetic never drifts across a DST boundary.
+    const nowHst = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
+    const todayKey = nowHst.getFullYear()
+      + "-" + String(nowHst.getMonth() + 1).padStart(2, "0")
+      + "-" + String(nowHst.getDate()).padStart(2, "0");
+    const baseMs = new Date(todayKey + "T12:00:00-10:00").getTime();
+    const targetKey   = new Date(baseMs + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const followUpKey = new Date(baseMs + 4 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10); // session (+3) + 1
+
+    const laaName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID);
+
+    // Only workflow events still in 'setup' have sessions that haven't wrapped.
+    const snap = await db.collection("events")
+      .where("lifecycleStatus", "==", "setup")
+      .get();
+
+    let created = 0;
+    for (const doc of snap.docs) {
+      const ev = doc.data() || {};
+      if (ev.archived === true) continue;
+      const sessions = getEventSessions(ev) || [];
+      const targetSession = sessions.find(s => _lcSessionKey(s) === targetKey);
+      if (!targetSession) continue;
+
+      // Presenter lives in the Event Summary storage: event.summary (single
+      // session) or event.sessionSummaries keyed by the session's RAW signupDate
+      // string (NOT the workflow dateKey) — see createDayOfAttendanceTasks.
+      const isSingleSession = sessions.length === 1;
+      let presenterSrc;
+      if (isSingleSession) {
+        presenterSrc = ev.summary || {};
+      } else {
+        const summaryKey = targetSession.rawString || targetKey;
+        presenterSrc = (ev.sessionSummaries && ev.sessionSummaries[summaryKey]) || {};
+      }
+
+      let ownerUid, ownerName;
+      if (presenterSrc.presenterUid) {
+        ownerUid  = presenterSrc.presenterUid;
+        ownerName = presenterSrc.presenter || "";
+      } else {
+        // No presenter assigned yet — fall back to La'a.
+        ownerUid  = LIFECYCLE_LAA_UID;
+        ownerName = laaName;
+      }
+
+      const res = await _lcCreateIfMissing(db, {
+        eventId: doc.id, eventTitle: ev.title || "", step: "presenterPrep",
+        sessionKey: targetKey, ownerUid, ownerName, dueDate: followUpKey
+      });
+      if (res) created++;
+    }
+    console.log("createPresenterPrepTasks: target", targetKey, "created", created, "tasks");
     return null;
   });
 
