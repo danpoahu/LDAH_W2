@@ -1028,8 +1028,8 @@
             
             try {
                 const [headerResponse, footerResponse] = await Promise.all([
-                    fetch('header.html?v=62.3.1'),
-                    fetch('footer.html?v=62.3.1')
+                    fetch('header.html?v=62.3.2'),
+                    fetch('footer.html?v=62.3.2')
                 ]);
                 
                 if (headerResponse.ok && footerResponse.ok) {
@@ -2042,9 +2042,16 @@
 
       // Use date-specific title when this occurrence has a matching signupDates
       // entry (Learning Labs etc.), matching the calendar pill format.
+      // event.displayDate isn't on the master-list event, so re-resolve from
+      // occurrenceDate against signupDates here.
       var _detailTitle = event.title;
-      if (!isEventRequest && event.displayDate && typeof reportEventPrefix === 'function') {
-        _detailTitle = reportEventPrefix(event.title) + ': For ' + event.displayDate;
+      if (!isEventRequest && occurrenceDate && Array.isArray(event.signupDates) && typeof reportEventPrefix === 'function') {
+        var _matchEntry = event.signupDates.find(function(s) {
+          return parseSignupDateString(s) === occurrenceDate;
+        });
+        if (_matchEntry) {
+          _detailTitle = reportEventPrefix(event.title) + ': For ' + _matchEntry;
+        }
       }
       document.getElementById('eventDetailTitle').textContent = isEventRequest ? 'Community Event Request' : _detailTitle;
       
