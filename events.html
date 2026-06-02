@@ -1028,8 +1028,8 @@
             
             try {
                 const [headerResponse, footerResponse] = await Promise.all([
-                    fetch('header.html?v=62.2'),
-                    fetch('footer.html?v=62.2')
+                    fetch('header.html?v=62.3'),
+                    fetch('footer.html?v=62.3')
                 ]);
                 
                 if (headerResponse.ok && footerResponse.ok) {
@@ -1770,7 +1770,13 @@
             const safeDateAttr = event.eventDate ? event.eventDate : '';
             // Pass scheduleIdx for recurring pills so each pill resolves to its OWN schedule (e.g. weekly Oahu vs monthly-nth Hilo on same Thursday)
             const schIdxAttr = (isRecurring && Number.isInteger(event.scheduleIdx)) ? event.scheduleIdx : -1;
-            html += `<div class="${eventClasses}" onclick="showCalendarEventDetail('${event.id}', ${isRequest}, ${isRecurring}, '${safeDateAttr}', ${schIdxAttr})" title="${event.title}">${event.title}</div>`;
+            // For multi-date events whose signupDates entries carry a topic suffix, show
+            // "<prefix>: For <signupDates entry>" so each occurrence has a unique title.
+            // Falls back to the plain event.title for recurring programs and single-date events.
+            const displayTitle = event.displayDate
+              ? reportEventPrefix(event.title) + ': For ' + event.displayDate
+              : event.title;
+            html += `<div class="${eventClasses}" onclick="showCalendarEventDetail('${event.id}', ${isRequest}, ${isRecurring}, '${safeDateAttr}', ${schIdxAttr})" title="${displayTitle}">${displayTitle}</div>`;
           });
           if (dayEvents.length > 2) {
             html += `<div class="day-event more-events" onclick="scrollToCurrentEvents()">+${dayEvents.length - 2} more</div>`;
@@ -1796,7 +1802,17 @@
       allCalendarItems.forEach(item => {
         // Check primary eventDate
         if (item.eventDate && item.eventDate === dateStr) {
-          results.push({ ...item, isAdditionalDate: false });
+          // Find matching signupDates entry for this date (enables per-date title on calendar)
+          var matchingSignupDate = null;
+          if (item.signupDates && Array.isArray(item.signupDates)) {
+            for (var si = 0; si < item.signupDates.length; si++) {
+              if (parseSignupDateString(item.signupDates[si]) === dateStr) {
+                matchingSignupDate = item.signupDates[si];
+                break;
+              }
+            }
+          }
+          results.push({ ...item, isAdditionalDate: false, displayDate: matchingSignupDate });
         }
         
         // Check signupDates array for additional dates
@@ -1824,6 +1840,14 @@
       return results;
     }
     
+    // Returns the text before the first colon in an event title (or the full title).
+    // Used to build per-date calendar pills: "<prefix>: For <signupDates entry>".
+    function reportEventPrefix(eventTitle) {
+      if (!eventTitle) return '';
+      var idx = eventTitle.indexOf(':');
+      return (idx > 0 ? eventTitle.slice(0, idx) : eventTitle).trim();
+    }
+
     // Helper function to parse signup date strings into "YYYY-MM-DD"
     // Handles formats like:
     // - "OAHU. Monday January 12th 3pm - 5pm"
