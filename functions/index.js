@@ -1434,7 +1434,7 @@ async function handleSignupCreated(snap, context, collectionName) {
 // Two independent signals: form answer (priorConnectGen === "Yes") OR
 // a prior non-cancelled signup row under the same email. If either
 // fires, write isReturningCGFamily + returningCGSource on the new
-// signup and auto-create an Open interaction owned by La'a so she can
+// signup and auto-create an Open interaction owned by La'a so he can
 // call the family 2 days before their session.
 async function detectAndFlagReturningCG(snap, signupData, signupId) {
   const db = admin.firestore();
@@ -1978,7 +1978,7 @@ exports.onProviderRequestCreated = functions
       }
 
       // Owner resolution: Chassidy Kruse (provider intake). Falls back to
-      // La'a if her userRoles doc is missing or marked inactive.
+      // La'a if his userRoles doc is missing or marked inactive.
       const PROVIDER_INTAKE_UID = "B9iq7O46KJabCE3Skke4HXy8RV43";
       let ownerUid = PROVIDER_INTAKE_UID;
       try {
