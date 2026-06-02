@@ -2864,6 +2864,16 @@
         setIfEmpty('signupName', fullName);
         setIfEmpty('signupPhone', c.phone || '');
 
+        // Preferred Method of Contact (radio) — only set if nothing chosen yet
+        if (c.preferredContact) {
+          var pcAlreadyChosen = document.querySelector('input[name="preferredContact"]:checked');
+          if (!pcAlreadyChosen) {
+            document.querySelectorAll('input[name="preferredContact"]').forEach(function(r) {
+              if (r.value === c.preferredContact) r.checked = true;
+            });
+          }
+        }
+
         // Pre-fill inline reg block fields (may not be visible yet)
         setIfEmpty('inlineStreet', c.streetAddress || '');
         setIfEmpty('inlineCity', c.city || '');

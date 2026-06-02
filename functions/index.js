@@ -2510,6 +2510,17 @@ async function handleSignupUpdated(change, context) {
       }
     });
 
+    // preferredContact lives at the top level of the signup doc (not under
+    // registration). Mirror to contact so future prefill lookups don't need
+    // the per-signup fallback query.
+    {
+      const sigPref = (after.preferredContact || "").trim();
+      const contactPref = (contactData.preferredContact || "").trim();
+      if (sigPref && !contactPref) {
+        updates.preferredContact = sigPref;
+      }
+    }
+
     // Enrich disabilityCategories (array) — only if contact has none
     if (
       Array.isArray(registration.disabilityCategories) &&
@@ -6330,6 +6341,33 @@ exports.getContactForPrefill = functions
       }
 
       const c = doc.data() || {};
+
+      // preferredContact lives on signup docs, not on contacts historically.
+      // Read from contact first; if missing, fall back to most-recent signup
+      // by email. Wrapped in try/catch so a missing collection-group index
+      // doesn't break the whole prefill.
+      let preferredContact = c.preferredContact || "";
+      if (!preferredContact && (c.email || emailParam)) {
+        try {
+          const sigSnap = await db.collectionGroup("signups")
+            .where("email", "==", (c.email || emailParam).toLowerCase())
+            .get();
+          let bestSig = null;
+          let bestSigMs = 0;
+          sigSnap.forEach(function(d) {
+            const sd = d.data();
+            const ms = (sd.createdAt && sd.createdAt.toMillis) ? sd.createdAt.toMillis() : 0;
+            if (sd.preferredContact && ms >= bestSigMs) {
+              bestSigMs = ms;
+              bestSig = sd;
+            }
+          });
+          if (bestSig) preferredContact = bestSig.preferredContact || "";
+        } catch (e) {
+          console.warn("getContactForPrefill: signup fallback failed:", e.message);
+        }
+      }
+
       res.status(200).json({
         contactId: doc.id,
         firstName: c.firstName || "",
@@ -6351,6 +6389,7 @@ exports.getContactForPrefill = functions
         militaryStatus: c.militaryStatus || "",
         militaryBranch: c.militaryBranch || "",
         role: c.type || c.role || "",
+        preferredContact: preferredContact,
       });
     } catch (err) {
       console.error("getContactForPrefill error:", err);
