@@ -8091,7 +8091,12 @@ exports.sendResourceUpdateRequestsAuto = functions
       if (reqAt >= cyc.graceWindowMs) return;
       const lu = r.lastUpdateAt && r.lastUpdateAt.toMillis ? r.lastUpdateAt.toMillis() : 0;
       const subAt = r.updateSubmittedAt && r.updateSubmittedAt.toMillis ? r.updateSubmittedAt.toMillis() : 0;
-      if (lu >= cyc.graceWindowMs || subAt >= cyc.graceWindowMs) return;
+      const created = r.createdAt && r.createdAt.toMillis ? r.createdAt.toMillis() : 0;
+      // Skip if requested, confirmed, OR newly added this cycle. createdAt is the
+      // belt-and-suspenders for any partner-add path (e.g. application approval
+      // like Sharky Hearts 6-3) — a partner who joined this cycle is current and
+      // must not be asked to "update."
+      if (lu >= cyc.graceWindowMs || subAt >= cyc.graceWindowMs || created >= cyc.graceWindowMs) return;
       eligible.push({ id: d.id, data: r, email });
     });
     if (eligible.length === 0) { console.log("sendResourceUpdateRequestsAuto: nothing to send for cycle " + cyc.cycleKey); return null; }
