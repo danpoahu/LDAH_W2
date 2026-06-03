@@ -12306,6 +12306,24 @@ exports.onInteractionUpdatedLifecycle = functions
     const collection = after.workflowEventCollection || "events";
     const isRecurring = collection === "recurringEvents";
 
+    // --- resourceUpdateCall closed: La'akea called the partner, so mark their
+    //     resource listing updated for the cycle (mirrors a form submission /
+    //     staff approval). This also drops them out of the nudge "awaiting"
+    //     bucket automatically. workflowEventId is the resources doc id.
+    if (step === "resourceUpdateCall") {
+      const ref = db.collection("resources").doc(eventId);
+      const rsnap = await ref.get();
+      if (!rsnap.exists) return null;
+      await ref.update({
+        lastUpdateAt: admin.firestore.FieldValue.serverTimestamp(),
+        updateSubmittedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updateToken: admin.firestore.FieldValue.delete(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      console.log("resourceUpdateCall closed -> marked resource", eventId, "updated for cycle");
+      return null;
+    }
+
     // --- assignPresenter closed: write presenter into Event Summary's
     //     storage (unified field, also feeds the Event Attendance Report).
     if (step === "assignPresenter") {
@@ -12725,6 +12743,96 @@ exports.onRecurringSignupCreatedLifecycle = functions
       created += await _lcEnsureRecurringSessionTasks(db, eventId, ev, k, todayKey, laaName);
     }
     if (created) console.log("onRecurringSignupCreatedLifecycle:", eventId, "signup", context.params.signupId, "created", created, "tasks");
+    return null;
+  });
+
+// ----------------------------------------------------------------------------
+// createResourceUpdateCallTasks — daily 5 AM HST.
+// Gives La'akea a "call the partner for updates" task (deep-linked to the
+// partner's resource edit card) for partners the email nudges can't close out.
+// ONE task per partner per cycle — it persists until he completes it, and
+// completing it marks the resource updated (see the resourceUpdateCall branch
+// in onInteractionUpdatedLifecycle), which also stops further nudges.
+//   - No email (can never self-update): created as soon as it's missing this
+//     cycle — so an emailless partner gets it on cycle day 1 (or immediately).
+//   - Has email but still hasn't updated: created on/after the cycle deadline
+//     (RESOURCE_UPDATE_NUDGE_DEADLINE_HST), once email nudges are exhausted.
+// "Updated this cycle?" uses the same grace-window test as the nudge cron.
+// ----------------------------------------------------------------------------
+exports.createResourceUpdateCallTasks = functions
+  .runWith({ timeoutSeconds: 540, maxInstances: 1 })
+  .pubsub.schedule("0 5 * * *").timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const now = Date.now();
+    const nowHst = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
+    const todayKey = nowHst.getFullYear()
+      + "-" + String(nowHst.getMonth() + 1).padStart(2, "0")
+      + "-" + String(nowHst.getDate()).padStart(2, "0");
+
+    const { graceWindow, cycleStart } = _resourceUpdateCycleWindow(now);
+    const cycleKey = new Date(cycleStart).toISOString().slice(0, 10); // e.g. "2026-05-01"
+    // Only honour the deadline if the constant actually belongs to THIS cycle
+    // (guards against a stale RESOURCE_UPDATE_NUDGE_DEADLINE_HST after a flip).
+    const deadlineMs = Date.parse(RESOURCE_UPDATE_NUDGE_DEADLINE_HST + "T12:00:00-10:00");
+    const atOrPastDeadline = (todayKey >= RESOURCE_UPDATE_NUDGE_DEADLINE_HST) && (deadlineMs >= cycleStart);
+    const laaName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID);
+
+    const snap = await db.collection("resources").get();
+    let created = 0;
+    for (const d of snap.docs) {
+      const r = d.data() || {};
+      if (r.archived === true) continue;
+      const name = String(r.name || "").trim();
+      if (!name) continue; // skip Downloads-metadata docs in the same collection
+      const email = String(r.email || "").trim();
+
+      // Already updated this cycle? (same test as the nudge eligibility)
+      const lu = r.lastUpdateAt && r.lastUpdateAt.toMillis ? r.lastUpdateAt.toMillis() : 0;
+      const subAt = r.updateSubmittedAt && r.updateSubmittedAt.toMillis ? r.updateSubmittedAt.toMillis() : 0;
+      if (lu >= graceWindow || subAt >= graceWindow) continue;
+
+      let shouldCreate = false;
+      if (!email) {
+        shouldCreate = true;                                  // emailless: always needs a call
+      } else if (atOrPastDeadline && r.updateToken) {
+        shouldCreate = true;                                  // emailed, no response by deadline
+      }
+      if (!shouldCreate) continue;
+
+      // One per partner per cycle — persists until completed.
+      const existing = await db.collection("interactions")
+        .where("workflowEventId", "==", d.id)
+        .where("workflowStep", "==", "resourceUpdateCall")
+        .where("workflowSessionKey", "==", cycleKey)
+        .limit(1).get();
+      if (!existing.empty) continue;
+
+      await db.collection("interactions").add({
+        channel: "Partner Resources",
+        interactionType: "Resource Update Call",
+        contactId: "",
+        contactName: name,
+        contactType: "",
+        grantProgram: "",
+        summary: "Call " + name + " for resource-listing updates" + (email ? "" : " (no email on file)"),
+        followUpDate: todayKey,
+        status: "Open",
+        notes: "Call " + name + (r.phone ? " at " + r.phone : "")
+          + " to confirm or update their resource listing. Open the resource card (button), make any edits, then check this off — that marks the listing updated for this cycle.",
+        isDraft: false,
+        owner: laaName,
+        ownerUid: LIFECYCLE_LAA_UID,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        workflowEventId: d.id,
+        workflowEventCollection: "resources",
+        workflowStep: "resourceUpdateCall",
+        workflowSessionKey: cycleKey
+      });
+      created++;
+    }
+    console.log("createResourceUpdateCallTasks:", todayKey, "cycle", cycleKey, "atDeadline=" + atOrPastDeadline, "created", created, "tasks");
     return null;
   });
 
