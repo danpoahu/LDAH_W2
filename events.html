@@ -2343,6 +2343,9 @@
       const event = window.allEventsData.find(e => e.id === eventId);
       if (!event) return;
 
+      // Parent Talk Cafe is Parent/Guardian-only: show only that role option.
+      const parentOnly = /parent\s*talk\s*caf[eé]/i.test(event.title || '');
+
       // Reset form
       signupFormData = {
         name: '',
@@ -2433,9 +2436,10 @@
                   <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">I am a... *</label>
                   <div style="display: flex; gap: 20px; flex-wrap: wrap;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                      <input type="radio" name="registrantType" value="Parent/Guardian" required style="width: 18px; height: 18px; accent-color: #0369a1;" onchange="ldahToggleInlineRegBlock()">
+                      <input type="radio" name="registrantType" value="Parent/Guardian" required ${parentOnly ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: #0369a1;" onchange="ldahToggleInlineRegBlock()">
                       <span style="font-size: 14px; color: #374151;">Parent / Guardian</span>
                     </label>
+                    ${parentOnly ? '' : `
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                       <input type="radio" name="registrantType" value="Professional" required style="width: 18px; height: 18px; accent-color: #0369a1;" onchange="ldahToggleInlineRegBlock()">
                       <span style="font-size: 14px; color: #374151;">Professional</span>
@@ -2448,6 +2452,7 @@
                       <input type="radio" name="registrantType" value="Community Member" required style="width: 18px; height: 18px; accent-color: #0369a1;" onchange="ldahToggleInlineRegBlock()">
                       <span style="font-size: 14px; color: #374151;">Community Member</span>
                     </label>
+                    `}
                   </div>
                 </div>
 
