@@ -8047,6 +8047,101 @@ exports.sendResourceUpdateRequests = functions
     }
   });
 
+// ----------------------------------------------------------------------------
+// sendResourceUpdateRequestsAuto — daily 5 AM HST.
+// Kicks off each cycle's initial "please update your listing" request emails
+// automatically (no button press needed). Eligible = active partner-directory
+// entries with an email that have NOT been requested during the current cycle
+// (updateRequestedAt < cycle start). This naturally fires the batch on the
+// cycle start date (May 1 / Nov 1 from system/resourceNudgeCycle), spreads it
+// over days if it exceeds the daily cap, and is idempotent (once a partner is
+// requested this cycle they're skipped). Stops once past the cycle deadline.
+// The weekly nudge cron then follows up; call-tasks cover the rest.
+// ----------------------------------------------------------------------------
+exports.sendResourceUpdateRequestsAuto = functions
+  .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: EMAIL_SECRETS })
+  .pubsub.schedule("0 5 * * *").timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const FieldValue = admin.firestore.FieldValue;
+    const now = Date.now();
+
+    const cycleConfig = await _loadNudgeCycleConfig(db);
+    const cyc = _resourceCycleForNow(now, cycleConfig);
+    if (now > cyc.deadlineMs) {
+      console.log("sendResourceUpdateRequestsAuto: past deadline " + cyc.deadlineDateKey + " — not starting requests");
+      return null;
+    }
+
+    const snap = await db.collection("resources").get();
+    const eligible = [];
+    snap.forEach((d) => {
+      const r = d.data() || {};
+      if (r.archived === true) return;
+      if (!String(r.name || "").trim()) return;          // skip Downloads-metadata docs
+      const email = String(r.email || "").trim();
+      if (!email) return;                                // no email -> handled by call-tasks
+      const reqAt = r.updateRequestedAt && r.updateRequestedAt.toMillis ? r.updateRequestedAt.toMillis() : 0;
+      // "Already handled this cycle" uses the GRACE window (not the bare cycle
+      // start) — requests may go out up to 7 days early (e.g. Apr 30 for the May
+      // 1 cycle). Skip if requested OR already confirmed this cycle: a partner
+      // added/updated/approved mid-cycle (recent lastUpdateAt/updateSubmittedAt,
+      // e.g. a self-added partner) is already current and must NOT be asked to
+      // "update" — mirrors the nudge + dashboard "confirmed" bucket.
+      if (reqAt >= cyc.graceWindowMs) return;
+      const lu = r.lastUpdateAt && r.lastUpdateAt.toMillis ? r.lastUpdateAt.toMillis() : 0;
+      const subAt = r.updateSubmittedAt && r.updateSubmittedAt.toMillis ? r.updateSubmittedAt.toMillis() : 0;
+      if (lu >= cyc.graceWindowMs || subAt >= cyc.graceWindowMs) return;
+      eligible.push({ id: d.id, data: r, email });
+    });
+    if (eligible.length === 0) { console.log("sendResourceUpdateRequestsAuto: nothing to send for cycle " + cyc.cycleKey); return null; }
+
+    const fromAddress = lifecycleFromAddress();
+    const signatureHtml = await buildSignatureBlock("resourceCoordinator");
+    const donateHtml = await buildDonateBlock("universal");
+    const resCoord = await getPersona("resourceCoordinator");
+    const resourceCoordinatorEmail = resCoord ? resCoord.email : "";
+
+    // Daily cap (shared resource-update throttle namespace).
+    const nowHst = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
+    const todayKey = nowHst.getFullYear() + "-" + String(nowHst.getMonth() + 1).padStart(2, "0") + "-" + String(nowHst.getDate()).padStart(2, "0");
+    const throttleRef = db.collection("system").doc("resourceUpdateThrottle").collection("days").doc(todayKey);
+    const throttleDoc = await throttleRef.get();
+    const sentToday = throttleDoc.exists ? (throttleDoc.data().count || 0) : 0;
+    const remaining = ANNOUNCEMENT_DAILY_CAP - sentToday;
+    if (remaining <= 0) { console.log("sendResourceUpdateRequestsAuto: daily cap reached"); return null; }
+
+    const batch = eligible.slice(0, remaining);
+    let sent = 0, failed = 0;
+    for (const item of batch) {
+      const token = crypto.randomBytes(16).toString("hex");
+      try {
+        await db.collection("resources").doc(item.id).update({
+          updateToken: token,
+          updateRequestedAt: FieldValue.serverTimestamp(),
+          updateRequestedBy: "auto (cycle start)",
+          updateNudgeCount: 0,
+          lastUpdateNudgeAt: null,
+          updateSubmittedAt: null,
+          pendingUpdate: null,
+        });
+        const html = buildResourceUpdateEmailHtml({ resource: item.data, token, isNudge: false, signatureHtml, donateHtml, resourceCoordinatorEmail });
+        await sendEmailViaResend({
+          from: fromAddress, to: item.email,
+          subject: "Action Required: Update your LDAH Resource Card",
+          html, type: "resource-update-request", recipientName: item.data.name || "",
+        });
+        sent++;
+      } catch (err) {
+        failed++;
+        console.error("sendResourceUpdateRequestsAuto failed for " + item.email + ":", err.message);
+      }
+    }
+    if (sent > 0) await throttleRef.set({ count: FieldValue.increment(sent) }, { merge: true });
+    console.log("sendResourceUpdateRequestsAuto: cycle " + cyc.cycleKey + " sent " + sent + ", failed " + failed + ", queued " + (eligible.length - batch.length));
+    return null;
+  });
+
 exports.getResourceForUpdate = functions
   .runWith({ timeoutSeconds: 20, maxInstances: 10 })
   .https.onRequest(async (req, res) => {
@@ -9019,32 +9114,68 @@ exports.submitResourceApplication = functions
     }
   });
 
-// Deadline for the current semi-annual nudge cycle. Cron stops sending after
-// this date even if partners haven't responded. UPDATE THIS each cycle:
-// current value is the end of the May→Nov 2026 cycle's enforcement window.
-const RESOURCE_UPDATE_NUDGE_DEADLINE_HST = "2026-07-31";
+// ---------------------------------------------------------------------------
+// Resource update nudge cycle schedule.
+// Source of truth is the Firestore doc system/resourceNudgeCycle, which staff
+// edit from LDAH-Int (Resources page) — so the dates self-manage across years
+// with no code change. If the doc is missing/malformed we fall back to the
+// historical hardcoded cadence: Spring May 1 -> Jul 31, Fall Nov 1 -> Jan 31,
+// 7-day grace. A deadline month earlier than the start month rolls the deadline
+// into the NEXT calendar year (that's how Fall's Jan 31 is derived).
+// ---------------------------------------------------------------------------
+const RESOURCE_NUDGE_CYCLE_DEFAULTS = {
+  graceDays: 7,
+  cycles: [
+    { label: "Spring", startMonth: 5,  startDay: 1, deadlineMonth: 7, deadlineDay: 31 },
+    { label: "Fall",   startMonth: 11, startDay: 1, deadlineMonth: 1, deadlineDay: 31 }
+  ]
+};
 
-// Cycle start matches the CMS dashboard logic in LDAH-Int/index.html
-// (cmsLoadResourcesPanel, ~line 29659): semi-annual cycles flip on May 1 and
-// Nov 1. A 7-day grace window before the cycle start means a partner who
-// updated late in the previous cycle still counts as "confirmed" early on.
-function _resourceUpdateCycleWindow(now) {
-  const yr = new Date(now).getFullYear();
-  const may1 = new Date(yr, 4, 1).getTime();
-  const nov1 = new Date(yr, 10, 1).getTime();
-  let cycleStart;
-  if (now >= nov1) cycleStart = nov1;
-  else if (now >= may1) cycleStart = may1;
-  else cycleStart = new Date(yr - 1, 10, 1).getTime();
-  const graceMs = 7 * 24 * 60 * 60 * 1000;
-  return { cycleStart, graceWindow: cycleStart - graceMs };
+async function _loadNudgeCycleConfig(db) {
+  try {
+    const snap = await db.collection("system").doc("resourceNudgeCycle").get();
+    if (snap.exists) {
+      const c = snap.data() || {};
+      if (Array.isArray(c.cycles) && c.cycles.length) {
+        return { graceDays: (typeof c.graceDays === "number" ? c.graceDays : 7), cycles: c.cycles };
+      }
+    }
+  } catch (e) { console.warn("_loadNudgeCycleConfig:", e.message); }
+  return RESOURCE_NUDGE_CYCLE_DEFAULTS;
 }
 
-function _isAfterNudgeDeadline(now) {
-  const [y, m, d] = RESOURCE_UPDATE_NUDGE_DEADLINE_HST.split("-").map(function (s) { return parseInt(s, 10); });
-  // 23:59:59 HST on the deadline date == (00:59:59 the next day in UTC).
-  const deadlineUtcMs = Date.UTC(y, m - 1, d, 23 + 10, 59, 59);
-  return now > deadlineUtcMs;
+function _ndPad2(n) { return String(n).padStart(2, "0"); }
+
+// Resolve the cycle currently in effect for `nowMs` from the config. Returns:
+//   { cycleStartMs, graceWindowMs, deadlineMs, deadlineDateKey, cycleKey, label }
+// deadlineMs is 23:59:59 HST on the deadline date.
+function _resourceCycleForNow(nowMs, config) {
+  const cycles = (config && config.cycles && config.cycles.length) ? config.cycles : RESOURCE_NUDGE_CYCLE_DEFAULTS.cycles;
+  const graceDays = (config && typeof config.graceDays === "number") ? config.graceDays : 7;
+  const nowYr = new Date(nowMs).getUTCFullYear();
+  const candidates = [];
+  for (const yr of [nowYr - 1, nowYr, nowYr + 1]) {
+    for (const cyc of cycles) {
+      const startMs = Date.UTC(yr, cyc.startMonth - 1, cyc.startDay);
+      if (startMs > nowMs) continue;
+      const dlYear = (cyc.deadlineMonth < cyc.startMonth) ? yr + 1 : yr;
+      candidates.push({
+        cycleStartMs: startMs,
+        deadlineMs: Date.UTC(dlYear, cyc.deadlineMonth - 1, cyc.deadlineDay, 23 + 10, 59, 59),
+        deadlineDateKey: dlYear + "-" + _ndPad2(cyc.deadlineMonth) + "-" + _ndPad2(cyc.deadlineDay),
+        cycleKey: yr + "-" + _ndPad2(cyc.startMonth) + "-" + _ndPad2(cyc.startDay),
+        label: cyc.label || ""
+      });
+    }
+  }
+  candidates.sort((a, b) => b.cycleStartMs - a.cycleStartMs);
+  const cur = candidates[0] || {
+    cycleStartMs: Date.UTC(nowYr, 4, 1),
+    deadlineMs: Date.UTC(nowYr, 6, 31, 23 + 10, 59, 59),
+    deadlineDateKey: nowYr + "-07-31", cycleKey: nowYr + "-05-01", label: "Spring"
+  };
+  cur.graceWindowMs = cur.cycleStartMs - graceDays * 24 * 60 * 60 * 1000;
+  return cur;
 }
 
 // Shared helper used by the Wednesday cron and the manual HTTPS trigger.
@@ -9067,12 +9198,14 @@ async function _runResourceUpdateNudges(opts) {
   const FieldValue = admin.firestore.FieldValue;
   const now = Date.now();
 
-  if (_isAfterNudgeDeadline(now)) {
-    console.log("_runResourceUpdateNudges: past deadline " + RESOURCE_UPDATE_NUDGE_DEADLINE_HST + ", skipping all sends");
+  const cycleConfig = await _loadNudgeCycleConfig(db);
+  const cyc = _resourceCycleForNow(now, cycleConfig);
+  if (now > cyc.deadlineMs) {
+    console.log("_runResourceUpdateNudges: past deadline " + cyc.deadlineDateKey + ", skipping all sends");
     return { scanned: 0, eligible: 0, sent: 0, failed: 0, skippedDeadline: true };
   }
 
-  const { graceWindow } = _resourceUpdateCycleWindow(now);
+  const graceWindow = cyc.graceWindowMs;
   const fromAddress = lifecycleFromAddress();
   const signatureHtml = await buildSignatureBlock("resourceCoordinator");
   const donateHtml = await buildDonateBlock("universal");
@@ -12756,7 +12889,7 @@ exports.onRecurringSignupCreatedLifecycle = functions
 //   - No email (can never self-update): created as soon as it's missing this
 //     cycle — so an emailless partner gets it on cycle day 1 (or immediately).
 //   - Has email but still hasn't updated: created on/after the cycle deadline
-//     (RESOURCE_UPDATE_NUDGE_DEADLINE_HST), once email nudges are exhausted.
+//     (from the system/resourceNudgeCycle config), once nudges are exhausted.
 // "Updated this cycle?" uses the same grace-window test as the nudge cron.
 // ----------------------------------------------------------------------------
 exports.createResourceUpdateCallTasks = functions
@@ -12770,12 +12903,11 @@ exports.createResourceUpdateCallTasks = functions
       + "-" + String(nowHst.getMonth() + 1).padStart(2, "0")
       + "-" + String(nowHst.getDate()).padStart(2, "0");
 
-    const { graceWindow, cycleStart } = _resourceUpdateCycleWindow(now);
-    const cycleKey = new Date(cycleStart).toISOString().slice(0, 10); // e.g. "2026-05-01"
-    // Only honour the deadline if the constant actually belongs to THIS cycle
-    // (guards against a stale RESOURCE_UPDATE_NUDGE_DEADLINE_HST after a flip).
-    const deadlineMs = Date.parse(RESOURCE_UPDATE_NUDGE_DEADLINE_HST + "T12:00:00-10:00");
-    const atOrPastDeadline = (todayKey >= RESOURCE_UPDATE_NUDGE_DEADLINE_HST) && (deadlineMs >= cycleStart);
+    const cycleConfig = await _loadNudgeCycleConfig(db);
+    const cyc = _resourceCycleForNow(now, cycleConfig);
+    const graceWindow = cyc.graceWindowMs;
+    const cycleKey = cyc.cycleKey;                       // e.g. "2026-05-01"
+    const atOrPastDeadline = (todayKey >= cyc.deadlineDateKey);
     const laaName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID);
 
     const snap = await db.collection("resources").get();
