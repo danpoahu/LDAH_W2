@@ -1641,6 +1641,152 @@ exports.sendDeferredRegistrationEmails = functions
     return null;
   });
 
+// Find the most recent COMPLETED registration for a person (by linkedContactId,
+// the canonical contact linkage — already has a collection-group index)
+// completed within [sinceMs, now]. Excludes excludePath.
+// Returns { id, path, registration, compMs } or null.
+async function _findPriorCompletedRegistration(db, linkedContactId, excludePath, sinceMs) {
+  if (!linkedContactId) return null;
+  let snap;
+  try {
+    snap = await db.collectionGroup("signups").where("linkedContactId", "==", linkedContactId).get();
+  } catch (e) { console.warn("_findPriorCompletedRegistration query:", e.message); return null; }
+  let best = null;
+  snap.forEach((d) => {
+    if (d.ref.path === excludePath) return;
+    const r = d.data() || {};
+    if (r.archived === true) return;
+    if (!(r.registration && typeof r.registration === "object")) return;
+    const compMs = r.registrationCompletedAt && r.registrationCompletedAt.toMillis ? r.registrationCompletedAt.toMillis() : 0;
+    if (!compMs || compMs < sinceMs) return; // unknown date or older than the window
+    if (!best || compMs > best.compMs) best = { id: d.id, path: d.ref.path, registration: r.registration, compMs };
+  });
+  return best;
+}
+
+// ----------------------------------------------------------------------------
+// processPendingParentRegistrations — daily 5 AM HST.
+// For PENDING parent/guardian signups on one-time events (not Connect-Gen) with
+// an upcoming session:
+//   1. Auto-apply a prior completed registration (same email, last ~12 months)
+//      -> marks them confirmed (the onUpdate confirmation email then fires).
+//   2. Else remind every other day (reuse the registration email).
+//   3. At <=4 days before the earliest upcoming session, create ONE call-task
+//      for La'akea and STOP the emails (he takes over by phone).
+// ----------------------------------------------------------------------------
+exports.processPendingParentRegistrations = functions
+  .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .pubsub.schedule("0 5 * * *").timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const FieldValue = admin.firestore.FieldValue;
+    const nowMs = Date.now();
+    const nowHst = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
+    const todayKey = nowHst.getFullYear() + "-" + String(nowHst.getMonth() + 1).padStart(2, "0") + "-" + String(nowHst.getDate()).padStart(2, "0");
+    const todayMs = new Date(todayKey + "T12:00:00-10:00").getTime();
+    const TWO_DAYS = 2 * 24 * 60 * 60 * 1000;
+    const TWELVE_MONTHS_MS = 365 * 24 * 60 * 60 * 1000;
+    const laaName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID);
+    let applied = 0, emailed = 0, tasked = 0;
+
+    const evs = await db.collection("events").get();           // one-time events only
+    for (const ev of evs.docs) {
+      const event = ev.data() || {};
+      if (event.archived === true) continue;
+      const eventId = ev.id;
+      const sigs = await db.collection("events").doc(eventId).collection("signups").where("status", "==", "pending").get();
+      for (const s of sigs.docs) {
+        const data = s.data() || {};
+        if (data.archived === true) continue;
+        if (data.registration && typeof data.registration === "object") continue; // already registered
+        const role = data.registrantType || data.role || (data.registration && data.registration.role) || "";
+        if (role !== "Parent/Guardian") continue;
+        const email = String(data.email || "").trim();
+        if (!email) continue;                                  // needs an email to remind / match
+
+        const sessions = getSignupSessions(data, event) || [];
+        const upcoming = sessions.map((x) => x && x.dateKey).filter((dk) => dk && dk >= todayKey).sort();
+        if (upcoming.length === 0) continue;                   // no upcoming session
+        const earliest = upcoming[0];
+        const daysUntil = Math.round((new Date(earliest + "T12:00:00-10:00").getTime() - todayMs) / (24 * 60 * 60 * 1000));
+
+        // 1) Auto-apply a recent prior completed registration (by linkedContactId).
+        const prior = data.linkedContactId
+          ? await _findPriorCompletedRegistration(db, data.linkedContactId, s.ref.path, nowMs - TWELVE_MONTHS_MS)
+          : null;
+        if (prior) {
+          await s.ref.update({
+            registration: prior.registration,
+            status: "confirmed",
+            registrationCompletedAt: FieldValue.serverTimestamp(),
+            registrationCompletedVia: "prior-auto",
+            registrationAppliedFromSignupId: prior.id,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          applied++;
+          console.log("processPendingParentRegistrations: applied prior reg to", s.ref.path, "from", prior.path);
+          continue; // confirmation email fires via maybeSendRegistrationConfirmation onUpdate
+        }
+
+        // 2) Within 4 days of the earliest session -> La'akea call-task, stop emails.
+        if (daysUntil <= 4) {
+          const exist = await db.collection("interactions").where("workflowSignupPath", "==", s.ref.path).limit(5).get();
+          const hasTask = exist.docs.some((d) => (d.data() || {}).workflowStep === "registrationAssist");
+          if (!hasTask) {
+            await db.collection("interactions").add({
+              channel: "Registration",
+              interactionType: "Registration Assist",
+              contactId: data.linkedContactId || "",
+              contactName: data.name || email,
+              contactType: "",
+              grantProgram: "",
+              summary: "Call " + (data.name || email) + " to help finish registration",
+              followUpDate: todayKey,
+              status: "Open",
+              notes: "Call " + (data.name || email) + (data.phone ? " at " + data.phone : "")
+                + " — registration still pending for " + (event.title || "event") + " (" + upcoming.join(", ") + "). Offer to help them complete it.",
+              isDraft: false,
+              owner: laaName,
+              ownerUid: LIFECYCLE_LAA_UID,
+              createdAt: FieldValue.serverTimestamp(),
+              updatedAt: FieldValue.serverTimestamp(),
+              workflowStep: "registrationAssist",
+              workflowEventId: eventId,
+              workflowEventCollection: "events",
+              workflowSignupPath: s.ref.path,
+              workflowContactId: data.linkedContactId || "",
+            });
+            tasked++;
+            console.log("processPendingParentRegistrations: call-task for", s.ref.path);
+          }
+          continue; // task handles it from here — no more emails
+        }
+
+        // 3) Every-other-day reminder (until the 4-day handoff above).
+        const lastMs = (data.pendingRegReminderLastAt && data.pendingRegReminderLastAt.toMillis ? data.pendingRegReminderLastAt.toMillis() : 0)
+          || (data.registrationEmailSentAt && data.registrationEmailSentAt.toMillis ? data.registrationEmailSentAt.toMillis() : 0);
+        if (lastMs && (nowMs - lastMs) < TWO_DAYS) continue;   // not yet 2 days
+        try {
+          const orgFooterHtml = await getOrgFooterHtml();
+          const eventDate = (Array.isArray(data.selectedDates) && data.selectedDates[0]) || "";
+          const htmlBody = buildRegistrationEmailHtml({ name: data.name || "there", eventTitle: event.title || "an LDAH Event", eventDate, signupId: s.id, eventId, type: "event", orgFooterHtml });
+          const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+          await sendEmailViaResend({
+            from: `LDAH <${fromAddress}>`, to: email,
+            subject: `Reminder: Complete Your Registration -- ${event.title || "LDAH Event"}`,
+            html: htmlBody, type: "registration-reminder", relatedEventId: eventId, relatedSignupId: s.id, recipientName: data.name || "",
+          });
+          await s.ref.update({ pendingRegReminderLastAt: FieldValue.serverTimestamp(), pendingRegReminderCount: FieldValue.increment(1) });
+          emailed++;
+        } catch (err) {
+          console.error("processPendingParentRegistrations reminder failed for", s.ref.path, err.message);
+        }
+      }
+    }
+    console.log("processPendingParentRegistrations:", todayKey, "applied", applied, "emailed", emailed, "tasked", tasked);
+    return null;
+  });
+
 // ── Resend Registration Email (callable from LDAH-Int admin) ─────
 exports.resendRegistrationEmail = functions
   .runWith({ timeoutSeconds: 30, maxInstances: 5, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
