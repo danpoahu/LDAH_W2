@@ -1398,6 +1398,34 @@ async function handleSignupCreated(snap, context, collectionName) {
 
     // Write linkedContactId on the signup doc (null if no email/phone)
     await snap.ref.update({ linkedContactId });
+
+    // Instant prior-registration apply: a pending Parent/Guardian signup for a
+    // one-time event whose contact completed a registration in the last 12
+    // months is confirmed RIGHT NOW — before the deferred "complete your
+    // registration" email (10-min grace) ever fires. Mirrors the 5 AM
+    // processPendingParentRegistrations auto-apply, just earlier. Own try/catch
+    // so it never blocks the rest of signup handling.
+    try {
+      const role = signupData.registrantType || signupData.role || (signupData.registration && signupData.registration.role) || "";
+      const alreadyDone = signupData.registration && typeof signupData.registration === "object";
+      if (collectionName === "events" && linkedContactId && role === "Parent/Guardian"
+          && signupData.status !== "confirmed" && !alreadyDone) {
+        const prior = await _findPriorCompletedRegistration(db, linkedContactId, snap.ref.path, Date.now() - 365 * 24 * 60 * 60 * 1000);
+        if (prior) {
+          await snap.ref.update({
+            registration: prior.registration,
+            status: "confirmed",
+            registrationCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
+            registrationCompletedVia: "prior-auto",
+            registrationAppliedFromSignupId: prior.id,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          console.log(`handleSignupCreated: applied prior reg to ${snap.ref.path} from ${prior.path}`);
+        }
+      }
+    } catch (priorErr) {
+      console.error(`handleSignupCreated prior-reg apply failed for ${signupId}:`, priorErr.message);
+    }
   } catch (contactErr) {
     console.error(`Contact auto-creation failed for signup ${signupId}:`, contactErr.message);
     // Non-blocking — continue to email logic
