@@ -3666,11 +3666,7 @@ exports.sendFeedbackFollowups = functions
 // sessions, signup counts, yesterday's activity, and items needing
 // attention.
 
-exports.sendDailySessionSheet = functions
-  .runWith({ timeoutSeconds: 120, maxInstances: 1, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
-  .pubsub.schedule("0 6 * * *")
-  .timeZone("Pacific/Honolulu")
-  .onRun(async (context) => {
+async function runDailyReport(overrideRecipients) {
     const db = admin.firestore();
     const now = new Date();
 
@@ -3704,20 +3700,23 @@ exports.sendDailySessionSheet = functions
     const todayISO = `${yyyy}-${mm}-${dd}`;
 
     // ── 1. Get active recipients ──
-    let recipients = [];
-    try {
-      const recipSnap = await db.collection("dailyReportRecipients").where("active", "==", true).get();
-      recipSnap.forEach((doc) => {
-        const d = doc.data();
-        if (d.email) recipients.push({ name: d.name || "", email: d.email });
-      });
-    } catch (err) {
-      console.error("sendDailySessionSheet: failed to fetch recipients:", err.message);
-      return null;
+    let recipients = overrideRecipients || null;
+    if (!recipients) {
+      recipients = [];
+      try {
+        const recipSnap = await db.collection("dailyReportRecipients").where("active", "==", true).get();
+        recipSnap.forEach((doc) => {
+          const d = doc.data();
+          if (d.email) recipients.push({ name: d.name || "", email: d.email });
+        });
+      } catch (err) {
+        console.error("sendDailySessionSheet: failed to fetch recipients:", err.message);
+        return null;
+      }
     }
 
     if (recipients.length === 0) {
-      console.log("sendDailySessionSheet: no active recipients, skipping.");
+      console.log("sendDailySessionSheet: no recipients, skipping.");
       return null;
     }
 
@@ -4583,7 +4582,13 @@ exports.sendDailySessionSheet = functions
 
     console.log(`sendDailySessionSheet: complete. Sent to ${sentCount}/${recipients.length} recipients. Sessions: ${allSessions.length}`);
     return null;
-  });
+}
+
+exports.sendDailySessionSheet = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 1, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .pubsub.schedule("0 6 * * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async (context) => { return runDailyReport(null); });
 
 // ── Event Reminder Emails (5-day + 1-day) ──────────────────────────
 // Scheduled daily at 7 AM HST. Scans all confirmed, non-archived
