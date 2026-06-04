@@ -4094,9 +4094,55 @@ exports.sendDailySessionSheet = functions
     // ═══════════════════════════════════════════════════
     // SECTION 2: What Changed Since Yesterday (detailed)
     // ═══════════════════════════════════════════════════
-    const changelog = [];
+    // Collect RAW change facts (structured), then group per person+event so
+    // related lifecycle actions collapse to one line. See buildGroupedChangeLines.
+    const rawChanges = [];
 
-    // New signups with names + event titles
+    // Groups signup/registration/status/new-contact facts by person+event into
+    // a single line each; feedback/admin/session items stay as their own lines.
+    function buildGroupedChangeLines(raw, escFn) {
+      const groups = new Map();
+      const singles = [];
+      const newContacts = [];
+      raw.forEach((it) => {
+        if (it.single) { singles.push(it); return; }
+        if (it.kind === "newContact") { newContacts.push(it); return; }
+        if (it.person && it.event) {
+          const k = it.person + "||" + it.event;
+          let g = groups.get(k);
+          if (!g) { g = { person: it.person, event: it.event, signedUp: false, completedReg: false, statusWord: "", newContact: false, sort: 0, time: "" }; groups.set(k, g); }
+          if (it.kind === "signup") g.signedUp = true;
+          else if (it.kind === "completedReg") g.completedReg = true;
+          else if (it.kind === "status") g.statusWord = it.statusWord || g.statusWord;
+          if ((it.sort || 0) >= g.sort) { g.sort = it.sort || 0; g.time = it.time || g.time; }
+        } else { singles.push(it); }
+      });
+      // Fold "new contact created" into that person's event line when one exists.
+      newContacts.forEach((nc) => {
+        let attached = null, best = -1;
+        groups.forEach((g) => { if (g.person === nc.person && g.sort > best) { best = g.sort; attached = g; } });
+        if (attached) { attached.newContact = true; if ((nc.sort || 0) > attached.sort) { attached.sort = nc.sort || 0; attached.time = nc.time || attached.time; } }
+        else { singles.push({ single: true, icon: "&#128100;", text: `New contact created: <strong>${escFn(nc.person)}</strong>${nc.source ? " (from " + escFn(nc.source) + ")" : ""}`, time: nc.time, sort: nc.sort || 0 }); }
+      });
+      const lines = [];
+      groups.forEach((g) => {
+        let verb;
+        if (g.signedUp && g.completedReg) verb = "signed up &amp; completed registration for";
+        else if (g.completedReg) verb = "completed registration for";
+        else if (g.signedUp) verb = "signed up for";
+        else verb = "was updated for";
+        const tag = g.newContact ? ` <span style="color:#0891b2;font-weight:700;">(new)</span>` : "";
+        let txt = `<strong>${escFn(g.person)}</strong>${tag} ${verb} <em>${escFn(g.event)}</em>`;
+        if (g.statusWord) txt += ` <span style="color:#666;">&middot; ${escFn(g.statusWord)}</span>`;
+        const icon = g.completedReg ? "&#9989;" : (g.signedUp ? "&#128221;" : "&#128260;");
+        lines.push({ icon, text: txt, time: g.time, sort: g.sort });
+      });
+      singles.forEach((s) => lines.push({ icon: s.icon, text: s.text, time: s.time, sort: s.sort || 0 }));
+      lines.sort((a, b) => b.sort - a.sort);
+      return lines;
+    }
+
+    // New signups
     try {
       const nsSnap = await db.collectionGroup("signups").where("timestamp", ">=", cutoffTimestamp).get();
       for (const doc of nsSnap.docs) {
@@ -4104,16 +4150,11 @@ exports.sendDailySessionSheet = functions
         const parentRef = doc.ref.parent.parent;
         const parentDoc = await parentRef.get();
         const evTitle = (parentDoc.data() || {}).title || "Unknown Event";
-        changelog.push({
-          icon: "&#128221;",
-          text: `<strong>${esc(nd.name || "Someone")}</strong> signed up for <em>${esc(evTitle)}</em>`,
-          time: fmtTs(nd.timestamp),
-          sort: nd.timestamp ? (nd.timestamp.seconds || 0) : 0,
-        });
+        rawChanges.push({ kind: "signup", person: nd.name || "Someone", event: evTitle, time: fmtTs(nd.timestamp), sort: nd.timestamp ? (nd.timestamp.seconds || 0) : 0 });
       }
     } catch (err) { console.warn("Changelog signups:", err.message); }
 
-    // Completed registrations with names
+    // Completed registrations
     try {
       const crSnap = await db.collectionGroup("signups").where("registrationCompletedAt", ">=", cutoffTimestamp).get();
       for (const doc of crSnap.docs) {
@@ -4121,26 +4162,16 @@ exports.sendDailySessionSheet = functions
         const parentRef = doc.ref.parent.parent;
         const parentDoc = await parentRef.get();
         const pTitle = (parentDoc.data() || {}).title || "Unknown Event";
-        changelog.push({
-          icon: "&#9989;",
-          text: `<strong>${esc(cd.name || "Someone")}</strong> completed registration for <em>${esc(pTitle)}</em>`,
-          time: fmtTs(cd.registrationCompletedAt),
-          sort: cd.registrationCompletedAt ? (cd.registrationCompletedAt.seconds || 0) : 0,
-        });
+        rawChanges.push({ kind: "completedReg", person: cd.name || "Someone", event: pTitle, time: fmtTs(cd.registrationCompletedAt), sort: cd.registrationCompletedAt ? (cd.registrationCompletedAt.seconds || 0) : 0 });
       }
     } catch (err) { console.warn("Changelog regs:", err.message); }
 
-    // New feedback
+    // New feedback (own line)
     try {
       const fbSnap = await db.collection("eventFeedback").where("submittedAt", ">=", cutoffTimestamp).get();
       fbSnap.forEach((f) => {
         const fd = f.data();
-        changelog.push({
-          icon: "&#128172;",
-          text: `Feedback received for <em>${esc(fd.eventTitle || fd.eventId || "an event")}</em>${fd.presenterRating ? " (Presenter: " + esc(fd.presenterRating) + ")" : ""}`,
-          time: fmtTs(fd.submittedAt),
-          sort: fd.submittedAt ? (fd.submittedAt.seconds || 0) : 0,
-        });
+        rawChanges.push({ single: true, icon: "&#128172;", text: `Feedback received for <em>${esc(fd.eventTitle || fd.eventId || "an event")}</em>${fd.presenterRating ? " (Presenter: " + esc(fd.presenterRating) + ")" : ""}`, time: fmtTs(fd.submittedAt), sort: fd.submittedAt ? (fd.submittedAt.seconds || 0) : 0 });
       });
     } catch (err) { console.warn("Changelog feedback:", err.message); }
 
@@ -4149,57 +4180,34 @@ exports.sendDailySessionSheet = functions
       const ctSnap = await db.collection("contacts").where("createdAt", ">=", cutoffTimestamp).get();
       ctSnap.forEach((c) => {
         const cdata = c.data();
-        changelog.push({
-          icon: "&#128100;",
-          text: `New contact created: <strong>${esc(cdata.displayName || cdata.firstName || "Unknown")}</strong>${cdata.source ? " (from " + esc(cdata.source) + ")" : ""}`,
-          time: fmtTs(cdata.createdAt),
-          sort: cdata.createdAt ? (cdata.createdAt.seconds || 0) : 0,
-        });
+        rawChanges.push({ kind: "newContact", person: cdata.displayName || cdata.firstName || "Unknown", source: cdata.source || "", time: fmtTs(cdata.createdAt), sort: cdata.createdAt ? (cdata.createdAt.seconds || 0) : 0 });
       });
     } catch (err) { console.warn("Changelog contacts:", err.message); }
 
-    // Admin actions from audit log (status changes, archives, reschedules, etc.)
-    function formatAuditEntry(action, details) {
+    // Admin audit log — groupable status actions become structured; the rest are single lines.
+    function auditToRaw(action, details) {
       if (!action || !details) return null;
       let m;
       if (action === "Updated signup status") {
         m = details.match(/^(.*?)\s+—\s+(.*?)\s+—\s+Status:\s+(.*)$/);
-        if (m) {
-          const verbs = {
-            confirmed: "was <strong>confirmed</strong> for",
-            cancelled: "was marked <strong>cancelled</strong> for",
-            pending: "was set to <strong>pending</strong> for",
-            new: "was reset to <strong>new</strong> for",
-          };
-          const verb = verbs[m[3]] || `was set to <strong>${esc(m[3])}</strong> for`;
-          return { icon: "&#128260;", text: `<strong>${esc(m[1])}</strong> ${verb} <em>${esc(m[2])}</em>` };
-        }
+        if (m) return { kind: "status", person: m[1], event: m[2], statusWord: m[3] };
       }
-      if (action === "Archived signup") {
-        m = details.match(/^(.*?)\s+—\s+(.*)$/);
-        if (m) return { icon: "&#128465;", text: `<strong>${esc(m[1])}</strong> was archived from <em>${esc(m[2])}</em>` };
-      }
-      if (action === "Restored signup") {
-        m = details.match(/^(.*?)\s+—\s+(.*)$/);
-        if (m) return { icon: "&#8617;", text: `<strong>${esc(m[1])}</strong> was restored to <em>${esc(m[2])}</em>` };
-      }
-      if (action === "Rescheduled signup") {
-        m = details.match(/^(.*?)\s+—\s+from\s+(.*?)\s+to\s+(.*)$/);
-        if (m) return { icon: "&#128197;", text: `<strong>${esc(m[1])}</strong> was rescheduled from ${esc(m[2])} to ${esc(m[3])}` };
-      }
-      if (action === "Saved attendance") return { icon: "&#9989;", text: `Attendance saved — <em>${esc(details)}</em>` };
-      if (action === "Cancelled session") return { icon: "&#10060;", text: `Session cancelled — <em>${esc(details)}</em>` };
-      if (action === "Restored session") return { icon: "&#9200;", text: `Session restored — <em>${esc(details)}</em>` };
-      if (action === "Sent no-show re-invites") return { icon: "&#128231;", text: `No-show re-invites sent — <em>${esc(details)}</em>` };
+      if (action === "Archived signup") { m = details.match(/^(.*?)\s+—\s+(.*)$/); if (m) return { kind: "status", person: m[1], event: m[2], statusWord: "archived" }; }
+      if (action === "Restored signup") { m = details.match(/^(.*?)\s+—\s+(.*)$/); if (m) return { kind: "status", person: m[1], event: m[2], statusWord: "restored" }; }
+      if (action === "Rescheduled signup") { m = details.match(/^(.*?)\s+—\s+from\s+(.*?)\s+to\s+(.*)$/); if (m) return { single: true, icon: "&#128197;", text: `<strong>${esc(m[1])}</strong> was rescheduled from ${esc(m[2])} to ${esc(m[3])}` }; }
+      if (action === "Saved attendance") return { single: true, icon: "&#9989;", text: `Attendance saved — <em>${esc(details)}</em>` };
+      if (action === "Cancelled session") return { single: true, icon: "&#10060;", text: `Session cancelled — <em>${esc(details)}</em>` };
+      if (action === "Restored session") return { single: true, icon: "&#9200;", text: `Session restored — <em>${esc(details)}</em>` };
+      if (action === "Sent no-show re-invites") return { single: true, icon: "&#128231;", text: `No-show re-invites sent — <em>${esc(details)}</em>` };
       if (action === "Follow-up support requested") {
         m = details.match(/^(.*?)\s+--\s+(.*)$/);
-        if (m) return { icon: "&#128205;", text: `<strong>${esc(m[1])}</strong> requested follow-up support after <em>${esc(m[2])}</em>` };
-        return { icon: "&#128205;", text: `Follow-up support requested — <em>${esc(details)}</em>` };
+        if (m) return { single: true, icon: "&#128205;", text: `<strong>${esc(m[1])}</strong> requested follow-up support after <em>${esc(m[2])}</em>` };
+        return { single: true, icon: "&#128205;", text: `Follow-up support requested — <em>${esc(details)}</em>` };
       }
-      if (action === "Saved event summary") return { icon: "&#128203;", text: `Event summary saved — <em>${esc(details)}</em>` };
+      if (action === "Saved event summary") return { single: true, icon: "&#128203;", text: `Event summary saved — <em>${esc(details)}</em>` };
       if (action === "Updated signup notes") {
         m = details.match(/^(.*?)\s+—\s+(.*)$/);
-        if (m) return { icon: "&#9999;", text: `Admin notes updated for <strong>${esc(m[1])}</strong> on <em>${esc(m[2])}</em>` };
+        if (m) return { single: true, icon: "&#9999;", text: `Admin notes updated for <strong>${esc(m[1])}</strong> on <em>${esc(m[2])}</em>` };
       }
       return null;
     }
@@ -4208,27 +4216,24 @@ exports.sendDailySessionSheet = functions
       const alSnap = await db.collection("auditLog").where("timestamp", ">=", cutoffTimestamp).get();
       alSnap.forEach((a) => {
         const ad = a.data();
-        const fmt = formatAuditEntry(ad.action, ad.details);
-        if (!fmt) return;
-        const by = ad.performedBy ? ` <span style="color:#999;">(by ${esc(ad.performedBy)})</span>` : "";
-        changelog.push({
-          icon: fmt.icon,
-          text: fmt.text + by,
-          time: fmtTs(ad.timestamp),
-          sort: ad.timestamp ? (ad.timestamp.seconds || 0) : 0,
-        });
+        const r = auditToRaw(ad.action, ad.details);
+        if (!r) return;
+        r.time = fmtTs(ad.timestamp);
+        r.sort = ad.timestamp ? (ad.timestamp.seconds || 0) : 0;
+        if (r.single && ad.performedBy) r.text += ` <span style="color:#999;">(by ${esc(ad.performedBy)})</span>`;
+        rawChanges.push(r);
       });
     } catch (err) { console.warn("Changelog audit:", err.message); }
 
-    // Sort changelog by time (newest first)
-    changelog.sort((a, b) => b.sort - a.sort);
+    // Group related entries → one line per person+event.
+    const changeLines = buildGroupedChangeLines(rawChanges, esc);
 
     let changelogHtml = "";
-    if (changelog.length === 0) {
+    if (changeLines.length === 0) {
       changelogHtml = `<p style="color:#666;font-style:italic;">No changes in the last 24 hours.</p>`;
     } else {
       changelogHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;">`;
-      changelog.forEach((c, idx) => {
+      changeLines.forEach((c, idx) => {
         const bg = idx % 2 === 0 ? "#fafafa" : "#ffffff";
         changelogHtml += `<tr style="background:${bg};">`
           + `<td style="padding:8px 14px;font-size:16px;width:30px;text-align:center;">${c.icon}</td>`
@@ -4236,6 +4241,49 @@ exports.sendDailySessionSheet = functions
           + `<td style="padding:8px 14px;font-size:11px;color:#999;white-space:nowrap;text-align:right;">${c.time}</td></tr>`;
       });
       changelogHtml += `</table>`;
+    }
+
+    // ═══════════════════════════════════════════════════
+    // SECTION 2.5: Overdue / Due Today Interactions
+    // ═══════════════════════════════════════════════════
+    const overdueInt = [], dueTodayInt = [];
+    try {
+      const oiSnap = await db.collection("interactions").where("status", "==", "Open").get();
+      oiSnap.forEach((d) => {
+        const x = d.data();
+        if (x.isDraft === true) return;
+        const fu = x.followUpDate;
+        if (!fu || !/^\d{4}-\d{2}-\d{2}$/.test(fu)) return;
+        const row = { name: x.contactName || "(no contact)", summary: x.summary || x.interactionType || "", owner: x.owner || "", fu };
+        if (fu < todayISO) overdueInt.push(row);
+        else if (fu === todayISO) dueTodayInt.push(row);
+      });
+    } catch (err) { console.warn("Overdue interactions:", err.message); }
+    overdueInt.sort((a, b) => (a.fu < b.fu ? -1 : (a.fu > b.fu ? 1 : 0)));
+    const overdueCountTotal = overdueInt.length + dueTodayInt.length;
+
+    let overdueHtml = "";
+    if (overdueCountTotal === 0) {
+      overdueHtml = `<p style="color:#666;font-style:italic;">No overdue or due-today follow-ups.</p>`;
+    } else {
+      const oiRow = (r, tag, color) =>
+        `<tr style="border-bottom:1px solid #eee;">`
+        + `<td style="padding:6px 10px;font-size:12px;font-weight:600;">${esc(r.name)}</td>`
+        + `<td style="padding:6px 10px;font-size:12px;color:#333;">${esc((r.summary || "").substring(0, 90))}</td>`
+        + `<td style="padding:6px 10px;font-size:12px;color:#555;">${esc(r.owner)}</td>`
+        + `<td style="padding:6px 10px;font-size:12px;white-space:nowrap;">${esc(r.fu)}</td>`
+        + `<td style="padding:6px 10px;font-size:11px;white-space:nowrap;"><span style="background:${color};color:#fff;padding:2px 8px;border-radius:10px;font-weight:700;">${tag}</span></td></tr>`;
+      let oiRows = "";
+      overdueInt.forEach((r) => { oiRows += oiRow(r, "Overdue", "#dc2626"); });
+      dueTodayInt.forEach((r) => { oiRows += oiRow(r, "Due Today", "#d97706"); });
+      overdueHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;border-collapse:collapse;">`
+        + `<tr style="background:#f8f9fa;">`
+        + `<th style="padding:6px 10px;text-align:left;font-size:11px;color:#666;font-weight:800;">Contact</th>`
+        + `<th style="padding:6px 10px;text-align:left;font-size:11px;color:#666;font-weight:800;">Task</th>`
+        + `<th style="padding:6px 10px;text-align:left;font-size:11px;color:#666;font-weight:800;">Owner</th>`
+        + `<th style="padding:6px 10px;text-align:left;font-size:11px;color:#666;font-weight:800;">Due</th>`
+        + `<th style="padding:6px 10px;text-align:left;font-size:11px;color:#666;font-weight:800;">Status</th></tr>`
+        + oiRows + `</table>`;
     }
 
     // ═══════════════════════════════════════════════════
@@ -4476,10 +4524,21 @@ exports.sendDailySessionSheet = functions
       <h2 style="margin:0;font-size:17px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:6px;">
         What Changed (Last 24 Hours)
       </h2>
-      <p style="margin:4px 0 12px;font-size:12px;color:#666;">${changelog.length} change(s)</p>
+      <p style="margin:4px 0 12px;font-size:12px;color:#666;">${changeLines.length} change(s)</p>
     </td>
   </tr>
   <tr><td style="padding:0 28px 16px;">${changelogHtml}</td></tr>
+
+  <!-- Section 2.5: Overdue / Due Today Interactions -->
+  <tr>
+    <td style="padding:24px 28px 8px;">
+      <h2 style="margin:0;font-size:17px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:6px;">
+        Overdue / Due Today Interactions
+      </h2>
+      <p style="margin:4px 0 12px;font-size:12px;color:#666;">${overdueCountTotal} follow-up(s)</p>
+    </td>
+  </tr>
+  <tr><td style="padding:0 28px 16px;">${overdueHtml}</td></tr>
 
   <!-- Section 3: Pending/New Public Submissions -->
   <tr>
