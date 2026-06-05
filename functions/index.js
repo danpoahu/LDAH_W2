@@ -3666,7 +3666,86 @@ exports.sendFeedbackFollowups = functions
 // sessions, signup counts, yesterday's activity, and items needing
 // attention.
 
-async function runDailyReport(overrideRecipients) {
+// Builds the "Website & App Analytics — Executive Summary (Year-to-Date)"
+// body for the 1st-of-month daily report. Email-safe HTML/CSS bar charts (no
+// JS). Mirrors the in-app report's siteAnalytics aggregation; tolerant of the
+// legacy dotted-path docs. Returns inner HTML; caller adds the section header.
+async function buildAnalyticsYtdHtml(db, esc, hawaiiNow) {
+  const year = hawaiiNow.getFullYear();
+  const yearStart = year + "-01-01";
+  const PAGE_LABELS = { home:"Home", contact:"Contact", volunteer:"Volunteer", events:"Events", whoweare:"Who We Are", resources:"Resources", readiness:"Readiness", specialed:"Special Ed", military:"Military", pacific:"Pacific", community:"Community", install:"Install App", cms:"CMS", accessibility:"Accessibility" };
+  const uniq = new Set();
+  let pv=0, don=0, ph=0, em=0, ob=0, md=0, fm=0, dv=0;
+  const pageBy={}, formBy={}, monthPV={};
+  let minDate=null, maxDate=null;
+  try {
+    const snap = await db.collection("siteAnalytics").where("date", ">=", yearStart).get();
+    snap.forEach((d) => {
+      const day = d.data() || {};
+      const date = day.date || d.id || "";
+      if (/^\d{4}-\d{2}-\d{2}/.test(date)) { if (!minDate || date < minDate) minDate = date; if (!maxDate || date > maxDate) maxDate = date; }
+      const ym = (date && date.length >= 7) ? date.slice(0,7) : null;
+      const vids = Array.isArray(day.visitorIds) ? day.visitorIds : [];
+      vids.forEach((v) => uniq.add(v));
+      pv += day.totalPageviews || 0;
+      if (ym) monthPV[ym] = (monthPV[ym] || 0) + (day.totalPageviews || 0);
+      if (day.pageviews && typeof day.pageviews === "object") Object.keys(day.pageviews).forEach((p) => { pageBy[p] = (pageBy[p]||0) + (day.pageviews[p]||0); });
+      Object.keys(day).forEach((k) => { if (k.indexOf("pageviews.")===0) { const p=k.slice(10); pageBy[p]=(pageBy[p]||0)+(day[k]||0); } });
+      const e = day.events || {};
+      don += e.donation_click||0; ph += e.phone_call||0; em += e.email_click||0; ob += e.outbound_click||0; md += e.modal_open_total||0; fm += e.form_submit_total||0; dv += e.document_view_total||0;
+      don += day["events.donation_click"]||0; ph += day["events.phone_call"]||0; em += day["events.email_click"]||0; ob += day["events.outbound_click"]||0; md += day["events.modal_open_total"]||0; fm += day["events.form_submit_total"]||0; dv += day["events.document_view_total"]||0;
+    });
+  } catch (err) { console.warn("Analytics YTD query:", err.message); }
+  const engagements = ph+em+ob+md+dv+fm;
+  const n = (x) => Number(x||0).toLocaleString();
+
+  const kpis = [["Unique Visitors",uniq.size],["Page Views",pv],["Total Engagements",engagements],["Form Submissions",fm],["Document Views",dv],["Donation Clicks",don]];
+  let tiles = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>';
+  kpis.forEach((k,i) => {
+    tiles += '<td width="33%" style="padding:5px;"><div style="background:#0f3a5f;color:#fff;border-radius:8px;padding:10px 6px;text-align:center;"><div style="font-size:18px;font-weight:800;">'+n(k[1])+'</div><div style="font-size:9px;letter-spacing:.04em;text-transform:uppercase;opacity:.85;">'+esc(k[0])+'</div></div></td>';
+    if (i % 3 === 2 && i !== kpis.length-1) tiles += '</tr><tr>';
+  });
+  tiles += '</tr></table>';
+
+  function bars(rows, color) {
+    const max = rows.reduce((m,r) => Math.max(m, r[1]), 0) || 1;
+    let h = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0">';
+    rows.forEach((r) => {
+      const pct = r[1] > 0 ? Math.max(3, Math.round(r[1]/max*100)) : 0;
+      h += '<tr><td style="padding:3px 8px 3px 0;font-size:12px;color:#333;white-space:nowrap;">'+esc(r[0])+'</td>'
+        + '<td style="padding:3px 0;width:62%;"><div style="background:#e8edf3;border-radius:4px;"><div style="background:'+color+';height:13px;border-radius:4px;width:'+pct+'%;">&nbsp;</div></div></td>'
+        + '<td style="padding:3px 0 3px 8px;font-size:12px;color:#333;text-align:right;white-space:nowrap;">'+n(r[1])+'</td></tr>';
+    });
+    h += '</table>';
+    return h;
+  }
+
+  const months = Object.keys(monthPV).sort();
+  const MN = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const monthlyRows = months.map((m) => { const mi=parseInt(m.split("-")[1],10)-1; return [MN[mi]+" "+m.split("-")[0].slice(2), monthPV[m]]; });
+  const topPages = Object.entries(pageBy).sort((a,b)=>b[1]-a[1]).slice(0,6).map((e)=>[PAGE_LABELS[e[0]]||e[0], e[1]]);
+
+  const rangeLabel = (minDate && maxDate) ? (minDate + " to " + maxDate) : (yearStart + " to date");
+  const recap = pv>0
+    ? "So far in "+year+", LDAH's website and app drew <strong>"+n(pv)+"</strong> page views from <strong>"+n(uniq.size)+"</strong> unique visitors, including <strong>"+n(fm)+"</strong> form submissions and <strong>"+n(dv)+"</strong> document views."
+    : "No analytics recorded yet for "+year+".";
+
+  const sumRows = kpis.concat([["Phone Call Taps",ph],["Email Link Clicks",em],["Outbound Links",ob],["Modal / Popup Opens",md]]);
+  let sumTable = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;border-collapse:collapse;"><tr style="background:#f8f9fa;"><th style="padding:5px 10px;text-align:left;font-size:11px;color:#666;">Metric</th><th style="padding:5px 10px;text-align:right;font-size:11px;color:#666;">Total (YTD)</th></tr>';
+  sumRows.forEach((r,i)=>{ const bg=i%2===0?"#ffffff":"#fafafa"; sumTable += '<tr style="background:'+bg+';"><td style="padding:5px 10px;font-size:12px;">'+esc(r[0])+'</td><td style="padding:5px 10px;font-size:12px;text-align:right;">'+n(r[1])+'</td></tr>'; });
+  sumTable += '</table>';
+
+  return '<p style="margin:0 0 12px;font-size:12px;color:#666;">Year to Date &middot; '+esc(rangeLabel)+' &middot; combined website + app</p>'
+    + tiles
+    + '<p style="margin:14px 0;font-size:13px;color:#333;line-height:1.5;">'+recap+'</p>'
+    + '<h3 style="margin:16px 0 6px;font-size:13px;color:#0f3a5f;">Page Views by Month</h3>'+bars(monthlyRows.length?monthlyRows:[["No data",0]], "#0891b2")
+    + '<h3 style="margin:16px 0 6px;font-size:13px;color:#0f3a5f;">Top Pages</h3>'+bars(topPages.length?topPages:[["No data",0]], "#0f3a5f")
+    + '<h3 style="margin:16px 0 6px;font-size:13px;color:#0f3a5f;">Summary Metrics</h3>'+sumTable
+    + '<div style="text-align:center;margin:20px 0 4px;"><a href="https://danpoahu.github.io/LDAH-Int/" style="display:inline-block;background:#0891b2;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:700;font-size:13px;">View the full interactive report &rarr;</a></div>'
+    + '<div style="text-align:center;font-size:11px;color:#666;">In LDAH-Int: Reports &rarr; Website &amp; App Analytics (staff login)</div>';
+}
+
+async function runDailyReport(overrideRecipients, opts) {
     const db = admin.firestore();
     const now = new Date();
 
@@ -4471,6 +4550,16 @@ async function runDailyReport(overrideRecipients) {
     // ═══════════════════════════════════════════════════
     // BUILD FULL HTML EMAIL
     // ═══════════════════════════════════════════════════
+    // Monthly extra (1st of month HST, or forced for a preview): Website &
+    // App Analytics year-to-date executive summary, as its own page.
+    var _opts = opts || {};
+    var isMonthly = _opts.forceMonthly === true || (hawaiiNow.getDate() === 1);
+    let analyticsSummaryHtml = "";
+    if (isMonthly) {
+      try { analyticsSummaryHtml = await buildAnalyticsYtdHtml(db, esc, hawaiiNow); }
+      catch (err) { console.warn("Analytics summary build failed:", err.message); analyticsSummaryHtml = ""; }
+    }
+
     const orgFooterHtml = await getOrgFooterHtml();
     const emailHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -4548,6 +4637,19 @@ async function runDailyReport(overrideRecipients) {
     </td>
   </tr>
   <tr><td style="padding:0 28px 16px;">${formsHtml}</td></tr>
+
+  ${analyticsSummaryHtml ? `
+  <!-- Page 2 (1st of month): Website & App Analytics — Executive Summary -->
+  <tr><td style="padding:0;"><div style="page-break-before:always;line-height:0;font-size:0;">&nbsp;</div></td></tr>
+  <tr>
+    <td style="padding:24px 28px 8px;">
+      <h2 style="margin:0;font-size:17px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:6px;">
+        Website &amp; App Analytics &mdash; Executive Summary
+      </h2>
+    </td>
+  </tr>
+  <tr><td style="padding:0 28px 24px;">${analyticsSummaryHtml}</td></tr>
+  ` : ''}
 
   <!-- Footer -->
   ${orgFooterHtml || ''}
