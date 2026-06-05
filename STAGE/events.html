@@ -2340,6 +2340,13 @@
       const existingModal = document.getElementById('signupModal');
       if (existingModal) existingModal.remove();
 
+      // Reset the email-lookup guards so the on-blur prefill fires fresh every
+      // time the form opens. They're window-scoped and otherwise persist across
+      // modal closes, which silently suppressed the prefill on a 2nd signup
+      // with the same email (regression fix 2026-06-05).
+      window._ldahLastLookupEmail = '';
+      window._ldahLookupInFlight = false;
+
       const event = window.allEventsData.find(e => e.id === eventId);
       if (!event) return;
 
@@ -4001,6 +4008,11 @@
       // Clean up any existing signup modal to prevent duplicate IDs
       const existingModal = document.getElementById('signupModal');
       if (existingModal) existingModal.remove();
+
+      // Reset the email-lookup guards so the on-blur prefill fires fresh every
+      // time the form opens (see openSignupModal — regression fix 2026-06-05).
+      window._ldahLastLookupEmail = '';
+      window._ldahLookupInFlight = false;
 
       const program = window._recurringPrograms && window._recurringPrograms[programId];
       if (!program) return;
