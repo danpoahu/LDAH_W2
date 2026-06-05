@@ -25,37 +25,45 @@
 
     var WINDOW_DAYS = 5;
     var SHOW_DELAY_MS = 1500;
-    var LOGO_SRC = 'logo_quilt.png';
     var KEY_PREFIX = 'll_popup_seen_';
+    var MONTHS = ['January','February','March','April','May','June',
+                  'July','August','September','October','November','December'];
+    var LL_IMG = 'https://firebasestorage.googleapis.com/v0/b/ldah-932d5.firebasestorage.app/o/event-images%2F1779995116728_June%20LL.jpg?alt=media&token=d0d2052f-feec-4e5f-a933-45c8a2ab66c0';
+    var PTC_IMG = 'https://firebasestorage.googleapis.com/v0/b/ldah-932d5.firebasestorage.app/o/event-images%2F1780510227059_June%202026..jpg?alt=media&token=eedabbf6-206f-4493-b8af-376627649d43';
 
     // ── Schedule (edit here to add / change events) ───────────────────────────
+    // label may contain "{month}" — replaced with the event's month name, so
+    // "Learning Labs for {month}" auto-rolls June → July → … with the date.
     var CAMPAIGNS = [
         {
             key: 'll-2026-06-10',
             date: '2026-06-10',
-            countdownLabel: 'Learning Labs June',
+            label: 'Learning Labs for {month}',
             sub: 'Free virtual Learning Lab for Hawaiʻi families.',
             topic: 'Navigating Transitions',
             when: 'June 10 &middot; 5:00 PM on Zoom',
-            eventId: 'WyaBRKf0xhFsahAWgcbn'
+            eventId: 'WyaBRKf0xhFsahAWgcbn',
+            image: LL_IMG
         },
         {
             key: 'ptc-2026-06-17',
             date: '2026-06-17',
-            countdownLabel: 'Parent Talk Café',
+            label: 'Parent Talk Café',
             sub: 'A relaxed space for parents to connect and talk story.',
             topic: 'Parent Talk Café',
             when: 'June 17 &middot; 5:00 PM on Facebook',
-            eventId: 'D9PCAWigmVKkXfMzHVJI'
+            eventId: 'D9PCAWigmVKkXfMzHVJI',
+            image: PTC_IMG
         },
         {
             key: 'll-2026-06-24',
             date: '2026-06-24',
-            countdownLabel: 'Learning Labs June',
+            label: 'Learning Labs for {month}',
             sub: 'Free virtual Learning Lab for Hawaiʻi families.',
             topic: 'Understanding ADHD',
             when: 'June 24 &middot; 5:00 PM on Zoom',
-            eventId: 'WyaBRKf0xhFsahAWgcbn'
+            eventId: 'WyaBRKf0xhFsahAWgcbn',
+            image: LL_IMG
         }
     ];
     // ──────────────────────────────────────────────────────────────────────────
@@ -96,11 +104,18 @@
         return best;
     }
 
+    function monthName(ymd) {
+        return MONTHS[(+ymd.split('-')[1]) - 1];
+    }
+    function labelFor(c) {
+        return c.label.replace('{month}', monthName(c.date));
+    }
     function headline(c) {
         var d = daysUntil(c.date);
-        if (d <= 0) return c.countdownLabel + ' is today!';
-        if (d === 1) return c.countdownLabel + ' is tomorrow!';
-        return d + ' days until ' + c.countdownLabel;
+        var label = labelFor(c);
+        if (d <= 0) return label + ' is today!';
+        if (d === 1) return label + ' is tomorrow!';
+        return d + ' days until ' + label;
     }
 
     function signupUrl(c) {
@@ -112,13 +127,16 @@
         backdrop.className = 'll-pop-backdrop';
         backdrop.id = 'llPopBackdrop';
         backdrop.setAttribute('aria-hidden', 'true');
+        var imgTag = (c.image && c.image.toLowerCase().indexOf('.pdf') === -1)
+            ? '<img class="ll-pop-img" src="' + c.image + '" alt="">'
+            : '';
         backdrop.innerHTML =
             '<div class="ll-pop" role="dialog" aria-modal="true" aria-labelledby="llPopTitle">' +
                 '<button class="ll-pop-close" type="button" aria-label="Close">&times;</button>' +
                 '<div class="ll-pop-head">' +
-                    '<img src="' + LOGO_SRC + '" alt="">' +
                     '<h2 class="ll-pop-title" id="llPopTitle"></h2>' +
                 '</div>' +
+                imgTag +
                 '<div class="ll-pop-body">' +
                     '<p class="ll-pop-sub">' + c.sub + '</p>' +
                     '<p class="ll-pop-when"><strong>' + c.topic + '</strong><br>' + c.when + '</p>' +
