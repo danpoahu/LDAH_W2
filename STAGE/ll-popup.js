@@ -1,39 +1,74 @@
-/* Learning Labs June — first-launch popup controller.
+/* LDAH event first-launch popup — schedule-driven.
  *
- * Auto-shows once per browser on the homepage, modeled on the (now disabled)
- * NH survey auto-pop + dismiss-once pattern.
+ * Auto-shows once per browser, per event, on the homepage. Each event has a
+ * 5-day window: the popup only appears in the 5 days leading up to (and on)
+ * the event date, and shows ONLY that single upcoming date.
+ *
+ * Schedule (June 2026):
+ *   - Learning Labs · Navigating Transitions  — June 10  (window June 5–10)
+ *   - Parent Talk Café                         — June 17  (window June 12–17)
+ *   - Learning Labs · Understanding ADHD       — June 24  (window June 19–24)
  *
  * Behavior:
- *   - Dismiss-once: localStorage key 'll_june_popup_seen' is set on ANY close
- *     (X, backdrop, Escape, "Maybe later", or Sign Up Now). Once set, never shows again.
- *   - Dynamic countdown: headline counts down to the next upcoming session.
- *     June 10 (Navigating Transitions) -> after it passes, June 24 (Understanding ADHD).
- *   - Self-hiding: after the last session day has passed, the popup never shows,
- *     so it can be left in place safely with no manual removal needed.
+ *   - 5-day window: show only when 0 <= daysUntil <= 5. Picks the soonest
+ *     eligible event. Outside every window, nothing shows.
+ *   - Dismiss-once PER EVENT: localStorage 'll_popup_seen_<key>' is set on ANY
+ *     close (X, backdrop, Escape, "Maybe later", Sign Up Now). Each event still
+ *     pops once even if an earlier one was dismissed.
+ *   - Self-hiding: once the last event's day passes, nothing ever shows again.
  *
- * To re-test from the console: LLJunePopup.reset(); location.reload();
+ * To re-test from the console: LLEventPopup.reset(); location.reload();
+ * (Preview a specific one: LLEventPopup.preview('ptc-2026-06-17'); )
  */
 (function () {
     'use strict';
 
-    // ── Config (edit here if dates/event change) ──────────────────────────────
-    var STORAGE_KEY = 'll_june_popup_seen';
-    var EVENT_ID = 'WyaBRKf0xhFsahAWgcbn';
-    var EVENT_LABEL = 'Learning Labs June';
-    // Sessions in chronological order. Countdown targets the next one not yet past.
-    var SESSIONS = ['2026-06-10', '2026-06-24'];
-    var SIGNUP_URL = 'events.html?eventId=' + EVENT_ID + '&autoOpen=1';
+    var WINDOW_DAYS = 5;
     var SHOW_DELAY_MS = 1500;
     var LOGO_SRC = 'logo_quilt.png';
+    var KEY_PREFIX = 'll_popup_seen_';
+
+    // ── Schedule (edit here to add / change events) ───────────────────────────
+    var CAMPAIGNS = [
+        {
+            key: 'll-2026-06-10',
+            date: '2026-06-10',
+            countdownLabel: 'Learning Labs June',
+            sub: 'Free virtual Learning Lab for Hawaiʻi families.',
+            topic: 'Navigating Transitions',
+            when: 'June 10 &middot; 5:00 PM on Zoom',
+            eventId: 'WyaBRKf0xhFsahAWgcbn'
+        },
+        {
+            key: 'ptc-2026-06-17',
+            date: '2026-06-17',
+            countdownLabel: 'Parent Talk Café',
+            sub: 'A relaxed space for parents to connect and talk story.',
+            topic: 'Parent Talk Café',
+            when: 'June 17 &middot; 5:00 PM on Facebook',
+            eventId: 'D9PCAWigmVKkXfMzHVJI'
+        },
+        {
+            key: 'll-2026-06-24',
+            date: '2026-06-24',
+            countdownLabel: 'Learning Labs June',
+            sub: 'Free virtual Learning Lab for Hawaiʻi families.',
+            topic: 'Understanding ADHD',
+            when: 'June 24 &middot; 5:00 PM on Zoom',
+            eventId: 'WyaBRKf0xhFsahAWgcbn'
+        }
+    ];
     // ──────────────────────────────────────────────────────────────────────────
 
     var root = null;
+    var activeCampaign = null;
 
-    function flagSet() {
-        try { return localStorage.getItem(STORAGE_KEY) === 'true'; } catch (e) { return false; }
+    function flagKey(c) { return KEY_PREFIX + c.key; }
+    function flagSet(c) {
+        try { return localStorage.getItem(flagKey(c)) === 'true'; } catch (e) { return false; }
     }
-    function setFlag() {
-        try { localStorage.setItem(STORAGE_KEY, 'true'); } catch (e) {}
+    function setFlag(c) {
+        try { localStorage.setItem(flagKey(c), 'true'); } catch (e) {}
     }
 
     // Local midnight for a 'YYYY-MM-DD' string (avoids UTC off-by-one).
@@ -42,31 +77,37 @@
         return new Date(+p[0], +p[1] - 1, +p[2], 0, 0, 0, 0);
     }
 
-    // Returns the next session Date whose day has not fully passed, or null if all are over.
-    function nextSession() {
+    function daysUntil(ymd) {
         var now = new Date();
         var todayMid = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-        for (var i = 0; i < SESSIONS.length; i++) {
-            // A session is "still upcoming or today" while today <= its date.
-            if (midnight(SESSIONS[i]).getTime() >= todayMid.getTime()) {
-                return midnight(SESSIONS[i]);
-            }
+        return Math.round((midnight(ymd).getTime() - todayMid.getTime()) / 86400000);
+    }
+
+    // Soonest campaign that's within its 5-day window and not yet dismissed.
+    function pickCampaign() {
+        var best = null, bestDays = Infinity;
+        for (var i = 0; i < CAMPAIGNS.length; i++) {
+            var c = CAMPAIGNS[i];
+            var d = daysUntil(c.date);
+            if (d < 0 || d > WINDOW_DAYS) continue; // outside the 5-day window
+            if (flagSet(c)) continue;               // already seen this one
+            if (d < bestDays) { best = c; bestDays = d; }
         }
-        return null;
+        return best;
     }
 
-    function countdownHeadline() {
-        var target = nextSession();
-        if (!target) return null; // event fully past
-        var now = new Date();
-        var todayMid = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-        var days = Math.round((target.getTime() - todayMid.getTime()) / 86400000);
-        if (days <= 0) return EVENT_LABEL + ' is today!';
-        if (days === 1) return EVENT_LABEL + ' is tomorrow!';
-        return days + ' days until ' + EVENT_LABEL;
+    function headline(c) {
+        var d = daysUntil(c.date);
+        if (d <= 0) return c.countdownLabel + ' is today!';
+        if (d === 1) return c.countdownLabel + ' is tomorrow!';
+        return d + ' days until ' + c.countdownLabel;
     }
 
-    function buildMarkup(headline) {
+    function signupUrl(c) {
+        return 'events.html?eventId=' + c.eventId + '&autoOpen=1';
+    }
+
+    function buildMarkup(c) {
         var backdrop = document.createElement('div');
         backdrop.className = 'll-pop-backdrop';
         backdrop.id = 'llPopBackdrop';
@@ -79,31 +120,30 @@
                     '<h2 class="ll-pop-title" id="llPopTitle"></h2>' +
                 '</div>' +
                 '<div class="ll-pop-body">' +
-                    '<p class="ll-pop-sub">Free virtual Learning Labs for Hawaiʻi families.</p>' +
-                    '<p class="ll-pop-when">' +
-                        '<strong>June 10</strong> &middot; Navigating Transitions<br>' +
-                        '<strong>June 24</strong> &middot; Understanding ADHD<br>' +
-                        '5:00 PM on Zoom' +
-                    '</p>' +
-                    '<a class="ll-pop-cta" href="' + SIGNUP_URL + '">Sign Up Now</a>' +
+                    '<p class="ll-pop-sub">' + c.sub + '</p>' +
+                    '<p class="ll-pop-when"><strong>' + c.topic + '</strong><br>' + c.when + '</p>' +
+                    '<a class="ll-pop-cta" href="' + signupUrl(c) + '">Sign Up Now</a>' +
                     '<button class="ll-pop-later" type="button">Maybe later</button>' +
                 '</div>' +
             '</div>';
-        backdrop.querySelector('#llPopTitle').textContent = headline;
+        backdrop.querySelector('#llPopTitle').textContent = headline(c);
         document.body.appendChild(backdrop);
         return backdrop;
     }
 
-    function open() {
-        if (!root) return;
+    function show(c) {
+        if (root) { root.remove(); root = null; }
+        activeCampaign = c;
+        root = buildMarkup(c);
+        wire();
         root.classList.add('active');
         root.setAttribute('aria-hidden', 'false');
         document.body.style.overflow = 'hidden';
     }
 
-    // Any dismissal is permanent (dismiss-once).
+    // Any dismissal is permanent for THIS event (dismiss-once per event).
     function close() {
-        setFlag();
+        if (activeCampaign) setFlag(activeCampaign);
         if (root) {
             root.classList.remove('active');
             root.setAttribute('aria-hidden', 'true');
@@ -115,30 +155,34 @@
         root.querySelector('.ll-pop-close').addEventListener('click', close);
         root.querySelector('.ll-pop-later').addEventListener('click', close);
         // Sign Up Now: mark seen, then let the link navigate.
-        root.querySelector('.ll-pop-cta').addEventListener('click', function () { setFlag(); });
-        // Backdrop click (outside the card) closes.
+        root.querySelector('.ll-pop-cta').addEventListener('click', function () {
+            if (activeCampaign) setFlag(activeCampaign);
+        });
         root.addEventListener('click', function (ev) { if (ev.target === root) close(); });
-        // Escape closes.
         document.addEventListener('keydown', function (ev) {
-            if (ev.key === 'Escape' && root.classList.contains('active')) close();
+            if (ev.key === 'Escape' && root && root.classList.contains('active')) close();
         });
     }
 
     function init() {
-        if (flagSet()) return;
-        var headline = countdownHeadline();
-        if (!headline) return; // event over — never show
-        root = buildMarkup(headline);
-        wire();
-        setTimeout(open, SHOW_DELAY_MS);
+        var c = pickCampaign();
+        if (!c) return;
+        setTimeout(function () { show(c); }, SHOW_DELAY_MS);
     }
 
-    window.LLJunePopup = {
-        open: function () { if (!root) { root = buildMarkup(countdownHeadline() || EVENT_LABEL); wire(); } open(); },
+    window.LLEventPopup = {
         close: close,
+        // Clear every event's seen-flag (so they can all re-pop).
         reset: function () {
-            try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
-            console.log('[LLJunePopup] flag cleared. Reload to retrigger.');
+            CAMPAIGNS.forEach(function (c) {
+                try { localStorage.removeItem(flagKey(c)); } catch (e) {}
+            });
+            console.log('[LLEventPopup] all event flags cleared. Reload to retrigger.');
+        },
+        // Force-show a specific campaign by key, ignoring window + flag (testing only).
+        preview: function (key) {
+            var c = CAMPAIGNS.filter(function (x) { return x.key === key; })[0] || CAMPAIGNS[0];
+            show(c);
         }
     };
 
