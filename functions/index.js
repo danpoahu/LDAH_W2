@@ -3707,14 +3707,16 @@ async function buildAnalyticsYtdHtml(db, esc, hawaiiNow) {
   });
   tiles += '</tr></table>';
 
+  // Fixed-width label + value columns so both charts' bars start at the same
+  // left edge and the values right-align with each other and the summary table.
   function bars(rows, color) {
     const max = rows.reduce((m,r) => Math.max(m, r[1]), 0) || 1;
-    let h = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0">';
+    let h = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed;">';
     rows.forEach((r) => {
       const pct = r[1] > 0 ? Math.max(3, Math.round(r[1]/max*100)) : 0;
-      h += '<tr><td style="padding:3px 8px 3px 0;font-size:12px;color:#333;white-space:nowrap;">'+esc(r[0])+'</td>'
-        + '<td style="padding:3px 0;width:62%;"><div style="background:#e8edf3;border-radius:4px;"><div style="background:'+color+';height:13px;border-radius:4px;width:'+pct+'%;">&nbsp;</div></div></td>'
-        + '<td style="padding:3px 0 3px 8px;font-size:12px;color:#333;text-align:right;white-space:nowrap;">'+n(r[1])+'</td></tr>';
+      h += '<tr><td style="width:118px;padding:3px 8px 3px 0;font-size:12px;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(r[0])+'</td>'
+        + '<td style="padding:3px 0;"><div style="background:#e8edf3;border-radius:4px;"><div style="background:'+color+';height:13px;border-radius:4px;width:'+pct+'%;">&nbsp;</div></div></td>'
+        + '<td style="width:58px;padding:3px 10px 3px 8px;font-size:12px;color:#333;text-align:right;white-space:nowrap;">'+n(r[1])+'</td></tr>';
     });
     h += '</table>';
     return h;
@@ -3741,7 +3743,7 @@ async function buildAnalyticsYtdHtml(db, esc, hawaiiNow) {
     + '<h3 style="margin:16px 0 6px;font-size:13px;color:#0f3a5f;">Page Views by Month</h3>'+bars(monthlyRows.length?monthlyRows:[["No data",0]], "#0891b2")
     + '<h3 style="margin:16px 0 6px;font-size:13px;color:#0f3a5f;">Top Pages</h3>'+bars(topPages.length?topPages:[["No data",0]], "#0f3a5f")
     + '<h3 style="margin:16px 0 6px;font-size:13px;color:#0f3a5f;">Summary Metrics</h3>'+sumTable
-    + '<div style="text-align:center;margin:20px 0 4px;"><a href="https://danpoahu.github.io/LDAH-Int/" style="display:inline-block;background:#0891b2;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:700;font-size:13px;">View the full interactive report &rarr;</a></div>'
+    + '<div style="text-align:center;margin:20px 0 4px;"><a href="https://danpoahu.github.io/LDAH-Int/#wa-analytics" style="display:inline-block;background:#0891b2;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:700;font-size:13px;">View the full interactive report &rarr;</a></div>'
     + '<div style="text-align:center;font-size:11px;color:#666;">In LDAH-Int: Reports &rarr; Website &amp; App Analytics (staff login)</div>';
 }
 
