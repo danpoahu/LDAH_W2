@@ -1,0 +1,149 @@
+/* Learning Labs June first-launch popup — LDAH brand styled, mobile-first.
+   Self-contained; class-prefixed "ll-" to avoid collisions. */
+
+.ll-pop-backdrop {
+    display: none;
+    position: fixed;
+    z-index: 9100;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.62);
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    animation: llPopFade 0.3s ease;
+}
+
+.ll-pop-backdrop.active {
+    display: flex;
+}
+
+@keyframes llPopFade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes llPopRise {
+    from { transform: translateY(28px) scale(0.98); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.ll-pop {
+    background: #FFFFFF;
+    border-radius: 20px;
+    width: 100%;
+    max-width: 440px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 22px 60px rgba(0, 0, 0, 0.32);
+    animation: llPopRise 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #1E293B;
+}
+
+.ll-pop-close {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.22);
+    color: #FFFFFF;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+.ll-pop-close:hover { background: rgba(255, 255, 255, 0.4); }
+
+.ll-pop-head {
+    background: linear-gradient(135deg, #004E7C 0%, #0891B2 100%);
+    padding: 1.45rem 1.5rem 1.35rem;
+    text-align: center;
+}
+
+/* Event poster — cropped banner showing the top of the flyer (like the
+   events calendar modal), sized so the popup stays medium. */
+.ll-pop-img {
+    display: block;
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    object-position: top center;
+}
+
+.ll-pop-title {
+    font-family: 'Outfit', 'Source Sans 3', sans-serif;
+    font-size: 1.45rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin: 0;
+    color: #FFFFFF;
+    letter-spacing: -0.01em;
+}
+
+.ll-pop-body {
+    padding: 1.4rem 1.6rem 1.7rem;
+    text-align: center;
+}
+
+.ll-pop-sub {
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #475569;
+    margin: 0 0 0.4rem;
+}
+
+.ll-pop-when {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: #64748B;
+    margin: 0 0 1.3rem;
+}
+
+.ll-pop-when strong { color: #004E7C; font-weight: 600; }
+
+.ll-pop-cta {
+    display: inline-block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.9rem 1.5rem;
+    background: linear-gradient(135deg, #004E7C, #0066A1);
+    color: #FFFFFF;
+    border: none;
+    border-radius: 50px;
+    font-family: 'Outfit', 'Source Sans 3', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 0.18s, box-shadow 0.18s;
+    box-shadow: 0 6px 18px rgba(0, 78, 124, 0.28);
+}
+.ll-pop-cta:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(0, 78, 124, 0.34);
+}
+
+.ll-pop-later {
+    display: block;
+    margin: 0.85rem auto 0;
+    background: none;
+    border: none;
+    color: #94A3B8;
+    font-size: 0.85rem;
+    cursor: pointer;
+    font-family: inherit;
+}
+.ll-pop-later:hover { color: #64748B; text-decoration: underline; }
+
+@media (max-width: 480px) {
+    .ll-pop-title { font-size: 1.3rem; }
+    .ll-pop-head { padding: 1.4rem 1.2rem 1.2rem; }
+    .ll-pop-body { padding: 1.2rem 1.3rem 1.5rem; }
+}

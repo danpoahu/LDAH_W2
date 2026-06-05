@@ -2871,6 +2871,24 @@
       var show = role && !roleNeedsRegistration(role);
       block.style.display = show ? 'block' : 'none';
 
+      // Recurring (Connect-Gen) form only: the Student Information section is
+      // about the child in the program, so it's shown ONLY for Parent/Guardian.
+      // Hide it + drop `required` on its fields for non-parents so they can
+      // submit (hidden required fields otherwise block submission). Null-guarded
+      // so the one-time form (no student section) is unaffected. (2026-06-05)
+      var studentInfo = document.getElementById('recurringStudentInfo');
+      if (studentInfo) {
+        var hideStudent = show; // non-parent => inline block shown => hide student info
+        studentInfo.style.display = hideStudent ? 'none' : 'block';
+        ['studentName', 'studentDOBMonth', 'studentDOBDay', 'studentDOBYear',
+         'studentId', 'studentGrade', 'studentSchool'].forEach(function(fid) {
+          var el = document.getElementById(fid);
+          if (!el) return;
+          if (hideStudent) el.removeAttribute('required');
+          else el.setAttribute('required', '');
+        });
+      }
+
       // City + zip + reason + howHeard require required attr only when block is visible
       var cityEl = document.getElementById('inlineCity');
       var zipEl  = document.getElementById('inlineZip');
@@ -4142,8 +4160,8 @@
                     <textarea id="multipleSessionsReason" placeholder="e.g., Signing up two children for different days" rows="3" style="width:100%;padding:8px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;"></textarea>
                   </div>
                 </div>
-                <!-- Student Information -->
-                <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:18px;margin-bottom:24px;">
+                <!-- Student Information — hidden for non-Parent/Guardian roles via ldahToggleInlineRegBlock -->
+                <div id="recurringStudentInfo" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:18px;margin-bottom:24px;">
                   <h4 style="color:#0369a1;margin:0 0 16px;font-size:15px;font-weight:700;">Student Information</h4>
                   <div style="display:flex;flex-wrap:wrap;gap:14px;">
                     <div style="flex:1;min-width:220px;">
