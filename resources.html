@@ -788,7 +788,6 @@
                     <button class="filter-btn" data-filter="Maui">Maui</button>
                     <button class="filter-btn" data-filter="Hawaii">Big Island</button>
                     <button class="filter-btn" data-filter="Kauai">Kauai</button>
-                    <button class="filter-btn" data-filter="Statewide">Statewide</button>
                 </div>
             </div>
             
@@ -1089,9 +1088,12 @@
 
             const filteredResources = resourcesData.filter(resource => {
                 const resourceIsland = (resource.island || '').toLowerCase();
-                const matchesIsland = currentIslandFilter === 'all' || 
+                // Statewide resources (no island, or island literally "Statewide")
+                // show under EVERY island filter. (2026-06-05)
+                const isStatewide = !resource.island || resourceIsland === 'statewide';
+                const matchesIsland = currentIslandFilter === 'all' ||
                     resourceIsland === currentIslandFilter.toLowerCase() ||
-                    (currentIslandFilter === 'Statewide' && !resource.island);
+                    (currentIslandFilter !== 'all' && isStatewide);
                 
                 const resourceType = (resource.type || '').toLowerCase();
                 const matchesType = currentTypeFilter === 'all' || 
