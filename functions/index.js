@@ -2341,7 +2341,8 @@ exports.onResourceApplicationCreated = functions
       const noteLines = [];
       if (headerParts.length) noteLines.push(headerParts.join(" -- "));
       if (locationLine)  noteLines.push("Location: " + locationLine);
-      if (data.type)     noteLines.push("Type: " + data.type);
+      const _typeLabel = (Array.isArray(data.types) && data.types.length) ? data.types.join(", ") : (data.type || "");
+      if (_typeLabel)    noteLines.push("Type: " + _typeLabel);
       if (data.services) noteLines.push("Services: " + data.services);
       if (data.website)  noteLines.push("Website: " + data.website);
       if (data.notes)    noteLines.push("\nApplicant notes:\n" + data.notes);
