@@ -543,6 +543,7 @@
 
     <div id="footer-container"></div>
 
+    <script src="./js/formatters.js"></script>
     <script>
         // ===== Config =====
         const ENDPOINT_POST = 'https://us-central1-ldah-932d5.cloudfunctions.net/submitResourceApplication';
@@ -788,6 +789,7 @@
         function init() {
             loadFooter();
             populateTypeDropdown();
+            if (window.ldahAttachPhoneFormat) ldahAttachPhoneFormat(document.getElementById('fld-phone'));
             // Form is shown by default — no token, no preload.
         }
 

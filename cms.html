@@ -3704,7 +3704,7 @@
         
         const contactHtml = type === 'team' ? `
           <div class="contact">
-            ${person.phone ? `${person.phone}` : ''}
+            ${person.phone ? `${ldahFormatPhone(person.phone)}` : ''}
             ${person.phone && person.email ? ' • ' : ''}
             ${person.email ? `${person.email}` : ''}
           </div>
@@ -4213,7 +4213,7 @@
             <h4>${resource.name || 'Unnamed Resource'}</h4>
             <div class="resource-meta">
               <span>${island}</span>
-              ${phone ? `<span>${phone}</span>` : ''}
+              ${phone ? `<span>${ldahFormatPhone(phone)}</span>` : ''}
               ${email ? `<span>${email}</span>` : ''}
             </div>
           </div>
@@ -6212,7 +6212,7 @@
                           </select>
                         </div>
                         <p style="color: var(--text-light); font-size: 0.85rem; margin-top: 0.25rem;">
-                          📧 ${s.email || '(no email)'} ${s.phone ? '• ' + s.phone : ''}
+                          📧 ${s.email || '(no email)'} ${s.phone ? '• ' + ldahFormatPhone(s.phone) : ''}
                         </p>
                         ${isGroup ? `<p style="color: var(--text-light); font-size: 0.85rem;">${s.groupName || 'Group'} (${volunteerCount} volunteers)</p>` : `<p style="color: var(--text-light); font-size: 0.85rem;">👤 Individual</p>`}
                         ${s.adminNotes ? '<span style="background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 10px; font-size: 0.7rem;">📝 Notes</span>' : ''}
@@ -6754,7 +6754,7 @@
                     <span style="padding:2px 8px;border-radius:50px;font-size:11px;font-weight:600;margin-left:8px;background:${s.status==='confirmed'?'#d1fae5;color:#065f46':s.status==='cancelled'?'#fee2e2;color:#991b1b':'#fef3c7;color:#92400e'};">${s.status||'pending'}</span><br>
                     ${s.registrantType?`<span style="display:inline-block;padding:2px 8px;border-radius:50px;font-size:11px;font-weight:600;margin-bottom:2px;background:${s.registrantType==='Professional'?'#ede9fe;color:#5b21b6':'#e0f2fe;color:#0369a1'}">${s.registrantType}</span><br>`:''}
                     ${s.studentName?`<span style="font-size:0.85rem;font-weight:600;color:#0369a1;">Student: ${s.studentName}${s.studentGrade?' · Grade '+s.studentGrade:''}${s.studentSchool?' · '+s.studentSchool:''}</span><br>`:''}
-                    <span style="font-size:0.85rem;color:var(--text-light);">${s.email||''} &bull; ${s.phone||''} &bull; ${s.preferredContact||''}</span>
+                    <span style="font-size:0.85rem;color:var(--text-light);">${s.email||''} &bull; ${s.phone?ldahFormatPhone(s.phone):''} &bull; ${s.preferredContact||''}</span>
                     ${s.participationType==='Group'?`<br><span style="font-size:0.85rem;color:#555;">Group: ${s.groupName} (${s.groupSize})</span>`:''}
                     ${(s.selectedSessions||[]).length>1?`<br><span style="font-size:0.8rem;color:#888;">Also attending: ${(s.selectedSessions||[]).slice(1).join(', ')}</span>`:''}
                   </div>
@@ -7156,7 +7156,7 @@
                 <span id="oppapp-${app.id}-arrow">▶</span>
               </div>
               <div id="oppapp-${app.id}-body" class="data-card-body" style="display: none;">
-                <p><strong>Phone:</strong> ${app.phone || 'N/A'}</p>
+                <p><strong>Phone:</strong> ${app.phone ? ldahFormatPhone(app.phone) : 'N/A'}</p>
                 <p><strong>Message:</strong> ${app.message || 'N/A'}</p>
                 <div style="margin-top: 1rem;">
                   <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">📝 Admin Notes:</label>
@@ -7316,7 +7316,7 @@
               <span id="app-${app.id}-arrow">▶</span>
             </div>
             <div id="app-${app.id}-body" class="data-card-body" style="display: none;">
-              <p><strong>Phone:</strong> ${app.phone || 'N/A'}</p>
+              <p><strong>Phone:</strong> ${app.phone ? ldahFormatPhone(app.phone) : 'N/A'}</p>
               <p><strong>Message:</strong> ${app.message || 'N/A'}</p>
               <div style="margin-top: 1rem;">
                 <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">📝 Admin Notes:</label>
@@ -7565,7 +7565,7 @@
               ${fullName ? `<p><strong>Contact Name:</strong> ${fullName}</p>` : ''}
               ${orgName ? `<p><strong>Organization:</strong> ${orgName}</p>` : ''}
               <p><strong>Email:</strong> ${p.email || 'N/A'}</p>
-              <p><strong>Phone:</strong> ${p.phone || 'N/A'}</p>
+              <p><strong>Phone:</strong> ${p.phone ? ldahFormatPhone(p.phone) : 'N/A'}</p>
               ${p.serviceType ? `<p><strong>Service Type:</strong> ${p.serviceType}</p>` : ''}
               ${p.category ? `<p><strong>Category:</strong> ${p.category}</p>` : ''}
               ${(p.message || p.details) ? `<p><strong>Message:</strong> ${p.message || p.details}</p>` : ''}
@@ -7906,7 +7906,7 @@
               <span id="er-${r.id}-arrow">▶</span>
             </div>
             <div id="er-${r.id}-body" class="data-card-body" style="display: none;">
-              <p><strong>Phone:</strong> ${r.phone || 'N/A'}</p>
+              <p><strong>Phone:</strong> ${r.phone ? ldahFormatPhone(r.phone) : 'N/A'}</p>
               <p><strong>Sponsor:</strong> ${r.sponsor || 'N/A'}</p>
               <p><strong>Event Info:</strong></p>
               <p style="background: #f0fdfa; padding: 0.75rem; border-radius: 8px; margin: 0.5rem 0;">${r.eventInfo || 'N/A'}</p>
@@ -8064,7 +8064,7 @@
               <span id="contact-${c.id}-arrow">▶</span>
             </div>
             <div id="contact-${c.id}-body" class="data-card-body" style="display: none;">
-              <p><strong>Phone:</strong> ${c.phone || 'N/A'}</p>
+              <p><strong>Phone:</strong> ${c.phone ? ldahFormatPhone(c.phone) : 'N/A'}</p>
               <p><strong>Message:</strong></p>
               <p style="background: #f9fafb; padding: 0.75rem; border-radius: 8px; white-space: pre-wrap;">${c.message || 'N/A'}</p>
               ${isArchived ? '' : `<div class="status-buttons">
@@ -9763,7 +9763,9 @@
         });
         ['personPhone', 'resourcePhone', 'resourceFax'].forEach(function (id) {
           var el = document.getElementById(id);
-          if (el) window.LDAHFormat.attachFormatter(el, 'phone');
+          // Live (as-you-type) formatting; falls back to onBlur formatter if helper absent.
+          if (el && window.ldahAttachPhoneFormat) window.ldahAttachPhoneFormat(el);
+          else if (el) window.LDAHFormat.attachFormatter(el, 'phone');
         });
       }
       if (document.readyState === 'loading') {

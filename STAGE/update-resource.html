@@ -7,6 +7,10 @@
     <meta name="robots" content="noindex, nofollow">
     <title>Update Your Resource Listing - LDAH</title>
 
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="./js/formatters.js"></script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -519,7 +523,7 @@
                 </div>
 
                 <div class="logo-info-box">
-                    <strong>Updating your logo?</strong> Please email the new image file to <a href="mailto:LSalvani@ldahawaii.org">LSalvani@ldahawaii.org</a> and we'll handle the upload for you.
+                    <strong>Updating your logo?</strong> Please email the new image file to <a id="personaResCoordEmailLink" href="mailto:LSalvani@ldahawaii.org">LSalvani@ldahawaii.org</a> and we'll handle the upload for you.
                 </div>
 
                 <div class="button-row">
@@ -544,6 +548,72 @@
             'CNMI', 'Guam', 'American Samoa', 'Marshall Islands',
             'Federated States of Micronesia', 'Palau', 'Statewide'
         ];
+
+        // ===== Firebase init (read-only, for system/emailPersonas) =====
+        const firebaseConfig = {
+            apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk",
+            authDomain: "ldah-932d5.firebaseapp.com",
+            projectId: "ldah-932d5"
+        };
+        if (typeof firebase !== 'undefined' && firebase.apps && !firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const _db = (typeof firebase !== 'undefined' && firebase.firestore) ? firebase.firestore() : null;
+
+        // ===== Resource Coordinator persona (Firestore-backed w/ hardcoded fallback) =====
+        // Fallback values mirror system/emailPersonas.resourceCoordinator and the
+        // canonical signatureHtml in functions/index.js (~line 583). If Firestore
+        // is unreachable or the doc/persona is missing, the page still renders
+        // with these defaults — never "undefined" or a broken mailto.
+        const RES_COORD_FALLBACK = {
+            firstName: "La'a",
+            fullName: "La'a Salvani",
+            title: "Administrative Assistant",
+            email: "LSalvani@ldahawaii.org",
+            phone: "(808) 536-9684",
+            signatureHtml:
+                '<p style="margin:16px 0 2px;font-size:14px;color:#555555;line-height:1.5;">' +
+                    '<strong>La\'a Salvani</strong><br>' +
+                    'Administrative Assistant<br>' +
+                    'Leadership in Disabilities &amp; Achievement of Hawai\'i<br>' +
+                    '245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>' +
+                    'Phone: (808) 536-9684<br>' +
+                    'Email: <a href="mailto:LSalvani@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LSalvani@ldahawaii.org</a><br>' +
+                    '<a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>' +
+                '</p>'
+        };
+        let resCoord = Object.assign({}, RES_COORD_FALLBACK);
+
+        async function loadResourceCoordinatorPersona() {
+            if (!_db) return; // Firebase didn't load — keep fallback
+            try {
+                const snap = await _db.collection('system').doc('emailPersonas').get();
+                if (!snap.exists) return;
+                const data = snap.data() || {};
+                const p = (data.personas && data.personas.resourceCoordinator) || data.resourceCoordinator;
+                if (!p || typeof p !== 'object') return;
+                // Merge: keep fallback for any missing field so we never render undefined
+                resCoord = {
+                    firstName:     p.firstName     || RES_COORD_FALLBACK.firstName,
+                    fullName:      p.fullName      || RES_COORD_FALLBACK.fullName,
+                    title:         p.title         || RES_COORD_FALLBACK.title,
+                    email:         p.email         || RES_COORD_FALLBACK.email,
+                    phone:         p.phone         || RES_COORD_FALLBACK.phone,
+                    signatureHtml: p.signatureHtml || RES_COORD_FALLBACK.signatureHtml
+                };
+            } catch (err) {
+                console.warn('emailPersonas read failed; using fallback:', err && err.message);
+            }
+        }
+
+        function applyResourceCoordinatorToDom() {
+            // Logo info-box mailto link
+            const link = document.getElementById('personaResCoordEmailLink');
+            if (link) {
+                link.href = 'mailto:' + resCoord.email;
+                link.textContent = resCoord.email;
+            }
+        }
 
         // ===== State =====
         let token = null;
@@ -685,7 +755,7 @@
                 }
                 if (!res.ok) {
                     showMessage('Something went wrong',
-                        "We couldn't load your listing right now. Please try again later or contact <a href='mailto:LSalvani@ldahawaii.org'>LSalvani@ldahawaii.org</a>.");
+                        "We couldn't load your listing right now. Please try again later or contact <a href='mailto:" + resCoord.email + "'>" + resCoord.email + "</a>.");
                     return;
                 }
 
@@ -698,7 +768,7 @@
             } catch (err) {
                 console.error('Failed to load resource:', err);
                 showMessage('Connection error',
-                    "We couldn't reach the server. Please check your internet connection and try again, or contact <a href='mailto:LSalvani@ldahawaii.org'>LSalvani@ldahawaii.org</a>.");
+                    "We couldn't reach the server. Please check your internet connection and try again, or contact <a href='mailto:" + resCoord.email + "'>" + resCoord.email + "</a>.");
             }
         }
 
@@ -790,15 +860,24 @@
         }
 
         // ===== Boot =====
-        function init() {
+        async function init() {
             const params = new URLSearchParams(window.location.search);
             token = params.get('token');
 
             loadFooter();
 
+            // Live (as-you-type) phone formatting on the listing's phone field.
+            if (window.ldahAttachPhoneFormat) ldahAttachPhoneFormat(document.getElementById('fld-phone'));
+
+            // Pull La'a's persona before any DOM/messages reference it. Failure
+            // is silent and falls back to RES_COORD_FALLBACK so the page still
+            // shows a working contact email.
+            await loadResourceCoordinatorPersona();
+            applyResourceCoordinatorToDom();
+
             if (!token) {
                 showMessage('Invalid or missing token',
-                    "Please check your email link or contact <a href='mailto:LSalvani@ldahawaii.org'>LSalvani@ldahawaii.org</a>.");
+                    "Please check your email link or contact <a href='mailto:" + resCoord.email + "'>" + resCoord.email + "</a>.");
                 return;
             }
 

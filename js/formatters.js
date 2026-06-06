@@ -106,4 +106,38 @@
   };
 
   global.LDAHFormat = api;
+
+  // ---------------------------------------------------------------------------
+  // Shared phone formatter contract — IDENTICAL across W2, LDAH App, LDAH-Int.
+  // Exposed as bare globals so inline <script> blocks can call them directly.
+  // ---------------------------------------------------------------------------
+
+  // Display helper (idempotent — safe even if already formatted).
+  function ldahFormatPhone(p){
+    var d = String(p == null ? '' : p).replace(/\D/g,'');
+    if (d.length === 11 && d.charAt(0) === '1') d = d.slice(1);
+    if (d.length === 10) return '(' + d.slice(0,3) + ') ' + d.slice(3,6) + '-' + d.slice(6);
+    return (p == null ? '' : String(p)); // leave non-10-digit (intl, short, etc.) untouched
+  }
+
+  // Input auto-format helpers.
+  function ldahFormatPhoneInput(v){
+    var d = String(v == null ? '' : v).replace(/\D/g,'');
+    if (d.length === 11 && d.charAt(0) === '1') d = d.slice(1);
+    d = d.slice(0,10);
+    if (d.length > 6) return '(' + d.slice(0,3) + ') ' + d.slice(3,6) + '-' + d.slice(6);
+    if (d.length > 3) return '(' + d.slice(0,3) + ') ' + d.slice(3);
+    if (d.length > 0) return '(' + d.slice(0,3);
+    return '';
+  }
+  function ldahAttachPhoneFormat(el){
+    if(!el || el._ldahPhoneBound) return;
+    el._ldahPhoneBound = true;
+    el.addEventListener('input', function(){ el.value = ldahFormatPhoneInput(el.value); });
+    if (el.value) el.value = ldahFormatPhoneInput(el.value);
+  }
+
+  global.ldahFormatPhone = ldahFormatPhone;
+  global.ldahFormatPhoneInput = ldahFormatPhoneInput;
+  global.ldahAttachPhoneFormat = ldahAttachPhoneFormat;
 })(typeof window !== 'undefined' ? window : this);
