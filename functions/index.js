@@ -9398,9 +9398,16 @@ exports.submitResourceApplication = functions
     try {
       const db = admin.firestore();
       const FieldValue = admin.firestore.FieldValue;
+      // Resource types: prefer the canonical `types` array; fall back to the
+      // legacy single/joined `type` string for older form payloads. (2026-06-05)
+      let typesArr = Array.isArray(fields.types)
+        ? fields.types.map((t) => String(t || "").trim()).filter(Boolean)
+        : String(fields.type || "").split(",").map((t) => t.trim()).filter(Boolean);
+      typesArr = Array.from(new Set(typesArr)).slice(0, 12); // dedupe + sane cap
       const application = {
         name,
-        type: String(fields.type || "").trim(),
+        types: typesArr,
+        type: typesArr[0] || "",
         services: String(fields.services || "").trim(),
         city: String(fields.city || "").trim(),
         island: String(fields.island || "").trim(),
