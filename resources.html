@@ -951,7 +951,8 @@
                     // Only show real partner directory entries on this page.
                     const partnerDocs = snapshot.docs.filter(doc => {
                         const d = doc.data() || {};
-                        return (d.name || '').trim() !== '';
+                        // Exclude archived partners from the public directory.
+                        return (d.name || '').trim() !== '' && d.archived !== true;
                     });
                     resourcesData = partnerDocs.map((doc, index) => {
                         const data = doc.data();
