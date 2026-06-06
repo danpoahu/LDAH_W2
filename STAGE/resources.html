@@ -1076,6 +1076,12 @@
             const websiteUrl = r.website && r.website.startsWith('http') ? r.website : (r.website ? 'https://' + r.website : '');
             const safeName = (r.name || '').replace(/'/g, "\\'");
             const phoneTel = r.phone ? r.phone.replace(/[^0-9+]/g, '') : '';
+            // Display US phone as (XXX) XXX-XXXX; leave as-is if not 10 digits.
+            const phoneDisplay = (function() {
+                let d = (r.phone || '').replace(/\D/g, '');
+                if (d.length === 11 && d[0] === '1') d = d.slice(1);
+                return d.length === 10 ? '(' + d.slice(0, 3) + ') ' + d.slice(3, 6) + '-' + d.slice(6) : (r.phone || '');
+            })();
 
             // Header
             const logoSlot = document.getElementById('rmLogoSlot');
@@ -1094,7 +1100,7 @@
             if (r.address || r.city) {
                 body += `<div class="detail-section"><h4>Address</h4><p>${r.address ? r.address + '<br>' : ''}${r.city || ''}${r.state ? ', ' + r.state : ''} ${r.zip || ''}</p></div>`;
             }
-            if (r.phone) body += `<div class="detail-section"><h4>Phone</h4><p><a href="tel:${phoneTel}">${r.phone}</a></p></div>`;
+            if (r.phone) body += `<div class="detail-section"><h4>Phone</h4><p><a href="tel:${phoneTel}">${phoneDisplay}</a></p></div>`;
             if (r.email) body += `<div class="detail-section"><h4>Email</h4><p><a href="mailto:${r.email}">${r.email}</a></p></div>`;
             if (r.services) body += `<div class="services-section"><h4>Services Offered</h4><p>${r.services}</p></div>`;
 
