@@ -1007,9 +1007,18 @@
         function generateTypeFilters() {
             const container = document.getElementById('typeFilters');
             if (!container) return;
+            // Only count types on resources that match the CURRENT island filter,
+            // so a type button never shows for an island that has none of it.
+            // (2026-06-05) Regenerated whenever the island filter changes.
             const typeSet = new Set();
             resourcesData.forEach(resource => {
                 if (resource.archived) return;
+                const resourceIsland = (resource.island || '').toLowerCase();
+                const isStatewide = !resource.island || resourceIsland === 'statewide';
+                const matchesIsland = currentIslandFilter === 'all' ||
+                    resourceIsland === currentIslandFilter.toLowerCase() ||
+                    (currentIslandFilter !== 'all' && isStatewide);
+                if (!matchesIsland) return;
                 const arr = (Array.isArray(resource.types) && resource.types.length)
                     ? resource.types
                     : (resource.type ? [resource.type] : []);
@@ -1019,13 +1028,17 @@
                 });
             });
             const sortedTypes = Array.from(typeSet).sort((a, b) => a.localeCompare(b));
-            let html = '<button class="filter-btn active" data-filter="all">All Types</button>';
+            // Keep the active type if it still has results under this island; else reset to All.
+            if (currentTypeFilter !== 'all' && !typeSet.has(currentTypeFilter)) {
+                currentTypeFilter = 'all';
+            }
+            let html = `<button class="filter-btn${currentTypeFilter === 'all' ? ' active' : ''}" data-filter="all">All Types</button>`;
             sortedTypes.forEach(t => {
                 const esc = t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                html += `<button class="filter-btn" data-filter="${esc}">${esc}</button>`;
+                const active = (t === currentTypeFilter) ? ' active' : '';
+                html += `<button class="filter-btn${active}" data-filter="${esc}">${esc}</button>`;
             });
             container.innerHTML = html;
-            currentTypeFilter = 'all';
             setupTypeFilters();
         }
 
@@ -1169,6 +1182,7 @@
                     document.querySelectorAll('#islandFilters .filter-btn').forEach(b => b.classList.remove('active'));
                     btn.classList.add('active');
                     currentIslandFilter = btn.dataset.filter;
+                    generateTypeFilters();
                     filterAndRender();
                 });
             });
