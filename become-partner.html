@@ -13,6 +13,7 @@
     <!-- Firebase SDK (storage upload for the optional logo) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
     <style>
     :root {
@@ -471,8 +472,8 @@
 
                 <div class="form-group">
                     <label for="fld-type">Type</label>
-                    <span class="helper-text">e.g., Healthcare, Education, Family Support</span>
-                    <input type="text" id="fld-type" name="type">
+                    <span class="helper-text">Hold Ctrl (Cmd on Mac) to select more than one.</span>
+                    <select id="fld-type" name="type" multiple size="5"></select>
                 </div>
 
                 <div class="form-group">
@@ -489,12 +490,12 @@
                 <div class="form-group">
                     <label for="fld-island">Island / Region</label>
                     <select id="fld-island" name="island">
-                        <option value="O'ahu">O'ahu</option>
+                        <option value="Oahu">Oʻahu</option>
                         <option value="Maui">Maui</option>
-                        <option value="Hawai'i Island">Hawai'i Island</option>
-                        <option value="Kaua'i">Kaua'i</option>
-                        <option value="Moloka'i">Moloka'i</option>
-                        <option value="Lana'i">Lana'i</option>
+                        <option value="Hawaii">Hawaiʻi (Big Island)</option>
+                        <option value="Kauai">Kauaʻi</option>
+                        <option value="Molokai">Molokaʻi</option>
+                        <option value="Lanai">Lānaʻi</option>
                         <option value="CNMI">CNMI</option>
                         <option value="Guam">Guam</option>
                         <option value="American Samoa">American Samoa</option>
@@ -563,6 +564,7 @@
             appId: "1:662130454003:web:437576d5a5811ecd8df686"
         });
         const storage = firebase.storage();
+        const db = firebase.firestore();
 
         // ===== Element refs =====
         const messageCard = document.getElementById('messageCard');
@@ -606,11 +608,34 @@
             }
         }
 
+        // Populate the multi-select Type dropdown from the managed
+        // lookupLists/resourceTypes doc (public-read). Graceful on failure.
+        async function populateTypeDropdown() {
+            const sel = document.getElementById('fld-type');
+            if (!sel) return;
+            try {
+                const snap = await db.collection('lookupLists').doc('resourceTypes').get();
+                const items = (snap.exists && Array.isArray(snap.data().items)) ? snap.data().items : [];
+                sel.innerHTML = '';
+                items.forEach(item => {
+                    const opt = document.createElement('option');
+                    opt.value = item;
+                    opt.textContent = item;
+                    sel.appendChild(opt);
+                });
+            } catch (err) {
+                // Leave the select empty on failure — submit still works.
+                console.log('Resource types load skipped:', err);
+            }
+        }
+
         function readForm() {
+            const _t = Array.from(document.getElementById('fld-type').selectedOptions).map(o => o.value);
             return {
                 contactName: document.getElementById('fld-contact-name').value.trim(),
                 name: document.getElementById('fld-name').value.trim(),
-                type: document.getElementById('fld-type').value.trim(),
+                type: _t.join(', '),
+                types: _t,
                 services: document.getElementById('fld-services').value.trim(),
                 city: document.getElementById('fld-city').value.trim(),
                 island: document.getElementById('fld-island').value,
@@ -769,6 +794,7 @@
         // ===== Boot =====
         function init() {
             loadFooter();
+            populateTypeDropdown();
             // Form is shown by default — no token, no preload.
         }
 

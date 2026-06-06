@@ -2929,16 +2929,8 @@
         
         <div class="form-group">
           <label>Resource Type *</label>
-          <select id="resourceType" style="width: 100%; padding: 0.75rem; border: 2px solid #ddd; border-radius: 8px;">
-            <option value="Specialized Resources">Specialized Resources</option>
-            <option value="Educational Testing Resources">Educational Testing Resources</option>
-            <option value="Private School Resources">Private School Resources</option>
-            <option value="Special Education Tutoring Resources">Special Education Tutoring Resources</option>
-            <option value="Transition Resources">Transition Resources</option>
-            <option value="Mental Health Therapist">Mental Health Therapist</option>
-            <option value="Medical Doctor">Medical Doctor</option>
-            <option value="Support Services">Support Services</option>
-          </select>
+          <select id="resourceType" multiple size="5" style="width: 100%; padding: 0.75rem; border: 2px solid #ddd; border-radius: 8px;"></select>
+          <small style="display: block; margin-top: 0.35rem; color: #666;">Hold Ctrl (Cmd on Mac) to select more than one.</small>
         </div>
         
         <div class="form-group">
@@ -3579,6 +3571,7 @@
         loadGallery();
         loadGallery2();
         loadResources();
+        populateResourceTypeDropdown();
         loadCategories();
         loadFaqs();
         loadEvents(); // This loads eventSignups too
@@ -4088,6 +4081,37 @@
     let resources = [];
     let filteredResources = [];
 
+    // Populate the multi-select Resource Type dropdown from the managed
+    // lookupLists/resourceTypes doc (canonical list shared with LDAH-Int).
+    async function populateResourceTypeDropdown() {
+      const sel = document.getElementById('resourceType');
+      if (!sel) return;
+      try {
+        const snap = await db.collection('lookupLists').doc('resourceTypes').get();
+        const items = (snap.exists && Array.isArray(snap.data().items)) ? snap.data().items : [];
+        sel.innerHTML = '';
+        items.forEach(item => {
+          const opt = document.createElement('option');
+          opt.value = item;
+          opt.textContent = item;
+          sel.appendChild(opt);
+        });
+      } catch (err) {
+        console.error('Failed to load resource types:', err);
+      }
+    }
+
+    // Select the matching options in #resourceType for the given list of
+    // type strings (pass [] to clear the selection).
+    function setResourceTypeSelection(typeList) {
+      const sel = document.getElementById('resourceType');
+      if (!sel) return;
+      const wanted = (typeList || []).map(t => (t || '').toString());
+      Array.from(sel.options).forEach(opt => {
+        opt.selected = wanted.includes(opt.value);
+      });
+    }
+
     // Load resources from Firebase
     async function loadResources() {
       const loading = document.getElementById('resourcesLoading');
@@ -4216,7 +4240,7 @@
         document.getElementById('resourceModalTitle').textContent = 'Edit Resource';
         document.getElementById('resourceId').value = resource.id;
         document.getElementById('resourceName').value = resource.name || '';
-        document.getElementById('resourceType').value = resource.type || 'Specialized Resources';
+        setResourceTypeSelection((Array.isArray(resource.types) && resource.types.length) ? resource.types : (resource.type ? [resource.type] : []));
         document.getElementById('resourcePerson').value = resource.person || '';
         document.getElementById('resourcePhone').value = resource.phone || '';
         document.getElementById('resourceFax').value = resource.fax || '';
@@ -4245,7 +4269,7 @@
         document.getElementById('resourceModalTitle').textContent = 'Add Resource';
         document.getElementById('resourceId').value = '';
         document.getElementById('resourceName').value = '';
-        document.getElementById('resourceType').value = 'Specialized Resources';
+        setResourceTypeSelection([]);
         document.getElementById('resourcePerson').value = '';
         document.getElementById('resourcePhone').value = '';
         document.getElementById('resourceFax').value = '';
@@ -4281,7 +4305,8 @@
     // Save resource
     async function saveResource() {
       const name = document.getElementById('resourceName').value.trim();
-      const type = document.getElementById('resourceType').value;
+      const types = Array.from(document.getElementById('resourceType').selectedOptions).map(o => o.value);
+      const type = types[0] || '';
       const existingId = document.getElementById('resourceId').value;
       
       if (!name) {
@@ -4330,6 +4355,7 @@
         const resourceData = {
           name,
           type,
+          types,
           person: document.getElementById('resourcePerson').value.trim(),
           phone: document.getElementById('resourcePhone').value.trim(),
           fax: document.getElementById('resourceFax').value.trim(),

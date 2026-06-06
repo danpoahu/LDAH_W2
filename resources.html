@@ -795,11 +795,6 @@
                 <span class="filter-label">Filter by Resource Type</span>
                 <div class="filter-buttons" id="typeFilters">
                     <button class="filter-btn active" data-filter="all">All Types</button>
-                    <button class="filter-btn" data-filter="Transition Resources">Transition</button>
-                    <button class="filter-btn" data-filter="Specialized Resources">Specialized</button>
-                    <button class="filter-btn" data-filter="Education">Education</button>
-                    <button class="filter-btn" data-filter="Healthcare">Healthcare</button>
-                    <button class="filter-btn" data-filter="Support Services">Support Services</button>
                 </div>
             </div>
         </div>
@@ -958,12 +953,20 @@
                         const d = doc.data() || {};
                         return (d.name || '').trim() !== '';
                     });
-                    resourcesData = partnerDocs.map((doc, index) => ({
+                    resourcesData = partnerDocs.map((doc, index) => {
+                        const data = doc.data();
+                        // Canonical multi-type: prefer the types[] array, fall
+                        // back to the legacy single type string.
+                        const typesArr = (Array.isArray(data.types) && data.types.length)
+                            ? data.types
+                            : (data.type ? [data.type] : []);
+                        return ({
                         id: doc.id,
-                        ...doc.data(),
+                        ...data,
                         // Ensure all fields have defaults
-                        name: doc.data().name || '',
-                        type: doc.data().type || doc.data().types?.[0] || 'Specialized Resources',
+                        name: data.name || '',
+                        types: typesArr,
+                        type: typesArr[0] || '',
                         person: doc.data().person || '',
                         address: doc.data().address || '',
                         city: doc.data().city || '',
@@ -977,12 +980,14 @@
                         notes: doc.data().notes || '',
                         island: doc.data().island || '',
                         logo: doc.data().logo || ''
-                    }));
+                        });
+                    });
                     // Sort alphabetically by name
                     resourcesData.sort((a, b) => a.name.localeCompare(b.name));
                 }
 
                 isLoading = false;
+                generateTypeFilters();
                 filterAndRender();
                 console.log(`Loaded ${resourcesData.length} resources`);
 
@@ -990,8 +995,51 @@
                 console.error('Error loading resources:', error);
                 resourcesData = fallbackData;
                 isLoading = false;
+                generateTypeFilters();
                 filterAndRender();
             }
+        }
+
+        // Build the Resource Type filter buttons dynamically from the distinct
+        // type values present across the loaded (non-archived) resources. Only
+        // types that have at least one resource get a button. Readers prefer the
+        // canonical types[] array, falling back to the legacy single type.
+        function generateTypeFilters() {
+            const container = document.getElementById('typeFilters');
+            if (!container) return;
+            // Only count types on resources that match the CURRENT island filter,
+            // so a type button never shows for an island that has none of it.
+            // (2026-06-05) Regenerated whenever the island filter changes.
+            const typeSet = new Set();
+            resourcesData.forEach(resource => {
+                if (resource.archived) return;
+                const resourceIsland = (resource.island || '').toLowerCase();
+                const isStatewide = !resource.island || resourceIsland === 'statewide';
+                const matchesIsland = currentIslandFilter === 'all' ||
+                    resourceIsland === currentIslandFilter.toLowerCase() ||
+                    (currentIslandFilter !== 'all' && isStatewide);
+                if (!matchesIsland) return;
+                const arr = (Array.isArray(resource.types) && resource.types.length)
+                    ? resource.types
+                    : (resource.type ? [resource.type] : []);
+                arr.forEach(t => {
+                    const v = (t || '').toString().trim();
+                    if (v) typeSet.add(v);
+                });
+            });
+            const sortedTypes = Array.from(typeSet).sort((a, b) => a.localeCompare(b));
+            // Keep the active type if it still has results under this island; else reset to All.
+            if (currentTypeFilter !== 'all' && !typeSet.has(currentTypeFilter)) {
+                currentTypeFilter = 'all';
+            }
+            let html = `<button class="filter-btn${currentTypeFilter === 'all' ? ' active' : ''}" data-filter="all">All Types</button>`;
+            sortedTypes.forEach(t => {
+                const esc = t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const active = (t === currentTypeFilter) ? ' active' : '';
+                html += `<button class="filter-btn${active}" data-filter="${esc}">${esc}</button>`;
+            });
+            container.innerHTML = html;
+            setupTypeFilters();
         }
 
         // Render compact resource card (whole card is clickable; full details open in modal)
@@ -1012,7 +1060,7 @@
                         ${logoHtml}
                         <div class="resource-card-id">
                             <h3 class="resource-card-name">${resource.name || ''}</h3>
-                            <div class="resource-card-meta"><strong>${resource.type || ''}</strong>${cityIsland ? ' · ' + cityIsland : ''}</div>
+                            <div class="resource-card-meta"><strong>${(resource.types && resource.types.length ? resource.types.join(' · ') : (resource.type || ''))}</strong>${cityIsland ? ' · ' + cityIsland : ''}</div>
                         </div>
                     </div>
                     ${rawDesc ? `<p class="resource-card-desc">${rawDesc}</p>` : ''}
@@ -1038,7 +1086,7 @@
             }
             document.getElementById('rmTitle').textContent = r.name || '';
             const cityIsland = [r.city, r.island].filter(Boolean).join(' • ');
-            document.getElementById('rmMeta').textContent = [r.type, cityIsland].filter(Boolean).join(' · ');
+            document.getElementById('rmMeta').textContent = [ (r.types && r.types.length ? r.types.join(' · ') : r.type), cityIsland ].filter(Boolean).join(' · ');
 
             // Body
             let body = '';
@@ -1095,9 +1143,9 @@
                     resourceIsland === currentIslandFilter.toLowerCase() ||
                     (currentIslandFilter !== 'all' && isStatewide);
                 
-                const resourceType = (resource.type || '').toLowerCase();
-                const matchesType = currentTypeFilter === 'all' || 
-                    resourceType.includes(currentTypeFilter.toLowerCase());
+                const matchesType = currentTypeFilter === 'all' ||
+                    (Array.isArray(resource.types) && resource.types.some(t => (t || '').toLowerCase() === currentTypeFilter.toLowerCase())) ||
+                    (resource.type || '').toLowerCase().includes(currentTypeFilter.toLowerCase());
                 
                 const searchLower = searchQuery.toLowerCase();
                 const matchesSearch = searchQuery === '' || 
@@ -1134,11 +1182,24 @@
                     document.querySelectorAll('#islandFilters .filter-btn').forEach(b => b.classList.remove('active'));
                     btn.classList.add('active');
                     currentIslandFilter = btn.dataset.filter;
+                    generateTypeFilters();
                     filterAndRender();
                 });
             });
 
-            // Type filters
+            // Type filters are wired separately in setupTypeFilters(), called
+            // after generateTypeFilters() builds the buttons from real data.
+
+            // Search box
+            document.getElementById('searchBox').addEventListener('input', (e) => {
+                searchQuery = e.target.value.toLowerCase();
+                filterAndRender();
+            });
+        }
+
+        // Wire click handlers on the dynamically-generated Resource Type
+        // filter buttons. Re-bound each time the buttons are regenerated.
+        function setupTypeFilters() {
             document.querySelectorAll('#typeFilters .filter-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     document.querySelectorAll('#typeFilters .filter-btn').forEach(b => b.classList.remove('active'));
@@ -1146,12 +1207,6 @@
                     currentTypeFilter = btn.dataset.filter;
                     filterAndRender();
                 });
-            });
-
-            // Search box
-            document.getElementById('searchBox').addEventListener('input', (e) => {
-                searchQuery = e.target.value.toLowerCase();
-                filterAndRender();
             });
         }
 
