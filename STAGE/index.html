@@ -799,14 +799,12 @@
         section.style.display = '';
         grid.innerHTML = '<div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">' + list.map(event => {
             const isPDF = event.imageUrl && event.imageUrl.toLowerCase().includes('.pdf');
-            const clickTarget = event.imageUrl ? ("window.open('" + event.imageUrl + "','_blank')") : "window.location.href='events.html'";
             const ongoing = event._ongoing === true;
             const displayDate = (!ongoing && event.eventDate) ? new Date(event.eventDate + 'T00:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '';
             const badge = ongoing
                 ? '<div style="display:inline-block;padding:0.35rem 1rem;background:linear-gradient(135deg,#4DD0E1,#0891B2);color:white;border-radius:8px;font-size:0.85rem;font-weight:600;margin-top:1rem;">Ongoing</div>'
                 : '<div style="display:inline-block;padding:0.35rem 1rem;background:linear-gradient(135deg,#f59e0b,#d97706);color:white;border-radius:8px;font-size:0.85rem;font-weight:600;margin-top:1rem;">Information</div>';
-            return '<div class="event-card" style="position:relative;cursor:pointer;" onclick="' + clickTarget + '">'
-                + (ongoing ? '<span style="position:absolute;top:10px;left:10px;z-index:2;background:linear-gradient(135deg,#4DD0E1,#0891B2);color:white;padding:3px 9px;border-radius:50px;font-size:11px;font-weight:700;">Ongoing</span>' : '')
+            return '<div class="event-card" style="position:relative;cursor:pointer;" onclick="window.location.href=\'events.html\'">'
                 + (event.imageUrl ? (isPDF ? '<iframe src="' + event.imageUrl + '" style="width:100%;height:220px;display:block;border:none;overflow:hidden;"></iframe>' : '<img src="' + event.imageUrl + '" alt="' + event.title + '" style="width:100%;height:auto;display:block;">') : '<div style="width:100%;height:220px;background:linear-gradient(135deg,var(--ocean-deep) 0%,var(--ocean-mid) 100%);"></div>')
                 + '<div style="padding:2rem;">'
                 + (displayDate ? '<div style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.5rem 1rem;background:var(--sand-light);border-radius:8px;font-size:0.9rem;font-weight:600;color:var(--ocean-deep);margin-bottom:1rem;">' + displayDate + '</div>' : '')
