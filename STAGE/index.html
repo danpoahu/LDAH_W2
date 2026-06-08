@@ -636,7 +636,10 @@
     <section class="events-section" id="infoEventsSection" style="display:none;background:var(--white);">
         <div class="events-container">
             <div class="events-header">
-                <h2 id="home-infoTitle">Information</h2>
+                <div>
+                    <h2 id="home-infoTitle">News and Information</h2>
+                    <p id="home-infoSubtitle" style="color: var(--text-soft); font-size: 1.05rem; margin-top: 0.25rem;">Announcements, resources, and ongoing programs.</p>
+                </div>
             </div>
             <div id="infoEventsGrid"></div>
         </div>
@@ -743,7 +746,7 @@
                 if (next) recurringCards.push({ ...data, _nextDate: next, isRecurring: true });
             });
             recurringCards.sort((a,b) => a._nextDate - b._nextDate);
-            const allCards = [...currentEvents, ...recurringCards.slice(0,1)];
+            const allCards = [...currentEvents, ...recurringCards.slice(0,1)].slice(0, 2);
 
             // Information section = one-time infoOnly events (within their date
             // window) + ongoing flyer-only programs. Hidden when empty.
