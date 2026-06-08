@@ -632,6 +632,16 @@
         </div>
     </section>
 
+    <!-- Information-only flyers (e.g. elections info, community notices). Hidden entirely when there are none. -->
+    <section class="events-section" id="infoEventsSection" style="display:none;background:var(--white);">
+        <div class="events-container">
+            <div class="events-header">
+                <h2 id="home-infoTitle">Information</h2>
+            </div>
+            <div id="infoEventsGrid"></div>
+        </div>
+    </section>
+
     <section class="cta-banner">
         <svg class="cta-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
         <div class="cta-content">
@@ -711,13 +721,27 @@
                 db.collection('recurringEvents').where('active','==',true).get()
             ]);
 
-            // Regular upcoming events (up to 2)
+            // Regular upcoming events (up to 2). Information-only flyers are
+            // pulled out into their own section below, never shown here.
             const currentEvents = eventsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(event => {
+                if (event.infoOnly === true) return false;
                 if (!event.startDate || !event.moveToPastDate) return false;
                 const startDate = new Date(event.startDate + 'T00:00:00');
                 const moveToPastDate = new Date(event.moveToPastDate + 'T00:00:00');
                 return now >= startDate && now < moveToPastDate;
             }).sort((a, b) => new Date(a.eventDate + 'T00:00:00') - new Date(b.eventDate + 'T00:00:00')).slice(0, 2);
+
+            // Information-only events (flagged in CMS). Same visibility window
+            // as regular events; rendered into their own section which stays
+            // hidden when this list is empty.
+            const infoEvents = eventsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(event => {
+                if (event.infoOnly !== true) return false;
+                if (!event.startDate || !event.moveToPastDate) return false;
+                const startDate = new Date(event.startDate + 'T00:00:00');
+                const moveToPastDate = new Date(event.moveToPastDate + 'T00:00:00');
+                return now >= startDate && now < moveToPastDate;
+            }).sort((a, b) => new Date(a.eventDate + 'T00:00:00') - new Date(b.eventDate + 'T00:00:00'));
+            renderInfoEvents(infoEvents);
 
             // Recurring programs with a session in next 30 days (up to 1), plus flyer-only
             const recurringCards = [];
@@ -757,11 +781,35 @@
                     + (event.location ? '<div style="display:flex;align-items:center;gap:0.5rem;color:var(--text-soft);font-size:0.95rem;margin-bottom:0.75rem;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>' + event.location + '</div>' : '')
                     + badge + '</div></div>';
             }).join('') + '</div>';
-        } catch (error) { 
-            container.innerHTML = '<div style="text-align: center; padding: 3rem;"><p style="color: var(--text-soft);">Unable to load events</p></div>'; 
+        } catch (error) {
+            container.innerHTML = '<div style="text-align: center; padding: 3rem;"><p style="color: var(--text-soft);">Unable to load events</p></div>';
         }
     }
-    
+
+    // Render the Information section. Hidden entirely when there are no
+    // information-only flyers. Cards reuse the .event-card styling; clicking
+    // opens the flyer itself (image/PDF) when present.
+    function renderInfoEvents(list) {
+        const section = document.getElementById('infoEventsSection');
+        const grid = document.getElementById('infoEventsGrid');
+        if (!section || !grid) return;
+        if (!list || list.length === 0) { section.style.display = 'none'; return; }
+        section.style.display = '';
+        grid.innerHTML = '<div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">' + list.map(event => {
+            const isPDF = event.imageUrl && event.imageUrl.toLowerCase().includes('.pdf');
+            const clickTarget = event.imageUrl ? ("window.open('" + event.imageUrl + "','_blank')") : "window.location.href='events.html'";
+            const displayDate = event.eventDate ? new Date(event.eventDate + 'T00:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '';
+            return '<div class="event-card" style="position:relative;cursor:pointer;" onclick="' + clickTarget + '">'
+                + (event.imageUrl ? (isPDF ? '<iframe src="' + event.imageUrl + '" style="width:100%;height:220px;display:block;border:none;overflow:hidden;"></iframe>' : '<img src="' + event.imageUrl + '" alt="' + event.title + '" style="width:100%;height:auto;display:block;">') : '<div style="width:100%;height:220px;background:linear-gradient(135deg,var(--ocean-deep) 0%,var(--ocean-mid) 100%);"></div>')
+                + '<div style="padding:2rem;">'
+                + (displayDate ? '<div style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.5rem 1rem;background:var(--sand-light);border-radius:8px;font-size:0.9rem;font-weight:600;color:var(--ocean-deep);margin-bottom:1rem;">' + displayDate + '</div>' : '')
+                + '<h3 style="font-size:1.4rem;color:var(--text-dark);margin-bottom:1rem;font-weight:600;line-height:1.3;font-family:Outfit,sans-serif;">' + event.title + '</h3>'
+                + (event.location ? '<div style="display:flex;align-items:center;gap:0.5rem;color:var(--text-soft);font-size:0.95rem;margin-bottom:0.75rem;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>' + event.location + '</div>' : '')
+                + '<div style="display:inline-block;padding:0.35rem 1rem;background:linear-gradient(135deg,#f59e0b,#d97706);color:white;border-radius:8px;font-size:0.85rem;font-weight:600;margin-top:1rem;">Information</div>'
+                + '</div></div>';
+        }).join('') + '</div>';
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         loadPageContent();
         loadCurrentEvents();
