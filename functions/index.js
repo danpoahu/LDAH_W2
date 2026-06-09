@@ -6820,6 +6820,7 @@ exports.sendEventAnnouncement = functions
       // signup doesn't count (those folks are fair game to re-engage).
       // Test sends bypass the filter so admins can preview their template.
       const signupEmailSkip = new Set();
+      const signupIdSkip = new Set();
       if (!testMode) {
         const signupsSnap = await eventRef.collection('signups').get();
         signupsSnap.forEach(d => {
@@ -6827,18 +6828,26 @@ exports.sendEventAnnouncement = functions
           if (s.status === 'cancelled' || s.archived === true) return;
           const e = String(s.email || '').trim().toLowerCase();
           if (e) signupEmailSkip.add(e);
+          // Match on the linked contact id too — more robust than email alone
+          // (a signup whose contact's email later changed still gets skipped).
+          if (s.linkedContactId) signupIdSkip.add(s.linkedContactId);
         });
       }
 
+      const _isSignedUp = (r) =>
+        signupEmailSkip.has(String(r.email || '').trim().toLowerCase()) ||
+        signupIdSkip.has(r.id);
+
       const newRecipients = recipients.filter(r => {
         if (alreadySent.has(r.id)) return false;
-        if (signupEmailSkip.has(String(r.email || '').trim().toLowerCase())) return false;
+        if (_isSignedUp(r)) return false;
         return true;
       });
-      const alreadySignedUp = recipients.filter(r =>
-        !alreadySent.has(r.id) &&
-        signupEmailSkip.has(String(r.email || '').trim().toLowerCase())
-      ).length;
+      // Count ALL eligible recipients who are signed up (by email OR linked
+      // contact id), regardless of whether they were already sent — so the
+      // "will skip" figure reflects who is on the list and signed up, not just
+      // the not-yet-sent subset (which is usually 0 on a re-send).
+      const alreadySignedUp = recipients.filter(_isSignedUp).length;
 
       if (dryRun) {
         res.status(200).json({
