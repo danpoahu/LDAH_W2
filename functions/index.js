@@ -6761,7 +6761,7 @@ exports.sendEventAnnouncement = functions
     if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
     if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
-    const { eventId, collection, testMode, testEmail, dryRun, audienceFilter } = req.body || {};
+    const { eventId, collection, testMode, testEmail, dryRun, audienceFilter, recipientIds } = req.body || {};
     if (!eventId || !collection) { res.status(400).json({ error: 'Missing eventId or collection' }); return; }
     if (collection !== 'events' && collection !== 'recurringEvents') {
       res.status(400).json({ error: 'Invalid collection' });
@@ -6858,6 +6858,18 @@ exports.sendEventAnnouncement = functions
           alreadySignedUp,
           willSendTo: newRecipients.length,
           audienceFilter: _audience,
+          // Full recipient list so the modal can show a selectable roster with
+          // signed-up rows flagged (green check + locked) and already-emailed
+          // rows marked. Sorted by name for a stable display.
+          recipients: recipients
+            .map(r => ({
+              id: r.id,
+              displayName: r.displayName,
+              email: r.email,
+              signedUp: _isSignedUp(r),
+              alreadySent: alreadySent.has(r.id),
+            }))
+            .sort((a, b) => (a.displayName || '').toLowerCase().localeCompare((b.displayName || '').toLowerCase())),
         });
         return;
       }
@@ -6873,7 +6885,22 @@ exports.sendEventAnnouncement = functions
         return;
       }
 
-      const batch = testMode ? newRecipients : newRecipients.slice(0, remaining);
+      // Who actually gets this send:
+      //  - testMode: the single test recipient.
+      //  - explicit recipientIds (hand-picked from the modal roster): exactly
+      //    those, minus any signed-up (safety rail), regardless of already-sent
+      //    so admins can remind people who got the first blast.
+      //  - otherwise: the auto list (not already-sent, not signed-up).
+      let sendList;
+      if (testMode) {
+        sendList = newRecipients;
+      } else if (Array.isArray(recipientIds) && recipientIds.length) {
+        const idSet = new Set(recipientIds);
+        sendList = recipients.filter(r => idSet.has(r.id) && !_isSignedUp(r));
+      } else {
+        sendList = newRecipients;
+      }
+      const batch = testMode ? sendList : sendList.slice(0, remaining);
       const fromAddress = process.env.SMTP_FROM || 'onboarding@resend.dev';
       const unsubscribeBaseUrl = 'https://us-central1-ldah-932d5.cloudfunctions.net/handleUnsubscribe';
 
@@ -6924,7 +6951,7 @@ exports.sendEventAnnouncement = functions
         sent,
         failed,
         failures,
-        queued: newRecipients.length - batch.length,
+        queued: sendList.length - batch.length,
         sentToday: sentToday + sent,
         cap: ANNOUNCEMENT_DAILY_CAP,
       });
