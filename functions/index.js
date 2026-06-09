@@ -12762,10 +12762,15 @@ exports.onEventCreatedLifecycle = functions
         eventId, eventTitle: title, step: "assignPresenter", sessionKey: firstKey,
         ownerUid: LIFECYCLE_LAA_UID, ownerName: laaName, dueDate
       });
-      await _lcCreateIfMissing(db, {
-        eventId, eventTitle: title, step: "sendAnnouncement", sessionKey: firstKey,
-        ownerUid: creatorUid, ownerName: creatorName, dueDate
-      });
+      // One-off gatherings (hand-keyed into the Event Attendance Report after
+      // the fact) are past events — no public announcement should go out, so
+      // skip the Send Announcements task for them.
+      if (!ev.isOneOff) {
+        await _lcCreateIfMissing(db, {
+          eventId, eventTitle: title, step: "sendAnnouncement", sessionKey: firstKey,
+          ownerUid: creatorUid, ownerName: creatorName, dueDate
+        });
+      }
     }
 
     await snap.ref.update({
