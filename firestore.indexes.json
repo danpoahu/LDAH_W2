@@ -119,6 +119,23 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "photoReleases",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "island", "order": "ASCENDING" },
+        { "fieldPath": "state", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "interactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "photoReleaseId", "order": "ASCENDING" },
+        { "fieldPath": "workflowStep", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

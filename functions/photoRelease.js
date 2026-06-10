@@ -6,7 +6,18 @@ const FieldValue = admin.firestore.FieldValue;
 const Timestamp = admin.firestore.Timestamp;
 
 const PHOTO_RELEASE_VERSION = "06/2026; v1";
-const PHOTO_RELEASE_TEXT = `__DRAFT_DELIVERED_TO_DANIEL_BEFORE_LIVE__`; // replaced in Task 11 with approved copy
+const PHOTO_RELEASE_TEXT = `Photo Release
+
+I grant Leadership in Disabilities & Achievement of Hawaiʻi (LDAH) permission to use, display, and publish the photograph in which I appear on the LDAH website (ldahawaii.org), the LDAH app, and in related digital communications and materials produced by LDAH.
+
+I understand that:
+
+• The photograph may be displayed publicly on LDAH's website, app, and digital communications.
+• No payment is or will be owed to me for this use.
+• LDAH will not sell the photograph or share it for unrelated commercial purposes.
+• I may withdraw this permission at any time by contacting LDAH at LSalvani@LDAHawaii.org. LDAH will then remove the photograph from the materials it controls going forward.
+
+By typing my full legal name below and submitting this form, I confirm that I am the person shown in the photograph, or that person's parent or legal guardian, and that I have read and agree to this release. Typing my name and submitting serves as my electronic signature.`;
 
 // Base URL for the public signing link (STAGE value; switched to live in Task 11)
 const SIGNING_BASE_URL = "https://danpoahu.github.io/LDAH_W2/STAGE/photo-release.html";
