@@ -13540,3 +13540,6 @@ exports.onEventUpdatedLifecycle = functions
 
 // ── Photo Release ─────────────────────────────────────────────────
 exports.createPhotoReleaseRequest = require("./photoRelease").createPhotoReleaseRequest;
+exports.getPhotoRelease = require("./photoRelease").getPhotoRelease;
+exports.submitPhotoRelease = require("./photoRelease").submitPhotoRelease;
+exports.photoReleaseReminders = require("./photoRelease").photoReleaseReminders;
