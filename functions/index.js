@@ -1455,6 +1455,17 @@ async function handleSignupCreated(snap, context, collectionName) {
   // The deferred sender (sendDeferredRegistrationEmails, scheduled every
   // minute) handles this now with a 10-minute grace window: it only
   // emails signups still pending after 10 minutes and not already sent.
+
+  // ── Special-accommodations presenter task ──
+  // If the signup carries a special-accommodations note, create an Open
+  // follow-up routed to the presenter (or program creator) due on the
+  // participant's earliest selected date. Own try/catch — never blocks signup.
+  try {
+    await createAccommodationsTask(snap, signupData, signupId, eventId, collectionName);
+  } catch (accErr) {
+    console.error(`accommodations task failed for signup ${signupId}:`, accErr.message);
+  }
+
   return null;
 }
 
@@ -1583,6 +1594,151 @@ async function detectAndFlagReturningCG(snap, signupData, signupId) {
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
   } catch (e) { console.warn("returning-CG: auditLog write failed:", e.message); }
+}
+
+// ── Special-Accommodations presenter task ────────────────────────────
+// When a signup carries a non-empty special-accommodations note, create an
+// Open follow-up interaction routed to the event's presenter — or the program
+// creator if no presenter is assigned yet, or La'a as a last resort so the
+// note is never lost — so it's acted on before the event. Due = the
+// participant's earliest selected date. Idempotent per signup. Fires for
+// every event type that carries a note.
+async function createAccommodationsTask(snap, signupData, signupId, eventId, collectionName) {
+  const db = admin.firestore();
+
+  // 1. Read the note — field name drifts; first non-empty wins.
+  const reg = signupData.registration && typeof signupData.registration === "object"
+    ? signupData.registration : {};
+  const note = String(
+    reg.accommodations || reg.accommodationsNeeded
+    || signupData.accommodations || signupData.additionalComments || ""
+  ).trim();
+  if (!note) return;
+
+  // 2. Idempotency — skip if this signup already has a Special Accommodations
+  //    interaction. relatedSignupId is also used by returning-CG, so filter by
+  //    type in code to avoid needing a composite index.
+  try {
+    const existing = await db.collection("interactions")
+      .where("relatedSignupId", "==", signupId).get();
+    if (existing.docs.some(d => (d.data() || {}).interactionType === "Special Accommodations")) {
+      console.log(`accommodations: task already exists for signup ${signupId}, skipping`);
+      return;
+    }
+  } catch (e) { console.warn(`accommodations: idempotency check failed: ${e.message}`); }
+
+  // 3. Load the parent event for presenter / creator / title.
+  let ev = {};
+  try {
+    const evSnap = await db.collection(collectionName).doc(eventId).get();
+    if (evSnap.exists) ev = evSnap.data() || {};
+  } catch (e) {
+    console.error(`accommodations: event load failed for ${collectionName}/${eventId}: ${e.message}`);
+    return; // can't route without the event — bail rather than guess
+  }
+
+  // 4. Earliest selected date (ISO sorts chronologically) + matching composite key.
+  const dateKeys = (extractSignupSessionKeys(signupData) || []).filter(Boolean).sort();
+  const earliestDate = dateKeys[0] || "";
+  let compositeKey = "";
+  if (Array.isArray(signupData.selectedSessions)) {
+    compositeKey = signupData.selectedSessions.find((s) => {
+      const head = String(s || "").split("|")[0].trim();
+      return head === earliestDate || toHstDateKey(head) === earliestDate;
+    }) || signupData.selectedSessions[0] || "";
+  }
+
+  // 5. Resolve assignee: presenter → program creator → La'a (never orphaned).
+  let ownerUid = "", ownerName = "", autoRouted = false;
+  // 5a. per-session presenter (recurring / multi-session one-time)
+  if (compositeKey && ev.sessionSummaries && ev.sessionSummaries[compositeKey]
+      && ev.sessionSummaries[compositeKey].presenterUid) {
+    ownerUid = ev.sessionSummaries[compositeKey].presenterUid;
+    ownerName = ev.sessionSummaries[compositeKey].presenter || "";
+  }
+  // 5b. event-level presenter (single-session one-time — the common case)
+  if (!ownerUid && ev.summary && ev.summary.presenterUid) {
+    ownerUid = ev.summary.presenterUid;
+    ownerName = ev.summary.presenter || "";
+  }
+  // 5c. any session summary whose date matches the earliest selected date
+  if (!ownerUid && earliestDate && ev.sessionSummaries) {
+    for (const k of Object.keys(ev.sessionSummaries)) {
+      const s = ev.sessionSummaries[k] || {};
+      if (!s.presenterUid) continue;
+      const head = String(k).split("|")[0].trim();
+      if (head === earliestDate || toHstDateKey(head) === earliestDate) {
+        ownerUid = s.presenterUid; ownerName = s.presenter || ""; break;
+      }
+    }
+  }
+  // 5d. no presenter → program creator
+  if (!ownerUid) {
+    ownerUid = ev.createdByUid || "";
+    ownerName = ev.createdByName || "";
+  }
+  // 5e. last resort → La'a, so the note is never lost
+  if (!ownerUid) {
+    ownerUid = LIFECYCLE_LAA_UID;
+    try { ownerName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID); } catch (_) {}
+    autoRouted = true;
+  }
+  if (!ownerName && ownerUid) {
+    try { ownerName = await _lcResolveStaffName(db, ownerUid); } catch (_) {}
+  }
+
+  // 6. Build + write the interaction.
+  const clientName = signupData.name
+    || [signupData.firstName, signupData.lastName].filter(Boolean).join(" ").trim()
+    || "Unknown";
+  const eventTitle = ev.title || "Event";
+  const guidance = "A participant requested special accommodations for this event. "
+    + "Review the note below and arrange what's needed before the session. "
+    + "Contact the family if you need clarification.";
+  const routedSuffix = autoRouted
+    ? "\n\n(No presenter or event creator was assigned, so this was routed to La'a.)"
+    : "";
+
+  const interaction = {
+    channel: "Event Prep",
+    interactionType: "Special Accommodations",
+    contactId: signupData.linkedContactId || null,
+    contactName: clientName + " — " + eventTitle + (earliestDate ? " (" + earliestDate + ")" : ""),
+    contactType: reg.role || signupData.role || "",
+    grantProgram: "",
+    summary: "Special accommodations requested by " + clientName + " — review before the event.",
+    followUpDate: earliestDate,
+    status: "Open",
+    notes: guidance + "\n\nFrom " + clientName + ': "' + note + '"' + routedSuffix,
+    isDraft: false,
+    owner: ownerName,
+    ownerUid: ownerUid,
+    relatedSignupId: signupId,
+    workflowEventId: eventId,
+    workflowEventCollection: collectionName,
+    workflowStep: "accommodationsNote",
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  try {
+    const ref = await db.collection("interactions").add(interaction);
+    console.log(`accommodations: interaction ${ref.id} created for signup ${signupId} -> ${ownerName || ownerUid}`);
+  } catch (e) {
+    console.error(`accommodations: interaction write failed: ${e.message}`);
+    return;
+  }
+
+  // Audit log so the daily-report changelog picks it up automatically.
+  try {
+    await db.collection("auditLog").add({
+      action: "Created special-accommodations task",
+      details: clientName + " — " + eventTitle + (earliestDate ? " (" + earliestDate + ")" : "")
+        + " -> " + (ownerName || ownerUid),
+      performedBy: "System (auto)",
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (e) { console.warn(`accommodations: auditLog write failed: ${e.message}`); }
 }
 
 // ── Deferred Registration-Completion Email ─────────────────────────
