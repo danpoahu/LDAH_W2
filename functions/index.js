@@ -2762,19 +2762,18 @@ async function handleSignupUpdated(change, context) {
         const alreadyAdded = existingChildren.some(c => c.sourceSignupId === context.params.signupId);
         if (!alreadyAdded) {
           // Dedup-at-source (2026-06-09): a returning family re-registers the
-          // SAME child under a new signup. Match an existing child and MERGE
-          // into it rather than appending a duplicate. Match by name
-          // (case-insensitive) when present; otherwise by demographic signature
-          // (age + gender + ethnicity + sorted disabilities). Mirrors the 6-9
-          // children-dedup migration so new dupes don't accumulate.
+          // SAME child under a new signup. Match an existing child by NAME
+          // (case-insensitive) and MERGE into it rather than appending a
+          // duplicate. NAME-ONLY on purpose — the "Register Another Child" flow
+          // means real siblings exist, so we never merge two children on
+          // demographics alone (siblings can share age/gender/ethnicity/
+          // disability). Nameless entries are always kept distinct (appended);
+          // the rare nameless cross-event dupe is left for manual cleanup rather
+          // than risk collapsing two real kids.
           const _norm = v => String(v == null ? "" : v).trim();
-          const _sig = ch => _norm(ch.ageRange || ch.childAgeRange) + "|" + _norm(ch.gender || ch.childGender) + "|" +
-            _norm(ch.ethnicity) + "|" + (ch.disabilityCategories || []).map(_norm).sort().join(",");
           const _matches = (a, b) => {
             const an = _norm(a.name).toLowerCase(); const bn = _norm(b.name).toLowerCase();
-            if (an && bn) return an === bn;   // both named → name is the identity
-            if (an || bn) return false;       // one named, one not → treat as different
-            return _sig(a) === _sig(b);       // both nameless → demographic match
+            return !!an && an === bn;   // merge only when both share a name
           };
           const idx = existingChildren.findIndex(c => _matches(c, childEntry));
           if (idx === -1) {
