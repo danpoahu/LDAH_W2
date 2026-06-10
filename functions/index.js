@@ -2758,10 +2758,40 @@ async function handleSignupUpdated(change, context) {
         childEntry.sourceSignupId = context.params.signupId;
 
         const existingChildren = contactData.children || [];
-        // Don't duplicate if this signup already added a child
+        // Don't re-add if this exact signup already contributed a child.
         const alreadyAdded = existingChildren.some(c => c.sourceSignupId === context.params.signupId);
         if (!alreadyAdded) {
-          existingChildren.push(childEntry);
+          // Dedup-at-source (2026-06-09): a returning family re-registers the
+          // SAME child under a new signup. Match an existing child and MERGE
+          // into it rather than appending a duplicate. Match by name
+          // (case-insensitive) when present; otherwise by demographic signature
+          // (age + gender + ethnicity + sorted disabilities). Mirrors the 6-9
+          // children-dedup migration so new dupes don't accumulate.
+          const _norm = v => String(v == null ? "" : v).trim();
+          const _sig = ch => _norm(ch.ageRange || ch.childAgeRange) + "|" + _norm(ch.gender || ch.childGender) + "|" +
+            _norm(ch.ethnicity) + "|" + (ch.disabilityCategories || []).map(_norm).sort().join(",");
+          const _matches = (a, b) => {
+            const an = _norm(a.name).toLowerCase(); const bn = _norm(b.name).toLowerCase();
+            if (an && bn) return an === bn;   // both named → name is the identity
+            if (an || bn) return false;       // one named, one not → treat as different
+            return _sig(a) === _sig(b);       // both nameless → demographic match
+          };
+          const idx = existingChildren.findIndex(c => _matches(c, childEntry));
+          if (idx === -1) {
+            existingChildren.push(childEntry);
+          } else {
+            // Merge into the existing child: fill blanks from the new entry,
+            // union disability categories. Never overwrite existing
+            // grade/school/notes (those come from staff-entered child records).
+            const cur = existingChildren[idx];
+            ["name", "ageRange", "gender", "ethnicity", "grade", "school", "notes"].forEach(f => {
+              if (!_norm(cur[f]) && _norm(childEntry[f])) cur[f] = childEntry[f];
+            });
+            const disU = {};
+            (cur.disabilityCategories || []).concat(childEntry.disabilityCategories || []).forEach(d => { if (_norm(d)) disU[_norm(d)] = true; });
+            if (Object.keys(disU).length) cur.disabilityCategories = Object.keys(disU);
+            existingChildren[idx] = cur;
+          }
           updates.children = existingChildren;
         }
       }
