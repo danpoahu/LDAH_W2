@@ -13537,3 +13537,6 @@ exports.onEventUpdatedLifecycle = functions
 
     return null;
   });
+
+// ── Photo Release ─────────────────────────────────────────────────
+exports.createPhotoReleaseRequest = require("./photoRelease").createPhotoReleaseRequest;
