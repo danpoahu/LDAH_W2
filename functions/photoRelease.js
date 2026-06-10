@@ -672,6 +672,125 @@ exports.photoReleaseReminders = functions
     return null;
   });
 
+// ── Task 7: revertPhotoRelease (callable) ─────────────────────────
+exports.revertPhotoRelease = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 5 })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "Sign in required.");
+    }
+
+    const roleSnap = await admin.firestore().collection("userRoles").doc(context.auth.uid).get();
+    const role = roleSnap.exists ? roleSnap.data().role : null;
+    if (role !== "superAdmin" && role !== "admin") {
+      throw new functions.https.HttpsError("permission-denied", "Only admins may revert a photo release.");
+    }
+
+    const releaseId = data && data.releaseId;
+    if (!releaseId) {
+      throw new functions.https.HttpsError("invalid-argument", "releaseId is required.");
+    }
+
+    const ref = admin.firestore().collection("photoReleases").doc(releaseId);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      throw new functions.https.HttpsError("not-found", "Photo release not found.");
+    }
+    const rel = snap.data();
+
+    // Restore previous photo in pageContent
+    await admin.firestore().collection("pageContent").doc(rel.pageKey || "pacific").set(
+      {
+        [rel.fieldKey]: rel.previousPhotoUrl || "",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    await ref.update({
+      state: "reverted",
+      revertedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Close any open verify tasks for this release (non-fatal)
+    try {
+      const taskSnap = await admin.firestore().collection("interactions")
+        .where("photoReleaseId", "==", releaseId)
+        .where("workflowStep", "==", "photoReleaseVerify")
+        .where("status", "==", "Open")
+        .get();
+
+      if (!taskSnap.empty) {
+        const batch = admin.firestore().batch();
+        taskSnap.docs.forEach((doc) => batch.update(doc.ref, { status: "Closed" }));
+        await batch.commit();
+      }
+    } catch (e) {
+      // non-fatal
+    }
+
+    return { ok: true };
+  });
+
+// ── Task 8: cancelPhotoRelease (callable) ─────────────────────────
+exports.cancelPhotoRelease = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 5 })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "Sign in required.");
+    }
+
+    const releaseId = data && data.releaseId;
+    if (!releaseId) {
+      throw new functions.https.HttpsError("invalid-argument", "releaseId is required.");
+    }
+
+    const ref = admin.firestore().collection("photoReleases").doc(releaseId);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      throw new functions.https.HttpsError("not-found", "Photo release not found.");
+    }
+    const rel = snap.data();
+
+    // Gate: requester OR admin/superAdmin
+    const isRequester = rel.requestedBy === context.auth.uid;
+    if (!isRequester) {
+      const roleSnap = await admin.firestore().collection("userRoles").doc(context.auth.uid).get();
+      const role = roleSnap.exists ? roleSnap.data().role : null;
+      if (role !== "superAdmin" && role !== "admin") {
+        throw new functions.https.HttpsError("permission-denied", "Only the requester or an admin may cancel a photo release.");
+      }
+    }
+
+    // Already past awaiting — nothing to do
+    if (rel.state !== "awaiting") {
+      return { ok: true, noop: true };
+    }
+
+    await ref.update({
+      state: "cancelled",
+      cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Close any open stall or verify tasks for this release (non-fatal)
+    try {
+      const taskSnap = await admin.firestore().collection("interactions")
+        .where("photoReleaseId", "==", releaseId)
+        .where("status", "==", "Open")
+        .get();
+
+      if (!taskSnap.empty) {
+        const batch = admin.firestore().batch();
+        taskSnap.docs.forEach((doc) => batch.update(doc.ref, { status: "Closed" }));
+        await batch.commit();
+      }
+    } catch (e) {
+      // non-fatal
+    }
+
+    return { ok: true };
+  });
+
 module.exports = Object.assign(module.exports, {
   PHOTO_RELEASE_VERSION,
   PHOTO_RELEASE_TEXT,
