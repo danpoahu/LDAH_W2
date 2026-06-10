@@ -2739,7 +2739,18 @@ async function handleSignupUpdated(change, context) {
     };
     try {
       const childEntry = {};
-      if (registration.childName) childEntry.name = String(registration.childName).trim();
+      // Child name: prefer registration.childName; fall back to studentName
+      // (recurring-event signups store the child's name there — the enrichment
+      // used to drop it, leaving "Child 1" placeholders). Guard: studentName is
+      // occasionally the registrant's OWN name mis-entered, so never use it when
+      // it matches the parent/contact name. (2026-06-09)
+      let _childNm = registration.childName ? String(registration.childName).trim() : "";
+      if (!_childNm && registration.studentName) {
+        const _sn = String(registration.studentName).trim();
+        const _parent = String((contactData && contactData.displayName) || registration.name || "").trim();
+        if (_sn && _sn.toLowerCase() !== _parent.toLowerCase()) _childNm = _sn;
+      }
+      if (_childNm) childEntry.name = _childNm;
       if (registration.childAgeRange) childEntry.ageRange = _canonAgeRange(registration.childAgeRange);
       if (registration.childGender) childEntry.gender = registration.childGender;
       if (registration.ethnicity) childEntry.ethnicity = registration.ethnicity;
