@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Photo Release — Demo (STAGE only)</title>
+<style>
+  :root{ --teal:#005f73; --teal2:#0a7ea1; --ink:#1f2933; --muted:#52606d; --line:#e2e8f0; --bg:#f5f8fa; --amber:#b45309; --green:#16a34a; }
+  *{box-sizing:border-box;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--bg);margin:0;line-height:1.5;}
+  .wrap{max-width:960px;margin:0 auto;padding:24px 18px 80px;}
+  .banner{background:#fff7ed;border:1px solid #fed7aa;color:#7c2d12;border-radius:10px;padding:10px 14px;font-size:.9rem;margin-bottom:18px;}
+  h1{color:var(--teal);font-size:1.5rem;margin:0 0 4px;}
+  .sub{color:var(--muted);margin:0 0 22px;font-size:.95rem;}
+  .steps{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 22px;font-size:.82rem;color:var(--muted);}
+  .steps span{background:#fff;border:1px solid var(--line);border-radius:999px;padding:4px 12px;}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+  @media(max-width:720px){ .grid{grid-template-columns:1fr;} }
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05);display:flex;flex-direction:column;}
+  .card .ph{aspect-ratio:4/3;background:#eef2f5;width:100%;object-fit:cover;display:block;}
+  .card .body{padding:12px 14px;display:flex;flex-direction:column;gap:8px;}
+  .card h3{margin:0;font-size:.95rem;color:var(--ink);}
+  .pill{display:inline-block;font-size:.72rem;font-weight:700;padding:2px 9px;border-radius:999px;}
+  .pill.live{background:#dcfce7;color:#166534;} .pill.wait{background:#fef3c7;color:#92400e;} .pill.promoted{background:#cffafe;color:#155e75;}
+  button{font:inherit;cursor:pointer;border:none;border-radius:8px;padding:9px 14px;font-weight:600;}
+  .btn{background:var(--teal);color:#fff;} .btn.ghost{background:#fff;color:var(--teal);border:1px solid var(--teal);} .btn.sm{font-size:.82rem;padding:7px 12px;}
+  .overlay{position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;align-items:flex-start;justify-content:center;padding:30px 14px;z-index:50;overflow:auto;}
+  .overlay.on{display:flex;}
+  .modal{background:#fff;border-radius:14px;max-width:640px;width:100%;padding:20px 22px;box-shadow:0 16px 50px rgba(0,0,0,.25);}
+  .modal h2{margin:0 0 4px;color:var(--teal);font-size:1.2rem;}
+  .modal p.note{color:var(--muted);font-size:.88rem;margin:0 0 14px;}
+  .pool{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-height:280px;overflow:auto;padding:4px;border:1px solid var(--line);border-radius:10px;}
+  @media(max-width:520px){ .pool{grid-template-columns:repeat(3,1fr);} }
+  .pool img{aspect-ratio:1/1;object-fit:cover;width:100%;border-radius:8px;cursor:pointer;border:3px solid transparent;}
+  .pool img.sel{border-color:var(--teal2);}
+  label{font-weight:600;font-size:.9rem;display:block;margin:14px 0 4px;}
+  input[type=email]{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:.95rem;}
+  .row{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;}
+  .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:#334155;color:#fff;padding:11px 22px;border-radius:24px;font-size:.88rem;font-weight:600;z-index:99;box-shadow:0 4px 16px rgba(0,0,0,.2);opacity:0;transition:opacity .35s;}
+  .toast.on{opacity:1;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="banner"><strong>STAGE demo &middot; sandbox only.</strong> This page is isolated from the live LDAH website — changing a photo here only affects this demo, never the real Pacific page.</div>
+  <h1>Photo Release — try it yourself</h1>
+  <p class="sub">Pick a new photo for any of the three slots below, send yourself the release, sign it from your email, and watch the photo auto-promote here.</p>
+  <div class="steps"><span>1. Change a photo</span><span>2. Send yourself the release</span><span>3. Sign it from your inbox</span><span>4. It auto-promotes here</span></div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<div class="overlay" id="ov">
+  <div class="modal">
+    <h2 id="mTitle">Change photo</h2>
+    <p class="note">Pick a different photo, then send yourself a release to sign. Once you sign it from your email, it publishes into this slot automatically.</p>
+    <div class="pool" id="pool"></div>
+    <label for="email">Send the release to (the person in the photo — that's you for this demo):</label>
+    <input type="email" id="email" value="rrowe@ldahawaii.org">
+    <div class="row">
+      <button class="btn ghost" id="cancelBtn">Cancel</button>
+      <button class="btn" id="sendBtn" disabled>Send release email</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script>
+  const firebaseConfig = { apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk", authDomain: "ldah-932d5.firebaseapp.com", projectId: "ldah-932d5", storageBucket: "ldah-932d5.firebasestorage.app" };
+  if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  const CREATE_CF = 'https://us-central1-ldah-932d5.cloudfunctions.net/createPhotoReleaseRequest';
+
+  let pool = [];          // all pacific photo URLs to choose from
+  let demo = {};          // current pageContent/demo
+  let awaiting = {};      // slot -> { url } awaiting promotion (this session)
+  let activeSlot = null;  // slot being edited
+  let chosen = null;      // chosen new url in modal
+
+  const $ = id => document.getElementById(id);
+  function toast(msg, bg){ const t=$('toast'); t.textContent=msg; t.style.background=bg||'#334155'; t.classList.add('on'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('on'), 3200); }
+
+  // Pool of choosable photos (current Pacific gallery), read-only.
+  db.collection('pageContent').doc('pacific').get().then(s=>{
+    const d = s.data()||{};
+    pool = [...new Set(Object.keys(d).filter(k=>/Photo[1-9]$/.test(k) && typeof d[k]==='string' && /^https?:/.test(d[k])).map(k=>d[k]))];
+  });
+
+  // Live demo slots — auto-updates when a signed release publishes here.
+  db.collection('pageContent').doc('demo').onSnapshot(s=>{ demo = s.data()||{}; render(); });
+
+  function render(){
+    const g = $('grid'); g.innerHTML='';
+    let promotedSlot = 0;
+    [1,2,3].forEach(n=>{
+      const url = demo['demoPhoto'+n] || '';
+      const wait = awaiting[n];
+      let justPromoted = false;
+      if (wait && url === wait.url){ justPromoted = true; promotedSlot = n; delete awaiting[n]; }
+      const pill = justPromoted
+        ? '<span class="pill promoted">Just auto-promoted</span>'
+        : (awaiting[n] ? '<span class="pill wait">Awaiting your signature</span>' : '<span class="pill live">Live on demo</span>');
+      const card = document.createElement('div'); card.className='card';
+      card.innerHTML =
+        '<img class="ph" src="'+url+'" alt="Demo photo '+n+'" onerror="this.style.background=\'#e2e8f0\'">'
+        + '<div class="body"><h3>Photo '+n+' '+pill+'</h3>'
+        + (awaiting[n]
+            ? '<p class="note" style="margin:0;color:#92400e;font-size:.82rem;">Release sent to '+awaiting[n].email+'. Open your email and sign — this photo updates automatically.</p>'
+            : '<button class="btn sm" onclick="openChange('+n+')">Change this photo &rarr;</button>')
+        + '</div>';
+      g.appendChild(card);
+    });
+    if (promotedSlot){ toast('Signed — Photo '+promotedSlot+' just auto-promoted.', '#16a34a'); }
+  }
+
+  window.openChange = function(n){
+    activeSlot = n; chosen = null;
+    $('mTitle').textContent = 'Change Photo '+n;
+    const p = $('pool'); p.innerHTML='';
+    const current = [demo.demoPhoto1, demo.demoPhoto2, demo.demoPhoto3];
+    pool.filter(u=>current.indexOf(u)===-1).slice(0,24).forEach(u=>{
+      const img = document.createElement('img'); img.src=u; img.loading='lazy';
+      img.onclick = function(){ chosen=u; [...p.children].forEach(c=>c.classList.remove('sel')); img.classList.add('sel'); $('sendBtn').disabled=false; };
+      p.appendChild(img);
+    });
+    $('sendBtn').disabled = true;
+    $('ov').classList.add('on');
+  };
+  $('cancelBtn').onclick = ()=> $('ov').classList.remove('on');
+
+  $('sendBtn').onclick = async function(){
+    const email = ($('email').value||'').trim();
+    if (!email || email.indexOf('@')===-1){ toast('Enter a valid email.', '#dc2626'); return; }
+    if (!chosen || !activeSlot){ return; }
+    const n = activeSlot;
+    $('sendBtn').disabled = true; $('sendBtn').textContent = 'Sending...';
+    try{
+      const resp = await fetch(CREATE_CF, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          pageKey:'demo', island:'demo', fieldKey:'demoPhoto'+n, slot:n,
+          newPhotoUrl: chosen, previousPhotoUrl: demo['demoPhoto'+n]||'',
+          requestedBy:'', requestedByEmail: email, requestedByName:'Photo Release Demo',
+          emails:[email]
+        })
+      });
+      if(!resp.ok){ throw new Error('Server '+resp.status); }
+      awaiting[n] = { url: chosen, email: email };
+      $('ov').classList.remove('on');
+      $('sendBtn').textContent = 'Send release email';
+      toast('Release emailed to '+email+'. Check your inbox and sign it.', '#0a7ea1');
+      render();
+    }catch(e){
+      $('sendBtn').disabled=false; $('sendBtn').textContent='Send release email';
+      toast('Could not send: '+(e.message||e), '#dc2626');
+    }
+  };
+</script>
+</body>
+</html>
