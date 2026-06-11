@@ -6804,12 +6804,14 @@ exports.handleUnsubscribe = functions
     }
   });
 
-function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl, eventId }) {
+function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl, eventId, sessionDate }) {
   const displayName = (contact.displayName || '').trim();
   const firstName = displayName ? displayName.split(/\s+/)[0] : 'Friend';
   const title = event.title || 'Upcoming LDAH Event';
   let dateStr = '';
-  if (Array.isArray(event.signupDates) && event.signupDates[0]) dateStr = event.signupDates[0];
+  // For a date-targeted announcement, show the chosen date; otherwise the first.
+  if (sessionDate) dateStr = sessionDate;
+  else if (Array.isArray(event.signupDates) && event.signupDates[0]) dateStr = event.signupDates[0];
   else if (event.eventDate) dateStr = formatEventDate(event.eventDate);
   else if (event.date) dateStr = formatEventDate(event.date);
   const location = event.location || '';
@@ -6957,7 +6959,11 @@ exports.sendEventAnnouncement = functions
     if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
     if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
-    const { eventId, collection, testMode, testEmail, dryRun, audienceFilter, recipientIds } = req.body || {};
+    const { eventId, collection, testMode, testEmail, dryRun, audienceFilter, recipientIds, sessionDate } = req.body || {};
+    // Date-targeted announcement (multi-date events): when present, skip only
+    // people signed up FOR this date, show this date in the email, and track
+    // sent state per date. Absent => event-wide (original behavior).
+    const _sessionDate = (typeof sessionDate === 'string' && sessionDate.trim()) ? sessionDate.trim() : null;
     if (!eventId || !collection) { res.status(400).json({ error: 'Missing eventId or collection' }); return; }
     if (collection !== 'events' && collection !== 'recurringEvents') {
       res.status(400).json({ error: 'Invalid collection' });
@@ -7009,11 +7015,18 @@ exports.sendEventAnnouncement = functions
       const recipientColl = eventRef.collection('announcementRecipients');
       const priorSnap = await recipientColl.get();
       const alreadySent = new Set();
-      priorSnap.forEach(d => alreadySent.add(d.id));
+      priorSnap.forEach(d => {
+        const rd = d.data() || {};
+        // Per-date "already emailed": only count prior sends for the SAME date
+        // (event-wide sends have sessionDate null). Legacy docs have no
+        // recipientId/sessionDate — they read as event-wide (null) keyed by id.
+        if ((rd.sessionDate || null) === _sessionDate) alreadySent.add(rd.recipientId || d.id);
+      });
 
-      // Skip anyone with an active signup for this event — they already
-      // know about it. Match by lowercase email; a cancelled or archived
-      // signup doesn't count (those folks are fair game to re-engage).
+      // Skip anyone with an active signup — they already know about it. Match by
+      // lowercase email or linked contact id; cancelled/archived signups don't
+      // count. For a date-targeted send, skip only people signed up FOR THAT
+      // DATE (Option A) so other-date attendees and new contacts stay invitable.
       // Test sends bypass the filter so admins can preview their template.
       const signupEmailSkip = new Set();
       const signupIdSkip = new Set();
@@ -7022,10 +7035,12 @@ exports.sendEventAnnouncement = functions
         signupsSnap.forEach(d => {
           const s = d.data() || {};
           if (s.status === 'cancelled' || s.archived === true) return;
+          if (_sessionDate) {
+            const sel = Array.isArray(s.selectedDates) ? s.selectedDates : [];
+            if (sel.indexOf(_sessionDate) === -1) return; // not in this session — fair game
+          }
           const e = String(s.email || '').trim().toLowerCase();
           if (e) signupEmailSkip.add(e);
-          // Match on the linked contact id too — more robust than email alone
-          // (a signup whose contact's email later changed still gets skipped).
           if (s.linkedContactId) signupIdSkip.add(s.linkedContactId);
         });
       }
@@ -7106,7 +7121,7 @@ exports.sendEventAnnouncement = functions
       for (const r of batch) {
         try {
           const unsubscribeUrl = unsubscribeBaseUrl + '?token=' + encodeURIComponent(r.unsubscribeToken);
-          const html = buildAnnouncementEmailHtml({ event, contact: r, unsubscribeUrl, eventId });
+          const html = buildAnnouncementEmailHtml({ event, contact: r, unsubscribeUrl, eventId, sessionDate: _sessionDate });
           await sendEmailViaResend({
             from: 'LDAH <' + fromAddress + '>',
             to: r.email,
@@ -7117,10 +7132,15 @@ exports.sendEventAnnouncement = functions
             recipientName: r.displayName,
           });
           if (!testMode) {
-            await recipientColl.doc(r.id).set({
+            // Per-date record so the same contact can be emailed for a
+            // different date later. Event-wide sends keep the plain id (back-compat).
+            const recDocId = _sessionDate ? (r.id + '::' + _sessionDate.replace(/\//g, '_')) : r.id;
+            await recipientColl.doc(recDocId).set({
+              recipientId: r.id,
               email: r.email,
               name: r.displayName,
               sentAt: admin.firestore.FieldValue.serverTimestamp(),
+              sessionDate: _sessionDate,
             });
           }
           sent++;
@@ -7134,7 +7154,14 @@ exports.sendEventAnnouncement = functions
       if (!testMode && sent > 0) {
         await throttleRef.set({ count: admin.firestore.FieldValue.increment(sent) }, { merge: true });
         const updates = { announcementRecipientCount: admin.firestore.FieldValue.increment(sent) };
-        if (!event.announcementSent) {
+        if (_sessionDate) {
+          // Per-date sent map (whole-map set; keys may contain spaces/commas/
+          // colons — same as sessionAttendance/recordingEmailSent keys).
+          const cur = Object.assign({}, event.announcementSentDates || {});
+          const prev = (cur[_sessionDate] && cur[_sessionDate].count) || 0;
+          cur[_sessionDate] = { sentAt: admin.firestore.Timestamp.now(), count: prev + sent };
+          updates.announcementSentDates = cur;
+        } else if (!event.announcementSent) {
           updates.announcementSent = true;
           updates.announcementSentAt = admin.firestore.FieldValue.serverTimestamp();
         }
