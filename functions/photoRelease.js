@@ -94,9 +94,12 @@ function releaseEmailHtml(signLink, requesterName) {
 <body style="margin:0;padding:0;background:#ffffff;">
   <div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#222222;max-width:560px;margin:0 auto;padding:20px;">
     <p style="margin:0 0 14px;">Aloha,</p>
-    <p style="margin:0 0 14px;">${requesterName} would like to display a photo that includes you on the LDAH website, app, and digital communications. Before we publish it, we need your written permission.</p>
-    <p style="margin:0 0 14px;">Please review and sign your photo release here:<br>
-      <a href="${signLink}" style="color:#0a58ca;">${signLink}</a></p>
+    <p style="margin:0 0 18px;">${requesterName} would like to display a photo that includes you on the LDAH website, app, and digital communications. Before we publish it, we need your written permission.</p>
+    <p style="margin:0 0 16px;">
+      <a href="${signLink}" style="display:inline-block;background:#005f73;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:12px 24px;border-radius:6px;">Review and sign your photo release</a>
+    </p>
+    <p style="margin:0 0 16px;font-size:13px;color:#555555;">Or paste this link into your browser:<br>
+      <a href="${signLink}" style="color:#0a58ca;word-break:break-all;">${signLink}</a></p>
     <p style="margin:0 0 14px;">It only takes a minute, and your signature is securely recorded. If you have any questions, just reply to this email or write to us at ${LAA_EMAIL}.</p>
     <p style="margin:0 0 4px;">Mahalo,</p>
     <p style="margin:0;">Leadership in Disabilities &amp; Achievement of Hawai&#699;i (LDAH)</p>
@@ -290,9 +293,12 @@ function reminderHtml(signLink) {
 <body style="margin:0;padding:0;background:#ffffff;">
   <div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#222222;max-width:560px;margin:0 auto;padding:20px;">
     <p style="margin:0 0 14px;">Aloha,</p>
-    <p style="margin:0 0 14px;">Just a friendly reminder that we are still waiting on your signature for an LDAH photo release. It only takes a minute, and your signature is securely recorded.</p>
-    <p style="margin:0 0 14px;">Please review and sign it here:<br>
-      <a href="${signLink}" style="color:#0a58ca;">${signLink}</a></p>
+    <p style="margin:0 0 18px;">Just a friendly reminder that we are still waiting on your signature for an LDAH photo release. It only takes a minute, and your signature is securely recorded.</p>
+    <p style="margin:0 0 16px;">
+      <a href="${signLink}" style="display:inline-block;background:#005f73;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:12px 24px;border-radius:6px;">Review and sign your photo release</a>
+    </p>
+    <p style="margin:0 0 16px;font-size:13px;color:#555555;">Or paste this link into your browser:<br>
+      <a href="${signLink}" style="color:#0a58ca;word-break:break-all;">${signLink}</a></p>
     <p style="margin:0 0 14px;">If you have any questions, just reply to this email or write to us at ${LAA_EMAIL}.</p>
     <p style="margin:0 0 4px;">Mahalo,</p>
     <p style="margin:0;">Leadership in Disabilities &amp; Achievement of Hawai&#699;i (LDAH)</p>
