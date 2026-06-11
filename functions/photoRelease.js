@@ -36,9 +36,16 @@ async function lookupUidByEmail(email) {
 // Self-contained version scoped to this module. Uses the same Resend
 // endpoint and emailLog pattern as index.js's sendEmailViaResend.
 // Node 20 provides global fetch — no node-fetch needed.
-async function sendMail({ to, subject, html, type, photoReleaseId }) {
+async function sendMail({ to, subject, html, text, type, photoReleaseId }) {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.SMTP_FROM || "onboarding@resend.dev";
+  // A plain-text alternative (multipart) makes the message read as transactional
+  // rather than marketing, which improves inbox placement (vs Gmail Promotions).
+  const textBody = text || String(html || "")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&#699;/g, "ʻ").replace(/&amp;/g, "&").replace(/&nbsp;/g, " ")
+    .replace(/[ \t]+/g, " ").replace(/\s*\n\s*/g, "\n").trim();
   let ok = false, errorBody = null, resendId = null;
   try {
     const resp = await fetch("https://api.resend.com/emails", {
@@ -47,7 +54,7 @@ async function sendMail({ to, subject, html, type, photoReleaseId }) {
         "Authorization": "Bearer " + apiKey,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ from, to: [to], subject, html }),
+      body: JSON.stringify({ from, to: [to], reply_to: LAA_EMAIL, subject, html, text: textBody }),
     });
     ok = resp.ok;
     if (ok) {
@@ -77,88 +84,40 @@ async function sendMail({ to, subject, html, type, photoReleaseId }) {
 
 // ── Email body ────────────────────────────────────────────────────
 // Plain, clean HTML using inline styles. No emojis per LDAH rules.
+// Deliberately plain / transactional (no header banner, no CTA button, one
+// inline link, and an invitation to reply) so Gmail treats it as a personal
+// message and keeps it in the Primary inbox rather than Promotions.
 function releaseEmailHtml(signLink, requesterName) {
   return `<!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Photo Release Request</title>
-</head>
-<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 0;">
-    <tr>
-      <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:6px;overflow:hidden;max-width:600px;width:100%;">
-
-          <!-- Header -->
-          <tr>
-            <td style="background:#005f73;padding:24px 32px;">
-              <p style="margin:0;color:#ffffff;font-size:20px;font-weight:bold;">
-                Leadership in Disabilities &amp; Achievement of Hawai&#699;i
-              </p>
-            </td>
-          </tr>
-
-          <!-- Body -->
-          <tr>
-            <td style="padding:32px;">
-              <p style="margin:0 0 16px;font-size:16px;color:#222222;line-height:1.5;">
-                Aloha,
-              </p>
-              <p style="margin:0 0 16px;font-size:16px;color:#222222;line-height:1.5;">
-                <strong>${requesterName}</strong> would like to display a photo that includes you
-                on the LDAH website. Before the photo is published, we are required to obtain your
-                written permission.
-              </p>
-              <p style="margin:0 0 16px;font-size:16px;color:#222222;line-height:1.5;">
-                By signing the release below, you grant LDAH permission to use the photo on our
-                website and related digital materials. Your signature takes only a moment and is
-                securely recorded.
-              </p>
-              <p style="margin:0 0 24px;font-size:16px;color:#222222;line-height:1.5;">
-                If you have any questions before signing, please contact us at
-                <a href="mailto:${LAA_EMAIL}" style="color:#005f73;">${LAA_EMAIL}</a>.
-              </p>
-
-              <!-- CTA button -->
-              <table cellpadding="0" cellspacing="0" style="margin:0 0 32px;">
-                <tr>
-                  <td style="background:#005f73;border-radius:4px;">
-                    <a href="${signLink}"
-                       style="display:inline-block;padding:14px 28px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">
-                      Review and Sign the Photo Release
-                    </a>
-                  </td>
-                </tr>
-              </table>
-
-              <p style="margin:0 0 8px;font-size:14px;color:#555555;line-height:1.5;">
-                If the button above does not work, copy and paste the link below into your browser:
-              </p>
-              <p style="margin:0;font-size:13px;color:#005f73;word-break:break-all;">
-                <a href="${signLink}" style="color:#005f73;">${signLink}</a>
-              </p>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="background:#f0f0f0;padding:16px 32px;border-top:1px solid #dddddd;">
-              <p style="margin:0;font-size:12px;color:#888888;line-height:1.5;">
-                This message was sent by Leadership in Disabilities &amp; Achievement of Hawai&#699;i (LDAH).
-                If you believe you received this in error, please disregard it or contact us at
-                <a href="mailto:${LAA_EMAIL}" style="color:#555555;">${LAA_EMAIL}</a>.
-              </p>
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#ffffff;">
+  <div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#222222;max-width:560px;margin:0 auto;padding:20px;">
+    <p style="margin:0 0 14px;">Aloha,</p>
+    <p style="margin:0 0 14px;">${requesterName} would like to display a photo that includes you on the LDAH website, app, and digital communications. Before we publish it, we need your written permission.</p>
+    <p style="margin:0 0 14px;">Please review and sign your photo release here:<br>
+      <a href="${signLink}" style="color:#0a58ca;">${signLink}</a></p>
+    <p style="margin:0 0 14px;">It only takes a minute, and your signature is securely recorded. If you have any questions, just reply to this email or write to us at ${LAA_EMAIL}.</p>
+    <p style="margin:0 0 4px;">Mahalo,</p>
+    <p style="margin:0;">Leadership in Disabilities &amp; Achievement of Hawai&#699;i (LDAH)</p>
+    <p style="margin:18px 0 0;font-size:12px;color:#999999;">If you received this by mistake, you can ignore it.</p>
+  </div>
 </body>
 </html>`;
+}
+
+function releaseEmailText(signLink, requesterName) {
+  return `Aloha,
+
+${requesterName} would like to display a photo that includes you on the LDAH website, app, and digital communications. Before we publish it, we need your written permission.
+
+Please review and sign your photo release here:
+${signLink}
+
+It only takes a minute, and your signature is securely recorded. If you have any questions, just reply to this email or write to us at ${LAA_EMAIL}.
+
+Mahalo,
+Leadership in Disabilities & Achievement of Hawaiʻi (LDAH)`;
 }
 
 // ── Cloud Function: createPhotoReleaseRequest ─────────────────────
@@ -232,8 +191,9 @@ exports.createPhotoReleaseRequest = functions
       const signLink = SIGNING_BASE_URL + "?token=" + s.token;
       await sendMail({
         to: s.email,
-        subject: "Please sign a photo release for LDAH",
+        subject: "Please sign your LDAH photo release",
         html: releaseEmailHtml(signLink, senderName),
+        text: releaseEmailText(signLink, senderName),
         type: "photo-release-request",
         photoReleaseId: docRef.id,
       });
@@ -321,28 +281,38 @@ function progressPartnerHtml(release, signedCount) {
                 we will let you know.</p>`);
 }
 
+// Plain / transactional reminder (no banner, no button) for the same inbox-
+// placement reasons as releaseEmailHtml.
 function reminderHtml(signLink) {
-  return wrap(`
-              <p style="${P}">Aloha,</p>
-              <p style="${P}">This is a friendly reminder that LDAH is still waiting for your
-                signature on a photo release. Your signature takes only a moment and is securely
-                recorded.</p>
-              <table cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
-                <tr>
-                  <td style="background:#005f73;border-radius:4px;">
-                    <a href="${signLink}"
-                       style="display:inline-block;padding:14px 28px;color:#ffffff;font-size:16px;font-weight:bold;text-decoration:none;">
-                      Review and Sign the Photo Release
-                    </a>
-                  </td>
-                </tr>
-              </table>
-              <p style="margin:0 0 8px;font-size:14px;color:#555555;line-height:1.5;">
-                If the button above does not work, copy and paste the link below into your browser:
-              </p>
-              <p style="margin:0;font-size:13px;color:#005f73;word-break:break-all;">
-                <a href="${signLink}" style="color:#005f73;">${signLink}</a>
-              </p>`);
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#ffffff;">
+  <div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#222222;max-width:560px;margin:0 auto;padding:20px;">
+    <p style="margin:0 0 14px;">Aloha,</p>
+    <p style="margin:0 0 14px;">Just a friendly reminder that we are still waiting on your signature for an LDAH photo release. It only takes a minute, and your signature is securely recorded.</p>
+    <p style="margin:0 0 14px;">Please review and sign it here:<br>
+      <a href="${signLink}" style="color:#0a58ca;">${signLink}</a></p>
+    <p style="margin:0 0 14px;">If you have any questions, just reply to this email or write to us at ${LAA_EMAIL}.</p>
+    <p style="margin:0 0 4px;">Mahalo,</p>
+    <p style="margin:0;">Leadership in Disabilities &amp; Achievement of Hawai&#699;i (LDAH)</p>
+  </div>
+</body>
+</html>`;
+}
+
+function reminderText(signLink) {
+  return `Aloha,
+
+Just a friendly reminder that we are still waiting on your signature for an LDAH photo release. It only takes a minute, and your signature is securely recorded.
+
+Please review and sign it here:
+${signLink}
+
+If you have any questions, just reply to this email or write to us at ${LAA_EMAIL}.
+
+Mahalo,
+Leadership in Disabilities & Achievement of Hawaiʻi (LDAH)`;
 }
 
 function reminderPartnerHtml(release, missing) {
@@ -665,6 +635,7 @@ exports.photoReleaseReminders = functions
             to: s.email,
             subject: "Reminder: please sign your LDAH photo release",
             html: reminderHtml(SIGNING_BASE_URL + "?token=" + s.token),
+            text: reminderText(SIGNING_BASE_URL + "?token=" + s.token),
             type: "photo-release-reminder15",
             photoReleaseId: id,
           });
