@@ -779,6 +779,35 @@ exports.cancelPhotoRelease = functions
     return { ok: true };
   });
 
+// Demo-only read endpoint for the public sandbox page (photo-release-demo.html).
+// Returns release + signature details for island='demo' ONLY, so no real
+// signer information is ever exposed. No auth (demo data only).
+exports.getDemoReleases = functions.https.onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+  const iso = (t) => (t && t.toDate) ? t.toDate().toISOString() : (t || null);
+  try {
+    const snap = await admin.firestore().collection("photoReleases").where("island", "==", "demo").get();
+    const releases = snap.docs.map((d) => {
+      const r = d.data();
+      return {
+        id: d.id, slot: r.slot, fieldKey: r.fieldKey, state: r.state,
+        newPhotoUrl: r.newPhotoUrl || "", requestedAt: iso(r.requestedAt),
+        consentVersion: r.consentVersion || "",
+        subjects: (r.subjects || []).map((s) => ({
+          email: s.email, status: s.status,
+          signedName: s.signedName || "", signedAt: iso(s.signedAt),
+        })),
+      };
+    });
+    res.status(200).json({ releases, consentText: PHOTO_RELEASE_TEXT });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = Object.assign(module.exports, {
   PHOTO_RELEASE_VERSION,
   PHOTO_RELEASE_TEXT,

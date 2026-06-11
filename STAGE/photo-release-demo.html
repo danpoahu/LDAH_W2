@@ -64,6 +64,16 @@
   </div>
 </div>
 
+<div class="overlay" id="sov">
+  <div class="modal">
+    <h2>Signed photo release — on file</h2>
+    <p class="note" id="sMeta"></p>
+    <div id="sText" style="white-space:pre-wrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;font-size:.9rem;line-height:1.5;max-height:300px;overflow:auto;color:#1f2933;"></div>
+    <p class="note" style="margin-top:12px;color:#52606d;font-size:.85rem;">This signed release is kept on file for as long as the photo stays on the site.</p>
+    <div class="row"><button class="btn" id="sCloseBtn">Close</button></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -74,11 +84,14 @@
   const db = firebase.firestore();
   const CREATE_CF = 'https://us-central1-ldah-932d5.cloudfunctions.net/createPhotoReleaseRequest';
 
+  const DEMO_RELEASES_CF = 'https://us-central1-ldah-932d5.cloudfunctions.net/getDemoReleases';
   let pool = [];          // all pacific photo URLs to choose from
   let demo = {};          // current pageContent/demo
   let awaiting = {};      // slot -> { url } awaiting promotion (this session)
   let activeSlot = null;  // slot being edited
   let chosen = null;      // chosen new url in modal
+  let signed = {};        // slot -> signed-release record on file (most recent live)
+  let consentText = '';   // the release wording that was signed
 
   const $ = id => document.getElementById(id);
   function toast(msg, bg){ const t=$('toast'); t.textContent=msg; t.style.background=bg||'#334155'; t.classList.add('on'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('on'), 3200); }
@@ -89,8 +102,25 @@
     pool = [...new Set(Object.keys(d).filter(k=>/Photo[1-9]$/.test(k) && typeof d[k]==='string' && /^https?:/.test(d[k])).map(k=>d[k]))];
   });
 
+  // Signed releases on file for the demo (read via demo-only function, no login).
+  async function loadSigned(){
+    try{
+      const r = await fetch(DEMO_RELEASES_CF).then(x=>x.json());
+      consentText = r.consentText || '';
+      const next = {};
+      (r.releases||[]).filter(x=>x.state==='live').forEach(x=>{
+        const sub = (x.subjects||[]).find(s=>s.status==='signed') || {};
+        const cur = next[x.slot];
+        if (!cur || String(x.requestedAt) > String(cur.requestedAt))
+          next[x.slot] = { signedName:sub.signedName, signedAt:sub.signedAt, email:sub.email, version:x.consentVersion, photoUrl:x.newPhotoUrl, requestedAt:x.requestedAt };
+      });
+      signed = next; render();
+    }catch(e){ /* non-fatal */ }
+  }
+  loadSigned();
+
   // Live demo slots — auto-updates when a signed release publishes here.
-  db.collection('pageContent').doc('demo').onSnapshot(s=>{ demo = s.data()||{}; render(); });
+  db.collection('pageContent').doc('demo').onSnapshot(s=>{ demo = s.data()||{}; render(); setTimeout(loadSigned, 600); });
 
   function render(){
     const g = $('grid'); g.innerHTML='';
@@ -110,6 +140,7 @@
         + (awaiting[n]
             ? '<p class="note" style="margin:0;color:#92400e;font-size:.82rem;">Release sent to '+awaiting[n].email+'. Open your email and sign — this photo updates automatically.</p>'
             : '<button class="btn sm" onclick="openChange('+n+')">Change this photo &rarr;</button>')
+        + ((!awaiting[n] && signed[n]) ? '<button class="btn ghost sm" style="margin-top:6px" onclick="viewSigned('+n+')">View signed release &rarr;</button>' : '')
         + '</div>';
       g.appendChild(card);
     });
@@ -130,6 +161,17 @@
     $('ov').classList.add('on');
   };
   $('cancelBtn').onclick = ()=> $('ov').classList.remove('on');
+
+  window.viewSigned = function(n){
+    const s = signed[n]; if(!s) return;
+    let when = '(date on file)';
+    try{ if(s.signedAt) when = new Date(s.signedAt).toLocaleString(); }catch(e){}
+    $('sMeta').innerHTML = 'Photo '+n+' — signed by <strong>'+(s.signedName||s.email||'the recipient')+'</strong>'
+      + (s.email ? ' ('+s.email+')' : '') + ' on '+when+'.<br>Release version: '+(s.version||'—');
+    $('sText').textContent = consentText || '(release wording on file)';
+    $('sov').classList.add('on');
+  };
+  $('sCloseBtn').onclick = ()=> $('sov').classList.remove('on');
 
   $('sendBtn').onclick = async function(){
     const email = ($('email').value||'').trim();

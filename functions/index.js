@@ -13701,3 +13701,4 @@ exports.submitPhotoRelease = require("./photoRelease").submitPhotoRelease;
 exports.photoReleaseReminders = require("./photoRelease").photoReleaseReminders;
 exports.revertPhotoRelease = require("./photoRelease").revertPhotoRelease;
 exports.cancelPhotoRelease = require("./photoRelease").cancelPhotoRelease;
+exports.getDemoReleases = require("./photoRelease").getDemoReleases;
