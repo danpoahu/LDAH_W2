@@ -19,8 +19,8 @@ I understand that:
 
 By typing my full legal name below and submitting this form, I confirm that I am the person shown in the photograph, or that person's parent or legal guardian, and that I have read and agree to this release. Typing my name and submitting serves as my electronic signature.`;
 
-// Base URL for the public signing link (STAGE value; switched to live in Task 11)
-const SIGNING_BASE_URL = "https://danpoahu.github.io/LDAH_W2/STAGE/photo-release.html";
+// Base URL for the public signing link — LIVE (www.ldahawaii.org via GitHub Pages, W2 repo root).
+const SIGNING_BASE_URL = "https://www.ldahawaii.org/photo-release.html";
 
 const LAA_EMAIL = "LSalvani@LDAHawaii.org";
 
