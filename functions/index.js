@@ -2046,6 +2046,61 @@ exports.resendRegistrationEmail = functions
 
 const EMAIL_SECRETS = ["RESEND_API_KEY", "SMTP_FROM"];
 
+// ── Check for a duplicate signup (same email + same event + overlapping date) ──
+// Public, read-only. Used by the W2 + App signup forms to WARN (not block)
+// before creating a possible duplicate. Mirrors the Part 1 definition: same
+// email (case-insensitive) + same event + an overlapping ACTIVE date
+// (archived / displaced / cancelled excluded). Reads the event's signups via
+// admin SDK (public clients can't list signups). Returns the overlapping dates.
+exports.checkDuplicateEventSignups = functions
+  .runWith({ timeoutSeconds: 20, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Access-Control-Max-Age", "3600");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    try {
+      const body = req.body || {};
+      const collection = body.collection === "recurringEvents" ? "recurringEvents" : "events";
+      const eventId = String(body.eventId || "");
+      const email = String(body.email || "").trim().toLowerCase();
+      const dates = Array.isArray(body.dates) ? body.dates.map(String) : [];
+      if (!eventId || !email || dates.length === 0) {
+        res.status(200).json({ overlappingDates: [] });
+        return;
+      }
+
+      const snap = await admin.firestore()
+        .collection(collection).doc(eventId).collection("signups").get();
+
+      const want = {};
+      dates.forEach((d) => { want[d] = true; });
+      const overlapping = {};
+      snap.forEach((doc) => {
+        const s = doc.data() || {};
+        if (String(s.email || "").trim().toLowerCase() !== email) return;
+        if (s.status === "cancelled" || s.archived === true || s.displaced === true) return;
+        const sd = Array.isArray(s.selectedDates) ? s.selectedDates
+                 : (s.signupDates != null ? [].concat(s.signupDates) : []);
+        const ov = (s.dateStatusOverrides && typeof s.dateStatusOverrides === "object") ? s.dateStatusOverrides : {};
+        const cancelledKeys = Object.keys(ov).filter((k) => ov[k] === "cancelled");
+        sd.forEach((d) => {
+          const ds = String(d);
+          const isCancelled = cancelledKeys.some((k) => k === ds || k.indexOf(ds) !== -1 || ds.indexOf(k) !== -1);
+          if (!isCancelled && want[ds]) overlapping[ds] = true;
+        });
+      });
+      res.status(200).json({ overlappingDates: Object.keys(overlapping) });
+    } catch (err) {
+      console.error("checkDuplicateEventSignups error:", err);
+      // Fail open — never block a signup because the check broke.
+      res.status(200).json({ overlappingDates: [], error: err.message });
+    }
+  });
+
 // ── Find sibling pending signups for same email ─────────────────
 // Used by W2/App registration forms: after a user completes registration,
 // this returns their other pending signups so they can apply the same
