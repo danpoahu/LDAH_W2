@@ -2346,6 +2346,7 @@
       // with the same email (regression fix 2026-06-05).
       window._ldahLastLookupEmail = '';
       window._ldahLookupInFlight = false;
+      window._ldahDupAck = false; // reset duplicate-warning acknowledgement each open
 
       const event = window.allEventsData.find(e => e.id === eventId);
       if (!event) return;
@@ -2687,6 +2688,7 @@
                   </div>
                 </div>
 
+                <p id="dupWarn" style="color:#92400E;background:#FFFBEB;border:1px solid #FCD34D;border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.45;margin:0 0 12px;display:none;"></p>
                 <button type="submit" style="
                   width: 100%;
                   padding: 16px;
@@ -3729,6 +3731,29 @@
       if (eventData.signupDates && eventData.signupDates.length > 0 && formData.selectedDates.length === 0) {
         document.getElementById('dateError').style.display = 'block';
         return;
+      }
+
+      // Duplicate warning (warn but allow): first submit with an overlapping
+      // active date shows a warning and stops; a second submit goes through.
+      // Fails open — a CF/network error never blocks a signup.
+      if (!window._ldahDupAck && formData.email && formData.selectedDates.length) {
+        try {
+          const _dr = await fetch('https://us-central1-ldah-932d5.cloudfunctions.net/checkDuplicateEventSignups', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ collection: 'events', eventId: eventId, email: formData.email, dates: formData.selectedDates })
+          });
+          const _dup = _dr.ok ? await _dr.json() : { overlappingDates: [] };
+          if (_dup.overlappingDates && _dup.overlappingDates.length) {
+            const _w = document.getElementById('dupWarn');
+            if (_w) {
+              _w.textContent = "It looks like you're already signed up for " + _dup.overlappingDates.join(', ') + ". Click “Submit Signup” again if you still want to register.";
+              _w.style.display = 'block';
+              _w.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            window._ldahDupAck = true;
+            return;
+          }
+        } catch (e) { /* fail open — proceed with signup */ }
       }
 
       // Get custom answers
