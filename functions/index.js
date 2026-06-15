@@ -8909,6 +8909,33 @@ exports.submitResourceUpdate = functions
         updateSubmittedAt: FieldValue.serverTimestamp(),
       });
 
+      // Create La'a's "Resource Update Review" task (one open per resource). Never fail the submission on error.
+      try {
+        const _rid = doc.id;
+        const _orgName = (r && r.name) || (cleaned && cleaned.name) || "Partner";
+        const _existing = await db.collection("interactions").where("workflowEventId", "==", _rid).get();
+        const _alreadyOpen = _existing.docs.some((d) => {
+          const x = d.data();
+          return x.workflowStep === "resourceUpdateReview" && x.status === "Open";
+        });
+        if (!_alreadyOpen) {
+          await db.collection("interactions").add({
+            channel: "Partner Resources", interactionType: "Resource Update Review",
+            contactId: "", contactName: _orgName, contactType: "", grantProgram: "",
+            summary: "Review pending resource update — " + _orgName,
+            notes: _orgName + " submitted updates to their community resource listing. Open the resource to review and Approve or Reject.",
+            followUpDate: addDaysHst(toHstDateKey(new Date()), 3), status: "Open", isDraft: false,
+            owner: "La'a Salvani", ownerUid: LIFECYCLE_LAA_UID,
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+            createdBy: "System", createdByUid: "system",
+            workflowEventId: _rid, workflowEventCollection: "resources",
+            workflowEventTitle: _orgName,
+            workflowStep: "resourceUpdateReview", workflowSessionKey: "update:" + new Date().toISOString(),
+          });
+        }
+      } catch (e) { console.error("resourceUpdateReview task create failed", e); }
+
       res.status(200).json({ ok: true, mode: "pending" });
     } catch (err) {
       console.error("submitResourceUpdate error:", err);
