@@ -7949,8 +7949,17 @@ const RECORDING_RETENTION_DAYS = 15;
 
 function buildRecordingEmailHtml({
   bodyText, eventTitle, recordingUrl, passcode, slidesDownloadUrl, slidesFileName,
+  slidesFiles,
   signatureHtml, donateHtml, orgFooterHtml,
 }) {
+  // Backward-compat: callers may pass a single slidesDownloadUrl/slidesFileName
+  // OR a slidesFiles array of { downloadUrl, fileName }. Normalize to an array.
+  let fileLinks = Array.isArray(slidesFiles) ? slidesFiles.filter(f => f && f.downloadUrl) : null;
+  if (!fileLinks || !fileLinks.length) {
+    fileLinks = slidesDownloadUrl
+      ? [{ downloadUrl: slidesDownloadUrl, fileName: slidesFileName || "" }]
+      : [];
+  }
   // Convert admin-authored plain-text body to HTML paragraphs.
   const paras = String(bodyText || "")
     .replace(/\r\n/g, "\n")
@@ -7969,19 +7978,20 @@ function buildRecordingEmailHtml({
        </div>`
     : "";
 
-  const slidesBlock = slidesDownloadUrl
-    ? `<div style="margin:16px 0;padding:16px 18px;background-color:#fff8e8;border-left:4px solid #c79400;border-radius:4px;">
-         <p style="margin:0 0 4px;font-size:15px;color:#8a6600;font-weight:bold;">Slides (PDF)</p>
-         <p style="margin:0 0 8px;font-size:14px;color:#333333;line-height:1.5;">The slides are attached to this email. You can also download them below:</p>
-         ${_emailBtn(slidesDownloadUrl, "Download Slides", { bg: "#c79400", align: "left" })}
-         ${slidesFileName ? `<p style="margin:8px 0 0;font-size:12px;color:#6b7280;">File: ${_emailEsc(slidesFileName)}</p>` : ""}
+  // One slidesBlock per file (preserves the original single-link markup/styling).
+  const slidesBlock = fileLinks.map((f) =>
+    `<div style="margin:16px 0;padding:16px 18px;background-color:#fff8e8;border-left:4px solid #c79400;border-radius:4px;">
+         <p style="margin:0 0 4px;font-size:15px;color:#8a6600;font-weight:bold;">Attachment</p>
+         <p style="margin:0 0 8px;font-size:14px;color:#333333;line-height:1.5;">This file is attached to this email. You can also download it below:</p>
+         ${_emailBtn(f.downloadUrl, "Download", { bg: "#c79400", align: "left" })}
+         ${f.fileName ? `<p style="margin:8px 0 0;font-size:12px;color:#6b7280;">File: ${_emailEsc(f.fileName)}</p>` : ""}
          <p style="margin:6px 0 0;font-size:12px;color:#8a6600;font-style:italic;">Available for two weeks.</p>
        </div>`
-    : "";
+  ).join("");
 
   const linkFooter = _emailLinkFooter([
     recordingUrl ? { label: "Watch Recording", href: recordingUrl } : null,
-    slidesDownloadUrl ? { label: "Download Slides (PDF)", href: slidesDownloadUrl } : null,
+    ...fileLinks.map((f) => ({ label: "Download " + (f.fileName || "file"), href: f.downloadUrl })),
   ]);
 
   const confidentiality = `<p style="margin:18px 0 0;font-size:11px;color:#999999;line-height:1.5;border-top:1px solid #eeeeee;padding-top:12px;">
@@ -8080,6 +8090,26 @@ exports.sendEventRecordingEmail = functions
         nextSessionsBlurb,
       } = req.body || {};
 
+      // Force re-send: bypass the per-recipient "already sent" idempotency guard
+      // so staff can deliberately re-deliver. Re-stamping is intentional.
+      const force = req.body.force === true || req.body.force === 'true';
+
+      // Multiple files (PDF + JPG ...). Backward-compatible: if no `files`
+      // array is supplied, fall back to the legacy single-PDF payload.
+      let files = Array.isArray(req.body.files) ? req.body.files : null;
+      if (!files || !files.length) {
+        if (req.body.pdfStoragePath) {
+          files = [{
+            storagePath: req.body.pdfStoragePath,
+            downloadUrl: req.body.pdfDownloadUrl || '',
+            fileName: req.body.pdfFileName || 'attachment.pdf',
+            contentType: 'application/pdf',
+          }];
+        } else {
+          files = [];
+        }
+      }
+
       if (!collection || !eventId) { res.status(400).json({ error: "collection + eventId required" }); return; }
       if (!Array.isArray(recipients) || !recipients.length) { res.status(400).json({ error: "At least one recipient required" }); return; }
       // For attendee sends, subject + body must be provided (admin-editable).
@@ -8102,12 +8132,28 @@ exports.sendEventRecordingEmail = functions
       const attendeeBodyTemplate = (subject && body) ? body : null;
       const noShowSubject = `Sorry we missed you -- ${eventTitle || "LDAH session"}`;
 
-      // Fetch PDF once and reuse for all recipients
-      let pdfBase64 = null;
-      if (pdfStoragePath) {
-        try { pdfBase64 = await fetchStorageAsBase64(pdfStoragePath); }
-        catch (e) { console.warn("Could not fetch PDF for attachment:", e.message); }
+      // Fetch all attachment files once and reuse for all recipients. Cap the
+      // combined raw attachment size; if exceeded, attach nothing (links still
+      // appear in the email body / footer).
+      const MAX_ATTACH_BYTES = 20 * 1024 * 1024;
+      const attachments = [];
+      let totalBytes = 0;
+      let attachSkippedForSize = false;
+      for (const f of files) {
+        if (!f || !f.storagePath) continue;
+        try {
+          const b64 = await fetchStorageAsBase64(f.storagePath);
+          if (!b64) continue;
+          const approxBytes = Math.floor((b64.length * 3) / 4);
+          if (totalBytes + approxBytes > MAX_ATTACH_BYTES) { attachSkippedForSize = true; continue; }
+          totalBytes += approxBytes;
+          attachments.push({ filename: f.fileName || "attachment", content: b64 });
+        } catch (e) { console.error("attach fetch failed", f.storagePath, e.message || e); }
       }
+      // Links rendered in the email body (only files that have a downloadUrl).
+      const slidesFileLinks = files
+        .filter((f) => f && f.downloadUrl)
+        .map((f) => ({ downloadUrl: f.downloadUrl, fileName: f.fileName || "" }));
 
       const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
       const from = `LDAH <${fromAddress}>`;
@@ -8134,7 +8180,7 @@ exports.sendEventRecordingEmail = functions
           recipHtml = buildRecordingEmailHtml({
             bodyText: nsBody, eventTitle: eventTitle || "",
             recordingUrl: recordingUrl || "", passcode: passcode || "",
-            slidesDownloadUrl: pdfDownloadUrl || "", slidesFileName: pdfFileName || "",
+            slidesFiles: slidesFileLinks,
             signatureHtml, donateHtml, orgFooterHtml,
           });
         } else if (attendeeBodyTemplate) {
@@ -8142,7 +8188,7 @@ exports.sendEventRecordingEmail = functions
           recipHtml = buildRecordingEmailHtml({
             bodyText: merged, eventTitle: eventTitle || "",
             recordingUrl: recordingUrl || "", passcode: passcode || "",
-            slidesDownloadUrl: pdfDownloadUrl || "", slidesFileName: pdfFileName || "",
+            slidesFiles: slidesFileLinks,
             signatureHtml, donateHtml, orgFooterHtml,
           });
         }
@@ -8160,19 +8206,22 @@ exports.sendEventRecordingEmail = functions
         if (r.signupId) {
           signupRef = admin.firestore().collection(collection).doc(eventId)
             .collection("signups").doc(r.signupId);
-          try {
-            const sgSnap = await signupRef.get();
-            const res = sgSnap.exists ? (sgSnap.data().recordingEmailSent || null) : null;
-            if (res && res[recKey] && res[recKey][audience]) {
-              skippedDuplicate++;
-              continue;
-            }
-          } catch (e) { /* read failed — fall through and send */ }
+          // When `force` is set, skip the guard entirely and re-send to everyone.
+          if (!force) {
+            try {
+              const sgSnap = await signupRef.get();
+              const res = sgSnap.exists ? (sgSnap.data().recordingEmailSent || null) : null;
+              if (res && res[recKey] && res[recKey][audience]) {
+                skippedDuplicate++;
+                continue;
+              }
+            } catch (e) { /* read failed — fall through and send */ }
+          }
         }
 
         const resendBody = { from, to: [r.email], subject: recipSubject, html: recipHtml };
-        if (pdfBase64 && pdfFileName) {
-          resendBody.attachments = [{ filename: pdfFileName, content: pdfBase64 }];
+        if (attachments.length) {
+          resendBody.attachments = attachments;
         }
         try {
           const resp = await fetch("https://api.resend.com/emails", {
@@ -8223,7 +8272,7 @@ exports.sendEventRecordingEmail = functions
               .orderBy("sentAt", "desc").limit(1).get();
             if (!lastSnap.empty) {
               await lastSnap.docs[0].ref.update({
-                recordingStoragePath: pdfStoragePath || "",
+                recordingStoragePath: (files[0] && files[0].storagePath) || pdfStoragePath || "",
                 recordingSessionKey: sessionKey || "",
               });
             }
@@ -8246,8 +8295,14 @@ exports.sendEventRecordingEmail = functions
           sentAt: admin.firestore.FieldValue.serverTimestamp(),
           recipientCount: count,
           sessionDate: sessionDate || "",
-          storagePath: pdfStoragePath || "",
+          // Backward-compat: keep single storagePath (first file), plus the full set.
+          storagePath: (files[0] && files[0].storagePath) || pdfStoragePath || "",
           recordingUrl: recordingUrl || "",
+          files: files.map((f) => ({
+            storagePath: f.storagePath || "",
+            fileName: f.fileName || "",
+            downloadUrl: f.downloadUrl || "",
+          })),
         });
         const updates = {};
         if (sentAttended > 0) updates[`recordingEmailSent.${key}.attended`] = stamp(sentAttended);
@@ -8258,12 +8313,14 @@ exports.sendEventRecordingEmail = functions
         }
       } catch (e) { console.warn("Failed to stamp event doc recordingEmailSent:", e.message); }
 
-      // Schedule auto-deletion of the PDF 15 days from now
-      if (pdfStoragePath) {
+      // Schedule auto-deletion of each attachment file 15 days from now (one
+      // deletion doc per storagePath).
+      for (const f of files) {
+        if (!f || !f.storagePath) continue;
         try {
           const expiresAt = new Date(Date.now() + RECORDING_RETENTION_DAYS * 24 * 60 * 60 * 1000);
           await admin.firestore().collection("scheduledDeletions").add({
-            storagePath: pdfStoragePath,
+            storagePath: f.storagePath,
             expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
             eventId, sessionKey: sessionKey || "_single", eventTitle: eventTitle || "",
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -8272,7 +8329,7 @@ exports.sendEventRecordingEmail = functions
         } catch (e) { console.warn("scheduledDeletions write failed:", e.message); }
       }
 
-      res.status(200).json({ success: true, sent, sentAttended, sentNoShow, failed, skippedDuplicate, errors });
+      res.status(200).json({ success: true, sent, sentAttended, sentNoShow, failed, skippedDuplicate, attachSkippedForSize, errors });
     } catch (err) {
       console.error("sendEventRecordingEmail error:", err);
       res.status(500).json({ error: err.message || String(err) });
