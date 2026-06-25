@@ -28,7 +28,6 @@ const DOCS = [
   { file: "Parent Report Worksheet Reevaluation.pdf",                 title: "Parent Report Worksheet — Reevaluation" },
   { file: "Parent Report Worksheet Next Steps.pdf",                   title: "Parent Report Worksheet — Next Steps" },
   { file: "Parent Report Worsheet T-Chart.pdf",                       title: "Parent Report Worksheet — T-Chart" },
-  { file: "Case Review.pdf",                                          title: "Case Review" },
   { file: "Laws Regarding Education.pdf",                             title: "Laws Regarding Education" },
   { file: "More Help More Information.pdf",                           title: "More Help, More Information" },
   { file: "Quick Guide_Dispute Resolution Process Comparison Chart.pdf", title: "Quick Guide — Dispute Resolution Process Comparison" },

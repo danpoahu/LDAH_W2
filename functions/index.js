@@ -5137,6 +5137,53 @@ function getSessionLocationForDate(signup, sessionDateKey) {
 }
 
 /**
+ * Parse the TIME portion of a signup's session key for a given date and split
+ * it into start/end display strings (e.g. "5:00 pm" / "6:00 pm").
+ *
+ * Mirrors getSessionLocationForDate: Connect-Gen / recurring programs carry
+ * each session's time on the SIGNUP — pipe-delimited
+ * "YYYY-MM-DD|Venue|5:00 pm-6:00 pm" (time range is parts[2]) — NOT on the
+ * recurring-event document. Reminder emails that only read event.startTime/
+ * event.time therefore rendered NO time for those programs (bug surfaced
+ * 2026-06-22 — Connect-Gen reminders showed a date but no time).
+ *
+ * Falls back to event-level startTime/time + endTime when the signup carries
+ * no per-session time (one-time events). Display strings are returned verbatim
+ * (no 24h conversion) so the email reads the same as the source schedule.
+ * Returns { startTime, endTime } ("" when unknown).
+ */
+function getSessionTimeForDate(signup, sessionDateKey, event) {
+  const evStart = String((event && (event.startTime || event.time)) || "").trim();
+  const evEnd = String((event && event.endTime) || "").trim();
+  const fallback = { startTime: evStart, endTime: evEnd };
+  if (!signup || !sessionDateKey) return fallback;
+  const entries = []
+    .concat(Array.isArray(signup.selectedSessions) ? signup.selectedSessions : [])
+    .concat(Array.isArray(signup.selectedDates) ? signup.selectedDates : []);
+  for (const raw of entries) {
+    const s = String(raw || "");
+    if (s.indexOf(sessionDateKey) === -1) continue;
+    let timeStr = "";
+    if (s.indexOf("|") !== -1) {
+      // "YYYY-MM-DD|Venue|5:00 pm-6:00 pm" — time range is parts[2].
+      timeStr = (s.split("|")[2] || "").trim();
+    } else {
+      // Non-pipe formats ("Day, YYYY-MM-DD — 5:00 pm - 6:00 pm @ Loc"): pull
+      // the first time range out, tolerant of dash type/spacing per
+      // feedback_signupdates-parsing.
+      const m = s.match(/(\d{1,2}(?::\d{2})?\s*[AaPp]\.?[Mm]?\.?)\s*[-–—]\s*(\d{1,2}(?::\d{2})?\s*[AaPp]\.?[Mm]?\.?)/);
+      if (m) timeStr = m[0];
+    }
+    if (!timeStr) continue;
+    const splitMatch = timeStr.split(/\s*[-–—]\s*/);
+    const startTime = (splitMatch[0] || "").trim();
+    const endTime = (splitMatch[1] || "").trim();
+    if (startTime) return { startTime, endTime: endTime || evEnd };
+  }
+  return fallback;
+}
+
+/**
  * Decide whether a session is virtual based on the signup's own location
  * string for that date. Falls back to event.location for events where the
  * signup has no per-session detail (single-date one-time events).
@@ -5870,8 +5917,9 @@ async function sendOneReminderEmail({
   const { dayName, formatted } = formatHstDateParts(sessionDateKey);
   const recipientName = resolveReminderRecipientName(signup);
   const eventTitle = (event && event.title) || "an LDAH Event";
-  const startTime = (event && (event.startTime || event.time)) || "";
-  const endTime = (event && event.endTime) || "";
+  // Per-session time: Connect-Gen / recurring programs carry each session's
+  // time on the signup, not the event doc — read it the same way location is.
+  const { startTime, endTime } = getSessionTimeForDate(signup, sessionDateKey, event);
 
   // Per-session virtual detection: parse the signup's own session key for
   // this date (recurring programs have Virtual vs Oahu/Hilo/Kona schedules
@@ -6394,8 +6442,9 @@ async function sendOneDayOfReminderEmail({
   const type = collection === "recurringEvents" ? "recurring" : "event";
   const recipientName = resolveReminderRecipientName(signup);
   const eventTitle = (event && event.title) || "an LDAH Event";
-  const startTime = (event && (event.startTime || event.time)) || "";
-  const endTime = (event && event.endTime) || "";
+  // Per-session time: Connect-Gen / recurring programs carry each session's
+  // time on the signup, not the event doc — read it the same way location is.
+  const { startTime, endTime } = getSessionTimeForDate(signup, sessionDateKey, event);
 
   // CRITICAL: per-session virtual/in-person check. Connect-Gen has mixed
   // schedules (Thursdays in-person, other days Zoom) — without this gate,
@@ -9085,6 +9134,7 @@ function buildConnectGenPrepEmailHtml({ name, eventTitle, datesPhrase, prepDocs,
     '<div style="background:#FFFBEB;border:2px solid #F59E0B;border-radius:10px;padding:14px 18px;margin:18px 0;">' +
       '<div style="font-weight:700;color:#92400E;font-size:1rem;margin-bottom:4px;">Important — please bring to the session</div>' +
       '<div style="font-size:.95rem;color:#78350F;line-height:1.5;">Your child\'s most current <strong>IEP</strong> and the <strong>Evaluation that created the IEP</strong>. We won\'t be able to do a meaningful review without both of these on hand.</div>' +
+      '<div style="font-size:.95rem;color:#78350F;line-height:1.5;margin-top:8px;">Please also begin to fill out the <strong>Parent Report Worksheet — Concerns Affecting Education</strong> before attending.</div>' +
     '</div>' +
     zoomNoteBlock +
     docsHtml +
