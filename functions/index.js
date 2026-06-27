@@ -11120,6 +11120,7 @@ exports.scheduledConnectGenDocLifecycle = functions
     let scanned = 0;
     let alertsSent = 0;
     let destroyed = 0;
+    let retained = 0; // v144 — retained instead of destroyed (open case advocacy)
     let skipped = 0;
     let errors = 0;
     let viaAccessor = 0;
@@ -11249,6 +11250,42 @@ exports.scheduledConnectGenDocLifecycle = functions
 
         // ── Destroy branch ── (>= 24h)
         if (hoursSince >= 24) {
+          // v144 — case-advocacy retention safety-net. If this family has an
+          // OPEN "Case Advocacy" interaction, retain the documents instead of
+          // destroying, and stamp the disposition so the flag sticks (and the
+          // cron stops re-checking next run). Matches by linkedContactId, the
+          // same contactId the advocacy interaction stores.
+          const cid = signup.linkedContactId || "";
+          if (cid) {
+            let openAdvocacy = false;
+            try {
+              const advSnap = await db.collection("interactions").where("contactId", "==", cid).get();
+              openAdvocacy = advSnap.docs.some((x) => {
+                const a = x.data() || {};
+                return a.interactionType === "Case Advocacy" && a.status === "Open";
+              });
+            } catch (e) { console.warn("advocacy retention check failed for " + sigDoc.ref.path + ":", e.message); }
+            if (openAdvocacy) {
+              await sigDoc.ref.update({
+                connectGenDisposition: "caseAdvocacy",
+                connectGenDispositionAt: FieldValue.serverTimestamp(),
+                connectGenDispositionBy: "system (open case advocacy — retained)",
+              });
+              retained++;
+              try {
+                await db.collection("auditLog").add({
+                  action: "Connect-Gen documents retained (open case advocacy)",
+                  details: (signup.name || signup.firstName || "(unknown)") +
+                    " -- signup " + sigDoc.id + " -- retained instead of 24h auto-destruct " +
+                    "(open Case Advocacy interaction on the contact)",
+                  performedBy: "system (auto)",
+                  performedByRole: "system",
+                  createdAt: FieldValue.serverTimestamp(),
+                });
+              } catch (e) { /* audit best-effort */ }
+              continue;
+            }
+          }
           try {
             const result = await _destroyConnectGenStorageFiles(signup.connectGenDocuments);
             await sigDoc.ref.update({
@@ -11356,9 +11393,10 @@ exports.scheduledConnectGenDocLifecycle = functions
 
     console.log("scheduledConnectGenDocLifecycle: scanned=" + scanned +
       ", alertsSent=" + alertsSent + ", destroyed=" + destroyed +
+      ", retained=" + retained +
       ", skipped=" + skipped + ", errors=" + errors +
       ", viaAccessor=" + viaAccessor + ", viaLegacy=" + viaLegacy);
-    return { scanned, alertsSent, destroyed, skipped, errors, viaAccessor, viaLegacy };
+    return { scanned, alertsSent, destroyed, retained, skipped, errors, viaAccessor, viaLegacy };
   });
 
 
