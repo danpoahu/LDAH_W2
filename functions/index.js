@@ -10893,6 +10893,253 @@ exports.getConnectGenDocumentDownloadUrl = functions
   });
 
 // ───────────────────────────────────────────────────────────────────────
+// requestStaffConnectGenUploadUrl / confirmStaffConnectGenUpload
+// ───────────────────────────────────────────────────────────────────────
+// Staff-authenticated re-upload path. Mirrors the parent pair
+// (requestConnectGenUploadUrl / confirmConnectGenUpload) but:
+//   • authenticates with a staff idToken (admin/superAdmin) instead of a
+//     parent uploadAuthToken, and
+//   • drops the parent-only "pre-event only" gate
+//     (no "Your session has already passed" rejection),
+// so staff can re-collect documents that were auto-destroyed (or never
+// uploaded) even after the session has passed. Same mime allowlist, 25 MB
+// cap, storage path scheme, bucket, HEIC→JPG conversion, and audit pattern.
+
+// Step 2 (staff): mint a resumable signed PUT URL for a staff re-upload.
+exports.requestStaffConnectGenUploadUrl = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const eventId = String(body.eventId || "").trim();
+    const signupId = String(body.signupId || "").trim();
+    const preferredCollection = String(body.collection || "").trim();
+    const documentType = String(body.documentType || "").trim();
+    const mimeType = String(body.mimeType || "").trim();
+    const sizeBytes = Number(body.sizeBytes);
+    const originalFilename = String(body.originalFilename || "").trim();
+
+    if (!eventId) { res.status(400).json({ error: "Missing eventId" }); return; }
+    if (!signupId) { res.status(400).json({ error: "Missing signupId" }); return; }
+    if (documentType !== "iep" && documentType !== "evaluation") {
+      res.status(400).json({ error: "documentType must be 'iep' or 'evaluation'" }); return;
+    }
+    const ext = CONNECT_GEN_UPLOAD_MIME_EXT[mimeType];
+    if (!ext) {
+      res.status(400).json({ error: "File type not allowed. Please use PDF, JPG, PNG, or HEIC." }); return;
+    }
+    if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
+      res.status(400).json({ error: "Invalid file size." }); return;
+    }
+    if (sizeBytes > CONNECT_GEN_UPLOAD_MAX_BYTES) {
+      res.status(400).json({ error: "File is larger than 25 MB. Please choose a smaller file." }); return;
+    }
+    if (!originalFilename) {
+      res.status(400).json({ error: "Missing originalFilename" }); return;
+    }
+
+    let staff;
+    try {
+      staff = await _verifyStaffIdToken(body.idToken);
+    } catch (err) {
+      res.status(err.statusCode || 401).json({ error: err.message }); return;
+    }
+
+    try {
+      // Confirm the signup exists before minting an upload URL. No
+      // uploadAuthToken and no pre-event-only gate here — staff are trusted
+      // to re-collect documents at any point in the event lifecycle.
+      const found = await _findConnectGenSignupDoc(eventId, signupId, preferredCollection);
+      if (!found) { res.status(404).json({ error: "Signup not found" }); return; }
+
+      const ts = Date.now();
+      const storagePath = `connectGen/${eventId}/${signupId}/${documentType}-${ts}.${ext}`;
+      const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
+      console.log("requestStaffConnectGenUploadUrl: bucket=", bucket.name, "path=", storagePath, "by=", staff.email || staff.uid);
+      // CORS origin for the browser PUT: echo the caller's origin (the LDAH-Int
+      // dashboard runs from https://danpoahu.github.io for both live and STAGE,
+      // NOT www.ldahawaii.org like the parent flow). Caller is already staff-
+      // authed, so trusting the request origin here is safe; fall back to the
+      // known dashboard origin.
+      const _staffOrigin = req.headers.origin || "https://danpoahu.github.io";
+      const [uploadUrl] = await bucket.file(storagePath).createResumableUpload({
+        origin: _staffOrigin,
+        metadata: { contentType: mimeType },
+      });
+
+      res.status(200).json({ ok: true, uploadUrl, storagePath });
+    } catch (err) {
+      console.error("requestStaffConnectGenUploadUrl error:",
+        "msg=", err.message,
+        "code=", err.code,
+        "details=", err.details,
+        "errors=", JSON.stringify(err.errors || []),
+        "stack=", (err.stack || "").split("\n").slice(0, 5).join(" | ")
+      );
+      res.status(500).json({ error: err.message || ("FAILED_PRECONDITION code=" + err.code) });
+    }
+  });
+
+// Step 3 (staff): record the uploaded file on the signup. Mirrors
+// confirmConnectGenUpload, including HEIC→JPG conversion, but also clears any
+// stale destroy markers so a re-uploaded document shows again, stamps
+// uploadedByStaff, and audit-logs under the staff identity.
+exports.confirmStaffConnectGenUpload = functions
+  .runWith({ memory: "2GB", timeoutSeconds: 180, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const eventId = String(body.eventId || "").trim();
+    const signupId = String(body.signupId || "").trim();
+    const preferredCollection = String(body.collection || "").trim();
+    const documentType = String(body.documentType || "").trim();
+    let storagePath = String(body.storagePath || "").trim();
+    let originalFilename = String(body.originalFilename || "").trim();
+    let sizeBytes = Number(body.sizeBytes);
+    let mimeType = String(body.mimeType || "").trim();
+
+    if (!eventId) { res.status(400).json({ error: "Missing eventId" }); return; }
+    if (!signupId) { res.status(400).json({ error: "Missing signupId" }); return; }
+    if (documentType !== "iep" && documentType !== "evaluation") {
+      res.status(400).json({ error: "documentType must be 'iep' or 'evaluation'" }); return;
+    }
+    if (!storagePath) { res.status(400).json({ error: "Missing storagePath" }); return; }
+    if (!originalFilename) { res.status(400).json({ error: "Missing originalFilename" }); return; }
+    if (!CONNECT_GEN_UPLOAD_MIME_EXT[mimeType]) {
+      res.status(400).json({ error: "File type not allowed." }); return;
+    }
+    if (!Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > CONNECT_GEN_UPLOAD_MAX_BYTES) {
+      res.status(400).json({ error: "Invalid file size." }); return;
+    }
+
+    let staff;
+    try {
+      staff = await _verifyStaffIdToken(body.idToken);
+    } catch (err) {
+      res.status(err.statusCode || 401).json({ error: err.message }); return;
+    }
+
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const found = await _findConnectGenSignupDoc(eventId, signupId, preferredCollection);
+      if (!found) { res.status(404).json({ error: "Signup not found" }); return; }
+      const { ref, snap } = found;
+      const signup = snap.data() || {};
+
+      // Path scoping — never let a confirm call attribute a file in someone
+      // else's signup folder to this signup. The signed URL minted in step 2
+      // also enforces this on the Storage side, but we re-check here so a
+      // tampered confirm body can't write a bad path on the signup doc.
+      const expectedPrefix = `connectGen/${eventId}/${signupId}/`;
+      if (!storagePath.startsWith(expectedPrefix)) {
+        res.status(400).json({ error: "Storage path does not belong to this signup." }); return;
+      }
+
+      const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
+      const [exists] = await bucket.file(storagePath).exists();
+      if (!exists) {
+        res.status(400).json({ error: "Upload not found in storage. Please try again." }); return;
+      }
+
+      // Inline HEIC/HEIF -> JPG conversion (same as the parent flow). Failures
+      // are non-fatal: keep the original HEIC and note it in the audit log.
+      let convertedFromHeic = false;
+      let conversionError = null;
+      if (mimeType === "image/heic" || mimeType === "image/heif") {
+        try {
+          const [heicBuffer] = await bucket.file(storagePath).download();
+          const jpgBuffer = await heicConvert({
+            buffer: heicBuffer,
+            format: "JPEG",
+            quality: 0.85,
+          });
+          const newPath = storagePath.replace(/\.(heic|heif)$/i, ".jpg");
+          await bucket.file(newPath).save(jpgBuffer, {
+            metadata: { contentType: "image/jpeg" },
+            resumable: false,
+          });
+          const originalPath = storagePath;
+          await bucket.file(originalPath).delete().catch(() => {});
+          storagePath = newPath;
+          mimeType = "image/jpeg";
+          originalFilename = originalFilename.replace(/\.(heic|heif)$/i, ".jpg");
+          sizeBytes = jpgBuffer.length;
+          convertedFromHeic = true;
+        } catch (convErr) {
+          console.error("HEIC conversion failed (keeping original):", convErr.message);
+          conversionError = convErr.message;
+        }
+      }
+
+      // Best-effort: if a prior version of this same documentType is on file,
+      // delete its bytes from Storage now that the new one has landed.
+      const existingDocs = (signup.connectGenDocuments && typeof signup.connectGenDocuments === "object")
+        ? signup.connectGenDocuments : {};
+      const prior = existingDocs[documentType];
+      if (prior && prior.storagePath && prior.storagePath !== storagePath) {
+        try { await bucket.file(prior.storagePath).delete(); }
+        catch (e) { console.warn("Prior Connect-Gen doc cleanup failed (non-fatal):", e.message); }
+      }
+
+      const performedBy = staff.email || staff.name || staff.uid;
+      const updatedDocs = Object.assign({}, existingDocs, {
+        [documentType]: {
+          storagePath,
+          originalFilename,
+          sizeBytes,
+          mimeType,
+          uploadedAt: FieldValue.serverTimestamp(),
+          uploadedByStaff: performedBy,
+        },
+      });
+      // Re-upload after a prior destroy: clear the stale destroy markers so
+      // the documents show again in the review UI.
+      await ref.update({
+        connectGenDocuments: updatedDocs,
+        connectGenDocumentsDestroyedAt: FieldValue.delete(),
+        connectGenDocumentsDestroyedBy: FieldValue.delete(),
+        connectGenDocumentsDestroyedReason: FieldValue.delete(),
+      });
+
+      // Audit log — staff identity, matches existing CG audit entries.
+      try {
+        let details = (signup.name || signup.firstName || "(unknown)") +
+          " — signup " + signupId + " — " + documentType + ": " +
+          originalFilename + " (" + sizeBytes + " bytes)";
+        if (convertedFromHeic) {
+          details += " (converted from HEIC)";
+        } else if (conversionError) {
+          details += " (HEIC conversion failed: " + conversionError + ")";
+        }
+        await db.collection("auditLog").add({
+          action: "Connect-Gen document uploaded by staff",
+          details,
+          performedBy,
+          performedByRole: staff.role,
+          timestamp: FieldValue.serverTimestamp(),
+          signupPath: ref.path,
+        });
+      } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+      res.status(200).json({ ok: true });
+    } catch (err) {
+      console.error("confirmStaffConnectGenUpload error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+// ───────────────────────────────────────────────────────────────────────
 // scheduledConnectGenDocLifecycle (Phase E)
 // ───────────────────────────────────────────────────────────────────────
 // Hourly cron that enforces the 24-hour consent destruction promise:
