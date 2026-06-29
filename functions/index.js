@@ -14934,6 +14934,253 @@ exports.onEventUpdatedLifecycle = functions
     return null;
   });
 
+// ───────────────────────────────────────────────────────────────────────
+// scheduledCaseAdvocacyDocLifecycle
+// ───────────────────────────────────────────────────────────────────────
+// Daily cron that enforces the 3-day post-close document destruction
+// promise for Case Advocacy documents stored in contacts/{cid}/caseAdvocacyDocuments:
+//
+//   • If the contact has ANY open Case Advocacy interaction → retain (skip).
+//   • Else if max(caseAdvocacyClosedAt) across the contact's Case Advocacy
+//     interactions is >= 2 days ago and caseAdvocacyDocsAlertSentAt is unset
+//     → courtesy alert: createNotification to the advocate, stamp alertSentAt.
+//   • Else if max(caseAdvocacyClosedAt) >= 3 days ago
+//     → destroy: delete Storage files under caseAdvocacy/{cid}/, set
+//       caseAdvocacyDocuments:[], stamp destroyedAt/By/Reason, audit-log.
+//
+// caseAdvocacyClosedAt is stamped by the dashboard (changeInteractionStatus,
+// Part A) whenever a Case Advocacy interaction is set to Closed. It is
+// cleared (delete()) when the interaction is re-opened. This makes the 3-day
+// window safe across multiple close/reopen cycles: the clock resets on reopen.
+//
+// HST math: HST = UTC-10. 3 days = 3 * 24 * 60 * 60 * 1000 ms.
+// The cron fires daily at 08:00 Pacific/Honolulu, but the ms comparison is
+// exact so early/late ticks only shift destruction by at most one day.
+// ───────────────────────────────────────────────────────────────────────
+
+// Best-effort delete of all Case Advocacy storage files referenced by a
+// contact's caseAdvocacyDocuments array. Each entry is expected to be an
+// object with a storagePath field. Path-scoped to caseAdvocacy/{cid}/ as
+// a defense-in-depth check. Returns { deleted, errors }.
+async function _destroyCaseAdvocacyStorageFiles(cid, caseAdvocacyDocuments) {
+  const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
+  const deleted = [];
+  const errors = [];
+  const docs = Array.isArray(caseAdvocacyDocuments) ? caseAdvocacyDocuments : [];
+  const expectedPrefix = "caseAdvocacy/" + cid + "/";
+  for (const rec of docs) {
+    if (!rec || !rec.storagePath) continue;
+    const storagePath = String(rec.storagePath);
+    // Defense-in-depth: only delete paths scoped to this contact's folder.
+    if (storagePath.indexOf(expectedPrefix) !== 0) {
+      errors.push("path-scope violation, skipped: " + storagePath);
+      continue;
+    }
+    try {
+      await bucket.file(storagePath).delete();
+      deleted.push(storagePath);
+    } catch (err) {
+      if (err && (err.code === 404 || /no such object/i.test(err.message || ""))) {
+        deleted.push(storagePath + " (already gone)");
+      } else {
+        errors.push(storagePath + ": " + (err.message || String(err)));
+      }
+    }
+  }
+  return { deleted, errors };
+}
+
+exports.scheduledCaseAdvocacyDocLifecycle = functions
+  .runWith({ memory: "256MB", timeoutSeconds: 540 })
+  .pubsub.schedule("every 24 hours")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const FieldValue = admin.firestore.FieldValue;
+    const nowMs = Date.now();
+    const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+    const TWO_DAYS_MS  = 2 * 24 * 60 * 60 * 1000;
+
+    let scanned = 0;
+    let retained = 0;
+    let destroyed = 0;
+    let alerted = 0;
+    let skipped = 0;
+    let errors = 0;
+
+    // Query contacts that have at least one entry in caseAdvocacyDocuments.
+    // Firestore: orderBy on an array field filters docs where the field exists
+    // and is non-empty; the index must exist (compound if needed, but
+    // a simple collectionGroup query on contacts with orderBy works for top-level arrays).
+    let contactsSnap;
+    try {
+      contactsSnap = await db.collection("contacts")
+        .orderBy("caseAdvocacyDocuments")
+        .get();
+    } catch (err) {
+      console.error("scheduledCaseAdvocacyDocLifecycle: contacts query failed:", err.message);
+      return null;
+    }
+
+    for (const contactDoc of contactsSnap.docs) {
+      scanned++;
+      try {
+        const contact = contactDoc.data() || {};
+        const cid = contactDoc.id;
+
+        // Skip if documents already destroyed or array is empty.
+        if (contact.caseAdvocacyDocsDestroyedAt) { skipped++; continue; }
+        const docs = contact.caseAdvocacyDocuments;
+        if (!Array.isArray(docs) || docs.length === 0) { skipped++; continue; }
+
+        // Load all interactions for this contact.
+        let ixSnap;
+        try {
+          ixSnap = await db.collection("interactions")
+            .where("contactId", "==", cid)
+            .get();
+        } catch (e) {
+          console.warn("scheduledCaseAdvocacyDocLifecycle: interactions query failed for " + cid + ":", e.message);
+          errors++;
+          continue;
+        }
+
+        const allIx = ixSnap.docs.map((d) => d.data() || {});
+        const advIx = allIx.filter((x) => x.interactionType === "Case Advocacy");
+
+        // If any Case Advocacy interaction is open → retain.
+        const openAdv = advIx.some((x) => x.status === "Open");
+        if (openAdv) { retained++; continue; }
+
+        // Compute max caseAdvocacyClosedAt across closed Case Advocacy interactions.
+        let lastClosedMs = null;
+        let advocateUid = "";
+        let advocateName = "";
+        for (const ix of advIx) {
+          if (!ix.caseAdvocacyClosedAt) continue;
+          let ts = null;
+          try {
+            // Firestore Timestamp has .toMillis(); plain numbers work directly.
+            if (ix.caseAdvocacyClosedAt && typeof ix.caseAdvocacyClosedAt.toMillis === "function") {
+              ts = ix.caseAdvocacyClosedAt.toMillis();
+            } else if (typeof ix.caseAdvocacyClosedAt === "number") {
+              ts = ix.caseAdvocacyClosedAt;
+            }
+          } catch (e) { /* tolerate */ }
+          if (ts === null) continue;
+          if (lastClosedMs === null || ts > lastClosedMs) {
+            lastClosedMs = ts;
+            // Track the advocate uid/name from the most-recently-closed advocacy.
+            advocateUid  = String(ix.ownerUid  || ix.advocateUid  || "").trim();
+            advocateName = String(ix.owner     || ix.advocateName || "").trim();
+          }
+        }
+
+        if (lastClosedMs === null) {
+          // No closed Case Advocacy interaction with a closedAt stamp.
+          // This means advocacy was closed before the v145.0.2 stamp was deployed
+          // (or re-opened and never re-closed). Skip conservatively.
+          skipped++;
+          continue;
+        }
+
+        const ageDaysMs = nowMs - lastClosedMs;
+
+        // ── Destroy branch ── (>= 3 days since last close)
+        if (ageDaysMs >= THREE_DAYS_MS) {
+          try {
+            const result = await _destroyCaseAdvocacyStorageFiles(cid, docs);
+            await contactDoc.ref.update({
+              caseAdvocacyDocuments: [],
+              caseAdvocacyDocsDestroyedAt: FieldValue.serverTimestamp(),
+              caseAdvocacyDocsDestroyedBy: "system (3-day post-advocacy)",
+              caseAdvocacyDocsDestroyedReason: "Auto-destroyed 3 days after last Case Advocacy interaction closed",
+            });
+            destroyed++;
+            try {
+              await db.collection("auditLog").add({
+                action: "Case Advocacy documents auto-destroyed (3-day post-close)",
+                details: (contact.name || contact.firstName || "(unknown)") +
+                  " — contact " + cid +
+                  " — files deleted: " + (result.deleted.length || 0) +
+                  (result.errors.length ? " (errors: " + result.errors.join("; ") + ")" : ""),
+                performedBy: "system (auto)",
+                performedByRole: "system",
+                timestamp: FieldValue.serverTimestamp(),
+                contactId: cid,
+              });
+            } catch (e) { console.warn("auditLog write failed:", e.message); }
+          } catch (e) {
+            errors++;
+            console.error("scheduledCaseAdvocacyDocLifecycle destroy failed for contact " + cid + ":", e.message);
+          }
+          continue;
+        }
+
+        // ── Courtesy-alert branch ── (>= 2 days, < 3 days, alert not yet sent)
+        if (ageDaysMs >= TWO_DAYS_MS) {
+          if (contact.caseAdvocacyDocsAlertSentAt) { skipped++; continue; }
+          try {
+            // Send in-app notification to the advocate (owner uid of most-recent
+            // closed advocacy). Skip notification when no uid is known; the
+            // stamp below still prevents re-alerting next tick.
+            if (advocateUid) {
+              await db.collection("notifications").add({
+                recipientUid: advocateUid,
+                recipientName: advocateName || "",
+                type: "case-advocacy-docs-expiring",
+                title: "Case Advocacy documents will be destroyed in ~1 day",
+                message: "Documents for " +
+                  (contact.name || contact.firstName || "this contact") +
+                  " will be auto-destroyed ~1 day from now (3 days after Case Advocacy closed). " +
+                  "Reopen the advocacy to retain them.",
+                contactId: cid,
+                read: false,
+                createdAt: FieldValue.serverTimestamp(),
+              });
+            }
+            await contactDoc.ref.update({
+              caseAdvocacyDocsAlertSentAt: FieldValue.serverTimestamp(),
+            });
+            alerted++;
+            try {
+              await db.collection("auditLog").add({
+                action: "Case Advocacy docs expiry alert sent (2-day mark)",
+                details: (contact.name || contact.firstName || "(unknown)") +
+                  " — contact " + cid +
+                  (advocateUid ? " — notified uid " + advocateUid : " (no uid, skipped notification)"),
+                performedBy: "system (auto)",
+                performedByRole: "system",
+                timestamp: FieldValue.serverTimestamp(),
+                contactId: cid,
+              });
+            } catch (e) { console.warn("auditLog write failed:", e.message); }
+          } catch (e) {
+            errors++;
+            console.error("scheduledCaseAdvocacyDocLifecycle alert failed for contact " + cid + ":", e.message);
+          }
+          continue;
+        }
+
+        // Before the 2-day window — too early, retain.
+        retained++;
+      } catch (err) {
+        errors++;
+        console.error("scheduledCaseAdvocacyDocLifecycle per-contact error for " + contactDoc.id + ":", err.message);
+      }
+    }
+
+    console.log(
+      "scheduledCaseAdvocacyDocLifecycle: scanned=" + scanned +
+      ", retained=" + retained +
+      ", destroyed=" + destroyed +
+      ", alerted=" + alerted +
+      ", skipped=" + skipped +
+      ", errors=" + errors
+    );
+    return { scanned, retained, destroyed, alerted, skipped, errors };
+  });
+
 // ── Photo Release ─────────────────────────────────────────────────
 exports.createPhotoReleaseRequest = require("./photoRelease").createPhotoReleaseRequest;
 exports.getPhotoRelease = require("./photoRelease").getPhotoRelease;
