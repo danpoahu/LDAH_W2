@@ -11140,6 +11140,433 @@ exports.confirmStaffConnectGenUpload = functions
   });
 
 // ───────────────────────────────────────────────────────────────────────
+// Case-Advocacy Document Vault CFs
+// ───────────────────────────────────────────────────────────────────────
+// Documents attach to a CONTACT (not a Connect-Gen signup). All four CFs
+// require a staff idToken (admin/superAdmin). Upload is gated: the contact
+// must have a `caseAdvocacyAuthorization` field present UNLESS the
+// documentType is "authorization" (the auth paper upload itself is exempt).
+// Valid documentType values: iep | evaluation | other | authorization.
+// ───────────────────────────────────────────────────────────────────────
+
+// Step 1 (case advocacy): mint a resumable signed PUT URL for a staff upload.
+exports.requestCaseAdvocacyUploadUrl = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const contactId = String(body.contactId || "").trim();
+    const label = String(body.label || "").trim();
+    const documentType = String(body.documentType || "").trim();
+    const mimeType = String(body.mimeType || "").trim();
+    const sizeBytes = Number(body.sizeBytes);
+    const originalFilename = String(body.originalFilename || "").trim();
+
+    if (!contactId) { res.status(400).json({ error: "Missing contactId" }); return; }
+    if (!["iep", "evaluation", "other", "authorization"].includes(documentType)) {
+      res.status(400).json({ error: "documentType must be iep, evaluation, other, or authorization" }); return;
+    }
+    const ext = CONNECT_GEN_UPLOAD_MIME_EXT[mimeType];
+    if (!ext) {
+      res.status(400).json({ error: "File type not allowed. Please use PDF, JPG, PNG, or HEIC." }); return;
+    }
+    if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
+      res.status(400).json({ error: "Invalid file size." }); return;
+    }
+    if (sizeBytes > CONNECT_GEN_UPLOAD_MAX_BYTES) {
+      res.status(400).json({ error: "File is larger than 25 MB. Please choose a smaller file." }); return;
+    }
+    if (!originalFilename) {
+      res.status(400).json({ error: "Missing originalFilename" }); return;
+    }
+
+    let staff;
+    try {
+      staff = await _verifyStaffIdToken(body.idToken);
+    } catch (err) {
+      res.status(err.statusCode || 401).json({ error: err.message }); return;
+    }
+
+    try {
+      const db = admin.firestore();
+      const contactRef = db.collection("contacts").doc(contactId);
+      const contactSnap = await contactRef.get();
+      if (!contactSnap.exists) {
+        res.status(404).json({ error: "Contact not found" }); return;
+      }
+      const contact = contactSnap.data() || {};
+
+      // Authorization gate: only the "authorization" document type may be
+      // uploaded without an existing caseAdvocacyAuthorization on the contact.
+      if (documentType !== "authorization" && !contact.caseAdvocacyAuthorization) {
+        res.status(403).json({ error: "Authorization required before uploading documents." }); return;
+      }
+
+      const ts = Date.now();
+      const docId = db.collection("_").doc().id;
+      const pathSegment = documentType === "authorization" ? "authorization" : docId;
+      const storagePath = `caseAdvocacy/${contactId}/${pathSegment}-${ts}.${ext}`;
+
+      const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
+      console.log("requestCaseAdvocacyUploadUrl: bucket=", bucket.name, "path=", storagePath, "by=", staff.email || staff.uid);
+      // Echo the caller's origin — dashboard runs from https://danpoahu.github.io,
+      // NOT www.ldahawaii.org; fall back to known dashboard origin.
+      const _staffOrigin = req.headers.origin || "https://danpoahu.github.io";
+      const [uploadUrl] = await bucket.file(storagePath).createResumableUpload({
+        origin: _staffOrigin,
+        metadata: { contentType: mimeType },
+      });
+
+      res.status(200).json({ ok: true, uploadUrl, storagePath, docId });
+    } catch (err) {
+      console.error("requestCaseAdvocacyUploadUrl error:",
+        "msg=", err.message,
+        "code=", err.code,
+        "stack=", (err.stack || "").split("\n").slice(0, 5).join(" | ")
+      );
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+// Step 2 (case advocacy): record the uploaded file on the contact doc.
+exports.confirmCaseAdvocacyUpload = functions
+  .runWith({ memory: "2GB", timeoutSeconds: 180, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const contactId = String(body.contactId || "").trim();
+    const docId = String(body.docId || "").trim();
+    const label = String(body.label || "").trim();
+    let storagePath = String(body.storagePath || "").trim();
+    let originalFilename = String(body.originalFilename || "").trim();
+    let sizeBytes = Number(body.sizeBytes);
+    let mimeType = String(body.mimeType || "").trim();
+
+    if (!contactId) { res.status(400).json({ error: "Missing contactId" }); return; }
+    if (!docId) { res.status(400).json({ error: "Missing docId" }); return; }
+    if (!storagePath) { res.status(400).json({ error: "Missing storagePath" }); return; }
+    if (!originalFilename) { res.status(400).json({ error: "Missing originalFilename" }); return; }
+    if (!CONNECT_GEN_UPLOAD_MIME_EXT[mimeType]) {
+      res.status(400).json({ error: "File type not allowed." }); return;
+    }
+    if (!Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > CONNECT_GEN_UPLOAD_MAX_BYTES) {
+      res.status(400).json({ error: "Invalid file size." }); return;
+    }
+
+    let staff;
+    try {
+      staff = await _verifyStaffIdToken(body.idToken);
+    } catch (err) {
+      res.status(err.statusCode || 401).json({ error: err.message }); return;
+    }
+
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+
+      // Path scoping — storagePath must live under this contact's folder.
+      const expectedPrefix = `caseAdvocacy/${contactId}/`;
+      if (!storagePath.startsWith(expectedPrefix)) {
+        res.status(400).json({ error: "Storage path does not belong to this contact." }); return;
+      }
+
+      const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
+      const [exists] = await bucket.file(storagePath).exists();
+      if (!exists) {
+        res.status(400).json({ error: "Upload not found in storage. Please try again." }); return;
+      }
+
+      // Inline HEIC/HEIF -> JPG conversion (same as Connect-Gen flow).
+      let convertedFromHeic = false;
+      let conversionError = null;
+      if (mimeType === "image/heic" || mimeType === "image/heif") {
+        try {
+          const [heicBuffer] = await bucket.file(storagePath).download();
+          const jpgBuffer = await heicConvert({
+            buffer: heicBuffer,
+            format: "JPEG",
+            quality: 0.85,
+          });
+          const newPath = storagePath.replace(/\.(heic|heif)$/i, ".jpg");
+          await bucket.file(newPath).save(jpgBuffer, {
+            metadata: { contentType: "image/jpeg" },
+            resumable: false,
+          });
+          const originalPath = storagePath;
+          await bucket.file(originalPath).delete().catch(() => {});
+          storagePath = newPath;
+          mimeType = "image/jpeg";
+          originalFilename = originalFilename.replace(/\.(heic|heif)$/i, ".jpg");
+          sizeBytes = jpgBuffer.length;
+          convertedFromHeic = true;
+        } catch (convErr) {
+          console.error("HEIC conversion failed (keeping original):", convErr.message);
+          conversionError = convErr.message;
+        }
+      }
+
+      const performedBy = staff.email || staff.name || staff.uid;
+      const contactRef = db.collection("contacts").doc(contactId);
+      const contactSnap = await contactRef.get();
+      if (!contactSnap.exists) {
+        res.status(404).json({ error: "Contact not found" }); return;
+      }
+      const contact = contactSnap.data() || {};
+
+      // Read-modify-write so serverTimestamp() sits in a map, not in an array
+      // element (arrayUnion rejects serverTimestamp in nested maps).
+      const existingDocs = Array.isArray(contact.caseAdvocacyDocuments)
+        ? contact.caseAdvocacyDocuments : [];
+      const newEntry = {
+        docId,
+        label: label || "Document",
+        storagePath,
+        originalFilename,
+        sizeBytes,
+        mimeType,
+        uploadedAt: FieldValue.serverTimestamp(),
+        uploadedByStaff: performedBy,
+      };
+      // Replace existing entry with same docId, or append.
+      const idx = existingDocs.findIndex(function(d) { return d && d.docId === docId; });
+      let updatedDocs;
+      if (idx >= 0) {
+        updatedDocs = existingDocs.slice();
+        updatedDocs[idx] = newEntry;
+      } else {
+        updatedDocs = existingDocs.concat([newEntry]);
+      }
+
+      await contactRef.update({
+        caseAdvocacyDocuments: updatedDocs,
+        caseAdvocacyDocsDestroyedAt: FieldValue.delete(),
+        caseAdvocacyDocsDestroyedBy: FieldValue.delete(),
+        caseAdvocacyDocsDestroyedReason: FieldValue.delete(),
+      });
+
+      // Audit log.
+      try {
+        let details = (contact.name || contact.firstName || "(unknown)") +
+          " — contact " + contactId + " — docId: " + docId + " — " +
+          originalFilename + " (" + sizeBytes + " bytes)";
+        if (convertedFromHeic) {
+          details += " (converted from HEIC)";
+        } else if (conversionError) {
+          details += " (HEIC conversion failed: " + conversionError + ")";
+        }
+        await db.collection("auditLog").add({
+          action: "Case-advocacy document uploaded by staff",
+          details,
+          performedBy,
+          performedByRole: staff.role,
+          timestamp: FieldValue.serverTimestamp(),
+          contactId,
+        });
+      } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+      res.status(200).json({ ok: true });
+    } catch (err) {
+      console.error("confirmCaseAdvocacyUpload error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+// Returns a short-lived V4 signed READ URL for a case-advocacy document.
+exports.getCaseAdvocacyDocumentDownloadUrl = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const contactId = String(body.contactId || "").trim();
+    const docId = String(body.docId || "").trim();
+
+    if (!contactId) { res.status(400).json({ error: "Missing contactId" }); return; }
+    if (!docId) { res.status(400).json({ error: "Missing docId" }); return; }
+
+    let staff;
+    try {
+      staff = await _verifyStaffIdToken(body.idToken);
+    } catch (err) {
+      res.status(err.statusCode || 401).json({ error: err.message }); return;
+    }
+
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const contactRef = db.collection("contacts").doc(contactId);
+      const contactSnap = await contactRef.get();
+      if (!contactSnap.exists) {
+        res.status(404).json({ error: "Contact not found" }); return;
+      }
+      const contact = contactSnap.data() || {};
+
+      const docs = Array.isArray(contact.caseAdvocacyDocuments)
+        ? contact.caseAdvocacyDocuments : [];
+      const rec = docs.find(function(d) { return d && d.docId === docId; });
+      if (!rec || !rec.storagePath) {
+        res.status(404).json({ error: "Document not found on contact" }); return;
+      }
+
+      const storagePath = String(rec.storagePath || "");
+      const expectedPrefix = "caseAdvocacy/" + contactId + "/";
+      if (storagePath.indexOf(expectedPrefix) !== 0) {
+        res.status(400).json({ error: "storagePath does not match contact folder" }); return;
+      }
+
+      const expiresAt = Date.now() + 10 * 60 * 1000;
+      const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
+      const [url] = await bucket.file(storagePath).getSignedUrl({
+        version: "v4",
+        action: "read",
+        expires: expiresAt,
+      });
+
+      const performedBy = staff.email || staff.name || staff.uid;
+      try {
+        await db.collection("auditLog").add({
+          action: "Case-advocacy document URL issued",
+          details: (contact.name || contact.firstName || "(unknown)") +
+            " — contact " + contactId + " — docId: " + docId + " — " + storagePath,
+          performedBy,
+          performedByRole: staff.role,
+          timestamp: FieldValue.serverTimestamp(),
+          contactId,
+        });
+      } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+      res.status(200).json({ ok: true, url, expiresAt });
+    } catch (err) {
+      console.error("getCaseAdvocacyDocumentDownloadUrl error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+// Destroys case-advocacy documents for a contact. If docId is supplied only
+// that document is removed; otherwise ALL documents for the contact are
+// deleted and destroy metadata is stamped.
+exports.destroyCaseAdvocacyDocuments = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const contactId = String(body.contactId || "").trim();
+    const reason = String(body.reason || "").trim();
+    const docId = body.docId ? String(body.docId).trim() : null;
+
+    if (!contactId) { res.status(400).json({ error: "Missing contactId" }); return; }
+    if (!reason) { res.status(400).json({ error: "Missing reason" }); return; }
+
+    let staff;
+    try {
+      staff = await _verifyStaffIdToken(body.idToken);
+    } catch (err) {
+      res.status(err.statusCode || 401).json({ error: err.message }); return;
+    }
+
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
+      const contactRef = db.collection("contacts").doc(contactId);
+      const contactSnap = await contactRef.get();
+      if (!contactSnap.exists) {
+        res.status(404).json({ error: "Contact not found" }); return;
+      }
+      const contact = contactSnap.data() || {};
+      const existingDocs = Array.isArray(contact.caseAdvocacyDocuments)
+        ? contact.caseAdvocacyDocuments : [];
+
+      const deleted = [];
+      const errors = [];
+      const performedBy = staff.email || staff.name || staff.uid;
+
+      if (docId) {
+        // Single-document delete.
+        const rec = existingDocs.find(function(d) { return d && d.docId === docId; });
+        if (!rec) {
+          res.status(404).json({ error: "Document not found on contact" }); return;
+        }
+        if (rec.storagePath) {
+          try {
+            await bucket.file(rec.storagePath).delete();
+            deleted.push(rec.storagePath);
+          } catch (err) {
+            if (err && (err.code === 404 || /no such object/i.test(err.message || ""))) {
+              deleted.push(rec.storagePath + " (already gone)");
+            } else {
+              errors.push(rec.storagePath + ": " + (err.message || String(err)));
+            }
+          }
+        }
+        const updatedDocs = existingDocs.filter(function(d) { return d && d.docId !== docId; });
+        await contactRef.update({ caseAdvocacyDocuments: updatedDocs });
+      } else {
+        // Bulk destroy — delete all Storage files and clear the array.
+        for (const rec of existingDocs) {
+          if (!rec || !rec.storagePath) continue;
+          try {
+            await bucket.file(rec.storagePath).delete();
+            deleted.push(rec.storagePath);
+          } catch (err) {
+            if (err && (err.code === 404 || /no such object/i.test(err.message || ""))) {
+              deleted.push(rec.storagePath + " (already gone)");
+            } else {
+              errors.push(rec.storagePath + ": " + (err.message || String(err)));
+            }
+          }
+        }
+        await contactRef.update({
+          caseAdvocacyDocuments: [],
+          caseAdvocacyDocsDestroyedAt: FieldValue.serverTimestamp(),
+          caseAdvocacyDocsDestroyedBy: performedBy,
+          caseAdvocacyDocsDestroyedReason: reason,
+        });
+      }
+
+      // Audit log.
+      try {
+        await db.collection("auditLog").add({
+          action: "Case-advocacy documents destroyed",
+          details: (contact.name || contact.firstName || "(unknown)") +
+            " — contact " + contactId +
+            (docId ? " — docId: " + docId : " — ALL documents") +
+            " — reason: " + reason +
+            " — deleted: " + deleted.join(", "),
+          performedBy,
+          performedByRole: staff.role,
+          timestamp: FieldValue.serverTimestamp(),
+          contactId,
+        });
+      } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+      res.status(200).json({ ok: true, deleted });
+    } catch (err) {
+      console.error("destroyCaseAdvocacyDocuments error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+// ───────────────────────────────────────────────────────────────────────
 // scheduledConnectGenDocLifecycle (Phase E)
 // ───────────────────────────────────────────────────────────────────────
 // Hourly cron that enforces the 24-hour consent destruction promise:
