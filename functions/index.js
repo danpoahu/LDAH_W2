@@ -15009,9 +15009,10 @@ exports.scheduledCaseAdvocacyDocLifecycle = functions
     let errors = 0;
 
     // Query contacts that have at least one entry in caseAdvocacyDocuments.
-    // Firestore: orderBy on an array field filters docs where the field exists
-    // and is non-empty; the index must exist (compound if needed, but
-    // a simple collectionGroup query on contacts with orderBy works for top-level arrays).
+    // Firestore: orderBy on an array field filters out contacts where the field
+    // is MISSING entirely; contacts with an empty [] still appear and are handled
+    // by the explicit docs.length === 0 guard below. The index must exist
+    // (a simple collection query on contacts with orderBy works for top-level arrays).
     let contactsSnap;
     try {
       contactsSnap = await db.collection("contacts")
