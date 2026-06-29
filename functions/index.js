@@ -11577,6 +11577,308 @@ exports.destroyCaseAdvocacyDocuments = functions
   });
 
 // ───────────────────────────────────────────────────────────────────────
+// Case-Advocacy Authorization (e-sign + paper-release)
+// Mirrors the Connect-Gen consent flow but attaches to a CONTACT, not a
+// signup. Two paths:
+//   1. E-sign  — staff sends a link; family signs via public form;
+//      submitCaseAdvocacyAuthorization records { method:"esign" }.
+//   2. Paper   — staff uploads a signed paper form via Task 2's
+//      requestCaseAdvocacyUploadUrl (documentType:"authorization"),
+//      then calls confirmCaseAdvocacyAuthorizationPaper to record it.
+// ───────────────────────────────────────────────────────────────────────
+
+// Reuse the verbatim consent text — same procedure as Connect-Gen.
+const CASE_ADVOCACY_AUTH_TEXT = CONSENT_TEXT;
+const CASE_ADVOCACY_AUTH_VERSION = CONSENT_TEXT_VERSION;
+
+// (1) Staff-only: mint a 16-byte hex token and email the family a link to
+//     the public authorization form.
+exports.sendCaseAdvocacyAuthorizationLink = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const contactId = String(body.contactId || "").trim();
+    if (!contactId) { res.status(400).json({ error: "Missing contactId" }); return; }
+
+    let staff;
+    try {
+      staff = await _verifyStaffIdToken(body.idToken);
+    } catch (err) {
+      res.status(err.statusCode || 401).json({ error: err.message }); return;
+    }
+
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const contactRef = db.collection("contacts").doc(contactId);
+      const contactSnap = await contactRef.get();
+      if (!contactSnap.exists) { res.status(404).json({ error: "Contact not found" }); return; }
+      const contact = contactSnap.data() || {};
+      if (!contact.email) { res.status(400).json({ error: "Contact has no email address on file." }); return; }
+
+      const token = crypto.randomBytes(16).toString("hex");
+      const expiresAt = admin.firestore.Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+      await contactRef.update({
+        caseAdvocacyAuthToken: token,
+        caseAdvocacyAuthTokenExpiresAt: expiresAt,
+      });
+
+      const authUrl = "https://www.ldahawaii.org/case-advocacy-authorization.html?token=" + token;
+      const displayName = contact.name || contact.firstName || "there";
+      const signatureHtml = await buildSignatureBlock("resourceCoordinator");
+      const donateHtml = await buildDonateBlock("universal");
+      const html = '<!DOCTYPE html><html><head><meta charset="utf-8"></head>' +
+        '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
+        '<div style="max-width:600px;margin:0 auto;background:#fff">' +
+        '<div style="background-color:#1e40af;background:linear-gradient(135deg,#1e40af,#0891B2);padding:18px 24px 22px;text-align:center;color:#fff">' +
+        '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;">' +
+        '<h1 style="margin:0;font-size:22px;font-weight:700">Action Required</h1></div>' +
+        '<div style="padding:32px 24px">' +
+        '<p style="margin:0 0 16px;font-size:16px">Aloha ' + lifecycleEsc(displayName) + ',</p>' +
+        '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">LDAH would like to begin case advocacy support for your family. Before we can proceed, we need a signed authorization on file giving LDAH permission to receive, view, and discuss your child\'s confidential documents.</p>' +
+        '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Please read and sign the authorization by clicking the button below.</p>' +
+        '<p style="text-align:center;margin:32px 0">' +
+        _emailBtn(authUrl, "Read & Sign the Authorization", { bg: "#0891B2" }) +
+        '</p>' +
+        '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6">This link expires in 7 days. If you have questions, please reach out anytime.</p>' +
+        '<p style="margin:24px 0 4px;font-size:15px;color:#333;line-height:1.5;">With gratitude,</p>' +
+        (donateHtml || '') +
+        (signatureHtml || '') +
+        '</div></div></body></html>';
+
+      const fromAddress = lifecycleFromAddress();
+      await sendEmailViaResend({
+        from: fromAddress,
+        to: contact.email,
+        subject: "Action required — Case Advocacy Authorization",
+        html,
+        type: "case-advocacy-auth-link",
+        relatedContactId: contactId,
+        recipientName: displayName,
+      });
+
+      const performedBy = staff.email || staff.name || staff.uid;
+      try {
+        const db2 = db;
+        await db2.collection("auditLog").add({
+          action: "Case-advocacy authorization link sent",
+          details: (contact.name || contact.firstName || "(unknown)") +
+            " — contact " + contactId + " — email: " + contact.email,
+          performedBy,
+          performedByRole: staff.role,
+          timestamp: FieldValue.serverTimestamp(),
+          contactId,
+        });
+      } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+      res.status(200).json({ ok: true });
+    } catch (err) {
+      console.error("sendCaseAdvocacyAuthorizationLink error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+// (2) Public GET — the authorization form fetches contact info to pre-render.
+exports.getCaseAdvocacyAuthorization = functions
+  .runWith({ timeoutSeconds: 20, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "GET") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const token = (req.query.token || "").toString().trim();
+    if (!token) { res.status(400).json({ error: "Missing token" }); return; }
+
+    try {
+      const db = admin.firestore();
+      const snap = await db.collection("contacts").where("caseAdvocacyAuthToken", "==", token).limit(1).get();
+      if (snap.empty) { res.status(404).json({ error: "Invalid or expired link" }); return; }
+      const doc = snap.docs[0];
+      const contact = doc.data() || {};
+
+      if (contact.caseAdvocacyAuthorization) {
+        res.status(410).json({ error: "This authorization has already been signed", alreadySigned: true }); return;
+      }
+      const expiresAt = contact.caseAdvocacyAuthTokenExpiresAt;
+      if (!expiresAt || typeof expiresAt.toDate !== "function" || expiresAt.toDate().getTime() <= Date.now()) {
+        res.status(410).json({ error: "This link has expired. Please contact LDAH for a new one.", expired: true }); return;
+      }
+
+      const displayName = contact.name || contact.firstName || "";
+      res.status(200).json({
+        ok: true,
+        contactName: displayName,
+        authorizationText: CASE_ADVOCACY_AUTH_TEXT,
+        version: CASE_ADVOCACY_AUTH_VERSION,
+      });
+    } catch (err) {
+      console.error("getCaseAdvocacyAuthorization error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+// (3) Public POST — family submits the e-signed authorization.
+exports.submitCaseAdvocacyAuthorization = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 5 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const token = (body.token || "").toString().trim();
+    const typedName = (body.typedName || "").toString().trim();
+    const agree = body.agree === true;
+
+    if (!token) { res.status(400).json({ error: "Missing token" }); return; }
+    if (!typedName) { res.status(400).json({ error: "Please type your full name to sign." }); return; }
+    if (typedName.length < 3 || typedName.indexOf(" ") === -1) {
+      res.status(400).json({ error: "Please type your first AND last name to sign." }); return;
+    }
+    if (!agree) { res.status(400).json({ error: "You must agree to the authorization terms to submit." }); return; }
+
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const snap = await db.collection("contacts").where("caseAdvocacyAuthToken", "==", token).limit(1).get();
+      if (snap.empty) { res.status(404).json({ error: "Invalid or expired link" }); return; }
+      const doc = snap.docs[0];
+      const contact = doc.data() || {};
+
+      if (contact.caseAdvocacyAuthorization) {
+        res.status(410).json({ error: "This authorization has already been signed" }); return;
+      }
+      const expiresAt = contact.caseAdvocacyAuthTokenExpiresAt;
+      if (!expiresAt || typeof expiresAt.toDate !== "function" || expiresAt.toDate().getTime() <= Date.now()) {
+        res.status(410).json({ error: "This link has expired. Please contact LDAH for a new one." }); return;
+      }
+
+      const ip = (req.headers["x-forwarded-for"] || req.ip || "").toString().split(",")[0].trim();
+      await doc.ref.update({
+        caseAdvocacyAuthorization: {
+          method: "esign",
+          signedName: typedName,
+          signedAt: FieldValue.serverTimestamp(),
+          signedIp: ip,
+          version: CASE_ADVOCACY_AUTH_VERSION,
+          consentText: CASE_ADVOCACY_AUTH_TEXT,
+          recordedAt: FieldValue.serverTimestamp(),
+        },
+        caseAdvocacyAuthToken: FieldValue.delete(),
+        caseAdvocacyAuthTokenExpiresAt: FieldValue.delete(),
+      });
+
+      try {
+        await db.collection("auditLog").add({
+          action: "Case-advocacy authorization e-signed",
+          details: (contact.name || contact.firstName || "(unknown)") +
+            " — contact " + doc.id + " — signed as: " + typedName + " — ip: " + ip,
+          performedBy: contact.email || "(family)",
+          timestamp: FieldValue.serverTimestamp(),
+          contactId: doc.id,
+        });
+      } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+      res.status(200).json({ ok: true });
+    } catch (err) {
+      console.error("submitCaseAdvocacyAuthorization error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+// (4) Staff-only: record a paper-signed authorization that was already
+//     uploaded via requestCaseAdvocacyUploadUrl (documentType:"authorization").
+exports.confirmCaseAdvocacyAuthorizationPaper = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const contactId = String(body.contactId || "").trim();
+    const storagePath = String(body.storagePath || "").trim();
+    const originalFilename = String(body.originalFilename || "").trim();
+    const sizeBytes = Number(body.sizeBytes);
+    const mimeType = String(body.mimeType || "").trim();
+
+    if (!contactId) { res.status(400).json({ error: "Missing contactId" }); return; }
+    if (!storagePath) { res.status(400).json({ error: "Missing storagePath" }); return; }
+    if (!originalFilename) { res.status(400).json({ error: "Missing originalFilename" }); return; }
+
+    let staff;
+    try {
+      staff = await _verifyStaffIdToken(body.idToken);
+    } catch (err) {
+      res.status(err.statusCode || 401).json({ error: err.message }); return;
+    }
+
+    // Path-scope: must start with caseAdvocacy/{contactId}/authorization-
+    const expectedPrefix = "caseAdvocacy/" + contactId + "/authorization-";
+    if (!storagePath.startsWith(expectedPrefix)) {
+      res.status(400).json({ error: "storagePath does not match expected authorization path for this contact." }); return;
+    }
+
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const contactRef = db.collection("contacts").doc(contactId);
+      const contactSnap = await contactRef.get();
+      if (!contactSnap.exists) { res.status(404).json({ error: "Contact not found" }); return; }
+      const contact = contactSnap.data() || {};
+
+      // Verify the file actually landed in Storage before recording it.
+      const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
+      const [exists] = await bucket.file(storagePath).exists();
+      if (!exists) {
+        res.status(400).json({ error: "Authorization file not found in storage. Please upload first." }); return;
+      }
+
+      const performedBy = staff.email || staff.name || staff.uid;
+      await contactRef.update({
+        caseAdvocacyAuthorization: {
+          method: "paper",
+          storagePath,
+          originalFilename,
+          sizeBytes: Number.isFinite(sizeBytes) && sizeBytes > 0 ? sizeBytes : null,
+          mimeType: mimeType || null,
+          recordedAt: FieldValue.serverTimestamp(),
+          recordedBy: performedBy,
+        },
+      });
+
+      try {
+        await db.collection("auditLog").add({
+          action: "Case-advocacy paper authorization recorded",
+          details: (contact.name || contact.firstName || "(unknown)") +
+            " — contact " + contactId + " — file: " + originalFilename + " — path: " + storagePath,
+          performedBy,
+          performedByRole: staff.role,
+          timestamp: FieldValue.serverTimestamp(),
+          contactId,
+        });
+      } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+      res.status(200).json({ ok: true });
+    } catch (err) {
+      console.error("confirmCaseAdvocacyAuthorizationPaper error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+// ───────────────────────────────────────────────────────────────────────
 // scheduledConnectGenDocLifecycle (Phase E)
 // ───────────────────────────────────────────────────────────────────────
 // Hourly cron that enforces the 24-hour consent destruction promise:
