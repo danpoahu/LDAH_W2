@@ -11500,6 +11500,8 @@ exports.destroyCaseAdvocacyDocuments = functions
       const errors = [];
       const performedBy = staff.email || staff.name || staff.uid;
 
+      const expectedPrefix = "caseAdvocacy/" + contactId + "/";
+
       if (docId) {
         // Single-document delete.
         const rec = existingDocs.find(function(d) { return d && d.docId === docId; });
@@ -11507,6 +11509,10 @@ exports.destroyCaseAdvocacyDocuments = functions
           res.status(404).json({ error: "Document not found on contact" }); return;
         }
         if (rec.storagePath) {
+          if (!rec.storagePath || rec.storagePath.indexOf(expectedPrefix) !== 0) {
+            console.warn("destroyCaseAdvocacyDocuments: skipping out-of-scope path", rec.storagePath);
+            res.status(400).json({ error: "storagePath is out of scope for this contact" }); return;
+          }
           try {
             await bucket.file(rec.storagePath).delete();
             deleted.push(rec.storagePath);
@@ -11524,6 +11530,10 @@ exports.destroyCaseAdvocacyDocuments = functions
         // Bulk destroy — delete all Storage files and clear the array.
         for (const rec of existingDocs) {
           if (!rec || !rec.storagePath) continue;
+          if (rec.storagePath.indexOf(expectedPrefix) !== 0) {
+            console.warn("destroyCaseAdvocacyDocuments: skipping out-of-scope path", rec.storagePath);
+            continue;
+          }
           try {
             await bucket.file(rec.storagePath).delete();
             deleted.push(rec.storagePath);
