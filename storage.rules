@@ -91,6 +91,16 @@ service firebase.storage {
       allow write: if false;
     }
 
+    // Case-advocacy confidential documents (IEP + evaluations + legal).
+    // All reads go through CF-mediated V4 signed download URLs issued by
+    // getCaseAdvocacyDocumentDownloadUrl. Direct client reads/writes are
+    // forbidden; the CF authenticates staff role and audit-logs every
+    // URL issuance. Uploads are likewise CF-mediated via Admin SDK.
+    match /caseAdvocacy/{allPaths=**} {
+      allow read: if false;
+      allow write: if false;
+    }
+
     // Logos uploaded by anonymous applicants from become-partner.html.
     // Public read so admins can display the logo while reviewing the
     // application. Public create-only with strict size + MIME constraints
