@@ -120,11 +120,11 @@
     
     /* Page Header - Compact 2" for subpages */
     .page-header {
-      margin-top: 108px; padding: 2rem;
+      margin-top: 108px; padding: 3.25rem 2rem 3rem;
       background: linear-gradient(135deg, #0891B2 0%, #06B6D4 100%);
       color: white; text-align: center;
       position: relative;
-      height: 180px;
+      min-height: 200px;
       display: flex; flex-direction: column;
       justify-content: center; align-items: center;
     }
@@ -979,5 +979,32 @@
   <link rel="stylesheet" href="logo-story.css">
   <script src="logo-story.js"></script>
   <script src="analytics-tracker.js"></script>
+  <script>
+    /* THIS PAGE ONLY: relabel the shared nav's "Volunteer" link to "How to Help"
+       and point it here. Does NOT touch the shared header.html (other pages keep
+       "Volunteer"). The header loads async (fetch or inline fallback), so poll
+       briefly until the nav is present. */
+    (function () {
+      function fixNav() {
+        var links = document.querySelectorAll('.nav-links a');
+        var found = false;
+        links.forEach(function (a) {
+          var href = a.getAttribute('href') || '';
+          if (/volunteer\.html/i.test(href) || /^\s*Volunteer\s*$/i.test(a.textContent)) {
+            a.textContent = 'How to Help';
+            a.setAttribute('href', 'How_to_Help.html');
+            a.classList.add('active');
+            found = true;
+          } else {
+            a.classList.remove('active');
+          }
+        });
+        return found;
+      }
+      var tries = 0;
+      var iv = setInterval(function () { if (fixNav() || ++tries > 40) clearInterval(iv); }, 100);
+      document.addEventListener('DOMContentLoaded', fixNav);
+    })();
+  </script>
 </body>
 </html>
