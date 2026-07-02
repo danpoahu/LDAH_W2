@@ -586,12 +586,12 @@
         <p>Every level includes local &amp; national OSERS resources, monthly IDEA &amp; Hawai&lsquo;i Administrative Rules Chapter 60 materials, current training materials, and our annual newsletter.</p>
       </div>
       <div class="mb-tiers">
-        <div class="mb-tier"><div class="mb-tname">Individual</div><div class="mb-price">$50<span> / year</span></div><p>Become part of the LDAH community and support our mission to empower families through education, advocacy, and leadership.</p><a href="#" class="mb-btn mb-btn-outline">Join as Individual</a></div>
-        <div class="mb-tier mb-feat"><div class="mb-ribbon">CASE ADVOCACY</div><div class="mb-tname">Friend</div><div class="mb-price">$100<span> / year</span></div><span class="mb-catag">Eligible for Case Advocacy Services</span><p>Your membership directly supports families seeking individualized guidance. Members at this level are eligible to receive LDAH Case Advocacy services when needed, plus all Individual benefits.</p><a href="#" class="mb-btn mb-btn-primary">Become a Friend</a></div>
-        <div class="mb-tier"><div class="mb-tname">Supporter</div><div class="mb-price">$200<span> / year</span></div><p>Help expand parent education, Learning Labs, Parent Talk Caf&eacute;s, community outreach, and educational resources that strengthen family leadership across Hawai&lsquo;i.</p><a href="#" class="mb-btn mb-btn-outline">Become a Supporter</a></div>
-        <div class="mb-tier"><div class="mb-tname">Sponsor</div><div class="mb-price">$500<span> / year</span></div><p>Provide meaningful support that helps LDAH respond quickly to families facing educational challenges while expanding statewide programs and outreach.</p><a href="#" class="mb-btn mb-btn-outline">Become a Sponsor</a></div>
-        <div class="mb-tier"><div class="mb-tname">Partner</div><div class="mb-price">$1,000<span> / year</span></div><p>Become a leadership partner in building stronger communities &mdash; helping LDAH develop innovative programs, increase statewide impact, and improve access to information and services for families.</p><a href="#" class="mb-btn mb-btn-outline">Become a Partner</a></div>
-        <div class="mb-tier"><div class="mb-tname">Benefactor</div><div class="mb-price">$2,500<span> / year</span></div><p>Our highest level recognizes a transformational investment in LDAH&rsquo;s mission &mdash; sustaining statewide advocacy, family leadership development, early identification initiatives, and critical services for children and families across Hawai&lsquo;i and the Pacific.</p><a href="#" class="mb-btn mb-btn-outline">Become a Benefactor</a></div>
+        <div class="mb-tier"><div class="mb-tname">Individual</div><div class="mb-price">$50<span> / year</span></div><p>Become part of the LDAH community and support our mission to empower families through education, advocacy, and leadership.</p><a href="#" class="mb-btn mb-btn-outline" onclick="openMembershipModal(event,'Individual',50)">Join as Individual</a></div>
+        <div class="mb-tier mb-feat"><div class="mb-ribbon">CASE ADVOCACY</div><div class="mb-tname">Friend</div><div class="mb-price">$100<span> / year</span></div><span class="mb-catag">Eligible for Case Advocacy Services</span><p>Your membership directly supports families seeking individualized guidance. Members at this level are eligible to receive LDAH Case Advocacy services when needed, plus all Individual benefits.</p><a href="#" class="mb-btn mb-btn-primary" onclick="openMembershipModal(event,'Friend',100)">Become a Friend</a></div>
+        <div class="mb-tier"><div class="mb-tname">Supporter</div><div class="mb-price">$200<span> / year</span></div><p>Help expand parent education, Learning Labs, Parent Talk Caf&eacute;s, community outreach, and educational resources that strengthen family leadership across Hawai&lsquo;i.</p><a href="#" class="mb-btn mb-btn-outline" onclick="openMembershipModal(event,'Supporter',200)">Become a Supporter</a></div>
+        <div class="mb-tier"><div class="mb-tname">Sponsor</div><div class="mb-price">$500<span> / year</span></div><p>Provide meaningful support that helps LDAH respond quickly to families facing educational challenges while expanding statewide programs and outreach.</p><a href="#" class="mb-btn mb-btn-outline" onclick="openMembershipModal(event,'Sponsor',500)">Become a Sponsor</a></div>
+        <div class="mb-tier"><div class="mb-tname">Partner</div><div class="mb-price">$1,000<span> / year</span></div><p>Become a leadership partner in building stronger communities &mdash; helping LDAH develop innovative programs, increase statewide impact, and improve access to information and services for families.</p><a href="#" class="mb-btn mb-btn-outline" onclick="openMembershipModal(event,'Partner',1000)">Become a Partner</a></div>
+        <div class="mb-tier"><div class="mb-tname">Benefactor</div><div class="mb-price">$2,500<span> / year</span></div><p>Our highest level recognizes a transformational investment in LDAH&rsquo;s mission &mdash; sustaining statewide advocacy, family leadership development, early identification initiatives, and critical services for children and families across Hawai&lsquo;i and the Pacific.</p><a href="#" class="mb-btn mb-btn-outline" onclick="openMembershipModal(event,'Benefactor',2500)">Become a Benefactor</a></div>
       </div>
     </div>
   </section>
@@ -970,5 +970,81 @@
   <link rel="stylesheet" href="logo-story.css">
   <script src="logo-story.js"></script>
   <script src="analytics-tracker.js"></script>
+
+  <!-- Membership signup modal -->
+  <div id="membership-modal" class="modal">
+    <div class="modal-content">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+        <h2 id="mm-title" style="color:var(--ocean-deep);font-size:1.4rem;">Become a Member</h2>
+        <button type="button" onclick="closeMembershipModal()" style="background:none;border:none;font-size:1.7rem;line-height:1;cursor:pointer;color:var(--text-soft);">&times;</button>
+      </div>
+      <p id="mm-sub" style="color:var(--text-soft);margin-bottom:1.1rem;"></p>
+      <form id="mm-form" onsubmit="submitMembership(event)">
+        <label style="font-weight:600;display:block;margin-bottom:4px;">Full Name *</label>
+        <input id="mm-name" required autocomplete="name" style="width:100%;padding:11px;border:1px solid #CBD5E1;border-radius:10px;margin-bottom:12px;font-size:1rem;">
+        <label style="font-weight:600;display:block;margin-bottom:4px;">Email *</label>
+        <input id="mm-email" type="email" required autocomplete="email" style="width:100%;padding:11px;border:1px solid #CBD5E1;border-radius:10px;margin-bottom:12px;font-size:1rem;">
+        <label style="font-weight:600;display:block;margin-bottom:4px;">Phone <span style="font-weight:400;color:var(--text-soft);">(optional)</span></label>
+        <input id="mm-phone" type="tel" autocomplete="tel" style="width:100%;padding:11px;border:1px solid #CBD5E1;border-radius:10px;margin-bottom:16px;font-size:1rem;">
+        <button type="submit" id="mm-submit" class="mb-btn mb-btn-primary" style="width:100%;">Continue to Payment</button>
+        <p id="mm-msg" style="color:var(--text-soft);font-size:.85rem;margin-top:10px;text-align:center;line-height:1.5;"></p>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    /* Membership capture: record the contributor, then hand off to PayPal.
+       A Cloud Function (onMembershipCreated) links/creates the contact server-side. */
+    (function () {
+      var _mmLevel = '', _mmAmount = 0;
+      var PAYPAL_DONATE_URL = 'https://www.paypal.com/donate/?hosted_button_id=F6F2DPC4D6RSA';
+      window.openMembershipModal = function (ev, level, amount) {
+        if (ev && ev.preventDefault) ev.preventDefault();
+        _mmLevel = level; _mmAmount = amount;
+        document.getElementById('mm-title').textContent = 'Join as ' + level;
+        document.getElementById('mm-sub').textContent = level + ' membership — $' + amount + ' per year. Enter your info below, then complete your gift securely through PayPal.';
+        document.getElementById('mm-msg').textContent = '';
+        var f = document.getElementById('mm-form'); if (f) f.reset();
+        var b = document.getElementById('mm-submit'); if (b) { b.disabled = false; b.textContent = 'Continue to Payment'; }
+        document.getElementById('membership-modal').classList.add('active');
+      };
+      window.closeMembershipModal = function () {
+        document.getElementById('membership-modal').classList.remove('active');
+      };
+      window.submitMembership = async function (ev) {
+        if (ev && ev.preventDefault) ev.preventDefault();
+        var btn = document.getElementById('mm-submit');
+        var msg = document.getElementById('mm-msg');
+        var name = document.getElementById('mm-name').value.trim();
+        var email = document.getElementById('mm-email').value.trim();
+        var phone = document.getElementById('mm-phone').value.trim();
+        if (!name || !email) return;
+        btn.disabled = true; btn.textContent = 'Saving…';
+        try {
+          await firebase.firestore().collection('members').add({
+            name: name, email: email, phone: phone,
+            level: _mmLevel, amount: _mmAmount,
+            status: 'pending', source: 'web-howtohelp',
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        } catch (e) {
+          msg.textContent = 'Sorry, something went wrong saving your info. Please try again or call (808) 536-9684.';
+          btn.disabled = false; btn.textContent = 'Continue to Payment';
+          return;
+        }
+        msg.innerHTML = 'Thank you, ' + (name.split(' ')[0] || '') + '! Opening PayPal — please enter <strong>$' + _mmAmount + '</strong> to complete your ' + _mmLevel + ' membership.';
+        btn.textContent = 'PayPal opened';
+        window.open(PAYPAL_DONATE_URL, '_blank', 'noopener');
+      };
+      // Close on backdrop click / Esc
+      document.addEventListener('click', function (e) {
+        var m = document.getElementById('membership-modal');
+        if (m && e.target === m) closeMembershipModal();
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeMembershipModal();
+      });
+    })();
+  </script>
 </body>
 </html>

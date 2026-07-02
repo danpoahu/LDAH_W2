@@ -15190,3 +15190,69 @@ exports.photoReleaseReminders = require("./photoRelease").photoReleaseReminders;
 exports.revertPhotoRelease = require("./photoRelease").revertPhotoRelease;
 exports.cancelPhotoRelease = require("./photoRelease").cancelPhotoRelease;
 exports.getDemoReleases = require("./photoRelease").getDemoReleases;
+
+// ── Membership signup -> link/create contact (type "Member") ──────────
+// The public "How to Help" page writes to members/{id}. This trigger dedupes
+// by email against contacts and either links the existing contact (adding the
+// membership level, keeping their existing type) or creates a NEW contact of
+// type "Member". Writes linkedContactId back onto the member doc for the CMS.
+exports.onMembershipCreated = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .firestore.document("members/{memberId}")
+  .onCreate(async (snap) => {
+    try {
+      const db = admin.firestore();
+      const m = snap.data() || {};
+      const email = String(m.email || "").trim().toLowerCase();
+      if (!email) return null;
+      const fullName = String(m.name || "").trim();
+      const parts = fullName.split(/\s+/).filter(Boolean);
+      const firstName = parts.shift() || "";
+      const lastName = parts.join(" ");
+      const level = m.level || "";
+      const now = admin.firestore.FieldValue.serverTimestamp();
+
+      // Dedupe by normalized email (query lowercased, then the raw value).
+      let contactRef = null;
+      let q = await db.collection("contacts").where("email", "==", email).limit(1).get();
+      if (q.empty && m.email && m.email !== email) {
+        q = await db.collection("contacts").where("email", "==", m.email).limit(1).get();
+      }
+      if (!q.empty) {
+        // Existing contact: keep their type, add membership info.
+        contactRef = q.docs[0].ref;
+        await contactRef.set({
+          isMember: true,
+          membershipLevel: level,
+          membershipStatus: "pending",
+          membershipUpdatedAt: now,
+        }, { merge: true });
+      } else {
+        // New contact of type "Member".
+        contactRef = await db.collection("contacts").add({
+          firstName: firstName,
+          lastName: lastName,
+          displayName: fullName || email,
+          email: email,
+          phone: m.phone || "",
+          type: "Member",
+          isMember: true,
+          membershipLevel: level,
+          membershipStatus: "pending",
+          source: "web-membership",
+          marketingOptOut: false,
+          createdAt: now,
+          createdBy: "web-membership",
+        });
+      }
+
+      await snap.ref.set({
+        linkedContactId: contactRef.id,
+        processedAt: now,
+      }, { merge: true });
+      return null;
+    } catch (err) {
+      console.error("onMembershipCreated error:", err);
+      return null;
+    }
+  });
