@@ -15256,3 +15256,88 @@ exports.onMembershipCreated = functions
       return null;
     }
   });
+
+// ── Membership Thank-You Email ──────────────────────────────────────
+// When a membership is marked PAID (members/{id}.status -> "paid"), send a
+// branded thank-you to the donor via Resend and record it on their contact
+// timeline. Fires on manual "Mark as Paid", the Membership Report quick-pay,
+// or (future) PayPal auto-confirm. Idempotent via thankYouSentAt.
+exports.onMembershipPaid = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .firestore.document("members/{memberId}")
+  .onUpdate(async (change) => {
+    try {
+      const before = change.before.data() || {};
+      const after = change.after.data() || {};
+      if (before.status === "paid" || after.status !== "paid") return null; // only the transition into paid
+      if (after.thankYouSentAt) return null; // already thanked
+      const email = String(after.email || "").trim();
+      if (!email) return null;
+
+      const db = admin.firestore();
+      const name = String(after.name || "").trim();
+      const firstName = name.split(/\s+/)[0] || "Friend";
+      const level = after.level || "Member";
+      const amount = typeof after.amount === "number" ? after.amount : (parseInt(after.amount, 10) || 0);
+      const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+      const today = new Date().toLocaleDateString("en-US", { timeZone: "Pacific/Honolulu", year: "numeric", month: "long", day: "numeric" });
+
+      const html = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f7fa;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
+  <div style="max-width:600px;margin:0 auto;background:#ffffff;">
+    <div style="background:linear-gradient(135deg,#0891B2,#06B6D4);padding:26px 24px;text-align:center;">
+      <div style="color:#ffffff;font-size:20px;font-weight:bold;letter-spacing:.3px;">Leadership in Disabilities &amp; Achievement of Hawai&#699;i</div>
+    </div>
+    <div style="padding:28px 28px 10px;">
+      <h1 style="color:#004E7C;font-size:22px;margin:0 0 14px;">Mahalo, ${_emailEsc(firstName)}!</h1>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 14px;">Thank you for becoming a <strong>${_emailEsc(level)}</strong> member of LDAH. Your gift of <strong>$${amount}</strong> directly supports Hawai&#699;i families raising children with disabilities.</p>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Because of supporters like you, we can continue to provide trusted guidance, training, case advocacy, and resources to parents navigating the special education system across Hawai&#699;i and the Pacific.</p>
+      <div style="background:#FFFBEB;border:1px solid #FEF3C7;border-radius:8px;padding:14px 16px;margin:0 0 18px;">
+        <div style="font-size:13px;color:#92400E;font-weight:bold;margin-bottom:4px;">Your Membership</div>
+        <div style="font-size:14px;color:#374151;line-height:1.7;">Level: ${_emailEsc(level)}<br>Amount: $${amount}<br>Date: ${_emailEsc(today)}</div>
+      </div>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Please keep this email for your records. If you have any questions, reach us at (808) 536-9684 or rrowe@ldahawaii.org.</p>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 4px;">With sincere appreciation,</p>
+      <p style="font-size:15px;line-height:1.5;margin:0;"><strong>Rosie Rowe</strong>, Executive Director<br><span style="color:#6b7280;">&amp; The LDAH Team of Parents Supporting Parents</span></p>
+    </div>
+    <div style="padding:18px 28px;border-top:1px solid #eef2f5;color:#9ca3af;font-size:12px;line-height:1.6;">
+      Leadership in Disabilities &amp; Achievement of Hawai&#699;i<br>
+      245 N. Kukui Street, Suite 205, Honolulu, HI 96817 &middot; (808) 536-9684<br>
+      <a href="https://www.ldahawaii.org" style="color:#0891B2;text-decoration:none;">www.ldahawaii.org</a>
+    </div>
+  </div>
+</body></html>`;
+
+      await sendEmailViaResend({
+        from: `LDAH <${fromAddress}>`,
+        to: email,
+        subject: "Mahalo for your LDAH membership",
+        html,
+        type: "membership-thank-you",
+        recipientName: name,
+      });
+
+      // Record on the contact timeline.
+      if (after.linkedContactId) {
+        try {
+          await db.collection("interactions").add({
+            channel: "Email",
+            interactionType: "Membership",
+            contactId: after.linkedContactId,
+            contactName: name,
+            summary: `Thank-you email sent -- $${amount} ${level} membership`,
+            notes: `Automated membership thank-you sent to ${email} on ${today}.`,
+            status: "Closed",
+            owner: "System",
+            ownerUid: "",
+            workflowStep: "membershipThankYou",
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        } catch (e) { console.warn("membership thank-you interaction failed:", e.message); }
+      }
+      await change.after.ref.update({ thankYouSentAt: admin.firestore.FieldValue.serverTimestamp() });
+      return null;
+    } catch (err) {
+      console.error("onMembershipPaid thank-you failed:", err.message);
+      return null;
+    }
+  });
