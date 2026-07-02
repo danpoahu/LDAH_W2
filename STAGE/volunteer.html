@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="We provide a wide range of services designed to empower families and support children with disabilities throughout their educational journey.">
-  <title>LDAH - Volunteer Opportunities</title>
+  <title>LDAH - How to Help</title>
   
   <!-- Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-32PRRS0W85"></script>
@@ -120,11 +120,11 @@
     
     /* Page Header - Compact 2" for subpages */
     .page-header {
-      margin-top: 108px; padding: 2rem;
+      margin-top: 108px; padding: 3.25rem 2rem 3rem;
       background: linear-gradient(135deg, #0891B2 0%, #06B6D4 100%);
       color: white; text-align: center;
       position: relative;
-      height: 180px;
+      min-height: 200px;
       display: flex; flex-direction: column;
       justify-content: center; align-items: center;
     }
@@ -407,6 +407,56 @@
       box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.1);
     }
     .form-group textarea { resize: vertical; min-height: 100px; }
+    /* How to Help — membership sections (mb- prefix, collision-free) */
+    .mb-cta-row{margin-top:20px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
+    .mb-btn{padding:13px 28px;border-radius:12px;font-weight:700;font-family:'Outfit',sans-serif;text-decoration:none;font-size:.98rem;transition:.2s;display:inline-block;cursor:pointer;border:none;}
+    .mb-btn-light{background:#fff;color:var(--ocean-deep);}
+    .mb-btn-light:hover{background:var(--sand);}
+    .mb-btn-ghost{background:transparent;color:#fff;border:2px solid rgba(255,255,255,.85);}
+    .mb-btn-ghost:hover{background:rgba(255,255,255,.15);}
+    .mb-btn-primary{background:var(--ocean-deep);color:#fff;}
+    .mb-btn-primary:hover{background:#0782a0;}
+    .mb-btn-outline{background:transparent;color:var(--ocean-deep);border:2px solid var(--ocean-deep);}
+    .mb-btn-outline:hover{background:var(--ocean-deep);color:#fff;}
+    .mb-wrap{max-width:1100px;margin:0 auto;padding:0 24px;}
+    .mb-sec{padding:44px 0;}
+    .mb-head{text-align:center;max-width:760px;margin:0 auto 30px;}
+    .mb-badge{display:inline-block;background:var(--sand);color:var(--ocean-deep);padding:5px 14px;border-radius:20px;font-weight:700;font-size:.75rem;letter-spacing:.05em;text-transform:uppercase;margin-bottom:12px;}
+    .mb-head h2{font-size:2rem;color:var(--ink,#0F2C3A);font-weight:800;font-family:'Outfit',sans-serif;}
+    .mb-head p{color:var(--text-soft);font-size:1.05rem;margin-top:8px;}
+    .mb-letter{background:#fff;border:1px solid rgba(8,145,178,.14);border-radius:18px;padding:34px 36px;box-shadow:0 12px 40px rgba(8,145,178,.06);}
+    .mb-letter p{margin-bottom:15px;font-size:1.04rem;color:#334155;line-height:1.65;}
+    .mb-greeting{font-family:'Outfit',sans-serif;font-weight:700;color:var(--ocean-deep);font-size:1.12rem;}
+    .mb-tiers{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+    .mb-tier{background:#fff;border:1px solid rgba(8,145,178,.14);border-radius:18px;padding:24px 22px;display:flex;flex-direction:column;position:relative;transition:.2s;overflow:hidden;}
+    .mb-tier:hover{transform:translateY(-4px);box-shadow:0 16px 40px rgba(8,145,178,.14);}
+    .mb-tier::before{content:"";position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,var(--ocean-mid),var(--ocean-light));}
+    .mb-tier.mb-feat{border-color:var(--sunset-coral);box-shadow:0 16px 44px rgba(249,115,22,.16);}
+    .mb-tier.mb-feat::before{background:linear-gradient(90deg,var(--sunset-coral),var(--sunset-warm));}
+    .mb-ribbon{position:absolute;top:14px;right:-34px;transform:rotate(45deg);background:var(--sunset-coral);color:#fff;font-size:.64rem;font-weight:700;padding:4px 40px;font-family:'Source Sans 3',sans-serif;}
+    .mb-tname{font-family:'Outfit',sans-serif;font-weight:700;font-size:1.2rem;color:var(--ink,#0F2C3A);}
+    .mb-price{font-family:'Outfit',sans-serif;font-weight:800;font-size:2rem;color:var(--ocean-deep);margin:6px 0 4px;}
+    .mb-price span{font-size:.85rem;font-weight:600;color:var(--text-soft);}
+    .mb-catag{display:inline-block;background:var(--sand);color:#B45309;font-weight:700;font-size:.7rem;padding:3px 10px;border-radius:12px;margin-bottom:10px;}
+    .mb-tier p{color:var(--text-soft);font-size:.94rem;margin-bottom:16px;}
+    .mb-tier .mb-btn{margin-top:auto;text-align:center;font-size:.9rem;padding:10px 16px;}
+    .mb-panel{background:#fff;border:1px solid rgba(8,145,178,.14);border-radius:18px;padding:30px 32px;}
+    .mb-split{display:grid;grid-template-columns:1fr 1fr;gap:22px;}
+    .mb-panel h2{color:var(--ink,#0F2C3A);font-size:1.4rem;margin-bottom:6px;font-family:'Outfit',sans-serif;}
+    .mb-clist{list-style:none;margin-top:6px;padding:0;}
+    .mb-clist li{position:relative;padding-left:28px;margin-bottom:11px;color:#334155;font-size:1rem;}
+    .mb-clist li::before{content:"";position:absolute;left:0;top:7px;width:13px;height:13px;border-radius:4px;background:var(--ocean-mid);box-shadow:inset 0 0 0 3px #fff,0 0 0 1px var(--ocean-deep);}
+    .mb-clist.mb-diff li::before{background:var(--sunset-coral);box-shadow:inset 0 0 0 3px #fff,0 0 0 1px var(--sunset-coral);}
+    .mb-closing{text-align:center;max-width:760px;margin:0 auto;}
+    .mb-closing p{font-size:1.06rem;color:#334155;line-height:1.65;}
+    .mb-sig{margin-top:20px;font-family:'Outfit',sans-serif;}
+    .mb-name{font-weight:700;color:var(--ink,#0F2C3A);font-size:1.12rem;}
+    .mb-role{color:var(--text-soft);}
+    .mb-contact{background:#0F2C3A;color:#fff;border-radius:18px;padding:26px 32px;display:grid;grid-template-columns:1fr 1fr;gap:14px 30px;margin-top:26px;}
+    .mb-contact h3{color:var(--plumeria,#FBBF24);font-size:1.02rem;margin-bottom:8px;font-family:'Outfit',sans-serif;}
+    .mb-contact p,.mb-contact a{color:rgba(255,255,255,.82);font-size:.96rem;text-decoration:none;}
+    @media(max-width:900px){ .mb-tiers{grid-template-columns:repeat(2,1fr);} .mb-split{grid-template-columns:1fr;} .mb-contact{grid-template-columns:1fr;} }
+    @media(max-width:560px){ .mb-tiers{grid-template-columns:1fr;} }
   </style>
   
   <!-- Hawaii Islands SVG Definition -->
@@ -471,8 +521,8 @@
           if (!document.getElementById('a11y-script')) { const script = document.createElement('script'); script.id = 'a11y-script'; script.src = 'accessibility.js'; document.body.appendChild(script); }
         } else { throw new Error('Failed to fetch'); }
       } catch (error) {
-        headerContainer.innerHTML = '<nav><div class="nav-content"><a href="index.html" class="logo-container"><img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH Logo" class="logo-img"></a><div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div><ul class="nav-links" id="navLinks"><li><a href="whoweare.html">Who We Are</a></li><li><a href="index.html#services">What We Do</a></li><li><a href="events.html">Events</a></li><li><a href="volunteer.html" class="active">Volunteer</a></li><li><a href="resources.html">Resources</a></li><li><a href="contact.html">Contact</a></li><li class="nav-donate-li"><a href="https://www.paypal.com/donate?hosted_button_id=F6F2DPC4D6RSA" target="_blank" rel="noopener" class="nav-donate-btn">Donate</a></li></ul></div></nav>';
-        footerContainer.innerHTML = '<footer><svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg><div class="footer-content"><div class="footer-section"><h3>About LDAH</h3><p>Hawai\'i & Pacific Island Parent Training & Information Center &mdash; empowering families and children with disabilities.</p></div><div class="footer-section"><h3>Quick Links</h3><a href="whoweare.html">Who We Are</a><a href="index.html#services">What We Do</a><a href="events.html">Events</a><a href="volunteer.html">Volunteer</a><a href="resources.html">Resources</a><a href="contact.html">Contact Us</a></div><div class="footer-section"><h3>Honolulu Office</h3><p>Harry and Jeanette Weinberg Kukui Center<br>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 536-9684<br><a href="mailto:rrowe@ldahawaii.org" style="color: rgba(255, 255, 255, 0.7); text-decoration: none;">rrowe@ldahawaii.org</a></p></div><div class="footer-section"><h3>Connect With Us</h3><a href="javascript:void(0)" onclick="openIframeModal(\'Parent Talk Cafe\', \'https://www.facebook.com/groups/2659334410969387\')">Parent Talk Cafe</a><a href="javascript:void(0)" onclick="openIframeModal(\'Career Opportunities\', \'https://www.hrsymphony.com/hrs/careers/ldah\')">Career Opportunities</a><a href="install.html">Install Our App</a><form action="https://www.paypal.com/donate" method="post" target="_blank" style="margin-top: 8px;"><input type="hidden" name="hosted_button_id" value="F6F2DPC4D6RSA"><input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" alt="Donate with PayPal button"></form></div></div><div class="footer-bottom"><p>&copy; <span class="dynamic-year"><\/span> Leadership in Disabilities and Achievement of Hawai\'i. All rights reserved.</p><p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal(\'DP Consulting\', \'https://oahuappdesign.com\')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a></p></div></footer>';
+        headerContainer.innerHTML = '<nav><div class="nav-content"><a href="index.html" class="logo-container"><img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH Logo" class="logo-img"></a><div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div><ul class="nav-links" id="navLinks"><li><a href="whoweare.html">Who We Are</a></li><li><a href="index.html#services">What We Do</a></li><li><a href="events.html">Events</a></li><li><a href="volunteer.html" class="active">How to Help</a></li><li><a href="resources.html">Resources</a></li><li><a href="contact.html">Contact</a></li><li class="nav-donate-li"><a href="https://www.paypal.com/donate?hosted_button_id=F6F2DPC4D6RSA" target="_blank" rel="noopener" class="nav-donate-btn">Donate</a></li></ul></div></nav>';
+        footerContainer.innerHTML = '<footer><svg class="footer-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg><div class="footer-content"><div class="footer-section"><h3>About LDAH</h3><p>Hawai\'i & Pacific Island Parent Training & Information Center &mdash; empowering families and children with disabilities.</p></div><div class="footer-section"><h3>Quick Links</h3><a href="whoweare.html">Who We Are</a><a href="index.html#services">What We Do</a><a href="events.html">Events</a><a href="volunteer.html">How to Help</a><a href="resources.html">Resources</a><a href="contact.html">Contact Us</a></div><div class="footer-section"><h3>Honolulu Office</h3><p>Harry and Jeanette Weinberg Kukui Center<br>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 536-9684<br><a href="mailto:rrowe@ldahawaii.org" style="color: rgba(255, 255, 255, 0.7); text-decoration: none;">rrowe@ldahawaii.org</a></p></div><div class="footer-section"><h3>Connect With Us</h3><a href="javascript:void(0)" onclick="openIframeModal(\'Parent Talk Cafe\', \'https://www.facebook.com/groups/2659334410969387\')">Parent Talk Cafe</a><a href="javascript:void(0)" onclick="openIframeModal(\'Career Opportunities\', \'https://www.hrsymphony.com/hrs/careers/ldah\')">Career Opportunities</a><a href="install.html">Install Our App</a><form action="https://www.paypal.com/donate" method="post" target="_blank" style="margin-top: 8px;"><input type="hidden" name="hosted_button_id" value="F6F2DPC4D6RSA"><input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" alt="Donate with PayPal button"></form></div></div><div class="footer-bottom"><p>&copy; <span class="dynamic-year"><\/span> Leadership in Disabilities and Achievement of Hawai\'i. All rights reserved.</p><p>Made with Aloha by <a href="javascript:void(0)" onclick="openIframeModal(\'DP Consulting\', \'https://oahuappdesign.com\')" style="color: #FBBF24; text-decoration: none;">DP Consulting</a></p></div></footer>';
       }
       setActiveNavLink();
     }
@@ -505,9 +555,80 @@
 
   <header class="page-header">
     <svg class="page-header-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
-    <h1 id="volunteer-heroTitle">Volunteer Opportunities</h1>
-    <p id="volunteer-heroSubtitle">Join our 'ohana and make a difference in the lives of Hawai'i families and children with disabilities.</p>
+    <h1 id="hth-heroTitle">How to Help</h1>
+    <p id="hth-heroSubtitle">Two ways to strengthen families across Hawai&lsquo;i and the Pacific &mdash; become a member to sustain our services, or volunteer your time and talents.</p>
+    <div class="mb-cta-row">
+      <a href="#membership" class="mb-btn mb-btn-light">Become a Member</a>
+      <a href="#volunteer" class="mb-btn mb-btn-ghost">Volunteer With Us</a>
+    </div>
   </header>
+
+  <!-- MEMBERSHIP: letter -->
+  <section id="membership" class="mb-sec">
+    <div class="mb-wrap">
+      <div class="mb-letter">
+        <p class="mb-greeting">Dear Friend of Leadership in Disabilities &amp; Achievement of Hawai&lsquo;i (LDAH),</p>
+        <p>For more than five decades, LDAH has been helping families navigate complex educational systems, access critical resources, and advocate for children with disabilities and developmental concerns. Every day, parents turn to LDAH for trusted guidance, training, case advocacy, and support during some of the most important decisions affecting their child&rsquo;s future.</p>
+        <p>As a nonprofit organization, we rely on the generosity of individuals, families, businesses, and community partners to ensure these services remain available throughout Hawai&lsquo;i and the Pacific.</p>
+        <p>LDAH is revamping our membership program by offering parents, professionals, and community members an opportunity to stay connected with the Parent Center network of over 100 parent centers across the nation.</p>
+        <p>We invite you to become a member of LDAH and invest in stronger families, informed advocates, and brighter futures.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- MEMBERSHIP: tiers -->
+  <section class="mb-sec" style="padding-top:0;">
+    <div class="mb-wrap">
+      <div class="mb-head">
+        <span class="mb-badge">Membership Levels</span>
+        <h2>Choose the level that reflects your commitment</h2>
+        <p>Every level includes local &amp; national OSERS resources, monthly IDEA &amp; Hawai&lsquo;i Administrative Rules Chapter 60 materials, current training materials, and our annual newsletter.</p>
+      </div>
+      <div class="mb-tiers">
+        <div class="mb-tier"><div class="mb-tname">Individual</div><div class="mb-price">$50<span> / year</span></div><p>Become part of the LDAH community and support our mission to empower families through education, advocacy, and leadership.</p><a href="#" class="mb-btn mb-btn-outline">Join as Individual</a></div>
+        <div class="mb-tier mb-feat"><div class="mb-ribbon">CASE ADVOCACY</div><div class="mb-tname">Friend</div><div class="mb-price">$100<span> / year</span></div><span class="mb-catag">Eligible for Case Advocacy Services</span><p>Your membership directly supports families seeking individualized guidance. Members at this level are eligible to receive LDAH Case Advocacy services when needed, plus all Individual benefits.</p><a href="#" class="mb-btn mb-btn-primary">Become a Friend</a></div>
+        <div class="mb-tier"><div class="mb-tname">Supporter</div><div class="mb-price">$200<span> / year</span></div><p>Help expand parent education, Learning Labs, Parent Talk Caf&eacute;s, community outreach, and educational resources that strengthen family leadership across Hawai&lsquo;i.</p><a href="#" class="mb-btn mb-btn-outline">Become a Supporter</a></div>
+        <div class="mb-tier"><div class="mb-tname">Sponsor</div><div class="mb-price">$500<span> / year</span></div><p>Provide meaningful support that helps LDAH respond quickly to families facing educational challenges while expanding statewide programs and outreach.</p><a href="#" class="mb-btn mb-btn-outline">Become a Sponsor</a></div>
+        <div class="mb-tier"><div class="mb-tname">Partner</div><div class="mb-price">$1,000<span> / year</span></div><p>Become a leadership partner in building stronger communities &mdash; helping LDAH develop innovative programs, increase statewide impact, and improve access to information and services for families.</p><a href="#" class="mb-btn mb-btn-outline">Become a Partner</a></div>
+        <div class="mb-tier"><div class="mb-tname">Benefactor</div><div class="mb-price">$2,500<span> / year</span></div><p>Our highest level recognizes a transformational investment in LDAH&rsquo;s mission &mdash; sustaining statewide advocacy, family leadership development, early identification initiatives, and critical services for children and families across Hawai&lsquo;i and the Pacific.</p><a href="#" class="mb-btn mb-btn-outline">Become a Benefactor</a></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MEMBERSHIP: includes + difference -->
+  <section class="mb-sec" style="padding-top:0;">
+    <div class="mb-wrap mb-split">
+      <div class="mb-panel">
+        <h2>Every membership includes</h2>
+        <ul class="mb-clist">
+          <li>Local &amp; national resources and materials from the Office of Special Education and Rehabilitative Services (OSERS)</li>
+          <li>Monthly local resource materials specific to IDEA and Hawai&lsquo;i Administrative Rules Chapter 60</li>
+          <li>Access to current training materials</li>
+          <li>Our annual newsletter</li>
+          <li>Connection to the national network of 100+ parent centers</li>
+          <li><strong>Friend level and beyond:</strong> eligibility for case advocacy services from our highly trained Special Education Consultants</li>
+        </ul>
+      </div>
+      <div class="mb-panel">
+        <h2>Your membership makes a difference</h2>
+        <ul class="mb-clist mb-diff">
+          <li>Empower parents to become confident advocates for their children</li>
+          <li>Provide workshops, Learning Labs, and educational resources</li>
+          <li>Offer case advocacy and technical assistance to families navigating special education</li>
+          <li>Support early childhood screening and family follow-up services</li>
+          <li>Strengthen partnerships with schools, healthcare providers, and community organizations</li>
+          <li>Build future leaders who advocate for inclusive opportunities for all children</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- VOLUNTEER heading -->
+  <section id="volunteer" class="section-header" style="max-width:760px;margin:2.5rem auto 1rem;padding:0 24px;">
+    <span class="section-badge">Give Your Time</span>
+    <h2>Volunteer with LDAH</h2>
+    <p>Join our &lsquo;ohana and make a difference in the lives of Hawai&lsquo;i families and children with disabilities.</p>
+  </section>
 
   <main class="container">
     <div id="opportunities-container">
@@ -536,6 +657,20 @@
     <h2 id="volunteer-ctaTitle">Can't Find a Match?</h2>
     <p id="volunteer-ctaSubtitle">We're always looking for passionate volunteers! Contact us to discuss how your skills can help our community.</p>
     <a href="contact.html" class="cta-btn">Contact Us</a>
+  </section>
+
+  <!-- CLOSING + SIGNATURE + CONTACT -->
+  <section class="mb-sec">
+    <div class="mb-wrap">
+      <div class="mb-closing">
+        <p>Together, we are creating a Hawai&lsquo;i where every child has the opportunity to achieve their full potential and every family has access to the information and support they deserve. We invite you to join us today &mdash; whether by becoming a member or volunteering your time &mdash; in whatever way reflects your commitment to children, families, and our community.</p>
+        <div class="mb-sig">
+          <div style="color:var(--text-soft);margin-bottom:6px;">With sincere appreciation,</div>
+          <div class="mb-name">Rosie Rowe, Executive Director</div>
+          <div class="mb-role">&amp; The LDAH Team of Parents Supporting Parents</div>
+        </div>
+      </div>
+    </div>
   </section>
 
   <div id="footer-container"></div>
