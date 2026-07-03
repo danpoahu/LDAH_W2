@@ -6868,7 +6868,7 @@ exports.sendEventRemindersTest = functions
 // with email + marketingOptOut: false. One-click unsubscribe compliant
 // with CAN-SPAM. Daily cap prevents sender-reputation damage during
 // Resend Free tier warm-up.
-const ANNOUNCEMENT_DAILY_CAP = 50; // Bump after Resend Pro upgrade
+const ANNOUNCEMENT_DAILY_CAP = 5000; // Raised from 50 after Resend paid upgrade; high backstop only (Resend enforces its own rate/volume limits)
 
 function buildUnsubscribePage({ title, body, ok }) {
   return '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">' +
