@@ -3188,6 +3188,35 @@ exports.onSignupCancelledFromSession = functions
 // resend-registration, daily reports, and any other signup-email
 // consumers always use the corrected contact info.
 
+// Ensure every new contact is reachable by announcements. The announcement
+// sender (sendEventAnnouncement) only counts a contact if marketingOptOut===false
+// AND it has a non-empty unsubscribeToken — so contacts created without a token
+// were silently excluded from every announcement. Seed a token (and default
+// opt-in) at creation time so this can't recur. The historical gap was closed by
+// backfill-unsubscribe-tokens.js.
+exports.onContactCreated = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 5 })
+  .firestore.document("contacts/{contactId}")
+  .onCreate(async (snap) => {
+    try {
+      const c = snap.data() || {};
+      const updates = {};
+      if (!(typeof c.unsubscribeToken === "string" && c.unsubscribeToken.length > 10)) {
+        updates.unsubscribeToken = crypto.randomBytes(16).toString("hex");
+      }
+      if (c.marketingOptOut !== true && c.marketingOptOut !== false) {
+        updates.marketingOptOut = false;
+      }
+      if (Object.keys(updates).length === 0) return null;
+      await snap.ref.update(updates);
+      console.log(`onContactCreated: seeded ${Object.keys(updates).join(",")} on contact ${snap.id}`);
+      return null;
+    } catch (err) {
+      console.error("onContactCreated failed:", err);
+      return null;
+    }
+  });
+
 exports.onContactUpdated = functions
   .runWith({ timeoutSeconds: 120, maxInstances: 5 })
   .firestore.document("contacts/{contactId}")
