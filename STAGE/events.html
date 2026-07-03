@@ -1270,6 +1270,7 @@
           // Filter current events (between startDate and moveToPastDate)
           const upcomingEvents = allEvents.filter(event => {
             try {
+              if (event.archived === true) return false;
               if (!event.startDate || !event.moveToPastDate) return false;
               const startDate = new Date(event.startDate + 'T00:00:00');
               const moveToPastDate = new Date(event.moveToPastDate + 'T00:00:00');
@@ -1281,6 +1282,7 @@
           // Filter past events (between moveToPastDate and removeDate)
           const pastEvents = allEvents.filter(event => {
             try {
+              if (event.archived === true) return false;
               if (!event.moveToPastDate || !event.removeDate) return false;
               const moveToPastDate = new Date(event.moveToPastDate + 'T00:00:00');
               const removeDate = new Date(event.removeDate + 'T00:00:00');

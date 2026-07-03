@@ -727,6 +727,7 @@
             // Regular upcoming events (up to 2). Information-only flyers are
             // pulled out into their own section below, never shown here.
             const currentEvents = eventsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(event => {
+                if (event.archived === true) return false;
                 if (event.infoOnly === true) return false;
                 if (!event.startDate || !event.moveToPastDate) return false;
                 const startDate = new Date(event.startDate + 'T00:00:00');
@@ -751,6 +752,7 @@
             // Information section = one-time infoOnly events (within their date
             // window) + ongoing flyer-only programs. Hidden when empty.
             const infoEvents = eventsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(event => {
+                if (event.archived === true) return false;
                 if (event.infoOnly !== true) return false;
                 if (!event.startDate || !event.moveToPastDate) return false;
                 const startDate = new Date(event.startDate + 'T00:00:00');
