@@ -27,6 +27,8 @@
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
   <script src="./js/formatters.js"></script>
+  <!-- PayPal JS SDK (Smart Buttons) for membership checkout -->
+  <script src="https://www.paypal.com/sdk/js?client-id=Attx66b6j9uKJtSvmxCeIP705ig-E6-1gwYdjyGxn9hNy2xsErTC-cFOaz-JWVodiKXkB5eRGcs_ybP8&currency=USD&intent=capture"></script>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -989,53 +991,124 @@
         <button type="submit" id="mm-submit" class="mb-btn mb-btn-primary" style="width:100%;">Continue to Payment</button>
         <p id="mm-msg" style="color:var(--text-soft);font-size:.85rem;margin-top:10px;text-align:center;line-height:1.5;"></p>
       </form>
+      <!-- Step 2: PayPal Smart Buttons (shown after the info form is saved) -->
+      <div id="mm-pay-step" style="display:none;">
+        <p id="mm-pay-summary" style="color:var(--text-soft);margin-bottom:1rem;line-height:1.5;"></p>
+        <div id="mm-paypal-buttons" style="min-height:44px;"></div>
+        <p id="mm-pay-msg" style="color:var(--text-soft);font-size:.85rem;margin-top:10px;text-align:center;line-height:1.5;"></p>
+      </div>
+      <!-- Confirmation shown once payment captures -->
+      <div id="mm-success" style="display:none;text-align:center;padding:0.5rem 0;">
+        <h3 style="color:var(--ocean-deep);font-size:1.3rem;margin-bottom:0.5rem;">Mahalo!</h3>
+        <p id="mm-success-msg" style="color:var(--text-soft);line-height:1.5;margin-bottom:1.1rem;"></p>
+        <button type="button" onclick="closeMembershipModal()" class="mb-btn mb-btn-primary" style="width:100%;">Close</button>
+      </div>
     </div>
   </div>
 
   <script>
-    /* Membership capture: record the contributor, then hand off to PayPal.
-       A Cloud Function (onMembershipCreated) links/creates the contact server-side. */
+    /* Membership capture: record the contributor (pending), then take payment inline
+       via PayPal Smart Buttons. onApprove captures the order and flips the same doc to
+       'paid', which triggers the onMembershipPaid Cloud Function (thank-you email +
+       contact-timeline interaction). onMembershipCreated links/creates the contact. */
     (function () {
-      var _mmLevel = '', _mmAmount = 0;
-      var PAYPAL_DONATE_URL = 'https://www.paypal.com/donate/?hosted_button_id=F6F2DPC4D6RSA';
+      var _mmLevel = '', _mmAmount = 0, _mmDocId = null, _mmName = '';
+      function el(id) { return document.getElementById(id); }
+
       window.openMembershipModal = function (ev, level, amount) {
         if (ev && ev.preventDefault) ev.preventDefault();
-        _mmLevel = level; _mmAmount = amount;
-        document.getElementById('mm-title').textContent = 'Join as ' + level;
-        document.getElementById('mm-sub').textContent = level + ' membership — $' + amount + ' per year. Enter your info below, then complete your gift securely through PayPal.';
-        document.getElementById('mm-msg').textContent = '';
-        var f = document.getElementById('mm-form'); if (f) f.reset();
-        var b = document.getElementById('mm-submit'); if (b) { b.disabled = false; b.textContent = 'Continue to Payment'; }
-        document.getElementById('membership-modal').classList.add('active');
+        _mmLevel = level; _mmAmount = amount; _mmDocId = null; _mmName = '';
+        el('mm-title').textContent = 'Join as ' + level;
+        var sub = el('mm-sub');
+        sub.style.display = '';
+        sub.textContent = level + ' membership — $' + amount + ' per year. Enter your info below, then complete your gift securely through PayPal.';
+        el('mm-msg').textContent = '';
+        var f = el('mm-form'); if (f) { f.reset(); f.style.display = ''; }
+        el('mm-pay-step').style.display = 'none';
+        el('mm-pay-msg').textContent = '';
+        el('mm-success').style.display = 'none';
+        var b = el('mm-submit'); if (b) { b.disabled = false; b.textContent = 'Continue to Payment'; }
+        el('membership-modal').classList.add('active');
       };
+
       window.closeMembershipModal = function () {
-        document.getElementById('membership-modal').classList.remove('active');
+        el('membership-modal').classList.remove('active');
       };
+
       window.submitMembership = async function (ev) {
         if (ev && ev.preventDefault) ev.preventDefault();
-        var btn = document.getElementById('mm-submit');
-        var msg = document.getElementById('mm-msg');
-        var name = document.getElementById('mm-name').value.trim();
-        var email = document.getElementById('mm-email').value.trim();
-        var phone = document.getElementById('mm-phone').value.trim();
-        if (!name || !email) return;
+        var btn = el('mm-submit');
+        var msg = el('mm-msg');
+        _mmName = el('mm-name').value.trim();
+        var email = el('mm-email').value.trim();
+        var phone = el('mm-phone').value.trim();
+        if (!_mmName || !email) return;
         btn.disabled = true; btn.textContent = 'Saving…';
         try {
-          await firebase.firestore().collection('members').add({
-            name: name, email: email, phone: phone,
+          var ref = await firebase.firestore().collection('members').add({
+            name: _mmName, email: email, phone: phone,
             level: _mmLevel, amount: _mmAmount,
             status: 'pending', source: 'web-howtohelp',
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
           });
+          _mmDocId = ref.id;
         } catch (e) {
           msg.textContent = 'Sorry, something went wrong saving your info. Please try again or call (808) 536-9684.';
           btn.disabled = false; btn.textContent = 'Continue to Payment';
           return;
         }
-        msg.innerHTML = 'Thank you, ' + (name.split(' ')[0] || '') + '! Opening PayPal — please enter <strong>$' + _mmAmount + '</strong> to complete your ' + _mmLevel + ' membership.';
-        btn.textContent = 'PayPal opened';
-        window.open(PAYPAL_DONATE_URL, '_blank', 'noopener');
+        // Advance to the inline PayPal payment step.
+        el('mm-form').style.display = 'none';
+        el('mm-sub').style.display = 'none';
+        el('mm-pay-summary').innerHTML = 'You’re joining as <strong>' + _mmLevel + '</strong> — <strong>$' + _mmAmount + '</strong> per year. Complete your gift below.';
+        el('mm-pay-msg').textContent = '';
+        el('mm-pay-step').style.display = '';
+        renderPayPalButtons();
       };
+
+      function renderPayPalButtons() {
+        var container = el('mm-paypal-buttons');
+        container.innerHTML = '';
+        if (!window.paypal || !window.paypal.Buttons) {
+          el('mm-pay-msg').innerHTML = 'PayPal is still loading. Please wait a moment and refresh, or call (808) 536-9684.';
+          return;
+        }
+        window.paypal.Buttons({
+          style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'paypal' },
+          createOrder: function (data, actions) {
+            return actions.order.create({
+              purchase_units: [{
+                amount: { value: Number(_mmAmount).toFixed(2), currency_code: 'USD' },
+                description: 'LDAH ' + _mmLevel + ' Membership',
+                custom_id: _mmDocId
+              }]
+            });
+          },
+          onApprove: function (data, actions) {
+            return actions.order.capture().then(function (details) {
+              var orderId = (details && details.id) || data.orderID || '';
+              return firebase.firestore().collection('members').doc(_mmDocId).update({
+                status: 'paid',
+                paypalOrderId: orderId,
+                paidAt: firebase.firestore.FieldValue.serverTimestamp()
+              }).then(showSuccess, showSuccess); // payment captured — thank them either way; staff reconcile if the flag write fails
+            });
+          },
+          onCancel: function () {
+            el('mm-pay-msg').textContent = 'Payment cancelled. You can complete it whenever you’re ready.';
+          },
+          onError: function () {
+            el('mm-pay-msg').innerHTML = 'Something went wrong with PayPal. Please try again or call (808) 536-9684.';
+          }
+        }).render('#mm-paypal-buttons');
+      }
+
+      function showSuccess() {
+        el('mm-pay-step').style.display = 'none';
+        el('mm-success').style.display = '';
+        el('mm-success-msg').innerHTML = 'Mahalo, ' + (_mmName.split(' ')[0] || '') + '! Your <strong>' + _mmLevel + '</strong> membership is confirmed. A thank-you email is on its way.';
+      }
+
       // Close on backdrop click / Esc
       document.addEventListener('click', function (e) {
         var m = document.getElementById('membership-modal');
