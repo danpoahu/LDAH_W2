@@ -63,7 +63,7 @@ const footerHTML = `
             <div class="footer-section">
                 <h3>Quick Links</h3>
                 <p>
-                    <a href="volunteer.html">Volunteer</a><br>
+                    <a href="volunteer.html">How to Help</a><br>
                     <a href="resources.html">Resources</a><br>
                     <a href="news.html">News & Events</a><br>
                     <a href="pacific-islands.html">Pacific Islands</a><br>
