@@ -1134,7 +1134,22 @@
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
-    
+
+    // Signup source attribution: the announcement/registration email flows set
+    // their own signupSource; for everything else derive it from the ?src= URL
+    // param (popup → event-popup, home → home-hero) and default to 'direct' so
+    // no signup is left unattributed. (2026-07-07)
+    function _resolveSignupSource() {
+      try {
+        var s = (new URLSearchParams(window.location.search).get('src') || '').trim().toLowerCase();
+        if (s === 'popup') return 'event-popup';
+        if (s === 'home' || s === 'home-hero') return 'home-hero';
+        if (s) return s.replace(/[^a-z0-9_-]/g, '').slice(0, 40) || 'direct';
+        return 'direct';
+      } catch (e) { return 'direct'; }
+    }
+
+
     // Load CMS page content
     async function loadPageContent() {
       try {
@@ -3796,7 +3811,7 @@
       const attribution = window._announcementAttribution || null;
       const sourceFields = attribution
         ? { signupSource: 'announcement-email', attributedContactId: attribution.contactId || '' }
-        : {};
+        : { signupSource: _resolveSignupSource() };
 
       try {
         var signupDocRef, signupDocId;
@@ -4490,7 +4505,7 @@
       const _attribution = window._announcementAttribution || null;
       const _sourceFields = _attribution
         ? { signupSource: 'announcement-email', attributedContactId: _attribution.contactId || '' }
-        : {};
+        : { signupSource: _resolveSignupSource() };
 
       try {
         var signupDocRef, signupDocId;

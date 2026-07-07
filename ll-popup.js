@@ -138,7 +138,8 @@
     }
 
     function signupUrl(c) {
-        return 'events.html?eventId=' + c.eventId + '&autoOpen=1';
+        // src=popup drives signup-source attribution (→ 'event-popup') on the events page.
+        return 'events.html?eventId=' + c.eventId + '&autoOpen=1&src=popup';
     }
 
     function buildMarkup(c) {
