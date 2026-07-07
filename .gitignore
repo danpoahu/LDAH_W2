@@ -6,3 +6,9 @@
 
 # Node
 node_modules/
+
+# One-off / ad-hoc functions scripts (many contain participant PII).
+# Prevents accidental commits of UNTRACKED analysis scripts via broad
+# `git add`. Already-tracked files are unaffected by this rule; add a new
+# legitimate function file intentionally with `git add -f <file>`.
+functions/*.js
