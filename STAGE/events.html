@@ -3377,6 +3377,17 @@
     async function submitRegistration(evt, token, eventId, type) {
       evt.preventDefault();
 
+      // Double-submit guard (2026-07-07): prevent a second tap from firing a
+      // duplicate registration/signup. Released in the finally below.
+      if (window.__ldahLock_registration) return;
+      window.__ldahLock_registration = true;
+      var __sbtn = (evt && evt.submitter) || (evt && evt.target && evt.target.querySelector ? evt.target.querySelector('button[type="submit"]') : null);
+      if (__sbtn) __sbtn.disabled = true;
+      var __unlockTimer;
+      var __unlock = function () { clearTimeout(__unlockTimer); window.__ldahLock_registration = false; if (__sbtn) __sbtn.disabled = false; };
+      __unlockTimer = setTimeout(__unlock, 20000);
+      try {
+
       var role = (document.getElementById('regRole') || {}).value || '';
       var isParent = role === 'Parent/Guardian';
 
@@ -3497,6 +3508,7 @@
             '<p style="color: #666; font-size: 14px;">Please try again later or contact LDAH for assistance.</p>' +
           '</div>';
       }
+      } finally { __unlock(); }
     }
 
     function registerAnotherChild(eventId, type) {
@@ -3713,6 +3725,19 @@
     
     async function submitSignup(event, eventId) {
       event.preventDefault();
+
+      // Double-submit guard (2026-07-07): the duplicate-check network call runs
+      // before the form locks, so a second tap during that window was creating
+      // duplicate signups. Lock synchronously now (before any await); the
+      // finally below always releases it, with a 20s safety-net timer.
+      if (window.__ldahLock_signup) return;
+      window.__ldahLock_signup = true;
+      var __sbtn = (event && event.submitter) || (event && event.target && event.target.querySelector ? event.target.querySelector('button[type="submit"]') : null);
+      if (__sbtn) __sbtn.disabled = true;
+      var __unlockTimer;
+      var __unlock = function () { clearTimeout(__unlockTimer); window.__ldahLock_signup = false; if (__sbtn) __sbtn.disabled = false; };
+      __unlockTimer = setTimeout(__unlock, 20000);
+      try {
 
       const eventData = window.allEventsData.find(e => e.id === eventId);
       if (!eventData) return;
@@ -3974,6 +3999,7 @@
         alert('There was an error submitting your signup. Please try again.');
         closeSignupModal();
       }
+      } finally { __unlock(); }
     }
 
     // ===== RECURRING EVENTS =====
@@ -4407,6 +4433,15 @@
 
     async function submitRecurringSignup(event, programId) {
       event.preventDefault();
+      // Double-submit guard (2026-07-07): released in the finally below.
+      if (window.__ldahLock_recurring) return;
+      window.__ldahLock_recurring = true;
+      var __sbtn = (event && event.submitter) || (event && event.target && event.target.querySelector ? event.target.querySelector('button[type="submit"]') : null);
+      if (__sbtn) __sbtn.disabled = true;
+      var __unlockTimer;
+      var __unlock = function () { clearTimeout(__unlockTimer); window.__ldahLock_recurring = false; if (__sbtn) __sbtn.disabled = false; };
+      __unlockTimer = setTimeout(__unlock, 20000);
+      try {
       const program = window._recurringPrograms && window._recurringPrograms[programId];
       if (!program) return;
 
@@ -4643,6 +4678,7 @@
         alert('There was an error submitting your signup. Please try again.');
         closeSignupModal();
       }
+      } finally { __unlock(); }
     }
 
     function toggleMenu() {
