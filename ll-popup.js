@@ -4,14 +4,17 @@
  * 5-day window: the popup only appears in the 5 days leading up to (and on)
  * the event date, and shows ONLY that single upcoming date.
  *
- * Schedule (June 2026):
+ * Schedule:
  *   - Learning Labs · Navigating Transitions  — June 10  (window June 5–10)
  *   - Parent Talk Café                         — June 17  (window June 12–17)
  *   - Learning Labs · Understanding ADHD       — June 24  (window June 19–24)
+ *   - Learning Labs · A-B-Cs of Advocacy       — July 8   (window July 3–8; hard stop 5 PM HST July 8)
  *
  * Behavior:
  *   - 5-day window: show only when 0 <= daysUntil <= 5. Picks the soonest
  *     eligible event. Outside every window, nothing shows.
+ *   - Optional `endsAt` (ISO instant): hides a campaign at a precise time —
+ *     e.g. the event's start — instead of waiting for its day to end.
  *   - Dismiss-once PER EVENT: localStorage 'll_popup_seen_<key>' is set on ANY
  *     close (X, backdrop, Escape, "Maybe later", Sign Up Now). Each event still
  *     pops once even if an earlier one was dismissed.
@@ -30,6 +33,7 @@
                   'July','August','September','October','November','December'];
     var LL_IMG = 'https://firebasestorage.googleapis.com/v0/b/ldah-932d5.firebasestorage.app/o/event-images%2F1779995116728_June%20LL.jpg?alt=media&token=d0d2052f-feec-4e5f-a933-45c8a2ab66c0';
     var PTC_IMG = 'https://firebasestorage.googleapis.com/v0/b/ldah-932d5.firebasestorage.app/o/event-images%2F1780510227059_June%202026..jpg?alt=media&token=eedabbf6-206f-4493-b8af-376627649d43';
+    var LL_JULY_IMG = 'https://firebasestorage.googleapis.com/v0/b/ldah-932d5.firebasestorage.app/o/event-images%2F1783039515710_July%20%20LL%202.jpg?alt=media&token=30236f21-a314-46bc-afa9-b5ed69f5149b';
 
     // ── Schedule (edit here to add / change events) ───────────────────────────
     // label may contain "{month}" — replaced with the event's month name, so
@@ -64,6 +68,19 @@
             when: 'June 24 &middot; 5:00 PM on Zoom',
             eventId: 'WyaBRKf0xhFsahAWgcbn',
             image: LL_IMG
+        },
+        {
+            key: 'll-2026-07-08',
+            date: '2026-07-08',
+            // Hard stop at the event's 5:00 PM start, not end-of-day. HST is
+            // UTC-10 (no DST), so 5:00 PM HST Jul 8 == 03:00 UTC Jul 9.
+            endsAt: '2026-07-09T03:00:00Z',
+            label: 'Learning Labs for {month}',
+            sub: 'Free virtual Learning Lab for Hawaiʻi families.',
+            topic: 'A-B-Cs of Advocacy',
+            when: 'July 8 &middot; 5:00 PM on Zoom',
+            eventId: '2BXyxjAqwLVViqCRrw8y',
+            image: LL_JULY_IMG
         }
     ];
     // ──────────────────────────────────────────────────────────────────────────
@@ -94,10 +111,12 @@
     // Soonest campaign that's within its 5-day window and not yet dismissed.
     function pickCampaign() {
         var best = null, bestDays = Infinity;
+        var nowMs = Date.now();
         for (var i = 0; i < CAMPAIGNS.length; i++) {
             var c = CAMPAIGNS[i];
             var d = daysUntil(c.date);
             if (d < 0 || d > WINDOW_DAYS) continue; // outside the 5-day window
+            if (c.endsAt && nowMs >= Date.parse(c.endsAt)) continue; // past the hard cutoff (e.g. event start time)
             if (flagSet(c)) continue;               // already seen this one
             if (d < bestDays) { best = c; bestDays = d; }
         }
