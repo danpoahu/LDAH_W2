@@ -3442,6 +3442,16 @@
           // Sibling draft — create fully-formed signup now. Connect-Gen siblings
           // stay 'pending' until consent is signed; everyone else goes 'confirmed'.
           var draft = window._siblingDraft || {};
+          // Same-child guard (2026-07-07): if the "another child" is the one just
+          // registered, confirm before adding — stops accidental same-child
+          // duplicates from the "Register Another Child" button.
+          var _prevChild = ((window._lastRegistration || {}).childName || '').trim().toLowerCase();
+          var _newChild = ((registration || {}).childName || '').trim().toLowerCase();
+          if (_prevChild && _newChild && _prevChild === _newChild) {
+            if (!window.confirm('It looks like ' + (registration.childName || 'this child') + ' is already registered for this event. Add them again anyway?')) {
+              return;
+            }
+          }
           var newDocRef = await db.collection(collectionName).doc(eventId).collection('signups').add({
             name: draft.name || '',
             email: draft.email || '',
@@ -3513,7 +3523,12 @@
 
     function registerAnotherChild(eventId, type) {
       var info = window._lastSignupInfo || {};
-      var reg = window._lastRegistration || {};
+      // Start the "another child" form with the CHILD fields blank (keep the
+      // family info) — a pre-filled child was letting a careless submit create
+      // a duplicate of the same child. (2026-07-07)
+      var reg = Object.assign({}, window._lastRegistration || {}, {
+        childName: '', childAgeRange: '', childGender: '', ethnicity: '', disabilityCategories: []
+      });
 
       // Defer Firestore write until the sibling's registration form is submitted.
       // Stash draft context for submitRegistration to pick up.
