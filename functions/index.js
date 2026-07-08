@@ -11932,9 +11932,10 @@ exports.confirmCaseAdvocacyAuthorizationPaper = functions
 // scheduledConnectGenDocLifecycle (Phase E)
 // ───────────────────────────────────────────────────────────────────────
 // Hourly cron that enforces the 24-hour consent destruction promise:
-//   • T+23h after session end (no disposition marked): email the record
-//     owner + write an in-app notification so staff get one last chance
-//     to flip the signup to Case Advocacy (which retains documents).
+//   • T+21h after session end (no disposition marked): email the record
+//     owner (the family's support-task owner, else Leilani), CC Noelani, +
+//     write in-app notifications so staff get ~3 hours' notice to flip the
+//     signup to Case Advocacy (which retains documents).
 //   • T+24h after session end (still no disposition): hard-destroy both
 //     Storage files, clear connectGenDocuments on the signup, stamp the
 //     destruction metadata, audit log.
@@ -11965,6 +11966,12 @@ exports.confirmCaseAdvocacyAuthorizationPaper = functions
 // the `events` collection will also be in scope.
 const CONNECT_GEN_RECURRING_EVENT_ID = "CmkPXEpPwfAQ5sR377K2";
 const CONNECT_GEN_TITLE_REGEX = /connect-?gen/i;
+
+// Noelani Dela Vega — Connect-Gen lead. Always looped in on document destruct
+// alerts (CC on the email + an in-app notification), in addition to the primary
+// recipient. Per Daniel 2026-07-08. Update if her account/email ever changes.
+const CONNECT_GEN_ALERT_CC_UID = "lwn8EWt6XEbCg5rhM0f8OSy8nTj2";
+const CONNECT_GEN_ALERT_CC_EMAIL = "ndelavega@ldahawaii.org";
 
 // Parse the END moment of a Connect-Gen session in HST.
 // Re-uses _parseTimeOfDayParts (defined earlier) and the same date-key
@@ -12033,7 +12040,8 @@ function _formatSessionDateLabel(rawSession) {
   return dt.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 }
 
-// Build the 23-hour destruction-alert email body. Matches LDAH styling —
+// Build the destruction-alert email body (~3 hours before auto-destroy).
+// Matches LDAH styling —
 // header band, body card, blue accent, no emojis. Includes copy/paste
 // footer per feedback_email-link-pattern.
 function _buildConnectGenDestructAlertHtml({ ownerFirstName, familyName, sessionDateLabel, signatureHtml }) {
@@ -12055,7 +12063,7 @@ function _buildConnectGenDestructAlertHtml({ ownerFirstName, familyName, session
     '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">Aloha ' + safeOwner + ',</p>',
     '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">',
     'The Connect-Gen documents for <strong>' + safeFamily + '</strong> (session on <strong>' + safeDate + '</strong>) ',
-    'will be <strong>automatically destroyed in approximately 1 hour</strong> because no disposition has been marked yet.',
+    'will be <strong>automatically destroyed in approximately 3 hours</strong> because no disposition has been marked yet.',
     '</p>',
     '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">',
     'Per the consent terms the family signed, documents are destroyed within 24 hours of attendance unless we are providing additional support such as case advocacy.',
@@ -12080,6 +12088,36 @@ function _buildConnectGenDestructAlertHtml({ ownerFirstName, familyName, session
 // Returns { uid, email, firstName, name } — email always populated, uid
 // may be empty (in which case the in-app notification step is skipped).
 async function _resolveConnectGenRecordOwner(db, signup) {
+  // 0. Owner of this family's "Follow-up support requested" Connect-Gen
+  //    interaction — the staffer actively handling the family, so the destruct
+  //    alert lands on the person best placed to mark a disposition. Preferred
+  //    per Daniel 2026-07-08. Matched by the family's linkedContactId; prefer an
+  //    Open task, then the most recent.
+  const supportCid = String(signup && signup.linkedContactId || "").trim();
+  if (supportCid) {
+    try {
+      const ixSnap = await db.collection("interactions").where("contactId", "==", supportCid).get();
+      let best = null, bestRank = -1;
+      ixSnap.forEach((x) => {
+        const a = x.data() || {};
+        if (a.interactionType !== "Follow-up") return;
+        if (!/^Follow-up support requested/i.test(String(a.summary || ""))) return;
+        if (!a.ownerUid) return;
+        const ms = (a.createdAt && a.createdAt.toMillis) ? a.createdAt.toMillis() : 0;
+        const rank = (a.status === "Open" ? 1e15 : 0) + ms; // prefer Open, then most recent
+        if (rank > bestRank) { bestRank = rank; best = a; }
+      });
+      if (best && best.ownerUid) {
+        const roleSnap = await db.collection("userRoles").doc(best.ownerUid).get();
+        if (roleSnap.exists) {
+          const r = roleSnap.data() || {};
+          const email = String(r.email || "").trim();
+          const name = String(r.name || best.owner || "").trim();
+          if (email) return { uid: best.ownerUid, email, firstName: (name.split(/\s+/)[0] || ""), name };
+        }
+      }
+    } catch (e) { console.warn("support-task owner lookup failed:", e.message); }
+  }
   // 1. Explicit owner fields on the signup itself (future-proof).
   const candidateUid = String(signup && (signup.ownerUid || signup.assignedOwnerUid || signup.recordOwnerUid) || "").trim();
   if (candidateUid) {
@@ -12351,8 +12389,10 @@ exports.scheduledConnectGenDocLifecycle = functions
           continue;
         }
 
-        // ── Alert branch ── (23 <= hoursSince < 24)
-        if (hoursSince >= 23 && hoursSince < 24) {
+        // ── Alert branch ── (21 <= hoursSince < 24) — ~3 hours notice before
+        // the 24h destruction (Daniel 2026-07-08; was 23h / ~1 hour). Gated by
+        // connectGenDocDestructAlertSentAt so it still sends only once.
+        if (hoursSince >= 21 && hoursSince < 24) {
           if (signup.connectGenDocDestructAlertSentAt) { skipped++; continue; }
           try {
             const owner = await _resolveConnectGenRecordOwner(db, signup);
@@ -12364,11 +12404,17 @@ exports.scheduledConnectGenDocLifecycle = functions
               sessionDateLabel,
               signatureHtml,
             });
-            const subject = "Action needed: Connect-Gen documents auto-destroy in 1 hour -- " + familyName;
+            const subject = "Action needed: Connect-Gen documents auto-destroy in 3 hours -- " + familyName;
+
+            // Always loop Noelani in (CC), unless she's already the primary
+            // recipient (support-task owner), to avoid a duplicate.
+            const ccList = (owner.email && owner.email.toLowerCase() === CONNECT_GEN_ALERT_CC_EMAIL.toLowerCase())
+              ? undefined : [CONNECT_GEN_ALERT_CC_EMAIL];
 
             await sendEmailViaResend({
               from: fromAddress,
               to: owner.email,
+              cc: ccList,
               subject,
               html,
               type: "connect-gen-destruct-alert",
@@ -12380,20 +12426,38 @@ exports.scheduledConnectGenDocLifecycle = functions
             // In-app notification (matches LDAH-Int notifications schema —
             // see createNotification in index.html). Skip when no uid;
             // email is already on the way to Leilani in that case.
+            const notifTitle = "Connect-Gen documents auto-destroy in 3 hours";
+            const notifMessage = "No disposition marked yet for " + familyName + ". Open the staff portal and mark Case Advocacy to retain documents.";
             if (owner.uid) {
               try {
                 await db.collection("notifications").add({
                   recipientUid: owner.uid,
                   recipientName: owner.name || "",
                   type: "connect-gen-destruct-alert",
-                  title: "Connect-Gen documents auto-destroy in 1 hour",
-                  message: "No disposition marked yet for " + familyName + ". Open the staff portal and mark Case Advocacy to retain documents.",
+                  title: notifTitle,
+                  message: notifMessage,
                   interactionId: "",
                   signupPath: sigDoc.ref.path,
                   read: false,
                   createdAt: FieldValue.serverTimestamp(),
                 });
               } catch (e) { console.warn("notifications write failed:", e.message); }
+            }
+            // Always loop Noelani in-app too, unless she's already the owner.
+            if (CONNECT_GEN_ALERT_CC_UID && CONNECT_GEN_ALERT_CC_UID !== owner.uid) {
+              try {
+                await db.collection("notifications").add({
+                  recipientUid: CONNECT_GEN_ALERT_CC_UID,
+                  recipientName: "Noelani Dela Vega",
+                  type: "connect-gen-destruct-alert",
+                  title: notifTitle,
+                  message: notifMessage,
+                  interactionId: "",
+                  signupPath: sigDoc.ref.path,
+                  read: false,
+                  createdAt: FieldValue.serverTimestamp(),
+                });
+              } catch (e) { console.warn("Noelani notification write failed:", e.message); }
             }
 
             await sigDoc.ref.update({
@@ -12403,9 +12467,10 @@ exports.scheduledConnectGenDocLifecycle = functions
 
             try {
               await db.collection("auditLog").add({
-                action: "Connect-Gen 23h destruction alert sent (no disposition marked)",
+                action: "Connect-Gen 21h destruction alert sent (no disposition marked)",
                 details: familyName + " -- signup " + sigDoc.id + " -- session " + mostRecentPastRaw +
-                  " -- notified " + owner.email + (owner.uid ? " (uid " + owner.uid + ")" : " (fallback persona)"),
+                  " -- notified " + owner.email + (owner.uid ? " (uid " + owner.uid + ")" : " (fallback persona)") +
+                  (ccList ? " -- cc " + ccList.join(", ") : ""),
                 performedBy: "system (auto)",
                 performedByRole: "system",
                 timestamp: FieldValue.serverTimestamp(),
