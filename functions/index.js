@@ -14506,6 +14506,51 @@ async function _lcVerifyDisplayClosed(db, eventId) {
   return x.status === "Closed";
 }
 
+// Extract a YYYY-MM-DD date key from a sessionSummaries key. Those keys drift in
+// format ("July 8, 2026 - 5:00 PM", "June 24, 2026 - Understanding ADHD - 5:00
+// PM", "May 6, 2026, 5:00 pm-6:00 pm", or a bare "2026-07-08"). toHstDateKey()
+// can't parse the "<date> - <time>" shape (new Date() rejects it), so pull the
+// leading calendar date out ourselves before normalizing. Returns "" if none.
+function _lcSummaryDateKey(key) {
+  if (!key) return "";
+  const s = String(key).split("|")[0].trim();
+  const iso = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return iso[1] + "-" + iso[2] + "-" + iso[3];
+  const m = s.match(/([A-Za-z]{3,9})\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})/);
+  if (m) {
+    const d = new Date(m[1] + " " + m[2] + ", " + m[3] + " 12:00:00");
+    if (!isNaN(d.getTime())) {
+      return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0")
+        + "-" + String(d.getDate()).padStart(2, "0");
+    }
+  }
+  return "";
+}
+
+// Resolve the presenter record ({presenter, presenterUid}) for one session,
+// robust to the drift between sessions[].rawString and sessionSummaries keys.
+// A one-time event whose sessions[] were rebuilt with bare-date rawStrings
+// ("2026-07-08") won't match a sessionSummaries key like "July 8, 2026 - 5:00
+// PM", so an exact-key lookup silently misses and the caller falls back to the
+// event creator (that's how Dayna's LL take-attendance task went to La'a instead
+// of the presenter, Noelani). Try the exact key first (fast path / events whose
+// keys line up), then fall back to matching by session DATE.
+function _lcResolveSessionPresenter(ev, sessions, sessionDateKey, sessionRawString) {
+  if ((sessions || []).length === 1) return (ev && ev.summary) || {};
+  const ss = (ev && ev.sessionSummaries) || {};
+  if (sessionRawString && ss[sessionRawString] && ss[sessionRawString].presenterUid) {
+    return ss[sessionRawString];
+  }
+  let fallback = null;
+  for (const k of Object.keys(ss)) {
+    if (_lcSummaryDateKey(k) !== sessionDateKey) continue;
+    const v = ss[k] || {};
+    if (v.presenterUid) return v;      // prefer an entry that actually names a presenter
+    if (!fallback) fallback = v;
+  }
+  return fallback || {};
+}
+
 exports.createDayOfAttendanceTasks = functions
   .runWith({ timeoutSeconds: 540, maxInstances: 1 })
   .pubsub.schedule("0 5 * * *").timeZone("Pacific/Honolulu")
@@ -14573,18 +14618,11 @@ exports.createDayOfAttendanceTasks = functions
       if (!existing.empty) continue;
 
       // Owner selection. Presenter is stored in the existing Event Summary
-      // location: event.summary (single-session) or event.sessionSummaries
-      // keyed by the session's RAW signupDate string (NOT the workflow dateKey).
-      // See Phase 5 fix: feedback_firestore-attribute-gotchas + project_ll-
-      // composite-key-migration — one-time events still use raw signupDate keys.
-      const isSingleSession = sessions.length === 1;
-      let presenterSrc;
-      if (isSingleSession) {
-        presenterSrc = ev.summary || {};
-      } else {
-        const summaryKey = todaySession.rawString || sessionKey;
-        presenterSrc = (ev.sessionSummaries && ev.sessionSummaries[summaryKey]) || {};
-      }
+      // location: event.summary (single-session) or event.sessionSummaries.
+      // sessionSummaries keys drift ("July 8, 2026 - 5:00 PM" vs a bare-date
+      // rawString "2026-07-08"), so resolve by session date, not an exact key
+      // match — otherwise the lookup misses and the task defaults to the creator.
+      const presenterSrc = _lcResolveSessionPresenter(ev, sessions, sessionKey, todaySession.rawString);
 
       const verifyDone = await _lcVerifyDisplayClosed(db, doc.id);
       let ownerUid, ownerName;
@@ -14652,16 +14690,10 @@ exports.createPresenterPrepTasks = functions
       if (!targetSession) continue;
 
       // Presenter lives in the Event Summary storage: event.summary (single
-      // session) or event.sessionSummaries keyed by the session's RAW signupDate
-      // string (NOT the workflow dateKey) — see createDayOfAttendanceTasks.
-      const isSingleSession = sessions.length === 1;
-      let presenterSrc;
-      if (isSingleSession) {
-        presenterSrc = ev.summary || {};
-      } else {
-        const summaryKey = targetSession.rawString || targetKey;
-        presenterSrc = (ev.sessionSummaries && ev.sessionSummaries[summaryKey]) || {};
-      }
+      // session) or event.sessionSummaries. Resolve by session date (keys drift
+      // between "July 8, 2026 - 5:00 PM" and a bare-date rawString) — see
+      // createDayOfAttendanceTasks / _lcResolveSessionPresenter.
+      const presenterSrc = _lcResolveSessionPresenter(ev, sessions, targetKey, targetSession.rawString);
 
       let ownerUid, ownerName;
       if (presenterSrc.presenterUid) {
