@@ -1845,6 +1845,27 @@ async function _findPriorCompletedRegistration(db, linkedContactId, excludePath,
     if (!compMs || compMs < sinceMs) return; // unknown date or older than the window
     if (!best || compMs > best.compMs) best = { id: d.id, path: d.ref.path, registration: r.registration, compMs };
   });
+
+  // Carry-forward fix: the existence of a prior COMPLETED registration is itself
+  // proof of prior LDAH training. The stored registration usually still says
+  // priorTraining:"No" (it was their FIRST training when they filled it), so
+  // copying it verbatim would carry that stale "No" onto every future signup.
+  // Force priorTraining:"Yes" and take the date from the contact record (the
+  // authoritative source, kept correct elsewhere); fall back to the prior
+  // training's completion date if the contact has none.
+  if (best) {
+    let priorDate = "";
+    try {
+      const cSnap = await db.collection("contacts").doc(linkedContactId).get();
+      const c = cSnap.exists ? (cSnap.data() || {}) : {};
+      if (c.priorTrainingDate) priorDate = c.priorTrainingDate;
+    } catch (e) { console.warn("_findPriorCompletedRegistration contact lookup:", e.message); }
+    if (!priorDate && best.compMs) priorDate = new Date(best.compMs).toISOString().slice(0, 10);
+    best.registration = Object.assign({}, best.registration, {
+      priorTraining: "Yes",
+      priorTrainingDate: priorDate || best.registration.priorTrainingDate || "",
+    });
+  }
   return best;
 }
 
