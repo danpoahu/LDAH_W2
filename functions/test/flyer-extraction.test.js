@@ -23,6 +23,22 @@ test("sessionsToSignupDates keeps a year-less date usable (topic preserved)", ()
   assert.ok(out[0].includes("Reading"));
 });
 
+test("sessionsToSignupDates uses fallbackTime when a session has no time", () => {
+  const out = sessionsToSignupDates(
+    [{ date: "July 8, 2026", topic: "A-B-C's of Advocacy" }],
+    "5:00 PM"
+  );
+  assert.strictEqual(out[0], "July 8, 2026, 5:00 PM - A-B-C's of Advocacy");
+});
+
+test("sessionsToSignupDates prefers a session's own time over fallback", () => {
+  const out = sessionsToSignupDates(
+    [{ date: "July 8, 2026", topic: "X", time: "3:00 PM" }],
+    "5:00 PM"
+  );
+  assert.ok(out[0].includes("3:00 PM") && !out[0].includes("5:00 PM"));
+});
+
 test("FLYER_TOOL_SCHEMA has required top-level fields", () => {
   assert.strictEqual(FLYER_TOOL_SCHEMA.type, "object");
   for (const k of ["title", "description", "sessions"]) {

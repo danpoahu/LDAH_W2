@@ -219,7 +219,7 @@ exports.extractEventFromFlyer = functions
         return;
       }
       const ev = toolUse.input;
-      ev.signupDates = sessionsToSignupDates(ev.sessions);
+      ev.signupDates = sessionsToSignupDates(ev.sessions, ev.timeStart);
       res.status(200).json({ ok: true, event: ev });
     } catch (err) {
       console.error("extractEventFromFlyer error:", err && err.message);

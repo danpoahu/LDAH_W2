@@ -35,12 +35,16 @@ const FLYER_TOOL_SCHEMA = {
 function hasYear(s) { return /\b20\d{2}\b/.test(String(s || "")); }
 
 // Map extracted sessions -> canonical signupDates[] the CMS/parsers expect:
-// "Month D, YYYY, TIME - Topic". Falls back gracefully if a field is missing.
-function sessionsToSignupDates(sessions) {
+// "Month D, YYYY, TIME - Topic". `fallbackTime` (the event-level start time) is
+// used when a session has no per-session time — the model often reports the time
+// once for the whole flyer rather than on each session. Falls back gracefully if
+// a field is missing.
+function sessionsToSignupDates(sessions, fallbackTime) {
   if (!Array.isArray(sessions)) return [];
+  const ft = String(fallbackTime || "").trim();
   return sessions.map((s) => {
     const date = String((s && s.date) || "").trim();
-    const time = String((s && s.time) || "").trim();
+    const time = (String((s && s.time) || "").trim()) || ft;
     const topic = String((s && s.topic) || "").trim();
     let label = date;
     if (time) label += ", " + time;
