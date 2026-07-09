@@ -5279,6 +5279,30 @@ function parseEventDateKey(raw) {
       return `${m[3]}-${String(monthNum).padStart(2, "0")}-${String(parseInt(m[2], 10)).padStart(2, "0")}`;
     }
   }
+  // Year-less "Month Day[ordinal]" — e.g. "July 22nd, 5pm - Parents as
+  // Collaborative Leaders" (a Learning Labs signupDate with no year). The branch
+  // above needs a 4-digit year and new Date() can't handle the ordinal +
+  // trailing text, so this used to fall through to "" — which silently dropped
+  // the session from reminder scheduling / candidate-date derivation. Assume the
+  // nearest-occurrence year, computed against HST "today" so the server's UTC
+  // clock never shifts the day.
+  const ny = raw.match(/^([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?\b/);
+  if (ny) {
+    const monthNum = MONTH_TO_NUM[ny[1].toLowerCase()];
+    if (monthNum) {
+      const day = parseInt(ny[2], 10);
+      const todayKey = toHstDateKey(new Date());
+      if (/^\d{4}-\d{2}-\d{2}$/.test(todayKey)) {
+        let year = parseInt(todayKey.slice(0, 4), 10);
+        const todayMs = Date.UTC(year, parseInt(todayKey.slice(5, 7), 10) - 1, parseInt(todayKey.slice(8, 10), 10));
+        const candMs = Date.UTC(year, monthNum - 1, day);
+        const diffDays = (candMs - todayMs) / 86400000;
+        if (diffDays < -182) year += 1;
+        else if (diffDays > 182) year -= 1;
+        return `${year}-${String(monthNum).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      }
+    }
+  }
   return toHstDateKey(raw);
 }
 
