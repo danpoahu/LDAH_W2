@@ -1,6 +1,7 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const Anthropic = require("@anthropic-ai/sdk");
+const { FLYER_TOOL_SCHEMA, sessionsToSignupDates } = require("./flyerExtraction");
 const crypto = require("crypto");
 const heicConvert = require("heic-convert");
 // nodemailer removed — Firebase 1st Gen blocks outbound SMTP (port 465/587).
@@ -159,6 +160,70 @@ exports.ldahCmsHelp = functions
       res.status(500).json({
         error: "Something went wrong. Please try again in a moment.",
       });
+    }
+  });
+
+// ── Flyer → Event extraction (STAGE CMS "Start from a flyer") ──
+// Reads an uploaded event flyer (image or PDF) and returns structured event
+// data via Claude tool-use. Additive + CORS-gated to the dashboard origin.
+exports.extractEventFromFlyer = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 3, secrets: ["ANTHROPIC_API_KEY_FLYER"] })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Access-Control-Max-Age", "3600");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ ok: false, error: "Method not allowed" }); return; }
+
+    try {
+      const { fileBase64, mediaType } = req.body || {};
+      const okTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+      if (!fileBase64 || typeof fileBase64 !== "string" || okTypes.indexOf(mediaType) === -1) {
+        res.status(400).json({ ok: false, error: "Missing fileBase64 or unsupported mediaType" });
+        return;
+      }
+      if (fileBase64.length > 9000000) { // ~6.7 MB binary
+        res.status(413).json({ ok: false, error: "Flyer too large — please use a file under ~6 MB." });
+        return;
+      }
+
+      const isPdf = mediaType === "application/pdf";
+      const mediaBlock = isPdf
+        ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: fileBase64 } }
+        : { type: "image",    source: { type: "base64", media_type: mediaType,        data: fileBase64 } };
+
+      const system = [
+        "You extract structured event details from a Learning & Disabilities Association of Hawaii (LDAH) event flyer.",
+        "LDAH flyers are consistent: a title band, a weekday + time range, and one or more dated sessions each with a topic and a short description.",
+        "Return ONLY via the provided tool. Rules:",
+        "- Every session 'date' MUST include the year in 'Month D, YYYY' form. If the flyer prints a year (usually near the title), use it. If not, infer the nearest upcoming year.",
+        "- 'modality' is 'virtual' when the flyer mentions Zoom/online; set 'location' to 'Zoom' in that case.",
+        "- Keep the topic verbatim; keep each description to the flyer's wording, trimmed to one or two sentences.",
+        "- Set 'confidence' to 'low' if the flyer is blurry or fields are ambiguous.",
+      ].join("\n");
+
+      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY_FLYER });
+      const response = await client.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 1200,
+        system,
+        tools: [{ name: "record_event", description: "Record the structured event details from the flyer.", input_schema: FLYER_TOOL_SCHEMA }],
+        tool_choice: { type: "tool", name: "record_event" },
+        messages: [{ role: "user", content: [mediaBlock, { type: "text", text: "Extract this LDAH event flyer." }] }],
+      });
+
+      const toolUse = (response.content || []).find((b) => b.type === "tool_use");
+      if (!toolUse || !toolUse.input) {
+        res.status(502).json({ ok: false, error: "No structured data returned" });
+        return;
+      }
+      const ev = toolUse.input;
+      ev.signupDates = sessionsToSignupDates(ev.sessions);
+      res.status(200).json({ ok: true, event: ev });
+    } catch (err) {
+      console.error("extractEventFromFlyer error:", err && err.message);
+      res.status(500).json({ ok: false, error: "Could not read the flyer. Please fill the form in manually." });
     }
   });
 
