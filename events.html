@@ -1768,7 +1768,7 @@
           html += '<div class="day-events">';
           const displayEvents = dayEvents.slice(0, 2);
           displayEvents.forEach(event => {
-            const isPast = new Date(event.eventDate + 'T00:00:00') < today;
+            const isPast = currentDayDate < today; // per calendar-cell date, NOT the event's primary eventDate — so a multi-date event's future sessions (e.g. a Learning Labs 2nd date) aren't greyed as past
             const isRequest = event.isEventRequest === true;
             const isAdditional = event.isAdditionalDate === true;
             const isRecurring = event.isRecurring === true;
