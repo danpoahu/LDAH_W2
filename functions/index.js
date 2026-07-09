@@ -14587,13 +14587,12 @@ exports.onInteractionUpdatedLifecycle = functions
         dueBaseDateStr = String(sessionKey).split("|")[0];
       } else {
         const sessions = getEventSessions(ev) || [];
-        if (sessions.length === 1) {
-          presenterSrc = ev.summary || {};
-        } else {
-          const matchingSession = sessions.find(s => _lcSessionKey(s) === sessionKey);
-          const summaryKey = (matchingSession && matchingSession.rawString) || sessionKey;
-          presenterSrc = (ev.sessionSummaries && ev.sessionSummaries[summaryKey]) || {};
-        }
+        const matchingSession = sessions.find(s => _lcSessionKey(s) === sessionKey);
+        // Resolve by session DATE, not an exact rawString key — bare-date
+        // rawStrings ("2026-07-08") don't match formatted sessionSummaries keys
+        // ("July 8, 2026 - 5:00 PM"), which silently routed the Event Summary to
+        // the event creator (La'a) instead of the session presenter (Noelani).
+        presenterSrc = _lcResolveSessionPresenter(ev, sessions, sessionKey, matchingSession && matchingSession.rawString);
         dueBaseDateStr = sessionKey;
       }
       let ownerUid  = presenterSrc.presenterUid || "";
