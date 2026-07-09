@@ -70,15 +70,17 @@
             image: LL_IMG
         },
         {
-            key: 'll-2026-07-08',
-            date: '2026-07-08',
-            // Hard stop at the event's 5:00 PM start, not end-of-day. HST is
-            // UTC-10 (no DST), so 5:00 PM HST Jul 8 == 03:00 UTC Jul 9.
-            endsAt: '2026-07-09T03:00:00Z',
+            key: 'll-2026-07-22',
+            date: '2026-07-22',
+            // Keep showing through July 22 and stop when July 23 begins (HST is
+            // UTC-10, so July 23 00:00 HST == 2026-07-23T10:00:00Z). windowDays
+            // widens the usual 5-day window so it displays from now until then.
+            endsAt: '2026-07-23T10:00:00Z',
+            windowDays: 30,
             label: 'Learning Labs for {month}',
             sub: 'Free virtual Learning Lab for Hawaiʻi families.',
-            topic: 'A-B-Cs of Advocacy',
-            when: 'July 8 &middot; 5:00 PM on Zoom',
+            topic: 'Parents as Collaborative Leaders',
+            when: 'July 22 &middot; 5:00 PM on Zoom',
             eventId: '2BXyxjAqwLVViqCRrw8y',
             image: LL_JULY_IMG
         }
@@ -115,7 +117,7 @@
         for (var i = 0; i < CAMPAIGNS.length; i++) {
             var c = CAMPAIGNS[i];
             var d = daysUntil(c.date);
-            if (d < 0 || d > WINDOW_DAYS) continue; // outside the 5-day window
+            if (d < 0 || d > (typeof c.windowDays === 'number' ? c.windowDays : WINDOW_DAYS)) continue; // outside the show window (per-campaign override or default 5 days)
             if (c.endsAt && nowMs >= Date.parse(c.endsAt)) continue; // past the hard cutoff (e.g. event start time)
             if (flagSet(c)) continue;               // already seen this one
             if (d < bestDays) { best = c; bestDays = d; }
