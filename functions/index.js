@@ -9644,6 +9644,86 @@ function _isWorksheetComplete(concerns) {
   return list.some((c) => CONNECT_GEN_WORKSHEET_FIELDS.every((f) => c && String(c[f] || "").trim()));
 }
 
+// Is this a Monday VIRTUAL Connect-Gen session? Consent and document upload
+// apply only to those; in-person families (Thursday Oahu, Hilo, Kona) bring
+// their IEP with them and sign nothing in advance.
+//
+// Extracted from maybeSendRegistrationConfirmation, which computed it inline.
+// Both the status gate and the reminder cron need the same answer, and two
+// copies of this rule would eventually disagree — at which point the emails and
+// the dashboard would tell staff different things about the same family.
+function _cgIsMondayVirtual(signup, event) {
+  try {
+    const sessions = getSignupSessions(signup, event) || [];
+    const key = (sessions[0] && sessions[0].dateKey) || "";
+    if (!key || !/^\d{4}-\d{2}-\d{2}$/.test(key)) return false;
+    const d = new Date(key + "T00:00:00-10:00");
+    if (isNaN(d.getTime())) return false;
+    const dayName = d.toLocaleDateString("en-US", { weekday: "long", timeZone: "Pacific/Honolulu" });
+    if (dayName !== "Monday") return false;
+    return !!isSessionVirtual(event, key, signup);
+  } catch (e) {
+    console.warn("_cgIsMondayVirtual failed:", e.message);
+    return false;
+  }
+}
+
+// ── THE single definition of "is this family ready?" (2026-07-14) ────────────
+// Consumed by the status gate, the confirmation emails, the reminder cron and
+// the staff dashboard. Anything that needs to know what a family still owes
+// asks THIS — never its own copy of the rules.
+//
+//   Monday virtual : consent + documents uploaded + worksheet
+//   In person      : worksheet only (they bring the IEP; they sign nothing)
+//
+// Returns what is required, what is done, and what is still outstanding.
+function _cgRequirements(signup, event) {
+  const isConnectGen = !!(event && event.zoomMode === "program");
+  if (!isConnectGen || !signup) {
+    return { isConnectGen: false, required: [], done: [], outstanding: [], ready: true };
+  }
+
+  const mondayVirtual = _cgIsMondayVirtual(signup, event);
+
+  const required = ["worksheet"];                       // every family
+  if (mondayVirtual) required.unshift("consent", "documents");
+
+  const hasConsent = !!signup.consentSignedAt;
+  const hasDocs = _cgDocList(signup.connectGenDocuments, "iep").length > 0
+               && _cgDocList(signup.connectGenDocuments, "evaluation").length > 0;
+  const ws = signup.parentWorksheet || {};
+  const hasWorksheet = _isWorksheetComplete(ws.concerns);
+
+  const state = { consent: hasConsent, documents: hasDocs, worksheet: hasWorksheet };
+  const done = required.filter((r) => state[r]);
+  const outstanding = required.filter((r) => !state[r]);
+
+  return {
+    isConnectGen: true,
+    mondayVirtual,
+    required,
+    done,
+    outstanding,
+    ready: outstanding.length === 0,
+    hasConsent,
+    hasDocs,
+    hasWorksheet,
+  };
+}
+
+// Human-readable list for emails and the dashboard: "your documents and your worksheet".
+function _cgOutstandingPhrase(outstanding) {
+  const labels = {
+    consent: "your signed consent form",
+    documents: "your child's IEP and Evaluation",
+    worksheet: "your Parent Report Worksheet",
+  };
+  const parts = (outstanding || []).map((k) => labels[k] || k);
+  if (parts.length <= 1) return parts[0] || "";
+  if (parts.length === 2) return parts[0] + " and " + parts[1];
+  return parts.slice(0, -1).join(", ") + " and " + parts[parts.length - 1];
+}
+
 // connectGenDocuments.{iep|evaluation} used to hold ONE record. It now holds a
 // list of up to CONNECT_GEN_MAX_DOCS_PER_TYPE. Signups created before this
 // change still carry the single-object shape, so every reader normalises
