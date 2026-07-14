@@ -3262,15 +3262,14 @@
         // --- Section: Child Information ---
         '<div id="regChildInfoWrap" style="display:none;">' +
         '<div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 18px; margin-bottom: 20px;">' +
-          '<h3 style="color: #004E7C; font-size: 16px; font-weight: bold; margin-bottom: 14px;">Child Information</h3>' +
+          '<h3 style="color: #004E7C; font-size: 16px; font-weight: bold; margin-bottom: 6px;">Child Information</h3>' +
+          // Why we ask. Under the header so it covers the whole section — name, age,
+          // gender, ethnicity, disability — not just the name field. (2026-07-14)
+          '<div style="margin-bottom: 14px; font-size: 13px; color: #6B7280; line-height: 1.4;">* We collect this information for grant purposes only.</div>' +
 
           '<div style="margin-bottom: 14px;">' +
             '<label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">Child\'s full name <span style="color: #DC2626;">*</span></label>' +
             '<input type="text" id="regChildName" required' + (pf.childName ? ' value="' + String(pf.childName).replace(/"/g, '&quot;') + '"' : '') + ' style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">' +
-            // Parents pushed back on being asked for their child's name. Saying plainly
-            // why we need it settled it for them, so we say it at the point of asking
-            // rather than burying it in a privacy policy. (2026-07-14)
-            '<div style="margin-top: 6px; font-size: 12px; color: #6B7280; line-height: 1.4;">We collect this information for grant purposes only.</div>' +
           '</div>' +
 
           '<div style="margin-bottom: 14px;">' +
@@ -4249,12 +4248,12 @@
                 </div>
                 <!-- Student Information — hidden for non-Parent/Guardian roles via ldahToggleInlineRegBlock -->
                 <div id="recurringStudentInfo" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:18px;margin-bottom:24px;">
-                  <h4 style="color:#0369a1;margin:0 0 16px;font-size:15px;font-weight:700;">Student Information</h4>
+                  <h4 style="color:#0369a1;margin:0 0 6px;font-size:15px;font-weight:700;">Student Information</h4>
+                  <div style="margin:0 0 16px;font-size:13px;color:#6B7280;line-height:1.4;">* We collect this information for grant purposes only.</div>
                   <div style="display:flex;flex-wrap:wrap;gap:14px;">
                     <div style="flex:1;min-width:220px;">
                       <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:6px;font-size:13px;">Student's Name *</label>
                       <input type="text" required id="studentName" placeholder="First and last name" style="width:100%;padding:10px 12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;box-sizing:border-box;">
-                      <div style="margin-top:6px;font-size:12px;color:#6B7280;line-height:1.4;">We collect this information for grant purposes only.</div>
                     </div>
                     <div style="flex:1;min-width:220px;">
                       <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:6px;font-size:13px;">Date of Birth *</label>
