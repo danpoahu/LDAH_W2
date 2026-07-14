@@ -11046,18 +11046,14 @@ exports.getConnectGenDocumentDownloadUrl = functions
         expires: expiresAt,
       });
 
+      // No auditLog entry here (2026-07-14). This CF is called once per THUMBNAIL,
+      // so a family with 14 documents produced 14 "URL issued" rows the instant the
+      // vault opened — before anyone had read a word — burying the entries that
+      // actually mean something. The dashboard now writes one "documents viewed"
+      // entry per review session, and one aggregated "documents downloaded" entry,
+      // which is the trail Rosie needs. Kept as a console line for debugging.
       const performedBy = staff.email || staff.name || staff.uid;
-      try {
-        await db.collection("auditLog").add({
-          action: "Connect-Gen document URL issued",
-          details: (signup.name || signup.firstName || "(unknown)") +
-            " — signup " + signupId + " — " + documentType + " — " + storagePath,
-          performedBy,
-          performedByRole: staff.role,
-          timestamp: FieldValue.serverTimestamp(),
-          signupPath: ref.path,
-        });
-      } catch (e) { console.warn("auditLog write failed:", e.message); }
+      console.log("Connect-Gen doc URL issued:", performedBy, signupId, documentType, storagePath);
 
       res.status(200).json({ ok: true, url, expiresAt });
     } catch (err) {

@@ -283,6 +283,16 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
     }
+    // Record of every confidential document taken OFF the platform — backs the
+    // Documents Downloaded report (2026-07-14). Create-only, like auditLog: a
+    // record of data leaving that staff could edit or delete would be worthless.
+    // Read is admin-only; these rows name families and their files.
+    match /documentDownloads/{document=**} {
+      allow read: if request.auth != null
+        && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin', 'admin'];
+      allow create: if request.auth != null;
+      allow update, delete: if false;
+    }
     match /emailLog/{document=**} {
       // Only superAdmin and admin can read the email log. Cloud Functions
       // write via admin SDK (bypasses rules); clients cannot write.
