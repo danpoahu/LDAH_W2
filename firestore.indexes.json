@@ -124,17 +124,32 @@
       "collectionGroup": "photoReleases",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "island", "order": "ASCENDING" },
-        { "fieldPath": "state", "order": "ASCENDING" }
+        {
+          "fieldPath": "island",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "interactions",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "photoReleaseId", "order": "ASCENDING" },
-        { "fieldPath": "workflowStep", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" }
+        {
+          "fieldPath": "photoReleaseId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "workflowStep",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
       ]
     }
   ],
@@ -223,6 +238,20 @@
         },
         {
           "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "signups",
+      "fieldPath": "prepToken",
+      "indexes": [
+        {
+          "order": "ASCENDING",
           "queryScope": "COLLECTION"
         },
         {

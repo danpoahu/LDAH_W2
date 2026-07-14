@@ -1182,6 +1182,16 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
     const isConnectGen = event && event.zoomMode === "program";
     const isParentTalkCafe = event && event.zoomMode === "parent_talk_cafe";
 
+    // The prep token is minted by ensureConnectGenPrepToken(), wired to the
+    // signup create AND update triggers. It must NOT live here: this function
+    // returns early on several email-idempotence guards (already-sent, wrong
+    // status transition), so a token minted at this point would simply never
+    // appear for most signups.
+    if (isConnectGen && !after.prepToken) {
+      const fresh = await change.after.ref.get();
+      after.prepToken = (fresh.data() || {}).prepToken || null;
+    }
+
     // Status gate (deferred from earlier so we know if this is Connect-Gen).
     // Non-Connect-Gen requires status='confirmed'. Connect-Gen allows
     // status='pending' so the consent-required email can fire while the
@@ -2274,10 +2284,51 @@ exports.findSiblingPendingSignups = functions
     }
   });
 
+// ── Prep token (2026-07-14) ──────────────────────────────────────────────────
+// Minted for EVERY Connect-Gen signup, whatever the session type.
+//
+// The Parent Report Worksheet is required of all families, but only Monday
+// virtual families sign a consent — and the consent is what mints
+// uploadAuthToken. In-person families therefore have no token at all, and
+// nothing could authenticate a worksheet link for them. This is that key.
+//
+// Deliberately its own function, called from the create AND update triggers,
+// rather than living inside maybeSendRegistrationConfirmation: that function
+// bails out early on email-idempotence guards (already sent, wrong status
+// transition), so a token minted in there would never appear for most signups.
+// Caught by an end-to-end test against a real signup, which produced no token.
+//
+// uploadAuthToken is untouched; document upload is unchanged.
+async function ensureConnectGenPrepToken(ref, signup, collection, eventId) {
+  try {
+    if (!signup || signup.archived === true) return null;
+    if (signup.prepToken) return signup.prepToken;
+
+    const evSnap = await admin.firestore().collection(collection).doc(eventId).get();
+    const event = evSnap.exists ? (evSnap.data() || {}) : null;
+    if (!event || event.zoomMode !== "program") return null;   // Connect-Gen only
+
+    const prepToken = crypto.randomBytes(24).toString("hex");
+    await ref.update({
+      prepToken,
+      prepTokenExpiresAt: admin.firestore.Timestamp.fromMillis(
+        Date.now() + CONNECT_GEN_PREP_TOKEN_TTL_MS),
+    });
+    console.log("prepToken minted for signup", ref.path);
+    return prepToken;
+  } catch (e) {
+    // Never let this break a signup. A missing token is recoverable; a failed
+    // registration is not.
+    console.error("ensureConnectGenPrepToken failed (non-fatal):", e.message);
+    return null;
+  }
+}
+
 exports.onEventSignupCreated = functions
   .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: EMAIL_SECRETS })
   .firestore.document("events/{eventId}/signups/{signupId}")
   .onCreate(async (snap, context) => {
+    await ensureConnectGenPrepToken(snap.ref, snap.data() || {}, "events", context.params.eventId);
     return handleSignupCreated(snap, context, "events");
   });
 
@@ -2285,6 +2336,7 @@ exports.onRecurringEventSignupCreated = functions
   .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: EMAIL_SECRETS })
   .firestore.document("recurringEvents/{eventId}/signups/{signupId}")
   .onCreate(async (snap, context) => {
+    await ensureConnectGenPrepToken(snap.ref, snap.data() || {}, "recurringEvents", context.params.eventId);
     return handleSignupCreated(snap, context, "recurringEvents");
   });
 
@@ -3124,6 +3176,10 @@ exports.onEventSignupUpdated = functions
   .runWith({ timeoutSeconds: 60, maxInstances: 10, secrets: EMAIL_SECRETS })
   .firestore.document("events/{eventId}/signups/{signupId}")
   .onUpdate(async (change, context) => {
+    // Backfills a prep token onto signups that pre-date the worksheet, and
+    // covers any create-trigger miss. No-op once the token exists.
+    await ensureConnectGenPrepToken(
+      change.after.ref, change.after.data() || {}, "events", context.params.eventId);
     await Promise.allSettled([
       handleSignupUpdated(change, context),
       maybeSendCatchupReminder(change, context, "events"),
@@ -3138,6 +3194,10 @@ exports.onRecurringEventSignupUpdated = functions
   .runWith({ timeoutSeconds: 60, maxInstances: 10, secrets: EMAIL_SECRETS })
   .firestore.document("recurringEvents/{eventId}/signups/{signupId}")
   .onUpdate(async (change, context) => {
+    // Backfills a prep token onto signups that pre-date the worksheet, and
+    // covers any create-trigger miss. No-op once the token exists.
+    await ensureConnectGenPrepToken(
+      change.after.ref, change.after.data() || {}, "recurringEvents", context.params.eventId);
     await Promise.allSettled([
       handleSignupUpdated(change, context),
       maybeSendCatchupReminder(change, context, "recurringEvents"),
@@ -9529,6 +9589,61 @@ const CONNECT_GEN_UPLOAD_MAX_BYTES = 50 * 1024 * 1024; // 50 MB
 // Families can send up to 7 of each document type (2026-07-14).
 const CONNECT_GEN_MAX_DOCS_PER_TYPE = 7;
 
+// ── Parent Report Worksheet (2026-07-14) ────────────────────────────────────
+// The prep token authenticates a family to the worksheet form. Long-lived: a
+// family may sign up months ahead, and an expired link is a family that gives
+// up rather than one that is more secure. 120 days.
+const CONNECT_GEN_PREP_TOKEN_TTL_MS = 120 * 24 * 60 * 60 * 1000;
+const CONNECT_GEN_WORKSHEET_BASE_URL = "https://www.ldahawaii.org/connect-gen-worksheet.html";
+
+// A concern is the paper form's five columns (A–E). All five must be answered,
+// but "n/a" is a valid answer — many parents genuinely will not know what
+// assessment is needed, and that is precisely what the session is for.
+const CONNECT_GEN_WORKSHEET_FIELDS = ["a", "b", "c", "d", "e"];
+const CONNECT_GEN_WORKSHEET_MAX_CONCERNS = 20;   // a wall of text helps nobody
+const CONNECT_GEN_WORKSHEET_MAX_CHARS = 1500;    // per field
+
+// Find the active signup by prepToken and check it hasn't expired.
+async function _findConnectGenSignupByPrepToken(db, token) {
+  if (!token) return null;
+  const snap = await db.collectionGroup("signups")
+    .where("prepToken", "==", token)
+    .limit(1)
+    .get();
+  if (snap.empty) return null;
+  const doc = snap.docs[0];
+  const signup = doc.data() || {};
+  if (signup.archived === true) return null;
+  const exp = signup.prepTokenExpiresAt;
+  if (exp && exp.toMillis && exp.toMillis() < Date.now()) return null;
+  return { doc, signup };
+}
+
+// Normalise whatever the client sent into a clean concerns array. Trusting the
+// client's shape here would let a bad payload land in a child's record.
+function _sanitiseWorksheetConcerns(raw) {
+  const list = Array.isArray(raw) ? raw : [];
+  const out = [];
+  for (const item of list.slice(0, CONNECT_GEN_WORKSHEET_MAX_CONCERNS)) {
+    if (!item || typeof item !== "object") continue;
+    const concern = {};
+    let hasAny = false;
+    for (const f of CONNECT_GEN_WORKSHEET_FIELDS) {
+      const v = String(item[f] == null ? "" : item[f]).trim().slice(0, CONNECT_GEN_WORKSHEET_MAX_CHARS);
+      concern[f] = v;
+      if (v) hasAny = true;
+    }
+    if (hasAny) out.push(concern);
+  }
+  return out;
+}
+
+// Complete = at least one concern with ALL five fields answered. "n/a" counts.
+function _isWorksheetComplete(concerns) {
+  const list = Array.isArray(concerns) ? concerns : [];
+  return list.some((c) => CONNECT_GEN_WORKSHEET_FIELDS.every((f) => c && String(c[f] || "").trim()));
+}
+
 // connectGenDocuments.{iep|evaluation} used to hold ONE record. It now holds a
 // list of up to CONNECT_GEN_MAX_DOCS_PER_TYPE. Signups created before this
 // change still carry the single-object shape, so every reader normalises
@@ -10900,6 +11015,200 @@ exports.setConnectGenDisposition = functions
       res.status(200).json({ ok: true });
     } catch (err) {
       console.error("setConnectGenDisposition error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+// ══ Parent Report Worksheet (2026-07-14) ═══════════════════════════════════
+// Web version of "Concerns Affecting Education". Authenticated by prepToken,
+// which every Connect-Gen signup carries — including in-person families, who
+// never sign a consent and so have no other token.
+
+exports.getConnectGenWorksheet = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "GET") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const token = String(req.query.token || "").trim();
+    if (!token) { res.status(400).json({ error: "Missing token" }); return; }
+
+    try {
+      const db = admin.firestore();
+      const found = await _findConnectGenSignupByPrepToken(db, token);
+      if (!found) {
+        res.status(404).json({ error: "This link is no longer valid. Please contact LDAH at registration@ldahawaii.org." });
+        return;
+      }
+      const s = found.signup;
+      const ws = s.parentWorksheet || {};
+      res.json({
+        ok: true,
+        childName: s.childName || "",
+        parentName: s.name || s.firstName || "",
+        concerns: Array.isArray(ws.concerns) ? ws.concerns : [],
+        completedAt: ws.completedAt ? ws.completedAt.toMillis() : null,
+      });
+    } catch (err) {
+      console.error("getConnectGenWorksheet error:", err.message);
+      res.status(500).json({ error: "Could not load your worksheet. Please try again." });
+    }
+  });
+
+exports.saveConnectGenWorksheet = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const token = String(body.token || "").trim();
+    if (!token) { res.status(400).json({ error: "Missing token" }); return; }
+
+    try {
+      const db = admin.firestore();
+      const found = await _findConnectGenSignupByPrepToken(db, token);
+      if (!found) {
+        res.status(404).json({ error: "This link is no longer valid. Please contact LDAH at registration@ldahawaii.org." });
+        return;
+      }
+
+      const concerns = _sanitiseWorksheetConcerns(body.concerns);
+      if (!concerns.length) {
+        res.status(400).json({ error: "Please describe at least one concern before submitting." });
+        return;
+      }
+      const complete = _isWorksheetComplete(concerns);
+      if (!complete) {
+        res.status(400).json({
+          error: "Please answer all five questions for at least one concern. If you don't know an answer, write \"n/a\".",
+        });
+        return;
+      }
+
+      const existing = found.signup.parentWorksheet || {};
+      const now = admin.firestore.Timestamp.now();
+      await found.doc.ref.update({
+        parentWorksheet: {
+          concerns,
+          // completedAt is stamped once and never moved — it's the record of when
+          // the family first finished, not of their most recent tweak.
+          completedAt: existing.completedAt || now,
+          lastEditedAt: now,
+          lastEditedBy: "parent",
+          staffEdits: Array.isArray(existing.staffEdits) ? existing.staffEdits : [],
+        },
+      });
+
+      try {
+        await db.collection("auditLog").add({
+          action: "Connect-Gen worksheet submitted by parent",
+          details: "Client: " + (found.signup.name || "(unknown)") + " — " + concerns.length +
+                   (concerns.length === 1 ? " concern" : " concerns"),
+          performedBy: found.signup.email || "parent",
+          performedByRole: "parent",
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          signupPath: found.doc.ref.path,
+        });
+      } catch (e) { console.warn("worksheet auditLog failed:", e.message); }
+
+      res.json({ ok: true, concerns: concerns.length });
+    } catch (err) {
+      console.error("saveConnectGenWorksheet error:", err.message);
+      res.status(500).json({ error: "Could not save your worksheet. Please try again." });
+    }
+  });
+
+// Staff edit. Columns D (assessment needed) and E (interventions) are in practice
+// the advocate's, filled in after speaking with the family — but staff may edit
+// any field. Every change is recorded in staffEdits, so the parent's own words
+// are never silently overwritten and can always be recovered.
+exports.staffSaveConnectGenWorksheet = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const eventId = String(body.eventId || "").trim();
+    const signupId = String(body.signupId || "").trim();
+    const preferredCollection = String(body.collection || "").trim();
+
+    let staff;
+    try {
+      staff = await _verifyStaffIdToken(body.idToken);
+    } catch (err) {
+      res.status(err.statusCode || 401).json({ error: err.message }); return;
+    }
+
+    try {
+      const db = admin.firestore();
+      const found = await _findConnectGenSignupDoc(eventId, signupId, preferredCollection);
+      if (!found) { res.status(404).json({ error: "Signup not found" }); return; }
+      const { ref, snap } = found;
+      const signup = snap.data() || {};
+      const existing = signup.parentWorksheet || {};
+      const before = Array.isArray(existing.concerns) ? existing.concerns : [];
+
+      const concerns = _sanitiseWorksheetConcerns(body.concerns);
+      const performedBy = staff.email || staff.name || staff.uid;
+      const now = admin.firestore.Timestamp.now();
+
+      // Diff against what was there, so the trail says exactly what changed.
+      const edits = Array.isArray(existing.staffEdits) ? existing.staffEdits.slice() : [];
+      const changed = [];
+      concerns.forEach((c, i) => {
+        const prev = before[i] || {};
+        CONNECT_GEN_WORKSHEET_FIELDS.forEach((f) => {
+          const was = String(prev[f] || "");
+          const now_ = String(c[f] || "");
+          if (was !== now_) {
+            changed.push((i + 1) + String(f).toUpperCase());
+            edits.push({
+              at: now,                          // Timestamp.now(), never serverTimestamp() — sentinels are rejected inside arrays
+              by: performedBy,
+              field: (i + 1) + "." + f,
+              from: was.slice(0, 300),
+              to: now_.slice(0, 300),
+            });
+          }
+        });
+      });
+
+      await ref.update({
+        parentWorksheet: {
+          concerns,
+          completedAt: existing.completedAt || (_isWorksheetComplete(concerns) ? now : null),
+          lastEditedAt: now,
+          lastEditedBy: performedBy,
+          staffEdits: edits.slice(-200),        // keep the trail bounded
+        },
+      });
+
+      try {
+        await db.collection("auditLog").add({
+          action: "Connect-Gen worksheet edited by staff",
+          details: "Client: " + (signup.name || "(unknown)") +
+                   (changed.length ? " — changed " + changed.join(", ") : " — no field changes"),
+          performedBy,
+          performedByRole: staff.role,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          signupPath: ref.path,
+        });
+      } catch (e) { console.warn("worksheet staff auditLog failed:", e.message); }
+
+      res.json({ ok: true, changed: changed.length });
+    } catch (err) {
+      console.error("staffSaveConnectGenWorksheet error:", err.message);
       res.status(500).json({ error: err.message });
     }
   });
