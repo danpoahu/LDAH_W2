@@ -1317,6 +1317,54 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
       return;
     }
 
+    // In-person Connect-Gen (Thursday Oahu / Hilo / Kona): no consent, no
+    // upload — the family brings the IEP and signs nothing in advance, so the
+    // Parent Report Worksheet is their ONLY requirement. Phase 2 (2026-07-14):
+    // send the NEW "Complete your Parent Report Worksheet" email and LEAVE the
+    // status at 'pending'. Before this, in-person CG signups fell through to the
+    // standard-confirmation path below, which emailed "Confirmed" and flipped
+    // the status the moment they registered — with no worksheet in hand. This
+    // audience has never received a Connect-Gen prep email of any kind. The
+    // status flips to 'confirmed' only once the worksheet is saved, in
+    // _cgMaybeConfirm.
+    if (isConnectGen && !_cgMondayVirtual) {
+      if (after.cgWorksheetRequestEmailSentAt) return;   // send once
+      // The worksheet button is dead without a prepToken. The token is minted
+      // by ensureConnectGenPrepToken (wired to the create AND update triggers),
+      // so a miss here self-heals on the next update — bail rather than mail a
+      // broken link.
+      if (!after.prepToken) {
+        console.warn(`Connect-Gen worksheet-request deferred (no prepToken yet) for ${collection}/${eventId}/${signupId}`);
+        return;
+      }
+      const signatureHtml = await buildSignatureBlock('eventCoordinator');
+      const donateHtml = await buildDonateBlock('universal');
+      const html = buildConnectGenWorksheetRequestEmailHtml({
+        name: recipientName,
+        eventTitle,
+        datesPhrase,
+        locationLine: _cgLocationLine(_sessions),
+        worksheetUrl: _cgWorksheetUrl(after),
+        signatureHtml,
+        donateHtml,
+      });
+      await sendEmailViaResend({
+        from: lifecycleFromAddress(),
+        to: after.email,
+        subject: `Complete your Parent Report Worksheet -- ${eventTitle}`,
+        html,
+        type: "connect-gen-worksheet-request",
+        relatedEventId: eventId,
+        relatedSignupId: signupId,
+        recipientName,
+      });
+      await change.after.ref.set({
+        cgWorksheetRequestEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      console.log(`Connect-Gen worksheet-request email sent to ${after.email} for ${collection}/${eventId}/${signupId}`);
+      return; // status stays 'pending'; the gate confirms once the worksheet lands
+    }
+
     // For non-Connect-Gen events: skip the standard confirmation if any
     // session is within the 3-day catch-up window — the catch-up reminder
     // (which fires from maybeSendCatchupReminder above this in the trigger
@@ -9417,11 +9465,11 @@ exports.submitConnectGenConsent = functions
       // Stamp the signup with the signature record. Keep consentText so we
       // have an immutable snapshot of exactly what they agreed to.
       const ip = (req.headers["x-forwarded-for"] || req.ip || "").toString().split(",")[0].trim();
-      // Flip status from 'pending' → 'confirmed' now that consent is on file.
-      // Non-Connect-Gen signups skip this gate entirely (registration alone
-      // confirms them), but for Connect-Gen the registration form leaves the
-      // signup at 'pending' until this moment.
-      const _statusUpdate = (s.status === "pending") ? { status: "confirmed" } : {};
+      // Phase 2 gate (2026-07-14): signing consent no longer flips the status.
+      // Consent is only ONE of the three requirements for a Monday-virtual
+      // family; the status flip now happens in _cgMaybeConfirm, once documents
+      // and worksheet are in too. Signing consent used to mean "confirmed" —
+      // that was exactly the bug this phase fixes.
 
       // Phase B: mint an uploadAuthToken so the upload step (which runs after
       // we've deleted the original consentToken) has its own short-lived
@@ -9442,7 +9490,6 @@ exports.submitConnectGenConsent = functions
         consentToken: FieldValue.delete(),
         uploadAuthToken,
         uploadAuthExpiresAt,
-        ..._statusUpdate,
       });
 
       // Mirror to the linked contact doc so it surfaces in the contact card.
@@ -9465,79 +9512,64 @@ exports.submitConnectGenConsent = functions
         console.warn("Mirror consent to contact failed (non-fatal):", e.message);
       }
 
-      // Now send the prep-docs email. NO Zoom link in this email — that
-      // arrives in the 5-day + 1-day reminder emails, matching every other
-      // event. This keeps stale Zoom links from showing up weeks before
-      // the session and matches the standard reminder cadence.
+      // Phase 2 (2026-07-14): consent is now just one requirement of three.
+      // Recompute against the single definition. If the family happens to be
+      // ready already (documents + worksheet were done first, then consent
+      // last), _cgMaybeConfirm sends the "You're Confirmed" prep email and
+      // flips the status. Otherwise we send the NEW "Consent received —
+      // here's what's left" email, listing exactly what is still outstanding,
+      // and the signup stays 'pending'. The old behaviour — signing consent
+      // fired "You're Confirmed" (the very email that asked for the documents)
+      // — is what this replaces.
       try {
         const eventId = doc.ref.parent.parent.id;
         const collection = doc.ref.parent.parent.parent.id; // 'recurringEvents' or 'events'
         const eventSnap = await db.collection(collection).doc(eventId).get();
         const event = eventSnap.exists ? (eventSnap.data() || {}) : {};
 
-        const prepSnap = await db.collection("system").doc("connectGenPrepDocs").get();
-        const prepDocs = (prepSnap.exists && Array.isArray(prepSnap.data().docs)) ? prepSnap.data().docs : [];
+        const reqs = await _cgMaybeConfirm(doc.ref, null, event);
 
-        // Stage 3b-2 step 5 (2026-05-11): location collection now sources
-        // from getSignupSessions(signup, event) — the canonical accessor
-        // added in Stage 3b-1. Falls back to legacySessionsForSignup() on
-        // empty result so signups attached to events with non-standard
-        // shapes still get a populated location list.
-        let viaAccessor = 0;
-        let viaLegacy = 0;
-        let sessions = getSignupSessions(s, event);
-        let usedLegacy = false;
-        if (!sessions || sessions.length === 0) {
-          sessions = legacySessionsForSignup(s, event);
-          usedLegacy = sessions.length > 0;
+        // Not ready (the usual case on consent day) → the "what's left" email.
+        if (reqs && reqs.isConnectGen && !reqs.ready) {
+          // Re-read so we hand the freshly minted uploadAuthToken/prepToken to
+          // the button builders.
+          const freshSnap = await doc.ref.get();
+          const fresh = freshSnap.exists ? (freshSnap.data() || {}) : s;
+          if (!fresh.cgConsentReceivedEmailSentAt && fresh.email) {
+            let sessions = getSignupSessions(fresh, event);
+            if (!sessions || sessions.length === 0) sessions = legacySessionsForSignup(fresh, event);
+            const sessionKeys = (sessions || []).map((x) => x && x.dateKey).filter(Boolean);
+            const signatureHtml = await buildSignatureBlock("eventCoordinator");
+            const donateHtml = await buildDonateBlock("universal");
+            const html = buildConnectGenConsentReceivedEmailHtml({
+              name: fresh.name || typedName,
+              eventTitle: event.title || "Connect-Gen",
+              datesPhrase: formatDatesPhrase(sessionKeys),
+              outstanding: reqs.outstanding,
+              outstandingPhrase: _cgOutstandingPhrase(reqs.outstanding),
+              uploadUrl: _cgUploadUrl(fresh),
+              worksheetUrl: _cgWorksheetUrl(fresh),
+              signatureHtml,
+              donateHtml,
+            });
+            await sendEmailViaResend({
+              from: lifecycleFromAddress(),
+              to: fresh.email,
+              subject: "Consent received -- what's left for your Connect-Gen session",
+              html,
+              type: "connect-gen-consent-received",
+              relatedEventId: eventId,
+              relatedSignupId: doc.id,
+              recipientName: fresh.name || typedName,
+            });
+            await doc.ref.update({
+              cgConsentReceivedEmailSentAt: FieldValue.serverTimestamp(),
+            });
+            console.log(`submitConnectGenConsent: consent-received email sent, outstanding=[${(reqs.outstanding || []).join(",")}]`);
+          }
         }
-        if (usedLegacy) viaLegacy++; else if (sessions && sessions.length) viaAccessor++;
-
-        const sessionKeys = (sessions || []).map((x) => x && x.dateKey).filter(Boolean);
-        const datesPhrase = formatDatesPhrase(sessionKeys);
-        const modality = detectSignupModality(s, event);
-        // Collect every distinct non-virtual location from the signup's
-        // canonical sessions. Connect-Gen meets at three separate physical
-        // locations (Oahu, Hilo, Kona) plus virtual Mondays, so a parent
-        // who signed up for sessions on multiple islands should see all
-        // of them listed, not just the first.
-        const inPersonSessions = (sessions || []).filter((x) => x && x.modality !== "virtual" && !!x.location);
-        const locArr = Array.from(new Set(inPersonSessions.map((x) => x.location)));
-        const locationLine = locArr.length === 0 ? ""
-          : locArr.length === 1 ? locArr[0]
-          : locArr.length === 2 ? locArr.join(" and ")
-          : locArr.slice(0, -1).join(", ") + ", and " + locArr[locArr.length - 1];
-        const signatureHtml = await buildSignatureBlock('eventCoordinator');
-        const donateHtml = await buildDonateBlock('universal');
-        const html = buildConnectGenPrepEmailHtml({
-          name: s.name || typedName,
-          eventTitle: event.title || "Connect-Gen",
-          datesPhrase,
-          prepDocs,
-          signatureHtml,
-          donateHtml,
-          modality,
-          locationLine,
-        });
-
-        const fromAddress = lifecycleFromAddress();
-        await sendEmailViaResend({
-          from: fromAddress,
-          to: s.email,
-          subject: "Confirmed -- Connect-Gen prep documents inside",
-          html,
-          type: "connect-gen-prep",
-          relatedEventId: eventId,
-          relatedSignupId: doc.id,
-          recipientName: s.name || typedName,
-        });
-        await doc.ref.update({
-          confirmationEmailSentAt: FieldValue.serverTimestamp(),
-          prepDocsEmailSentAt: FieldValue.serverTimestamp(),
-        });
-        console.log(`submitConnectGenConsent: scanned=1, sent=1, skipped=0, errors=0, viaAccessor=${viaAccessor}, viaLegacy=${viaLegacy}`);
       } catch (e) {
-        console.error("Prep-docs email failed (consent saved):", e.message);
+        console.error("Post-consent email/gate failed (consent saved):", e.message);
       }
 
       // Phase B: return the uploadAuthToken so the consent page can hand it
@@ -9722,6 +9754,252 @@ function _cgOutstandingPhrase(outstanding) {
   if (parts.length <= 1) return parts[0] || "";
   if (parts.length === 2) return parts[0] + " and " + parts[1];
   return parts.slice(0, -1).join(", ") + " and " + parts[parts.length - 1];
+}
+
+// The two links a Connect-Gen family is ever asked to click. Both return "" when
+// the signup has no token, so a caller can decide whether the email is worth
+// sending at all rather than mailing a dead button.
+function _cgWorksheetUrl(signup) {
+  const t = signup && signup.prepToken;
+  return t ? CONNECT_GEN_WORKSHEET_BASE_URL + "?token=" + encodeURIComponent(t) : "";
+}
+function _cgUploadUrl(signup) {
+  const t = signup && signup.uploadAuthToken;
+  return t ? CONNECT_GEN_UPLOAD_BASE_URL + "?upload=" + encodeURIComponent(t) : "";
+}
+
+// Every distinct in-person location on the signup's sessions, as one phrase.
+// Connect-Gen meets at three physical locations (Oahu, Hilo, Kona) plus virtual
+// Mondays, so a family signed up across islands should see all of them.
+function _cgLocationLine(sessions) {
+  const inPerson = (sessions || []).filter((x) => x && x.modality !== "virtual" && !!x.location);
+  const locs = Array.from(new Set(inPerson.map((x) => x.location)));
+  if (locs.length === 0) return "";
+  if (locs.length === 1) return locs[0];
+  if (locs.length === 2) return locs.join(" and ");
+  return locs.slice(0, -1).join(", ") + ", and " + locs[locs.length - 1];
+}
+
+// ── The status gate (2026-07-14, Phase 2) ───────────────────────────────────
+// "Confirmed" used to mean "we have permission to look at this family's file" —
+// it was stamped the instant the consent was signed, before a single document or
+// worksheet existed. It now means what it says: the family is ready.
+//
+// Every place that satisfies a requirement — consent signed, documents confirmed
+// (parent OR staff upload), worksheet saved (parent OR staff) — calls
+// _cgMaybeConfirm. It re-reads the signup, asks _cgRequirements (the single
+// definition), and flips pending -> confirmed only when nothing is outstanding.
+// No caller carries its own copy of the rules.
+//
+// Deliberately non-fatal: a family's IEP must never fail to save because an
+// email bounced or the event doc was slow to load.
+
+// The "You're Confirmed" email — prep documents, Zoom/location details. Same
+// body as before (buildConnectGenPrepEmailHtml); what changed is WHEN it fires.
+// Idempotence stamp: cgConfirmedEmailSentAt.
+async function _cgSendConfirmedEmail(ref, signup, event) {
+  const db = admin.firestore();
+  const FieldValue = admin.firestore.FieldValue;
+  const eventId = ref.parent.parent.id;
+
+  const prepSnap = await db.collection("system").doc("connectGenPrepDocs").get();
+  const prepDocs = (prepSnap.exists && Array.isArray(prepSnap.data().docs)) ? prepSnap.data().docs : [];
+
+  // Canonical accessor first, legacy shape as the fallback — same order as
+  // every other lifecycle email in this file.
+  let sessions = getSignupSessions(signup, event);
+  if (!sessions || sessions.length === 0) sessions = legacySessionsForSignup(signup, event);
+  const sessionKeys = (sessions || []).map((x) => x && x.dateKey).filter(Boolean);
+
+  const recipientName = signup.name || "there";
+  const signatureHtml = await buildSignatureBlock("eventCoordinator");
+  const donateHtml = await buildDonateBlock("universal");
+  const html = buildConnectGenPrepEmailHtml({
+    name: recipientName,
+    eventTitle: event.title || "Connect-Gen",
+    datesPhrase: formatDatesPhrase(sessionKeys),
+    prepDocs,
+    signatureHtml,
+    donateHtml,
+    modality: detectSignupModality(signup, event),
+    locationLine: _cgLocationLine(sessions),
+  });
+
+  await sendEmailViaResend({
+    from: lifecycleFromAddress(),
+    to: signup.email,
+    subject: "Confirmed -- Connect-Gen prep documents inside",
+    html,
+    type: "connect-gen-prep",
+    relatedEventId: eventId,
+    relatedSignupId: ref.id,
+    recipientName,
+  });
+  await ref.update({
+    cgConfirmedEmailSentAt: FieldValue.serverTimestamp(),
+    // Kept for backward compatibility: maybeSendRegistrationConfirmation and the
+    // reminder crons both read confirmationEmailSentAt as "the lifecycle email
+    // for this signup has gone out".
+    confirmationEmailSentAt: FieldValue.serverTimestamp(),
+    prepDocsEmailSentAt: FieldValue.serverTimestamp(),
+  });
+  console.log("Connect-Gen confirmed email sent to", signup.email, "for", ref.path);
+}
+
+// Recompute requirements and, if the family is finally ready, send the
+// confirmation and flip the status. Returns the requirements object (or null if
+// something failed) so callers can tell the family what is still outstanding.
+//
+// signupData/event are what the caller already has; the signup is ALWAYS re-read
+// because the caller has just written the very requirement we are testing, and
+// the copy in its hand is the one from before that write.
+async function _cgMaybeConfirm(ref, signupData, event) {
+  try {
+    const snap = await ref.get();
+    if (!snap.exists) return null;
+    const signup = snap.data() || signupData || {};
+
+    let ev = event;
+    if (!ev) {
+      const parent = ref.parent.parent;                 // events|recurringEvents/{eventId}
+      const evSnap = parent ? await parent.get() : null;
+      ev = (evSnap && evSnap.exists) ? (evSnap.data() || {}) : {};
+    }
+
+    const reqs = _cgRequirements(signup, ev);
+    if (!reqs.isConnectGen || !reqs.ready) return reqs;
+
+    // Email BEFORE the status flip. The flip fires the signup onUpdate trigger,
+    // and maybeSendRegistrationConfirmation returns early once
+    // confirmationEmailSentAt is present — so stamping first is what keeps a
+    // second "Confirmed" email from racing out of that trigger.
+    if (!signup.cgConfirmedEmailSentAt && signup.email) {
+      try {
+        await _cgSendConfirmedEmail(ref, signup, ev);
+      } catch (e) {
+        // The family IS ready. An email failure must not hold their status
+        // hostage — staff can resend, but a stuck 'pending' looks like the
+        // family did nothing.
+        console.error("Connect-Gen confirmed email failed (status still flips):", e.message);
+      }
+    }
+
+    if (signup.status !== "confirmed") {
+      await ref.update({
+        status: "confirmed",
+        cgReadyAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      console.log("_cgMaybeConfirm: all requirements met, status -> confirmed for", ref.path);
+    }
+    return reqs;
+  } catch (e) {
+    console.error("_cgMaybeConfirm failed (non-fatal):", e.message);
+    return null;
+  }
+}
+
+// "Consent received — here's what's left". Sent when the consent is signed but
+// the family is NOT yet ready — which, on the day consent is signed, is every
+// Monday-virtual family (documents and worksheet both still outstanding).
+// It replaces the old behaviour, where signing the consent produced a
+// "You're Confirmed" email that then asked for the documents.
+// Idempotence stamp: cgConsentReceivedEmailSentAt.
+function buildConnectGenConsentReceivedEmailHtml({
+  name, eventTitle, datesPhrase, outstanding, outstandingPhrase, uploadUrl, worksheetUrl, signatureHtml, donateHtml,
+}) {
+  const safeName = lifecycleEsc(name || "there");
+  const safeTitle = lifecycleEsc(eventTitle || "Connect-Gen");
+  const safeDates = lifecycleEsc(datesPhrase || "");
+  const list = outstanding || [];
+  const stepsLeft = list.length === 1 ? "1 step left" : list.length + " steps left";
+
+  const items = {
+    documents: "Send us your child’s most current <strong>IEP</strong> and the <strong>Evaluation</strong> that created it.",
+    worksheet: "Complete the <strong>Parent Report Worksheet</strong> — the concerns you want us to look at. It takes a few minutes and it is what makes the session useful.",
+    consent: "Sign the consent form.",
+  };
+  let checklist = '<ul style="margin:0 0 8px;padding-left:20px;font-size:15px;color:#334155;line-height:1.7">';
+  list.forEach(function (k) { checklist += '<li style="margin:0 0 8px">' + (items[k] || lifecycleEsc(k)) + '</li>'; });
+  checklist += '</ul>';
+
+  let buttons = '';
+  if (list.indexOf("documents") !== -1 && uploadUrl) {
+    buttons += _emailBtn(uploadUrl, "Upload Documents", { bg: "#1a3c6e", align: "center" });
+  }
+  if (list.indexOf("worksheet") !== -1 && worksheetUrl) {
+    buttons += _emailBtn(worksheetUrl, "Complete the Worksheet", { bg: "#0891B2", align: "center" });
+  }
+
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"></head>' +
+    '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
+    '<div style="max-width:600px;margin:0 auto;background:#fff">' +
+    '<div style="background-color:#0e7490;background:linear-gradient(135deg,#0e7490,#0891B2);padding:18px 24px 22px;text-align:center;color:#fff">' +
+    '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;">' +
+    '<h1 style="margin:0;font-size:22px;font-weight:700">Consent Received</h1>' +
+    '<p style="margin:6px 0 0;font-size:14px;opacity:.92">' + lifecycleEsc(stepsLeft) + '</p></div>' +
+    '<div style="padding:32px 24px">' +
+    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + safeName + ',</p>' +
+    '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Mahalo for signing your consent form for <strong>' + safeTitle + '</strong>' + (safeDates ? '<strong>' + safeDates + '</strong>' : '') + '. It is on file.</p>' +
+    '<div style="background:#FFFBEB;border:2px solid #F59E0B;border-radius:10px;padding:14px 18px;margin:18px 0;">' +
+      '<div style="font-weight:700;color:#92400E;font-size:1rem;margin-bottom:8px;">Your appointment is not confirmed yet</div>' +
+      '<div style="font-size:.95rem;color:#78350F;line-height:1.5;">We still need ' + lifecycleEsc(outstandingPhrase || "a few things from you") + '. As soon as we have everything, we will send your confirmation with the prep documents and session details.</div>' +
+    '</div>' +
+    '<div style="font-weight:700;color:#0F172A;margin:20px 0 10px;">What is left</div>' +
+    checklist +
+    '<p style="text-align:center;margin:26px 0">' + buttons + '</p>' +
+    '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6">Please do this as soon as you can. Our staff need a few days before your session to read what you send and prepare guidance that is actually useful to your family.</p>' +
+    '<p style="margin:24px 0 4px;font-size:15px;color:#333;line-height:1.5;">Questions? Reach out anytime.</p>' +
+    '<p style="margin:0 0 4px;font-size:15px;color:#333;line-height:1.5;">With gratitude,</p>' +
+    (donateHtml || '') +
+    (signatureHtml || '') +
+    '</div></div></body></html>';
+}
+
+// "Complete your Parent Report Worksheet" — the in-person families (Thursday
+// Oahu, Hilo, Kona). They sign no consent and upload nothing, so they have never
+// received a Connect-Gen prep email of any kind: this is a brand-new audience.
+// The worksheet is their ONLY requirement, and the only thing standing between
+// them and a confirmed appointment.
+// Idempotence stamp: cgWorksheetRequestEmailSentAt.
+function buildConnectGenWorksheetRequestEmailHtml({
+  name, eventTitle, datesPhrase, locationLine, worksheetUrl, signatureHtml, donateHtml,
+}) {
+  const safeName = lifecycleEsc(name || "there");
+  const safeTitle = lifecycleEsc(eventTitle || "Connect-Gen");
+  const safeDates = lifecycleEsc(datesPhrase || "");
+  const safeLocation = lifecycleEsc(locationLine || "");
+
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"></head>' +
+    '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
+    '<div style="max-width:600px;margin:0 auto;background:#fff">' +
+    '<div style="background-color:#0e7490;background:linear-gradient(135deg,#0e7490,#0891B2);padding:18px 24px 22px;text-align:center;color:#fff">' +
+    '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;">' +
+    '<h1 style="margin:0;font-size:22px;font-weight:700">One Step to Confirm</h1></div>' +
+    '<div style="padding:32px 24px">' +
+    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + safeName + ',</p>' +
+    '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Mahalo for signing up for <strong>' + safeTitle + '</strong>' + (safeDates ? '<strong>' + safeDates + '</strong>' : '') + '. There is one thing we need before your appointment is confirmed: your <strong>Parent Report Worksheet</strong>.</p>' +
+    '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">The worksheet tells us what you are worried about, in your own words, before we sit down together. It is what turns two hours into two useful hours.</p>' +
+    '<p style="text-align:center;margin:28px 0">' +
+    _emailBtn(worksheetUrl, "Complete Your Worksheet", { bg: "#0891B2", align: "center" }) +
+    '</p>' +
+    '<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:16px;margin:16px 0;font-size:.95rem;color:#475569;line-height:1.6;">' +
+      '<div style="font-weight:700;color:#0F172A;margin-bottom:6px;">You do not need to have the answers</div>' +
+      'The worksheet asks five questions about each concern — including what testing might be needed. If you do not know, write <strong>n/a</strong>. Working that out with you is exactly what the session is for.' +
+    '</div>' +
+    '<div style="background:#FFFBEB;border:2px solid #F59E0B;border-radius:10px;padding:14px 18px;margin:18px 0;">' +
+      '<div style="font-weight:700;color:#92400E;font-size:1rem;margin-bottom:4px;">Please bring to the session</div>' +
+      '<div style="font-size:.95rem;color:#78350F;line-height:1.5;">Your child’s most current <strong>IEP</strong> and the <strong>Evaluation that created the IEP</strong>. We will not be able to do a meaningful review without both of these on hand.</div>' +
+    '</div>' +
+    (safeLocation
+      ? '<div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:14px 18px;margin:16px 0;font-size:.92rem;color:#14532D;line-height:1.5;">' +
+        '<strong>Location:</strong> Please join us in person at <strong>' + safeLocation + '</strong>. We will send a reminder with everything you need 3 days before the session and again on the day of.' +
+        '</div>'
+      : '') +
+    '<p style="margin:24px 0 4px;font-size:15px;color:#333;line-height:1.5;">Questions? Reach out anytime.</p>' +
+    '<p style="margin:0 0 4px;font-size:15px;color:#333;line-height:1.5;">With gratitude,</p>' +
+    (donateHtml || '') +
+    (signatureHtml || '') +
+    '</div></div></body></html>';
 }
 
 // connectGenDocuments.{iep|evaluation} used to hold ONE record. It now holds a
@@ -9991,6 +10269,10 @@ exports.confirmConnectGenUpload = functions
           signupPath: doc.ref.path,
         });
       } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+      // Phase 2 gate: documents may have been the last thing outstanding.
+      // Recompute and confirm if the family is now ready. Non-fatal.
+      await _cgMaybeConfirm(doc.ref, null, null);
 
       res.status(200).json({ ok: true });
     } catch (err) {
@@ -11198,6 +11480,10 @@ exports.saveConnectGenWorksheet = functions
         });
       } catch (e) { console.warn("worksheet auditLog failed:", e.message); }
 
+      // Phase 2 gate: the worksheet is every family's last (in-person: only)
+      // requirement. Recompute and confirm if the family is now ready. Non-fatal.
+      await _cgMaybeConfirm(found.doc.ref, null, null);
+
       res.json({ ok: true, concerns: concerns.length });
     } catch (err) {
       console.error("saveConnectGenWorksheet error:", err.message);
@@ -11285,6 +11571,10 @@ exports.staffSaveConnectGenWorksheet = functions
           signupPath: ref.path,
         });
       } catch (e) { console.warn("worksheet staff auditLog failed:", e.message); }
+
+      // Phase 2 gate: a staff-completed worksheet can be the last outstanding
+      // requirement. Recompute and confirm if the family is now ready. Non-fatal.
+      await _cgMaybeConfirm(ref, null, null);
 
       res.json({ ok: true, changed: changed.length });
     } catch (err) {
@@ -11700,6 +11990,10 @@ exports.confirmStaffConnectGenUpload = functions
           signupPath: ref.path,
         });
       } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+      // Phase 2 gate: a staff re-upload can be the last outstanding
+      // requirement. Recompute and confirm if the family is now ready. Non-fatal.
+      await _cgMaybeConfirm(ref, null, null);
 
       res.status(200).json({ ok: true });
     } catch (err) {
