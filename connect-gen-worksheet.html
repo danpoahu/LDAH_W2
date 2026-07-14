@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Complete your Connect-Gen Parent Report Worksheet.">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Parent Report Worksheet - LDAH</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+    :root {
+        --ocean-deep: #0891B2;
+        --ocean-mid: #06B6D4;
+        --ocean-light: #22D3EE;
+        --sunset-coral: #F97316;
+        --sunset-warm: #FB923C;
+        --sunset-light: #FED7AA;
+        --sand: #FEF3C7;
+        --sand-light: #FFFBEB;
+        --palm: #65A30D;
+        --plumeria: #FBBF24;
+        --white: #FFFFFF;
+        --text-dark: #1E293B;
+        --text-soft: #64748B;
+        --bg-warm: #FEFDFB;
+        --primary-blue: #0891B2;
+        --light-blue: #06B6D4;
+        --accent-teal: #22D3EE;
+        --bg-light: #FFFBEB;
+        --text-light: #64748B;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+        font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        color: var(--text-dark);
+        line-height: 1.7;
+        background: var(--bg-warm);
+        overflow-x: hidden;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+    }
+
+    h1, h2, h3 {
+        font-family: 'Outfit', sans-serif;
+        font-weight: 600;
+        line-height: 1.3;
+    }
+
+    /* Simple branded header (no full nav) */
+    .page-header {
+        background: rgba(255, 255, 255, 0.97);
+        backdrop-filter: blur(12px);
+        box-shadow: 0 1px 20px rgba(8, 145, 178, 0.08);
+        border-bottom: 1px solid rgba(8, 145, 178, 0.1);
+    }
+
+    .page-header-inner {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 1rem 2rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .page-header img {
+        width: 72px;
+        height: 72px;
+        flex-shrink: 0;
+    }
+
+    .page-header .header-text h1 {
+        color: var(--primary-blue);
+        font-size: 1.4rem;
+        font-weight: 600;
+        margin: 0;
+    }
+
+    .page-header .header-text p {
+        color: var(--text-light);
+        font-size: 0.95rem;
+        margin: 0;
+        line-height: 1.4;
+    }
+
+    /* Hero */
+    .hero-section {
+        padding: 2rem;
+        background: linear-gradient(135deg, #0891B2 0%, #06B6D4 100%);
+        color: white;
+        text-align: center;
+        height: 160px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .hero-section h2 {
+        font-size: 1.9rem;
+        margin-bottom: 0.4rem;
+        font-family: 'Outfit', sans-serif;
+        font-weight: 600;
+        letter-spacing: -0.5px;
+        color: white;
+    }
+
+    .hero-section p {
+        font-size: 1rem;
+        max-width: 600px;
+        margin: 0 auto;
+        line-height: 1.5;
+        opacity: 0.95;
+    }
+
+    /* Main wrapper */
+    .main-wrap {
+        flex: 1;
+        max-width: 720px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 40px 20px 60px;
+    }
+
+    .card {
+        background: white;
+        border-radius: 20px;
+        padding: 2.5rem;
+        box-shadow: 0 4px 20px rgba(0, 78, 124, 0.10);
+        border: 1px solid rgba(8, 145, 178, 0.08);
+    }
+
+    .card.message-card { text-align: center; }
+    .card.message-card h3 { color: var(--primary-blue); font-size: 1.4rem; margin-bottom: 0.75rem; }
+    .card.message-card p { color: var(--text-light); font-size: 1.02rem; }
+    .card.message-card a { color: var(--primary-blue); text-decoration: none; font-weight: 600; }
+    .card.message-card a:hover { text-decoration: underline; }
+
+    /* Status / loading state */
+    .loading-state { text-align: center; padding: 3rem 1rem; color: var(--text-light); }
+    .loading-spinner {
+        display: inline-block;
+        width: 36px;
+        height: 36px;
+        border: 3px solid rgba(8, 145, 178, 0.2);
+        border-top-color: var(--primary-blue);
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+        margin-bottom: 1rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Urgency banner — matches consent-page banner */
+    .urgency-banner {
+        background: #FFFBEB;
+        border: 1.5px solid #F59E0B;
+        border-left: 4px solid #D97706;
+        color: #78350F;
+        border-radius: 10px;
+        padding: 0.85rem 1.1rem;
+        margin-bottom: 1.25rem;
+        font-size: 0.95rem;
+        line-height: 1.55;
+    }
+    .urgency-banner strong { color: #7C2D12; }
+
+    /* Buttons */
+    .button-row {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-top: 1.5rem;
+    }
+
+    .btn {
+        flex: 1;
+        min-width: 200px;
+        padding: 0.85rem 1.5rem;
+        font-family: inherit;
+        font-size: 1rem;
+        font-weight: 600;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: 2px solid transparent;
+        text-align: center;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, var(--ocean-mid), var(--accent-teal));
+        color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(8, 145, 178, 0.3);
+    }
+
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    /* Inline error */
+    .inline-error {
+        background: #FEE2E2;
+        border: 1px solid #FCA5A5;
+        color: #991B1B;
+        border-radius: 10px;
+        padding: 0.8rem 1rem;
+        margin-top: 1rem;
+        font-size: 0.95rem;
+        display: none;
+    }
+    .inline-error.visible { display: block; }
+
+    /* Footer */
+    footer {
+        background: var(--text-dark);
+        color: white;
+        padding: 1.75rem 2rem 1rem;
+        position: relative;
+        overflow: hidden;
+        margin-top: auto;
+    }
+
+    .footer-islands {
+        position: absolute;
+        right: -5%;
+        bottom: -20%;
+        width: 40%;
+        color: white;
+        opacity: 0.03;
+        transform: scaleY(-1);
+        pointer-events: none;
+    }
+
+    .footer-content {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.4rem;
+        margin-bottom: 1rem;
+        position: relative;
+        z-index: 1;
+    }
+
+    .footer-section h3 {
+        color: var(--plumeria);
+        margin-bottom: 0.7rem;
+        font-family: 'Outfit', sans-serif;
+        font-size: 1rem;
+    }
+
+    .footer-section p {
+        color: rgba(255, 255, 255, 0.7);
+        line-height: 1.5;
+        font-size: 0.9rem;
+    }
+
+    .footer-section a {
+        color: rgba(255, 255, 255, 0.7);
+        text-decoration: none;
+        display: block;
+        margin-bottom: 0.35rem;
+        transition: color 0.25s ease;
+        font-size: 0.9rem;
+    }
+
+    .footer-section a:hover { color: var(--plumeria); }
+
+    .footer-bottom {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding-top: 1rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        text-align: center;
+        color: rgba(255, 255, 255, 0.5);
+        position: relative;
+        z-index: 1;
+        font-size: 0.85rem;
+    }
+    .footer-bottom p { margin: 0.25rem 0; }
+
+    /* Upload card */
+    .upload-card h3 {
+        color: var(--primary-blue);
+        font-size: 1.4rem;
+        margin-bottom: 0.6rem;
+    }
+
+    .upload-card .upload-intro {
+        color: var(--text-light);
+        font-size: 1rem;
+        line-height: 1.6;
+        margin-bottom: 1.5rem;
+    }
+
+    .upload-success {
+        background: #ECFDF5;
+        border: 1px solid #6EE7B7;
+        color: #065F46;
+        border-radius: 10px;
+        padding: 0.85rem 1rem;
+        margin-top: 1rem;
+        font-size: 0.95rem;
+        display: none;
+    }
+    .upload-success.visible { display: block; }
+
+    .file-picker {
+        background: var(--bg-light);
+        border: 1.5px dashed #CBD5E1;
+        border-radius: 12px;
+        padding: 1rem 1.1rem;
+        margin-bottom: 1rem;
+        transition: border-color 0.2s, background 0.2s;
+    }
+
+    .file-picker.has-file {
+        border-style: solid;
+        border-color: var(--primary-blue);
+        background: #F0F9FF;
+    }
+
+    /* Staged file list — nothing has been sent yet, so removing is free. */
+    .staged-list {
+        list-style: none;
+        margin: 0.75rem 0 0;
+        padding: 0;
+    }
+
+    .staged-list li {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        background: #fff;
+        border: 1px solid #E2E8F0;
+        border-radius: 8px;
+        padding: 0.5rem 0.6rem 0.5rem 0.75rem;
+        margin-bottom: 0.4rem;
+        font-size: 0.9rem;
+    }
+
+    .staged-list .staged-num {
+        font-weight: 700;
+        color: var(--primary-blue);
+        flex: none;
+    }
+
+    .staged-list .staged-name {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--text-dark);
+    }
+
+    .staged-list .staged-size {
+        flex: none;
+        color: #64748B;
+        font-size: 0.84rem;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .staged-list .staged-size .shrunk {
+        color: #059669;
+        font-weight: 600;
+    }
+
+    .staged-list .staged-remove {
+        flex: none;
+        width: 28px;
+        height: 28px;
+        border: 1px solid #FECACA;
+        background: #FEF2F2;
+        color: #DC2626;
+        border-radius: 6px;
+        font-size: 1rem;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .staged-list .staged-remove:hover { background: #FEE2E2; border-color: #FCA5A5; }
+    .staged-list .staged-remove:focus-visible { outline: 2px solid #DC2626; outline-offset: 1px; }
+
+    .staged-list li.uploading { border-color: #93C5FD; background: #EFF6FF; }
+    .staged-list li.done { border-color: #6EE7B7; background: #ECFDF5; }
+    .staged-list li.failed { border-color: #FCA5A5; background: #FEF2F2; }
+    .staged-list li .staged-state { flex: none; font-size: 0.8rem; font-weight: 600; }
+
+    .staged-total {
+        font-size: 0.86rem;
+        color: #475569;
+        margin: 0.25rem 0 0.75rem;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .photo-tip {
+        background: #FFFBEB;
+        border: 1px solid #FDE68A;
+        border-radius: 10px;
+        padding: 0.7rem 0.9rem;
+        margin: 0 0 1rem;
+        font-size: 0.9rem;
+        color: #92400E;
+        line-height: 1.5;
+    }
+
+
+    .file-picker label.file-label {
+        display: block;
+        font-weight: 600;
+        color: var(--text-dark);
+        margin-bottom: 0.4rem;
+        font-size: 0.97rem;
+    }
+
+    .file-picker .file-helper {
+        display: block;
+        font-size: 0.85rem;
+        color: var(--text-light);
+        margin-bottom: 0.55rem;
+        font-weight: 400;
+    }
+
+    .file-picker input[type="file"] { display: none; }
+
+    .file-picker .file-pick-btn {
+        display: inline-block;
+        background: white;
+        color: var(--primary-blue);
+        border: 1.5px solid var(--primary-blue);
+        border-radius: 8px;
+        padding: 0.55rem 1.1rem;
+        font-size: 0.93rem;
+        font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .file-picker .file-pick-btn:hover { background: var(--bg-light); }
+
+    .file-picker .file-meta {
+        display: none;
+        margin-top: 0.55rem;
+        padding: 0.5rem 0.75rem;
+        background: white;
+        border: 1px solid #E2E8F0;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        color: var(--text-dark);
+        word-break: break-all;
+    }
+    .file-picker.has-file .file-meta { display: block; }
+
+    .file-picker .file-meta .file-size {
+        color: var(--text-light);
+        font-size: 0.82rem;
+        margin-left: 0.4rem;
+    }
+
+    .upload-helper-text {
+        display: block;
+        text-align: center;
+        font-size: 0.83rem;
+        color: var(--text-light);
+        margin-top: 0.85rem;
+        line-height: 1.5;
+    }
+
+    @media (max-width: 600px) {
+        .page-header-inner { padding: 0.75rem 1rem; gap: 0.75rem; }
+        .page-header img { width: 56px; height: 56px; }
+        .page-header .header-text h1 { font-size: 1.15rem; }
+        .page-header .header-text p { font-size: 0.85rem; }
+        .hero-section { height: auto; padding: 1.75rem 1rem; }
+        .hero-section h2 { font-size: 1.55rem; }
+        .hero-section p { font-size: 0.93rem; }
+        .card { padding: 1.5rem; }
+        .main-wrap { padding: 24px 14px 40px; }
+        .button-row { flex-direction: column; }
+        .btn { min-width: 0; width: 100%; }
+        .upload-card h3 { font-size: 1.2rem; }
+    }
+
+    /* ── Parent Report Worksheet (2026-07-14) ────────────────────────────────
+       The paper form is a five-column table. On a phone that is unusable, and a
+       phone is where parents fill this in — so each concern becomes a vertical
+       block of five questions. */
+    .intro {
+        font-size: 0.97rem;
+        color: var(--text-light);
+        line-height: 1.6;
+        margin-bottom: 1.25rem;
+    }
+
+    .example {
+        background: var(--bg-light);
+        border: 1px solid #FDE68A;
+        border-radius: 12px;
+        padding: 0.85rem 1.1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .example summary {
+        cursor: pointer;
+        font-weight: 600;
+        color: #92400E;
+        font-size: 0.95rem;
+    }
+
+    .example-grid {
+        display: grid;
+        gap: 0.6rem;
+        margin-top: 0.85rem;
+    }
+
+    .example-grid > div {
+        font-size: 0.9rem;
+        color: #78350F;
+        line-height: 1.45;
+    }
+
+    .ex-label {
+        display: block;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #B45309;
+        margin-bottom: 1px;
+    }
+
+    .concern {
+        border: 1.5px solid rgba(8, 145, 178, 0.22);
+        border-radius: 14px;
+        padding: 1.1rem 1.15rem 1.2rem;
+        margin-bottom: 1.1rem;
+        background: #fff;
+    }
+
+    .concern-head {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin-bottom: 0.9rem;
+    }
+
+    .concern-num {
+        font-family: 'Outfit', sans-serif;
+        font-weight: 700;
+        font-size: 1.02rem;
+        color: var(--primary-blue);
+    }
+
+    .concern-remove {
+        margin-left: auto;
+        background: #FEF2F2;
+        border: 1px solid #FECACA;
+        color: #DC2626;
+        font-weight: 700;
+        font-size: 0.82rem;
+        padding: 5px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+    }
+
+    .concern-remove:hover { background: #FEE2E2; }
+
+    .q { margin-bottom: 0.95rem; }
+    .q:last-child { margin-bottom: 0; }
+
+    .q label {
+        display: block;
+        font-weight: 600;
+        color: var(--text-dark);
+        font-size: 0.94rem;
+        margin-bottom: 0.3rem;
+    }
+
+    .q .q-hint {
+        display: block;
+        font-size: 0.83rem;
+        color: var(--text-light);
+        font-weight: 400;
+        margin-bottom: 0.4rem;
+        line-height: 1.4;
+    }
+
+    .q textarea {
+        width: 100%;
+        padding: 0.65rem 0.85rem;
+        font-family: inherit;
+        font-size: 0.97rem;
+        color: var(--text-dark);
+        background: #fff;
+        border: 1.5px solid #cbd5e1;
+        border-radius: 10px;
+        resize: vertical;
+        min-height: 62px;
+        box-sizing: border-box;
+    }
+
+    .q textarea:focus {
+        outline: none;
+        border-color: var(--primary-blue);
+        box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.15);
+    }
+
+    .q textarea.missing {
+        border-color: #DC2626;
+        background: #FEF2F2;
+    }
+
+    .btn-add {
+        width: 100%;
+        margin-bottom: 1.25rem;
+        background: #fff;
+        border: 1.5px dashed var(--primary-blue);
+        color: var(--primary-blue);
+        font-weight: 600;
+        padding: 0.8rem;
+        border-radius: 12px;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 0.97rem;
+    }
+
+    .btn-add:hover { background: #F0F9FF; }
+    .btn-add:disabled { opacity: 0.5; cursor: not-allowed; border-style: solid; }
+
+    </style>
+</head>
+<body>
+
+    <header class="page-header">
+        <div class="page-header-inner">
+            <img src="logo_blue.png" alt="LDAH Logo">
+            <div class="header-text">
+                <h1>Parent Report Worksheet</h1>
+                <p>Leadership in Disabilities &amp; Achievement of Hawai'i</p>
+            </div>
+        </div>
+    </header>
+
+    <section class="hero-section">
+        <h2>Concerns Affecting Education</h2>
+        <p>Tell us what worries you about your child's education, so we can make the most of your session.</p>
+    </section>
+
+    <main class="main-wrap">
+
+        <!-- Error / message states -->
+        <div id="messageCard" class="card message-card" style="display: none;">
+            <h3 id="messageTitle"></h3>
+            <p id="messageBody"></p>
+        </div>
+
+        <div id="loadingCard" class="card">
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <p>Loading your worksheet&hellip;</p>
+            </div>
+        </div>
+
+        <div id="worksheetCard" class="card" style="display: none;">
+
+            <div class="resource-summary" id="whoFor"></div>
+
+            <p class="intro">
+                For each concern, answer all five questions. <strong>If you don't know an answer, just write
+                &ldquo;n/a&rdquo;</strong> &mdash; some of these are exactly what we'll work out together in your
+                session. Your answers are saved for the LDAH staff member preparing for your appointment.
+            </p>
+
+            <!-- The worked example from the paper form. It teaches the whole thing in
+                 five lines, and was previously buried in a PDF nobody opened. -->
+            <details class="example" id="exampleBox" open>
+                <summary>See an example</summary>
+                <div class="example-grid">
+                    <div><span class="ex-label">Concern</span>Annie reads slowly and confuses words when reading</div>
+                    <div><span class="ex-label">Evidence of the problem</span>Teacher's notes and report cards mention this concern</div>
+                    <div><span class="ex-label">Factors that relate to the problem</span>Annie wears glasses and may not be able to see the words well</div>
+                    <div><span class="ex-label">Test or assessment needed</span>Vision assessment</div>
+                    <div><span class="ex-label">Possible interventions or services</span>Extra time for reading, reading remediation</div>
+                </div>
+            </details>
+
+            <div id="concerns"></div>
+
+            <button type="button" class="btn btn-secondary btn-add" id="addBtn">+ Add another concern</button>
+
+            <div id="wsError" class="inline-error"></div>
+            <div id="wsSuccess" class="upload-success"></div>
+
+            <div class="button-row">
+                <button type="button" id="submitBtn" class="btn btn-primary">Submit Worksheet</button>
+            </div>
+
+            <span class="upload-helper-text">You can come back and change your answers any time before your session.</span>
+        </div>
+
+    </main>
+
+    <div id="footer-container"></div>
+
+    <script>
+        const ENDPOINT_GET  = 'https://us-central1-ldah-932d5.cloudfunctions.net/getConnectGenWorksheet';
+        const ENDPOINT_SAVE = 'https://us-central1-ldah-932d5.cloudfunctions.net/saveConnectGenWorksheet';
+
+        const MAX_CONCERNS = 20;
+
+        // The five columns of the paper form, as questions a parent can actually
+        // answer. The hints matter: "Describe Type of Test/Assessment Needed" is
+        // jargon, and a parent who doesn't understand it abandons the form.
+        const QUESTIONS = [
+            { key: 'a', label: 'What is your concern?',
+              hint: 'What worries you about your child’s education?' },
+            { key: 'b', label: 'What evidence is there of the problem?',
+              hint: 'Report cards, teacher comments, work brought home, things you’ve noticed at home.' },
+            { key: 'c', label: 'What factors might relate to the problem?',
+              hint: 'Anything that might be contributing — health, eyesight, hearing, attention, changes at home.' },
+            { key: 'd', label: 'What test or assessment do you think is needed?',
+              hint: 'If you don’t know, write “n/a” — this is often what we work out together.' },
+            { key: 'e', label: 'What help, changes or services might your child need?',
+              hint: 'If you don’t know, write “n/a” — we can talk this through in your session.' },
+        ];
+
+        const params = new URLSearchParams(window.location.search);
+        const token = (params.get('token') || params.get('prep') || '').trim();
+
+        const loadingCard   = document.getElementById('loadingCard');
+        const worksheetCard = document.getElementById('worksheetCard');
+        const messageCard   = document.getElementById('messageCard');
+        const concernsEl    = document.getElementById('concerns');
+        const addBtn        = document.getElementById('addBtn');
+        const submitBtn     = document.getElementById('submitBtn');
+        const errEl         = document.getElementById('wsError');
+        const okEl          = document.getElementById('wsSuccess');
+        const whoForEl      = document.getElementById('whoFor');
+
+        let concerns = [];   // [{a,b,c,d,e}]
+
+        function showMessage(title, body) {
+            loadingCard.style.display = 'none';
+            worksheetCard.style.display = 'none';
+            document.getElementById('messageTitle').textContent = title;
+            document.getElementById('messageBody').innerHTML = body;
+            messageCard.style.display = 'block';
+        }
+
+        function showError(msg) {
+            errEl.textContent = msg;
+            errEl.classList.add('visible');
+            okEl.classList.remove('visible');
+            errEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        function clearError() {
+            errEl.textContent = '';
+            errEl.classList.remove('visible');
+        }
+
+        function showSuccess(msg) {
+            okEl.textContent = msg;
+            okEl.classList.add('visible');
+            errEl.classList.remove('visible');
+        }
+
+        function render() {
+            concernsEl.innerHTML = '';
+            concerns.forEach(function (c, i) {
+                const box = document.createElement('div');
+                box.className = 'concern';
+
+                const head = document.createElement('div');
+                head.className = 'concern-head';
+                const num = document.createElement('span');
+                num.className = 'concern-num';
+                num.textContent = 'Concern ' + (i + 1);
+                head.appendChild(num);
+
+                // Never let them remove the last one — the form needs at least one.
+                if (concerns.length > 1) {
+                    const rm = document.createElement('button');
+                    rm.type = 'button';
+                    rm.className = 'concern-remove';
+                    rm.textContent = 'Remove';
+                    rm.addEventListener('click', function () {
+                        concerns.splice(i, 1);
+                        clearError();
+                        render();
+                    });
+                    head.appendChild(rm);
+                }
+                box.appendChild(head);
+
+                QUESTIONS.forEach(function (q) {
+                    const wrap = document.createElement('div');
+                    wrap.className = 'q';
+
+                    const label = document.createElement('label');
+                    label.textContent = q.label;
+                    const hint = document.createElement('span');
+                    hint.className = 'q-hint';
+                    hint.textContent = q.hint;
+                    label.appendChild(hint);
+
+                    const ta = document.createElement('textarea');
+                    ta.value = c[q.key] || '';
+                    ta.rows = 2;
+                    ta.maxLength = 1500;
+                    ta.setAttribute('aria-label', 'Concern ' + (i + 1) + ': ' + q.label);
+                    ta.addEventListener('input', function () {
+                        concerns[i][q.key] = ta.value;
+                        ta.classList.remove('missing');
+                    });
+
+                    wrap.appendChild(label);
+                    wrap.appendChild(ta);
+                    box.appendChild(wrap);
+                });
+
+                concernsEl.appendChild(box);
+            });
+
+            addBtn.disabled = concerns.length >= MAX_CONCERNS;
+            addBtn.textContent = addBtn.disabled
+                ? 'Maximum of ' + MAX_CONCERNS + ' concerns'
+                : '+ Add another concern';
+        }
+
+        addBtn.addEventListener('click', function () {
+            if (concerns.length >= MAX_CONCERNS) return;
+            concerns.push({ a: '', b: '', c: '', d: '', e: '' });
+            clearError();
+            render();
+            // Put them straight into the new block rather than making them hunt for it.
+            const boxes = concernsEl.querySelectorAll('.concern');
+            const last = boxes[boxes.length - 1];
+            if (last) {
+                last.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                const first = last.querySelector('textarea');
+                if (first) setTimeout(function () { first.focus(); }, 300);
+            }
+        });
+
+        // Complete = at least one concern with all five answered. "n/a" counts —
+        // the server applies the same rule.
+        function firstIncomplete() {
+            const anyComplete = concerns.some(function (c) {
+                return QUESTIONS.every(function (q) { return String(c[q.key] || '').trim(); });
+            });
+            if (anyComplete) return null;
+            // Nothing is complete: point at the first gap in the first concern.
+            for (let i = 0; i < concerns.length; i++) {
+                for (const q of QUESTIONS) {
+                    if (!String(concerns[i][q.key] || '').trim()) return { i: i, key: q.key };
+                }
+            }
+            return { i: 0, key: 'a' };
+        }
+
+        submitBtn.addEventListener('click', async function () {
+            clearError();
+
+            const gap = firstIncomplete();
+            if (gap) {
+                // Mark every empty box in that concern, so they can see the whole gap.
+                const boxes = concernsEl.querySelectorAll('.concern');
+                const box = boxes[gap.i];
+                if (box) {
+                    const tas = box.querySelectorAll('textarea');
+                    QUESTIONS.forEach(function (q, qi) {
+                        if (!String(concerns[gap.i][q.key] || '').trim() && tas[qi]) {
+                            tas[qi].classList.add('missing');
+                        }
+                    });
+                    box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+                showError('Please answer all five questions for at least one concern. If you don’t know an answer, write “n/a”.');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Saving…';
+            try {
+                const res = await fetch(ENDPOINT_SAVE, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: token, concerns: concerns }),
+                });
+                const j = await res.json().catch(function () { return {}; });
+                if (!res.ok) throw new Error(j.error || 'Could not save. Please try again.');
+
+                showSuccess('Mahalo — your worksheet has been saved. You can change your answers any time before your session.');
+                submitBtn.textContent = 'Saved';
+                setTimeout(function () {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Save Changes';
+                }, 2000);
+            } catch (err) {
+                console.error(err);
+                showError((err && err.message) ? err.message : 'Could not save. Please try again.');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Worksheet';
+            }
+        });
+
+        // Same shared footer every other page on the site uses.
+        async function loadFooter() {
+            const footerContainer = document.getElementById('footer-container');
+            try {
+                const res = await fetch('footer.html');
+                if (res.ok) {
+                    footerContainer.innerHTML = await res.text();
+                    document.querySelectorAll('.dynamic-year').forEach(el => {
+                        el.textContent = new Date().getFullYear();
+                    });
+                }
+            } catch (_) {}
+        }
+
+        (async function init() {
+            loadFooter();
+            if (!token) {
+                showMessage('Link not valid',
+                    'This worksheet link is missing its access code. Please use the button in your LDAH email, or contact us at <a href="mailto:registration@ldahawaii.org">registration@ldahawaii.org</a>.');
+                return;
+            }
+            try {
+                const res = await fetch(ENDPOINT_GET + '?token=' + encodeURIComponent(token));
+                const j = await res.json().catch(function () { return {}; });
+                if (!res.ok) throw new Error(j.error || 'Could not load your worksheet.');
+
+                concerns = Array.isArray(j.concerns) && j.concerns.length
+                    ? j.concerns
+                    : [{ a: '', b: '', c: '', d: '', e: '' }];
+
+                const who = j.childName || '';
+                whoForEl.innerHTML = who
+                    ? 'Worksheet for <strong>' + who.replace(/[<>&]/g, '') + '</strong>'
+                    : 'Parent Report Worksheet';
+
+                if (j.completedAt) {
+                    submitBtn.textContent = 'Save Changes';
+                    showSuccess('You’ve already submitted this worksheet. You can update your answers below any time before your session.');
+                }
+
+                render();
+                loadingCard.style.display = 'none';
+                worksheetCard.style.display = 'block';
+            } catch (err) {
+                console.error(err);
+                showMessage('Link not valid',
+                    (err && err.message ? err.message : 'We could not load your worksheet.') +
+                    '<br><br>Please contact us at <a href="mailto:registration@ldahawaii.org">registration@ldahawaii.org</a>.');
+            }
+        })();
+    </script>
+
+
+</body>
+</html>
