@@ -930,9 +930,23 @@
                 }
             }
 
-            showUploadSuccess('All ' + queue.length + ' documents received. Mahalo! You can close this page.');
-            uploadBtn.disabled = true;
-            uploadBtn.textContent = 'Documents received';
+            showUploadSuccess('All ' + queue.length + ' documents received. Mahalo!');
+            // Don't strand them on a dead page (2026-07-14). The button becomes the
+            // way out instead of a disabled full stop.
+            uploadBtn.disabled = false;
+            uploadBtn.removeEventListener('click', handleUploadSubmit);
+            uploadBtn.addEventListener('click', closeAfterUpload);
+            uploadBtn.textContent = 'Documents received \u2014 click to close';
+        }
+
+        // Browsers only permit window.close() on script-opened windows, and this
+        // page was opened from an email link — so it will usually refuse. Try it
+        // anyway, then send them somewhere useful rather than leaving them stuck.
+        function closeAfterUpload() {
+            window.close();
+            setTimeout(function() {
+                if (!window.closed) window.location.href = 'https://www.ldahawaii.org/';
+            }, 250);
         }
         uploadBtn.addEventListener('click', handleUploadSubmit);
 
