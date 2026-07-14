@@ -9521,7 +9521,26 @@ const CONNECT_GEN_UPLOAD_MIME_EXT = {
   "image/heic": "heic",
   "image/heif": "heif",
 };
-const CONNECT_GEN_UPLOAD_MAX_BYTES = 25 * 1024 * 1024; // 25 MB
+// Raised 25 -> 50 MB (2026-07-14). Parents photograph printed IEPs, so a page
+// is a phone camera capture, not a text file. Revisit once the first real
+// multi-document set is in — volume is ~5 sets/month, so there is time to look.
+const CONNECT_GEN_UPLOAD_MAX_BYTES = 50 * 1024 * 1024; // 50 MB
+
+// Families can send up to 7 of each document type (2026-07-14).
+const CONNECT_GEN_MAX_DOCS_PER_TYPE = 7;
+
+// connectGenDocuments.{iep|evaluation} used to hold ONE record. It now holds a
+// list of up to CONNECT_GEN_MAX_DOCS_PER_TYPE. Signups created before this
+// change still carry the single-object shape, so every reader normalises
+// through here — we do not migrate children's confidential records in place.
+function _cgDocList(connectGenDocuments, type) {
+  const docs = (connectGenDocuments && typeof connectGenDocuments === "object")
+    ? connectGenDocuments : {};
+  const v = docs[type];
+  if (!v) return [];
+  if (Array.isArray(v)) return v.filter((r) => r && r.storagePath);
+  return v.storagePath ? [v] : [];
+}
 
 // Look up the active signup by uploadAuthToken AND verify the token hasn't
 // expired. Returns { doc, signup } or null.
@@ -9727,25 +9746,35 @@ exports.confirmConnectGenUpload = functions
         }
       }
 
-      // Best-effort: if a prior version of this same documentType is on file,
-      // delete its bytes from Storage now that the new one has landed. We
-      // intentionally swallow errors — the new pointer is what matters.
+      // APPEND (2026-07-14). This previously deleted the prior file of the same
+      // type, which was right when a family could send only one IEP — and would
+      // have silently destroyed page 1 the moment page 2 arrived. Each upload now
+      // adds to the list; storagePath already carries a timestamp so nothing
+      // collides. Files are only ever removed by the destroy/disposition flow.
       const existingDocs = (signup.connectGenDocuments && typeof signup.connectGenDocuments === "object")
         ? signup.connectGenDocuments : {};
-      const prior = existingDocs[documentType];
-      if (prior && prior.storagePath && prior.storagePath !== storagePath) {
-        try { await bucket.file(prior.storagePath).delete(); }
-        catch (e) { console.warn("Prior Connect-Gen doc cleanup failed (non-fatal):", e.message); }
+      const existingList = _cgDocList(existingDocs, documentType);
+
+      if (existingList.length >= CONNECT_GEN_MAX_DOCS_PER_TYPE) {
+        res.status(400).json({
+          error: `You have already sent ${CONNECT_GEN_MAX_DOCS_PER_TYPE} ${documentType} files, which is the maximum. Please contact LDAH if you need to send more.`,
+        });
+        return;
+      }
+      // Same file already recorded (a retry that actually succeeded) — don't double-add.
+      if (existingList.some((r) => r.storagePath === storagePath)) {
+        res.json({ ok: true, duplicate: true });
+        return;
       }
 
       const updatedDocs = Object.assign({}, existingDocs, {
-        [documentType]: {
+        [documentType]: existingList.concat([{
           storagePath,
           originalFilename,
           sizeBytes,
           mimeType,
-          uploadedAt: FieldValue.serverTimestamp(),
-        },
+          uploadedAt: admin.firestore.Timestamp.now(),
+        }]),
       });
       await doc.ref.update({ connectGenDocuments: updatedDocs });
 
@@ -10756,19 +10785,22 @@ async function _destroyConnectGenStorageFiles(connectGenDocuments) {
   const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
   const deleted = [];
   const errors = [];
-  const docs = (connectGenDocuments && typeof connectGenDocuments === "object") ? connectGenDocuments : {};
+  // Iterates the FULL list per type (2026-07-14). Previously deleted only the
+  // single record per type — with up to 7 each, that would have left a child's
+  // confidential documents sitting in Storage after we told the parent, in the
+  // consent they signed, that everything had been destroyed.
   for (const type of ["iep", "evaluation"]) {
-    const rec = docs[type];
-    if (!rec || !rec.storagePath) continue;
-    try {
-      await bucket.file(rec.storagePath).delete();
-      deleted.push(rec.storagePath);
-    } catch (err) {
-      // Treat "not found" as success — file may have been removed earlier.
-      if (err && (err.code === 404 || /no such object/i.test(err.message || ""))) {
-        deleted.push(rec.storagePath + " (already gone)");
-      } else {
-        errors.push(type + ": " + (err.message || String(err)));
+    for (const rec of _cgDocList(connectGenDocuments, type)) {
+      try {
+        await bucket.file(rec.storagePath).delete();
+        deleted.push(rec.storagePath);
+      } catch (err) {
+        // Treat "not found" as success — file may have been removed earlier.
+        if (err && (err.code === 404 || /no such object/i.test(err.message || ""))) {
+          deleted.push(rec.storagePath + " (already gone)");
+        } else {
+          errors.push(type + ": " + (err.message || String(err)));
+        }
       }
     }
   }
@@ -10986,9 +11018,12 @@ exports.getConnectGenDocumentDownloadUrl = functions
       const { ref, snap } = found;
       const signup = snap.data() || {};
 
-      const docs = (signup.connectGenDocuments && typeof signup.connectGenDocuments === "object")
-        ? signup.connectGenDocuments : {};
-      const rec = docs[documentType];
+      // A type can now hold up to 7 documents, so the caller says WHICH one via
+      // docIndex. Omitted => 0, which keeps every existing single-document caller
+      // working unchanged.
+      const docList = _cgDocList(signup.connectGenDocuments, documentType);
+      const docIndex = Math.max(0, parseInt(body.docIndex, 10) || 0);
+      const rec = docList[docIndex];
       if (!rec || !rec.storagePath) {
         res.status(404).json({ error: "Document not found on signup" });
         return;
@@ -11221,26 +11256,36 @@ exports.confirmStaffConnectGenUpload = functions
         }
       }
 
-      // Best-effort: if a prior version of this same documentType is on file,
-      // delete its bytes from Storage now that the new one has landed.
+      // APPEND, like the parent path (2026-07-14). This used to delete the prior
+      // file of the same type; with up to 7 per type that would destroy the
+      // family's earlier pages. Removal happens only via destroy/disposition.
       const existingDocs = (signup.connectGenDocuments && typeof signup.connectGenDocuments === "object")
         ? signup.connectGenDocuments : {};
-      const prior = existingDocs[documentType];
-      if (prior && prior.storagePath && prior.storagePath !== storagePath) {
-        try { await bucket.file(prior.storagePath).delete(); }
-        catch (e) { console.warn("Prior Connect-Gen doc cleanup failed (non-fatal):", e.message); }
+      const existingList = _cgDocList(existingDocs, documentType);
+
+      if (existingList.length >= CONNECT_GEN_MAX_DOCS_PER_TYPE) {
+        res.status(400).json({
+          error: `This family already has ${CONNECT_GEN_MAX_DOCS_PER_TYPE} ${documentType} files on record, which is the maximum.`,
+        });
+        return;
+      }
+      if (existingList.some((r) => r.storagePath === storagePath)) {
+        res.json({ ok: true, duplicate: true });
+        return;
       }
 
       const performedBy = staff.email || staff.name || staff.uid;
+      // Timestamp.now(), not serverTimestamp() — Firestore rejects sentinel
+      // values inside array elements.
       const updatedDocs = Object.assign({}, existingDocs, {
-        [documentType]: {
+        [documentType]: existingList.concat([{
           storagePath,
           originalFilename,
           sizeBytes,
           mimeType,
-          uploadedAt: FieldValue.serverTimestamp(),
+          uploadedAt: admin.firestore.Timestamp.now(),
           uploadedByStaff: performedBy,
-        },
+        }]),
       });
       // Re-upload after a prior destroy: clear the stale destroy markers so
       // the documents show again in the review UI.
@@ -12978,9 +13023,11 @@ exports.enforceConnectGenDocDeadline = functions
             if (!signup.email) { skipped++; continue; }
             if (!signup.consentSignedAt) { skipped++; continue; }
 
-            // Docs already received → skip
+            // Docs already received → skip. "Received" means at least one of each
+            // type; a family sending 7 IEP pages is no less complete than one
+            // sending a single PDF.
             const docs = signup.connectGenDocuments;
-            if (docs && docs.iep && docs.iep.storagePath && docs.evaluation && docs.evaluation.storagePath) {
+            if (_cgDocList(docs, "iep").length > 0 && _cgDocList(docs, "evaluation").length > 0) {
               skipped++; continue;
             }
 
@@ -13227,8 +13274,8 @@ exports.acceptConnectGenReschedule = functions
         return;
       }
       const existingDocs = signup.connectGenDocuments;
-      if (existingDocs && existingDocs.iep && existingDocs.iep.storagePath
-        && existingDocs.evaluation && existingDocs.evaluation.storagePath) {
+      if (_cgDocList(existingDocs, "iep").length > 0
+        && _cgDocList(existingDocs, "evaluation").length > 0) {
         res.status(400).json({ success: false, error: "Your documents are already on file. No need to reschedule." });
         return;
       }
