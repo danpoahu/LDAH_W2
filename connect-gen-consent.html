@@ -465,6 +465,95 @@
         background: #F0F9FF;
     }
 
+    /* Staged file list — nothing has been sent yet, so removing is free. */
+    .staged-list {
+        list-style: none;
+        margin: 0.75rem 0 0;
+        padding: 0;
+    }
+
+    .staged-list li {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        background: #fff;
+        border: 1px solid #E2E8F0;
+        border-radius: 8px;
+        padding: 0.5rem 0.6rem 0.5rem 0.75rem;
+        margin-bottom: 0.4rem;
+        font-size: 0.9rem;
+    }
+
+    .staged-list .staged-num {
+        font-weight: 700;
+        color: var(--primary-blue);
+        flex: none;
+    }
+
+    .staged-list .staged-name {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--text-dark);
+    }
+
+    .staged-list .staged-size {
+        flex: none;
+        color: #64748B;
+        font-size: 0.84rem;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .staged-list .staged-size .shrunk {
+        color: #059669;
+        font-weight: 600;
+    }
+
+    .staged-list .staged-remove {
+        flex: none;
+        width: 28px;
+        height: 28px;
+        border: 1px solid #FECACA;
+        background: #FEF2F2;
+        color: #DC2626;
+        border-radius: 6px;
+        font-size: 1rem;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .staged-list .staged-remove:hover { background: #FEE2E2; border-color: #FCA5A5; }
+    .staged-list .staged-remove:focus-visible { outline: 2px solid #DC2626; outline-offset: 1px; }
+
+    .staged-list li.uploading { border-color: #93C5FD; background: #EFF6FF; }
+    .staged-list li.done { border-color: #6EE7B7; background: #ECFDF5; }
+    .staged-list li.failed { border-color: #FCA5A5; background: #FEF2F2; }
+    .staged-list li .staged-state { flex: none; font-size: 0.8rem; font-weight: 600; }
+
+    .staged-total {
+        font-size: 0.86rem;
+        color: #475569;
+        margin: 0.25rem 0 0.75rem;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .photo-tip {
+        background: #FFFBEB;
+        border: 1px solid #FDE68A;
+        border-radius: 10px;
+        padding: 0.7rem 0.9rem;
+        margin: 0 0 1rem;
+        font-size: 0.9rem;
+        color: #92400E;
+        line-height: 1.5;
+    }
+
     .file-picker label.file-label {
         display: block;
         font-weight: 600;
@@ -642,33 +731,34 @@
                 <strong>Please upload as soon as possible.</strong> LDAH staff needs several days before your session to review your child's IEP and Evaluation. Uploading promptly helps us prepare the most useful guidance for your family.
             </div>
 
+            <p class="photo-tip">
+                <strong>Sending photos?</strong> Photograph each page separately, laid flat with good light.
+                Don&rsquo;t worry about file size &mdash; we shrink photos for you before they&rsquo;re sent.
+            </p>
+
             <div class="file-picker" id="iepPicker">
                 <label class="file-label" for="fld-iep-file">Individualized Education Program (IEP) <span style="color: var(--sunset-coral);">*</span></label>
-                <span class="file-helper">PDF, JPG, PNG, or HEIC. Maximum 25 MB.</span>
-                <label class="file-pick-btn" for="fld-iep-file">Choose IEP file</label>
-                <input type="file" id="fld-iep-file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif">
-                <div class="file-meta" id="iepMeta">
-                    <span class="file-name" id="iepName"></span>
-                    <span class="file-size" id="iepSize"></span>
-                </div>
+                <span class="file-helper">PDF, JPG, PNG, or HEIC. Up to 7 files, 50 MB each.</span>
+                <label class="file-pick-btn" for="fld-iep-file">Add IEP files</label>
+                <input type="file" id="fld-iep-file" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif">
+                <ul class="staged-list" id="iepList"></ul>
             </div>
 
             <div class="file-picker" id="evalPicker">
                 <label class="file-label" for="fld-eval-file">Evaluation / Assessment <span style="color: var(--sunset-coral);">*</span></label>
-                <span class="file-helper">PDF, JPG, PNG, or HEIC. Maximum 25 MB.</span>
-                <label class="file-pick-btn" for="fld-eval-file">Choose Evaluation file</label>
-                <input type="file" id="fld-eval-file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif">
-                <div class="file-meta" id="evalMeta">
-                    <span class="file-name" id="evalName"></span>
-                    <span class="file-size" id="evalSize"></span>
-                </div>
+                <span class="file-helper">PDF, JPG, PNG, or HEIC. Up to 7 files, 50 MB each.</span>
+                <label class="file-pick-btn" for="fld-eval-file">Add Evaluation files</label>
+                <input type="file" id="fld-eval-file" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif">
+                <ul class="staged-list" id="evalList"></ul>
             </div>
+
+            <div class="staged-total" id="stagedTotal"></div>
 
             <div class="button-row">
                 <button type="button" id="uploadBtn" class="btn btn-primary">Upload Documents Securely</button>
             </div>
 
-            <span class="upload-helper-text">Files are encrypted in transit and at rest. Maximum 25 MB per file.</span>
+            <span class="upload-helper-text">Nothing is sent until you press the button above. Files are encrypted in transit and at rest.</span>
 
             <div id="uploadInlineError" class="inline-error"></div>
             <div id="uploadSuccess" class="upload-success"></div>
@@ -710,17 +800,13 @@
         const evalFileEl  = document.getElementById('fld-eval-file');
         const iepPickerEl = document.getElementById('iepPicker');
         const evalPickerEl = document.getElementById('evalPicker');
-        const iepNameEl   = document.getElementById('iepName');
-        const iepSizeEl   = document.getElementById('iepSize');
-        const evalNameEl  = document.getElementById('evalName');
-        const evalSizeEl  = document.getElementById('evalSize');
         const uploadBtn   = document.getElementById('uploadBtn');
         const uploadInlineError = document.getElementById('uploadInlineError');
         const uploadSuccessEl = document.getElementById('uploadSuccess');
         const skipUploadLink = document.getElementById('skipUploadLink');
 
         // Upload constraints (Phase A)
-        const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25 MB
+        const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB (raised 2026-07-14)
         const ALLOWED_UPLOAD_EXT = ['.pdf', '.jpg', '.jpeg', '.png', '.heic', '.heif'];
 
         let token = null;
@@ -912,23 +998,158 @@
             uploadInlineError.classList.remove('visible');
         }
 
-        function wireFilePicker(inputEl, pickerEl, nameEl, sizeEl) {
-            inputEl.addEventListener('change', function() {
-                clearUploadInlineError();
-                const f = inputEl.files && inputEl.files[0];
-                if (!f) {
-                    pickerEl.classList.remove('has-file');
-                    nameEl.textContent = '';
-                    sizeEl.textContent = '';
-                    return;
+        // ── Staged files (2026-07-14) ──────────────────────────────────────
+        // Up to 7 of each type. Nothing is sent until the parent presses the
+        // button, so the red x is a pure client-side removal — no request, no
+        // orphaned bytes in Storage, nothing to undo server-side.
+        const MAX_FILES_PER_TYPE = 7;
+        const staged = { iep: [], evaluation: [] };   // [{ file, id, state }]
+        let stagedSeq = 0;
+
+        const listEls = { iep: document.getElementById('iepList'), evaluation: document.getElementById('evalList') };
+        const pickerEls = { iep: iepPickerEl, evaluation: evalPickerEl };
+        const totalEl = document.getElementById('stagedTotal');
+
+        // Shrink phone photos before sending. A 12-megapixel capture of an IEP
+        // page is 3-8 MB; at 2000px wide / quality 0.8 it lands around 400-800 KB
+        // and every word is still legible. PDFs are left alone (already compact,
+        // and re-encoding would be lossy for nothing). HEIC is left alone too —
+        // browser decoding is unreliable, and the Cloud Function converts it.
+        const COMPRESS_MAX_EDGE = 2000;
+        const COMPRESS_QUALITY = 0.8;
+
+        async function maybeCompress(file) {
+            const t = (file.type || '').toLowerCase();
+            if (t !== 'image/jpeg' && t !== 'image/png') return file;
+            try {
+                const bitmap = await createImageBitmap(file);
+                const scale = Math.min(1, COMPRESS_MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+                // Already small enough and not worth re-encoding.
+                if (scale === 1 && file.size < 1024 * 1024) { bitmap.close(); return file; }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.round(bitmap.width * scale);
+                canvas.height = Math.round(bitmap.height * scale);
+                canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+                bitmap.close();
+
+                const blob = await new Promise(function(resolve) {
+                    canvas.toBlob(resolve, 'image/jpeg', COMPRESS_QUALITY);
+                });
+                // If compression somehow made it bigger, keep the original.
+                if (!blob || blob.size >= file.size) return file;
+
+                const newName = file.name.replace(/\.(jpe?g|png)$/i, '') + '.jpg';
+                const out = new File([blob], newName, { type: 'image/jpeg' });
+                out.originalSize = file.size;   // so the list can show "was 6.2 MB"
+                return out;
+            } catch (err) {
+                // Never block an upload because compression failed — send the original.
+                console.warn('Compression failed, sending original:', err);
+                return file;
+            }
+        }
+
+        function renderStaged(type) {
+            const ul = listEls[type];
+            const items = staged[type];
+            ul.innerHTML = '';
+            items.forEach(function(item, i) {
+                const li = document.createElement('li');
+                li.className = item.state || '';
+
+                const num = document.createElement('span');
+                num.className = 'staged-num';
+                num.textContent = (i + 1) + '.';
+
+                const name = document.createElement('span');
+                name.className = 'staged-name';
+                name.textContent = item.file.name;
+
+                const size = document.createElement('span');
+                size.className = 'staged-size';
+                if (item.file.originalSize && item.file.originalSize > item.file.size) {
+                    size.innerHTML = '<span class="shrunk">' + formatFileSize(item.file.size) + '</span>' +
+                        ' <span style="text-decoration:line-through;opacity:.6;">' + formatFileSize(item.file.originalSize) + '</span>';
+                } else {
+                    size.textContent = formatFileSize(item.file.size);
                 }
-                nameEl.textContent = f.name;
-                sizeEl.textContent = '(' + formatFileSize(f.size) + ')';
-                pickerEl.classList.add('has-file');
+
+                li.appendChild(num);
+                li.appendChild(name);
+                li.appendChild(size);
+
+                if (item.state === 'done') {
+                    const s = document.createElement('span');
+                    s.className = 'staged-state';
+                    s.style.color = '#059669';
+                    s.textContent = 'Sent';
+                    li.appendChild(s);
+                } else if (item.state === 'uploading') {
+                    const s = document.createElement('span');
+                    s.className = 'staged-state';
+                    s.style.color = '#1D4ED8';
+                    s.textContent = 'Sending...';
+                    li.appendChild(s);
+                } else {
+                    const x = document.createElement('button');
+                    x.type = 'button';
+                    x.className = 'staged-remove';
+                    x.setAttribute('aria-label', 'Remove ' + item.file.name);
+                    x.title = 'Remove this file';
+                    x.textContent = '×';
+                    x.addEventListener('click', function() {
+                        staged[type] = staged[type].filter(function(o) { return o.id !== item.id; });
+                        clearUploadInlineError();
+                        renderStaged(type);
+                    });
+                    li.appendChild(x);
+                }
+                ul.appendChild(li);
+            });
+
+            pickerEls[type].classList.toggle('has-file', items.length > 0);
+            renderTotal();
+        }
+
+        function renderTotal() {
+            const all = staged.iep.concat(staged.evaluation);
+            if (!all.length) { totalEl.textContent = ''; return; }
+            const bytes = all.reduce(function(n, o) { return n + o.file.size; }, 0);
+            totalEl.textContent = all.length + (all.length === 1 ? ' file' : ' files') +
+                ' · ' + formatFileSize(bytes) + ' to send';
+        }
+
+        function wireFilePicker(inputEl, type, label) {
+            inputEl.addEventListener('change', async function() {
+                clearUploadInlineError();
+                const picked = Array.from(inputEl.files || []);
+                inputEl.value = '';   // let them pick the same file again after removing it
+                if (!picked.length) return;
+
+                for (const f of picked) {
+                    if (staged[type].length >= MAX_FILES_PER_TYPE) {
+                        showUploadInlineError('You can send up to ' + MAX_FILES_PER_TYPE + ' ' + label +
+                            ' files. Remove one first if you need to swap it.');
+                        break;
+                    }
+                    if (!isAllowedUpload(f)) {
+                        showUploadInlineError(f.name + ' is not an allowed file type. Please use PDF, JPG, PNG, or HEIC.');
+                        continue;
+                    }
+                    if (f.size > MAX_UPLOAD_BYTES) {
+                        showUploadInlineError(f.name + ' is larger than 50 MB. Please choose a smaller file.');
+                        continue;
+                    }
+                    const prepared = await maybeCompress(f);
+                    staged[type].push({ file: prepared, id: ++stagedSeq, state: '' });
+                    renderStaged(type);
+                }
+                renderStaged(type);
             });
         }
-        wireFilePicker(iepFileEl, iepPickerEl, iepNameEl, iepSizeEl);
-        wireFilePicker(evalFileEl, evalPickerEl, evalNameEl, evalSizeEl);
+        wireFilePicker(iepFileEl, 'iep', 'IEP');
+        wireFilePicker(evalFileEl, 'evaluation', 'Evaluation');
 
         // Map a picked File to the canonical mimeType the CF expects. Browsers
         // sometimes leave file.type empty (especially for HEIC/HEIF on older
@@ -1022,31 +1243,13 @@
 
         async function handleUploadSubmit() {
             clearUploadInlineError();
-            const iepFile = iepFileEl.files && iepFileEl.files[0];
-            const evalFile = evalFileEl.files && evalFileEl.files[0];
 
-            if (!iepFile) {
-                showUploadInlineError('Please choose an IEP file to upload.');
+            if (!staged.iep.length) {
+                showUploadInlineError('Please add at least one IEP file.');
                 return;
             }
-            if (!evalFile) {
-                showUploadInlineError('Please choose an Evaluation/Assessment file to upload.');
-                return;
-            }
-            if (!isAllowedUpload(iepFile)) {
-                showUploadInlineError('IEP file type not allowed. Please use PDF, JPG, PNG, or HEIC.');
-                return;
-            }
-            if (!isAllowedUpload(evalFile)) {
-                showUploadInlineError('Evaluation file type not allowed. Please use PDF, JPG, PNG, or HEIC.');
-                return;
-            }
-            if (iepFile.size > MAX_UPLOAD_BYTES) {
-                showUploadInlineError('IEP file is larger than 25 MB. Please choose a smaller file.');
-                return;
-            }
-            if (evalFile.size > MAX_UPLOAD_BYTES) {
-                showUploadInlineError('Evaluation file is larger than 25 MB. Please choose a smaller file.');
+            if (!staged.evaluation.length) {
+                showUploadInlineError('Please add at least one Evaluation/Assessment file.');
                 return;
             }
             if (!uploadAuthToken) {
@@ -1054,26 +1257,59 @@
                 return;
             }
 
-            // Process serially (IEP first, then Evaluation) so a failure in
-            // either has a clear, file-specific error message rather than a
-            // mystery "one of two" error.
-            try {
-                setUploadBusy(true, 'Uploading IEP...');
-                showUploadSuccess('Uploading IEP...');
-                await uploadOneDocument('iep', iepFile, 'IEP');
+            // Send one at a time, oldest first, and mark each row as it lands.
+            // Phone connections drop; a file that has already been sent is marked
+            // "Sent" and is skipped if the parent retries, so one failure never
+            // costs them the files that did make it.
+            const queue = staged.iep.map(function(o) { return { type: 'iep', label: 'IEP', item: o }; })
+                .concat(staged.evaluation.map(function(o) { return { type: 'evaluation', label: 'Evaluation', item: o }; }));
+            const pending = queue.filter(function(q) { return q.item.state !== 'done'; });
+            const total = pending.length;
+            let sent = 0;
 
-                setUploadBusy(true, 'Uploading Evaluation...');
-                showUploadSuccess('Uploading Evaluation...');
-                await uploadOneDocument('evaluation', evalFile, 'Evaluation');
+            for (const q of pending) {
+                q.item.state = 'uploading';
+                renderStaged(q.type);
+                const progress = 'Sending file ' + (sent + 1) + ' of ' + total + '...';
+                setUploadBusy(true, progress);
+                showUploadSuccess(progress);
 
-                showUploadSuccess('Documents received. Mahalo! You can close this page.');
-                uploadBtn.disabled = true;
-                uploadBtn.textContent = 'Documents received';
-            } catch (err) {
-                console.error('Upload failed:', err);
-                showUploadInlineError((err && err.message) ? err.message : 'Upload failed. Please try again.');
-                setUploadBusy(false);
+                try {
+                    await uploadOneDocument(q.type, q.item.file, q.label);
+                    q.item.state = 'done';
+                    sent++;
+                    renderStaged(q.type);
+                } catch (err) {
+                    console.error('Upload failed:', err);
+                    q.item.state = 'failed';
+                    renderStaged(q.type);
+                    showUploadInlineError(
+                        (q.item.file.name + ' could not be sent. ') +
+                        ((err && err.message) ? err.message : 'Please try again.') +
+                        (sent > 0 ? ' The ' + sent + ' file(s) already sent are safe — press the button again to send the rest.' : '')
+                    );
+                    setUploadBusy(false);
+                    return;
+                }
             }
+
+            showUploadSuccess('All ' + queue.length + ' documents received. Mahalo!');
+            // Don't strand them on a dead page (2026-07-14). The button becomes the
+            // way out instead of a disabled full stop.
+            uploadBtn.disabled = false;
+            uploadBtn.removeEventListener('click', handleUploadSubmit);
+            uploadBtn.addEventListener('click', closeAfterUpload);
+            uploadBtn.textContent = 'Documents received \u2014 click to close';
+        }
+
+        // Browsers only permit window.close() on script-opened windows, and this
+        // page was opened from an email link — so it will usually refuse. Try it
+        // anyway, then send them somewhere useful rather than leaving them stuck.
+        function closeAfterUpload() {
+            window.close();
+            setTimeout(function() {
+                if (!window.closed) window.location.href = 'https://www.ldahawaii.org/';
+            }, 250);
         }
         uploadBtn.addEventListener('click', handleUploadSubmit);
 
