@@ -9829,6 +9829,148 @@ exports.sendSrpConsentToken = functions
     }
   });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Outreach Screening Consent — in-person KIOSK (School Readiness) — 2026-07-15
+// Public, token-less form at ldahawaii.org/readiness/ (walk-up, scanned via QR
+// at a screening event). Simpler than the online SRP consent: child info, two
+// health questions, relationship, e-signature. On submit it looks up the parent
+// by email (prefill if on file, create the contact if not), saves the consent to
+// the contact, and AUTO-LOGS a "Screening" interaction. No email is sent (the
+// family is filling it in person). No token needed.
+//   lookupReadinessContact — email -> prefill (parent + last child on file)
+//   submitReadinessConsent — save consent to contact + auto-log Screening interaction
+// NOTE: these are open endpoints (kiosk use). Fine for an event; not hardened
+// against internet abuse. Consent is stored on contacts/{id}.srpScreeningConsent
+// so it shows in the existing contact-detail "Screening consent" panel.
+// ═══════════════════════════════════════════════════════════════════════════
+exports.lookupReadinessContact = functions
+  .runWith({ timeoutSeconds: 15, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    const email = ((req.body || {}).email || "").toString().trim().toLowerCase();
+    if (!email || email.indexOf("@") === -1) { res.status(400).json({ error: "Valid email required" }); return; }
+    try {
+      const db = admin.firestore();
+      const snap = await db.collection("contacts").where("email", "==", email).limit(1).get();
+      if (snap.empty) { res.status(200).json({ found: false }); return; }
+      const c = snap.docs[0].data() || {};
+      const priorChild = (c.srpScreeningConsent && c.srpScreeningConsent.child) ? c.srpScreeningConsent.child : {};
+      res.status(200).json({
+        found: true,
+        prefill: {
+          parentFirstName: c.firstName || "",
+          parentLastName: c.lastName || "",
+          relationship: (c.srpScreeningConsent && c.srpScreeningConsent.relationship) || "",
+          child: {
+            firstName: priorChild.firstName || "",
+            middleName: priorChild.middleName || "",
+            lastName: priorChild.lastName || "",
+            gender: priorChild.gender || "",
+            nativeHawaiian: priorChild.nativeHawaiian || "",
+            ethnicity: priorChild.ethnicity || c.ethnicity || "",
+          },
+        },
+      });
+    } catch (err) {
+      console.error("lookupReadinessContact error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+exports.submitReadinessConsent = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 5 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const form = body.form || {};
+    const parent = form.parent || {};
+    const child = form.child || {};
+    const health = form.health || {};
+    const email = (parent.email || "").toString().trim();
+    const signedName = (form.signedName || "").toString().trim();
+    if (!email || email.indexOf("@") === -1) { res.status(400).json({ error: "A valid email is required" }); return; }
+    if (!parent.firstName || !parent.lastName) { res.status(400).json({ error: "Parent/guardian name is required" }); return; }
+    if (!child.firstName || !child.lastName) { res.status(400).json({ error: "Child name is required" }); return; }
+    if (!signedName || signedName.indexOf(" ") === -1) { res.status(400).json({ error: "Please type your first and last name to sign" }); return; }
+
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const emailLc = email.toLowerCase();
+
+      // Find-or-create the contact by email.
+      let contactId = null;
+      const snap = await db.collection("contacts").where("email", "==", emailLc).limit(1).get();
+      if (!snap.empty) contactId = snap.docs[0].id;
+      if (!contactId) {
+        const ref = await db.collection("contacts").add({
+          displayName: (parent.firstName + " " + parent.lastName).trim(),
+          firstName: parent.firstName || "",
+          lastName: parent.lastName || "",
+          email: emailLc,
+          phone: "",
+          type: "Parent/Guardian",
+          source: "readiness-kiosk",
+          createdBy: "readiness-kiosk",
+          createdByName: "Readiness Screening Kiosk",
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        contactId = ref.id;
+      }
+
+      const ip = (req.headers["x-forwarded-for"] || req.ip || "").toString().split(",")[0].trim();
+      const consentObj = {
+        source: "outreach-kiosk",
+        signedAt: FieldValue.serverTimestamp(),
+        signedName,
+        consentVersion: "02/19/2025; HF",
+        signedIp: ip,
+        relationship: parent.relationship || "",
+        parent: { firstName: parent.firstName || "", lastName: parent.lastName || "", email: emailLc },
+        child: {
+          firstName: child.firstName || "", middleName: child.middleName || "", lastName: child.lastName || "",
+          gender: child.gender || "", nativeHawaiian: child.nativeHawaiian || "", ethnicity: child.ethnicity || "",
+        },
+        health: {
+          chronicEar: health.chronicEar || "", lastEarInfection: health.lastEarInfection || "",
+          sickRecently: health.sickRecently || "", illnessDescribe: health.illnessDescribe || "",
+        },
+      };
+      await db.collection("contacts").doc(contactId).set({ srpScreeningConsent: consentObj }, { merge: true });
+
+      // Auto-log a "Screening" interaction (in-person; no email sent).
+      const childName = ((child.firstName || "") + " " + (child.lastName || "")).trim();
+      const parentName = ((parent.firstName || "") + " " + (parent.lastName || "")).trim();
+      await db.collection("interactions").add({
+        channel: "Office",
+        interactionType: "Screening",
+        contactId,
+        contactName: parentName,
+        contactType: "Parent/Guardian",
+        summary: "Outreach screening consent captured" + (childName ? " for " + childName : ""),
+        status: "Open",
+        owner: "Readiness Screening Kiosk",
+        ownerUid: "",
+        source: "readiness-kiosk",
+        createdAt: FieldValue.serverTimestamp(),
+      });
+
+      res.status(200).json({ ok: true, contactId });
+    } catch (err) {
+      console.error("submitReadinessConsent error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
 // ---------- Connect-Gen secure document upload (Phase B) ----------
 //
 // Three-step signed-Storage-URL pattern, picked over a single CF body-upload

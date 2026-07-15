@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="LDAH Outreach Screening Consent — School Readiness Project.">
+<meta name="robots" content="noindex, nofollow">
+<title>Screening Consent — LDAH School Readiness</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ocean-mid: #06B6D4; --accent-teal: #22D3EE; --primary-blue: #0891B2;
+    --sunset-coral: #F97316; --plumeria: #FBBF24;
+    --text-dark: #1E293B; --text-light: #64748B; --bg-warm: #FEFDFB; --bg-light: #FFFBEB;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: var(--text-dark); line-height: 1.6; background: var(--bg-warm); min-height: 100vh; display: flex; flex-direction: column; }
+  h1, h2, h3 { font-family: 'Outfit', sans-serif; font-weight: 600; line-height: 1.3; }
+  .page-header { background: rgba(255,255,255,.97); box-shadow: 0 1px 20px rgba(8,145,178,.08); border-bottom: 1px solid rgba(8,145,178,.1); }
+  .page-header-inner { max-width: 900px; margin: 0 auto; padding: 1rem 2rem; display: flex; align-items: center; gap: 1rem; }
+  .page-header img { width: 68px; height: 68px; flex-shrink: 0; }
+  .page-header .header-text h1 { color: var(--primary-blue); font-size: 1.35rem; }
+  .page-header .header-text p { color: var(--text-light); font-size: .92rem; }
+  .hero { padding: 1.75rem 2rem; background: linear-gradient(135deg,#0891B2,#06B6D4); color: #fff; text-align: center; }
+  .hero h2 { font-size: 1.7rem; color: #fff; }
+  .hero p { font-size: 1rem; opacity: .95; max-width: 620px; margin: .3rem auto 0; }
+  .wrap { flex: 1; max-width: 720px; width: 100%; margin: 0 auto; padding: 34px 18px 56px; }
+  .card { background: #fff; border-radius: 20px; padding: 2.4rem; box-shadow: 0 4px 20px rgba(0,78,124,.10); border: 1px solid rgba(8,145,178,.08); }
+  .card.center { text-align: center; }
+  .spinner { display: inline-block; width: 34px; height: 34px; border: 3px solid rgba(8,145,178,.2); border-top-color: var(--primary-blue); border-radius: 50%; animation: spin .9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .section { margin-bottom: 1.9rem; }
+  .section-title { font-family:'Outfit',sans-serif; font-size: 1.12rem; font-weight: 600; color: var(--primary-blue); margin-bottom: .3rem; padding-bottom: .5rem; border-bottom: 2px solid #E0F2FE; }
+  .fg { margin-bottom: 1.25rem; }
+  .fg label.lbl { display: block; font-weight: 600; margin-bottom: .35rem; font-size: .98rem; }
+  .req { color: var(--sunset-coral); }
+  .hint { display: block; font-size: .85rem; color: var(--text-light); margin: .1rem 0 .45rem; }
+  input[type=text], input[type=email], input[type=date], select {
+    width: 100%; padding: .8rem .9rem; font-family: inherit; font-size: 1.05rem; color: var(--text-dark);
+    background: #fff; border: 1.5px solid #cbd5e1; border-radius: 10px; transition: border-color .2s, box-shadow .2s; }
+  input:focus, select:focus { outline: none; border-color: var(--primary-blue); box-shadow: 0 0 0 3px rgba(8,145,178,.15); }
+  input.missing, select.missing { border-color: #EF4444; background: #FEF2F2; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+  @media (max-width: 560px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+  .choices { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .choice { display: inline-flex; align-items: center; gap: .5rem; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: .6rem 1rem; cursor: pointer; font-size: 1rem; background: #fff; }
+  .choice input { width: 19px; height: 19px; accent-color: var(--primary-blue); }
+  .choice:has(input:checked) { border-color: var(--primary-blue); background: #F0F9FF; font-weight: 600; }
+  .choices.missing .choice { border-color: #EF4444; }
+  .yn-detail[hidden] { display: none; }
+  .lookup-note { background:#ECFDF5; border:1px solid #A7F3D0; color:#065F46; border-radius:10px; padding:.7rem 1rem; margin-top:.5rem; font-size:.9rem; display:none; }
+  .lookup-note.show { display:block; }
+  .consent-statement { background:#F0F9FF; border:1px solid #BAE6FD; border-radius:12px; padding:1.1rem 1.3rem; margin:1.5rem 0; font-size:.96rem; line-height:1.6; color:#0C4A6E; font-style: italic; }
+  .btn { width: 100%; padding: 1rem 1.5rem; font-family: inherit; font-size: 1.1rem; font-weight: 600; border-radius: 12px; cursor: pointer; border: 2px solid transparent; color: #fff; background: linear-gradient(135deg,var(--ocean-mid),var(--accent-teal)); }
+  .btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(8,145,178,.3); }
+  .btn:disabled { opacity: .55; cursor: not-allowed; }
+  .btn-lg { margin-top: 1.5rem; }
+  .inline-error { background:#FEE2E2; border:1px solid #FCA5A5; color:#991B1B; border-radius:10px; padding:.8rem 1rem; margin-top:1rem; font-size:.98rem; display:none; }
+  .inline-error.show { display:block; }
+  .thanks h3 { color: var(--primary-blue); font-size: 1.6rem; margin-bottom: .6rem; }
+  .thanks p { color: var(--text-light); font-size: 1.1rem; margin-bottom: 1.4rem; }
+  footer { background: var(--text-dark); color: #fff; padding: 1.3rem 2rem; text-align: center; margin-top: auto; font-size: .85rem; }
+  footer a { color: var(--plumeria); text-decoration: none; }
+  @media (max-width: 600px) { .card { padding: 1.5rem; } .hero h2 { font-size: 1.4rem; } .page-header img { width: 54px; height: 54px; } }
+</style>
+</head>
+<body>
+<header class="page-header">
+  <div class="page-header-inner">
+    <img src="/logo_blue.png" alt="LDAH Logo">
+    <div class="header-text"><h1>School Readiness Project</h1><p>Leadership in Disabilities &amp; Achievement of Hawai&#699;i</p></div>
+  </div>
+</header>
+<section class="hero">
+  <h2>Outreach Screening Consent</h2>
+  <p>Please fill this out before your child&rsquo;s screening. It takes about 2 minutes.</p>
+</section>
+
+<main class="wrap">
+  <!-- Form -->
+  <div id="formCard" class="card">
+    <form id="form" novalidate>
+
+      <div class="section">
+        <div class="section-title">Parent / Guardian</div>
+        <div class="fg">
+          <label class="lbl" for="email">Email <span class="req">*</span></label>
+          <span class="hint">We&rsquo;ll check if you&rsquo;re already on file and fill in what we have.</span>
+          <input type="email" id="email" autocomplete="email" inputmode="email">
+          <div id="lookupNote" class="lookup-note"></div>
+        </div>
+        <div class="grid2">
+          <div class="fg"><label class="lbl" for="pFirst">Your First Name <span class="req">*</span></label><input type="text" id="pFirst" autocomplete="given-name"></div>
+          <div class="fg"><label class="lbl" for="pLast">Your Last Name <span class="req">*</span></label><input type="text" id="pLast" autocomplete="family-name"></div>
+        </div>
+        <div class="fg">
+          <label class="lbl">What is your relationship to your child? <span class="req">*</span></label>
+          <div class="choices" id="relGroup">
+            <label class="choice"><input type="radio" name="rel" value="Mother"><span>Mother</span></label>
+            <label class="choice"><input type="radio" name="rel" value="Step-mother"><span>Step-mother</span></label>
+            <label class="choice"><input type="radio" name="rel" value="Grandmother"><span>Grandmother</span></label>
+            <label class="choice"><input type="radio" name="rel" value="Aunty"><span>Aunty</span></label>
+            <label class="choice"><input type="radio" name="rel" value="Guardian"><span>Guardian</span></label>
+            <label class="choice"><input type="radio" name="rel" value="Father"><span>Father</span></label>
+            <label class="choice"><input type="radio" name="rel" value="Step-father"><span>Step-father</span></label>
+            <label class="choice"><input type="radio" name="rel" value="Grandfather"><span>Grandfather</span></label>
+            <label class="choice"><input type="radio" name="rel" value="Uncle"><span>Uncle</span></label>
+            <label class="choice"><input type="radio" name="rel" value="Other" id="relOther"><span>Other</span></label>
+          </div>
+          <input type="text" id="relOtherText" placeholder="Please specify" style="margin-top:.6rem;" hidden>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Child</div>
+        <div class="grid3">
+          <div class="fg"><label class="lbl" for="cFirst">First <span class="req">*</span></label><input type="text" id="cFirst"></div>
+          <div class="fg"><label class="lbl" for="cMiddle">Middle</label><input type="text" id="cMiddle"></div>
+          <div class="fg"><label class="lbl" for="cLast">Last <span class="req">*</span></label><input type="text" id="cLast"></div>
+        </div>
+        <div class="fg">
+          <label class="lbl">Child&rsquo;s Gender</label>
+          <div class="choices">
+            <label class="choice"><input type="radio" name="cGender" value="Male"><span>Male</span></label>
+            <label class="choice"><input type="radio" name="cGender" value="Female"><span>Female</span></label>
+            <label class="choice"><input type="radio" name="cGender" value="Other"><span>Other</span></label>
+          </div>
+        </div>
+        <div class="fg">
+          <label class="lbl">Does your child identify as Native Hawaiian?</label>
+          <div class="choices">
+            <label class="choice"><input type="radio" name="nh" value="Yes"><span>Yes</span></label>
+            <label class="choice"><input type="radio" name="nh" value="No"><span>No</span></label>
+          </div>
+        </div>
+        <div class="fg">
+          <label class="lbl" for="ethnicity">Child&rsquo;s Ethnicity</label>
+          <select id="ethnicity">
+            <option value="">— Select —</option>
+            <option>Hawaiian / Part Hawaiian</option>
+            <option>Filipino</option>
+            <option>Japanese</option>
+            <option>Chinese</option>
+            <option>Korean</option>
+            <option>Samoan</option>
+            <option>Chuukese</option>
+            <option>Marshallese</option>
+            <option>Tongan</option>
+            <option>Other Pacific Islander</option>
+            <option>Caucasian / White</option>
+            <option>Portuguese</option>
+            <option>Hispanic / Latino</option>
+            <option>Black / African American</option>
+            <option>Mixed / Two or more</option>
+            <option value="Other">Other (specify)</option>
+          </select>
+          <input type="text" id="ethnicityOther" placeholder="Please specify" style="margin-top:.6rem;" hidden>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">A Few Health Questions</div>
+        <div class="fg">
+          <label class="lbl">Does your child have a history of chronic ear infections?</label>
+          <div class="choices">
+            <label class="choice"><input type="radio" name="ear" value="Yes" data-detail="earDetail"><span>Yes</span></label>
+            <label class="choice"><input type="radio" name="ear" value="No" data-detail="earDetail"><span>No</span></label>
+          </div>
+          <div class="fg yn-detail" id="earDetail" hidden style="margin-top:.7rem;">
+            <label class="lbl" for="earWhen">If yes, when was the last ear infection?</label>
+            <input type="text" id="earWhen" placeholder="e.g. March 2026">
+          </div>
+        </div>
+        <div class="fg">
+          <label class="lbl">Has your child been sick within the last 2 weeks?</label>
+          <div class="choices">
+            <label class="choice"><input type="radio" name="sick" value="Yes" data-detail="sickDetail"><span>Yes</span></label>
+            <label class="choice"><input type="radio" name="sick" value="No" data-detail="sickDetail"><span>No</span></label>
+          </div>
+          <div class="fg yn-detail" id="sickDetail" hidden style="margin-top:.7rem;">
+            <label class="lbl" for="sickDesc">If yes, please describe (e.g. runny nose, fever, coughing)</label>
+            <input type="text" id="sickDesc">
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Consent</div>
+        <div class="consent-statement">
+          I understand this consent is valid for one (1) year from the date below, unless revoked by me in writing to an LDAH staff member. By my signature below, I, the parent / legal guardian of the child identified above, give my informed consent to have my child screened by LDAH staff.
+        </div>
+        <div class="fg">
+          <label class="lbl" for="sign">Type your first and last name to sign <span class="req">*</span></label>
+          <span class="hint">By printing your name here, you give your informed consent. This is a legally binding electronic signature.</span>
+          <input type="text" id="sign" style="font-family:'Outfit',cursive;font-size:1.2rem;font-style:italic;">
+        </div>
+        <div class="fg" style="color:var(--text-light);font-size:.92rem;">Date: <strong id="today"></strong></div>
+      </div>
+
+      <button type="submit" id="submitBtn" class="btn btn-lg">Sign &amp; Submit</button>
+      <div id="err" class="inline-error"></div>
+    </form>
+  </div>
+
+  <!-- Thank you (kiosk) -->
+  <div id="thanksCard" class="card center thanks" style="display:none;">
+    <h3>Mahalo!</h3>
+    <p id="thanksMsg">Your screening consent has been received.</p>
+    <button type="button" class="btn" onclick="location.reload()">Start next family</button>
+  </div>
+</main>
+
+<footer>
+  87-790 Kulauku Street, Suite A116, Wai&#699;anae, Hawai&#699;i 96792 &nbsp;·&nbsp; (808) 696-5361 &nbsp;·&nbsp; <a href="https://www.ldahawaii.org">LDAHawaii.org</a>
+</footer>
+
+<script>
+  const ENDPOINT_LOOKUP = 'https://us-central1-ldah-932d5.cloudfunctions.net/lookupReadinessContact';
+  const ENDPOINT_SUBMIT = 'https://us-central1-ldah-932d5.cloudfunctions.net/submitReadinessConsent';
+
+  const $ = id => document.getElementById(id);
+  const form = $('form'), submitBtn = $('submitBtn'), errEl = $('err');
+
+  $('today').textContent = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+
+  function radioVal(name){ const el = document.querySelector('input[name="'+name+'"]:checked'); return el ? el.value : ''; }
+  function showErr(m){ errEl.textContent = m; errEl.classList.add('show'); }
+  function clearErr(){ errEl.textContent=''; errEl.classList.remove('show'); }
+
+  // Conditional detail rows
+  document.querySelectorAll('input[type=radio][data-detail]').forEach(r => r.addEventListener('change', () => {
+    const d = $(r.getAttribute('data-detail')); if (d) d.hidden = (r.value !== 'Yes');
+  }));
+  // Relationship "Other"
+  document.querySelectorAll('input[name=rel]').forEach(r => r.addEventListener('change', () => {
+    $('relOtherText').hidden = (radioVal('rel') !== 'Other');
+  }));
+  // Ethnicity "Other"
+  $('ethnicity').addEventListener('change', () => { $('ethnicityOther').hidden = ($('ethnicity').value !== 'Other'); });
+  // Clear missing highlight
+  form.addEventListener('input', e => { if (e.target.classList) e.target.classList.remove('missing'); });
+  form.addEventListener('change', e => { const g = e.target.closest('.choices'); if (g) g.classList.remove('missing'); });
+
+  // Email lookup on blur — prefill if on file
+  let _lookedUp = '';
+  $('email').addEventListener('blur', async () => {
+    const email = $('email').value.trim().toLowerCase();
+    if (!email || email.indexOf('@') === -1 || email === _lookedUp) return;
+    _lookedUp = email;
+    try {
+      const res = await fetch(ENDPOINT_LOOKUP, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email }) });
+      if (!res.ok) return;
+      const data = await res.json();
+      const note = $('lookupNote');
+      if (data.found && data.prefill) {
+        const p = data.prefill, c = p.child || {};
+        if (p.parentFirstName && !$('pFirst').value) $('pFirst').value = p.parentFirstName;
+        if (p.parentLastName && !$('pLast').value) $('pLast').value = p.parentLastName;
+        if (p.relationship) { const rr = document.querySelector('input[name=rel][value="'+p.relationship+'"]'); if (rr) rr.checked = true; }
+        if (c.firstName && !$('cFirst').value) $('cFirst').value = c.firstName;
+        if (c.middleName && !$('cMiddle').value) $('cMiddle').value = c.middleName;
+        if (c.lastName && !$('cLast').value) $('cLast').value = c.lastName;
+        if (c.gender) { const g = document.querySelector('input[name=cGender][value="'+c.gender+'"]'); if (g) g.checked = true; }
+        if (c.nativeHawaiian) { const n = document.querySelector('input[name=nh][value="'+c.nativeHawaiian+'"]'); if (n) n.checked = true; }
+        if (c.ethnicity) { const opt = Array.from($('ethnicity').options).find(o => o.value === c.ethnicity || o.text === c.ethnicity); if (opt) $('ethnicity').value = opt.value; }
+        note.textContent = 'Welcome back! We found you on file and filled in what we have — please review and update anything.';
+        note.classList.add('show');
+      } else {
+        note.classList.remove('show');
+      }
+    } catch (_) {}
+  });
+
+  function collect(){
+    const v = id => ($(id).value || '').trim();
+    let rel = radioVal('rel'); if (rel === 'Other') rel = 'Other: ' + v('relOtherText');
+    let eth = $('ethnicity').value; if (eth === 'Other') eth = v('ethnicityOther');
+    return {
+      parent: { email: v('email'), firstName: v('pFirst'), lastName: v('pLast'), relationship: rel },
+      child: { firstName: v('cFirst'), middleName: v('cMiddle'), lastName: v('cLast'),
+        gender: radioVal('cGender'), nativeHawaiian: radioVal('nh'), ethnicity: eth },
+      health: { chronicEar: radioVal('ear'), lastEarInfection: v('earWhen'),
+        sickRecently: radioVal('sick'), illnessDescribe: v('sickDesc') },
+      signedName: v('sign')
+    };
+  }
+
+  function validate(d){
+    const miss = [];
+    const mark = id => { const el = $(id); if (el) el.classList.add('missing'); };
+    if (!d.parent.email || d.parent.email.indexOf('@') === -1) { mark('email'); miss.push('a valid email'); }
+    if (!d.parent.firstName) { mark('pFirst'); miss.push('your first name'); }
+    if (!d.parent.lastName) { mark('pLast'); miss.push('your last name'); }
+    if (!radioVal('rel')) { $('relGroup').classList.add('missing'); miss.push('your relationship'); }
+    if (!d.child.firstName) { mark('cFirst'); miss.push("child's first name"); }
+    if (!d.child.lastName) { mark('cLast'); miss.push("child's last name"); }
+    if (!d.signedName || d.signedName.indexOf(' ') === -1) { mark('sign'); miss.push('your first AND last name to sign'); }
+    return miss;
+  }
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    clearErr();
+    const data = collect();
+    const miss = validate(data);
+    if (miss.length) {
+      showErr('Please provide ' + miss.slice(0,3).join(', ') + (miss.length>3?', and more.':'.'));
+      const bad = document.querySelector('.missing'); if (bad && bad.scrollIntoView) bad.scrollIntoView({behavior:'smooth',block:'center'});
+      return;
+    }
+    submitBtn.disabled = true; submitBtn.textContent = 'Submitting…';
+    try {
+      const res = await fetch(ENDPOINT_SUBMIT, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ form: data }) });
+      if (!res.ok) {
+        let d=''; try { const j = await res.json(); d = j && j.error ? ' ('+j.error+')' : ''; } catch(_){}
+        showErr("We couldn't save the consent" + d + '. Please try again.');
+        submitBtn.disabled = false; submitBtn.textContent = 'Sign & Submit';
+        return;
+      }
+      $('thanksMsg').textContent = 'Thank you, ' + data.parent.firstName + '. Consent for ' + (data.child.firstName || 'your child') + ' has been received. An LDAH staff member will call you for the screening.';
+      $('formCard').style.display = 'none';
+      $('thanksCard').style.display = 'block';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      showErr("We couldn't reach the server. Please check the connection and try again.");
+      submitBtn.disabled = false; submitBtn.textContent = 'Sign & Submit';
+    }
+  });
+</script>
+</body>
+</html>
