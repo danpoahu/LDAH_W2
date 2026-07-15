@@ -813,6 +813,7 @@
         // Phase B: minted by submitConnectGenConsent and reused by the
         // requestConnectGenUploadUrl + confirmConnectGenUpload calls.
         let uploadAuthToken = null;
+        let worksheetUrl = null;   // set from the consent response; used on the success screen
 
         function showOnly(el) {
             loadingCard.style.display = 'none';
@@ -929,6 +930,12 @@
                     const data = await res.json();
                     if (data && data.uploadAuthToken) {
                         uploadAuthToken = data.uploadAuthToken;
+                    }
+                    // Worksheet link for the success screen (2026-07-14). The
+                    // worksheet is the one requirement NOT handled on this page,
+                    // so we point the parent to it while they're still here.
+                    if (data && data.worksheetUrl) {
+                        worksheetUrl = data.worksheetUrl;
                     }
                 } catch (_) {}
                 // Consent saved — reveal the Upload Documents UI.
@@ -1294,6 +1301,12 @@
             }
 
             showUploadSuccess('All ' + queue.length + ' documents received. Mahalo!');
+            // The worksheet is the one remaining step and it is NOT on this page,
+            // so point the parent to it right here (2026-07-14) rather than
+            // relying on them opening an email.
+            if (worksheetUrl) {
+                showWorksheetStep();
+            }
             // Don't strand them on a dead page (2026-07-14). The button becomes the
             // way out instead of a disabled full stop.
             uploadBtn.disabled = false;
@@ -1310,6 +1323,26 @@
             setTimeout(function() {
                 if (!window.closed) window.location.href = 'https://www.ldahawaii.org/';
             }, 250);
+        }
+
+        // Reveals the "one last step: worksheet" panel after documents are in.
+        // The worksheet is the one requirement not handled on this page, so we
+        // point the parent to it while they are still here (2026-07-14).
+        function showWorksheetStep() {
+            if (!worksheetUrl || document.getElementById('worksheetStep')) return;
+            var el = document.createElement('div');
+            el.id = 'worksheetStep';
+            el.style.cssText = 'background:#F0F9FF;border:2px solid #0891B2;border-radius:12px;padding:18px 20px;margin-top:20px;';
+            el.innerHTML =
+                '<div style="font-weight:700;color:#0C4A6E;font-size:1.05rem;margin-bottom:6px;">One last step</div>' +
+                '<div style="font-size:.95rem;color:#334155;line-height:1.55;margin-bottom:14px;">' +
+                  'Please complete your <strong>Parent Report Worksheet</strong> &mdash; the concerns you want us to look at. ' +
+                  'It takes a few minutes, and it is what makes your session useful. If you don&rsquo;t know an answer, just write &ldquo;n/a&rdquo;.' +
+                '</div>' +
+                '<a href="' + worksheetUrl + '" class="btn btn-primary" style="display:inline-block;text-decoration:none;text-align:center;">Complete the Worksheet</a>';
+            var card = document.getElementById('uploadCard') || document.querySelector('.main-wrap');
+            if (card) card.appendChild(el);
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
         uploadBtn.addEventListener('click', handleUploadSubmit);
 
