@@ -9576,10 +9576,20 @@ exports.submitConnectGenConsent = functions
       // straight to requestConnectGenUploadUrl / confirmConnectGenUpload
       // without the parent needing to authenticate again. Existing clients
       // that ignore these extra fields keep working unchanged.
+      //
+      // Also return the worksheet URL (prepToken-based), so the consent page can
+      // show the "complete your worksheet" step on its own success screen — the
+      // parent is right there, which is a better prompt than an email they may
+      // not open. Re-read once more in case _cgMaybeConfirm minted the token.
+      let _prepToken = s.prepToken;
+      if (!_prepToken) {
+        try { _prepToken = ((await doc.ref.get()).data() || {}).prepToken || null; } catch (_) {}
+      }
       res.status(200).json({
         ok: true,
         uploadAuthToken,
         uploadAuthExpiresAt: uploadExpiryDate.toISOString(),
+        worksheetUrl: _prepToken ? (CONNECT_GEN_WORKSHEET_BASE_URL + "?token=" + _prepToken) : null,
       });
     } catch (err) {
       console.error("submitConnectGenConsent error:", err.message);
@@ -9910,23 +9920,25 @@ function buildConnectGenConsentReceivedEmailHtml({
   const safeName = lifecycleEsc(name || "there");
   const safeTitle = lifecycleEsc(eventTitle || "Connect-Gen");
   const safeDates = lifecycleEsc(datesPhrase || "");
-  const list = outstanding || [];
-  const stepsLeft = list.length === 1 ? "1 step left" : list.length + " steps left";
+  // Documents are uploaded on the consent page itself, immediately after signing,
+  // so this email must NOT chase them — it fires seconds before the parent does
+  // exactly that, and listing "Upload Documents" as a to-do reads as though we
+  // hadn't noticed. The worksheet is the ONE requirement that is not on the
+  // consent page, so this email exists to point at that. Missing documents are
+  // backstopped by the reminder cron and by the fact that confirmation only
+  // fires once everything is in.
+  const worksheetLeft = (outstanding || []).indexOf("worksheet") !== -1;
+  const stepsLeft = worksheetLeft ? "1 step left" : "almost there";
 
-  const items = {
-    documents: "Send us your child’s most current <strong>IEP</strong> and the <strong>Evaluation</strong> that created it.",
-    worksheet: "Complete the <strong>Parent Report Worksheet</strong> — the concerns you want us to look at. It takes a few minutes and it is what makes the session useful.",
-    consent: "Sign the consent form.",
-  };
   let checklist = '<ul style="margin:0 0 8px;padding-left:20px;font-size:15px;color:#334155;line-height:1.7">';
-  list.forEach(function (k) { checklist += '<li style="margin:0 0 8px">' + (items[k] || lifecycleEsc(k)) + '</li>'; });
+  if (worksheetLeft) {
+    checklist += '<li style="margin:0 0 8px">Complete the <strong>Parent Report Worksheet</strong> — the concerns you want us to look at. It takes a few minutes and it is what makes the session useful.</li>';
+  }
+  checklist += '<li style="margin:0 0 8px">Make sure your child’s <strong>IEP</strong> and <strong>Evaluation</strong> are uploaded. You can do this on the same page where you signed your consent — if you have already done it, you are all set.</li>';
   checklist += '</ul>';
 
   let buttons = '';
-  if (list.indexOf("documents") !== -1 && uploadUrl) {
-    buttons += _emailBtn(uploadUrl, "Upload Documents", { bg: "#1a3c6e", align: "center" });
-  }
-  if (list.indexOf("worksheet") !== -1 && worksheetUrl) {
+  if (worksheetLeft && worksheetUrl) {
     buttons += _emailBtn(worksheetUrl, "Complete the Worksheet", { bg: "#0891B2", align: "center" });
   }
 
@@ -9942,7 +9954,11 @@ function buildConnectGenConsentReceivedEmailHtml({
     '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Mahalo for signing your consent form for <strong>' + safeTitle + '</strong>' + (safeDates ? '<strong>' + safeDates + '</strong>' : '') + '. It is on file.</p>' +
     '<div style="background:#FFFBEB;border:2px solid #F59E0B;border-radius:10px;padding:14px 18px;margin:18px 0;">' +
       '<div style="font-weight:700;color:#92400E;font-size:1rem;margin-bottom:8px;">Your appointment is not confirmed yet</div>' +
-      '<div style="font-size:.95rem;color:#78350F;line-height:1.5;">We still need ' + lifecycleEsc(outstandingPhrase || "a few things from you") + '. As soon as we have everything, we will send your confirmation with the prep documents and session details.</div>' +
+      '<div style="font-size:.95rem;color:#78350F;line-height:1.5;">' +
+        (worksheetLeft
+          ? 'The last thing we need is your Parent Report Worksheet.'
+          : 'We are just making sure everything is in.') +
+        ' As soon as we have everything, we will send your confirmation with the prep documents and session details.</div>' +
     '</div>' +
     '<div style="font-weight:700;color:#0F172A;margin:20px 0 10px;">What is left</div>' +
     checklist +
