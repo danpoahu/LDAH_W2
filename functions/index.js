@@ -9597,6 +9597,242 @@ exports.submitConnectGenConsent = functions
     }
   });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SRP Screening Consent (School Readiness Project) — 2026-07-15
+// Standalone tokenized consent + intake form (srp-consent.html). Mirrors the
+// Connect-Gen consent flow, but the token lives in its own top-level
+// `srpConsentTokens` collection (doc id == token, so NO index is needed) and
+// the submission is saved onto a `contacts` doc (find-or-create by email→phone)
+// rather than an event signup.
+//   sendSrpConsentToken -> mints a token doc + emails the parent a link
+//   getSrpConsent       -> public form validates the token, returns prefill
+//   submitSrpConsent    -> saves the full form to the contact, burns the token
+//
+// DEMO SAFETY GATE: sendSrpConsentToken only emails an allowlist (Daniel +
+// @ldahawaii.org) so it cannot reach real parents until reviewed. The
+// production trigger will move to the Int staff dashboard behind staff auth.
+// ═══════════════════════════════════════════════════════════════════════════
+const SRP_CONSENT_BASE_URL = "https://www.ldahawaii.org/srp-consent.html";
+const SRP_CONSENT_TOKEN_TTL_MS = 60 * 24 * 60 * 60 * 1000; // 60 days
+const SRP_CONSENT_DEMO_ALLOWLIST = ["danpellegrini63@gmail.com", "dan@oahuappdesign.com"];
+
+function _srpEmailAllowed(email) {
+  const e = (email || "").trim().toLowerCase();
+  if (!e || e.indexOf("@") === -1) return false;
+  if (SRP_CONSENT_DEMO_ALLOWLIST.indexOf(e) !== -1) return true;
+  if (e.endsWith("@ldahawaii.org")) return true;
+  return false;
+}
+
+function _srpBuildInviteEmailHtml({ parentName, childName, formUrl }) {
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const greetName = parentName ? esc(parentName) : "there";
+  const childBit = childName ? (" for <strong>" + esc(childName) + "</strong>") : "";
+  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#1E293B;line-height:1.6;">
+    <h2 style="color:#0891B2;font-size:1.25rem;margin:0 0 12px;">Consent for Screening Services</h2>
+    <p style="margin:0 0 14px;">Aloha ${greetName},</p>
+    <p style="margin:0 0 14px;">Please complete and sign the Informed Consent for Screening Services${childBit} through LDAH's <strong>School Readiness Project</strong>. This lets us offer your child free developmental, vision, and hearing screenings.</p>
+    <p style="margin:0 0 22px;">It takes about 5&ndash;10 minutes.</p>
+    <p style="margin:0 0 26px;text-align:center;">
+      <a href="${esc(formUrl)}" style="display:inline-block;background:#0891B2;color:#ffffff;text-decoration:none;padding:13px 28px;border-radius:10px;font-weight:600;font-size:1rem;">Open the Consent Form</a>
+    </p>
+    <p style="margin:0 0 14px;font-size:.9rem;color:#64748B;">If the button doesn't work, copy and paste this link into your browser:<br><a href="${esc(formUrl)}" style="color:#0891B2;word-break:break-all;">${esc(formUrl)}</a></p>
+    <p style="margin:0 0 4px;font-size:.9rem;color:#64748B;">This link is unique to you and expires in 60 days.</p>
+    <p style="margin:18px 0 0;font-size:.9rem;color:#64748B;">Mahalo,<br>LDAH School Readiness Project<br>(808) 696-5361</p>
+  </div>`;
+}
+
+// GET — public form validates its token and pulls any prefill/labels.
+exports.getSrpConsent = functions
+  .runWith({ timeoutSeconds: 20, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "GET") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const token = (req.query.token || "").toString().trim();
+    if (!token) { res.status(400).json({ error: "Missing token" }); return; }
+    try {
+      const db = admin.firestore();
+      const snap = await db.collection("srpConsentTokens").doc(token).get();
+      if (!snap.exists) { res.status(404).json({ error: "Invalid or expired link" }); return; }
+      const t = snap.data() || {};
+      if (t.usedAt) { res.status(410).json({ error: "This consent has already been submitted", alreadySubmitted: true }); return; }
+      if (t.expiresAt && t.expiresAt.toMillis && t.expiresAt.toMillis() < Date.now()) {
+        res.status(404).json({ error: "This link has expired" }); return;
+      }
+      res.status(200).json({ ok: true, prefill: t.prefill || {}, eventTitle: t.eventTitle || "", eventDate: t.eventDate || "" });
+    } catch (err) {
+      console.error("getSrpConsent error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+// POST — parent submits the signed intake+consent. Saves to a contact, burns token.
+exports.submitSrpConsent = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 5 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const token = (body.token || "").toString().trim();
+    const form = body.form || {};
+    const parent = form.parent || {};
+    const child = form.child || {};
+    const acks = form.acknowledgments || {};
+    const email = (parent.email || "").toString().trim();
+    const signedName = (form.signedName || "").toString().trim();
+    if (!token) { res.status(400).json({ error: "Missing token" }); return; }
+    if (!parent.firstName || !parent.lastName) { res.status(400).json({ error: "Parent name is required" }); return; }
+    if (!email || email.indexOf("@") === -1) { res.status(400).json({ error: "A valid email is required" }); return; }
+    if (!child.firstName || !child.lastName) { res.status(400).json({ error: "Child name is required" }); return; }
+    if (!signedName || signedName.indexOf(" ") === -1) { res.status(400).json({ error: "Please type your first and last name to sign" }); return; }
+    if (!(acks.ack1 && acks.ack2 && acks.ack3 && acks.ack4 && acks.ack5)) { res.status(400).json({ error: "All five consent acknowledgments are required" }); return; }
+
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const tokRef = db.collection("srpConsentTokens").doc(token);
+      const tokSnap = await tokRef.get();
+      if (!tokSnap.exists) { res.status(404).json({ error: "Invalid or expired link" }); return; }
+      const tok = tokSnap.data() || {};
+      if (tok.usedAt) { res.status(410).json({ error: "This consent has already been submitted" }); return; }
+      if (tok.expiresAt && tok.expiresAt.toMillis && tok.expiresAt.toMillis() < Date.now()) {
+        res.status(404).json({ error: "This link has expired" }); return;
+      }
+
+      const ip = (req.headers["x-forwarded-for"] || req.ip || "").toString().split(",")[0].trim();
+      const emailLc = email.toLowerCase();
+      const cellDigits = (parent.cellPhone || "").replace(/\D/g, "");
+
+      // Find-or-create the contact (email → phone → create), mirroring handleSignupCreated.
+      let contactId = null;
+      const emailSnap = await db.collection("contacts").where("email", "==", emailLc).get();
+      if (emailSnap.size >= 1) {
+        contactId = emailSnap.docs[0].id;
+      } else if (cellDigits) {
+        const phoneSnap = await db.collection("contacts").where("phone", "==", cellDigits).get();
+        if (phoneSnap.size >= 1) contactId = phoneSnap.docs[0].id;
+      }
+      if (!contactId) {
+        const newRef = await db.collection("contacts").add({
+          displayName: (parent.firstName + " " + parent.lastName).trim(),
+          firstName: parent.firstName || "",
+          lastName: parent.lastName || "",
+          email: emailLc,
+          phone: parent.cellPhone || "",
+          type: "Parent/Guardian",
+          source: "srp-consent",
+          createdBy: "srp-consent",
+          createdByName: "SRP Screening Consent",
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        contactId = newRef.id;
+      }
+
+      const consentObj = {
+        signedAt: FieldValue.serverTimestamp(),
+        signedName,
+        consentVersion: form.consentVersion || "9/25, CK",
+        signedIp: ip,
+        relationship: parent.relationship || "",
+        parent: {
+          firstName: parent.firstName || "", lastName: parent.lastName || "", email: emailLc,
+          cellPhone: parent.cellPhone || "", homePhone: parent.homePhone || "",
+          address: parent.address || "", city: parent.city || "", zipCode: parent.zipCode || "",
+        },
+        child: {
+          firstName: child.firstName || "", lastName: child.lastName || "", sex: child.sex || "",
+          ethnicity: child.ethnicity || "", nativeHawaiian: child.nativeHawaiian || "", birthdate: child.birthdate || "",
+          insurance: child.insurance || "", school: child.school || "", gradeLevel: child.gradeLevel || "", usCitizen: child.usCitizen || "",
+        },
+        health: form.health || {},
+        acknowledgments: { ack1: !!acks.ack1, ack2: !!acks.ack2, ack3: !!acks.ack3, ack4: !!acks.ack4, ack5: !!acks.ack5 },
+        eventTitle: tok.eventTitle || "",
+        eventDate: tok.eventDate || "",
+        tokenId: token,
+      };
+
+      const contactUpdate = { srpScreeningConsent: consentObj };
+      if (parent.address) contactUpdate.streetAddress = parent.address;
+      if (parent.city) contactUpdate.city = parent.city;
+      if (parent.zipCode) contactUpdate.zipCode = parent.zipCode;
+      await db.collection("contacts").doc(contactId).set(contactUpdate, { merge: true });
+
+      await tokRef.update({ usedAt: FieldValue.serverTimestamp(), consentContactId: contactId, submittedName: signedName });
+
+      res.status(200).json({ ok: true, contactId });
+    } catch (err) {
+      console.error("submitSrpConsent error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+// POST — mint a token + email the parent a link. DEMO-gated to an allowlist.
+exports.sendSrpConsentToken = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 5, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const email = (body.email || "").toString().trim();
+    if (!email || email.indexOf("@") === -1) { res.status(400).json({ error: "A valid recipient email is required" }); return; }
+    if (!_srpEmailAllowed(email)) {
+      res.status(403).json({ error: "This SRP consent sender is currently limited to LDAH staff/demo addresses." });
+      return;
+    }
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const token = crypto.randomBytes(16).toString("hex");
+      const prefill = {
+        parentFirstName: (body.parentFirstName || "").toString().trim(),
+        parentLastName: (body.parentLastName || "").toString().trim(),
+        email: email.toLowerCase(),
+        cellPhone: (body.cellPhone || "").toString().trim(),
+        childFirstName: (body.childFirstName || "").toString().trim(),
+        childLastName: (body.childLastName || "").toString().trim(),
+      };
+      await db.collection("srpConsentTokens").doc(token).set({
+        token,
+        createdAt: FieldValue.serverTimestamp(),
+        expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + SRP_CONSENT_TOKEN_TTL_MS),
+        usedAt: null,
+        prefill,
+        eventTitle: (body.eventTitle || "").toString().trim(),
+        eventDate: (body.eventDate || "").toString().trim(),
+        sentTo: email.toLowerCase(),
+        createdVia: (body.createdVia || "sendSrpConsentToken").toString(),
+      });
+      const formUrl = SRP_CONSENT_BASE_URL + "?token=" + encodeURIComponent(token);
+      const parentName = (prefill.parentFirstName + " " + prefill.parentLastName).trim();
+      const childName = (prefill.childFirstName + " " + prefill.childLastName).trim();
+      const html = _srpBuildInviteEmailHtml({ parentName, childName, formUrl });
+      await sendEmailViaResend({
+        from: lifecycleFromAddress(),
+        to: email,
+        subject: "Consent for Screening Services — LDAH School Readiness Project",
+        html,
+        type: "srp-consent-invite",
+        recipientName: parentName || undefined,
+      });
+      res.status(200).json({ ok: true, token, url: formUrl });
+    } catch (err) {
+      console.error("sendSrpConsentToken error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
 // ---------- Connect-Gen secure document upload (Phase B) ----------
 //
 // Three-step signed-Storage-URL pattern, picked over a single CF body-upload
