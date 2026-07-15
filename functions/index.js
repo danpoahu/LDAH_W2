@@ -9608,21 +9608,12 @@ exports.submitConnectGenConsent = functions
 //   getSrpConsent       -> public form validates the token, returns prefill
 //   submitSrpConsent    -> saves the full form to the contact, burns the token
 //
-// DEMO SAFETY GATE: sendSrpConsentToken only emails an allowlist (Daniel +
-// @ldahawaii.org) so it cannot reach real parents until reviewed. The
-// production trigger will move to the Int staff dashboard behind staff auth.
+// sendSrpConsentToken requires a signed-in LDAH staff user (Firebase ID token,
+// verified server-side) — only authenticated staff can send, so there's no
+// anonymous-abuse surface. Triggered from the Int dashboard's Screening interaction.
 // ═══════════════════════════════════════════════════════════════════════════
 const SRP_CONSENT_BASE_URL = "https://www.ldahawaii.org/srp-consent.html";
 const SRP_CONSENT_TOKEN_TTL_MS = 60 * 24 * 60 * 60 * 1000; // 60 days
-const SRP_CONSENT_DEMO_ALLOWLIST = ["danpellegrini63@gmail.com", "dan@oahuappdesign.com"];
-
-function _srpEmailAllowed(email) {
-  const e = (email || "").trim().toLowerCase();
-  if (!e || e.indexOf("@") === -1) return false;
-  if (SRP_CONSENT_DEMO_ALLOWLIST.indexOf(e) !== -1) return true;
-  if (e.endsWith("@ldahawaii.org")) return true;
-  return false;
-}
 
 function _srpBuildInviteEmailHtml({ parentName, childName, formUrl }) {
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -9787,9 +9778,14 @@ exports.sendSrpConsentToken = functions
     const body = req.body || {};
     const email = (body.email || "").toString().trim();
     if (!email || email.indexOf("@") === -1) { res.status(400).json({ error: "A valid recipient email is required" }); return; }
-    if (!_srpEmailAllowed(email)) {
-      res.status(403).json({ error: "This SRP consent sender is currently limited to LDAH staff/demo addresses." });
-      return;
+    // Require a signed-in LDAH staff user — the Int dashboard passes the caller's
+    // Firebase ID token. Blocks anonymous abuse of this email sender.
+    const idToken = (body.idToken || "").toString().trim();
+    if (!idToken) { res.status(401).json({ error: "Sign-in required" }); return; }
+    try {
+      await admin.auth().verifyIdToken(idToken);
+    } catch (e) {
+      res.status(401).json({ error: "Invalid or expired sign-in" }); return;
     }
     try {
       const db = admin.firestore();
