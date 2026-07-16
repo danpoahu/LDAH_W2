@@ -143,8 +143,12 @@
   let filter = 'today';
   let rows = [];
   let current = null; // { contactId, screeningId, child }
+  let unsub = null;   // Firestore realtime listener
 
-  auth.onAuthStateChanged(u => { if (u){ loadReport(); } else { view('login'); } });
+  auth.onAuthStateChanged(u => {
+    if (u){ startReport(); }
+    else { if (unsub){ unsub(); unsub=null; } view('login'); }
+  });
 
   // ---- Login ----
   $('loginForm').addEventListener('submit', async e => {
@@ -159,20 +163,24 @@
   // ---- Report ----
   window.setFilter = function(f){ filter=f; $('cToday').className='chip'+(f==='today'?' on':''); $('cAll').className='chip'+(f==='all'?' on':''); renderList(); };
 
-  async function loadReport(){
+  function buildRows(snap){
+    rows = [];
+    snap.forEach(doc => { const c = doc.data()||{}; const list = Array.isArray(c.screenings)?c.screenings:[];
+      list.forEach(s => { if(!s) return; rows.push({ contactId:doc.id, screeningId:s.id||'', child:s.child||{},
+        childName:(((s.child&&s.child.firstName)||'')+' '+((s.child&&s.child.lastName)||'')).trim(),
+        parentName:c.displayName||(((c.firstName||'')+' '+(c.lastName||'')).trim()), email:c.email||'',
+        signedAt:s.signedAt, results:s.results||null, resultsSent:!!(s.results&&s.results.resultsSentAt) }); });
+    });
+  }
+  // Realtime listener — new consents & results appear live, on any device, no refresh.
+  function startReport(){
     view('report');
-    $('list').innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto 12px;"></div>Loading screenings…</div>';
-    try {
-      const snap = await db.collection('contacts').get();
-      rows = [];
-      snap.forEach(doc => { const c = doc.data()||{}; const list = Array.isArray(c.screenings)?c.screenings:[];
-        list.forEach(s => { if(!s) return; rows.push({ contactId:doc.id, screeningId:s.id||'', child:s.child||{},
-          childName:(((s.child&&s.child.firstName)||'')+' '+((s.child&&s.child.lastName)||'')).trim(),
-          parentName:c.displayName||(((c.firstName||'')+' '+(c.lastName||'')).trim()), email:c.email||'',
-          signedAt:s.signedAt, results:s.results||null, resultsSent:!!(s.results&&s.results.resultsSentAt) }); });
-      });
-      renderList();
-    } catch (ex){ $('list').innerHTML = '<div class="empty">Couldn’t load: '+esc(ex.message)+'</div>'; }
+    if (!unsub) $('list').innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto 12px;"></div>Loading screenings…</div>';
+    if (unsub) return;
+    unsub = db.collection('contacts').onSnapshot(
+      snap => { buildRows(snap); renderList(); },
+      err => { $('list').innerHTML = '<div class="empty">Couldn’t load: '+esc(err.message)+'</div>'; }
+    );
   }
 
   function isToday(ts){ if(!ts||!ts.toDate) return false; const d=ts.toDate(), n=new Date(); return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate(); }
@@ -249,10 +257,10 @@
       if (sendEmail){
         let idToken=''; try { idToken = await auth.currentUser.getIdToken(); } catch(_){}
         const res = await fetch(SEND_RESULTS, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idToken, contactId:current.contactId, screeningId:current.screeningId }) });
-        if (!res.ok){ let d=''; try{const j=await res.json(); d=j&&j.error?' ('+j.error+')':'';}catch(e){} msg.style.color='#b91c1c'; msg.textContent='Saved, but email failed'+d+'.'; $('btnSave').disabled=false; $('btnEmail').disabled=false; await loadReport(); return; }
+        if (!res.ok){ let d=''; try{const j=await res.json(); d=j&&j.error?' ('+j.error+')':'';}catch(e){} msg.style.color='#b91c1c'; msg.textContent='Saved, but email failed'+d+'.'; $('btnSave').disabled=false; $('btnEmail').disabled=false; return; }
         msg.style.color='#16a34a'; msg.textContent='Saved & emailed. ✓';
       } else { msg.style.color='#16a34a'; msg.textContent='Results saved. ✓'; }
-      setTimeout(async ()=>{ await loadReport(); }, 800);
+      setTimeout(()=>{ closeEntry(); }, 800);
     } catch (ex){
       msg.style.color='#b91c1c';
       msg.textContent = (ex.code==='permission-denied') ? 'Your account can’t save results (needs admin access — ask Daniel).' : ('Error: '+ex.message);
