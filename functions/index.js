@@ -10089,10 +10089,12 @@ exports.getScreeningResults = functions
       res.status(200).json({
         ok: true,
         childName: ((child.firstName || "") + " " + (child.lastName || "")).trim(),
+        parentName: ((_cData.firstName || "") + " " + (_cData.lastName || "")).trim(),
+        address: _cData.location || _cData.streetAddress || "",
         results: {
-          vision: r.vision || null,
           hearing: r.hearing || null,
-          referral: r.referral || null,
+          vision: r.vision || null,
+          site: r.site || "",
           screenedAt: asIso(r.screenedAt),
           screenedBy: r.screenedBy || "",
         },
