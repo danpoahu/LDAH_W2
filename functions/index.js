@@ -9727,8 +9727,10 @@ exports.submitSrpConsent = functions
         contactId = newRef.id;
       }
 
-      const consentObj = {
-        signedAt: FieldValue.serverTimestamp(),
+      const screening = {
+        id: crypto.randomBytes(8).toString("hex"),
+        source: "online-srp",
+        signedAt: admin.firestore.Timestamp.now(),
         signedName,
         consentVersion: form.consentVersion || "9/25, CK",
         signedIp: ip,
@@ -9750,11 +9752,11 @@ exports.submitSrpConsent = functions
         tokenId: token,
       };
 
-      const contactUpdate = { srpScreeningConsent: consentObj };
+      const contactUpdate = { screenings: FieldValue.arrayUnion(screening) };
       if (parent.address) contactUpdate.streetAddress = parent.address;
       if (parent.city) contactUpdate.city = parent.city;
       if (parent.zipCode) contactUpdate.zipCode = parent.zipCode;
-      await db.collection("contacts").doc(contactId).set(contactUpdate, { merge: true });
+      await db.collection("contacts").doc(contactId).update(contactUpdate);
 
       await tokRef.update({ usedAt: FieldValue.serverTimestamp(), consentContactId: contactId, submittedName: signedName });
 
@@ -9858,21 +9860,17 @@ exports.lookupReadinessContact = functions
       const snap = await db.collection("contacts").where("email", "==", email).limit(1).get();
       if (snap.empty) { res.status(200).json({ found: false }); return; }
       const c = snap.docs[0].data() || {};
-      const priorChild = (c.srpScreeningConsent && c.srpScreeningConsent.child) ? c.srpScreeningConsent.child : {};
+      const _scr = Array.isArray(c.screenings) ? c.screenings : [];
+      const _last = _scr.length ? _scr[_scr.length - 1] : {};
+      // Prefill PARENT only — a returning parent is usually screening a DIFFERENT
+      // child, so we deliberately don't prefill (and possibly mismatch) the child.
       res.status(200).json({
         found: true,
         prefill: {
           parentFirstName: c.firstName || "",
           parentLastName: c.lastName || "",
-          relationship: (c.srpScreeningConsent && c.srpScreeningConsent.relationship) || "",
-          child: {
-            firstName: priorChild.firstName || "",
-            middleName: priorChild.middleName || "",
-            lastName: priorChild.lastName || "",
-            gender: priorChild.gender || "",
-            nativeHawaiian: priorChild.nativeHawaiian || "",
-            ethnicity: priorChild.ethnicity || c.ethnicity || "",
-          },
+          relationship: (_last && _last.relationship) || "",
+          child: {},
         },
       });
     } catch (err) {
@@ -9928,9 +9926,12 @@ exports.submitReadinessConsent = functions
       }
 
       const ip = (req.headers["x-forwarded-for"] || req.ip || "").toString().split(",")[0].trim();
-      const consentObj = {
+      // One screening entry per child, appended to the contact's screenings[]
+      // (Timestamp.now, not serverTimestamp — serverTimestamp is illegal inside arrays).
+      const screening = {
+        id: crypto.randomBytes(8).toString("hex"),
         source: "outreach-kiosk",
-        signedAt: FieldValue.serverTimestamp(),
+        signedAt: admin.firestore.Timestamp.now(),
         signedName,
         consentVersion: "02/19/2025; HF",
         signedIp: ip,
@@ -9945,7 +9946,7 @@ exports.submitReadinessConsent = functions
           sickRecently: health.sickRecently || "", illnessDescribe: health.illnessDescribe || "",
         },
       };
-      await db.collection("contacts").doc(contactId).set({ srpScreeningConsent: consentObj }, { merge: true });
+      await db.collection("contacts").doc(contactId).update({ screenings: FieldValue.arrayUnion(screening) });
 
       // Auto-log a "Screening" interaction (in-person; no email sent).
       const childName = ((child.firstName || "") + " " + (child.lastName || "")).trim();
@@ -10023,17 +10024,21 @@ exports.sendScreeningResults = functions
       const c = cSnap.data() || {};
       const email = (c.email || "").trim();
       if (!email || email.indexOf("@") === -1) { res.status(400).json({ error: "This contact has no email address" }); return; }
-      const consent = c.srpScreeningConsent || {};
-      if (!consent.results) { res.status(400).json({ error: "No screening results have been entered yet" }); return; }
+      const screeningId = (body.screeningId || "").toString().trim();
+      const screenings = Array.isArray(c.screenings) ? c.screenings : [];
+      const idx = screenings.findIndex((s) => s && s.id === screeningId);
+      if (idx === -1) { res.status(404).json({ error: "Screening not found" }); return; }
+      const scr = screenings[idx];
+      if (!scr.results) { res.status(400).json({ error: "No screening results have been entered yet" }); return; }
 
       const token = crypto.randomBytes(16).toString("hex");
       await db.collection("screeningResultTokens").doc(token).set({
-        token, contactId,
+        token, contactId, screeningId,
         createdAt: FieldValue.serverTimestamp(),
         expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + SCREENING_RESULT_TOKEN_TTL_MS),
       });
       const url = SCREENING_RESULTS_BASE_URL + "?token=" + encodeURIComponent(token);
-      const child = consent.child || {};
+      const child = scr.child || {};
       const childName = ((child.firstName || "") + " " + (child.lastName || "")).trim();
       const html = _screeningResultsEmailHtml({ parentName: c.firstName || "", childName, url });
       await sendEmailViaResend({
@@ -10044,10 +10049,11 @@ exports.sendScreeningResults = functions
         type: "screening-results",
         recipientName: c.firstName || undefined,
       });
-      await db.collection("contacts").doc(contactId).update({
-        "srpScreeningConsent.results.resultsSentAt": FieldValue.serverTimestamp(),
-        "srpScreeningConsent.results.resultsToken": token,
-      });
+      // Stamp resultsSentAt + resultsToken on that screening entry (Timestamp.now — arrays can't hold serverTimestamp).
+      const _updated = screenings.map((s, i) => i === idx
+        ? Object.assign({}, s, { results: Object.assign({}, s.results, { resultsSentAt: admin.firestore.Timestamp.now(), resultsToken: token }) })
+        : s);
+      await db.collection("contacts").doc(contactId).update({ screenings: _updated });
       res.status(200).json({ ok: true, url });
     } catch (err) {
       console.error("sendScreeningResults error:", err.message);
@@ -10074,9 +10080,11 @@ exports.getScreeningResults = functions
       if (t.expiresAt && t.expiresAt.toMillis && t.expiresAt.toMillis() < Date.now()) { res.status(404).json({ error: "This link has expired" }); return; }
       const cSnap = await db.collection("contacts").doc(t.contactId).get();
       if (!cSnap.exists) { res.status(404).json({ error: "Results not found" }); return; }
-      const consent = (cSnap.data() || {}).srpScreeningConsent || {};
-      const r = consent.results || {};
-      const child = consent.child || {};
+      const _cData = cSnap.data() || {};
+      const _screenings = Array.isArray(_cData.screenings) ? _cData.screenings : [];
+      const _scr = _screenings.find((s) => s && s.id === t.screeningId) || {};
+      const r = _scr.results || {};
+      const child = _scr.child || {};
       const asIso = (v) => (v && v.toDate ? v.toDate().toISOString() : (typeof v === "string" ? v : ""));
       res.status(200).json({
         ok: true,
