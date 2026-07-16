@@ -9629,7 +9629,7 @@ function _srpBuildInviteEmailHtml({ parentName, childName, formUrl }) {
     </p>
     <p style="margin:0 0 14px;font-size:.9rem;color:#64748B;">If the button doesn't work, copy and paste this link into your browser:<br><a href="${esc(formUrl)}" style="color:#0891B2;word-break:break-all;">${esc(formUrl)}</a></p>
     <p style="margin:0 0 4px;font-size:.9rem;color:#64748B;">This link is unique to you and expires in 60 days.</p>
-    <p style="margin:18px 0 0;font-size:.9rem;color:#64748B;">Mahalo,<br>LDAH School Readiness Project<br>(808) 696-5361</p>
+    <p style="margin:18px 0 0;font-size:.9rem;color:#64748B;">Mahalo,<br>Leadership in Disabilities &amp; Achievement of Hawai&#699;i<br>245 North Kukui Street, Suite 205, Honolulu, HI 96817<br>(808) 696-5361</p>
   </div>`;
 }
 
@@ -9995,7 +9995,7 @@ function _screeningResultsEmailHtml({ parentName, childName, url }) {
     <p style="margin:0 0 14px;">For your privacy, the results are <strong>not included in this email</strong>. Please view them securely here:</p>
     <p style="margin:0 0 26px;text-align:center;"><a href="${esc(url)}" style="display:inline-block;background:#0891B2;color:#ffffff;text-decoration:none;padding:13px 28px;border-radius:10px;font-weight:600;">View my results</a></p>
     <p style="margin:0 0 14px;font-size:.9rem;color:#64748B;">This link is private to you and expires in 60 days. Questions? Call the School Readiness Project at (808) 696-5361.</p>
-    <p style="margin:18px 0 0;font-size:.9rem;color:#64748B;">Mahalo,<br>LDAH School Readiness Project</p>
+    <p style="margin:18px 0 0;font-size:.9rem;color:#64748B;">Mahalo,<br>Leadership in Disabilities &amp; Achievement of Hawai&#699;i<br>245 North Kukui Street, Suite 205, Honolulu, HI 96817<br>(808) 696-5361</p>
   </div>`;
 }
 
