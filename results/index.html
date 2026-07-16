@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="LDAH School Readiness Project — your child's screening results.">
+<meta name="robots" content="noindex, nofollow">
+<title>Your Child's Screening Results — LDAH</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --blue:#0891B2; --ink:#1E293B; --soft:#64748B; --pass:#16A34A; --refer:#B45309; --line:#E2E8F0; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Source Sans 3',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; color:var(--ink); background:#FEFDFB; min-height:100vh; display:flex; flex-direction:column; line-height:1.6; }
+  h1,h2,h3 { font-family:'Outfit',sans-serif; font-weight:600; }
+  .page-header { background:rgba(255,255,255,.97); box-shadow:0 1px 20px rgba(8,145,178,.08); border-bottom:1px solid rgba(8,145,178,.1); }
+  .page-header-inner { max-width:720px; margin:0 auto; padding:1rem 2rem; display:flex; align-items:center; gap:1rem; }
+  .page-header img { width:64px; height:64px; }
+  .page-header h1 { color:var(--blue); font-size:1.3rem; }
+  .page-header p { color:var(--soft); font-size:.9rem; }
+  .wrap { flex:1; max-width:640px; width:100%; margin:0 auto; padding:36px 18px 56px; }
+  .card { background:#fff; border-radius:20px; padding:2.4rem; box-shadow:0 4px 20px rgba(0,78,124,.10); border:1px solid rgba(8,145,178,.08); }
+  .center { text-align:center; }
+  .spinner { display:inline-block; width:34px; height:34px; border:3px solid rgba(8,145,178,.2); border-top-color:var(--blue); border-radius:50%; animation:spin .9s linear infinite; margin-bottom:1rem; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  h2.title { color:var(--blue); font-size:1.5rem; margin-bottom:.3rem; }
+  .sub { color:var(--soft); margin-bottom:1.6rem; }
+  .result-row { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; padding:1.1rem 0; border-bottom:1px solid var(--line); }
+  .result-row:last-of-type { border-bottom:none; }
+  .rl { font-weight:600; font-size:1.05rem; }
+  .rl .notes { display:block; font-weight:400; font-size:.9rem; color:var(--soft); margin-top:.2rem; }
+  .badge { flex:none; font-weight:700; font-size:.9rem; padding:.35rem .9rem; border-radius:20px; white-space:nowrap; }
+  .badge.pass { background:#DCFCE7; color:var(--pass); }
+  .badge.refer { background:#FEF3C7; color:var(--refer); }
+  .badge.na { background:#F1F5F9; color:var(--soft); }
+  .referral { background:#FFFBEB; border:1px solid #FDE68A; border-radius:12px; padding:1rem 1.2rem; margin-top:1.4rem; font-size:.95rem; color:#713F12; line-height:1.55; }
+  .meta { color:var(--soft); font-size:.9rem; margin-top:1.5rem; padding-top:1rem; border-top:1px dashed var(--line); }
+  .privacy { background:#F0F9FF; border:1px solid #BAE6FD; border-radius:10px; padding:.8rem 1rem; margin-top:1.4rem; font-size:.85rem; color:#0C4A6E; }
+  .msg h3 { color:var(--blue); font-size:1.3rem; margin-bottom:.5rem; }
+  .msg p { color:var(--soft); }
+  footer { background:var(--ink); color:#fff; text-align:center; padding:1.2rem; font-size:.85rem; margin-top:auto; }
+  footer a { color:#FBBF24; text-decoration:none; }
+  @media (max-width:600px){ .card{padding:1.5rem;} .page-header img{width:52px;height:52px;} }
+</style>
+</head>
+<body>
+<header class="page-header"><div class="page-header-inner">
+  <img src="/logo_blue.png" alt="LDAH Logo">
+  <div><h1>School Readiness Project</h1><p>Leadership in Disabilities &amp; Achievement of Hawai&#699;i</p></div>
+</div></header>
+
+<main class="wrap">
+  <div id="loading" class="card center"><div class="spinner"></div><p style="color:var(--soft);">Loading your results…</p></div>
+  <div id="msg" class="card center msg" style="display:none;"><h3 id="msgTitle"></h3><p id="msgBody"></p></div>
+  <div id="results" class="card" style="display:none;">
+    <h2 class="title">Screening Results</h2>
+    <div class="sub" id="forChild"></div>
+    <div id="rows"></div>
+    <div id="referralBox" class="referral" style="display:none;"></div>
+    <div class="meta" id="meta"></div>
+    <div class="privacy">This page is private to you and shows your child&rsquo;s results securely. If you have questions about these results, please call LDAH&rsquo;s School Readiness Project at <strong>(808) 696-5361</strong>.</div>
+  </div>
+</main>
+
+<footer>87-790 Kulauku Street, Suite A116, Wai&#699;anae, Hawai&#699;i 96792 &nbsp;·&nbsp; (808) 696-5361 &nbsp;·&nbsp; <a href="https://www.ldahawaii.org">LDAHawaii.org</a></footer>
+
+<script>
+  const ENDPOINT = 'https://us-central1-ldah-932d5.cloudfunctions.net/getScreeningResults';
+  const $ = id => document.getElementById(id);
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function show(el){ ['loading','msg','results'].forEach(id => $(id).style.display='none'); el.style.display='block'; }
+  function message(t,b){ $('msgTitle').textContent=t; $('msgBody').textContent=b; show($('msg')); }
+
+  function badge(result){
+    const r = (result||'').toLowerCase();
+    if (r === 'pass') return '<span class="badge pass">Pass</span>';
+    if (r === 'refer') return '<span class="badge refer">Refer</span>';
+    return '<span class="badge na">Not done</span>';
+  }
+  function row(label, obj){
+    if (!obj) return '';
+    return '<div class="result-row"><div class="rl">' + esc(label) +
+      (obj.notes ? '<span class="notes">' + esc(obj.notes) + '</span>' : '') + '</div>' + badge(obj.result) + '</div>';
+  }
+
+  async function load(){
+    const token = new URLSearchParams(location.search).get('token');
+    if (!token){ message('Invalid link', 'This results link is missing its code. Please check the link in your email, or call (808) 696-5361.'); return; }
+    try {
+      const res = await fetch(ENDPOINT + '?token=' + encodeURIComponent(token));
+      if (res.status === 404){ message('Link not found', 'We couldn’t find these results. The link may have expired. Please call (808) 696-5361.'); return; }
+      if (!res.ok){ message('Something went wrong', 'We couldn’t load your results right now. Please try again later or call (808) 696-5361.'); return; }
+      const data = await res.json();
+      const r = data.results || {};
+      $('forChild').innerHTML = data.childName ? 'For <strong>' + esc(data.childName) + '</strong>' : '';
+      $('rows').innerHTML = row('Vision', r.vision) + row('Hearing', r.hearing);
+      if (r.referral && r.referral.made){
+        $('referralBox').style.display = 'block';
+        $('referralBox').innerHTML = '<strong>Referral:</strong> Based on the screening, a referral' +
+          (r.referral.to ? ' to <strong>' + esc(r.referral.to) + '</strong>' : '') + ' is recommended for further evaluation.' +
+          (r.referral.reason ? '<br>' + esc(r.referral.reason) : '');
+      }
+      const parts = [];
+      if (r.screenedAt){ const d = new Date(r.screenedAt); if (!isNaN(d)) parts.push('Screened on ' + d.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})); }
+      if (r.screenedBy) parts.push('by ' + esc(r.screenedBy));
+      $('meta').innerHTML = parts.join(' ');
+      if (!r.vision && !r.hearing){ message('Results pending', 'Your child’s results are not available yet. Please check back, or call (808) 696-5361.'); return; }
+      show($('results'));
+    } catch (e){ message('Connection error', 'We couldn’t reach the server. Please check your connection and try again.'); }
+  }
+  load();
+</script>
+</body>
+</html>

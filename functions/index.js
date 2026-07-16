@@ -9971,6 +9971,130 @@ exports.submitReadinessConsent = functions
     }
   });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Screening Results — secure family notification (HIPAA-safer) — 2026-07-15
+// After a Vision/Hearing screening, staff enter results on the contact
+// (contacts/{id}.srpScreeningConsent.results, written client-side from Int).
+// sendScreeningResults emails the family a SECURE LINK — the results themselves
+// are NOT in the email body; they render on a token-gated noindex page fed by
+// getScreeningResults. Sender requires a signed-in staff user.
+//   sendScreeningResults  — staff-auth: mint token + email link + stamp resultsSentAt
+//   getScreeningResults    — public token: return the results for the page
+// ═══════════════════════════════════════════════════════════════════════════
+const SCREENING_RESULTS_BASE_URL = "https://www.ldahawaii.org/results/";
+const SCREENING_RESULT_TOKEN_TTL_MS = 60 * 24 * 60 * 60 * 1000; // 60 days
+
+function _screeningResultsEmailHtml({ parentName, childName, url }) {
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const who = childName ? (esc(childName) + "&rsquo;s") : "Your child&rsquo;s";
+  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#1E293B;line-height:1.6;">
+    <h2 style="color:#0891B2;font-size:1.25rem;margin:0 0 12px;">Your child&rsquo;s screening results are ready</h2>
+    <p style="margin:0 0 14px;">Aloha ${parentName ? esc(parentName) : "there"},</p>
+    <p style="margin:0 0 14px;">${who} vision and hearing screening results from LDAH&rsquo;s School Readiness Project are ready to view.</p>
+    <p style="margin:0 0 14px;">For your privacy, the results are <strong>not included in this email</strong>. Please view them securely here:</p>
+    <p style="margin:0 0 26px;text-align:center;"><a href="${esc(url)}" style="display:inline-block;background:#0891B2;color:#ffffff;text-decoration:none;padding:13px 28px;border-radius:10px;font-weight:600;">View my results</a></p>
+    <p style="margin:0 0 14px;font-size:.9rem;color:#64748B;">This link is private to you and expires in 60 days. Questions? Call the School Readiness Project at (808) 696-5361.</p>
+    <p style="margin:18px 0 0;font-size:.9rem;color:#64748B;">Mahalo,<br>LDAH School Readiness Project</p>
+  </div>`;
+}
+
+exports.sendScreeningResults = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 5, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const idToken = (body.idToken || "").toString().trim();
+    if (!idToken) { res.status(401).json({ error: "Sign-in required" }); return; }
+    try { await admin.auth().verifyIdToken(idToken); }
+    catch (e) { res.status(401).json({ error: "Invalid or expired sign-in" }); return; }
+
+    const contactId = (body.contactId || "").toString().trim();
+    if (!contactId) { res.status(400).json({ error: "Missing contactId" }); return; }
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const cSnap = await db.collection("contacts").doc(contactId).get();
+      if (!cSnap.exists) { res.status(404).json({ error: "Contact not found" }); return; }
+      const c = cSnap.data() || {};
+      const email = (c.email || "").trim();
+      if (!email || email.indexOf("@") === -1) { res.status(400).json({ error: "This contact has no email address" }); return; }
+      const consent = c.srpScreeningConsent || {};
+      if (!consent.results) { res.status(400).json({ error: "No screening results have been entered yet" }); return; }
+
+      const token = crypto.randomBytes(16).toString("hex");
+      await db.collection("screeningResultTokens").doc(token).set({
+        token, contactId,
+        createdAt: FieldValue.serverTimestamp(),
+        expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + SCREENING_RESULT_TOKEN_TTL_MS),
+      });
+      const url = SCREENING_RESULTS_BASE_URL + "?token=" + encodeURIComponent(token);
+      const child = consent.child || {};
+      const childName = ((child.firstName || "") + " " + (child.lastName || "")).trim();
+      const html = _screeningResultsEmailHtml({ parentName: c.firstName || "", childName, url });
+      await sendEmailViaResend({
+        from: lifecycleFromAddress(),
+        to: email,
+        subject: "Your child's screening results are ready — LDAH",
+        html,
+        type: "screening-results",
+        recipientName: c.firstName || undefined,
+      });
+      await db.collection("contacts").doc(contactId).update({
+        "srpScreeningConsent.results.resultsSentAt": FieldValue.serverTimestamp(),
+        "srpScreeningConsent.results.resultsToken": token,
+      });
+      res.status(200).json({ ok: true, url });
+    } catch (err) {
+      console.error("sendScreeningResults error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+exports.getScreeningResults = functions
+  .runWith({ timeoutSeconds: 15, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "GET") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const token = (req.query.token || "").toString().trim();
+    if (!token) { res.status(400).json({ error: "Missing token" }); return; }
+    try {
+      const db = admin.firestore();
+      const tSnap = await db.collection("screeningResultTokens").doc(token).get();
+      if (!tSnap.exists) { res.status(404).json({ error: "Invalid or expired link" }); return; }
+      const t = tSnap.data() || {};
+      if (t.expiresAt && t.expiresAt.toMillis && t.expiresAt.toMillis() < Date.now()) { res.status(404).json({ error: "This link has expired" }); return; }
+      const cSnap = await db.collection("contacts").doc(t.contactId).get();
+      if (!cSnap.exists) { res.status(404).json({ error: "Results not found" }); return; }
+      const consent = (cSnap.data() || {}).srpScreeningConsent || {};
+      const r = consent.results || {};
+      const child = consent.child || {};
+      const asIso = (v) => (v && v.toDate ? v.toDate().toISOString() : (typeof v === "string" ? v : ""));
+      res.status(200).json({
+        ok: true,
+        childName: ((child.firstName || "") + " " + (child.lastName || "")).trim(),
+        results: {
+          vision: r.vision || null,
+          hearing: r.hearing || null,
+          referral: r.referral || null,
+          screenedAt: asIso(r.screenedAt),
+          screenedBy: r.screenedBy || "",
+        },
+      });
+    } catch (err) {
+      console.error("getScreeningResults error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
 // ---------- Connect-Gen secure document upload (Phase B) ----------
 //
 // Three-step signed-Storage-URL pattern, picked over a single CF body-upload
