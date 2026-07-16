@@ -9895,7 +9895,9 @@ exports.submitReadinessConsent = functions
     const health = form.health || {};
     const email = (parent.email || "").toString().trim();
     const signedName = (form.signedName || "").toString().trim();
-    if (!email || email.indexOf("@") === -1) { res.status(400).json({ error: "A valid email is required" }); return; }
+    // Email is OPTIONAL on the in-person kiosk (walk-up families may not have one).
+    // If provided it must look valid; if blank, we just create a contact without it.
+    if (email && email.indexOf("@") === -1) { res.status(400).json({ error: "That email doesn't look right — fix it or leave it blank" }); return; }
     if (!parent.firstName || !parent.lastName) { res.status(400).json({ error: "Parent/guardian name is required" }); return; }
     if (!child.firstName || !child.lastName) { res.status(400).json({ error: "Child name is required" }); return; }
     if (!signedName || signedName.indexOf(" ") === -1) { res.status(400).json({ error: "Please type your first and last name to sign" }); return; }
@@ -9903,12 +9905,15 @@ exports.submitReadinessConsent = functions
     try {
       const db = admin.firestore();
       const FieldValue = admin.firestore.FieldValue;
-      const emailLc = email.toLowerCase();
+      const emailLc = email ? email.toLowerCase() : "";
 
-      // Find-or-create the contact by email.
+      // Find-or-create the contact. Match by email only when one was given;
+      // no email → always create a fresh contact (can't dedup without a key).
       let contactId = null;
-      const snap = await db.collection("contacts").where("email", "==", emailLc).limit(1).get();
-      if (!snap.empty) contactId = snap.docs[0].id;
+      if (emailLc && emailLc.indexOf("@") > -1) {
+        const snap = await db.collection("contacts").where("email", "==", emailLc).limit(1).get();
+        if (!snap.empty) contactId = snap.docs[0].id;
+      }
       if (!contactId) {
         const ref = await db.collection("contacts").add({
           displayName: (parent.firstName + " " + parent.lastName).trim(),

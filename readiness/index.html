@@ -88,8 +88,8 @@
       <div class="section">
         <div class="section-title">Parent / Guardian</div>
         <div class="fg">
-          <label class="lbl" for="email">Email <span class="req">*</span></label>
-          <span class="hint">We&rsquo;ll check if you&rsquo;re already on file and fill in what we have.</span>
+          <label class="lbl" for="email">Email <span style="font-weight:400;color:var(--text-light);">(optional)</span></label>
+          <span class="hint">If you have one, we&rsquo;ll check if you&rsquo;re already on file and can email your results. Leave blank if you don&rsquo;t have email.</span>
           <input type="email" id="email" autocomplete="email" inputmode="email">
           <div id="lookupNote" class="lookup-note"></div>
         </div>
@@ -292,7 +292,7 @@
   function validate(d){
     const miss = [];
     const mark = id => { const el = $(id); if (el) el.classList.add('missing'); };
-    if (!d.parent.email || d.parent.email.indexOf('@') === -1) { mark('email'); miss.push('a valid email'); }
+    if (d.parent.email && d.parent.email.indexOf('@') === -1) { mark('email'); miss.push('a valid email (or leave it blank)'); }
     if (!d.parent.firstName) { mark('pFirst'); miss.push('your first name'); }
     if (!d.parent.lastName) { mark('pLast'); miss.push('your last name'); }
     if (!radioVal('rel')) { $('relGroup').classList.add('missing'); miss.push('your relationship'); }
