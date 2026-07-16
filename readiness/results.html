@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#0891B2">
+<title>Screenings — LDAH Staff</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --blue:#0891B2; --blue-d:#0369A1; --ink:#1E293B; --soft:#64748B; --line:#E7EDF3; --bg:#F4F7FA;
+    --pass:#16A34A; --fail:#B91C1C; --pend:#B45309; --safe-top:env(safe-area-inset-top); --safe-bot:env(safe-area-inset-bottom); }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; }
+  body { font-family:'Source Sans 3',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; color:var(--ink); background:var(--bg); font-size:16px; line-height:1.5; }
+  h1,h2,h3 { font-family:'Outfit',sans-serif; }
+  input,select,button,textarea { font-family:inherit; font-size:16px; }
+  .spinner { width:36px; height:36px; border:3px solid rgba(8,145,178,.2); border-top-color:var(--blue); border-radius:50%; animation:spin .9s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .full-center { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:14px; color:var(--soft); }
+
+  /* App bar */
+  .bar { position:sticky; top:0; z-index:10; background:var(--blue); color:#fff; padding:calc(var(--safe-top) + 12px) 16px 12px; display:flex; align-items:center; gap:12px; box-shadow:0 2px 10px rgba(8,145,178,.25); }
+  .bar h1 { font-size:1.2rem; font-weight:600; flex:1; }
+  .bar button { background:rgba(255,255,255,.18); color:#fff; border:none; border-radius:8px; padding:8px 12px; font-weight:600; font-size:.85rem; }
+  .bar .back { background:rgba(255,255,255,.18); width:40px; height:40px; border-radius:10px; font-size:1.3rem; display:flex; align-items:center; justify-content:center; padding:0; }
+
+  /* Filter row */
+  .filters { display:flex; gap:8px; align-items:center; padding:12px 16px; background:#fff; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; flex-wrap:wrap; }
+  .chip { padding:9px 18px; border-radius:22px; border:1.5px solid var(--line); background:#fff; color:var(--soft); font-weight:600; font-size:.9rem; }
+  .chip.on { border-color:var(--blue); background:var(--blue); color:#fff; }
+  .filters .count { color:var(--soft); font-size:.85rem; margin-left:auto; }
+
+  .wrap { padding:12px 12px calc(var(--safe-bot) + 24px); max-width:600px; margin:0 auto; }
+  .empty { text-align:center; color:#94a3b8; padding:48px 20px; }
+
+  /* Screening card */
+  .card { background:#fff; border-radius:16px; box-shadow:0 1px 8px rgba(15,40,70,.06); padding:16px; margin-bottom:12px; }
+  .card .child { font-family:'Outfit',sans-serif; font-weight:600; font-size:1.15rem; color:var(--ink); }
+  .card .parent { color:var(--soft); font-size:.9rem; margin-top:1px; }
+  .card .when { color:#94a3b8; font-size:.82rem; margin-top:4px; }
+  .badges { display:flex; gap:8px; margin:12px 0 14px; flex-wrap:wrap; }
+  .badge { font-size:.8rem; font-weight:700; padding:5px 11px; border-radius:20px; }
+  .b-consent { background:#DCFCE7; color:var(--pass); }
+  .b-done { background:#DCFCE7; color:var(--pass); }
+  .b-pend { background:#FEF3C7; color:var(--pend); }
+  .card .act { width:100%; padding:13px; border:none; border-radius:12px; background:var(--blue); color:#fff; font-weight:700; font-size:1rem; }
+  .card .act.edit { background:#fff; color:var(--blue-d); border:2px solid var(--blue); }
+
+  /* Login */
+  .login { max-width:400px; margin:0 auto; padding:calc(var(--safe-top) + 40px) 22px 40px; }
+  .login img { width:76px; height:76px; display:block; margin:0 auto 18px; }
+  .login h2 { text-align:center; color:var(--blue); font-size:1.4rem; margin-bottom:6px; }
+  .login p.sub { text-align:center; color:var(--soft); margin-bottom:26px; font-size:.95rem; }
+  .fld { margin-bottom:14px; }
+  .fld label { display:block; font-weight:600; font-size:.9rem; margin-bottom:5px; }
+  .fld input, .form input, .form select, .form textarea { width:100%; padding:13px 14px; border:1.5px solid #cbd5e1; border-radius:12px; background:#fff; color:var(--ink); -webkit-appearance:none; appearance:none; }
+  .fld input:focus, .form input:focus, .form select:focus, .form textarea:focus { outline:none; border-color:var(--blue); box-shadow:0 0 0 3px rgba(8,145,178,.15); }
+  .btn-primary { width:100%; padding:15px; border:none; border-radius:12px; background:var(--blue); color:#fff; font-weight:700; font-size:1.05rem; }
+  .btn-primary:disabled { opacity:.6; }
+  .err { background:#FEE2E2; border:1px solid #FCA5A5; color:#991B1B; border-radius:10px; padding:10px 12px; margin-top:12px; font-size:.9rem; display:none; }
+  .err.show { display:block; }
+
+  /* Results entry form */
+  .form { padding:16px 16px calc(var(--safe-bot) + 90px); max-width:600px; margin:0 auto; }
+  .form .sec { font-family:'Outfit',sans-serif; font-weight:700; color:var(--blue); font-size:1.05rem; margin:20px 0 8px; padding-bottom:5px; border-bottom:2px solid #E0F2FE; }
+  .form label.l { display:block; font-weight:600; font-size:.92rem; margin:14px 0 5px; }
+  .rl { display:grid; grid-template-columns:1.1fr 1fr 1fr; gap:8px; align-items:center; margin-bottom:8px; }
+  .rl .lab { font-size:.9rem; color:#475569; }
+  .rl .h { font-size:.68rem; color:#94a3b8; font-weight:700; text-transform:uppercase; }
+  .form select { padding:11px 10px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .savebar { position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--line); padding:12px 16px calc(var(--safe-bot) + 12px); display:flex; gap:10px; z-index:20; }
+  .savebar button { flex:1; padding:14px; border-radius:12px; font-weight:700; font-size:.98rem; border:none; }
+  .savebar .save { background:#fff; color:var(--blue-d); border:2px solid var(--blue); }
+  .savebar .email { background:var(--blue); color:#fff; }
+  .savebar .email:disabled { background:#94a3b8; }
+  #entryMsg { text-align:center; font-size:.9rem; padding:8px; min-height:20px; }
+</style>
+</head>
+<body>
+
+<div id="loading" class="full-center"><div class="spinner"></div><p>Loading…</p></div>
+
+<!-- Login -->
+<div id="login" class="login" style="display:none;">
+  <img src="/logo_blue.png" alt="LDAH">
+  <h2>Screenings</h2>
+  <p class="sub">LDAH staff sign-in</p>
+  <form id="loginForm">
+    <div class="fld"><label for="lEmail">Email</label><input type="email" id="lEmail" autocomplete="username" inputmode="email" required></div>
+    <div class="fld"><label for="lPass">Password</label><input type="password" id="lPass" autocomplete="current-password" required></div>
+    <button type="submit" class="btn-primary" id="loginBtn">Sign in</button>
+    <div id="loginErr" class="err"></div>
+  </form>
+</div>
+
+<!-- Report -->
+<div id="report" style="display:none;">
+  <div class="bar"><h1>Screenings</h1><button id="signOut">Sign out</button></div>
+  <div class="filters">
+    <button class="chip on" id="cToday" onclick="setFilter('today')">Today</button>
+    <button class="chip" id="cAll" onclick="setFilter('all')">All</button>
+    <span class="count" id="count"></span>
+  </div>
+  <div class="wrap" id="list"></div>
+</div>
+
+<!-- Results entry -->
+<div id="entry" style="display:none;">
+  <div class="bar"><button class="back" onclick="closeEntry()">&#8249;</button><h1 id="entryTitle">Results</h1></div>
+  <div class="form" id="entryForm"></div>
+  <div class="savebar">
+    <button class="save" id="btnSave" onclick="saveEntry(false)">Save</button>
+    <button class="email" id="btnEmail" onclick="saveEntry(true)">Save &amp; email family</button>
+  </div>
+  <div id="entryMsg"></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script>
+  firebase.initializeApp({
+    apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk",
+    authDomain: "ldah-932d5.firebaseapp.com",
+    projectId: "ldah-932d5",
+    storageBucket: "ldah-932d5.firebasestorage.app",
+    messagingSenderId: "662130454003",
+    appId: "1:662130454003:web:437576d5a5811ecd8df686"
+  });
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+  const SEND_RESULTS = 'https://us-central1-ldah-932d5.cloudfunctions.net/sendScreeningResults';
+  const $ = id => document.getElementById(id);
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function view(v){ ['loading','login','report','entry'].forEach(id=>$(id).style.display='none'); $(v).style.display='block'; }
+
+  let filter = 'today';
+  let rows = [];
+  let current = null; // { contactId, screeningId, child }
+  let unsub = null;   // Firestore realtime listener
+
+  auth.onAuthStateChanged(u => {
+    if (u){ startReport(); }
+    else { if (unsub){ unsub(); unsub=null; } view('login'); }
+  });
+
+  // ---- Login ----
+  $('loginForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = $('loginBtn'); const err = $('loginErr');
+    err.classList.remove('show'); btn.disabled = true; btn.textContent = 'Signing in…';
+    try { await auth.signInWithEmailAndPassword($('lEmail').value.trim(), $('lPass').value); }
+    catch (ex){ err.textContent = (ex.code==='auth/invalid-credential'||ex.code==='auth/wrong-password'||ex.code==='auth/user-not-found') ? 'Incorrect email or password.' : ('Sign-in failed: '+ex.message); err.classList.add('show'); btn.disabled=false; btn.textContent='Sign in'; }
+  });
+  $('signOut').addEventListener('click', () => auth.signOut());
+
+  // ---- Report ----
+  window.setFilter = function(f){ filter=f; $('cToday').className='chip'+(f==='today'?' on':''); $('cAll').className='chip'+(f==='all'?' on':''); renderList(); };
+
+  function buildRows(snap){
+    rows = [];
+    snap.forEach(doc => { const c = doc.data()||{}; const list = Array.isArray(c.screenings)?c.screenings:[];
+      list.forEach(s => { if(!s) return; rows.push({ contactId:doc.id, screeningId:s.id||'', child:s.child||{},
+        childName:(((s.child&&s.child.firstName)||'')+' '+((s.child&&s.child.lastName)||'')).trim(),
+        parentName:c.displayName||(((c.firstName||'')+' '+(c.lastName||'')).trim()), email:c.email||'',
+        signedAt:s.signedAt, results:s.results||null, resultsSent:!!(s.results&&s.results.resultsSentAt) }); });
+    });
+  }
+  // Realtime listener — new consents & results appear live, on any device, no refresh.
+  function startReport(){
+    view('report');
+    if (!unsub) $('list').innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto 12px;"></div>Loading screenings…</div>';
+    if (unsub) return;
+    unsub = db.collection('contacts').onSnapshot(
+      snap => { buildRows(snap); renderList(); },
+      err => { $('list').innerHTML = '<div class="empty">Couldn’t load: '+esc(err.message)+'</div>'; }
+    );
+  }
+
+  function isToday(ts){ if(!ts||!ts.toDate) return false; const d=ts.toDate(), n=new Date(); return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate(); }
+
+  function renderList(){
+    let list = filter==='today' ? rows.filter(r=>isToday(r.signedAt)) : rows.slice();
+    list.sort((a,b)=>((b.signedAt&&b.signedAt.toMillis)?b.signedAt.toMillis():0)-((a.signedAt&&a.signedAt.toMillis)?a.signedAt.toMillis():0));
+    $('count').textContent = list.length + (list.length===1?' screening':' screenings') + (filter==='today'?' today':'');
+    if (!list.length){ $('list').innerHTML = '<div class="empty">No screenings'+(filter==='today'?' today yet':'')+'.</div>'; return; }
+    let h='';
+    list.forEach((r,i)=>{
+      const when = (r.signedAt&&r.signedAt.toDate)?r.signedAt.toDate().toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
+      const resBadge = r.results ? '<span class="badge b-done">Results '+(r.resultsSent?'sent':'done')+'</span>' : '<span class="badge b-pend">Results pending</span>';
+      h += '<div class="card">'+
+        '<div class="child">'+esc(r.childName||'Child')+'</div>'+
+        '<div class="parent">'+esc(r.parentName||'')+'</div>'+
+        '<div class="when">Signed '+esc(when)+'</div>'+
+        '<div class="badges"><span class="badge b-consent">Consent ✓</span>'+resBadge+'</div>'+
+        '<button class="act'+(r.results?' edit':'')+'" onclick="openEntry('+i+')">'+(r.results?'Edit results':'Add results')+'</button>'+
+      '</div>';
+    });
+    $('list').innerHTML = h;
+    window._view = list;
+  }
+
+  // ---- Results entry ----
+  const PF = ['','Pass','Fail','Could not test'];
+  const OTO = ['','Clear or minimal earwax','Excessive earwax','Blood or foreign object','P.E. tube'];
+  function selHtml(id, opts, cur){ return '<select id="'+id+'">'+opts.map(o=>'<option value="'+esc(o)+'"'+(cur===o?' selected':'')+'>'+(o||'—')+'</option>').join('')+'</select>'; }
+  function rlRow(label, rId, lId, opts, val){ val=val||{}; return '<div class="rl"><div class="lab">'+label+'</div>'+selHtml(rId,opts,val.right)+selHtml(lId,opts,val.left)+'</div>'; }
+
+  window.openEntry = function(i){
+    const r = window._view[i]; if(!r) return;
+    current = { contactId:r.contactId, screeningId:r.screeningId };
+    $('entryTitle').textContent = r.childName || 'Results';
+    const res = r.results||{}, hd=res.hearing||{}, vs=res.vision||{};
+    const by = res.screenedBy || (auth.currentUser && auth.currentUser.displayName) || '';
+    let when = '';
+    if (res.screenedAt){ if(res.screenedAt.toDate){const d=res.screenedAt.toDate();when=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');} else if(typeof res.screenedAt==='string'){when=res.screenedAt.slice(0,10);} }
+    if(!when){ const t=new Date(); when=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'); }
+    let f = '';
+    f += '<div class="grid2"><div><label class="l">Date of Screening</label><input type="date" id="eDate" value="'+when+'"></div>'+
+         '<div><label class="l">Site</label><input id="eSite" value="'+esc(res.site||'')+'"></div></div>';
+    f += '<label class="l">Screened by</label><input id="eBy" value="'+esc(by)+'">';
+    f += '<div class="sec">Hearing</div><div class="rl"><div></div><div class="h">Right</div><div class="h">Left</div></div>';
+    f += rlRow('Otoscopy','eOtoR','eOtoL',OTO,hd.otoscopy);
+    f += rlRow('OAE','eOaeR','eOaeL',PF,hd.oae);
+    f += rlRow('Tympanometry','eTympR','eTympL',PF,hd.tympanometry);
+    f += '<div class="sec">Vision</div><div class="rl"><div></div><div class="h">Right</div><div class="h">Left</div></div>';
+    f += rlRow('Distance','eDistR','eDistL',PF,vs.distance);
+    f += '<label class="l">Lea Symbols / PlusOptix</label><textarea id="eLea" rows="2">'+esc(vs.leaSymbols||'')+'</textarea>';
+    $('entryForm').innerHTML = f;
+    $('entryMsg').textContent = '';
+    $('btnSave').disabled=false; $('btnEmail').disabled=false; $('btnSave').textContent='Save'; $('btnEmail').textContent='Save & email family';
+    view('entry'); window.scrollTo(0,0);
+  };
+  window.closeEntry = function(){ view('report'); };
+
+  function val(id){ const e=$(id); return e?(e.value||'').trim():''; }
+
+  window.saveEntry = async function(sendEmail){
+    if(!current) return;
+    const msg = $('entryMsg'); msg.style.color='#64748b'; msg.textContent = sendEmail?'Saving & emailing…':'Saving…';
+    $('btnSave').disabled=true; $('btnEmail').disabled=true;
+    const results = {
+      site: val('eSite'), screenedAt: $('eDate').value||'', screenedBy: val('eBy'),
+      hearing: { otoscopy:{right:val('eOtoR'),left:val('eOtoL')}, oae:{right:val('eOaeR'),left:val('eOaeL')}, tympanometry:{right:val('eTympR'),left:val('eTympL')} },
+      vision: { distance:{right:val('eDistR'),left:val('eDistL')}, leaSymbols:val('eLea') }
+    };
+    try {
+      const snap = await db.collection('contacts').doc(current.contactId).get();
+      const arr = (((snap.data()||{}).screenings)||[]).map(s => (s&&s.id===current.screeningId)?Object.assign({},s,{results:results}):s);
+      await db.collection('contacts').doc(current.contactId).update({ screenings: arr });
+      if (sendEmail){
+        let idToken=''; try { idToken = await auth.currentUser.getIdToken(); } catch(_){}
+        const res = await fetch(SEND_RESULTS, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idToken, contactId:current.contactId, screeningId:current.screeningId }) });
+        if (!res.ok){ let d=''; try{const j=await res.json(); d=j&&j.error?' ('+j.error+')':'';}catch(e){} msg.style.color='#b91c1c'; msg.textContent='Saved, but email failed'+d+'.'; $('btnSave').disabled=false; $('btnEmail').disabled=false; return; }
+        msg.style.color='#16a34a'; msg.textContent='Saved & emailed. ✓';
+      } else { msg.style.color='#16a34a'; msg.textContent='Results saved. ✓'; }
+      setTimeout(()=>{ closeEntry(); }, 800);
+    } catch (ex){
+      msg.style.color='#b91c1c';
+      msg.textContent = (ex.code==='permission-denied') ? 'Your account can’t save results (needs admin access — ask Daniel).' : ('Error: '+ex.message);
+      $('btnSave').disabled=false; $('btnEmail').disabled=false;
+    }
+  };
+</script>
+</body>
+</html>
