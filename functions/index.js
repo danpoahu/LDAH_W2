@@ -16709,14 +16709,21 @@ exports.onMembershipCreated = functions
         q = await db.collection("contacts").where("email", "==", m.email).limit(1).get();
       }
       if (!q.empty) {
-        // Existing contact: keep their type, add membership info.
+        // Existing contact: keep their type, add membership info. Guard against
+        // a RENEWAL downgrading a currently-active member to "pending" before
+        // they finish paying — an abandoned renewal must not revoke access
+        // mid-term. Only (re)set level/status to pending when NOT already active.
         contactRef = q.docs[0].ref;
-        await contactRef.set({
-          isMember: true,
-          membershipLevel: level,
-          membershipStatus: "pending",
-          membershipUpdatedAt: now,
-        }, { merge: true });
+        const existing = q.docs[0].data() || {};
+        const exp = existing.membershipExpiresAt;
+        const stillActive = existing.membershipStatus === "active"
+          && (!exp || (typeof exp.toMillis === "function" && exp.toMillis() > Date.now()));
+        const patch = { isMember: true, membershipUpdatedAt: now };
+        if (!stillActive) {
+          patch.membershipLevel = level;
+          patch.membershipStatus = "pending";
+        }
+        await contactRef.set(patch, { merge: true });
       } else {
         // New contact of type "Member".
         contactRef = await db.collection("contacts").add({
@@ -16806,6 +16813,26 @@ exports.onMembershipPaid = functions
         recipientName: name,
       });
 
+      // Flip the linked contact to an ACTIVE membership with an annual expiry.
+      // This is the source of truth the Member Portal reads. onMembershipCreated
+      // only sets status "pending"; paying activates it here.
+      if (after.linkedContactId) {
+        try {
+          const paidDate = new Date();
+          const expiresDate = new Date(paidDate);
+          expiresDate.setFullYear(expiresDate.getFullYear() + 1);
+          await db.collection("contacts").doc(after.linkedContactId).set({
+            isMember: true,
+            membershipStatus: "active",
+            membershipLevel: level,
+            membershipAmount: amount,
+            membershipPaidAt: admin.firestore.Timestamp.fromDate(paidDate),
+            membershipExpiresAt: admin.firestore.Timestamp.fromDate(expiresDate),
+            membershipUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+        } catch (e) { console.warn("membership contact activation failed:", e.message); }
+      }
+
       // Record on the contact timeline.
       if (after.linkedContactId) {
         try {
@@ -16830,4 +16857,246 @@ exports.onMembershipPaid = functions
       console.error("onMembershipPaid thank-you failed:", err.message);
       return null;
     }
+  });
+
+// ══════════════════════════════════════════════════════════════════════
+// MEMBER PORTAL  (ldahawaii.org/Members/)
+// Paying members sign in with Firebase Auth (email/password). The portal
+// NEVER reads the contacts collection directly — every field a member sees
+// is assembled here by an explicit whitelist, so staff-only data (notes,
+// adminNotes, interactions, screenings, externalAdvocateId, createdBy, …)
+// can NEVER leak, even on a Firestore-rules mistake. Match is by the
+// caller's VERIFIED email only.
+// ══════════════════════════════════════════════════════════════════════
+
+// Find the member's contact by normalized email (lowercased, then raw).
+// Returns the QueryDocumentSnapshot or null. Never trust a client-supplied
+// email — callers pass context.auth.token.email.
+async function _findMemberContactByEmail(db, email) {
+  const norm = String(email || "").trim().toLowerCase();
+  if (!norm) return null;
+  let q = await db.collection("contacts").where("email", "==", norm).limit(1).get();
+  if (q.empty && norm !== email) {
+    q = await db.collection("contacts").where("email", "==", email).limit(1).get();
+  }
+  return q.empty ? null : q.docs[0];
+}
+
+// Is this contact's membership currently active (paid & not expired)?
+function _membershipIsActive(c) {
+  if (!c || !c.isMember) return false;
+  if (c.membershipStatus !== "active") return false;
+  const exp = c.membershipExpiresAt;
+  if (exp && typeof exp.toMillis === "function") {
+    return exp.toMillis() > Date.now();
+  }
+  return true; // active with no expiry recorded → treat as active
+}
+
+// Build the ONLY object a member is ever allowed to see about themselves.
+// Whitelist, field-by-field. Do NOT spread the raw doc.
+function _sanitizeMemberContact(id, c) {
+  const children = Array.isArray(c.children)
+    ? c.children.map(function (ch) {
+        return {
+          name: String((ch && ch.name) || ""),
+          grade: String((ch && ch.grade) || ""),
+          school: String((ch && ch.school) || ""),
+        };
+      })
+    : [];
+  const expMs = (c.membershipExpiresAt && typeof c.membershipExpiresAt.toMillis === "function")
+    ? c.membershipExpiresAt.toMillis() : null;
+  return {
+    id: id,
+    firstName: String(c.firstName || ""),
+    lastName: String(c.lastName || ""),
+    displayName: String(c.displayName || ""),
+    email: String(c.email || ""),
+    phone: String(c.phone || ""),
+    streetAddress: String(c.streetAddress || ""),
+    city: String(c.city || ""),
+    zipCode: String(c.zipCode || ""),
+    secondaryContactName: String(c.secondaryContactName || ""),
+    secondaryContactPhone: String(c.secondaryContactPhone || ""),
+    children: children,
+    membershipLevel: String(c.membershipLevel || ""),
+    membershipStatus: String(c.membershipStatus || ""),
+    membershipAmount: (typeof c.membershipAmount === "number" ? c.membershipAmount : null),
+    membershipExpiresAt: expMs,
+    membershipActive: _membershipIsActive(c),
+    marketingOptOut: !!c.marketingOptOut,
+  };
+}
+
+// getMemberProfile — returns the signed-in member's sanitized profile.
+// { found:false } when no membership contact matches the verified email.
+exports.getMemberProfile = functions
+  .runWith({ timeoutSeconds: 15, maxInstances: 10 })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Please sign in.");
+    if (!context.auth.token.email_verified) {
+      throw new functions.https.HttpsError("failed-precondition", "email-unverified");
+    }
+    const db = admin.firestore();
+    const email = context.auth.token.email;
+    const doc = await _findMemberContactByEmail(db, email);
+    if (!doc) return { found: false };
+    const c = doc.data() || {};
+    if (!c.isMember) return { found: false };
+    // Record the auth link so staff can see the member created a login.
+    if (c.memberAuthUid !== context.auth.uid) {
+      try {
+        await doc.ref.set({ memberAuthUid: context.auth.uid }, { merge: true });
+      } catch (e) { console.warn("memberAuthUid link failed:", e.message); }
+    }
+    return { found: true, profile: _sanitizeMemberContact(doc.id, c) };
+  });
+
+// checkMemberEligibility — lightweight signal for the create-login UI.
+// Requires the caller to be signed in as the email being checked (prevents
+// email enumeration). Safe to call before email verification.
+exports.checkMemberEligibility = functions
+  .runWith({ timeoutSeconds: 15, maxInstances: 10 })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Please sign in.");
+    const db = admin.firestore();
+    const doc = await _findMemberContactByEmail(db, context.auth.token.email);
+    const c = doc ? (doc.data() || {}) : null;
+    return {
+      isMember: !!(c && c.isMember),
+      membershipActive: _membershipIsActive(c),
+      needsVerification: !context.auth.token.email_verified,
+    };
+  });
+
+// updateMemberProfile — members edit ONLY these safe fields. Anything else in
+// the payload is ignored. Name, email, membership, notes, etc. are locked.
+exports.updateMemberProfile = functions
+  .runWith({ timeoutSeconds: 15, maxInstances: 10 })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Please sign in.");
+    if (!context.auth.token.email_verified) {
+      throw new functions.https.HttpsError("failed-precondition", "email-unverified");
+    }
+    const db = admin.firestore();
+    const doc = await _findMemberContactByEmail(db, context.auth.token.email);
+    if (!doc) throw new functions.https.HttpsError("not-found", "No membership found.");
+    const c = doc.data() || {};
+    if (!c.isMember) throw new functions.https.HttpsError("not-found", "No membership found.");
+
+    const body = data || {};
+    const str = function (v, max) { return String(v == null ? "" : v).trim().slice(0, max || 200); };
+    const update = { memberLastEditedAt: admin.firestore.FieldValue.serverTimestamp() };
+    if ("phone" in body) update.phone = str(body.phone, 40);
+    if ("streetAddress" in body) update.streetAddress = str(body.streetAddress, 200);
+    if ("city" in body) update.city = str(body.city, 100);
+    if ("zipCode" in body) update.zipCode = str(body.zipCode, 20);
+    if ("secondaryContactName" in body) update.secondaryContactName = str(body.secondaryContactName, 120);
+    if ("secondaryContactPhone" in body) update.secondaryContactPhone = str(body.secondaryContactPhone, 40);
+    if ("marketingOptOut" in body) update.marketingOptOut = !!body.marketingOptOut;
+
+    // Children: read-modify-write so we only touch grade/school on EXISTING
+    // children, preserving staff-managed fields (name, notes, age bucket, …).
+    if (Array.isArray(body.children) && Array.isArray(c.children)) {
+      const merged = c.children.map(function (existing, i) {
+        const incoming = body.children[i];
+        if (!incoming || typeof incoming !== "object") return existing;
+        const next = Object.assign({}, existing);
+        if ("grade" in incoming) next.grade = str(incoming.grade, 40);
+        if ("school" in incoming) next.school = str(incoming.school, 160);
+        return next;
+      });
+      update.children = merged;
+    }
+
+    await doc.ref.set(update, { merge: true });
+    const fresh = await doc.ref.get();
+    return { ok: true, profile: _sanitizeMemberContact(doc.id, fresh.data() || {}) };
+  });
+
+// getMemberSignups — the member's own event signups, sanitized. Two equality
+// queries (contactId, linkedContactId) merged & deduped — Firestore has no OR.
+exports.getMemberSignups = functions
+  .runWith({ timeoutSeconds: 20, maxInstances: 10 })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Please sign in.");
+    if (!context.auth.token.email_verified) {
+      throw new functions.https.HttpsError("failed-precondition", "email-unverified");
+    }
+    const db = admin.firestore();
+    const doc = await _findMemberContactByEmail(db, context.auth.token.email);
+    if (!doc) return { signups: [] };
+    const cid = doc.id;
+
+    const seen = {};
+    const rows = [];
+    const runQuery = async function (field) {
+      let snap;
+      try {
+        snap = await db.collectionGroup("signups").where(field, "==", cid).get();
+      } catch (e) {
+        console.warn("getMemberSignups query (" + field + ") failed:", e.message);
+        return;
+      }
+      snap.forEach(function (s) {
+        if (seen[s.ref.path]) return;
+        seen[s.ref.path] = true;
+        const g = s.data() || {};
+        if (g.archived) return;
+        rows.push({
+          id: s.id,
+          eventTitle: String(g.eventTitle || g.eventName || ""),
+          selectedDates: Array.isArray(g.selectedDates) ? g.selectedDates
+            : (Array.isArray(g.selectedSessions) ? g.selectedSessions : []),
+          participationType: String(g.participationType || g.registrantType || ""),
+          status: String(g.status || ""),
+          attendanceStatus: String(g.attendanceStatus || ""),
+        });
+      });
+    };
+    await runQuery("contactId");
+    await runQuery("linkedContactId");
+    return { signups: rows };
+  });
+
+// getMemberResources — the curated members-only resource hub. Gated on an
+// ACTIVE membership (lapsed members get { locked:true } and no content).
+exports.getMemberResources = functions
+  .runWith({ timeoutSeconds: 15, maxInstances: 10 })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Please sign in.");
+    if (!context.auth.token.email_verified) {
+      throw new functions.https.HttpsError("failed-precondition", "email-unverified");
+    }
+    const db = admin.firestore();
+    const doc = await _findMemberContactByEmail(db, context.auth.token.email);
+    const c = doc ? (doc.data() || {}) : null;
+    if (!_membershipIsActive(c)) return { locked: true, resources: [] };
+
+    let snap;
+    try {
+      snap = await db.collection("memberResources").where("active", "==", true).get();
+    } catch (e) {
+      console.warn("getMemberResources query failed:", e.message);
+      return { locked: false, resources: [] };
+    }
+    const resources = [];
+    snap.forEach(function (r) {
+      const g = r.data() || {};
+      resources.push({
+        id: r.id,
+        category: String(g.category || "General"),
+        title: String(g.title || ""),
+        description: String(g.description || ""),
+        url: String(g.url || ""),
+        fileUrl: String(g.fileUrl || ""),
+        order: (typeof g.order === "number" ? g.order : 999),
+      });
+    });
+    resources.sort(function (a, b) {
+      if (a.category !== b.category) return a.category < b.category ? -1 : 1;
+      return a.order - b.order;
+    });
+    return { locked: false, resources: resources };
   });
