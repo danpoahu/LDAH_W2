@@ -317,7 +317,7 @@
             setView(''
                 + '<div class="card message-card">'
                 + '  <h3>Please verify your email</h3>'
-                + '  <p>We sent a verification link to <strong>' + esc(user.email) + '</strong>. Open that email and click the link to confirm your address, then come back here.</p>'
+                + '  <p>We sent a verification link to <strong>' + esc(user.email || (auth.currentUser && auth.currentUser.email) || 'your email address') + '</strong>. Open that email and click the link to confirm your address, then come back here.</p>'
                 + '  <div class="btn-row" style="justify-content:center;">'
                 + '    <button class="btn btn-primary" id="verifyContinue">I’ve verified &mdash; continue</button>'
                 + '    <button class="btn btn-outline" id="resendBtn">Resend verification email</button>'
@@ -328,13 +328,13 @@
 
             id('verifyContinue').addEventListener('click', async function () {
                 var b = id('verifyContinue'); b.disabled = true; b.textContent = 'Checking…';
-                try { await user.reload(); await user.getIdToken(true); } catch (e) { /* ignore */ }
-                var u = auth.currentUser;
-                if (u && u.emailVerified) { render(u); }
-                else {
-                    b.disabled = false; b.innerHTML = 'I’ve verified &mdash; continue';
-                    id('verifyMsg').textContent = 'We still don’t see your email as verified. Please click the link in the email, then try again.';
-                }
+                // Refresh the persisted user + token from the server, THEN do a full
+                // page reload. A fresh load re-reads verified status cleanly and
+                // avoids the stale in-memory token that made this button loop.
+                try { await (auth.currentUser || user).reload(); await (auth.currentUser || user).getIdToken(true); } catch (e) { /* ignore */ }
+                if (auth.currentUser && auth.currentUser.emailVerified) { window.location.reload(); return; }
+                id('verifyMsg').textContent = 'We still don’t see your email as verified. Please click the link in the email (check spam), then try again.';
+                b.disabled = false; b.innerHTML = 'I’ve verified &mdash; continue';
             });
 
             id('resendBtn').addEventListener('click', async function () {
