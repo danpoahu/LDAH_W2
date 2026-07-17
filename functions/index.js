@@ -17217,22 +17217,30 @@ exports.getMemberScreenings = functions
 
     const out = [];
     arr.forEach(function (s) {
+      const ch = (s && s.child) || {};
+      const childName = [ch.firstName, ch.middleName, ch.lastName].filter(Boolean).join(" ").trim() || "Your child";
       const r = s && s.results;
-      if (!r) return; // only screenings that actually have results
-      const ch = s.child || {};
-      const childName = [ch.firstName, ch.middleName, ch.lastName].filter(Boolean).join(" ").trim();
-      const h = r.hearing || {}, v = r.vision || {};
-      out.push({
-        id: String(s.id || ""),
-        childName: childName || "Your child",
-        screenedAt: dateStr(r.screenedAt),
-        site: String(r.site || ""),
-        hearing: { otoscopy: rl(h.otoscopy), oae: rl(h.oae), tympanometry: rl(h.tympanometry) },
-        vision: { distance: rl(v.distance), leaSymbols: String(v.leaSymbols || "") },
-      });
+      if (r) {
+        const h = r.hearing || {}, v = r.vision || {};
+        out.push({
+          id: String(s.id || ""), childName: childName, hasResults: true,
+          screenedAt: dateStr(r.screenedAt), site: String(r.site || ""),
+          hearing: { otoscopy: rl(h.otoscopy), oae: rl(h.oae), tympanometry: rl(h.tympanometry) },
+          vision: { distance: rl(v.distance), leaSymbols: String(v.leaSymbols || "") },
+        });
+      } else {
+        // Consent on file, results not entered yet — show as pending.
+        out.push({
+          id: String(s.id || ""), childName: childName, hasResults: false,
+          screenedAt: "", consentedAt: dateStr(s.signedAt),
+        });
+      }
     });
-    // Most recent first.
-    out.sort(function (a, b) { return a.screenedAt < b.screenedAt ? 1 : (a.screenedAt > b.screenedAt ? -1 : 0); });
+    // Completed results first (most recent), then pending screenings.
+    out.sort(function (a, b) {
+      if (a.hasResults !== b.hasResults) return a.hasResults ? -1 : 1;
+      return a.screenedAt < b.screenedAt ? 1 : (a.screenedAt > b.screenedAt ? -1 : 0);
+    });
     return { screenings: out };
   });
 

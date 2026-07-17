@@ -277,6 +277,14 @@
 
             list.forEach(function (s) {
                 s = s || {};
+                if (!s.hasResults) {
+                    html += '<div class="card">'
+                        + '  <h3 class="card-title">' + esc(s.childName || 'Your child') + '</h3>'
+                        + '  <div class="screen-meta">' + (s.consentedAt ? 'Consent on file &middot; ' + esc(prettyDate(s.consentedAt)) : 'Screening on file') + '</div>'
+                        + '  <p class="muted-note">Results are not yet available for this screening. If your child was recently screened, results may take a little time to post. Questions? Call LDAH at (808) 536-9684.</p>'
+                        + '</div>';
+                    return;
+                }
                 var meta = [];
                 if (s.screenedAt) meta.push('Screened ' + esc(prettyDate(s.screenedAt)));
                 if (s.site) meta.push(esc(s.site));

@@ -492,7 +492,7 @@
                 var uniq = names.filter(function (n, i) { return names.indexOf(n) === i; });
                 var who = uniq.length ? esc(uniq.join(', ')) : 'your child';
                 var teaser = id('screeningTeaser');
-                if (teaser) teaser.innerHTML = '<p>Hearing &amp; vision screening results for <strong>' + who + '</strong> are ready to view.</p>';
+                if (teaser) teaser.innerHTML = '<p>Hearing &amp; vision screening records for <strong>' + who + '</strong>.</p>';
                 card.style.display = '';
             } catch (e) { /* no screening card on error */ }
         }
