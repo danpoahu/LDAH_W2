@@ -84,7 +84,12 @@
     .signup-thumb-link { flex-shrink: 0; display: block; }
     .signup-thumb { width: 110px; height: auto; display: block; border-radius: 8px; border: 1px solid #E2E8F0; background: #F1F5F9; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
     .signup-body { flex: 1; min-width: 0; }
-    .browse-head { margin-top: 0.4rem; margin-bottom: 0.7rem; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: var(--text-soft); }
+    .browse-head { margin: 1.1rem 0 0.85rem; font-size: 0.95rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ocean-deep); animation: browseGlow 2.4s ease-in-out infinite; }
+    @keyframes browseGlow {
+        0%, 100% { color: var(--ocean-deep); text-shadow: 0 0 0 rgba(8,145,178,0); }
+        50% { color: #0EA5C9; text-shadow: 0 0 14px rgba(8,145,178,0.55), 0 0 4px rgba(34,211,238,0.5); }
+    }
+    @media (prefers-reduced-motion: reduce) { .browse-head { animation: none; color: var(--ocean-deep); } }
     .browse-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.9rem; }
     .browse-thumb { display: block; border-radius: 10px; overflow: hidden; border: 1px solid #E2E8F0; background: #fff; text-decoration: none; transition: transform 0.15s ease, box-shadow 0.15s ease; }
     .browse-thumb:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(8, 145, 178, 0.18); }
@@ -560,6 +565,7 @@
                 + '  <h3 class="card-title">Your event signups</h3>'
                 + '  <div id="signupsBox"><div class="loading-state"><div class="loading-spinner"></div><p>Loading your signups…</p></div></div>'
                 + '  <div id="browseEventsBox"></div>'
+                + '  <div id="pastBox"></div>'
                 + '</div>'
 
                 + '<div class="card">'
@@ -675,26 +681,35 @@
                 var past = list.filter(function (s) { return s && s.bucket === 'past'; });
                 var esub = id('tileEventsSub');
                 if (esub) esub.textContent = active.length ? (active.length + ' upcoming') : 'Browse events';
-                var html = '';
-                if (active.length) html += '<ul class="signup-list">' + active.map(signupItem).join('') + '</ul>';
-                else html += '<p class="muted-note">No upcoming signups.</p>';
-                if (past.length) {
-                    html += '<div class="signup-past-toggle" id="pastToggle" role="button" tabindex="0" aria-expanded="false">'
-                        + '<span class="acc-arrow" id="pastArrow">&#9654;</span> Past &amp; cancelled (' + past.length + ')</div>'
-                        + '<ul class="signup-list signup-list-past" id="pastList" style="display:none;">' + past.map(signupItem).join('') + '</ul>';
-                }
-                box.innerHTML = html;
-                var pt = id('pastToggle');
-                if (pt) {
-                    var togglePast = function () {
-                        var l = id('pastList'), a = id('pastArrow');
-                        var open = l.style.display !== 'none';
-                        l.style.display = open ? 'none' : 'block';
-                        if (a) a.innerHTML = open ? '&#9654;' : '&#9660;';
-                        pt.setAttribute('aria-expanded', open ? 'false' : 'true');
-                    };
-                    pt.addEventListener('click', togglePast);
-                    pt.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePast(); } });
+
+                // Active/upcoming signups go on top.
+                box.innerHTML = active.length
+                    ? '<ul class="signup-list">' + active.map(signupItem).join('') + '</ul>'
+                    : '<p class="muted-note">No upcoming signups.</p>';
+
+                // Past & cancelled goes into its own box, which sits BELOW the
+                // "More events you might like" grid in the card.
+                var pastBox = id('pastBox');
+                if (pastBox) {
+                    if (past.length) {
+                        pastBox.innerHTML = '<div class="signup-past-toggle" id="pastToggle" role="button" tabindex="0" aria-expanded="false">'
+                            + '<span class="acc-arrow" id="pastArrow">&#9654;</span> Past &amp; cancelled (' + past.length + ')</div>'
+                            + '<ul class="signup-list signup-list-past" id="pastList" style="display:none;">' + past.map(signupItem).join('') + '</ul>';
+                        var pt = id('pastToggle');
+                        if (pt) {
+                            var togglePast = function () {
+                                var l = id('pastList'), a = id('pastArrow');
+                                var open = l.style.display !== 'none';
+                                l.style.display = open ? 'none' : 'block';
+                                if (a) a.innerHTML = open ? '&#9654;' : '&#9660;';
+                                pt.setAttribute('aria-expanded', open ? 'false' : 'true');
+                            };
+                            pt.addEventListener('click', togglePast);
+                            pt.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePast(); } });
+                        }
+                    } else {
+                        pastBox.innerHTML = '';
+                    }
                 }
             } catch (e) {
                 box.innerHTML = '<p class="muted-note">We couldn’t load your signups right now.</p>';
