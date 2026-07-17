@@ -446,6 +446,12 @@
                 + levelLine + statusLine + renewCta
                 + '</div>'
 
+                + '<div class="card" id="screeningCard" style="display:none;">'
+                + '  <h3 class="card-title">Screening results</h3>'
+                + '  <div id="screeningTeaser"></div>'
+                + '  <div class="btn-row"><a class="btn btn-primary" href="screenings.html">View screening results</a></div>'
+                + '</div>'
+
                 + '<div class="card">'
                 + '  <h3 class="card-title">Your information</h3>'
                 + '  <div class="info-grid">'
@@ -471,6 +477,24 @@
                 + '</div>');
 
             loadSignups();
+            loadScreenings();
+        }
+
+        // Reveal the Screening Results card only if the member has results on file.
+        async function loadScreenings() {
+            var card = id('screeningCard');
+            if (!card) return;
+            try {
+                var r = await fns.httpsCallable('getMemberScreenings')();
+                var list = (r.data && r.data.screenings) || [];
+                if (!list.length) return;
+                var names = list.map(function (s) { return s && s.childName; }).filter(Boolean);
+                var uniq = names.filter(function (n, i) { return names.indexOf(n) === i; });
+                var who = uniq.length ? esc(uniq.join(', ')) : 'your child';
+                var teaser = id('screeningTeaser');
+                if (teaser) teaser.innerHTML = '<p>Hearing &amp; vision screening results for <strong>' + who + '</strong> are ready to view.</p>';
+                card.style.display = '';
+            } catch (e) { /* no screening card on error */ }
         }
 
         // Turn a session/date entry like "2026-07-20|Oahu – 245 N. Kukui|3:00 PM"

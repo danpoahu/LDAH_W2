@@ -17191,6 +17191,51 @@ exports.getMemberBrowseEvents = functions
     return { events: out.slice(0, 8) };
   });
 
+// getMemberScreenings — the member's own child(ren)'s SRP hearing & vision
+// screening results, sanitized. A parent is entitled to their own child's
+// results. Whitelist only: child name, date, site, and the Pass/Fail/observation
+// values. Never return resultsToken, staff screener names, or consent internals.
+exports.getMemberScreenings = functions
+  .runWith({ timeoutSeconds: 15, maxInstances: 10 })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Please sign in.");
+    if (!context.auth.token.email_verified) {
+      throw new functions.https.HttpsError("failed-precondition", "email-unverified");
+    }
+    const db = admin.firestore();
+    const doc = await _findMemberContactByEmail(db, context.auth.token.email);
+    if (!doc) return { screenings: [] };
+    const c = doc.data() || {};
+    const arr = Array.isArray(c.screenings) ? c.screenings : [];
+
+    const rl = function (o) { o = o || {}; return { right: String(o.right || ""), left: String(o.left || "") }; };
+    const dateStr = function (v) {
+      if (!v) return "";
+      if (v.toDate) { const d = v.toDate(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+      return String(v).slice(0, 10);
+    };
+
+    const out = [];
+    arr.forEach(function (s) {
+      const r = s && s.results;
+      if (!r) return; // only screenings that actually have results
+      const ch = s.child || {};
+      const childName = [ch.firstName, ch.middleName, ch.lastName].filter(Boolean).join(" ").trim();
+      const h = r.hearing || {}, v = r.vision || {};
+      out.push({
+        id: String(s.id || ""),
+        childName: childName || "Your child",
+        screenedAt: dateStr(r.screenedAt),
+        site: String(r.site || ""),
+        hearing: { otoscopy: rl(h.otoscopy), oae: rl(h.oae), tympanometry: rl(h.tympanometry) },
+        vision: { distance: rl(v.distance), leaSymbols: String(v.leaSymbols || "") },
+      });
+    });
+    // Most recent first.
+    out.sort(function (a, b) { return a.screenedAt < b.screenedAt ? 1 : (a.screenedAt > b.screenedAt ? -1 : 0); });
+    return { screenings: out };
+  });
+
 // getMemberResources — the curated members-only resource hub. Gated on an
 // ACTIVE membership (lapsed members get { locked:true } and no content).
 exports.getMemberResources = functions
