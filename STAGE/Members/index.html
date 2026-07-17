@@ -147,13 +147,14 @@
     }
     /* ── v2 visual refresh: islands motif + photo hero + photo tiles ── */
     body { background: linear-gradient(180deg,#F0FBFF 0%, var(--bg-warm) 260px, var(--bg-warm) 100%); position: relative; }
-    .bg-islands { position: fixed; right: -12%; bottom: -6%; width: min(120%, 880px); color: var(--ocean-deep); opacity: 0.05; z-index: 0; pointer-events: none; transform: scaleY(-1); }
+    .bg-islands { position: fixed; left: 50%; bottom: -8%; width: min(150%, 1050px); color: var(--ocean-deep); opacity: 0.04; z-index: 0; pointer-events: none; transform: translateX(-50%) scaleY(-1); }
     .page-header, .main-wrap, footer { position: relative; z-index: 1; }
 
     .hero-section { position: relative; overflow: hidden; padding: 2.4rem 2rem 2.7rem;
-        background-image: linear-gradient(135deg, rgba(14,116,144,.90), rgba(6,182,212,.70)), url('https://www.ldahawaii.org/assets/images/wp/Kosrae-Sunrise-3_1600.jpg');
-        background-size: cover; background-position: center 62%; }
-    .hero-section .hero-islands { position: absolute; right: -46px; top: -34px; width: 320px; color: #fff; opacity: 0.15; transform: scaleY(-1); z-index: 0; }
+        max-width: min(720px, calc(100% - 2rem)); margin: 1.3rem auto 0.3rem; border-radius: 22px;
+        box-shadow: 0 12px 30px rgba(8,145,178,.26);
+        background: linear-gradient(135deg, #0E7490 0%, var(--ocean-mid) 55%, var(--accent-teal) 120%); }
+    .hero-section .hero-islands { position: absolute; left: 50%; top: 54%; width: 82%; max-width: 560px; color: #fff; opacity: 0.15; transform: translate(-50%,-50%) scaleY(-1); z-index: 0; }
     .hero-section > *:not(.hero-islands):not(.lei) { position: relative; z-index: 1; }
     .hero-section h2 { font-weight: 800; }
     .hero-section .lei { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: linear-gradient(90deg, var(--sunset-coral), var(--plumeria), var(--accent-teal), var(--palm)); z-index: 2; }
@@ -172,7 +173,7 @@
     .card { transition: box-shadow .15s ease; }
     .card-title { font-family: 'Outfit', sans-serif; }
     @media (max-width: 600px) {
-        .hero-section .hero-islands { width: 230px; right: -30px; }
+        .hero-section .hero-islands { width: 100%; max-width: 380px; }
         .tile-photo { height: 82px; }
     }
     </style>
