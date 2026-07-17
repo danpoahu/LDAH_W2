@@ -570,6 +570,14 @@
 
             loadSignups();
             loadScreenings();
+
+            // The dashboard cards are rendered here (async, after auth), so a
+            // #hash deep-link (e.g. index.html#eventsCard from the nav menu) can't
+            // scroll natively — the target didn't exist at page load. Do it now.
+            if (location.hash && location.hash.length > 1) {
+                var target = document.getElementById(location.hash.slice(1));
+                if (target) setTimeout(function () { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80);
+            }
         }
 
         // Reveal the Screening Results card only if the member has results on file.
