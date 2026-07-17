@@ -79,8 +79,16 @@
     @media (max-width: 560px) { .info-row { flex-direction: column; gap: 0.15rem; } .info-label { flex-basis: auto; } }
 
     .signup-list { list-style: none; margin: 0; padding: 0; }
-    .signup-item { padding: 0.8rem 0; border-bottom: 1px solid #F1F5F9; }
+    .signup-item { display: flex; gap: 0.9rem; align-items: flex-start; padding: 0.8rem 0; border-bottom: 1px solid #F1F5F9; }
     .signup-item:last-child { border-bottom: none; }
+    .signup-thumb-link { flex-shrink: 0; display: block; }
+    .signup-thumb { width: 58px; height: 58px; object-fit: cover; border-radius: 8px; flex-shrink: 0; border: 1px solid #E2E8F0; background: #F1F5F9; }
+    .signup-body { flex: 1; min-width: 0; }
+    .browse-head { margin-top: 0.4rem; margin-bottom: 0.7rem; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: var(--text-soft); }
+    .browse-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 0.6rem; }
+    .browse-thumb { display: block; border-radius: 10px; overflow: hidden; border: 1px solid #E2E8F0; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+    .browse-thumb:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(8, 145, 178, 0.18); }
+    .browse-thumb img { display: block; width: 100%; height: 116px; object-fit: cover; }
     .signup-title { font-weight: 600; color: var(--text-dark); }
     .signup-dates { color: var(--text-soft); font-size: 0.92rem; }
     .signup-status { display: inline-block; margin-top: 0.3rem; background: #F0F9FF; color: #0C4A6E; border: 1px solid #BAE6FD; border-radius: 999px; padding: 0.15rem 0.7rem; font-size: 0.78rem; font-weight: 600; }
@@ -452,7 +460,7 @@
                 + '<div class="card">'
                 + '  <h3 class="card-title">Your event signups</h3>'
                 + '  <div id="signupsBox"><div class="loading-state"><div class="loading-spinner"></div><p>Loading your signups…</p></div></div>'
-                + '  <div class="btn-row"><a class="btn btn-outline" href="https://www.ldahawaii.org/events.html" target="_blank" rel="noopener">Browse events</a></div>'
+                + '  <div id="browseEventsBox"></div>'
                 + '</div>'
 
                 + '<div class="card">'
@@ -472,16 +480,40 @@
             var d = new Date(m[1] + '-' + m[2] + '-' + m[3] + 'T00:00:00');
             return isNaN(d) ? String(raw) : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         }
+        var EVENTS_URL = 'https://www.ldahawaii.org/events.html';
         function signupItem(s) {
             s = s || {};
             var dates = (s.selectedDates || []).map(prettyDate).filter(Boolean).map(esc).join(', ');
             var label = s.cancelled ? 'Cancelled' : (s.attendanceStatus || s.status || '');
             var cls = s.cancelled ? 'signup-status signup-status-cancelled' : 'signup-status';
+            var thumb = s.flyerUrl
+                ? '<a class="signup-thumb-link" href="' + EVENTS_URL + '" target="_blank" rel="noopener"><img class="signup-thumb" src="' + esc(s.flyerUrl) + '" alt="" loading="lazy"></a>'
+                : '';
             return '<li class="signup-item">'
+                + thumb
+                + '<div class="signup-body">'
                 + '<div class="signup-title">' + esc(s.eventTitle || 'Event') + '</div>'
                 + (dates ? '<div class="signup-dates">' + dates + '</div>' : '')
                 + (label ? '<span class="' + cls + '">' + esc(label) + '</span>' : '')
+                + '</div>'
                 + '</li>';
+        }
+        // Discover-more flyers: upcoming events the member isn't signed up for.
+        async function loadBrowseEvents(excludeIds) {
+            var box = id('browseEventsBox');
+            if (!box) return;
+            var fallback = '<div class="btn-row"><a class="btn btn-outline" href="' + EVENTS_URL + '" target="_blank" rel="noopener">Browse events</a></div>';
+            try {
+                var r = await fns.httpsCallable('getMemberBrowseEvents')({ exclude: excludeIds || [] });
+                var evs = (r.data && r.data.events) || [];
+                if (!evs.length) { box.innerHTML = fallback; return; }
+                box.innerHTML = '<div class="browse-head">More events you might like</div>'
+                    + '<div class="browse-grid">' + evs.map(function (e) {
+                        e = e || {};
+                        return '<a class="browse-thumb" href="' + EVENTS_URL + '" target="_blank" rel="noopener" title="' + esc(e.title || '') + '">'
+                            + '<img src="' + esc(e.flyerUrl) + '" alt="' + esc(e.title || '') + '" loading="lazy"></a>';
+                    }).join('') + '</div>';
+            } catch (e) { box.innerHTML = fallback; }
         }
         async function loadSignups() {
             var box = id('signupsBox');
@@ -489,6 +521,8 @@
             try {
                 var r = await fns.httpsCallable('getMemberSignups')();
                 var list = (r.data && r.data.signups) || [];
+                var excludeIds = list.map(function (s) { return s && s.eventId; }).filter(Boolean);
+                loadBrowseEvents(excludeIds);
                 if (!list.length) { box.innerHTML = '<p class="muted-note">You have no event signups yet.</p>'; return; }
                 var active = list.filter(function (s) { return s && s.bucket !== 'past'; });
                 var past = list.filter(function (s) { return s && s.bucket === 'past'; });

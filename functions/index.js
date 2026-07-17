@@ -17048,6 +17048,7 @@ exports.getMemberSignups = functions
 
     const seen = {};
     const rows = [];
+    const eventRefs = {}; // eventDocPath -> DocumentReference (for flyer lookup)
     const collect = function (snap) {
       snap.forEach(function (s) {
         if (seen[s.ref.path]) return;
@@ -17059,8 +17060,13 @@ exports.getMemberSignups = functions
         const cancelled = !!g.archived || status.toLowerCase() === "cancelled";
         const whenMs = firstDateMs(dates);
         const isPast = cancelled || (whenMs != null && whenMs < Date.now());
+        const eventRef = s.ref.parent.parent; // the parent event / recurringEvent doc
+        const eventId = eventRef ? eventRef.id : "";
+        if (eventRef) eventRefs[eventRef.path] = eventRef;
         rows.push({
           id: s.id,
+          eventId: eventId,
+          eventPath: eventRef ? eventRef.path : "",
           eventTitle: String(g.eventTitle || g.eventName || "Event"),
           selectedDates: dates,
           participationType: String(g.participationType || g.registrantType || ""),
@@ -17069,6 +17075,7 @@ exports.getMemberSignups = functions
           cancelled: cancelled,
           bucket: isPast ? "past" : "active",
           whenMs: whenMs,
+          flyerUrl: "",
         });
       });
     };
@@ -17085,6 +17092,17 @@ exports.getMemberSignups = functions
     const rawEmail = String(context.auth.token.email || "").trim();
     if (rawEmail && rawEmail !== email) await runQuery("email", rawEmail);
 
+    // Attach each event's flyer (imageUrl) — one batched read of the parent events.
+    const paths = Object.keys(eventRefs);
+    if (paths.length) {
+      try {
+        const docs = await db.getAll.apply(db, paths.map(function (p) { return eventRefs[p]; }));
+        const flyerByPath = {};
+        docs.forEach(function (d) { flyerByPath[d.ref.path] = String((d.data() || {}).imageUrl || ""); });
+        rows.forEach(function (r) { if (r.eventPath && flyerByPath[r.eventPath]) r.flyerUrl = flyerByPath[r.eventPath]; });
+      } catch (e) { console.warn("getMemberSignups flyer lookup failed:", e.message); }
+    }
+
     // Active first (soonest date first), then past (most recent first).
     rows.sort(function (a, b) {
       if (a.bucket !== b.bucket) return a.bucket === "active" ? -1 : 1;
@@ -17095,6 +17113,47 @@ exports.getMemberSignups = functions
       return a.bucket === "active" ? av - bv : bv - av;
     });
     return { signups: rows };
+  });
+
+// getMemberBrowseEvents — upcoming public events (with flyers) the member is NOT
+// already signed up for, for the "discover more events" thumbnails. Events are
+// public data; this just filters to future, non-archived, flyer-bearing events
+// and excludes the eventIds the caller already has signups for.
+exports.getMemberBrowseEvents = functions
+  .runWith({ timeoutSeconds: 20, maxInstances: 10 })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Please sign in.");
+    const db = admin.firestore();
+    const exclude = {};
+    (Array.isArray(data && data.exclude) ? data.exclude : []).forEach(function (id) { exclude[String(id)] = true; });
+
+    // Today as YYYY-MM-DD in Hawaii — event dates are stored as date strings.
+    const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
+
+    const out = [];
+    const scan = async function (coll) {
+      let snap;
+      try { snap = await db.collection(coll).get(); } catch (e) { console.warn("browse scan " + coll + " failed:", e.message); return; }
+      snap.forEach(function (d) {
+        if (exclude[d.id]) return;
+        const e = d.data() || {};
+        if (e.archived) return;
+        const img = String(e.imageUrl || "");
+        if (!img) return;
+        const dateStr = String(e.eventDate || e.date || e.startDate || "");
+        if (!dateStr || dateStr < todayStr) return; // future only
+        out.push({
+          eventId: d.id,
+          title: String(e.title || "Event"),
+          flyerUrl: img,
+          date: dateStr,
+        });
+      });
+    };
+    await scan("events");
+    await scan("recurringEvents");
+    out.sort(function (a, b) { return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0); });
+    return { events: out.slice(0, 8) };
   });
 
 // getMemberResources — the curated members-only resource hub. Gated on an
