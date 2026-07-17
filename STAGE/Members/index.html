@@ -189,6 +189,9 @@
     .card { transition: transform .18s ease, box-shadow .18s ease; }
     .card:hover { transform: translateY(-4px); box-shadow: 0 16px 34px rgba(8,145,178,.16); }
     .card-title { font-family: 'Outfit', sans-serif; }
+    .join-line { margin-top: 1.4rem; padding-top: 1rem; border-top: 1px solid #EEF2F6; text-align: center; font-size: 0.95rem; color: var(--text-soft); }
+    .join-line a { color: var(--primary-blue); font-weight: 600; text-decoration: none; }
+    .join-line a:hover { text-decoration: underline; }
     @media (max-width: 600px) {
         .hero-section .hero-islands { width: 100%; max-width: 380px; }
         .tile-photo { height: 82px; }
@@ -288,6 +291,13 @@
         const auth = firebase.auth();
         const fns = firebase.functions();
 
+        // If the portal was opened from the LDAH app (?from=app), point "How to
+        // become a member" at the app's How-to-Help page; otherwise the W2 site.
+        var FROM_APP = new URLSearchParams(location.search).get('from') === 'app';
+        var JOIN_URL = FROM_APP
+            ? 'https://danpoahu.github.io/LDAH/howtohelp.html'
+            : 'https://www.ldahawaii.org/volunteer.html';
+
         /* ---------- helpers ---------- */
         function id(x) { return document.getElementById(x); }
         function val(x) { var e = id(x); return e ? e.value : ''; }
@@ -348,6 +358,7 @@
                 + '    <button class="btn btn-primary btn-block" id="createBtn">Create login</button>'
                 + '    <p class="switch-line">Already have a login? <a href="#" id="toLogin">Log in</a></p>'
                 + '  </div>'
+                + '  <p class="join-line">Not a member yet? <a href="' + JOIN_URL + '" target="_blank" rel="noopener">How to become a member</a></p>'
                 + '</div>');
 
             id('toCreate').addEventListener('click', function (e) { e.preventDefault(); swapAuth(true); });
@@ -473,7 +484,7 @@
                 + '  <p>We couldn’t find an active membership for <strong>' + esc(user.email) + '</strong>.</p>'
                 + '  <p class="muted-note">If you recently joined, it may take a moment &mdash; try again shortly.</p>'
                 + '  <div class="btn-row" style="justify-content:center;">'
-                + '    <a class="btn btn-primary" href="https://www.ldahawaii.org/volunteer.html" target="_blank" rel="noopener">Become a member</a>'
+                + '    <a class="btn btn-primary" href="' + JOIN_URL + '" target="_blank" rel="noopener">Become a member</a>'
                 + '    <button class="btn btn-outline" id="nfRetry">Try again</button>'
                 + '  </div>'
                 + '  <p class="muted-note" style="margin-top:1rem;">Questions? Email <a href="mailto:rrowe@ldahawaii.org">rrowe@ldahawaii.org</a>.</p>'
