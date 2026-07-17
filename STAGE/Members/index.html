@@ -148,7 +148,18 @@
     /* ── v2 visual refresh: islands motif + photo hero + photo tiles ── */
     body { background: linear-gradient(180deg,#F0FBFF 0%, var(--bg-warm) 260px, var(--bg-warm) 100%); position: relative; }
     .bg-islands { position: fixed; left: 50%; bottom: -8%; width: min(150%, 1050px); color: var(--ocean-deep); opacity: 0.04; z-index: 0; pointer-events: none; transform: translateX(-50%) scaleY(-1); }
-    .page-header, .main-wrap, footer { position: relative; z-index: 1; }
+    .main-wrap, footer { position: relative; z-index: 1; }
+    .page-header { position: relative; z-index: 30; }
+    .hdr-actions { margin-left: auto; display: flex; align-items: center; gap: 0.8rem; }
+    .signout-link { background: none; border: none; color: var(--text-soft); font: 600 0.92rem 'Source Sans 3', sans-serif; cursor: pointer; padding: 0.3rem 0.1rem; }
+    .signout-link:hover { color: var(--primary-blue); text-decoration: underline; }
+    .menu-btn { background: none; border: none; cursor: pointer; padding: 0.45rem 0.3rem; display: flex; flex-direction: column; gap: 5px; border-radius: 8px; }
+    .menu-btn:hover { background: #F0F9FF; }
+    .menu-btn span { display: block; width: 24px; height: 2.5px; background: var(--primary-blue); border-radius: 2px; }
+    .nav-menu { position: absolute; top: 100%; right: 1.2rem; margin-top: 0.35rem; background: #fff; border: 1px solid rgba(8,145,178,.12); border-radius: 14px; box-shadow: 0 14px 34px rgba(0,78,124,.20); padding: 0.5rem; min-width: 216px; display: none; flex-direction: column; z-index: 40; }
+    .nav-menu.open { display: flex; }
+    .nav-menu a { display: block; padding: 0.62rem 0.85rem; border-radius: 9px; color: var(--text-dark); text-decoration: none; font-weight: 600; font-size: 0.95rem; }
+    .nav-menu a:hover { background: #F0F9FF; color: var(--primary-blue); }
 
     .hero-section { position: relative; overflow: hidden; padding: 2.4rem 2rem 2.7rem;
         max-width: min(720px, calc(100% - 2rem)); margin: 1.3rem auto 0.3rem; border-radius: 22px;
@@ -201,8 +212,19 @@
                     <p>Leadership in Disabilities &amp; Achievement of Hawai&#699;i</p>
                 </div>
             </div>
-            <button id="signoutBtn" class="signout-btn" style="display:none;">Sign out</button>
+            <div class="hdr-actions" id="hdrActions" style="display:none;">
+                <button id="signoutBtn" class="signout-link">Sign out</button>
+                <button id="menuBtn" class="menu-btn" aria-label="Open menu" aria-expanded="false" aria-controls="navMenu"><span></span><span></span><span></span></button>
+            </div>
         </div>
+        <nav id="navMenu" class="nav-menu" aria-label="Portal navigation">
+            <a href="index.html">Portal Home</a>
+            <a href="index.html#eventsCard">My Events</a>
+            <a href="screenings.html">Screening Results</a>
+            <a href="resources.html">Member Resources</a>
+            <a href="profile.html">My Info</a>
+            <a href="renew.html">Renew Membership</a>
+        </nav>
     </header>
 
     <section class="hero-section" id="heroSection" style="display:none;">
@@ -268,8 +290,8 @@
         function setView(html) { id('view').innerHTML = html; }
         function showHero(title, sub) { var h = id('heroSection'); if (!h) return; id('heroTitle').textContent = title; id('heroSub').textContent = sub || ''; h.style.display = 'flex'; }
         function hideHero() { var h = id('heroSection'); if (h) h.style.display = 'none'; }
-        function showSignout() { var b = id('signoutBtn'); if (b) b.style.display = ''; }
-        function hideSignout() { var b = id('signoutBtn'); if (b) b.style.display = 'none'; }
+        function showSignout() { var b = id('hdrActions'); if (b) b.style.display = 'flex'; }
+        function hideSignout() { var b = id('hdrActions'); if (b) b.style.display = 'none'; var m = id('navMenu'); if (m) m.classList.remove('open'); }
         function renderLoading(msg) { hideHero(); setView('<div class="card"><div class="loading-state"><div class="loading-spinner"></div><p>' + esc(msg || 'Loading…') + '</p></div></div>'); }
         function fmtDate(ms) { if (!ms) return ''; var d = new Date(Number(ms)); if (isNaN(d.getTime())) return ''; return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }); }
         function isUnverified(e) { return !!(e && (e.message === 'email-unverified' || (e.code && String(e.code).indexOf('failed-precondition') !== -1 && String(e.message || '').indexOf('email-unverified') !== -1))); }
@@ -673,6 +695,13 @@
 
         /* ---------- wiring ---------- */
         id('signoutBtn').addEventListener('click', function () { auth.signOut(); });
+        (function () {
+            var mb = id('menuBtn'), nm = id('navMenu');
+            if (!mb || !nm) return;
+            mb.addEventListener('click', function (e) { e.stopPropagation(); var open = nm.classList.toggle('open'); mb.setAttribute('aria-expanded', open ? 'true' : 'false'); });
+            document.addEventListener('click', function (e) { if (nm.classList.contains('open') && !nm.contains(e.target) && e.target !== mb && !mb.contains(e.target)) { nm.classList.remove('open'); mb.setAttribute('aria-expanded', 'false'); } });
+            nm.addEventListener('click', function () { nm.classList.remove('open'); mb.setAttribute('aria-expanded', 'false'); });
+        })();
         document.querySelectorAll('.dynamic-year').forEach(function (el) { el.textContent = new Date().getFullYear(); });
     </script>
 
