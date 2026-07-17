@@ -139,6 +139,9 @@
     @media (max-width: 600px) {
         .hero-section .hero-islands { width: 100%; max-width: 380px; }
     }
+    .hero-back { position: absolute; top: 0.7rem; left: 1.1rem; font-size: 0.85rem; font-weight: 600; color: rgba(255,255,255,0.92); z-index: 3; }
+    .hero-section:hover .hero-back { text-decoration: underline; }
+    .brand:hover .header-text h1 { text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -156,7 +159,7 @@
 
     <header class="page-header">
         <div class="page-header-inner">
-            <div class="brand">
+            <div class="brand" role="link" tabindex="0" title="Back to your portal" style="cursor:pointer;" onclick="location.href='index.html'" onkeydown="if(event.key==='Enter'){location.href='index.html'}">
                 <img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH Logo">
                 <div class="header-text">
                     <h1>Member Portal</h1>
@@ -167,8 +170,9 @@
         </div>
     </header>
 
-    <section class="hero-section" id="heroSection" style="display:none;">
+    <section class="hero-section" id="heroSection" style="display:none;cursor:pointer;" title="Back to your portal" role="link" tabindex="0" onclick="location.href='index.html'" onkeydown="if(event.key==='Enter'){location.href='index.html'}">
         <svg class="hero-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
+        <div class="hero-back">&lsaquo; Back to your portal</div>
         <h2 id="heroTitle">Your Information</h2>
         <p id="heroSub">Keep your contact details up to date.</p>
         <div class="lei"></div>
