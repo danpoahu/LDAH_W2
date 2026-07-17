@@ -85,7 +85,10 @@
     .signup-dates { color: var(--text-soft); font-size: 0.92rem; }
     .signup-status { display: inline-block; margin-top: 0.3rem; background: #F0F9FF; color: #0C4A6E; border: 1px solid #BAE6FD; border-radius: 999px; padding: 0.15rem 0.7rem; font-size: 0.78rem; font-weight: 600; }
     .signup-status-cancelled { background: #FEF2F2; color: #991B1B; border-color: #FECACA; }
-    .signup-past-head { margin-top: 1.1rem; padding-top: 0.9rem; border-top: 1px solid #E2E8F0; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: var(--text-soft); }
+    .signup-past-toggle { margin-top: 1.1rem; padding-top: 0.9rem; border-top: 1px solid #E2E8F0; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: var(--text-soft); cursor: pointer; user-select: none; }
+    .signup-past-toggle:hover { color: var(--primary-blue); }
+    .signup-past-toggle .acc-arrow { display: inline-block; font-size: 0.6rem; margin-right: 0.25rem; }
+    .signup-list-past { margin-top: 0.4rem; }
     .signup-list-past .signup-title { color: var(--text-soft); font-weight: 500; }
 
     .muted-note { color: var(--text-light); font-size: 0.92rem; }
@@ -493,10 +496,23 @@
                 if (active.length) html += '<ul class="signup-list">' + active.map(signupItem).join('') + '</ul>';
                 else html += '<p class="muted-note">No upcoming signups.</p>';
                 if (past.length) {
-                    html += '<div class="signup-past-head">Past &amp; cancelled</div>'
-                        + '<ul class="signup-list signup-list-past">' + past.map(signupItem).join('') + '</ul>';
+                    html += '<div class="signup-past-toggle" id="pastToggle" role="button" tabindex="0" aria-expanded="false">'
+                        + '<span class="acc-arrow" id="pastArrow">&#9654;</span> Past &amp; cancelled (' + past.length + ')</div>'
+                        + '<ul class="signup-list signup-list-past" id="pastList" style="display:none;">' + past.map(signupItem).join('') + '</ul>';
                 }
                 box.innerHTML = html;
+                var pt = id('pastToggle');
+                if (pt) {
+                    var togglePast = function () {
+                        var l = id('pastList'), a = id('pastArrow');
+                        var open = l.style.display !== 'none';
+                        l.style.display = open ? 'none' : 'block';
+                        if (a) a.innerHTML = open ? '&#9654;' : '&#9660;';
+                        pt.setAttribute('aria-expanded', open ? 'false' : 'true');
+                    };
+                    pt.addEventListener('click', togglePast);
+                    pt.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePast(); } });
+                }
             } catch (e) {
                 box.innerHTML = '<p class="muted-note">We couldn’t load your signups right now.</p>';
             }
