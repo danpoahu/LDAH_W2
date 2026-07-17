@@ -78,6 +78,13 @@
     .lea-line { margin-top: 0.8rem; font-size: 0.95rem; color: var(--text-dark); }
     .lea-line .lea-label { font-weight: 600; }
     .follow-note { margin-top: 1.2rem; padding: 0.9rem 1.1rem; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 10px; font-size: 0.9rem; color: #92400E; line-height: 1.55; }
+    .legend p { margin: 0 0 0.7rem; font-size: 0.95rem; line-height: 1.6; color: var(--text-dark); }
+    .legend p:last-child { margin-bottom: 0; }
+    .rl-desc { font-size: 0.85rem; color: var(--text-soft); font-style: italic; margin: 0.95rem 0 0.2rem; }
+    .rec-note { margin-top: 1.15rem; padding: 0.95rem 1.1rem; background: #FFF7ED; border: 1px solid #FED7AA; border-left: 4px solid #F97316; border-radius: 10px; color: #7C2D12; }
+    .rec-note .rec-title { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.98rem; margin-bottom: 0.45rem; color: #9A3412; }
+    .rec-note p { font-size: 0.92rem; line-height: 1.55; margin: 0 0 0.55rem; }
+    .rec-note p:last-child { margin-bottom: 0; }
 
     .btn-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1.25rem; align-items: center; }
     .btn { display: inline-block; padding: 0.85rem 1.5rem; font-family: inherit; font-size: 1rem; font-weight: 600; border-radius: 10px; cursor: pointer; transition: all 0.2s ease; border: 2px solid transparent; text-align: center; text-decoration: none; }
@@ -241,20 +248,38 @@
             else if (low === 'fail' || low === 'refer') cls = 'badge badge-refer';
             return '<span class="' + cls + '">' + esc(s) + '</span>';
         }
-        // Otoscopy is an observation, not pass/fail — show as descriptive text.
-        function textBadge(v) {
+        // Otoscopy: "Clear or minimal earwax" is a normal/pass finding (green);
+        // anything else is a finding to follow up on (amber).
+        function otoBadge(v) {
             var s = String(v || '').trim();
             if (!s) return '<span class="badge-empty">&mdash;</span>';
+            if (s.toLowerCase() === 'clear or minimal earwax') return '<span class="badge badge-pass">' + esc(s) + '</span>';
             return '<span class="badge badge-text">' + esc(s) + '</span>';
         }
         function rlRow(label, obj, kind) {
             obj = obj || {};
-            var render = kind === 'text' ? textBadge : passFailBadge;
+            var render = kind === 'oto' ? otoBadge : passFailBadge;
             return '<div class="rl-row">'
                 + '<div class="rl-label">' + esc(label) + '</div>'
                 + '<div class="rl-val">' + render(obj.right) + '</div>'
                 + '<div class="rl-val">' + render(obj.left) + '</div>'
                 + '</div>';
+        }
+        var _low = function (x) { return String(x || '').trim().toLowerCase(); };
+        // Plain-language recommendations for any result that isn't a clean pass —
+        // wording kept consistent with LDAH's official results page.
+        function childRecs(h, v) {
+            var recs = [];
+            var pfVals = [];
+            [h.oae, h.tympanometry, v.distance].forEach(function (o) { o = o || {}; pfVals.push(o.right, o.left); });
+            var hasFail = pfVals.some(function (x) { return _low(x) === 'fail'; });
+            var hasCNT = pfVals.some(function (x) { return _low(x) === 'could not test'; });
+            var oto = h.otoscopy || {};
+            var otoConcern = [oto.right, oto.left].some(function (x) { var s = _low(x); return s && s !== 'clear or minimal earwax'; });
+            if (hasFail) recs.push('<strong>&ldquo;Fail&rdquo;</strong> means the result did not meet the screening criteria. Further evaluation is warranted. We recommend contacting your child&rsquo;s pediatrician to report the results &mdash; and we will be in touch to help with follow-up and resources if needed.');
+            if (otoConcern) recs.push('Because <strong>excessive earwax</strong> or a blockage was noted in the ear exam, please consult your pediatrician regardless of the other results. Do <strong>not</strong> try to remove earwax yourself unless professionally trained.');
+            if (hasCNT) recs.push('<strong>&ldquo;Could not test&rdquo;</strong> means we weren&rsquo;t able to complete this check during the screening. We recommend a follow-up so it can be re-checked.');
+            return recs;
         }
 
         auth.onAuthStateChanged(function (user) {
@@ -304,7 +329,13 @@
             showHero();
             var html = ''
                 + '<div class="card">'
-                + '  <div class="intro-note">These are <strong>screening</strong> results &mdash; a quick check of your child&rsquo;s hearing and vision. A screening is <strong>not a diagnosis</strong>. A result of <strong>Fail</strong> or <strong>Could not test</strong> means we recommend a follow-up with your child&rsquo;s doctor or an audiologist / eye doctor.</div>'
+                + '  <div class="intro-note">These are <strong>screening</strong> results &mdash; a quick check of your child&rsquo;s hearing and vision. A screening is <strong>not a diagnosis</strong>.</div>'
+                + '  <div class="legend" style="margin-top:1.1rem;">'
+                + '    <p><strong>The key to understanding your child&rsquo;s results below:</strong></p>'
+                + '    <p><strong>&ldquo;Pass&rdquo;</strong> means your child&rsquo;s result met the criteria associated with normal functioning in that area. It doesn&rsquo;t rule out any problem, but unless you have a concern, there is no need to follow up at this time.</p>'
+                + '    <p><strong>&ldquo;Fail&rdquo;</strong> means the result did not meet those criteria. Further evaluation is warranted. We recommend contacting your child&rsquo;s pediatrician to report the results &mdash; and we will be in touch to help with follow-up and resources if needed.</p>'
+                + '    <p>If <strong>&ldquo;excessive earwax&rdquo;</strong> or <strong>&ldquo;blood or foreign object&rdquo;</strong> is indicated, please consult your pediatrician regardless of the other results. Do <strong>not</strong> try to remove earwax yourself unless professionally trained.</p>'
+                + '  </div>'
                 + '</div>';
 
             list.forEach(function (s) {
@@ -321,18 +352,29 @@
                 if (s.screenedAt) meta.push('Screened ' + esc(prettyDate(s.screenedAt)));
                 if (s.site) meta.push(esc(s.site));
                 var h = s.hearing || {}, v = s.vision || {};
+                var tymp = h.tympanometry || {};
+                var hasTymp = !!(tymp.right || tymp.left);
+                var recs = childRecs(h, v);
                 html += '<div class="card">'
                     + '  <h3 class="card-title">' + esc(s.childName || 'Your child') + '</h3>'
                     + (meta.length ? '<div class="screen-meta">' + meta.join(' &middot; ') + '</div>' : '')
                     + '  <div class="screen-section">Hearing</div>'
                     + '  <div class="rl-head"><span>Test</span><span>Right</span><span>Left</span></div>'
-                    + rlRow('Otoscopy', h.otoscopy, 'text')
+                    + '  <div class="rl-desc">Otoscopy &mdash; a visual exam of the ear canals and eardrums.</div>'
+                    + rlRow('Otoscopy', h.otoscopy, 'oto')
+                    + '  <div class="rl-desc">Otoacoustic Emissions (OAE) &mdash; measures the inner ear&rsquo;s response to sound.</div>'
                     + rlRow('OAE', h.oae, 'pf')
-                    + rlRow('Tympanometry', h.tympanometry, 'pf')
+                    + (hasTymp
+                        ? '  <div class="rl-desc">Tympanometry &mdash; measures eardrum stiffness (done when the OAE result is &ldquo;Fail&rdquo;).</div>' + rlRow('Tympanometry', tymp, 'pf')
+                        : '')
                     + '  <div class="screen-section">Vision</div>'
                     + '  <div class="rl-head"><span>Test</span><span>Right</span><span>Left</span></div>'
+                    + '  <div class="rl-desc">Distance acuity &mdash; how clearly your child sees at a distance.</div>'
                     + rlRow('Distance acuity', v.distance, 'pf')
                     + (v.leaSymbols ? '<div class="lea-line"><span class="lea-label">Lea Symbols / PlusOptix:</span> ' + esc(v.leaSymbols) + '</div>' : '')
+                    + (recs.length
+                        ? '<div class="rec-note"><div class="rec-title">What this means &amp; next steps</div>' + recs.map(function (r) { return '<p>' + r + '</p>'; }).join('') + '</div>'
+                        : '')
                     + '</div>';
             });
 
