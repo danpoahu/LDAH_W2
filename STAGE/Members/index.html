@@ -82,7 +82,7 @@
     .signup-item { display: flex; gap: 0.9rem; align-items: flex-start; padding: 0.8rem 0; border-bottom: 1px solid #F1F5F9; }
     .signup-item:last-child { border-bottom: none; }
     .signup-thumb-link { flex-shrink: 0; display: block; }
-    .signup-thumb { width: 58px; height: 58px; object-fit: cover; border-radius: 8px; flex-shrink: 0; border: 1px solid #E2E8F0; background: #F1F5F9; }
+    .signup-thumb { width: 110px; height: auto; display: block; border-radius: 8px; border: 1px solid #E2E8F0; background: #F1F5F9; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
     .signup-body { flex: 1; min-width: 0; }
     .browse-head { margin-top: 0.4rem; margin-bottom: 0.7rem; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: var(--text-soft); }
     .browse-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 0.6rem; }
@@ -486,7 +486,9 @@
             var dates = (s.selectedDates || []).map(prettyDate).filter(Boolean).map(esc).join(', ');
             var label = s.cancelled ? 'Cancelled' : (s.attendanceStatus || s.status || '');
             var cls = s.cancelled ? 'signup-status signup-status-cancelled' : 'signup-status';
-            var thumb = s.flyerUrl
+            // Only load a flyer for active/upcoming signups (skip past & cancelled
+            // so the accordion stays fast and light).
+            var thumb = (s.bucket === 'active' && s.flyerUrl)
                 ? '<a class="signup-thumb-link" href="' + EVENTS_URL + '" target="_blank" rel="noopener"><img class="signup-thumb" src="' + esc(s.flyerUrl) + '" alt="" loading="lazy"></a>'
                 : '';
             return '<li class="signup-item">'
@@ -521,7 +523,16 @@
             try {
                 var r = await fns.httpsCallable('getMemberSignups')();
                 var list = (r.data && r.data.signups) || [];
-                var excludeIds = list.map(function (s) { return s && s.eventId; }).filter(Boolean);
+                // Only exclude events the member is actively going to, or attended in
+                // the last 12 months. Cancelled-only signups keep them eligible, so
+                // those events still surface under "more events you might like".
+                var YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+                var excludeIds = list.filter(function (s) {
+                    if (!s || !s.eventId || s.cancelled) return false;
+                    if (s.bucket === 'active') return true;
+                    if (/attend/i.test(s.attendanceStatus || '') && s.whenMs && (Date.now() - s.whenMs) < YEAR_MS) return true;
+                    return false;
+                }).map(function (s) { return s.eventId; });
                 loadBrowseEvents(excludeIds);
                 if (!list.length) { box.innerHTML = '<p class="muted-note">You have no event signups yet.</p>'; return; }
                 var active = list.filter(function (s) { return s && s.bucket !== 'past'; });

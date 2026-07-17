@@ -17130,29 +17130,40 @@ exports.getMemberBrowseEvents = functions
     // Today as YYYY-MM-DD in Hawaii — event dates are stored as date strings.
     const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
 
+    const isArchived = function (v) { return v === true || v === "true"; };
     const out = [];
-    const scan = async function (coll) {
+    const scan = async function (coll, recurring) {
       let snap;
       try { snap = await db.collection(coll).get(); } catch (e) { console.warn("browse scan " + coll + " failed:", e.message); return; }
       snap.forEach(function (d) {
         if (exclude[d.id]) return;
         const e = d.data() || {};
-        if (e.archived) return;
+        if (isArchived(e.archived)) return;
+        if (e.infoOnly === true || e.flyerOnly === true) return; // info-only flyers aren't signup-able
         const img = String(e.imageUrl || "");
         if (!img) return;
-        const dateStr = String(e.eventDate || e.date || e.startDate || "");
-        if (!dateStr || dateStr < todayStr) return; // future only
-        out.push({
-          eventId: d.id,
-          title: String(e.title || "Event"),
-          flyerUrl: img,
-          date: dateStr,
-        });
+        let dateStr = "";
+        if (recurring) {
+          // Ongoing programs have no single date; require an active, session-based
+          // program (has schedules) so we don't recommend pure info posts.
+          if (e.active === false || e.active === "false") return;
+          if (!Array.isArray(e.schedules) || !e.schedules.length) return;
+        } else {
+          dateStr = String(e.eventDate || e.date || e.startDate || "");
+          if (!dateStr || dateStr < todayStr) return; // future one-offs only
+        }
+        out.push({ eventId: d.id, title: String(e.title || "Event"), flyerUrl: img, date: dateStr });
       });
     };
-    await scan("events");
-    await scan("recurringEvents");
-    out.sort(function (a, b) { return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0); });
+    await scan("events", false);
+    await scan("recurringEvents", true);
+    // Dated one-offs first (soonest first), then ongoing programs.
+    out.sort(function (a, b) {
+      if (!a.date && !b.date) return 0;
+      if (!a.date) return 1;
+      if (!b.date) return -1;
+      return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0);
+    });
     return { events: out.slice(0, 8) };
   });
 
