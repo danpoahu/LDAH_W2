@@ -145,9 +145,50 @@
         .btn { width: 100%; }
         .btn-row { flex-direction: column; align-items: stretch; }
     }
+    /* ── v2 visual refresh: islands motif + photo hero + photo tiles ── */
+    body { background: linear-gradient(180deg,#F0FBFF 0%, var(--bg-warm) 260px, var(--bg-warm) 100%); position: relative; }
+    .bg-islands { position: fixed; right: -12%; bottom: -6%; width: min(120%, 880px); color: var(--ocean-deep); opacity: 0.05; z-index: 0; pointer-events: none; transform: scaleY(-1); }
+    .page-header, .main-wrap, footer { position: relative; z-index: 1; }
+
+    .hero-section { position: relative; overflow: hidden; padding: 2.4rem 2rem 2.7rem;
+        background-image: linear-gradient(135deg, rgba(14,116,144,.90), rgba(6,182,212,.70)), url('https://www.ldahawaii.org/assets/images/wp/Kosrae-Sunrise-3_1600.jpg');
+        background-size: cover; background-position: center 62%; }
+    .hero-section .hero-islands { position: absolute; right: -46px; top: -34px; width: 320px; color: #fff; opacity: 0.15; transform: scaleY(-1); z-index: 0; }
+    .hero-section > *:not(.hero-islands):not(.lei) { position: relative; z-index: 1; }
+    .hero-section h2 { font-weight: 800; }
+    .hero-section .lei { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: linear-gradient(90deg, var(--sunset-coral), var(--plumeria), var(--accent-teal), var(--palm)); z-index: 2; }
+    .mchip { display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 1rem; background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.30); padding: 0.5rem 0.95rem; border-radius: 999px; font-size: 0.92rem; font-weight: 600; color: #fff; backdrop-filter: blur(4px); }
+    .mchip .cdot { width: 9px; height: 9px; border-radius: 50%; background: #34D399; box-shadow: 0 0 0 3px rgba(52,211,153,.3); }
+    .mchip.inactive .cdot { background: #FBBF24; box-shadow: 0 0 0 3px rgba(251,191,36,.3); }
+
+    .tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.85rem; margin-bottom: 1.4rem; }
+    .tile { display: flex; flex-direction: column; background: #fff; border-radius: 18px; overflow: hidden; border: 1px solid rgba(8,145,178,.08); box-shadow: 0 4px 16px rgba(0,78,124,.07); text-decoration: none; color: inherit; transition: transform .15s ease, box-shadow .15s ease; }
+    .tile:hover { transform: translateY(-3px); box-shadow: 0 12px 26px rgba(8,145,178,.18); }
+    .tile-photo { height: 96px; background-size: cover; background-position: center; }
+    .tile-body { padding: 0.7rem 0.85rem 0.9rem; }
+    .tile-body .tl { font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 1.02rem; color: var(--text-dark); }
+    .tile-body .ts { font-size: 0.83rem; color: var(--text-soft); margin-top: 0.1rem; }
+
+    .card { transition: box-shadow .15s ease; }
+    .card-title { font-family: 'Outfit', sans-serif; }
+    @media (max-width: 600px) {
+        .hero-section .hero-islands { width: 230px; right: -30px; }
+        .tile-photo { height: 82px; }
+    }
     </style>
 </head>
 <body>
+    <svg style="display:none;"><defs><g id="hawaii-islands" fill="currentColor">
+    <path d="M542 2864 c-7 -13 -13 -14 -31 -5 -17 9 -27 9 -49 -2 -15 -8 -39 -19 -53 -25 -16 -6 -29 -21 -33 -37 -4 -15 -16 -40 -28 -55 -18 -25 -19 -31 -7 -56 8 -16 28 -35 44 -43 17 -9 47 -26 67 -39 23 -15 44 -21 57 -17 11 3 30 1 41 -5 29 -16 55 -5 90 40 26 33 29 42 20 65 -8 20 -7 32 5 48 41 58 -7 147 -79 147 -22 0 -38 -6 -44 -16z"/>
+    <path d="M107 2654 c-7 -14 -24 -31 -37 -37 -14 -7 -30 -23 -36 -36 -6 -12 -17 -28 -23 -34 -15 -15 -14 -33 5 -51 19 -20 34 -12 34 18 0 28 34 66 59 66 14 0 20 9 23 33 3 17 8 40 13 50 12 28 -22 21 -38 -9z"/>
+    <path d="M1599 2408 c-8 -7 -27 -30 -42 -50 -31 -42 -57 -54 -87 -38 -16 9 -25 8 -35 0 -12 -10 -10 -21 15 -67 17 -31 30 -60 30 -66 0 -6 7 -18 16 -28 9 -10 19 -33 23 -51 6 -30 10 -33 46 -36 22 -1 47 2 55 7 12 8 12 12 -3 29 -19 21 -23 37 -7 27 6 -4 18 -1 26 6 20 16 28 5 14 -20 -14 -28 -6 -39 24 -34 18 4 29 -2 41 -20 15 -23 22 -25 78 -24 76 2 82 16 37 82 -17 25 -29 49 -25 54 3 5 1 12 -5 16 -5 3 -10 -1 -10 -9 0 -19 -23 -21 -38 -3 -6 6 -13 29 -17 50 -4 20 -15 47 -25 60 -9 12 -20 34 -23 48 -8 32 -44 79 -61 79 -7 0 -19 -6 -27 -12z"/>
+    <path d="M2144 1984 c4 -9 -2 -23 -13 -32 -11 -10 -21 -26 -23 -37 -3 -19 3 -20 89 -22 65 -1 112 -8 158 -23 37 -12 76 -19 90 -16 33 8 85 54 85 75 0 26 -44 43 -77 30 -21 -8 -42 -7 -83 4 -53 15 -184 37 -216 37 -11 0 -14 -5 -10 -16z"/>
+    <path d="M2565 1797 c-17 -32 -17 -36 -1 -84 22 -65 44 -85 105 -91 56 -5 64 -17 54 -89 -5 -37 -2 -48 17 -68 30 -32 98 -35 125 -5 12 13 31 20 57 20 43 0 110 37 128 70 23 43 -26 121 -66 106 -7 -3 -18 3 -24 14 -6 11 -16 20 -22 20 -6 0 -28 16 -49 35 -43 39 -63 42 -116 20 -55 -23 -70 -19 -93 25 -35 68 -86 80 -115 27z"/>
+    <path d="M2313 1740 c-29 -12 -29 -27 -2 -56 12 -13 24 -37 28 -55 8 -38 29 -54 62 -46 37 10 46 19 53 54 14 60 -80 128 -141 103z"/>
+    <path d="M2576 1427 c-31 -26 -36 -35 -25 -44 9 -7 30 -8 54 -4 38 6 40 8 40 41 0 46 -20 48 -69 7z"/>
+    <path d="M3122 1158 c-21 -21 -13 -74 19 -134 21 -40 28 -66 24 -83 -9 -36 -62 -109 -84 -116 -27 -8 -71 -87 -71 -125 0 -33 15 -69 36 -85 7 -5 18 -28 23 -50 6 -22 20 -72 32 -112 22 -69 22 -77 10 -176 -11 -94 -11 -107 5 -140 12 -25 26 -38 46 -43 17 -3 50 -26 76 -50 25 -24 47 -44 49 -44 1 0 11 17 22 38 11 21 27 44 36 52 9 7 22 28 30 46 7 18 32 46 55 61 23 15 62 45 87 66 39 32 50 37 79 31 28 -5 46 1 114 41 85 50 170 135 170 170 0 10 -23 43 -51 71 -32 32 -54 64 -58 85 -5 26 -13 35 -38 41 -37 10 -48 34 -38 85 6 33 3 38 -58 97 -85 82 -219 166 -264 166 -26 0 -53 14 -115 60 -80 59 -113 71 -136 48z"/>
+    </g></defs></svg>
+    <svg class="bg-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
 
     <header class="page-header">
         <div class="page-header-inner">
@@ -163,8 +204,11 @@
     </header>
 
     <section class="hero-section" id="heroSection" style="display:none;">
+        <svg class="hero-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
         <h2 id="heroTitle">Aloha</h2>
         <p id="heroSub"></p>
+        <div id="heroChip"></div>
+        <div class="lei"></div>
     </section>
 
     <main class="main-wrap">
@@ -410,12 +454,35 @@
             id('nfSignout').addEventListener('click', function (e) { e.preventDefault(); auth.signOut(); });
         }
 
+        // Photo quick-tile: image banner + label + (optional) live subtext.
+        function tileHtml(href, img, title, sub, subId) {
+            return '<a class="tile" href="' + href + '">'
+                + '<div class="tile-photo" style="background-image:url(\'' + img + '\')"></div>'
+                + '<div class="tile-body"><div class="tl">' + title + '</div>'
+                + '<div class="ts"' + (subId ? ' id="' + subId + '"' : '') + '>' + sub + '</div></div></a>';
+        }
         function renderMemberDashboard(p, user) {
             p = p || {};
             showHero('Aloha, ' + (p.firstName || 'Member'), 'Welcome to your LDAH member portal.');
 
             var active = !!p.membershipActive;
             var expDate = p.membershipExpiresAt ? fmtDate(p.membershipExpiresAt) : '';
+
+            // Hero membership chip
+            var IMG = 'https://www.ldahawaii.org/assets/images/wp/';
+            var chip = id('heroChip');
+            if (chip) chip.innerHTML = active
+                ? '<span class="mchip"><span class="cdot"></span>' + esc(p.membershipLevel || 'Member') + ' member' + (expDate ? ' &middot; Active through ' + esc(expDate) : ' &middot; Active') + '</span>'
+                : '<span class="mchip inactive"><span class="cdot"></span>Membership inactive</span>';
+
+            // Photo quick-tiles
+            var tilesHtml = '<div class="tiles">'
+                + tileHtml('screenings.html', IMG + 'Children-Chuuk_1600-1024x768.jpg', 'Screening Results', 'Hearing &amp; vision', 'tileScreenSub')
+                + tileHtml('#eventsCard', IMG + 'LDAH-Palau-14-768x576.jpg', 'My Events', 'Your signups', 'tileEventsSub')
+                + tileHtml('resources.html', IMG + 'LDAH-Guam-24-768x576.jpg', 'Resources', 'Links &amp; training', '')
+                + tileHtml('profile.html', IMG + 'LDAH-American-Samoa-14-768x576.jpg', 'My Info', 'Edit profile', '')
+                + '</div>';
+
             var pill = active ? '<span class="pill pill-active">Active</span>' : '<span class="pill pill-inactive">Expired / Inactive</span>';
             var statusLine = active
                 ? (expDate ? '<p class="status-line">Your membership is active through <strong>' + esc(expDate) + '</strong>.</p>' : '<p class="status-line">Your membership is active.</p>')
@@ -441,6 +508,7 @@
             }
 
             setView(''
+                + tilesHtml
                 + '<div class="card">'
                 + '  <div class="card-head-row"><h3 class="card-title">Membership</h3>' + pill + '</div>'
                 + levelLine + statusLine + renewCta
@@ -464,7 +532,7 @@
                 + '  <div class="btn-row"><a class="btn btn-outline" href="profile.html">Edit my information</a></div>'
                 + '</div>'
 
-                + '<div class="card">'
+                + '<div class="card" id="eventsCard">'
                 + '  <h3 class="card-title">Your event signups</h3>'
                 + '  <div id="signupsBox"><div class="loading-state"><div class="loading-spinner"></div><p>Loading your signups…</p></div></div>'
                 + '  <div id="browseEventsBox"></div>'
@@ -487,6 +555,8 @@
             try {
                 var r = await fns.httpsCallable('getMemberScreenings')();
                 var list = (r.data && r.data.screenings) || [];
+                var ssub = id('tileScreenSub');
+                if (ssub && list.length) ssub.textContent = list.length + (list.length === 1 ? ' record' : ' records');
                 if (!list.length) return;
                 var names = list.map(function (s) { return s && s.childName; }).filter(Boolean);
                 var uniq = names.filter(function (n, i) { return names.indexOf(n) === i; });
@@ -571,6 +641,8 @@
                 if (!list.length) { box.innerHTML = '<p class="muted-note">You have no event signups yet.</p>'; return; }
                 var active = list.filter(function (s) { return s && s.bucket !== 'past'; });
                 var past = list.filter(function (s) { return s && s.bucket === 'past'; });
+                var esub = id('tileEventsSub');
+                if (esub) esub.textContent = active.length ? (active.length + ' upcoming') : 'Browse events';
                 var html = '';
                 if (active.length) html += '<ul class="signup-list">' + active.map(signupItem).join('') + '</ul>';
                 else html += '<p class="muted-note">No upcoming signups.</p>';
