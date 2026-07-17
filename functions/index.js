@@ -17018,8 +17018,11 @@ exports.updateMemberProfile = functions
     return { ok: true, profile: _sanitizeMemberContact(doc.id, fresh.data() || {}) };
   });
 
-// getMemberSignups — the member's own event signups, sanitized. Two equality
-// queries (contactId, linkedContactId) merged & deduped — Firestore has no OR.
+// getMemberSignups — the member's FULL signup history, sanitized. Matched three
+// ways (contactId, linkedContactId, and the verified email — to catch older
+// signups never linked to the contact record), merged & deduped. Cancelled /
+// archived signups are INCLUDED but flagged so the UI can label them, and each
+// row is bucketed "active" vs "past" for grouping.
 exports.getMemberSignups = functions
   .runWith({ timeoutSeconds: 20, maxInstances: 10 })
   .https.onCall(async (data, context) => {
@@ -17031,35 +17034,66 @@ exports.getMemberSignups = functions
     const doc = await _findMemberContactByEmail(db, context.auth.token.email);
     if (!doc) return { signups: [] };
     const cid = doc.id;
+    const email = String(context.auth.token.email || "").trim().toLowerCase();
+
+    // Leading "YYYY-MM-DD" from a selectedDates / selectedSessions entry.
+    const firstDateMs = function (arr) {
+      if (!Array.isArray(arr)) return null;
+      for (const item of arr) {
+        const m = String(item || "").match(/(\d{4})-(\d{2})-(\d{2})/);
+        if (m) return Date.parse(m[1] + "-" + m[2] + "-" + m[3] + "T00:00:00Z");
+      }
+      return null;
+    };
 
     const seen = {};
     const rows = [];
-    const runQuery = async function (field) {
-      let snap;
-      try {
-        snap = await db.collectionGroup("signups").where(field, "==", cid).get();
-      } catch (e) {
-        console.warn("getMemberSignups query (" + field + ") failed:", e.message);
-        return;
-      }
+    const collect = function (snap) {
       snap.forEach(function (s) {
         if (seen[s.ref.path]) return;
         seen[s.ref.path] = true;
         const g = s.data() || {};
-        if (g.archived) return;
+        const dates = Array.isArray(g.selectedDates) ? g.selectedDates
+          : (Array.isArray(g.selectedSessions) ? g.selectedSessions : []);
+        const status = String(g.status || "");
+        const cancelled = !!g.archived || status.toLowerCase() === "cancelled";
+        const whenMs = firstDateMs(dates);
+        const isPast = cancelled || (whenMs != null && whenMs < Date.now());
         rows.push({
           id: s.id,
-          eventTitle: String(g.eventTitle || g.eventName || ""),
-          selectedDates: Array.isArray(g.selectedDates) ? g.selectedDates
-            : (Array.isArray(g.selectedSessions) ? g.selectedSessions : []),
+          eventTitle: String(g.eventTitle || g.eventName || "Event"),
+          selectedDates: dates,
           participationType: String(g.participationType || g.registrantType || ""),
-          status: String(g.status || ""),
+          status: status,
           attendanceStatus: String(g.attendanceStatus || ""),
+          cancelled: cancelled,
+          bucket: isPast ? "past" : "active",
+          whenMs: whenMs,
         });
       });
     };
-    await runQuery("contactId");
-    await runQuery("linkedContactId");
+    const runQuery = async function (field, value) {
+      try {
+        collect(await db.collectionGroup("signups").where(field, "==", value).get());
+      } catch (e) {
+        console.warn("getMemberSignups query (" + field + ") failed:", e.message);
+      }
+    };
+    await runQuery("contactId", cid);
+    await runQuery("linkedContactId", cid);
+    if (email) await runQuery("email", email);
+    const rawEmail = String(context.auth.token.email || "").trim();
+    if (rawEmail && rawEmail !== email) await runQuery("email", rawEmail);
+
+    // Active first (soonest date first), then past (most recent first).
+    rows.sort(function (a, b) {
+      if (a.bucket !== b.bucket) return a.bucket === "active" ? -1 : 1;
+      const av = a.whenMs, bv = b.whenMs;
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      return a.bucket === "active" ? av - bv : bv - av;
+    });
     return { signups: rows };
   });
 

@@ -84,6 +84,9 @@
     .signup-title { font-weight: 600; color: var(--text-dark); }
     .signup-dates { color: var(--text-soft); font-size: 0.92rem; }
     .signup-status { display: inline-block; margin-top: 0.3rem; background: #F0F9FF; color: #0C4A6E; border: 1px solid #BAE6FD; border-radius: 999px; padding: 0.15rem 0.7rem; font-size: 0.78rem; font-weight: 600; }
+    .signup-status-cancelled { background: #FEF2F2; color: #991B1B; border-color: #FECACA; }
+    .signup-past-head { margin-top: 1.1rem; padding-top: 0.9rem; border-top: 1px solid #E2E8F0; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: var(--text-soft); }
+    .signup-list-past .signup-title { color: var(--text-soft); font-weight: 500; }
 
     .muted-note { color: var(--text-light); font-size: 0.92rem; }
     .switch-line { margin-top: 1rem; color: var(--text-soft); font-size: 0.95rem; }
@@ -458,6 +461,25 @@
             loadSignups();
         }
 
+        // Turn a session/date entry like "2026-07-20|Oahu – 245 N. Kukui|3:00 PM"
+        // into a friendly "Jul 20, 2026" (falls back to the raw string).
+        function prettyDate(raw) {
+            var m = String(raw || '').match(/(\d{4})-(\d{2})-(\d{2})/);
+            if (!m) return String(raw || '');
+            var d = new Date(m[1] + '-' + m[2] + '-' + m[3] + 'T00:00:00');
+            return isNaN(d) ? String(raw) : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+        function signupItem(s) {
+            s = s || {};
+            var dates = (s.selectedDates || []).map(prettyDate).filter(Boolean).map(esc).join(', ');
+            var label = s.cancelled ? 'Cancelled' : (s.attendanceStatus || s.status || '');
+            var cls = s.cancelled ? 'signup-status signup-status-cancelled' : 'signup-status';
+            return '<li class="signup-item">'
+                + '<div class="signup-title">' + esc(s.eventTitle || 'Event') + '</div>'
+                + (dates ? '<div class="signup-dates">' + dates + '</div>' : '')
+                + (label ? '<span class="' + cls + '">' + esc(label) + '</span>' : '')
+                + '</li>';
+        }
         async function loadSignups() {
             var box = id('signupsBox');
             if (!box) return;
@@ -465,16 +487,16 @@
                 var r = await fns.httpsCallable('getMemberSignups')();
                 var list = (r.data && r.data.signups) || [];
                 if (!list.length) { box.innerHTML = '<p class="muted-note">You have no event signups yet.</p>'; return; }
-                box.innerHTML = '<ul class="signup-list">' + list.map(function (s) {
-                    s = s || {};
-                    var dates = (s.selectedDates || []).map(esc).join(', ');
-                    var status = s.status || s.attendanceStatus || '';
-                    return '<li class="signup-item">'
-                        + '<div class="signup-title">' + esc(s.eventTitle || 'Event') + '</div>'
-                        + (dates ? '<div class="signup-dates">' + dates + '</div>' : '')
-                        + (status ? '<span class="signup-status">' + esc(status) + '</span>' : '')
-                        + '</li>';
-                }).join('') + '</ul>';
+                var active = list.filter(function (s) { return s && s.bucket !== 'past'; });
+                var past = list.filter(function (s) { return s && s.bucket === 'past'; });
+                var html = '';
+                if (active.length) html += '<ul class="signup-list">' + active.map(signupItem).join('') + '</ul>';
+                else html += '<p class="muted-note">No upcoming signups.</p>';
+                if (past.length) {
+                    html += '<div class="signup-past-head">Past &amp; cancelled</div>'
+                        + '<ul class="signup-list signup-list-past">' + past.map(signupItem).join('') + '</ul>';
+                }
+                box.innerHTML = html;
             } catch (e) {
                 box.innerHTML = '<p class="muted-note">We couldn’t load your signups right now.</p>';
             }
