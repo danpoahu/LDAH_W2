@@ -17149,8 +17149,24 @@ exports.getMemberBrowseEvents = functions
           if (e.active === false || e.active === "false") return;
           if (!Array.isArray(e.schedules) || !e.schedules.length) return;
         } else {
-          dateStr = String(e.eventDate || e.date || e.startDate || "");
-          if (!dateStr || dateStr < todayStr) return; // future one-offs only
+          // "Upcoming" = the event still has a FUTURE session date. A multi-session
+          // event (e.g. Learning Labs) can have a past primary eventDate but a
+          // later session still to come, so check sessions[].dateKey first.
+          const cancelledDates = Array.isArray(e.cancelledDates) ? e.cancelledDates : [];
+          const future = [];
+          if (Array.isArray(e.sessions)) {
+            e.sessions.forEach(function (ss) {
+              const dk = String((ss && ss.dateKey) || "");
+              if (dk && dk >= todayStr && cancelledDates.indexOf(dk) === -1) future.push(dk);
+            });
+          }
+          if (!future.length) {
+            const ds = String(e.eventDate || e.date || e.startDate || "");
+            if (ds && ds >= todayStr) future.push(ds);
+          }
+          if (!future.length) return; // no upcoming session
+          future.sort();
+          dateStr = future[0]; // soonest upcoming session
         }
         out.push({ eventId: d.id, title: String(e.title || "Event"), flyerUrl: img, date: dateStr });
       });
