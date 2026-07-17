@@ -170,7 +170,8 @@
     .tile-body .tl { font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 1.02rem; color: var(--text-dark); }
     .tile-body .ts { font-size: 0.83rem; color: var(--text-soft); margin-top: 0.1rem; }
 
-    .card { transition: box-shadow .15s ease; }
+    .card { transition: transform .18s ease, box-shadow .18s ease; }
+    .card:hover { transform: translateY(-4px); box-shadow: 0 16px 34px rgba(8,145,178,.16); }
     .card-title { font-family: 'Outfit', sans-serif; }
     @media (max-width: 600px) {
         .hero-section .hero-islands { width: 100%; max-width: 380px; }
