@@ -16716,7 +16716,7 @@ exports.onMembershipCreated = functions
         contactRef = q.docs[0].ref;
         const existing = q.docs[0].data() || {};
         const exp = existing.membershipExpiresAt;
-        const stillActive = existing.membershipStatus === "active"
+        const stillActive = (existing.membershipStatus === "active" || existing.membershipStatus === "paid")
           && (!exp || (typeof exp.toMillis === "function" && exp.toMillis() > Date.now()));
         const patch = { isMember: true, membershipUpdatedAt: now };
         if (!stillActive) {
@@ -16882,15 +16882,18 @@ async function _findMemberContactByEmail(db, email) {
   return q.empty ? null : q.docs[0];
 }
 
-// Is this contact's membership currently active (paid & not expired)?
+// Is this contact's membership currently active? Accepts both "active" (set by
+// onMembershipPaid with an expiry) and the legacy "paid" status (set by the
+// LDAH-Int "Mark as Paid" button, which may have no expiry). If an expiry is
+// recorded it must be in the future; with no expiry, treat as active.
 function _membershipIsActive(c) {
   if (!c || !c.isMember) return false;
-  if (c.membershipStatus !== "active") return false;
+  if (c.membershipStatus !== "active" && c.membershipStatus !== "paid") return false;
   const exp = c.membershipExpiresAt;
   if (exp && typeof exp.toMillis === "function") {
     return exp.toMillis() > Date.now();
   }
-  return true; // active with no expiry recorded → treat as active
+  return true; // no expiry recorded → treat as active
 }
 
 // Build the ONLY object a member is ever allowed to see about themselves.
