@@ -17139,7 +17139,11 @@ exports.getMemberBrowseEvents = functions
         if (exclude[d.id]) return;
         const e = d.data() || {};
         if (isArchived(e.archived)) return;
-        if (e.infoOnly === true || e.flyerOnly === true) return; // info-only flyers aren't signup-able
+        // Information-only flyers aren't signup-able — keep them out of the
+        // recommendations (they belong in the resources section). Catch boolean
+        // and string forms of every flag the event form might set.
+        const infoFlag = function (v) { return v === true || v === "true"; };
+        if (infoFlag(e.infoOnly) || infoFlag(e.flyerOnly) || infoFlag(e.informationOnly) || infoFlag(e.isInfoOnly)) return;
         const img = String(e.imageUrl || "");
         if (!img) return;
         let dateStr = "";
