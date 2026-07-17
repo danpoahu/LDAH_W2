@@ -15657,6 +15657,10 @@ exports.onEventCreatedLifecycle = functions
     const eventId = context.params.eventId;
 
     if (ev.archived === true) return null;
+    // One-off gatherings are hand-logged into the Event Attendance Report AFTER
+    // the fact — they are not real workflow events, so they get NO lifecycle
+    // tasks (no Verify Display / Assign Presenter / Send Announcement).
+    if (ev.isOneOff === true) return null;
     if (!ev.createdByUid) {
       console.log("onEventCreatedLifecycle: skipping", eventId, "— no createdByUid (pre-workflow event)");
       return null;
