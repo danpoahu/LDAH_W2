@@ -16863,6 +16863,24 @@ exports.onMembershipPaid = functions
     }
   });
 
+// Keep contacts.hasScreenings in sync with whether the contact has any entries
+// in screenings[]. This lets the SRP results page and the -Int Screenings Report
+// query `where hasScreenings == true` (a few dozen docs) instead of streaming the
+// ENTIRE contacts collection (thousands) — a big speedup. Fires on any contact
+// write and is guarded so it never loops.
+exports.maintainHasScreenings = functions
+  .runWith({ timeoutSeconds: 20, maxInstances: 20 })
+  .firestore.document("contacts/{id}")
+  .onWrite(async (change) => {
+    if (!change.after.exists) return null; // deleted
+    const after = change.after.data() || {};
+    const has = Array.isArray(after.screenings) && after.screenings.length > 0;
+    if (!!after.hasScreenings === has) return null; // already correct → avoid a write loop
+    try { await change.after.ref.update({ hasScreenings: has }); }
+    catch (e) { console.warn("maintainHasScreenings failed:", e.message); }
+    return null;
+  });
+
 // ══════════════════════════════════════════════════════════════════════
 // MEMBER PORTAL  (ldahawaii.org/Members/)
 // Paying members sign in with Firebase Auth (email/password). The portal

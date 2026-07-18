@@ -182,7 +182,7 @@
     view('report');
     if (!unsub) $('list').innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto 12px;"></div>Loading screenings…</div>';
     if (unsub) return;
-    unsub = db.collection('contacts').onSnapshot(
+    unsub = db.collection('contacts').where('hasScreenings','==',true).onSnapshot(
       snap => { buildRows(snap); renderList(); },
       err => { $('list').innerHTML = '<div class="empty">Couldn’t load: '+esc(err.message)+'</div>'; }
     );
