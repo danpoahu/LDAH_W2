@@ -739,5 +739,11 @@
         document.querySelectorAll('.dynamic-year').forEach(function (el) { el.textContent = new Date().getFullYear(); });
     </script>
 
+    <!-- Accessibility widget (font size, contrast/dark mode). Shared with the W2 site; repositioned bottom-right. -->
+    <style>
+        #a11y-toggle { left: auto !important; right: 20px !important; }
+        #a11y-panel { left: auto !important; right: 20px !important; }
+    </style>
+    <script src="https://www.ldahawaii.org/accessibility.js"></script>
 </body>
 </html>
