@@ -310,6 +310,15 @@ service cloud.firestore {
       allow write: if request.auth != null;
     }
 
+    // SRP screening day-defaults (Site + Screened-by) so they auto-fill across
+    // browsers for the day. Only staff (admin/superAdmin, who run the results
+    // tool) can write; any signed-in staff can read.
+    match /screeningDefaults/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin', 'admin'];
+    }
+
     // Member Portal resource hub (curated Links & Services, training,
     // newsletters). Staff manage it from the LDAH-Int CMS (admin write, staff
     // read). Members NEVER read directly — the getMemberResources Cloud

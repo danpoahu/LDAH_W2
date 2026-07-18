@@ -149,6 +149,17 @@
   let rows = [];
   let current = null; // { contactId, screeningId, child }
   let unsub = null;   // Firestore realtime listener
+  // Day defaults for Site + Screened by. Once entered on any screening, they
+  // auto-fill the rest of the day — and persist across browsers/devices via a
+  // Firestore doc (not localStorage), keyed to today's date.
+  let dayDefaults = { site:'', screenedBy:'' };
+  function todayKey(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  function loadDayDefaults(){
+    db.collection('screeningDefaults').doc('current').get().then(d=>{
+      const v = d.exists ? (d.data()||{}) : {};
+      if (v.dateKey === todayKey()) dayDefaults = { site:v.site||'', screenedBy:v.screenedBy||'' };
+    }).catch(()=>{});
+  }
 
   auth.onAuthStateChanged(async u => {
     if (!u){ if (unsub){ unsub(); unsub=null; } view('login'); return; }
@@ -194,6 +205,7 @@
   // Realtime listener — new consents & results appear live, on any device, no refresh.
   function startReport(){
     view('report');
+    loadDayDefaults();
     if (!unsub) $('list').innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto 12px;"></div>Loading screenings…</div>';
     if (unsub) return;
     unsub = db.collection('contacts').where('hasScreenings','==',true).onSnapshot(
@@ -206,7 +218,13 @@
 
   function renderList(){
     let list = filter==='today' ? rows.filter(r=>isToday(r.signedAt)) : rows.slice();
-    list.sort((a,b)=>((b.signedAt&&b.signedAt.toMillis)?b.signedAt.toMillis():0)-((a.signedAt&&a.signedAt.toMillis)?a.signedAt.toMillis():0));
+    // Pending (no results yet) float to the TOP so Chassidy sees who's next; within
+    // each group, most recently signed first.
+    list.sort((a,b)=>{
+      const ap=a.results?1:0, bp=b.results?1:0;
+      if(ap!==bp) return ap-bp;
+      return ((b.signedAt&&b.signedAt.toMillis)?b.signedAt.toMillis():0)-((a.signedAt&&a.signedAt.toMillis)?a.signedAt.toMillis():0);
+    });
     $('count').textContent = list.length + (list.length===1?' screening':' screenings') + (filter==='today'?' today':'');
     if (!list.length){ $('list').innerHTML = '<div class="empty">No screenings'+(filter==='today'?' today yet':'')+'.</div>'; return; }
     let h='';
@@ -236,13 +254,14 @@
     current = { contactId:r.contactId, screeningId:r.screeningId };
     $('entryTitle').textContent = r.childName || 'Results';
     const res = r.results||{}, hd=res.hearing||{}, vs=res.vision||{};
-    const by = res.screenedBy || (auth.currentUser && auth.currentUser.displayName) || '';
+    const by = res.screenedBy || dayDefaults.screenedBy || (auth.currentUser && auth.currentUser.displayName) || '';
+    const site = res.site || dayDefaults.site || '';
     let when = '';
     if (res.screenedAt){ if(res.screenedAt.toDate){const d=res.screenedAt.toDate();when=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');} else if(typeof res.screenedAt==='string'){when=res.screenedAt.slice(0,10);} }
     if(!when){ const t=new Date(); when=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'); }
     let f = '';
     f += '<div class="grid2"><div><label class="l">Date of Screening</label><input type="date" id="eDate" value="'+when+'"></div>'+
-         '<div><label class="l">Site</label><input id="eSite" value="'+esc(res.site||'')+'"></div></div>';
+         '<div><label class="l">Site</label><input id="eSite" value="'+esc(site)+'"></div></div>';
     f += '<label class="l">Screened by</label><input id="eBy" value="'+esc(by)+'">';
     f += '<div class="sec">Hearing</div><div class="rl"><div></div><div class="h">Right</div><div class="h">Left</div></div>';
     f += rlRow('Otoscopy','eOtoR','eOtoL',OTO,hd.otoscopy);
@@ -278,6 +297,10 @@
         await db.collection('contacts').doc(current.contactId).update({ screenings: arr });
       })();
       await Promise.race([ doWrite, new Promise((_,rej)=>setTimeout(()=>rej({ code:'timeout' }), 15000)) ]);
+      // Remember Site + Screened by as today's defaults so they auto-fill on the
+      // next child, on any browser (persisted server-side).
+      dayDefaults = { site: results.site, screenedBy: results.screenedBy };
+      db.collection('screeningDefaults').doc('current').set({ site: results.site, screenedBy: results.screenedBy, dateKey: todayKey(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(()=>{});
       if (sendEmail){
         let idToken=''; try { idToken = await auth.currentUser.getIdToken(); } catch(_){}
         const res = await fetch(SEND_RESULTS, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idToken, contactId:current.contactId, screeningId:current.screeningId }) });
