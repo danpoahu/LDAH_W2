@@ -135,6 +135,11 @@
   });
   const auth = firebase.auth();
   const db = firebase.firestore();
+  // Force long-polling. Firestore's default streaming (WebChannel/QUIC) connection
+  // can be silently disrupted by some browsers, extensions, or networks — reads
+  // load, then writes hang with no error (staff saw this in Edge & Chrome). Long-
+  // polling is far more robust for a kiosk-style tool used across varied browsers.
+  try { db.settings({ experimentalForceLongPolling: true }); } catch (e) {}
   const SEND_RESULTS = 'https://us-central1-ldah-932d5.cloudfunctions.net/sendScreeningResults';
   const $ = id => document.getElementById(id);
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -251,9 +256,14 @@
       vision: { distance:{right:val('eDistR'),left:val('eDistL')}, leaSymbols:val('eLea') }
     };
     try {
-      const snap = await db.collection('contacts').doc(current.contactId).get();
-      const arr = (((snap.data()||{}).screenings)||[]).map(s => (s&&s.id===current.screeningId)?Object.assign({},s,{results:results}):s);
-      await db.collection('contacts').doc(current.contactId).update({ screenings: arr });
+      // Watchdog: never let a save hang silently. If the write doesn't finish in
+      // 15s (e.g. the connection dropped), surface an error instead of nothing.
+      const doWrite = (async () => {
+        const snap = await db.collection('contacts').doc(current.contactId).get();
+        const arr = (((snap.data()||{}).screenings)||[]).map(s => (s&&s.id===current.screeningId)?Object.assign({},s,{results:results}):s);
+        await db.collection('contacts').doc(current.contactId).update({ screenings: arr });
+      })();
+      await Promise.race([ doWrite, new Promise((_,rej)=>setTimeout(()=>rej({ code:'timeout' }), 15000)) ]);
       if (sendEmail){
         let idToken=''; try { idToken = await auth.currentUser.getIdToken(); } catch(_){}
         const res = await fetch(SEND_RESULTS, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idToken, contactId:current.contactId, screeningId:current.screeningId }) });
@@ -263,7 +273,9 @@
       setTimeout(()=>{ closeEntry(); }, 800);
     } catch (ex){
       msg.style.color='#b91c1c';
-      msg.textContent = (ex.code==='permission-denied') ? 'Your account can’t save results (needs admin access — ask Daniel).' : ('Error: '+ex.message);
+      if (ex && ex.code==='timeout') msg.textContent = 'Save timed out — check your internet connection and try again. (Nothing was lost; just tap Save again.)';
+      else if (ex && ex.code==='permission-denied') msg.textContent = 'Your account can’t save results (needs admin access — ask Daniel).';
+      else msg.textContent = 'Error: '+((ex&&ex.message)||'could not save')+'. Please try again.';
       $('btnSave').disabled=false; $('btnEmail').disabled=false;
     }
   };
