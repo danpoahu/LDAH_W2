@@ -16968,7 +16968,12 @@ exports.getMemberProfile = functions
     const doc = await _findMemberContactByEmail(db, email);
     if (!doc) return { found: false };
     const c = doc.data() || {};
-    if (!c.isMember) return { found: false };
+    // Must be a member who has ACTUALLY PAID at least once. A "pending" membership
+    // that was started but never paid does NOT get portal access (onMembershipCreated
+    // sets isMember:true on pending, so isMember alone isn't enough). Lapsed members
+    // (previously paid, now expired) still get in — they can renew from inside.
+    const everPaid = c.membershipStatus === "active" || c.membershipStatus === "paid" || !!c.membershipPaidAt;
+    if (!c.isMember || !everPaid) return { found: false };
     // Record the auth link so staff can see the member created a login.
     if (c.memberAuthUid !== context.auth.uid) {
       try {

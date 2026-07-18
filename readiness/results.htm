@@ -150,9 +150,23 @@
   let current = null; // { contactId, screeningId, child }
   let unsub = null;   // Firestore realtime listener
 
-  auth.onAuthStateChanged(u => {
-    if (u){ startReport(); }
-    else { if (unsub){ unsub(); unsub=null; } view('login'); }
+  auth.onAuthStateChanged(async u => {
+    if (!u){ if (unsub){ unsub(); unsub=null; } view('login'); return; }
+    // This page and the member portal share the same origin + Firebase project, so
+    // a member-portal login (a non-staff account) can carry over here. Only
+    // admin/superAdmin can write results — if the signed-in account isn't one of
+    // those, say so clearly instead of loading the form and failing on every save.
+    let role = '';
+    try { const rs = await db.collection('userRoles').doc(u.uid).get(); role = rs.exists ? (rs.data().role || '') : ''; } catch (e) {}
+    if (role === 'admin' || role === 'superAdmin'){ startReport(); }
+    else {
+      if (unsub){ unsub(); unsub=null; }
+      view('login');
+      const err = $('loginErr');
+      err.innerHTML = 'You are signed in as <b>' + esc(u.email || 'this account') + '</b>, which is <b>not authorized</b> to enter screening results. Sign in below with your LDAH staff account (this replaces the current sign-in), or <a href="#" id="switchAcct">sign out</a> first.';
+      err.classList.add('show');
+      const sw = document.getElementById('switchAcct'); if (sw) sw.onclick = (e) => { e.preventDefault(); auth.signOut(); };
+    }
   });
 
   // ---- Login ----
