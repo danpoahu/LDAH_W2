@@ -328,7 +328,19 @@
         }
 
         /* ---------- auth state machine ---------- */
-        auth.onAuthStateChanged(function (user) { render(user); });
+        // The entry point must always be a clean LOGIN screen — never the verify-email
+        // screen. If a stale, unverified session is persisted (e.g. someone created a
+        // login earlier but never verified), sign it out on load so clicking "Member
+        // Login" gives a fresh login form. The verify screen only appears as a direct
+        // result of creating an account / logging in during THIS visit.
+        var _initialAuth = true;
+        auth.onAuthStateChanged(function (user) {
+            if (_initialAuth) {
+                _initialAuth = false;
+                if (user && !user.emailVerified) { auth.signOut(); return; }
+            }
+            render(user);
+        });
 
         async function render(user) {
             if (!user) { hideSignout(); hideHero(); renderSignedOut(); return; }
