@@ -561,9 +561,11 @@
 
             setView(''
                 + tilesHtml
-                + '<div class="card">'
-                + '  <div class="card-head-row"><h3 class="card-title">Membership</h3>' + pill + '</div>'
-                + levelLine + statusLine + renewCta
+                + '<div class="card" id="eventsCard">'
+                + '  <h3 class="card-title">Your event signups</h3>'
+                + '  <div id="signupsBox"><div class="loading-state"><div class="loading-spinner"></div><p>Loading your signups…</p></div></div>'
+                + '  <div id="browseEventsBox"></div>'
+                + '  <div id="pastBox"></div>'
                 + '</div>'
 
                 + '<div class="card" id="screeningCard" style="display:none;">'
@@ -584,11 +586,9 @@
                 + '  <div class="btn-row"><a class="btn btn-outline" href="profile.html">Edit my information</a></div>'
                 + '</div>'
 
-                + '<div class="card" id="eventsCard">'
-                + '  <h3 class="card-title">Your event signups</h3>'
-                + '  <div id="signupsBox"><div class="loading-state"><div class="loading-spinner"></div><p>Loading your signups…</p></div></div>'
-                + '  <div id="browseEventsBox"></div>'
-                + '  <div id="pastBox"></div>'
+                + '<div class="card">'
+                + '  <div class="card-head-row"><h3 class="card-title">Membership</h3>' + pill + '</div>'
+                + levelLine + statusLine + renewCta
                 + '</div>'
 
                 + '<div class="card">'
