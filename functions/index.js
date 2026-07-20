@@ -474,6 +474,25 @@ async function logEmailSend(entry) {
  * Extra optional fields (type, relatedEventId, relatedSignupId, recipientName)
  * are used only for the emailLog entry and are safe to omit.
  */
+// A contact's email field may legitimately hold more than one address —
+// families often list two parents separated by a comma or semicolon
+// (e.g. "mom@x.com; dad@y.com"). Resend needs each recipient as its own
+// array element, so split on either delimiter, trim, keep only well-formed
+// addresses, and de-dupe. A single clean address returns a one-element array
+// (no behavior change for the common case).
+const RESEND_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function normalizeRecipients(value) {
+  const raw = Array.isArray(value) ?
+    value.flatMap((v) => String(v || "").split(/[;,]/)) :
+    String(value || "").split(/[;,]/);
+  const out = [];
+  for (const part of raw) {
+    const addr = part.trim();
+    if (RESEND_EMAIL_RE.test(addr) && !out.includes(addr)) out.push(addr);
+  }
+  return out;
+}
+
 async function sendEmailViaResend({
   from, to, subject, html, bcc, cc,
   type, relatedEventId, relatedSignupId, recipientName,
@@ -481,22 +500,23 @@ async function sendEmailViaResend({
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error("RESEND_API_KEY secret is not set");
 
-  // Assemble BCC list: per-call bcc + REVIEW_BCC (if set). De-dupe + skip empties.
-  const bccList = [];
-  if (bcc) {
-    if (Array.isArray(bcc)) bccList.push(...bcc.filter(Boolean));
-    else bccList.push(bcc);
+  // Normalize the primary recipient(s). Supports multi-address fields.
+  const toList = normalizeRecipients(to);
+  if (!toList.length) {
+    throw new Error(
+      "sendEmailViaResend: no valid recipient address in 'to' (" +
+      JSON.stringify(to) + ")");
   }
+  const toDisplay = toList.join(", ");
+
+  // Assemble BCC list: per-call bcc + REVIEW_BCC (if set). De-dupe + skip empties.
+  const bccList = normalizeRecipients(bcc);
   if (REVIEW_BCC && !bccList.includes(REVIEW_BCC)) bccList.push(REVIEW_BCC);
   const bccLogValue = bccList.join(", ");
 
-  const ccList = [];
-  if (cc) {
-    if (Array.isArray(cc)) ccList.push(...cc.filter(Boolean));
-    else ccList.push(cc);
-  }
+  const ccList = normalizeRecipients(cc);
 
-  const body = { from, to: [to], subject, html };
+  const body = { from, to: toList, subject, html };
   if (bccList.length) body.bcc = bccList;
   if (ccList.length) body.cc = ccList;
 
@@ -524,7 +544,7 @@ async function sendEmailViaResend({
       if (response.ok) {
         const result = await response.json();
         await logEmailSend({
-          from, to, bcc: bccLogValue, subject, html,
+          from, to: toDisplay, bcc: bccLogValue, subject, html,
           type, relatedEventId, relatedSignupId, recipientName,
           success: true, resendId: (result && result.id) || null,
         });
@@ -536,13 +556,13 @@ async function sendEmailViaResend({
       const retryable = response.status === 429 || response.status >= 500;
       if (retryable && attempt < MAX_ATTEMPTS) {
         const wait = backoffMs(attempt);
-        console.warn(`sendEmailViaResend: ${response.status} for ${to}, retry ${attempt}/${MAX_ATTEMPTS - 1} in ${wait}ms`);
+        console.warn(`sendEmailViaResend: ${response.status} for ${toDisplay}, retry ${attempt}/${MAX_ATTEMPTS - 1} in ${wait}ms`);
         await new Promise((r) => setTimeout(r, wait));
         continue;
       }
       // Non-retryable, or retries exhausted — log the failure and throw.
       await logEmailSend({
-        from, to, bcc: bccLogValue, subject, html,
+        from, to: toDisplay, bcc: bccLogValue, subject, html,
         type, relatedEventId, relatedSignupId, recipientName,
         success: false, error: msg,
       });
@@ -553,12 +573,12 @@ async function sendEmailViaResend({
       // Network/fetch-level error — retry if attempts remain.
       if (attempt < MAX_ATTEMPTS) {
         const wait = backoffMs(attempt);
-        console.warn(`sendEmailViaResend: network error for ${to} (${err.message}), retry ${attempt}/${MAX_ATTEMPTS - 1} in ${wait}ms`);
+        console.warn(`sendEmailViaResend: network error for ${toDisplay} (${err.message}), retry ${attempt}/${MAX_ATTEMPTS - 1} in ${wait}ms`);
         await new Promise((r) => setTimeout(r, wait));
         continue;
       }
       await logEmailSend({
-        from, to, bcc: bccLogValue, subject, html,
+        from, to: toDisplay, bcc: bccLogValue, subject, html,
         type, relatedEventId, relatedSignupId, recipientName,
         success: false, error: err.message || String(err),
       });
@@ -566,7 +586,7 @@ async function sendEmailViaResend({
     }
   }
   // Loop always returns or throws above; this is defensive only.
-  throw new Error("sendEmailViaResend: exhausted retries for " + to);
+  throw new Error("sendEmailViaResend: exhausted retries for " + toDisplay);
 }
 
 /**
