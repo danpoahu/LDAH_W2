@@ -414,6 +414,24 @@
             var btn = id('createBtn'); btn.disabled = true; btn.textContent = 'Creating…';
             try {
                 var cred = await auth.createUserWithEmailAndPassword(email, pw);
+                // Guard rail: only LDAH members may hold a portal login. Check the
+                // membership NOW (signed in as the new user) and, if this email is
+                // not a member, immediately delete the account we just created so
+                // no orphan Auth record is ever left behind for a non-member.
+                try {
+                    var elig = await fns.httpsCallable('checkMemberEligibility')();
+                    if (!elig || !elig.data || !elig.data.isMember) {
+                        try { await cred.user.delete(); } catch (delErr) { try { await auth.signOut(); } catch (_) {} }
+                        btn.disabled = false; btn.textContent = 'Create login';
+                        authError("We couldn't find an LDAH membership for that email. If you just joined, give it a few minutes and try again — or use “How to become a member” below.");
+                        return;
+                    }
+                } catch (gErr) {
+                    // If the eligibility check itself fails (network, etc.), don't
+                    // strand a real member — let them continue; the portal's own
+                    // membership gate still applies after they verify.
+                    console.warn('membership guard check failed:', gErr);
+                }
                 await cred.user.sendEmailVerification();
                 renderVerify(cred.user);
             } catch (e) {
