@@ -8683,6 +8683,46 @@ exports.pruneExpiredRecordings = functions
     return null;
   });
 
+// Prune stale ANONYMOUS Firebase Auth sessions. The public website/app call
+// signInAnonymously() so visitors can write to Firestore under auth-required
+// rules; each visit that doesn't reuse a cached identity mints a throwaway
+// anonymous user that Firebase never auto-deletes, so they accumulate forever.
+// Weekly, delete anonymous users idle for > ANON_STALE_DAYS. Real logins
+// (email/password members + staff) always have an email and are NEVER touched.
+const ANON_STALE_DAYS = 30;
+exports.pruneAnonymousAuthUsers = functions
+  .runWith({ timeoutSeconds: 540, maxInstances: 1 })
+  .pubsub.schedule("0 4 * * 1")            // Mondays 4 AM HST
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const cutoff = Date.now() - ANON_STALE_DAYS * 24 * 60 * 60 * 1000;
+    const isAnon = (u) => (!u.email && (!u.providerData || u.providerData.length === 0));
+    const lastActive = (u) => {
+      const m = u.metadata || {};
+      const t = m.lastRefreshTime || m.lastSignInTime || m.creationTime || null;
+      return t ? new Date(t).getTime() : 0;
+    };
+    const stale = [];
+    let anonTotal = 0; let pageToken;
+    do {
+      const res = await admin.auth().listUsers(1000, pageToken);
+      for (const u of res.users) {
+        if (!isAnon(u)) continue;
+        anonTotal++;
+        if (lastActive(u) < cutoff) stale.push(u.uid);
+      }
+      pageToken = res.pageToken;
+    } while (pageToken);
+
+    let deleted = 0; let failed = 0;
+    for (let i = 0; i < stale.length; i += 1000) {
+      const r = await admin.auth().deleteUsers(stale.slice(i, i + 1000));
+      deleted += r.successCount; failed += r.failureCount;
+    }
+    console.log(`pruneAnonymousAuthUsers: anonTotal=${anonTotal} stale(>${ANON_STALE_DAYS}d)=${stale.length} deleted=${deleted} failed=${failed}`);
+    return null;
+  });
+
 // Helper used by an extended resendLoggedEmail flow (if type=event-recording,
 // re-attach the PDF from Storage when the file is still there; otherwise
 // send just the HTML — the recipient still has a link in the body which
