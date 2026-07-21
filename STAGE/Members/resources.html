@@ -73,6 +73,8 @@
     .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(8,145,178,0.3); }
     .btn-outline { background: white; border: 2px solid var(--primary-blue); color: var(--primary-blue); }
     .btn-outline:hover:not(:disabled) { background: #F0F9FF; }
+    .rec-pill { border-radius: 999px; padding: 0.5rem 1.25rem; font-size: 0.92rem; }
+    .rec-btn-row { margin-top: 0.9rem; gap: 0.6rem; }
 
     footer { background: var(--text-dark); color: white; padding: 1.75rem 2rem 1rem; position: relative; overflow: hidden; margin-top: auto; }
     .footer-content { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.4rem; margin-bottom: 1rem; position: relative; z-index: 1; }
@@ -368,12 +370,15 @@
             _memberRecordings = sorted;
             var items = sorted.map(function (r, i) {
                 r = r || {};
-                var slides = r.slidesUrl ? '<a class="resource-link" href="' + esc(r.slidesUrl) + '" target="_blank" rel="noopener">Slides</a>' : '';
+                var slides = r.slidesUrl ? '<a class="btn btn-outline rec-pill" href="' + esc(r.slidesUrl) + '" target="_blank" rel="noopener">Slides</a>' : '';
                 return '<div class="resource-item">'
                     + '<div class="resource-title">' + esc(r.eventTitle || 'Recording') + '</div>'
                     + '<div class="resource-desc" style="font-size:.85rem;color:#64748B;">' + esc(r.eventDate || '') + '</div>'
                     + (r.description ? '<p class="resource-desc">' + esc(r.description) + '</p>' : '')
-                    + '<a class="resource-link" href="javascript:void(0)" onclick="openRecordingByIndex(' + i + ')">Watch recording</a> ' + slides
+                    + '<div class="btn-row rec-btn-row">'
+                    +   '<a class="btn btn-primary rec-pill" href="javascript:void(0)" onclick="openRecordingByIndex(' + i + ')">Watch recording</a>'
+                    +   slides
+                    + '</div>'
                     + '</div>';
             }).join('');
             host.innerHTML = '<div class="card"><h3 class="card-title">Past Event Recordings &amp; Slides</h3>' + items + '</div>';
