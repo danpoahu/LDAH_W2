@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="description" content="LDAH Member Portal — your child's hearing & vision screening results.">
+    <title>Screening Results - LDAH Member Portal</title>
+
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+    :root {
+        --ocean-deep: #0891B2; --ocean-mid: #06B6D4; --ocean-light: #22D3EE;
+        --sunset-coral: #F97316; --sunset-warm: #FB923C; --sand: #FEF3C7; --sand-light: #FFFBEB;
+        --palm: #65A30D; --plumeria: #FBBF24; --white: #FFFFFF;
+        --text-dark: #1E293B; --text-soft: #64748B; --bg-warm: #FEFDFB;
+        --primary-blue: #0891B2; --light-blue: #06B6D4; --accent-teal: #22D3EE;
+        --bg-light: #FFFBEB; --text-light: #64748B;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: var(--text-dark); line-height: 1.7; background: var(--bg-warm); overflow-x: hidden; display: flex; flex-direction: column; min-height: 100vh; }
+    h1, h2, h3 { font-family: 'Outfit', sans-serif; font-weight: 600; line-height: 1.3; }
+
+    .page-header { background: rgba(255,255,255,0.97); backdrop-filter: blur(12px); box-shadow: 0 1px 20px rgba(8,145,178,0.08); border-bottom: 1px solid rgba(8,145,178,0.1); }
+    .page-header-inner { max-width: 1280px; margin: 0 auto; padding: 1rem 2rem; display: flex; align-items: center; gap: 1rem; }
+    .page-header .brand { display: flex; align-items: center; gap: 1rem; }
+    .page-header img { width: 72px; height: 72px; flex-shrink: 0; }
+    .page-header .header-text h1 { color: var(--primary-blue); font-size: 1.4rem; font-weight: 600; margin: 0; }
+    .page-header .header-text p { color: var(--text-light); font-size: 0.95rem; margin: 0; line-height: 1.4; }
+    .signout-btn { margin-left: auto; background: white; border: 1.5px solid #cbd5e1; color: var(--text-dark); font-family: inherit; font-size: 0.9rem; font-weight: 600; padding: 0.5rem 1rem; border-radius: 10px; cursor: pointer; transition: all .15s; }
+    .signout-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+
+    .hero-section { padding: 2rem; background: linear-gradient(135deg, #0891B2 0%, #06B6D4 100%); color: white; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    .hero-section h2 { font-size: 1.8rem; margin-bottom: 0.4rem; font-family: 'Outfit', sans-serif; font-weight: 600; letter-spacing: -0.5px; color: white; }
+    .hero-section p { font-size: 1rem; max-width: 640px; margin: 0 auto; line-height: 1.5; opacity: 0.95; }
+
+    .main-wrap { flex: 1; max-width: 760px; width: 100%; margin: 0 auto; padding: 40px 20px 60px; }
+
+    .card { background: white; border-radius: 20px; padding: 2.5rem; box-shadow: 0 4px 20px rgba(0,78,124,0.10); border: 1px solid rgba(8,145,178,0.08); margin-bottom: 1.5rem; }
+    .card:last-child { margin-bottom: 0; }
+    .card-title { color: var(--primary-blue); font-size: 1.25rem; margin-bottom: 0.35rem; }
+    .card.message-card { text-align: center; }
+    .card.message-card h3 { color: var(--primary-blue); font-size: 1.4rem; margin-bottom: 0.75rem; padding: 0; border: none; }
+    .card.message-card p { color: var(--text-light); font-size: 1.02rem; margin-bottom: 0.6rem; }
+    .card.message-card a { color: var(--primary-blue); text-decoration: none; font-weight: 600; }
+    .card.message-card a:hover { text-decoration: underline; }
+
+    .loading-state { text-align: center; padding: 3rem 1rem; color: var(--text-light); }
+    .loading-spinner { display: inline-block; width: 36px; height: 36px; border: 3px solid rgba(8,145,178,0.2); border-top-color: var(--primary-blue); border-radius: 50%; animation: spin 0.9s linear infinite; margin-bottom: 1rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .muted-note { color: var(--text-light); font-size: 0.95rem; }
+
+    /* Screening report */
+    .intro-note { background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 12px; padding: 1rem 1.25rem; color: #0C4A6E; font-size: 0.95rem; line-height: 1.6; }
+    .screen-meta { color: var(--text-soft); font-size: 0.95rem; margin-bottom: 1.2rem; }
+    .screen-section { font-family: 'Outfit', sans-serif; font-weight: 600; color: var(--primary-blue); font-size: 1.02rem; margin: 1.1rem 0 0.5rem; padding-bottom: 0.35rem; border-bottom: 2px solid #E0F2FE; }
+    .rl-head { display: grid; grid-template-columns: 1fr 90px 90px; gap: 0.5rem; padding: 0.25rem 0; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-light); }
+    .rl-head span:not(:first-child) { text-align: center; }
+    .rl-row { display: grid; grid-template-columns: 1fr 90px 90px; gap: 0.5rem; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid #F1F5F9; }
+    .rl-row:last-child { border-bottom: none; }
+    .rl-label { font-weight: 600; color: var(--text-dark); font-size: 0.97rem; }
+    .rl-val { text-align: center; }
+    .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.82rem; font-weight: 600; }
+    .badge-pass { background: #ECFDF5; color: #065F46; border: 1px solid #A7F3D0; }
+    .badge-refer { background: #FEF2F2; color: #991B1B; border: 1px solid #FECACA; }
+    .badge-na { background: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; }
+    .badge-text { background: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; font-weight: 500; }
+    .badge-empty { color: #94A3B8; }
+    .lea-line { margin-top: 0.8rem; font-size: 0.95rem; color: var(--text-dark); }
+    .lea-line .lea-label { font-weight: 600; }
+    .follow-note { margin-top: 1.2rem; padding: 0.9rem 1.1rem; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 10px; font-size: 0.9rem; color: #92400E; line-height: 1.55; }
+    .legend p { margin: 0 0 0.7rem; font-size: 0.95rem; line-height: 1.6; color: var(--text-dark); }
+    .legend p:last-child { margin-bottom: 0; }
+    .rl-desc { font-size: 0.85rem; color: var(--text-soft); font-style: italic; margin: 0.95rem 0 0.2rem; }
+    .rec-note { margin-top: 1.15rem; padding: 0.95rem 1.1rem; background: #FFF7ED; border: 1px solid #FED7AA; border-left: 4px solid #F97316; border-radius: 10px; color: #7C2D12; }
+    .rec-note .rec-title { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.98rem; margin-bottom: 0.45rem; color: #9A3412; }
+    .rec-note p { font-size: 0.92rem; line-height: 1.55; margin: 0 0 0.55rem; }
+    .rec-note p:last-child { margin-bottom: 0; }
+
+    .btn-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1.25rem; align-items: center; }
+    .btn { display: inline-block; padding: 0.85rem 1.5rem; font-family: inherit; font-size: 1rem; font-weight: 600; border-radius: 10px; cursor: pointer; transition: all 0.2s ease; border: 2px solid transparent; text-align: center; text-decoration: none; }
+    .btn-primary { background: linear-gradient(135deg, var(--ocean-mid), var(--accent-teal)); color: white; }
+    .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(8,145,178,0.3); }
+    .btn-outline { background: white; border: 2px solid var(--primary-blue); color: var(--primary-blue); }
+    .btn-outline:hover:not(:disabled) { background: #F0F9FF; }
+
+    footer { background: var(--text-dark); color: white; padding: 1.75rem 2rem 1rem; position: relative; overflow: hidden; margin-top: auto; }
+    .footer-content { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.4rem; margin-bottom: 1rem; position: relative; z-index: 1; }
+    .footer-section h3 { color: var(--plumeria); margin-bottom: 0.7rem; font-family: 'Outfit', sans-serif; font-size: 1rem; }
+    .footer-section p { color: rgba(255,255,255,0.7); line-height: 1.5; font-size: 0.9rem; }
+    .footer-section a { color: rgba(255,255,255,0.7); text-decoration: none; display: block; margin-bottom: 0.35rem; font-size: 0.9rem; }
+    .footer-section a:hover { color: var(--plumeria); }
+    .footer-bottom { max-width: 1200px; margin: 0 auto; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); text-align: center; color: rgba(255,255,255,0.5); position: relative; z-index: 1; font-size: 0.85rem; }
+    .footer-bottom p { margin: 0.25rem 0; }
+    .footer-bottom a { color: var(--plumeria); text-decoration: none; }
+
+    @media (max-width: 600px) {
+        .page-header-inner { padding: 0.75rem 1rem; gap: 0.75rem; }
+        .page-header img { width: 56px; height: 56px; }
+        .page-header .header-text h1 { font-size: 1.1rem; }
+        .page-header .header-text p { font-size: 0.82rem; }
+        .hero-section { padding: 1.75rem 1rem; }
+        .hero-section h2 { font-size: 1.4rem; }
+        .card { padding: 1.5rem; }
+        .main-wrap { padding: 24px 14px 40px; }
+        .rl-head, .rl-row { grid-template-columns: 1fr 70px 70px; }
+        .btn { width: 100%; }
+        .btn-row { flex-direction: column; align-items: stretch; }
+    }
+    /* ── v2 visual refresh: islands motif + photo hero ── */
+    body { background: linear-gradient(180deg,#F0FBFF 0%, var(--bg-warm) 260px, var(--bg-warm) 100%); position: relative; }
+    .bg-islands { position: fixed; left: 50%; bottom: -8%; width: min(150%, 1050px); color: var(--ocean-deep); opacity: 0.04; z-index: 0; pointer-events: none; transform: translateX(-50%) scaleY(-1); }
+    .main-wrap, footer { position: relative; z-index: 1; }
+    .page-header { position: relative; z-index: 30; }
+    .hdr-actions { margin-left: auto; display: flex; align-items: center; gap: 0.8rem; }
+    .signout-link { background: none; border: none; color: var(--text-soft); font: 600 0.92rem 'Source Sans 3', sans-serif; cursor: pointer; padding: 0.3rem 0.1rem; }
+    .signout-link:hover { color: var(--primary-blue); text-decoration: underline; }
+    .menu-btn { background: none; border: none; cursor: pointer; padding: 0.45rem 0.3rem; display: flex; flex-direction: column; gap: 5px; border-radius: 8px; }
+    .menu-btn:hover { background: #F0F9FF; }
+    .menu-btn span { display: block; width: 24px; height: 2.5px; background: var(--primary-blue); border-radius: 2px; }
+    .nav-menu { position: absolute; top: 100%; right: 1.2rem; margin-top: 0.35rem; background: #fff; border: 1px solid rgba(8,145,178,.12); border-radius: 14px; box-shadow: 0 14px 34px rgba(0,78,124,.20); padding: 0.5rem; min-width: 216px; display: none; flex-direction: column; z-index: 40; }
+    .nav-menu.open { display: flex; }
+    .nav-menu a { display: block; padding: 0.62rem 0.85rem; border-radius: 9px; color: var(--text-dark); text-decoration: none; font-weight: 600; font-size: 0.95rem; }
+    .nav-menu a:hover { background: #F0F9FF; color: var(--primary-blue); }
+
+    .hero-section { position: relative; overflow: hidden; padding: 2.4rem 2rem 2.7rem;
+        max-width: min(720px, calc(100% - 2rem)); margin: 1.3rem auto 0.3rem; border-radius: 22px;
+        box-shadow: 0 12px 30px rgba(8,145,178,.26);
+        background: linear-gradient(135deg, #0E7490 0%, var(--ocean-mid) 55%, var(--accent-teal) 120%); }
+    .hero-section .hero-islands { position: absolute; left: 50%; top: 54%; width: 82%; max-width: 560px; color: #fff; opacity: 0.15; transform: translate(-50%,-50%) scaleY(-1); z-index: 0; }
+    .hero-section > *:not(.hero-islands):not(.lei) { position: relative; z-index: 1; }
+    .hero-section h2 { font-weight: 800; }
+    .hero-section .lei { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: linear-gradient(90deg, var(--sunset-coral), var(--plumeria), var(--accent-teal), var(--palm)); z-index: 2; }
+
+    .card { transition: transform .18s ease, box-shadow .18s ease; }
+    .card:hover { transform: translateY(-4px); box-shadow: 0 16px 34px rgba(8,145,178,.16); }
+    @media (max-width: 600px) {
+        .hero-section .hero-islands { width: 100%; max-width: 380px; }
+    }
+    .hero-back { position: absolute; top: 0.7rem; left: 1.1rem; font-size: 0.85rem; font-weight: 600; color: rgba(255,255,255,0.92); z-index: 3; }
+    .hero-section:hover .hero-back { text-decoration: underline; }
+    .brand:hover .header-text h1 { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <svg style="display:none;"><defs><g id="hawaii-islands" fill="currentColor">
+    <path d="M542 2864 c-7 -13 -13 -14 -31 -5 -17 9 -27 9 -49 -2 -15 -8 -39 -19 -53 -25 -16 -6 -29 -21 -33 -37 -4 -15 -16 -40 -28 -55 -18 -25 -19 -31 -7 -56 8 -16 28 -35 44 -43 17 -9 47 -26 67 -39 23 -15 44 -21 57 -17 11 3 30 1 41 -5 29 -16 55 -5 90 40 26 33 29 42 20 65 -8 20 -7 32 5 48 41 58 -7 147 -79 147 -22 0 -38 -6 -44 -16z"/>
+    <path d="M107 2654 c-7 -14 -24 -31 -37 -37 -14 -7 -30 -23 -36 -36 -6 -12 -17 -28 -23 -34 -15 -15 -14 -33 5 -51 19 -20 34 -12 34 18 0 28 34 66 59 66 14 0 20 9 23 33 3 17 8 40 13 50 12 28 -22 21 -38 -9z"/>
+    <path d="M1599 2408 c-8 -7 -27 -30 -42 -50 -31 -42 -57 -54 -87 -38 -16 9 -25 8 -35 0 -12 -10 -10 -21 15 -67 17 -31 30 -60 30 -66 0 -6 7 -18 16 -28 9 -10 19 -33 23 -51 6 -30 10 -33 46 -36 22 -1 47 2 55 7 12 8 12 12 -3 29 -19 21 -23 37 -7 27 6 -4 18 -1 26 6 20 16 28 5 14 -20 -14 -28 -6 -39 24 -34 18 4 29 -2 41 -20 15 -23 22 -25 78 -24 76 2 82 16 37 82 -17 25 -29 49 -25 54 3 5 1 12 -5 16 -5 3 -10 -1 -10 -9 0 -19 -23 -21 -38 -3 -6 6 -13 29 -17 50 -4 20 -15 47 -25 60 -9 12 -20 34 -23 48 -8 32 -44 79 -61 79 -7 0 -19 -6 -27 -12z"/>
+    <path d="M2144 1984 c4 -9 -2 -23 -13 -32 -11 -10 -21 -26 -23 -37 -3 -19 3 -20 89 -22 65 -1 112 -8 158 -23 37 -12 76 -19 90 -16 33 8 85 54 85 75 0 26 -44 43 -77 30 -21 -8 -42 -7 -83 4 -53 15 -184 37 -216 37 -11 0 -14 -5 -10 -16z"/>
+    <path d="M2565 1797 c-17 -32 -17 -36 -1 -84 22 -65 44 -85 105 -91 56 -5 64 -17 54 -89 -5 -37 -2 -48 17 -68 30 -32 98 -35 125 -5 12 13 31 20 57 20 43 0 110 37 128 70 23 43 -26 121 -66 106 -7 -3 -18 3 -24 14 -6 11 -16 20 -22 20 -6 0 -28 16 -49 35 -43 39 -63 42 -116 20 -55 -23 -70 -19 -93 25 -35 68 -86 80 -115 27z"/>
+    <path d="M2313 1740 c-29 -12 -29 -27 -2 -56 12 -13 24 -37 28 -55 8 -38 29 -54 62 -46 37 10 46 19 53 54 14 60 -80 128 -141 103z"/>
+    <path d="M2576 1427 c-31 -26 -36 -35 -25 -44 9 -7 30 -8 54 -4 38 6 40 8 40 41 0 46 -20 48 -69 7z"/>
+    <path d="M3122 1158 c-21 -21 -13 -74 19 -134 21 -40 28 -66 24 -83 -9 -36 -62 -109 -84 -116 -27 -8 -71 -87 -71 -125 0 -33 15 -69 36 -85 7 -5 18 -28 23 -50 6 -22 20 -72 32 -112 22 -69 22 -77 10 -176 -11 -94 -11 -107 5 -140 12 -25 26 -38 46 -43 17 -3 50 -26 76 -50 25 -24 47 -44 49 -44 1 0 11 17 22 38 11 21 27 44 36 52 9 7 22 28 30 46 7 18 32 46 55 61 23 15 62 45 87 66 39 32 50 37 79 31 28 -5 46 1 114 41 85 50 170 135 170 170 0 10 -23 43 -51 71 -32 32 -54 64 -58 85 -5 26 -13 35 -38 41 -37 10 -48 34 -38 85 6 33 3 38 -58 97 -85 82 -219 166 -264 166 -26 0 -53 14 -115 60 -80 59 -113 71 -136 48z"/>
+    </g></defs></svg>
+    <svg class="bg-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
+
+    <header class="page-header">
+        <div class="page-header-inner">
+            <div class="brand" role="link" tabindex="0" title="Back to your portal" style="cursor:pointer;" onclick="location.href='index.html'" onkeydown="if(event.key==='Enter'){location.href='index.html'}">
+                <img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH Logo">
+                <div class="header-text">
+                    <h1>Member Portal</h1>
+                    <p>Leadership in Disabilities &amp; Achievement of Hawai&#699;i</p>
+                </div>
+            </div>
+            <div class="hdr-actions" id="hdrActions" style="display:none;">
+                <button id="signoutBtn" class="signout-link">Sign out</button>
+                <button id="menuBtn" class="menu-btn" aria-label="Open menu" aria-expanded="false" aria-controls="navMenu"><span></span><span></span><span></span></button>
+            </div>
+        </div>
+        <nav id="navMenu" class="nav-menu" aria-label="Portal navigation">
+            <a href="index.html">Portal Home</a>
+            <a href="index.html#eventsCard">My Events</a>
+            <a href="screenings.html">Screening Results</a>
+            <a href="resources.html">Member Resources</a>
+            <a href="profile.html">My Info</a>
+            <a href="renew.html">Renew Membership</a>
+        </nav>
+    </header>
+
+    <section class="hero-section" id="heroSection" style="display:none;cursor:pointer;" title="Back to your portal" role="link" tabindex="0" onclick="location.href='index.html'" onkeydown="if(event.key==='Enter'){location.href='index.html'}">
+        <svg class="hero-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
+        <div class="hero-back">&lsaquo; Back to your portal</div>
+        <h2>Screening Results</h2>
+        <p>Your child&rsquo;s hearing &amp; vision screening results from LDAH&rsquo;s School Readiness Project.</p>
+        <div class="lei"></div>
+    </section>
+
+    <main class="main-wrap">
+        <div id="view">
+            <div class="card">
+                <div class="loading-state">
+                    <div class="loading-spinner"></div>
+                    <p>Loading your screening results&hellip;</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h3>About LDAH</h3>
+                <p>Hawai&lsquo;i &amp; Pacific Island Parent Training &amp; Information Center &mdash; empowering families and children with disabilities.</p>
+            </div>
+            <div class="footer-section">
+                <h3>Quick Links</h3>
+                <a href="https://www.ldahawaii.org/whoweare.html">Who We Are</a>
+                <a href="https://www.ldahawaii.org/events.html">Events</a>
+                <a href="https://www.ldahawaii.org/volunteer.html">How to Help</a>
+                <a href="https://www.ldahawaii.org/resources.html">Resources</a>
+                <a href="https://www.ldahawaii.org/contact.html">Contact Us</a>
+            </div>
+            <div class="footer-section">
+                <h3>Honolulu Office</h3>
+                <p>Harry and Jeanette Weinberg Kukui Center<br>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 536-9684<br><a href="mailto:rrowe@ldahawaii.org">rrowe@ldahawaii.org</a></p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; <span class="dynamic-year"></span> Leadership in Disabilities and Achievement of Hawai&lsquo;i. All rights reserved.</p>
+            <p>Made with Aloha by DP Consulting</p>
+        </div>
+    </footer>
+
+    <script>
+        firebase.initializeApp({
+            apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk",
+            authDomain: "ldah-932d5.firebaseapp.com",
+            projectId: "ldah-932d5",
+            storageBucket: "ldah-932d5.firebasestorage.app",
+            messagingSenderId: "662130454003",
+            appId: "1:662130454003:web:437576d5a5811ecd8df686"
+        });
+        const auth = firebase.auth();
+        const fns = firebase.functions();
+
+        function id(x) { return document.getElementById(x); }
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+        function setView(html) { id('view').innerHTML = html; }
+        function hideHero() { var h = id('heroSection'); if (h) h.style.display = 'none'; }
+        function showHero() { var h = id('heroSection'); if (h) h.style.display = 'flex'; }
+        function showSignout() { var b = id('hdrActions'); if (b) b.style.display = 'flex'; }
+        function hideSignout() { var b = id('hdrActions'); if (b) b.style.display = 'none'; var m = id('navMenu'); if (m) m.classList.remove('open'); }
+        function isUnverified(e) { return !!(e && (e.message === 'email-unverified' || (e.code && String(e.code).indexOf('failed-precondition') !== -1 && String(e.message || '').indexOf('email-unverified') !== -1))); }
+        function guardMessage(title, body) {
+            hideHero();
+            setView('<div class="card message-card"><h3>' + esc(title) + '</h3><p>' + body + '</p><p style="margin-top:0.75rem;"><a href="index.html">Back to the portal</a></p></div>');
+        }
+
+        // Format a screening date string (YYYY-MM-DD) as "July 16, 2026".
+        function prettyDate(raw) {
+            var m = String(raw || '').match(/(\d{4})-(\d{2})-(\d{2})/);
+            if (!m) return String(raw || '');
+            var d = new Date(m[1] + '-' + m[2] + '-' + m[3] + 'T00:00:00');
+            return isNaN(d) ? String(raw) : d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        }
+        // A Pass/Fail/Could-not-test result badge.
+        function passFailBadge(v) {
+            var s = String(v || '').trim();
+            if (!s) return '<span class="badge-empty">&mdash;</span>';
+            var low = s.toLowerCase();
+            var cls = 'badge badge-na';
+            if (low === 'pass') cls = 'badge badge-pass';
+            else if (low === 'fail' || low === 'refer') cls = 'badge badge-refer';
+            return '<span class="' + cls + '">' + esc(s) + '</span>';
+        }
+        // Otoscopy: "Clear or minimal earwax" is a normal/pass finding (green);
+        // anything else is a finding to follow up on (amber).
+        function otoBadge(v) {
+            var s = String(v || '').trim();
+            if (!s) return '<span class="badge-empty">&mdash;</span>';
+            if (s.toLowerCase() === 'clear or minimal earwax') return '<span class="badge badge-pass">' + esc(s) + '</span>';
+            return '<span class="badge badge-text">' + esc(s) + '</span>';
+        }
+        function rlRow(label, obj, kind) {
+            obj = obj || {};
+            var render = kind === 'oto' ? otoBadge : passFailBadge;
+            return '<div class="rl-row">'
+                + '<div class="rl-label">' + esc(label) + '</div>'
+                + '<div class="rl-val">' + render(obj.right) + '</div>'
+                + '<div class="rl-val">' + render(obj.left) + '</div>'
+                + '</div>';
+        }
+        var _low = function (x) { return String(x || '').trim().toLowerCase(); };
+        // Plain-language recommendations for any result that isn't a clean pass —
+        // wording kept consistent with LDAH's official results page.
+        function childRecs(h, v) {
+            var recs = [];
+            var pfVals = [];
+            [h.oae, h.tympanometry, v.distance].forEach(function (o) { o = o || {}; pfVals.push(o.right, o.left); });
+            var hasFail = pfVals.some(function (x) { return _low(x) === 'fail'; });
+            var hasCNT = pfVals.some(function (x) { return _low(x) === 'could not test'; });
+            var oto = h.otoscopy || {};
+            var otoConcern = [oto.right, oto.left].some(function (x) { var s = _low(x); return s && s !== 'clear or minimal earwax'; });
+            if (hasFail) recs.push('<strong>&ldquo;Fail&rdquo;</strong> means the result did not meet the screening criteria. Further evaluation is warranted. We recommend contacting your child&rsquo;s pediatrician to report the results &mdash; and we will be in touch to help with follow-up and resources if needed.');
+            if (otoConcern) recs.push('Because <strong>excessive earwax</strong> or a blockage was noted in the ear exam, please consult your pediatrician regardless of the other results. Do <strong>not</strong> try to remove earwax yourself unless professionally trained.');
+            if (hasCNT) recs.push('<strong>&ldquo;Could not test&rdquo;</strong> means we weren&rsquo;t able to complete this check during the screening. We recommend a follow-up so it can be re-checked.');
+            return recs;
+        }
+
+        auth.onAuthStateChanged(function (user) {
+            if (!user) { hideSignout(); guardMessage('Please log in', 'You need to be logged in to view your screening results.'); return; }
+            showSignout();
+            if (!user.emailVerified) { guardMessage('Verify your email', 'Please verify your email before continuing.'); return; }
+            loadScreenings(user);
+        });
+
+        id('signoutBtn').addEventListener('click', function () { auth.signOut(); });
+        (function () {
+            var mb = id('menuBtn'), nm = id('navMenu');
+            if (!mb || !nm) return;
+            mb.addEventListener('click', function (e) { e.stopPropagation(); var open = nm.classList.toggle('open'); mb.setAttribute('aria-expanded', open ? 'true' : 'false'); });
+            document.addEventListener('click', function (e) { if (nm.classList.contains('open') && !nm.contains(e.target) && e.target !== mb && !mb.contains(e.target)) { nm.classList.remove('open'); mb.setAttribute('aria-expanded', 'false'); } });
+            nm.addEventListener('click', function () { nm.classList.remove('open'); mb.setAttribute('aria-expanded', 'false'); });
+        })();
+
+        function callScreenings() { return fns.httpsCallable('getMemberScreenings')().then(function (r) { return r.data; }); }
+
+        async function loadScreenings(user) {
+            var data;
+            try {
+                data = await callScreenings();
+            } catch (e) {
+                if (isUnverified(e)) {
+                    try { await user.getIdToken(true); data = await callScreenings(); }
+                    catch (e2) { if (isUnverified(e2)) { guardMessage('Verify your email', 'Please verify your email before continuing.'); return; } return showLoadError(user); }
+                } else { return showLoadError(user); }
+            }
+
+            var list = (data && data.screenings) || [];
+            if (!list.length) {
+                showHero();
+                setView(''
+                    + '<div class="card message-card">'
+                    + '  <h3>Screening Results</h3>'
+                    + '  <p>There are no screening results on file for your family yet.</p>'
+                    + '  <p class="muted-note">If your child was recently screened, results may take a little time to post. Questions? Call LDAH at (808) 536-9684.</p>'
+                    + '  <p style="margin-top:0.75rem;"><a href="index.html">Back to portal</a></p>'
+                    + '</div>');
+                return;
+            }
+            renderScreenings(list);
+        }
+
+        function showLoadError(user) {
+            hideHero();
+            setView('<div class="card message-card"><h3>Something went wrong</h3><p>We couldn’t load your screening results right now. Please try again in a moment.</p><div class="btn-row" style="justify-content:center;"><button class="btn btn-primary" id="retryBtn">Try again</button></div></div>');
+            id('retryBtn').addEventListener('click', function () { loadScreenings(user); });
+        }
+
+        function renderScreenings(list) {
+            showHero();
+            var html = ''
+                + '<div class="card">'
+                + '  <div class="intro-note">These are <strong>screening</strong> results &mdash; a quick check of your child&rsquo;s hearing and vision. A screening is <strong>not a diagnosis</strong>.</div>'
+                + '  <div class="legend" style="margin-top:1.1rem;">'
+                + '    <p><strong>The key to understanding your child&rsquo;s results below:</strong></p>'
+                + '    <p><strong>&ldquo;Pass&rdquo;</strong> means your child&rsquo;s result met the criteria associated with normal functioning in that area. It doesn&rsquo;t rule out any problem, but unless you have a concern, there is no need to follow up at this time.</p>'
+                + '    <p><strong>&ldquo;Fail&rdquo;</strong> means the result did not meet those criteria. Further evaluation is warranted. We recommend contacting your child&rsquo;s pediatrician to report the results &mdash; and we will be in touch to help with follow-up and resources if needed.</p>'
+                + '    <p>If <strong>&ldquo;excessive earwax&rdquo;</strong> or <strong>&ldquo;blood or foreign object&rdquo;</strong> is indicated, please consult your pediatrician regardless of the other results. Do <strong>not</strong> try to remove earwax yourself unless professionally trained.</p>'
+                + '  </div>'
+                + '</div>';
+
+            list.forEach(function (s) {
+                s = s || {};
+                if (!s.hasResults) {
+                    html += '<div class="card">'
+                        + '  <h3 class="card-title">' + esc(s.childName || 'Your child') + '</h3>'
+                        + '  <div class="screen-meta">' + (s.consentedAt ? 'Consent on file &middot; ' + esc(prettyDate(s.consentedAt)) : 'Screening on file') + '</div>'
+                        + '  <p class="muted-note">Results are not yet available for this screening. If your child was recently screened, results may take a little time to post. Questions? Call LDAH at (808) 536-9684.</p>'
+                        + '</div>';
+                    return;
+                }
+                var meta = [];
+                if (s.screenedAt) meta.push('Screened ' + esc(prettyDate(s.screenedAt)));
+                if (s.site) meta.push(esc(s.site));
+                var h = s.hearing || {}, v = s.vision || {};
+                var tymp = h.tympanometry || {};
+                var hasTymp = !!(tymp.right || tymp.left);
+                var recs = childRecs(h, v);
+                html += '<div class="card">'
+                    + '  <h3 class="card-title">' + esc(s.childName || 'Your child') + '</h3>'
+                    + (meta.length ? '<div class="screen-meta">' + meta.join(' &middot; ') + '</div>' : '')
+                    + '  <div class="screen-section">Hearing</div>'
+                    + '  <div class="rl-head"><span>Test</span><span>Right</span><span>Left</span></div>'
+                    + '  <div class="rl-desc">Otoscopy &mdash; a visual exam of the ear canals and eardrums.</div>'
+                    + rlRow('Otoscopy', h.otoscopy, 'oto')
+                    + '  <div class="rl-desc">Otoacoustic Emissions (OAE) &mdash; measures the inner ear&rsquo;s response to sound.</div>'
+                    + rlRow('OAE', h.oae, 'pf')
+                    + (hasTymp
+                        ? '  <div class="rl-desc">Tympanometry &mdash; measures eardrum stiffness (done when the OAE result is &ldquo;Fail&rdquo;).</div>' + rlRow('Tympanometry', tymp, 'pf')
+                        : '')
+                    + '  <div class="screen-section">Vision</div>'
+                    + '  <div class="rl-head"><span>Test</span><span>Right</span><span>Left</span></div>'
+                    + '  <div class="rl-desc">Distance acuity &mdash; how clearly your child sees at a distance.</div>'
+                    + rlRow('Distance acuity', v.distance, 'pf')
+                    + (v.leaSymbols ? '<div class="lea-line"><span class="lea-label">Lea Symbols / PlusOptix:</span> ' + esc(v.leaSymbols) + '</div>' : '')
+                    + (recs.length
+                        ? '<div class="rec-note"><div class="rec-title">What this means &amp; next steps</div>' + recs.map(function (r) { return '<p>' + r + '</p>'; }).join('') + '</div>'
+                        : '')
+                    + '</div>';
+            });
+
+            html += '<div class="card">'
+                + '  <div class="follow-note">Have questions about these results, or need help finding a provider? LDAH is here to help &mdash; call <strong>(808) 536-9684</strong> or email <a href="mailto:rrowe@ldahawaii.org">rrowe@ldahawaii.org</a>.</div>'
+                + '  <div class="btn-row"><a class="btn btn-outline" href="index.html">Back to portal</a></div>'
+                + '</div>';
+            setView(html);
+        }
+
+        document.querySelectorAll('.dynamic-year').forEach(function (el) { el.textContent = new Date().getFullYear(); });
+    </script>
+
+    <!-- Accessibility widget (font size, contrast/dark mode). Shared with the W2 site; repositioned bottom-right. -->
+    <style>
+        #a11y-toggle { left: auto !important; right: 20px !important; }
+        #a11y-panel { left: auto !important; right: 20px !important; }
+    </style>
+    <script src="https://www.ldahawaii.org/accessibility.js"></script>
+</body>
+</html>
