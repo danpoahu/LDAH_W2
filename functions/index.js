@@ -17676,6 +17676,28 @@ function _hstDate(iso) {
   } catch (e) { return String(iso || "").slice(0, 10); }
 }
 
+// Auto-link a recording to its LDAH event by HST date, so the member Video
+// Library shows the event flyer even for panel/Zoom publishes not tied to a
+// send. Non-recurring `events` only; prefers a same-date event that has a flyer.
+async function _matchEventIdByDate(dateKey) {
+  if (!dateKey) return "";
+  try {
+    const snap = await admin.firestore().collection("events").get();
+    let first = "", withFlyer = "";
+    snap.forEach(function (d) {
+      const e = d.data() || {};
+      if (e.archived === true) return;
+      try {
+        if (extractEventCandidateDateKeys(e).includes(dateKey)) {
+          if (!first) first = d.id;
+          if (!withFlyer && e.imageUrl) withFlyer = d.id;
+        }
+      } catch (_) {}
+    });
+    return withFlyer || first;
+  } catch (e) { console.warn("_matchEventIdByDate failed:", e.message); return ""; }
+}
+
 // Streams a matched Zoom MP4 into the ldahhelp Drive and writes the
 // eventRecordings doc. Shared by the panel callable and the auto-on-send trigger.
 async function _archiveZoomVideo(token, mtg, best, extra) {
@@ -17683,6 +17705,7 @@ async function _archiveZoomVideo(token, mtg, best, extra) {
   const drive = _driveClient();
   const folderId = await _driveFolderId(drive);
   const eventDate = _hstDate(mtg.start_time);
+  const linkedEventId = extra.eventId || await _matchEventIdByDate(eventDate);
   const safeTopic = (mtg.topic || "Recording").replace(/[^a-zA-Z0-9 _-]/g, "").trim() || "Recording";
   const dl = await fetch(best.download_url, { headers: { Authorization: "Bearer " + token } });
   if (!dl.ok || !dl.body) throw new Error("Zoom download failed (" + dl.status + ").");
@@ -17703,7 +17726,7 @@ async function _archiveZoomVideo(token, mtg, best, extra) {
     slidesStoragePath: extra.slidesStoragePath || "",
     driveVideoFileId: up.data.id,
     expiresAt: admin.firestore.Timestamp.fromDate(exp),
-    eventId: extra.eventId || "",
+    eventId: linkedEventId,
     sessionKey: extra.sessionKey || "",
     zoomMeetingUuid: mtg.uuid,
     description: extra.description || "",
