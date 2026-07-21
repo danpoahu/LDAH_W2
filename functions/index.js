@@ -8688,7 +8688,7 @@ exports.pruneExpiredRecordings = functions
 // The Drive video is deleted by staff during monthly housekeeping (Phase 1);
 // Phase 2 will delete the Drive file automatically.
 exports.pruneExpiredRecordingsArchive = functions
-  .runWith({ timeoutSeconds: 540, maxInstances: 1 })
+  .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: ["LDAH_DRIVE_CLIENT_ID", "LDAH_DRIVE_CLIENT_SECRET", "LDAH_DRIVE_REFRESH_TOKEN"] })
   .pubsub.schedule("0 3 1 * *")
   .timeZone("Pacific/Honolulu")
   .onRun(async () => {
@@ -8698,7 +8698,9 @@ exports.pruneExpiredRecordingsArchive = functions
     const snap = await db.collection("eventRecordings")
       .where("expiresAt", "<=", now)
       .limit(200).get();
-    let deleted = 0, filesDeleted = 0, errs = 0;
+    let drive = null;
+    const _drive = () => (drive || (drive = _driveClient())); // lazy: only if a record has Drive files
+    let deleted = 0, filesDeleted = 0, driveDeleted = 0, errs = 0;
     for (const doc of snap.docs) {
       const d = doc.data() || {};
       try {
@@ -8707,13 +8709,18 @@ exports.pruneExpiredRecordingsArchive = functions
           const [exists] = await f.exists();
           if (exists) { await f.delete(); filesDeleted++; }
         }
+        for (const fid of [d.driveVideoFileId, d.driveSlidesFileId]) {
+          if (!fid) continue;
+          try { await _drive().files.delete({ fileId: fid }); driveDeleted++; }
+          catch (de) { console.warn("drive delete failed " + fid + ":", de.message); }
+        }
         await doc.ref.delete();
         deleted++;
       } catch (e) {
         errs++; console.warn("pruneExpiredRecordingsArchive failed for " + doc.id + ":", e.message);
       }
     }
-    console.log(`pruneExpiredRecordingsArchive: deleted=${deleted} slideFiles=${filesDeleted} errors=${errs} scanned=${snap.size}`);
+    console.log(`pruneExpiredRecordingsArchive: deleted=${deleted} slideFiles=${filesDeleted} driveFiles=${driveDeleted} errors=${errs} scanned=${snap.size}`);
     return null;
   });
 
@@ -17440,4 +17447,168 @@ exports.getMemberRecordings = functions
       return a.eventDate < b.eventDate ? 1 : (a.eventDate > b.eventDate ? -1 : 0);
     });
     return { locked: false, recordings: recordings };
+  });
+
+// ── Phase 2: Zoom cloud recording → Google Drive → member archive ──────────
+// Staff-triggered from the LDAH-Int "Zoom Recordings" panel. Lists the LDAH
+// Zoom account owner's cloud recordings and lets staff one-click publish one
+// into the member "Past Event Recordings & Slides" archive. The video is copied
+// to the ldahhelp@gmail.com Google Drive (drive.file scope), keeping large
+// video off the GCP bill; only small metadata lands in Firestore.
+const ZOOM_SECRETS = ["ZOOM_ACCOUNT_ID", "ZOOM_CLIENT_ID", "ZOOM_CLIENT_SECRET"];
+const LDAH_DRIVE_SECRETS = ["LDAH_DRIVE_CLIENT_ID", "LDAH_DRIVE_CLIENT_SECRET", "LDAH_DRIVE_REFRESH_TOKEN"];
+const RECORDINGS_DRIVE_FOLDER = "LDAH Event Recordings";
+
+async function _requireStaff(context) {
+  if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Must be signed in.");
+  const snap = await admin.firestore().collection("userRoles").doc(context.auth.uid).get();
+  const role = snap.exists ? (snap.data().role || "") : "";
+  if (role !== "superAdmin" && role !== "admin") {
+    throw new functions.https.HttpsError("permission-denied", "Admin only.");
+  }
+  return { uid: context.auth.uid, email: (context.auth.token && context.auth.token.email) || "", role };
+}
+
+// Zoom Server-to-Server OAuth token + the account owner's userId (from the
+// token's uid claim — all LDAH events are hosted by the account owner).
+async function _zoomAuth() {
+  const basic = Buffer.from(process.env.ZOOM_CLIENT_ID + ":" + process.env.ZOOM_CLIENT_SECRET).toString("base64");
+  const r = await fetch("https://zoom.us/oauth/token?grant_type=account_credentials&account_id=" + process.env.ZOOM_ACCOUNT_ID,
+    { method: "POST", headers: { Authorization: "Basic " + basic } });
+  const j = await r.json();
+  if (!j.access_token) throw new functions.https.HttpsError("internal", "Zoom auth failed.");
+  let uid = "";
+  try {
+    const p = j.access_token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    uid = JSON.parse(Buffer.from(p, "base64").toString()).uid || "";
+  } catch (e) { /* leave blank */ }
+  return { token: j.access_token, ownerUid: uid };
+}
+
+function _driveClient() {
+  const { google } = require("googleapis");
+  const o = new google.auth.OAuth2(process.env.LDAH_DRIVE_CLIENT_ID, process.env.LDAH_DRIVE_CLIENT_SECRET);
+  o.setCredentials({ refresh_token: process.env.LDAH_DRIVE_REFRESH_TOKEN });
+  return google.drive({ version: "v3", auth: o });
+}
+
+async function _driveFolderId(drive) {
+  const q = await drive.files.list({
+    q: "name='" + RECORDINGS_DRIVE_FOLDER + "' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+    fields: "files(id)",
+  });
+  if (q.data.files && q.data.files.length) return q.data.files[0].id;
+  const c = await drive.files.create({ requestBody: { name: RECORDINGS_DRIVE_FOLDER, mimeType: "application/vnd.google-apps.folder" }, fields: "id" });
+  return c.data.id;
+}
+
+// Prefer a shared-screen view; fall back to speaker, gallery, then largest MP4.
+function _pickMp4(files) {
+  const mp4 = (files || []).filter(f => f.file_type === "MP4" && f.download_url && (f.status === "completed" || !f.status));
+  if (!mp4.length) return null;
+  const order = ["shared_screen_with_speaker_view", "shared_screen_with_gallery_view", "shared_screen", "speaker_view", "gallery_view"];
+  for (const t of order) { const m = mp4.find(f => f.recording_type === t); if (m) return m; }
+  return mp4.slice().sort((a, b) => (b.file_size || 0) - (a.file_size || 0))[0];
+}
+
+// Zoom start_time is UTC ISO; return the Pacific/Honolulu YYYY-MM-DD.
+function _hstDate(iso) {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Honolulu", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
+  } catch (e) { return String(iso || "").slice(0, 10); }
+}
+
+exports.listZoomRecordings = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 5, secrets: ZOOM_SECRETS })
+  .https.onCall(async (data, context) => {
+    await _requireStaff(context);
+    const { token, ownerUid } = await _zoomAuth();
+    if (!ownerUid) throw new functions.https.HttpsError("internal", "Could not resolve Zoom account owner.");
+    const to = new Date();
+    const from = new Date(to.getTime() - 120 * 24 * 3600 * 1000);
+    const fmt = d => d.toISOString().slice(0, 10);
+    const r = await fetch("https://api.zoom.us/v2/users/" + ownerUid + "/recordings?from=" + fmt(from) + "&to=" + fmt(to) + "&page_size=100",
+      { headers: { Authorization: "Bearer " + token } });
+    const j = await r.json();
+    if (j.code) throw new functions.https.HttpsError("internal", "Zoom list failed: " + j.message);
+    const pubSnap = await admin.firestore().collection("eventRecordings").where("source", "in", ["zoom", "zoom-live-test"]).get();
+    const publishedUuids = new Set();
+    pubSnap.forEach(d => { const u = (d.data() || {}).zoomMeetingUuid; if (u) publishedUuids.add(u); });
+    const meetings = (j.meetings || []).map(m => {
+      const best = _pickMp4(m.recording_files);
+      return {
+        uuid: m.uuid,
+        topic: String(m.topic || "Zoom meeting"),
+        startTime: String(m.start_time || ""),
+        eventDate: _hstDate(m.start_time),
+        durationMin: m.duration || 0,
+        hasVideo: !!best,
+        sizeMb: best ? Math.round((best.file_size || 0) / 1e6) : 0,
+        recordingType: best ? best.recording_type : "",
+        alreadyPublished: publishedUuids.has(m.uuid),
+      };
+    }).filter(x => x.hasVideo);
+    meetings.sort((a, b) => (a.startTime < b.startTime ? 1 : -1));
+    return { recordings: meetings };
+  });
+
+exports.publishZoomRecordingToArchive = functions
+  .runWith({ timeoutSeconds: 540, memory: "2GB", maxInstances: 2, secrets: ZOOM_SECRETS.concat(LDAH_DRIVE_SECRETS) })
+  .https.onCall(async (data, context) => {
+    const staff = await _requireStaff(context);
+    const uuid = String((data && data.uuid) || "");
+    if (!uuid) throw new functions.https.HttpsError("invalid-argument", "Missing recording id.");
+    const titleOverride = data && data.eventTitle ? String(data.eventTitle) : "";
+
+    // Idempotency: never publish the same Zoom recording twice.
+    const existing = await admin.firestore().collection("eventRecordings").where("zoomMeetingUuid", "==", uuid).limit(1).get();
+    if (!existing.empty) return { ok: true, alreadyPublished: true, recordingId: existing.docs[0].id };
+
+    const { token, ownerUid } = await _zoomAuth();
+    const to = new Date();
+    const from = new Date(to.getTime() - 200 * 24 * 3600 * 1000);
+    const fmt = d => d.toISOString().slice(0, 10);
+    const r = await fetch("https://api.zoom.us/v2/users/" + ownerUid + "/recordings?from=" + fmt(from) + "&to=" + fmt(to) + "&page_size=100",
+      { headers: { Authorization: "Bearer " + token } });
+    const j = await r.json();
+    const mtg = (j.meetings || []).find(m => m.uuid === uuid);
+    if (!mtg) throw new functions.https.HttpsError("not-found", "Recording not found (it may have aged out of Zoom).");
+    const best = _pickMp4(mtg.recording_files);
+    if (!best) throw new functions.https.HttpsError("failed-precondition", "No downloadable video for this recording.");
+
+    const { Readable } = require("stream");
+    const drive = _driveClient();
+    const folderId = await _driveFolderId(drive);
+    const eventDate = _hstDate(mtg.start_time);
+    const safeTopic = (mtg.topic || "Recording").replace(/[^a-zA-Z0-9 _-]/g, "").trim() || "Recording";
+    const dl = await fetch(best.download_url, { headers: { Authorization: "Bearer " + token } });
+    if (!dl.ok || !dl.body) throw new functions.https.HttpsError("internal", "Zoom download failed (" + dl.status + ").");
+    const up = await drive.files.create({
+      requestBody: { name: safeTopic + " (" + eventDate + ").mp4", parents: [folderId] },
+      media: { body: Readable.fromWeb(dl.body) },
+      fields: "id,webViewLink",
+    }, { maxContentLength: Infinity, maxBodyLength: Infinity });
+    await drive.permissions.create({ fileId: up.data.id, requestBody: { role: "reader", type: "anyone" } });
+
+    const exp = new Date(eventDate + "T00:00:00"); exp.setFullYear(exp.getFullYear() + 1);
+    const doc = await admin.firestore().collection("eventRecordings").add({
+      eventTitle: titleOverride || mtg.topic || "Recording",
+      eventDate,
+      recordingUrl: up.data.webViewLink,
+      slidesUrl: "",
+      slidesStoragePath: "",
+      driveVideoFileId: up.data.id,
+      expiresAt: admin.firestore.Timestamp.fromDate(exp),
+      eventId: "",
+      sessionKey: "",
+      zoomMeetingUuid: uuid,
+      description: "",
+      source: "zoom",
+      active: true,
+      archived: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      publishedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedBy: staff.email || "staff",
+    });
+    return { ok: true, recordingId: doc.id, recordingUrl: up.data.webViewLink };
   });
