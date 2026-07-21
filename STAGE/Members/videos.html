@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
-    <meta name="description" content="LDAH Member Portal — member resources, training materials, and newsletters.">
-    <title>Member Resources - LDAH Member Portal</title>
+    <meta name="description" content="LDAH Member Portal — watch past LDAH event recordings and slides.">
+    <title>LDAH Video Library - LDAH Member Portal</title>
 
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -86,7 +86,7 @@
     .vlib-rec { display:flex; gap:15px; padding:13px; border:1px solid #E6EEF2; border-radius:14px; margin-top:11px; background:#fff; transition:box-shadow .18s, transform .18s; }
     .vlib-rec:first-child { margin-top:4px; }
     .vlib-rec:hover { box-shadow:0 8px 20px rgba(8,78,124,.12); transform:translateY(-2px); }
-    .vlib-flyer { flex:0 0 auto; width:126px; height:168px; border-radius:11px; overflow:hidden; background:#f1f5f9; border:1px solid #E6EEF2; }
+    .vlib-flyer { flex:0 0 auto; width:172px; height:230px; border-radius:11px; overflow:hidden; background:#f1f5f9; border:1px solid #E6EEF2; }
     .vlib-flyer img { width:100%; height:100%; object-fit:cover; display:block; }
     .vlib-flyer.ph { display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,var(--ocean-mid),var(--accent-teal)); }
     .vlib-flyer.ph .play { width:0; height:0; border-style:solid; border-width:15px 0 15px 25px; border-color:transparent transparent transparent #fff; margin-left:5px; filter:drop-shadow(0 2px 4px rgba(0,0,0,.2)); }
@@ -96,7 +96,7 @@
     .vlib-desc { font-size:.9rem; color:#41535c; margin:0 0 12px; flex:1; }
     @media (max-width:560px){
       .vlib-header { height:120px; } .vlib-header-txt h2 { font-size:1.3rem; }
-      .vlib-rec { gap:11px; padding:11px; } .vlib-flyer { width:88px; height:118px; }
+      .vlib-rec { gap:11px; padding:11px; } .vlib-flyer { width:112px; height:150px; }
       .vlib-title { font-size:1rem; } .vlib-info .btn-row { flex-direction:row; align-items:center; }
       .vlib-info .btn { width:auto; }
     }
@@ -194,6 +194,7 @@
             <a href="index.html#eventsCard">My Events</a>
             <a href="screenings.html">Screening Results</a>
             <a href="resources.html">Member Resources</a>
+            <a href="videos.html">Video Library</a>
             <a href="profile.html">My Info</a>
             <a href="renew.html">Renew Membership</a>
         </nav>
@@ -202,8 +203,8 @@
     <section class="hero-section" id="heroSection" style="display:none;cursor:pointer;" title="Back to your portal" role="link" tabindex="0" onclick="location.href='index.html'" onkeydown="if(event.key==='Enter'){location.href='index.html'}">
         <svg class="hero-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
         <div class="hero-back">&lsaquo; Back to your portal</div>
-        <h2 id="heroTitle">Member Resources</h2>
-        <p id="heroSub">Curated Links &amp; Services, training materials, and newsletters for LDAH members.</p>
+        <h2 id="heroTitle">LDAH Video Library</h2>
+        <p id="heroSub">Watch past LDAH events, anytime &mdash; recordings &amp; slides for LDAH members.</p>
         <div class="lei"></div>
     </section>
 
@@ -212,10 +213,11 @@
             <div class="card">
                 <div class="loading-state">
                     <div class="loading-spinner"></div>
-                    <p>Loading member resources&hellip;</p>
+                    <p>Loading your video library&hellip;</p>
                 </div>
             </div>
         </div>
+        <div id="recordingsSection"></div>
     </main>
 
     <footer>
@@ -269,10 +271,10 @@
         }
 
         auth.onAuthStateChanged(function (user) {
-            if (!user) { hideSignout(); guardMessage('Please log in', 'You need to be logged in to view member resources.'); return; }
+            if (!user) { hideSignout(); guardMessage('Please log in', 'You need to be logged in to view the LDAH Video Library.'); return; }
             showSignout();
             if (!user.emailVerified) { guardMessage('Verify your email', 'Please verify your email before continuing.'); return; }
-            loadResources(user);
+            loadRecordings(user);
         });
 
         id('signoutBtn').addEventListener('click', function () { auth.signOut(); });
@@ -284,78 +286,10 @@
             nm.addEventListener('click', function () { nm.classList.remove('open'); mb.setAttribute('aria-expanded', 'false'); });
         })();
 
-        function callResources() { return fns.httpsCallable('getMemberResources')().then(function (r) { return r.data; }); }
-
-        async function loadResources(user) {
-            var data;
-            try {
-                data = await callResources();
-            } catch (e) {
-                if (isUnverified(e)) {
-                    try { await user.getIdToken(true); data = await callResources(); }
-                    catch (e2) { if (isUnverified(e2)) { guardMessage('Verify your email', 'Please verify your email before continuing.'); return; } return showLoadError(user); }
-                } else { return showLoadError(user); }
-            }
-
-            if (data && data.locked) {
-                hideHero();
-                setView(''
-                    + '<div class="card message-card">'
-                    + '  <h3>Membership expired</h3>'
-                    + '  <p>Your membership has expired. Renew to regain access to member resources.</p>'
-                    + '  <div class="btn-row" style="justify-content:center;"><a class="btn btn-primary" href="renew.html">Renew membership</a><a class="btn btn-outline" href="index.html">Back to portal</a></div>'
-                    + '</div>');
-                return;
-            }
-
-            var resources = (data && data.resources) || [];
-            if (!resources.length) {
-                showHero();
-                setView(''
-                    + '<div class="card message-card">'
-                    + '  <h3>Member Resources</h3>'
-                    + '  <p>Resources are being added &mdash; check back soon.</p>'
-                    + '  <p style="margin-top:0.75rem;"><a href="index.html">Back to portal</a></p>'
-                    + '</div>');
-                return;
-            }
-
-            renderResources(resources);
-        }
-
         function showLoadError(user) {
             hideHero();
-            setView('<div class="card message-card"><h3>Something went wrong</h3><p>We couldn’t load member resources right now. Please try again in a moment.</p><div class="btn-row" style="justify-content:center;"><button class="btn btn-primary" id="retryBtn">Try again</button></div></div>');
-            id('retryBtn').addEventListener('click', function () { loadResources(user); });
-        }
-
-        function renderResources(resources) {
-            showHero();
-            var sorted = resources.slice().sort(function (a, b) { return ((a && a.order) || 0) - ((b && b.order) || 0); });
-            var groups = {};
-            var order = [];
-            sorted.forEach(function (r) {
-                r = r || {};
-                var cat = r.category || 'Resources';
-                if (!groups[cat]) { groups[cat] = []; order.push(cat); }
-                groups[cat].push(r);
-            });
-
-            var html = '';
-            order.forEach(function (cat) {
-                html += '<div class="card"><h3 class="card-title">' + esc(cat) + '</h3>';
-                groups[cat].forEach(function (r) {
-                    var link = r.url || r.fileUrl || '';
-                    html += '<div class="resource-item">'
-                        + '<div class="resource-title">' + esc(r.title || 'Untitled') + '</div>'
-                        + (r.description ? '<p class="resource-desc">' + esc(r.description) + '</p>' : '')
-                        + (link ? '<a class="resource-link" href="' + esc(link) + '" target="_blank" rel="noopener">Open</a>' : '')
-                        + '</div>';
-                });
-                html += '</div>';
-            });
-            html += '<div class="card message-card"><p style="margin:0;"><a href="index.html">Back to portal</a></p></div>';
-            setView(html);
+            setView('<div class="card message-card"><h3>Something went wrong</h3><p>We couldn’t load the video library right now. Please try again in a moment.</p><div class="btn-row" style="justify-content:center;"><button class="btn btn-primary" id="retryBtn">Try again</button></div></div>');
+            id('retryBtn').addEventListener('click', function () { loadRecordings(user); });
         }
 
         function extractDriveFileId(url) {
@@ -427,11 +361,43 @@
                 + '</div>';
         }
 
-        function loadRecordings() {
-            callRecordings().then(function (data) {
-                if (!data || data.locked) { var h = id('recordingsSection'); if (h) h.innerHTML = ''; return; }
-                renderRecordings(data.recordings || []);
-            }).catch(function (e) { console.warn('recordings load failed:', e && e.message); });
+        async function loadRecordings(user) {
+            var data;
+            try {
+                data = await callRecordings();
+            } catch (e) {
+                if (isUnverified(e)) {
+                    try { await user.getIdToken(true); data = await callRecordings(); }
+                    catch (e2) { if (isUnverified(e2)) { guardMessage('Verify your email', 'Please verify your email before continuing.'); return; } return showLoadError(user); }
+                } else { return showLoadError(user); }
+            }
+
+            if (data && data.locked) {
+                hideHero();
+                setView(''
+                    + '<div class="card message-card">'
+                    + '  <h3>Members-only library</h3>'
+                    + '  <p>This is a members-only library. Renew your membership to regain access to LDAH event recordings.</p>'
+                    + '  <div class="btn-row" style="justify-content:center;"><a class="btn btn-primary" href="renew.html">Renew membership</a><a class="btn btn-outline" href="index.html">Back to portal</a></div>'
+                    + '</div>');
+                return;
+            }
+
+            var recordings = (data && data.recordings) || [];
+            if (!recordings.length) {
+                showHero();
+                setView(''
+                    + '<div class="card message-card">'
+                    + '  <h3>LDAH Video Library</h3>'
+                    + '  <p>No recordings yet &mdash; check back soon.</p>'
+                    + '  <p style="margin-top:0.75rem;"><a href="index.html">Back to portal</a></p>'
+                    + '</div>');
+                return;
+            }
+
+            showHero();
+            setView('');
+            renderRecordings(recordings);
         }
 
         document.querySelectorAll('.dynamic-year').forEach(function (el) { el.textContent = new Date().getFullYear(); });
