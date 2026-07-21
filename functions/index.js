@@ -8683,6 +8683,40 @@ exports.pruneExpiredRecordings = functions
     return null;
   });
 
+// Monthly, 3 AM HST on the 1st — roll off recordings past their 12-month window.
+// Deletes the eventRecordings doc and its permanent slide Storage file (if any).
+// The Drive video is deleted by staff during monthly housekeeping (Phase 1);
+// Phase 2 will delete the Drive file automatically.
+exports.pruneExpiredRecordingsArchive = functions
+  .runWith({ timeoutSeconds: 540, maxInstances: 1 })
+  .pubsub.schedule("0 3 1 * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const bucket = admin.storage().bucket();
+    const now = admin.firestore.Timestamp.now();
+    const snap = await db.collection("eventRecordings")
+      .where("expiresAt", "<=", now)
+      .limit(200).get();
+    let deleted = 0, filesDeleted = 0, errs = 0;
+    for (const doc of snap.docs) {
+      const d = doc.data() || {};
+      try {
+        if (d.slidesStoragePath) {
+          const f = bucket.file(d.slidesStoragePath);
+          const [exists] = await f.exists();
+          if (exists) { await f.delete(); filesDeleted++; }
+        }
+        await doc.ref.delete();
+        deleted++;
+      } catch (e) {
+        errs++; console.warn("pruneExpiredRecordingsArchive failed for " + doc.id + ":", e.message);
+      }
+    }
+    console.log(`pruneExpiredRecordingsArchive: deleted=${deleted} slideFiles=${filesDeleted} errors=${errs} scanned=${snap.size}`);
+    return null;
+  });
+
 // Prune stale ANONYMOUS Firebase Auth sessions. The public website/app call
 // signInAnonymously() so visitors can write to Firestore under auth-required
 // rules; each visit that doesn't reuse a cached identity mints a throwaway
