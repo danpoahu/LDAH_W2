@@ -151,6 +151,20 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "emailLog",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "to",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sentAt",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": [
