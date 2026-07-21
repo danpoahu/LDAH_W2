@@ -157,7 +157,7 @@
     @media (max-width: 600px) {
         .hero-section .hero-islands { width: 100%; max-width: 380px; }
     }
-    .hero-back { position: absolute; top: 0.7rem; left: 1.1rem; font-size: 0.85rem; font-weight: 600; color: rgba(255,255,255,0.92); z-index: 3; }
+    .hero-back { position: absolute; top: 1.4rem; left: 1.1rem; font-size: 0.85rem; font-weight: 600; color: rgba(255,255,255,0.92); z-index: 3; }
     .hero-section:hover .hero-back { text-decoration: underline; }
     .brand:hover .header-text h1 { text-decoration: underline; }
     </style>
@@ -350,15 +350,8 @@
                     + '</div>'
                     + '</div>';
             }).join('');
-            var banner = 'https://firebasestorage.googleapis.com/v0/b/ldah-932d5.firebasestorage.app/o/gallery2%2F1767767377731_LDAH_American_Samoa_26_768x430.jpg?alt=media&token=df728651-5dbb-402e-ba62-635a64b346f7';
             host.innerHTML =
-                '<div class="vlib">'
-                +   '<div class="vlib-header"><img src="' + banner + '" alt="">'
-                +     '<div class="vlib-header-ov"></div>'
-                +     '<div class="vlib-header-txt"><h2>LDAH Video Library</h2><p>Watch past LDAH events, anytime &mdash; recordings &amp; slides from the last 12 months.</p></div>'
-                +   '</div>'
-                +   '<div class="vlib-body">' + rows + '</div>'
-                + '</div>';
+                '<div class="vlib"><div class="vlib-body">' + rows + '</div></div>';
         }
 
         async function loadRecordings(user) {
