@@ -17557,6 +17557,13 @@ async function _archiveZoomVideo(token, mtg, best, extra) {
   return { recordingId: doc.id, recordingUrl: up.data.webViewLink };
 }
 
+// A job uploads its slide PDF before we know if we'll create a record. When we
+// don't (duplicate/no-match/no-video), that upload is an orphan — delete it.
+async function _deleteJobSlide(job) {
+  if (!job || !job.slidesStoragePath) return;
+  try { await admin.storage().bucket().file(job.slidesStoragePath).delete(); } catch (e) { /* already gone */ }
+}
+
 // Parse a "YYYY-MM-DD" (HST) target from a free-text session label like
 // "July 22nd, 5pm - ...", "April 22, 2026, 5:00 pm", "June 10, 2026 - ...".
 // Year is inferred when absent (sessions are sent shortly after they happen).
@@ -17674,7 +17681,7 @@ exports.onRecordingPublishJob = functions
       if (job.eventId && job.sessionKey) {
         const ex = await db.collection("eventRecordings")
           .where("eventId", "==", job.eventId).where("sessionKey", "==", job.sessionKey).limit(1).get();
-        if (!ex.empty) return setStatus("skipped-existing", { recordingId: ex.docs[0].id });
+        if (!ex.empty) { await _deleteJobSlide(job); return setStatus("skipped-existing", { recordingId: ex.docs[0].id }); }
       }
       const { token, ownerUid } = await _zoomAuth();
       const to = new Date(), from = new Date(Date.now() - 30 * 24 * 3600 * 1000);
@@ -17688,9 +17695,9 @@ exports.onRecordingPublishJob = functions
       pubSnap.forEach(d => { const u = (d.data() || {}).zoomMeetingUuid; if (u) published.add(u); });
       const target = _extractSessionDate(job.sessionDate);
       const mtg = _matchMeeting(j.meetings || [], target, published);
-      if (!mtg) return setStatus("no-match", { note: "no Zoom recording matched " + (target || "recent window") });
+      if (!mtg) { await _deleteJobSlide(job); return setStatus("no-match", { note: "no Zoom recording matched " + (target || "recent window") }); }
       const best = _pickMp4(mtg.recording_files);
-      if (!best) return setStatus("no-video", {});
+      if (!best) { await _deleteJobSlide(job); return setStatus("no-video", {}); }
       const res = await _archiveZoomVideo(token, mtg, best, {
         eventTitle: job.eventTitle, slidesUrl: job.slidesUrl, slidesStoragePath: job.slidesStoragePath,
         eventId: job.eventId, sessionKey: job.sessionKey, source: "auto-send", updatedBy: job.requestedBy || "auto",
