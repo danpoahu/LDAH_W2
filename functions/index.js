@@ -17367,3 +17367,43 @@ exports.getMemberResources = functions
     });
     return { locked: false, resources: resources };
   });
+
+exports.getMemberRecordings = functions
+  .runWith({ timeoutSeconds: 15, maxInstances: 10 })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Please sign in.");
+    if (!context.auth.token.email_verified) {
+      throw new functions.https.HttpsError("failed-precondition", "email-unverified");
+    }
+    const db = admin.firestore();
+    const doc = await _findMemberContactByEmail(db, context.auth.token.email);
+    const c = doc ? (doc.data() || {}) : null;
+    if (!_membershipIsActive(c)) return { locked: true, recordings: [] };
+
+    let snap;
+    try {
+      snap = await db.collection("eventRecordings").where("active", "==", true).get();
+    } catch (e) {
+      console.warn("getMemberRecordings query failed:", e.message);
+      return { locked: false, recordings: [] };
+    }
+    const nowMs = Date.now();
+    const recordings = [];
+    snap.forEach(function (r) {
+      const g = r.data() || {};
+      if (g.archived === true) return;
+      if (g.expiresAt && typeof g.expiresAt.toMillis === "function" && g.expiresAt.toMillis() <= nowMs) return;
+      recordings.push({
+        id: r.id,
+        eventTitle: String(g.eventTitle || ""),
+        eventDate: String(g.eventDate || ""),
+        recordingUrl: String(g.recordingUrl || ""),
+        slidesUrl: String(g.slidesUrl || ""),
+        description: String(g.description || ""),
+      });
+    });
+    recordings.sort(function (a, b) {
+      return a.eventDate < b.eventDate ? 1 : (a.eventDate > b.eventDate ? -1 : 0);
+    });
+    return { locked: false, recordings: recordings };
+  });
