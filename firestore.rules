@@ -338,6 +338,13 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin', 'admin'];
     }
 
+    // Auto-on-send queue: LDAH-Int writes a job after emailing a recording; the
+    // onRecordingPublishJob CF (admin SDK) processes it. Staff role-gated write.
+    match /recordingPublishJobs/{docId} {
+      allow read, write: if request.auth != null
+        && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin', 'admin'];
+    }
+
     // Native Hawaiian Family Survey responses. Public submissions go
     // through submitNativeHawaiianSurvey CF (admin SDK, bypasses rules);
     // these rules are a safety belt only. No PII captured — just q1-q15

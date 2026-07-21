@@ -17518,6 +17518,78 @@ function _hstDate(iso) {
   } catch (e) { return String(iso || "").slice(0, 10); }
 }
 
+// Streams a matched Zoom MP4 into the ldahhelp Drive and writes the
+// eventRecordings doc. Shared by the panel callable and the auto-on-send trigger.
+async function _archiveZoomVideo(token, mtg, best, extra) {
+  const { Readable } = require("stream");
+  const drive = _driveClient();
+  const folderId = await _driveFolderId(drive);
+  const eventDate = _hstDate(mtg.start_time);
+  const safeTopic = (mtg.topic || "Recording").replace(/[^a-zA-Z0-9 _-]/g, "").trim() || "Recording";
+  const dl = await fetch(best.download_url, { headers: { Authorization: "Bearer " + token } });
+  if (!dl.ok || !dl.body) throw new Error("Zoom download failed (" + dl.status + ").");
+  const up = await drive.files.create({
+    requestBody: { name: safeTopic + " (" + eventDate + ").mp4", parents: [folderId] },
+    media: { body: Readable.fromWeb(dl.body) },
+    fields: "id,webViewLink",
+  }, { maxContentLength: Infinity, maxBodyLength: Infinity });
+  await drive.permissions.create({ fileId: up.data.id, requestBody: { role: "reader", type: "anyone" } });
+  const exp = new Date(eventDate + "T00:00:00"); exp.setFullYear(exp.getFullYear() + 1);
+  const doc = await admin.firestore().collection("eventRecordings").add({
+    eventTitle: (extra.eventTitle || mtg.topic || "Recording"),
+    eventDate,
+    recordingUrl: up.data.webViewLink,
+    slidesUrl: extra.slidesUrl || "",
+    slidesStoragePath: extra.slidesStoragePath || "",
+    driveVideoFileId: up.data.id,
+    expiresAt: admin.firestore.Timestamp.fromDate(exp),
+    eventId: extra.eventId || "",
+    sessionKey: extra.sessionKey || "",
+    zoomMeetingUuid: mtg.uuid,
+    description: extra.description || "",
+    source: extra.source || "zoom",
+    active: true,
+    archived: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    publishedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedBy: extra.updatedBy || "staff",
+  });
+  return { recordingId: doc.id, recordingUrl: up.data.webViewLink };
+}
+
+// Parse a "YYYY-MM-DD" (HST) target from a free-text session label like
+// "July 22nd, 5pm - ...", "April 22, 2026, 5:00 pm", "June 10, 2026 - ...".
+// Year is inferred when absent (sessions are sent shortly after they happen).
+function _extractSessionDate(label) {
+  if (!label) return "";
+  const months = { january:1,february:2,march:3,april:4,may:5,june:6,july:7,august:8,september:9,october:10,november:11,december:12,
+    jan:1,feb:2,mar:3,apr:4,jun:6,jul:7,aug:8,sep:9,sept:9,oct:10,nov:11,dec:12 };
+  const m = String(label).toLowerCase().match(/([a-z]{3,9})\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(\d{4}))?/);
+  if (!m || !months[m[1]]) return "";
+  const mon = months[m[1]], day = parseInt(m[2], 10);
+  let year = m[3] ? parseInt(m[3], 10) : null;
+  const nowHst = _hstDate(new Date().toISOString());
+  if (!year) {
+    year = parseInt(nowHst.slice(0, 4), 10);
+    const cand = year + "-" + String(mon).padStart(2, "0") + "-" + String(day).padStart(2, "0");
+    // If that lands clearly in the future, the label refers to last year.
+    if (cand > nowHst && (new Date(cand + "T00:00:00Z") - new Date(nowHst + "T00:00:00Z")) > 60 * 24 * 3600 * 1000) year -= 1;
+  }
+  return year + "-" + String(mon).padStart(2, "0") + "-" + String(day).padStart(2, "0");
+}
+
+// Match the Zoom meeting for a session by EXACT HST date only (no fuzzy
+// fallback — that could grab a run-through/unrelated recording). If two
+// recordings share the date, take the longest (the real session, not a
+// short run-through). No match → caller no-ops (Admin panel is the backstop).
+function _matchMeeting(meetings, targetDate, publishedUuids) {
+  if (!targetDate) return null;
+  const onDate = (meetings || []).filter(m =>
+    !publishedUuids.has(m.uuid) && _pickMp4(m.recording_files) && _hstDate(m.start_time) === targetDate);
+  if (!onDate.length) return null;
+  return onDate.sort((a, b) => (b.duration || 0) - (a.duration || 0))[0];
+}
+
 exports.listZoomRecordings = functions
   .runWith({ timeoutSeconds: 30, maxInstances: 5, secrets: ZOOM_SECRETS })
   .https.onCall(async (data, context) => {
@@ -17576,39 +17648,56 @@ exports.publishZoomRecordingToArchive = functions
     const best = _pickMp4(mtg.recording_files);
     if (!best) throw new functions.https.HttpsError("failed-precondition", "No downloadable video for this recording.");
 
-    const { Readable } = require("stream");
-    const drive = _driveClient();
-    const folderId = await _driveFolderId(drive);
-    const eventDate = _hstDate(mtg.start_time);
-    const safeTopic = (mtg.topic || "Recording").replace(/[^a-zA-Z0-9 _-]/g, "").trim() || "Recording";
-    const dl = await fetch(best.download_url, { headers: { Authorization: "Bearer " + token } });
-    if (!dl.ok || !dl.body) throw new functions.https.HttpsError("internal", "Zoom download failed (" + dl.status + ").");
-    const up = await drive.files.create({
-      requestBody: { name: safeTopic + " (" + eventDate + ").mp4", parents: [folderId] },
-      media: { body: Readable.fromWeb(dl.body) },
-      fields: "id,webViewLink",
-    }, { maxContentLength: Infinity, maxBodyLength: Infinity });
-    await drive.permissions.create({ fileId: up.data.id, requestBody: { role: "reader", type: "anyone" } });
-
-    const exp = new Date(eventDate + "T00:00:00"); exp.setFullYear(exp.getFullYear() + 1);
-    const doc = await admin.firestore().collection("eventRecordings").add({
-      eventTitle: titleOverride || mtg.topic || "Recording",
-      eventDate,
-      recordingUrl: up.data.webViewLink,
-      slidesUrl: "",
-      slidesStoragePath: "",
-      driveVideoFileId: up.data.id,
-      expiresAt: admin.firestore.Timestamp.fromDate(exp),
-      eventId: "",
-      sessionKey: "",
-      zoomMeetingUuid: uuid,
-      description: "",
+    const res = await _archiveZoomVideo(token, mtg, best, {
+      eventTitle: titleOverride || mtg.topic,
       source: "zoom",
-      active: true,
-      archived: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      publishedAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedBy: staff.email || "staff",
     });
-    return { ok: true, recordingId: doc.id, recordingUrl: up.data.webViewLink };
+    return { ok: true, recordingId: res.recordingId, recordingUrl: res.recordingUrl };
+  });
+
+// Auto-on-send: the LDAH-Int "Send Recording & Slides" flow writes a
+// recordingPublishJobs doc after emailing recipients; this trigger matches the
+// session to its Zoom cloud recording (by date), streams the video to Drive,
+// and writes the eventRecordings doc — staff do nothing extra. Silent no-op if
+// no Zoom recording matches (the Admin → Zoom Recordings panel is the backstop).
+exports.onRecordingPublishJob = functions
+  .runWith({ timeoutSeconds: 540, memory: "2GB", maxInstances: 3, secrets: ZOOM_SECRETS.concat(LDAH_DRIVE_SECRETS) })
+  .firestore.document("recordingPublishJobs/{jobId}")
+  .onCreate(async (snap) => {
+    const job = snap.data() || {};
+    const db = admin.firestore();
+    const setStatus = (status, extra) => snap.ref.update(Object.assign(
+      { status, processedAt: admin.firestore.FieldValue.serverTimestamp() }, extra || {})).catch(() => {});
+    try {
+      // Idempotency: don't double-publish the same event session.
+      if (job.eventId && job.sessionKey) {
+        const ex = await db.collection("eventRecordings")
+          .where("eventId", "==", job.eventId).where("sessionKey", "==", job.sessionKey).limit(1).get();
+        if (!ex.empty) return setStatus("skipped-existing", { recordingId: ex.docs[0].id });
+      }
+      const { token, ownerUid } = await _zoomAuth();
+      const to = new Date(), from = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+      const fmt = d => d.toISOString().slice(0, 10);
+      const r = await fetch("https://api.zoom.us/v2/users/" + ownerUid + "/recordings?from=" + fmt(from) + "&to=" + fmt(to) + "&page_size=100",
+        { headers: { Authorization: "Bearer " + token } });
+      const j = await r.json();
+      if (j.code) return setStatus("error", { note: "Zoom list failed: " + j.message });
+      const pubSnap = await db.collection("eventRecordings").where("source", "in", ["zoom", "zoom-live-test", "auto-send"]).get();
+      const published = new Set();
+      pubSnap.forEach(d => { const u = (d.data() || {}).zoomMeetingUuid; if (u) published.add(u); });
+      const target = _extractSessionDate(job.sessionDate);
+      const mtg = _matchMeeting(j.meetings || [], target, published);
+      if (!mtg) return setStatus("no-match", { note: "no Zoom recording matched " + (target || "recent window") });
+      const best = _pickMp4(mtg.recording_files);
+      if (!best) return setStatus("no-video", {});
+      const res = await _archiveZoomVideo(token, mtg, best, {
+        eventTitle: job.eventTitle, slidesUrl: job.slidesUrl, slidesStoragePath: job.slidesStoragePath,
+        eventId: job.eventId, sessionKey: job.sessionKey, source: "auto-send", updatedBy: job.requestedBy || "auto",
+      });
+      return setStatus("done", { recordingId: res.recordingId, matchedTopic: mtg.topic || "" });
+    } catch (e) {
+      console.error("onRecordingPublishJob error:", e.message);
+      return setStatus("error", { note: String(e.message).slice(0, 300) });
+    }
   });
