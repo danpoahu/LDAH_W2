@@ -17668,7 +17668,9 @@ async function _archiveZoomVideo(token, mtg, best, extra) {
   const dl = await fetch(best.download_url, { headers: { Authorization: "Bearer " + token } });
   if (!dl.ok || !dl.body) throw new Error("Zoom download failed (" + dl.status + ").");
   const up = await drive.files.create({
-    requestBody: { name: safeTopic + " (" + eventDate + ").mp4", parents: [folderId] },
+    // copyRequiresWriterPermission: hide download/print/copy from viewers (members
+    // + staff Watch) — they can watch but not download. Owner (ldahhelp) still can.
+    requestBody: { name: safeTopic + " (" + eventDate + ").mp4", parents: [folderId], copyRequiresWriterPermission: true },
     media: { body: Readable.fromWeb(dl.body) },
     fields: "id,webViewLink",
   }, { maxContentLength: Infinity, maxBodyLength: Infinity });
