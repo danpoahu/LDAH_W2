@@ -17569,10 +17569,13 @@ exports.getMemberRecordings = functions
     }
     const nowMs = Date.now();
     const recordings = [];
+    const eventIds = new Set();
     snap.forEach(function (r) {
       const g = r.data() || {};
       if (g.archived === true) return;
       if (g.expiresAt && typeof g.expiresAt.toMillis === "function" && g.expiresAt.toMillis() <= nowMs) return;
+      const eid = String(g.eventId || "");
+      if (eid) eventIds.add(eid);
       recordings.push({
         id: r.id,
         eventTitle: String(g.eventTitle || ""),
@@ -17580,8 +17583,24 @@ exports.getMemberRecordings = functions
         recordingUrl: String(g.recordingUrl || ""),
         slidesUrl: String(g.slidesUrl || ""),
         description: String(g.description || ""),
+        flyerUrl: "",
+        _eventId: eid,
       });
     });
+    // Attach each recording's event flyer (events/{id}.imageUrl), one batched read.
+    if (eventIds.size) {
+      try {
+        const ids = Array.from(eventIds);
+        const flyerByEid = {};
+        for (let i = 0; i < ids.length; i += 10) {
+          const refs = ids.slice(i, i + 10).map(function (id) { return db.collection("events").doc(id); });
+          const docs = await db.getAll.apply(db, refs);
+          docs.forEach(function (d) { if (d.exists) flyerByEid[d.id] = String((d.data() || {}).imageUrl || ""); });
+        }
+        recordings.forEach(function (rec) { if (rec._eventId && flyerByEid[rec._eventId]) rec.flyerUrl = flyerByEid[rec._eventId]; });
+      } catch (e) { console.warn("getMemberRecordings flyer lookup failed:", e.message); }
+    }
+    recordings.forEach(function (rec) { delete rec._eventId; });
     recordings.sort(function (a, b) {
       return a.eventDate < b.eventDate ? 1 : (a.eventDate > b.eventDate ? -1 : 0);
     });
