@@ -74,6 +74,14 @@ service firebase.storage {
       allow write: if request.auth != null;
     }
 
+    // Permanent member-archive slide copies (Past Event Recordings & Slides).
+    // Public read via signed download URL; authenticated staff write. NOT
+    // auto-deleted (unlike /recordings) — pruned with the record at 12 months.
+    match /recordingsArchive/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
     // Connect-Gen prep documents — public read so links in the prep email
     // resolve for parents. Admin-only write via the Firebase console / CLI.
     match /connect-gen-prep-docs/{file} {
