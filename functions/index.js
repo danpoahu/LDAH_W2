@@ -5189,6 +5189,137 @@ exports.sendDailySessionSheet = functions
   .timeZone("Pacific/Honolulu")
   .onRun(async (context) => { return runDailyReport(null); });
 
+// ── Day-of Pending Signups ──────────────────────────────────────────
+// Daily 6 AM HST job. Scans today's NON-recurring events (`events`
+// collection only — Learning Labs / one-time) for pending/unconfirmed
+// signups and creates ONE grouped task per event for La'a so he can
+// chase confirmations or cancel no-shows before the session happens.
+// Idempotent: skips an event if an Open "cancelPendingSignups" task
+// already exists for it (retry-safe, redeploy-safe).
+exports.flagDayOfPendingSignups = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 1 })
+  .pubsub.schedule("0 6 * * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+
+    // Today's HST date key, YYYY-MM-DD — same pattern as runDailyReport.
+    const now = new Date();
+    const hawaiiNow = new Date(now.toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
+    const yyyy = hawaiiNow.getFullYear();
+    const mm = String(hawaiiNow.getMonth() + 1).padStart(2, "0");
+    const dd = String(hawaiiNow.getDate()).padStart(2, "0");
+    const todayISO = `${yyyy}-${mm}-${dd}`;
+
+    // Local copy of the pending/new + not-archived test used elsewhere in
+    // this file (runDailyReport's isPendingOrNew is scoped to that
+    // function, so it isn't reachable here).
+    function isPendingSignup(s) {
+      return (!s.status || s.status === "pending" || s.status === "new") && s.archived !== true;
+    }
+
+    let laaName = "La'a Salvani";
+    try {
+      const resolved = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID);
+      if (resolved) laaName = resolved;
+    } catch (_) { /* keep hardcoded fallback */ }
+
+    let eventsScanned = 0;
+    let flaggedCount = 0;
+    let skippedAlreadyOpen = 0;
+
+    try {
+      const eventsSnap = await db.collection("events").get();
+      for (const doc of eventsSnap.docs) {
+        const d = doc.data();
+        if (d.archived === true) continue;
+        if (d.moveToPastDate && /^\d{4}-\d{2}-\d{2}$/.test(d.moveToPastDate) && d.moveToPastDate <= todayISO) continue;
+        if (d.removeDate && /^\d{4}-\d{2}-\d{2}$/.test(d.removeDate) && d.removeDate <= todayISO) continue;
+
+        const candidateKeys = extractEventCandidateDateKeys(d);
+        if (!candidateKeys.includes(todayISO)) continue;
+
+        eventsScanned++;
+        const eventId = doc.id;
+        const eventTitle = d.title || "LDAH Event";
+
+        let pending = [];
+        try {
+          const sSnap = await db.collection("events").doc(eventId).collection("signups").get();
+          sSnap.forEach((s) => {
+            const sd = s.data();
+            if (isPendingSignup(sd)) pending.push(sd);
+          });
+        } catch (err) {
+          console.error("flagDayOfPendingSignups: failed to read signups for " + eventId + ":", err.message);
+          continue;
+        }
+
+        if (pending.length === 0) continue;
+
+        // Idempotency check: skip if already flagged and still Open.
+        try {
+          const existingSnap = await db.collection("interactions")
+            .where("workflowEventId", "==", eventId)
+            .where("workflowStep", "==", "cancelPendingSignups")
+            .where("status", "==", "Open")
+            .limit(1)
+            .get();
+          if (!existingSnap.empty) { skippedAlreadyOpen++; continue; }
+        } catch (err) {
+          console.error("flagDayOfPendingSignups: idempotency check failed for " + eventId + ":", err.message);
+          continue;
+        }
+
+        const n = pending.length;
+        const list = pending.map((s) => {
+          const nm = s.name || s.displayName || s.email || "Unknown";
+          const em = s.email || "";
+          return nm + (em && em !== nm ? " (" + em + ")" : "");
+        }).join("\n");
+
+        try {
+          await db.collection("interactions").add({
+            channel: "Registration",
+            interactionType: "Pending Signup",
+            contactId: "",
+            contactName: eventTitle,
+            contactType: "",
+            grantProgram: "",
+            summary: "Cancel or confirm " + n + " pending signup" + (n === 1 ? "" : "s") + " — " + eventTitle + " (today)",
+            notes: "Pending as of this morning:\n" + list,
+            followUpDate: todayISO,
+            status: "Open",
+            isDraft: false,
+            owner: laaName,
+            ownerUid: LIFECYCLE_LAA_UID,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdBy: "System",
+            createdByUid: "system",
+            workflowStep: "cancelPendingSignups",
+            workflowEventId: eventId,
+            workflowEventCollection: "events",
+            workflowEventTitle: eventTitle,
+            workflowSessionKey: todayISO,
+          });
+          flaggedCount++;
+        } catch (err) {
+          console.error("flagDayOfPendingSignups: failed to create task for " + eventId + ":", err.message);
+        }
+      }
+    } catch (err) {
+      console.error("flagDayOfPendingSignups: failed to scan events collection:", err.message);
+    }
+
+    console.log(
+      "flagDayOfPendingSignups: complete. Day-of events: " + eventsScanned +
+      ", tasks created: " + flaggedCount +
+      ", skipped (already open): " + skippedAlreadyOpen
+    );
+    return null;
+  });
+
 // ── Event Reminder Emails (5-day + 1-day) ──────────────────────────
 // Scheduled daily at 7 AM HST. Scans all confirmed, non-archived
 // signups under events/ and recurringEvents/, and sends a reminder
@@ -7643,7 +7774,7 @@ function lifecycleFormatSessionEntry(s) {
 // ── Template helpers ────────────────────────────────────────────
 
 // F-1: signup-scoped (cancellation OR reschedule)
-function buildLifecycleEmailHtml({ kind, name, eventTitle, oldDates, newDates, signatureHtml, donateHtml }) {
+function buildLifecycleEmailHtml({ kind, name, eventTitle, oldDates, newDates, signatureHtml, donateHtml, eventId }) {
   const firstName = lifecycleFirstName(name);
   const title = lifecycleEsc(eventTitle || "your LDAH event");
   const oldStr = lifecycleEsc(lifecycleFormatDateList(oldDates));
@@ -7655,6 +7786,9 @@ function buildLifecycleEmailHtml({ kind, name, eventTitle, oldDates, newDates, s
     headerGradient = "linear-gradient(135deg,#991b1b,#dc2626)";
     headerColor = "#991b1b";
     heading = "Your signup was cancelled";
+    const signupAgainUrl = eventId
+      ? "https://www.ldahawaii.org/events.html?eventId=" + encodeURIComponent(eventId) + "&autoOpen=1"
+      : "";
     bodyHtml =
       '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">' +
         'Your signup for <strong>' + title + '</strong>' +
@@ -7664,7 +7798,11 @@ function buildLifecycleEmailHtml({ kind, name, eventTitle, oldDates, newDates, s
       '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6">' +
         "If this was a mistake, you're welcome to sign up again on our events page. " +
         'Mahalo for letting us know.' +
-      '</p>';
+      '</p>' +
+      (signupAgainUrl
+        ? _emailBtn(signupAgainUrl, "Sign up again", { bg: "#1e40af", align: "center" }) +
+          _emailLinkFooter([{ label: "Sign up again", href: signupAgainUrl }])
+        : '');
   } else {
     headerLabel = "Schedule Update";
     headerGradient = "linear-gradient(135deg,#1e40af,#0891B2)";
@@ -7881,6 +8019,7 @@ async function handleSignupLifecycleEmails(change, context, collectionName) {
       newDates: afterDates,
       signatureHtml,
       donateHtml,
+      eventId,
     });
 
     try {
