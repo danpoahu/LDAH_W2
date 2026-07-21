@@ -136,12 +136,12 @@
     .nav-menu a { display: block; padding: 0.62rem 0.85rem; border-radius: 9px; color: var(--text-dark); text-decoration: none; font-weight: 600; font-size: 0.95rem; }
     .nav-menu a:hover { background: #F0F9FF; color: var(--primary-blue); }
 
-    .hero-section { position: relative; overflow: hidden; padding: 3.4rem 2rem 2.7rem;
+    .hero-section { position: relative; overflow: hidden; padding: 2.6rem 2rem 2.7rem;
         max-width: min(720px, calc(100% - 2rem)); margin: 1.3rem auto 0.3rem; border-radius: 22px;
         box-shadow: 0 12px 30px rgba(8,145,178,.26);
         background: linear-gradient(135deg, #0E7490 0%, var(--ocean-mid) 55%, var(--accent-teal) 120%); }
     .hero-section .hero-islands { position: absolute; left: 50%; top: 54%; width: 82%; max-width: 560px; color: #fff; opacity: 0.15; transform: translate(-50%,-50%) scaleY(-1); z-index: 0; }
-    .hero-section > *:not(.hero-islands):not(.lei) { position: relative; z-index: 1; }
+    .hero-section > *:not(.hero-islands):not(.lei):not(.hero-back) { position: relative; z-index: 1; }
     .hero-section h2 { font-weight: 800; }
     .hero-section .lei { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: linear-gradient(90deg, var(--sunset-coral), var(--plumeria), var(--accent-teal), var(--palm)); z-index: 2; }
 
@@ -150,7 +150,7 @@
     @media (max-width: 600px) {
         .hero-section .hero-islands { width: 100%; max-width: 380px; }
     }
-    .hero-back { position: absolute; top: 0.1rem; left: 1.1rem; font-size: 0.85rem; font-weight: 600; color: rgba(255,255,255,0.92); z-index: 3; }
+    .hero-back { position: absolute; top: 0.7rem; left: 1.1rem; font-size: 0.85rem; font-weight: 600; color: rgba(255,255,255,0.92); z-index: 3; }
     .hero-section:hover .hero-back { text-decoration: underline; }
     .brand:hover .header-text h1 { text-decoration: underline; }
     </style>
