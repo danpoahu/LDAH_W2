@@ -188,6 +188,7 @@
                 </div>
             </div>
         </div>
+        <div id="recordingsSection"></div>
     </main>
 
     <footer>
@@ -280,6 +281,8 @@
                 return;
             }
 
+            loadRecordings();
+
             var resources = (data && data.resources) || [];
             if (!resources.length) {
                 showHero();
@@ -330,6 +333,59 @@
             setView(html);
         }
 
+        function extractDriveFileId(url) {
+            if (!url) return '';
+            var m = String(url).match(/\/d\/([a-zA-Z0-9_-]+)/); if (m) return m[1];
+            m = String(url).match(/[?&]id=([a-zA-Z0-9_-]+)/); if (m) return m[1];
+            return '';
+        }
+
+        var _memberRecordings = [];
+        function callRecordings() { return fns.httpsCallable('getMemberRecordings')().then(function (r) { return r.data; }); }
+
+        function openRecordingByIndex(i) {
+            var r = _memberRecordings[i]; if (!r) return;
+            var id2 = extractDriveFileId(r.recordingUrl);
+            var frame = id('recPlayerIframe');
+            var fb = id('recPlayerFallback');
+            id('recPlayerTitle').textContent = r.eventTitle || 'Recording';
+            if (id2) { frame.src = 'https://drive.google.com/file/d/' + id2 + '/preview'; frame.style.display = 'block'; }
+            else { frame.src = ''; frame.style.display = 'none'; }
+            fb.href = r.recordingUrl || (id2 ? 'https://drive.google.com/file/d/' + id2 + '/view' : '#');
+            id('recPlayerOverlay').style.display = 'flex';
+        }
+        function closeRecording() {
+            id('recPlayerIframe').src = '';
+            id('recPlayerOverlay').style.display = 'none';
+        }
+
+        function renderRecordings(list) {
+            var host = id('recordingsSection');
+            _memberRecordings = list || [];
+            if (!host) return;
+            if (!_memberRecordings.length) { host.innerHTML = ''; return; }
+            var sorted = _memberRecordings.slice().sort(function (a, b) { return String((b && b.eventDate) || '').localeCompare(String((a && a.eventDate) || '')); });
+            _memberRecordings = sorted;
+            var items = sorted.map(function (r, i) {
+                r = r || {};
+                var slides = r.slidesUrl ? '<a class="resource-link" href="' + esc(r.slidesUrl) + '" target="_blank" rel="noopener">Slides</a>' : '';
+                return '<div class="resource-item">'
+                    + '<div class="resource-title">' + esc(r.eventTitle || 'Recording') + '</div>'
+                    + '<div class="resource-desc" style="font-size:.85rem;color:#64748B;">' + esc(r.eventDate || '') + '</div>'
+                    + (r.description ? '<p class="resource-desc">' + esc(r.description) + '</p>' : '')
+                    + '<a class="resource-link" href="javascript:void(0)" onclick="openRecordingByIndex(' + i + ')">Watch recording</a> ' + slides
+                    + '</div>';
+            }).join('');
+            host.innerHTML = '<div class="card"><h3 class="card-title">Past Event Recordings &amp; Slides</h3>' + items + '</div>';
+        }
+
+        function loadRecordings() {
+            callRecordings().then(function (data) {
+                if (!data || data.locked) { var h = id('recordingsSection'); if (h) h.innerHTML = ''; return; }
+                renderRecordings(data.recordings || []);
+            }).catch(function (e) { console.warn('recordings load failed:', e && e.message); });
+        }
+
         document.querySelectorAll('.dynamic-year').forEach(function (el) { el.textContent = new Date().getFullYear(); });
     </script>
 
@@ -339,5 +395,16 @@
         #a11y-panel { left: auto !important; right: 20px !important; }
     </style>
     <script src="https://www.ldahawaii.org/accessibility.js"></script>
+
+    <div id="recPlayerOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)closeRecording()">
+      <div style="background:#fff;border-radius:16px;max-width:900px;width:100%;padding:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <strong id="recPlayerTitle" style="color:#0891B2;"></strong>
+          <button onclick="closeRecording()" style="border:none;background:none;font-size:1.5rem;cursor:pointer;color:#64748B;">&times;</button>
+        </div>
+        <iframe id="recPlayerIframe" src="" style="width:100%;aspect-ratio:16/9;border:none;border-radius:8px;background:#000;" allow="autoplay;encrypted-media" allowfullscreen></iframe>
+        <a id="recPlayerFallback" href="#" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;font-size:.85rem;">Open in Google Drive</a>
+      </div>
+    </div>
 </body>
 </html>
