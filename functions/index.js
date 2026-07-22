@@ -17576,18 +17576,31 @@ exports.getMemberRecordings = functions
       if (g.expiresAt && typeof g.expiresAt.toMillis === "function" && g.expiresAt.toMillis() <= nowMs) return;
       const eid = String(g.eventId || "");
       if (eid) eventIds.add(eid);
+      // Files: prefer the canonical files[] array; fall back to the legacy single
+      // slidesUrl for records saved before multi-file support.
+      let files = Array.isArray(g.files)
+        ? g.files.map(function (f) {
+            return { url: String((f && f.url) || ""), name: String((f && f.name) || "File"), type: String((f && f.type) || "") };
+          }).filter(function (f) { return f.url; })
+        : [];
+      if (!files.length && g.slidesUrl) {
+        files = [{ url: String(g.slidesUrl), name: "Slides", type: "application/pdf" }];
+      }
       recordings.push({
         id: r.id,
         eventTitle: String(g.eventTitle || ""),
         eventDate: String(g.eventDate || ""),
         recordingUrl: String(g.recordingUrl || ""),
         slidesUrl: String(g.slidesUrl || ""),
+        files: files,
         description: String(g.description || ""),
-        flyerUrl: "",
+        // The recording's own flyer wins; fall back to the linked event's image below.
+        flyerUrl: String(g.flyerUrl || ""),
         _eventId: eid,
       });
     });
-    // Attach each recording's event flyer (events/{id}.imageUrl), one batched read.
+    // Fill flyer from the linked event (events/{id}.imageUrl) only where the
+    // recording has no flyer of its own — one batched read.
     if (eventIds.size) {
       try {
         const ids = Array.from(eventIds);
@@ -17597,7 +17610,7 @@ exports.getMemberRecordings = functions
           const docs = await db.getAll.apply(db, refs);
           docs.forEach(function (d) { if (d.exists) flyerByEid[d.id] = String((d.data() || {}).imageUrl || ""); });
         }
-        recordings.forEach(function (rec) { if (rec._eventId && flyerByEid[rec._eventId]) rec.flyerUrl = flyerByEid[rec._eventId]; });
+        recordings.forEach(function (rec) { if (!rec.flyerUrl && rec._eventId && flyerByEid[rec._eventId]) rec.flyerUrl = flyerByEid[rec._eventId]; });
       } catch (e) { console.warn("getMemberRecordings flyer lookup failed:", e.message); }
     }
     recordings.forEach(function (rec) { delete rec._eventId; });
@@ -17781,7 +17794,7 @@ function _matchMeeting(meetings, targetDate, publishedUuids) {
 }
 
 exports.listZoomRecordings = functions
-  .runWith({ timeoutSeconds: 30, maxInstances: 5, secrets: ZOOM_SECRETS })
+  .runWith({ timeoutSeconds: 120, maxInstances: 5, secrets: ZOOM_SECRETS })
   .https.onCall(async (data, context) => {
     await _requireStaff(context);
     const { token, ownerUid } = await _zoomAuth();
@@ -17796,20 +17809,46 @@ exports.listZoomRecordings = functions
     const pubSnap = await admin.firestore().collection("eventRecordings").where("source", "in", ["zoom", "zoom-live-test"]).get();
     const publishedUuids = new Set();
     pubSnap.forEach(d => { const u = (d.data() || {}).zoomMeetingUuid; if (u) publishedUuids.add(u); });
-    const meetings = (j.meetings || []).map(m => {
+    const withVideo = (j.meetings || []).filter(m => _pickMp4(m.recording_files));
+    const meetings = await Promise.all(withVideo.map(async m => {
       const best = _pickMp4(m.recording_files);
+      const shareUrl = String(m.share_url || "").trim();
+      // recording_play_passcode is the ENCODED token Zoom appends as ?pwd= to
+      // build a share link that opens WITHOUT prompting for a passcode.
+      const encodedPwd = String(m.recording_play_passcode || "").trim();
+      const embeddedUrl = (shareUrl && encodedPwd)
+        ? shareUrl + (shareUrl.indexOf("?") >= 0 ? "&" : "?") + "pwd=" + encodedPwd
+        : shareUrl;
+      // The short, human-typable passcode (e.g. "5A5&U2i!") is NOT in the list
+      // response — only the per-meeting recordings endpoint returns `password`.
+      let passcode = String(m.password || "").trim();
+      if (!passcode && m.uuid) {
+        try {
+          // Zoom requires meeting UUIDs with "/" or "//" to be double-encoded.
+          const encU = encodeURIComponent(encodeURIComponent(m.uuid));
+          const r2 = await fetch("https://api.zoom.us/v2/meetings/" + encU + "/recordings",
+            { headers: { Authorization: "Bearer " + token } });
+          if (r2.ok) {
+            const j2 = await r2.json();
+            passcode = String((j2 && j2.password) || "").trim();
+          }
+        } catch (e) { /* leave blank — link + embedded pwd still work */ }
+      }
       return {
         uuid: m.uuid,
         topic: String(m.topic || "Zoom meeting"),
         startTime: String(m.start_time || ""),
         eventDate: _hstDate(m.start_time),
         durationMin: m.duration || 0,
-        hasVideo: !!best,
+        hasVideo: true,
         sizeMb: best ? Math.round((best.file_size || 0) / 1e6) : 0,
         recordingType: best ? best.recording_type : "",
+        shareUrl: shareUrl,
+        embeddedUrl: embeddedUrl,
+        passcode: passcode,
         alreadyPublished: publishedUuids.has(m.uuid),
       };
-    }).filter(x => x.hasVideo);
+    }));
     meetings.sort((a, b) => (a.startTime < b.startTime ? 1 : -1));
     return { recordings: meetings };
   });

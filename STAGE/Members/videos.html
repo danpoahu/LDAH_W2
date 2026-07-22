@@ -336,7 +336,14 @@
                 var flyer = r.flyerUrl
                     ? '<div class="vlib-flyer"><img src="' + esc(r.flyerUrl) + '" alt="' + esc(r.eventTitle || '') + ' flyer" loading="lazy"></div>'
                     : '<div class="vlib-flyer ph"><span class="play"></span></div>';
-                var slides = r.slidesUrl ? '<a class="btn btn-outline rec-pill" href="' + esc(r.slidesUrl) + '" target="_blank" rel="noopener">Slides</a>' : '';
+                var files = (Array.isArray(r.files) && r.files.length) ? r.files : (r.slidesUrl ? [{ url: r.slidesUrl, name: 'Slides' }] : []);
+                var single = files.length === 1;
+                var slides = files.map(function (f) {
+                    if (!f || !f.url) return '';
+                    var raw = String(f.name || 'Slides').replace(/\.[^.]+$/, '').trim();
+                    var label = (single || !raw) ? 'Slides' : raw;
+                    return '<a class="btn btn-outline rec-pill" href="' + esc(f.url) + '" target="_blank" rel="noopener">' + esc(label) + '</a>';
+                }).join('');
                 return '<div class="vlib-rec">'
                     + flyer
                     + '<div class="vlib-info">'
