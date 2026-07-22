@@ -338,6 +338,13 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin', 'admin'];
     }
 
+    // Curated member-facing AI recaps. Staff publish/manage; members read via
+    // the getMemberSummaries callable (admin SDK), so no client read is granted.
+    match /memberSummaries/{docId} {
+      allow read, write: if request.auth != null
+        && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin', 'admin'];
+    }
+
     // Auto-on-send queue: LDAH-Int writes a job after emailing a recording; the
     // onRecordingPublishJob CF (admin SDK) processes it. Staff role-gated write.
     match /recordingPublishJobs/{docId} {

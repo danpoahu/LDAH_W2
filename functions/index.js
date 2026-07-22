@@ -500,6 +500,13 @@ async function sendEmailViaResend({
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error("RESEND_API_KEY secret is not set");
 
+  // Strip stray newlines/tabs from the from-address. A trailing "\n" in the
+  // SMTP_FROM secret makes Resend read the domain as "ldahawaii.org\n" and
+  // reject the send as "domain is invalid" — this silently broke the daily
+  // report (and its resends re-used the stored bad value). Guard once here so
+  // every caller is protected, whatever the source of the whitespace.
+  if (typeof from === "string") from = from.replace(/[\r\n\t]+/g, "").trim();
+
   // Normalize the primary recipient(s). Supports multi-address fields.
   const toList = normalizeRecipients(to);
   if (!toList.length) {
@@ -17548,6 +17555,47 @@ exports.getMemberResources = functions
     return { locked: false, resources: resources };
   });
 
+// Member-facing AI summaries (Learning Lab recaps). ONLY reads the curated
+// `memberSummaries` collection — staff explicitly publish safe recaps here; the
+// raw Zoom summary list (which includes private case meetings) is NEVER read.
+exports.getMemberSummaries = functions
+  .runWith({ timeoutSeconds: 15, maxInstances: 10 })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Please sign in.");
+    if (!context.auth.token.email_verified) {
+      throw new functions.https.HttpsError("failed-precondition", "email-unverified");
+    }
+    const db = admin.firestore();
+    const doc = await _findMemberContactByEmail(db, context.auth.token.email);
+    const c = doc ? (doc.data() || {}) : null;
+    if (!_membershipIsActive(c)) return { locked: true, summaries: [] };
+
+    let ssnap;
+    try {
+      ssnap = await db.collection("memberSummaries").where("active", "==", true).get();
+    } catch (e) {
+      console.warn("getMemberSummaries query failed:", e.message);
+      return { locked: false, summaries: [] };
+    }
+    const snow = Date.now();
+    const summaries = [];
+    ssnap.forEach(function (r) {
+      const g = r.data() || {};
+      if (g.archived === true) return;
+      if (g.expiresAt && typeof g.expiresAt.toMillis === "function" && g.expiresAt.toMillis() <= snow) return;
+      summaries.push({
+        id: r.id,
+        title: String(g.title || ""),
+        eventDate: String(g.eventDate || ""),
+        overview: String(g.overview || ""),
+        keyPoints: Array.isArray(g.keyPoints) ? g.keyPoints.map(function (x) { return String(x); }) : [],
+        nextSteps: Array.isArray(g.nextSteps) ? g.nextSteps.map(function (x) { return String(x); }) : [],
+      });
+    });
+    summaries.sort(function (a, b) { return String(b.eventDate).localeCompare(String(a.eventDate)); });
+    return { locked: false, summaries: summaries };
+  });
+
 exports.getMemberRecordings = functions
   .runWith({ timeoutSeconds: 15, maxInstances: 10 })
   .https.onCall(async (data, context) => {
@@ -17807,8 +17855,8 @@ exports.listZoomRecordings = functions
     const j = await r.json();
     if (j.code) throw new functions.https.HttpsError("internal", "Zoom list failed: " + j.message);
     const pubSnap = await admin.firestore().collection("eventRecordings").where("source", "in", ["zoom", "zoom-live-test"]).get();
-    const publishedUuids = new Set();
-    pubSnap.forEach(d => { const u = (d.data() || {}).zoomMeetingUuid; if (u) publishedUuids.add(u); });
+    const publishedByUuid = {};
+    pubSnap.forEach(d => { const u = (d.data() || {}).zoomMeetingUuid; if (u) publishedByUuid[u] = d.id; });
     const withVideo = (j.meetings || []).filter(m => _pickMp4(m.recording_files));
     const meetings = await Promise.all(withVideo.map(async m => {
       const best = _pickMp4(m.recording_files);
@@ -17819,13 +17867,19 @@ exports.listZoomRecordings = functions
       const embeddedUrl = (shareUrl && encodedPwd)
         ? shareUrl + (shareUrl.indexOf("?") >= 0 ? "&" : "?") + "pwd=" + encodedPwd
         : shareUrl;
+      // Zoom UUID encoding: double-encode ONLY when the UUID contains "/" (or
+      // starts with one); otherwise single-encode. Always double-encoding a
+      // UUID that merely has "+" or "=" makes Zoom return "Meeting does not
+      // exist" — which broke both the passcode and summary per-meeting fetches.
+      const encU = m.uuid
+        ? (m.uuid.indexOf("/") !== -1 ? encodeURIComponent(encodeURIComponent(m.uuid)) : encodeURIComponent(m.uuid))
+        : "";
       // The short, human-typable passcode (e.g. "5A5&U2i!") is NOT in the list
       // response — only the per-meeting recordings endpoint returns `password`.
       let passcode = String(m.password || "").trim();
-      if (!passcode && m.uuid) {
+      if (!passcode && encU) {
         try {
           // Zoom requires meeting UUIDs with "/" or "//" to be double-encoded.
-          const encU = encodeURIComponent(encodeURIComponent(m.uuid));
           const r2 = await fetch("https://api.zoom.us/v2/meetings/" + encU + "/recordings",
             { headers: { Authorization: "Bearer " + token } });
           if (r2.ok) {
@@ -17833,6 +17887,42 @@ exports.listZoomRecordings = functions
             passcode = String((j2 && j2.password) || "").trim();
           }
         } catch (e) { /* leave blank — link + embedded pwd still work */ }
+      }
+      // AI Companion meeting summary. Requires the meeting_summary read scope on
+      // the Zoom app — until that is added this call 403s and we return null
+      // (no summary shown). Once La'a adds the scope, this starts populating with
+      // NO redeploy needed (the S2S token picks up the new scope automatically).
+      let summary = null;
+      let summaryStatus = "no-uuid"; // TEMP DIAGNOSTIC
+      if (encU) {
+        try {
+          const rs = await fetch("https://api.zoom.us/v2/meetings/" + encU + "/meeting_summary",
+            { headers: { Authorization: "Bearer " + token } });
+          if (rs.ok) {
+            const js = await rs.json();
+            const details = Array.isArray(js.summary_details)
+              ? js.summary_details.map(d => ({ label: String((d && d.label) || ""), text: String((d && d.summary) || "") })).filter(d => d.text)
+              : [];
+            const nextSteps = Array.isArray(js.next_steps) ? js.next_steps.map(s => String(s || "")).filter(Boolean) : [];
+            const overview = String(js.summary_overview || "");
+            if (overview || details.length || nextSteps.length) {
+              summary = { title: String(js.summary_title || ""), overview, details, nextSteps };
+            }
+            summaryStatus = "200:keys=" + Object.keys(js).join(",").slice(0, 120); // TEMP
+          } else {
+            const errTxt = await rs.text();
+            summaryStatus = rs.status + ":" + errTxt.slice(0, 160); // TEMP
+          }
+        } catch (e) { summaryStatus = "throw:" + (e && e.message ? e.message : "err"); }
+      }
+      // Flatten to plain text for the "Use as description" / copy actions.
+      let summaryText = "";
+      if (summary) {
+        const parts = [];
+        if (summary.overview) parts.push(summary.overview);
+        summary.details.forEach(d => parts.push((d.label ? d.label + ": " : "") + d.text));
+        if (summary.nextSteps.length) parts.push("Next steps:\n- " + summary.nextSteps.join("\n- "));
+        summaryText = parts.join("\n\n");
       }
       return {
         uuid: m.uuid,
@@ -17846,11 +17936,55 @@ exports.listZoomRecordings = functions
         shareUrl: shareUrl,
         embeddedUrl: embeddedUrl,
         passcode: passcode,
-        alreadyPublished: publishedUuids.has(m.uuid),
+        summary: summary,
+        summaryText: summaryText,
+        summaryStatus: summaryStatus, // TEMP DIAGNOSTIC
+        alreadyPublished: !!publishedByUuid[m.uuid],
+        publishedRecordingId: publishedByUuid[m.uuid] || "",
       };
     }));
     meetings.sort((a, b) => (a.startTime < b.startTime ? 1 : -1));
     return { recordings: meetings };
+  });
+
+// TEMP/diagnostic: list EVERY AI meeting summary the account has (not limited to
+// recordings), then fetch each one's text. Lets us see what summaries exist.
+exports.listZoomSummaries = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 3, secrets: ZOOM_SECRETS })
+  .https.onCall(async (data, context) => {
+    await _requireStaff(context);
+    const { token } = await _zoomAuth();
+    const to = new Date();
+    const from = new Date(to.getTime() - 300 * 24 * 3600 * 1000);
+    const fmt = d => d.toISOString().slice(0, 10);
+    const listUrl = "https://api.zoom.us/v2/meetings/meeting_summaries?from=" + fmt(from) + "&to=" + fmt(to) + "&page_size=100";
+    const r = await fetch(listUrl, { headers: { Authorization: "Bearer " + token } });
+    if (!r.ok) {
+      const body = (await r.text()).slice(0, 300);
+      return { listStatus: r.status, listError: body, summaries: [] };
+    }
+    const j = await r.json();
+    const items = Array.isArray(j.summaries) ? j.summaries : [];
+    const out = await Promise.all(items.map(async s => {
+      const uuid = String(s.meeting_uuid || "");
+      const encU = uuid.indexOf("/") !== -1 ? encodeURIComponent(encodeURIComponent(uuid)) : encodeURIComponent(uuid);
+      let title = "", overview = "", details = [], nextSteps = [], detStatus = 0;
+      if (encU) {
+        try {
+          const rs = await fetch("https://api.zoom.us/v2/meetings/" + encU + "/meeting_summary", { headers: { Authorization: "Bearer " + token } });
+          detStatus = rs.status;
+          if (rs.ok) {
+            const js = await rs.json();
+            title = String(js.summary_title || "");
+            overview = String(js.summary_overview || "");
+            details = Array.isArray(js.summary_details) ? js.summary_details.map(d => ({ label: String((d && d.label) || ""), text: String((d && d.summary) || "") })) : [];
+            nextSteps = Array.isArray(js.next_steps) ? js.next_steps.map(x => String(x || "")) : [];
+          }
+        } catch (e) { /* skip */ }
+      }
+      return { topic: String(s.meeting_topic || ""), start: String(s.meeting_start_time || ""), detStatus, title, overview, details, nextSteps };
+    }));
+    return { listStatus: 200, count: items.length, summaries: out };
   });
 
 exports.publishZoomRecordingToArchive = functions
