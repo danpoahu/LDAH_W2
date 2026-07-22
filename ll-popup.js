@@ -34,6 +34,7 @@
     var LL_IMG = 'https://firebasestorage.googleapis.com/v0/b/ldah-932d5.firebasestorage.app/o/event-images%2F1779995116728_June%20LL.jpg?alt=media&token=d0d2052f-feec-4e5f-a933-45c8a2ab66c0';
     var PTC_IMG = 'https://firebasestorage.googleapis.com/v0/b/ldah-932d5.firebasestorage.app/o/event-images%2F1780510227059_June%202026..jpg?alt=media&token=eedabbf6-206f-4493-b8af-376627649d43';
     var LL_JULY_IMG = 'https://firebasestorage.googleapis.com/v0/b/ldah-932d5.firebasestorage.app/o/event-images%2F1783039515710_July%20%20LL%202.jpg?alt=media&token=30236f21-a314-46bc-afa9-b5ed69f5149b';
+    var MEMBER_IMG = 'assets/images/become-a-member.png';
 
     // ── Schedule (edit here to add / change events) ───────────────────────────
     // label may contain "{month}" — replaced with the event's month name, so
@@ -70,19 +71,16 @@
             image: LL_IMG
         },
         {
-            key: 'll-2026-07-22',
-            date: '2026-07-22',
-            // Keep showing through July 22 and stop when July 23 begins (HST is
-            // UTC-10, so July 23 00:00 HST == 2026-07-23T10:00:00Z). windowDays
-            // widens the usual 5-day window so it displays from now until then.
-            endsAt: '2026-07-23T10:00:00Z',
-            windowDays: 30,
-            label: 'Learning Labs for {month}',
-            sub: 'Free virtual Learning Lab for Hawaiʻi families.',
-            topic: 'Parents as Collaborative Leaders',
-            when: 'July 22 &middot; 5:00 PM on Zoom',
-            eventId: '2BXyxjAqwLVViqCRrw8y',
-            image: LL_JULY_IMG
+            // Evergreen membership promo — replaces the event popup. Shows the
+            // full flyer; the flyer AND the button link to the How to Help page.
+            key: 'become-member-2026-07',
+            date: '2026-07-21',
+            always: true,      // not date-windowed — shows whenever no event is active
+            promo: true,
+            image: MEMBER_IMG,
+            alt: 'Become an LDAH Member',
+            ctaText: 'Become a Member',
+            ctaHref: 'volunteer.html'   // W2: "How to Help" IS volunteer.html
         }
     ];
     // ──────────────────────────────────────────────────────────────────────────
@@ -117,10 +115,11 @@
         for (var i = 0; i < CAMPAIGNS.length; i++) {
             var c = CAMPAIGNS[i];
             var d = daysUntil(c.date);
-            if (d < 0 || d > (typeof c.windowDays === 'number' ? c.windowDays : WINDOW_DAYS)) continue; // outside the show window (per-campaign override or default 5 days)
+            if (!c.always && (d < 0 || d > (typeof c.windowDays === 'number' ? c.windowDays : WINDOW_DAYS))) continue; // outside the show window; `always` promos skip the window entirely
             if (c.endsAt && nowMs >= Date.parse(c.endsAt)) continue; // past the hard cutoff (e.g. event start time)
             if (flagSet(c)) continue;               // already seen this one
-            if (d < bestDays) { best = c; bestDays = d; }
+            var rank = c.always ? 999 : d;          // a real upcoming event outranks an evergreen promo
+            if (rank < bestDays) { best = c; bestDays = rank; }
         }
         return best;
     }
@@ -149,6 +148,22 @@
         backdrop.className = 'll-pop-backdrop';
         backdrop.id = 'llPopBackdrop';
         backdrop.setAttribute('aria-hidden', 'true');
+        // Promo layout: the flyer IS the popup. Whole flyer + button link out.
+        if (c.promo) {
+            backdrop.innerHTML =
+                '<div class="ll-pop ll-pop-promo" role="dialog" aria-modal="true" aria-label="' + (c.alt || 'Become a Member') + '">' +
+                    '<button class="ll-pop-close" type="button" aria-label="Close">&times;</button>' +
+                    '<a class="ll-pop-promo-link" href="' + c.ctaHref + '">' +
+                        '<img class="ll-pop-promo-img" src="' + c.image + '" alt="' + (c.alt || '') + '">' +
+                    '</a>' +
+                    '<div class="ll-pop-promo-foot">' +
+                        '<a class="ll-pop-cta" href="' + c.ctaHref + '">' + (c.ctaText || 'Learn More') + '</a>' +
+                        '<button class="ll-pop-later" type="button">Maybe later</button>' +
+                    '</div>' +
+                '</div>';
+            document.body.appendChild(backdrop);
+            return backdrop;
+        }
         var imgTag = (c.image && c.image.toLowerCase().indexOf('.pdf') === -1)
             ? '<img class="ll-pop-img" src="' + c.image + '" alt="">'
             : '';
@@ -198,6 +213,8 @@
         root.querySelector('.ll-pop-cta').addEventListener('click', function () {
             if (activeCampaign) setFlag(activeCampaign);
         });
+        var promoLink = root.querySelector('.ll-pop-promo-link');
+        if (promoLink) promoLink.addEventListener('click', function () { if (activeCampaign) setFlag(activeCampaign); });
         root.addEventListener('click', function (ev) { if (ev.target === root) close(); });
         document.addEventListener('keydown', function (ev) {
             if (ev.key === 'Escape' && root && root.classList.contains('active')) close();

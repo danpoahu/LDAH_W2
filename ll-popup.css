@@ -147,3 +147,26 @@
     .ll-pop-head { padding: 1.4rem 1.2rem 1.2rem; }
     .ll-pop-body { padding: 1.2rem 1.3rem 1.5rem; }
 }
+
+/* Promo popup — flyer-forward. The whole flyer is a link to "How to Help". */
+.ll-pop-promo { max-width: 420px; }
+.ll-pop-promo .ll-pop-close {
+    background: rgba(0, 0, 0, 0.42);
+    color: #FFFFFF;
+}
+.ll-pop-promo .ll-pop-close:hover { background: rgba(0, 0, 0, 0.6); }
+.ll-pop-promo-link { display: block; cursor: pointer; }
+.ll-pop-promo-img {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 66vh;
+    object-fit: contain;
+    background: #FBF6E9;
+}
+.ll-pop-promo-foot { padding: 1rem 1.5rem 1.4rem; text-align: center; }
+.ll-pop-promo-foot .ll-pop-cta { background: linear-gradient(135deg, #0891B2, #0E7490); }
+@media (max-width: 480px) {
+    .ll-pop-promo-img { max-height: 60vh; }
+    .ll-pop-promo-foot { padding: 0.9rem 1.2rem 1.2rem; }
+}
