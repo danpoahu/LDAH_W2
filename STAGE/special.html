@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="LDAH Special Event signup form.">
+<meta name="robots" content="noindex, nofollow">
+<title>LDAH Special Event Signup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Firebase (same project/config/versions as events.html) -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<style>
+  :root {
+    --ocean-mid: #06B6D4; --accent-teal: #22D3EE; --primary-blue: #0891B2; --brand-blue: #004E7C;
+    --sunset-coral: #F97316; --plumeria: #FBBF24;
+    --text-dark: #1E293B; --text-light: #64748B; --bg-warm: #FEFDFB; --bg-light: #FFFBEB;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: var(--text-dark); line-height: 1.6; background: var(--bg-warm); min-height: 100vh; display: flex; flex-direction: column; }
+  h1, h2, h3 { font-family: 'Outfit', sans-serif; font-weight: 600; line-height: 1.3; }
+  .page-header { background: rgba(255,255,255,.97); box-shadow: 0 1px 20px rgba(8,145,178,.08); border-bottom: 1px solid rgba(8,145,178,.1); }
+  .page-header-inner { max-width: 900px; margin: 0 auto; padding: 1rem 2rem; display: flex; align-items: center; gap: 1rem; }
+  .page-header img { width: 68px; height: 68px; flex-shrink: 0; }
+  .page-header .header-text h1 { color: var(--primary-blue); font-size: 1.35rem; }
+  .page-header .header-text p { color: var(--text-light); font-size: .92rem; }
+  .hero { padding: 1.75rem 2rem; background: linear-gradient(135deg,#0891B2,#06B6D4); color: #fff; text-align: center; }
+  .hero h2 { font-size: 1.7rem; color: #fff; }
+  .hero p { font-size: 1rem; opacity: .95; max-width: 620px; margin: .3rem auto 0; }
+  .wrap { flex: 1; max-width: 720px; width: 100%; margin: 0 auto; padding: 34px 18px 56px; }
+  .card { background: #fff; border-radius: 20px; padding: 2.4rem; box-shadow: 0 4px 20px rgba(0,78,124,.10); border: 1px solid rgba(8,145,178,.08); }
+  .card.center { text-align: center; }
+  .spinner { display: inline-block; width: 34px; height: 34px; border: 3px solid rgba(8,145,178,.2); border-top-color: var(--primary-blue); border-radius: 50%; animation: spin .9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .section { margin-bottom: 1.9rem; }
+  .section-title { font-family:'Outfit',sans-serif; font-size: 1.12rem; font-weight: 600; color: var(--primary-blue); margin-bottom: .3rem; padding-bottom: .5rem; border-bottom: 2px solid #E0F2FE; }
+  .fg { margin-bottom: 1.25rem; }
+  .fg label.lbl { display: block; font-weight: 600; margin-bottom: .35rem; font-size: .98rem; }
+  .req { color: var(--sunset-coral); }
+  .hint { display: block; font-size: .85rem; color: var(--text-light); margin: .1rem 0 .45rem; }
+  input[type=text], input[type=email], input[type=tel], input[type=date], select, textarea {
+    width: 100%; padding: .8rem .9rem; font-family: inherit; font-size: 1.05rem; color: var(--text-dark);
+    background: #fff; border: 1.5px solid #cbd5e1; border-radius: 10px; transition: border-color .2s, box-shadow .2s; }
+  textarea { min-height: 76px; resize: vertical; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary-blue); box-shadow: 0 0 0 3px rgba(8,145,178,.15); }
+  input.missing, select.missing, textarea.missing { border-color: #EF4444; background: #FEF2F2; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+  @media (max-width: 560px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+  .choices { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .choice { display: inline-flex; align-items: center; gap: .5rem; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: .6rem 1rem; cursor: pointer; font-size: 1rem; background: #fff; }
+  .choice input { width: 19px; height: 19px; accent-color: var(--primary-blue); }
+  .choice:has(input:checked) { border-color: var(--primary-blue); background: #F0F9FF; font-weight: 600; }
+  .choices.missing .choice { border-color: #EF4444; }
+  .cbgrid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+  @media (max-width: 560px) { .cbgrid { grid-template-columns: 1fr; } }
+  .cbrow { display: flex; align-items: center; gap: .5rem; cursor: pointer; font-size: .95rem; }
+  .cbrow input { width: 18px; height: 18px; accent-color: var(--primary-blue); }
+  .yn-detail[hidden] { display: none; }
+  .lookup-note { background:#ECFDF5; border:1px solid #A7F3D0; color:#065F46; border-radius:10px; padding:.7rem 1rem; margin-top:.5rem; font-size:.9rem; display:none; }
+  .lookup-note.show { display:block; }
+  .childbox { background:#F0F9FF; border:1px solid #BAE6FD; border-radius:14px; padding:1.3rem 1.4rem; }
+  .consent-statement { background:#F0F9FF; border:1px solid #BAE6FD; border-radius:12px; padding:1.1rem 1.3rem; margin:1.5rem 0; font-size:.96rem; line-height:1.6; color:#0C4A6E; font-style: italic; }
+  .btn { width: 100%; padding: 1rem 1.5rem; font-family: inherit; font-size: 1.1rem; font-weight: 600; border-radius: 12px; cursor: pointer; border: 2px solid transparent; color: #fff; background: linear-gradient(135deg,var(--ocean-mid),var(--accent-teal)); }
+  .btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(8,145,178,.3); }
+  .btn:disabled { opacity: .55; cursor: not-allowed; }
+  .btn-lg { margin-top: 1.5rem; }
+  .inline-error { background:#FEE2E2; border:1px solid #FCA5A5; color:#991B1B; border-radius:10px; padding:.8rem 1rem; margin-top:1rem; font-size:.98rem; display:none; }
+  .inline-error.show { display:block; }
+  .thanks h3 { color: var(--primary-blue); font-size: 1.6rem; margin-bottom: .6rem; }
+  .thanks p { color: var(--text-light); font-size: 1.1rem; margin-bottom: 1.4rem; }
+  .check-badge { width:56px;height:56px;border-radius:50%;background:#22c55e;display:flex;align-items:center;justify-content:center;margin:0 auto 16px; }
+  footer { background: var(--text-dark); color: #fff; padding: 1.3rem 2rem; text-align: center; margin-top: auto; font-size: .85rem; }
+  footer a { color: var(--plumeria); text-decoration: none; }
+  @media (max-width: 600px) { .card { padding: 1.5rem; } .hero h2 { font-size: 1.4rem; } .page-header img { width: 54px; height: 54px; } }
+</style>
+</head>
+<body>
+<header class="page-header">
+  <div class="page-header-inner">
+    <img src="logo_blue.png" alt="LDAH Logo" onerror="this.onerror=null;this.src='https://www.ldahawaii.org/logo_blue.png';">
+    <div class="header-text"><h1 id="hdrTitle">LDAH</h1><p>Leadership in Disabilities &amp; Achievement of Hawai&#699;i</p></div>
+  </div>
+</header>
+<section class="hero">
+  <h2 id="heroTitle">Sign Up</h2>
+  <p id="heroSub">Thanks for stopping by our table.</p>
+</section>
+
+<main class="wrap">
+  <!-- Loading -->
+  <div id="loadingCard" class="card center">
+    <div class="spinner"></div>
+    <p style="margin-top:1rem;color:var(--text-light);">Loading form…</p>
+  </div>
+
+  <!-- Not available -->
+  <div id="unavailableCard" class="card center" style="display:none;">
+    <h3 style="color:var(--primary-blue);font-size:1.5rem;margin-bottom:.6rem;">This form isn&rsquo;t available</h3>
+    <p style="color:var(--text-light);font-size:1.05rem;">The signup form you&rsquo;re looking for could not be found. Please check with an LDAH staff member at the table.</p>
+  </div>
+
+  <!-- Form -->
+  <div id="formCard" class="card" style="display:none;">
+    <form id="form" novalidate>
+      <div id="fields"></div>
+      <button type="submit" id="submitBtn" class="btn btn-lg">Submit</button>
+      <div id="err" class="inline-error"></div>
+    </form>
+  </div>
+
+  <!-- Thank you -->
+  <div id="thanksCard" class="card center thanks" style="display:none;">
+    <div class="check-badge">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+    </div>
+    <h3>Mahalo!</h3>
+    <p id="thanksMsg">Your information has been received.</p>
+    <button type="button" class="btn" onclick="location.reload()">Start next person</button>
+  </div>
+</main>
+
+<footer>
+  245 North Kukui Street, Suite 205, Honolulu, HI 96817 &nbsp;&middot;&nbsp; (808) 696-5361 &nbsp;&middot;&nbsp; <a href="https://www.ldahawaii.org">LDAHawaii.org</a>
+</footer>
+
+<script>
+  // ── Firebase (identical config to events.html; project ldah-932d5) ──────────
+  const firebaseConfig = {
+    apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk",
+    authDomain: "ldah-932d5.firebaseapp.com",
+    projectId: "ldah-932d5",
+    storageBucket: "ldah-932d5.firebasestorage.app",
+    messagingSenderId: "662130454003",
+    appId: "1:662130454003:web:437576d5a5811ecd8df686"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  // Screening consent endpoint — SAME as the kiosk (readiness/index.html)
+  const ENDPOINT_SUBMIT = 'https://us-central1-ldah-932d5.cloudfunctions.net/submitReadinessConsent';
+
+  // ── Option lists — copied VERBATIM from STAGE/events.html registration UI ──
+  const AGE_RANGE_OPTIONS = [
+    { value: '', label: '-- Select --' },
+    { value: '0-2', label: 'Birth-2 yrs' },
+    { value: '3-5', label: '3-5 yrs' },
+    { value: '6-12', label: '6-12 yrs' },
+    { value: '13-17', label: '13-17 yrs' },
+    { value: 'High School', label: 'High School' },
+    { value: 'Adult', label: 'Adult (Beyond H.S.)' }
+  ];
+  const GENDER_OPTIONS = [
+    { value: '', label: '-- Select --' },
+    { value: 'Female', label: 'Female' },
+    { value: 'Male', label: 'Male' },
+    { value: 'Non-binary', label: 'Non-binary' },
+    { value: 'Prefer not to say', label: 'Prefer not to say' }
+  ];
+  const ETHNICITY_OPTIONS = ['African American', 'Asian', 'Caucasian', 'Filipino', 'Hispanic', 'Hawaiian/Part Hawaiian', 'Pacific Islander', 'Other/2 or more'];
+  const DISABILITY_OPTIONS = ['ADD-ADHD', 'Autism Spectrum (ASD)', 'Deaf/Hard of Hearing', 'Developmental Disability', 'Emotional Disability', 'Gifted', 'Intellectual Disability', 'Multiple Disabilities', 'No IDEA Disability', 'Orthopedic (Physical)', 'Other Health Disability', 'Specific Learning Disability', 'Speech or Language', 'Suspected', 'Traumatic Brain Injury', 'Visual (incl. blindness)', 'Deaf/Blindness'];
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  function radioVal(name){ const el = document.querySelector('input[name="'+name+'"]:checked'); return el ? el.value : ''; }
+  function showErr(m){ const e=$('err'); e.textContent = m; e.classList.add('show'); }
+  function clearErr(){ const e=$('err'); e.textContent=''; e.classList.remove('show'); }
+  function show(id){ $(id).style.display = 'block'; }
+  function hide(id){ $(id).style.display = 'none'; }
+
+  const params = new URLSearchParams(location.search);
+  const eventId = (params.get('eventId') || '').trim();
+
+  let eventData = null;
+  let cfg = null;         // specialFormConfig
+  let isScreening = false;
+
+  // ── Boot ────────────────────────────────────────────────────────────────
+  (async function init(){
+    if (!eventId) { fail(); return; }
+    try {
+      const snap = await db.collection('events').doc(eventId).get();
+      if (!snap.exists) { fail(); return; }
+      eventData = snap.data();
+      if (eventData.specialEvent !== true) { fail(); return; }
+      cfg = eventData.specialFormConfig || { screening:false, fields:{} };
+      isScreening = !!cfg.screening;
+      renderForm();
+    } catch (e) {
+      console.error('Load error:', e);
+      fail();
+    }
+  })();
+
+  function fail(){ hide('loadingCard'); show('unavailableCard'); }
+
+  function renderForm(){
+    const title = eventData.title || 'LDAH';
+    $('hdrTitle').textContent = 'LDAH';
+    $('heroTitle').textContent = title;
+    if (isScreening) {
+      $('heroSub').textContent = 'Please fill this out before your child’s screening. It takes about 2 minutes.';
+      $('submitBtn').textContent = 'Sign & Submit';
+      $('fields').innerHTML = screeningFieldsHtml();
+      wireScreening();
+    } else {
+      $('heroSub').textContent = 'Thanks for stopping by our table. Add your info below and we’ll be in touch.';
+      $('submitBtn').textContent = 'Submit';
+      $('fields').innerHTML = outreachFieldsHtml();
+      wireOutreach();
+    }
+    hide('loadingCard');
+    show('formCard');
+  }
+
+  function reqMark(on){ return on ? ' <span class="req">*</span>' : ''; }
+  function fieldOn(key){ return !!(cfg.fields && cfg.fields[key] && cfg.fields[key].on); }
+  function fieldReq(key){ return !!(cfg.fields && cfg.fields[key] && cfg.fields[key].required); }
+
+  // ══ OUTREACH MODE ═════════════════════════════════════════════════════════
+  function outreachFieldsHtml(){
+    let h = '';
+    h += '<div class="section">';
+    h += '<div class="section-title">Your Information</div>';
+    // Base fields — ALWAYS on, ALWAYS required
+    h += fg('Parent / Guardian Name', true, '<input type="text" id="f_name" autocomplete="name">');
+    h += fg('Email', true, '<input type="email" id="f_email" autocomplete="email" inputmode="email">');
+    if (fieldOn('phone'))
+      h += fg('Phone', fieldReq('phone'), '<input type="tel" id="f_phone" autocomplete="tel" inputmode="tel">');
+    if (fieldOn('howHeard'))
+      h += fg('How did you hear about LDAH?', fieldReq('howHeard'), '<input type="text" id="f_howHeard">');
+    if (fieldOn('accommodations'))
+      h += fg('Special accommodations', fieldReq('accommodations'), '<textarea id="f_accommodations" placeholder="Let us know how we can support you."></textarea>');
+    if (fieldOn('address')) {
+      // Full mailing address — wording/labels reused from srp-consent.html
+      const r = fieldReq('address');
+      h += fg('Address', r, '<input type="text" id="f_streetAddress" autocomplete="street-address">');
+      h += '<div class="grid2">';
+      h += fg('City', r, '<input type="text" id="f_city" autocomplete="address-level2">');
+      h += fg('Zip Code', r, '<input type="text" id="f_zipCode" inputmode="numeric" autocomplete="postal-code">');
+      h += '</div>';
+    }
+    if (fieldOn('childName'))
+      h += fg('Child’s first name', fieldReq('childName'), '<input type="text" id="f_childName">');
+    h += '</div>';
+
+    // Child section — only when childName gate is on
+    if (fieldOn('childName')) {
+      let c = '';
+      // Native Hawaiian is FORCED on whenever childName.on
+      c += fg('Does your child identify as Native Hawaiian?', fieldReq('nativeHawaiian'),
+        '<div class="choices" id="grp_nh">' +
+        '<label class="choice"><input type="radio" name="f_nh" value="Yes"><span>Yes</span></label>' +
+        '<label class="choice"><input type="radio" name="f_nh" value="No"><span>No</span></label>' +
+        '</div>');
+      if (fieldOn('ageRange'))
+        c += fg('Child’s Age Range', fieldReq('ageRange'),
+          '<select id="f_ageRange">' + AGE_RANGE_OPTIONS.map(o => '<option value="'+esc(o.value)+'">'+esc(o.label)+'</option>').join('') + '</select>');
+      if (fieldOn('gender'))
+        c += fg('Child’s Gender', fieldReq('gender'),
+          '<select id="f_gender">' + GENDER_OPTIONS.map(o => '<option value="'+esc(o.value)+'">'+esc(o.label)+'</option>').join('') + '</select>');
+      if (fieldOn('disabilities'))
+        c += fg('Disability Category (select all that apply)', fieldReq('disabilities'),
+          '<div class="cbgrid" id="grp_dis">' + DISABILITY_OPTIONS.map(d => '<label class="cbrow"><input type="checkbox" class="f_dis" value="'+esc(d)+'"><span>'+esc(d)+'</span></label>').join('') + '</div>');
+      if (fieldOn('ethnicity'))
+        c += fg('Primary Ethnicity', fieldReq('ethnicity'),
+          '<div class="choices" id="grp_eth" style="flex-direction:column;align-items:stretch;">' + ETHNICITY_OPTIONS.map(e => '<label class="choice"><input type="radio" name="f_eth" value="'+esc(e)+'"><span>'+esc(e)+'</span></label>').join('') + '</div>');
+
+      h += '<div class="section"><div class="section-title">Child Information</div>' +
+           '<div class="hint" style="margin-bottom:1rem;">We collect this information for grant purposes only.</div>' +
+           '<div class="childbox">' + c + '</div></div>';
+    }
+    return h;
+  }
+
+  function fg(label, required, control){
+    return '<div class="fg"><label class="lbl">' + esc(label) + reqMark(required) + '</label>' + control + '</div>';
+  }
+
+  function wireOutreach(){
+    const form = $('form');
+    form.addEventListener('input', e => { if (e.target.classList) e.target.classList.remove('missing'); });
+    form.addEventListener('change', e => { const g = e.target.closest('.choices, .cbgrid'); if (g) g.classList.remove('missing'); });
+    form.addEventListener('submit', submitOutreach);
+  }
+
+  async function submitOutreach(e){
+    e.preventDefault();
+    clearErr();
+    const val = id => (($(id) && $(id).value) || '').trim();
+    const miss = [];
+    const mark = id => { const el = $(id); if (el) el.classList.add('missing'); };
+
+    const name = val('f_name');
+    const email = val('f_email');
+    if (!name) { mark('f_name'); miss.push('your name'); }
+    if (!email || email.indexOf('@') === -1) { mark('f_email'); miss.push('a valid email'); }
+
+    // Required-flag validation for configured fields
+    if (fieldOn('phone') && fieldReq('phone') && !val('f_phone')) { mark('f_phone'); miss.push('your phone'); }
+    if (fieldOn('howHeard') && fieldReq('howHeard') && !val('f_howHeard')) { mark('f_howHeard'); miss.push('how you heard about us'); }
+    if (fieldOn('accommodations') && fieldReq('accommodations') && !val('f_accommodations')) { mark('f_accommodations'); miss.push('accommodations'); }
+    if (fieldOn('address') && fieldReq('address')) {
+      if (!val('f_streetAddress')) { mark('f_streetAddress'); miss.push('your address'); }
+      if (!val('f_city')) { mark('f_city'); miss.push('your city'); }
+      if (!val('f_zipCode')) { mark('f_zipCode'); miss.push('your zip code'); }
+    }
+    if (fieldOn('childName') && fieldReq('childName') && !val('f_childName')) { mark('f_childName'); miss.push("child's first name"); }
+    if (fieldOn('childName')) {
+      if (fieldReq('nativeHawaiian') && !radioVal('f_nh')) { $('grp_nh').classList.add('missing'); miss.push('the Native Hawaiian question'); }
+      if (fieldOn('ageRange') && fieldReq('ageRange') && !val('f_ageRange')) { mark('f_ageRange'); miss.push("child's age range"); }
+      if (fieldOn('gender') && fieldReq('gender') && !val('f_gender')) { mark('f_gender'); miss.push("child's gender"); }
+      if (fieldOn('disabilities') && fieldReq('disabilities') && document.querySelectorAll('.f_dis:checked').length === 0) { $('grp_dis').classList.add('missing'); miss.push('a disability category'); }
+      if (fieldOn('ethnicity') && fieldReq('ethnicity') && !radioVal('f_eth')) { $('grp_eth').classList.add('missing'); miss.push('primary ethnicity'); }
+    }
+    if (miss.length) {
+      showErr('Please provide ' + miss.slice(0,3).join(', ') + (miss.length>3?', and more.':'.'));
+      const bad = document.querySelector('.missing'); if (bad && bad.scrollIntoView) bad.scrollIntoView({behavior:'smooth',block:'center'});
+      return;
+    }
+
+    // Build specialCapture — include only enabled fields that have values
+    const cap = {};
+    if (fieldOn('howHeard') && val('f_howHeard')) cap.howHeard = val('f_howHeard');
+    if (fieldOn('accommodations') && val('f_accommodations')) cap.accommodations = val('f_accommodations');
+    if (fieldOn('address')) {
+      if (val('f_streetAddress')) cap.streetAddress = val('f_streetAddress');
+      if (val('f_city')) cap.city = val('f_city');
+      if (val('f_zipCode')) cap.zipCode = val('f_zipCode');
+    }
+    if (fieldOn('childName')) {
+      if (val('f_childName')) cap.childName = val('f_childName');
+      if (radioVal('f_nh')) cap.nativeHawaiian = radioVal('f_nh');
+      if (fieldOn('ageRange') && val('f_ageRange')) cap.childAgeRange = val('f_ageRange');
+      if (fieldOn('gender') && val('f_gender')) cap.childGender = val('f_gender');
+      if (fieldOn('disabilities')) {
+        const dis = Array.from(document.querySelectorAll('.f_dis:checked')).map(cb => cb.value);
+        if (dis.length) cap.disabilityCategories = dis;
+      }
+      if (fieldOn('ethnicity') && radioVal('f_eth')) cap.ethnicity = radioVal('f_eth');
+    }
+
+    const doc = {
+      name: name,
+      email: email,
+      status: 'confirmed',
+      signupSource: 'special-outreach',
+      specialCapture: cap,
+      // Booth captures count as attended — Int Event Summary reads these.
+      attendanceStatus: 'attended',
+      attendanceMarkedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      attendanceMarkedBy: 'special-outreach',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    if (fieldOn('phone') && val('f_phone')) doc.phone = val('f_phone');
+
+    const btn = $('submitBtn');
+    btn.disabled = true; btn.textContent = 'Submitting…';
+    try {
+      await db.collection('events').doc(eventId).collection('signups').add(doc);
+      $('thanksMsg').textContent = 'Thank you, ' + name + '. Your information has been received and an LDAH team member will follow up.';
+      hide('formCard'); show('thanksCard');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      console.error('Submit error:', err);
+      showErr("We couldn't save your info. Please try again.");
+      btn.disabled = false; btn.textContent = 'Submit';
+    }
+  }
+
+  // ══ SCREENING MODE — full consent form ported VERBATIM from readiness/index.html ══
+  function screeningFieldsHtml(){
+    return ''
+    + '<div class="section">'
+    +   '<div class="section-title">Parent / Guardian</div>'
+    +   '<div class="fg">'
+    +     '<label class="lbl" for="email">Email <span style="font-weight:400;color:var(--text-light);">(optional)</span></label>'
+    +     '<span class="hint">If you have one, we’ll check if you’re already on file and can email your results. Leave blank if you don’t have email.</span>'
+    +     '<input type="email" id="email" autocomplete="email" inputmode="email">'
+    +   '</div>'
+    +   '<div class="grid2">'
+    +     '<div class="fg"><label class="lbl" for="pFirst">Your First Name <span class="req">*</span></label><input type="text" id="pFirst" autocomplete="given-name"></div>'
+    +     '<div class="fg"><label class="lbl" for="pLast">Your Last Name <span class="req">*</span></label><input type="text" id="pLast" autocomplete="family-name"></div>'
+    +   '</div>'
+    +   '<div class="fg">'
+    +     '<label class="lbl">What is your relationship to your child? <span class="req">*</span></label>'
+    +     '<div class="choices" id="relGroup">'
+    +       '<label class="choice"><input type="radio" name="rel" value="Mother"><span>Mother</span></label>'
+    +       '<label class="choice"><input type="radio" name="rel" value="Step-mother"><span>Step-mother</span></label>'
+    +       '<label class="choice"><input type="radio" name="rel" value="Grandmother"><span>Grandmother</span></label>'
+    +       '<label class="choice"><input type="radio" name="rel" value="Aunty"><span>Aunty</span></label>'
+    +       '<label class="choice"><input type="radio" name="rel" value="Guardian"><span>Guardian</span></label>'
+    +       '<label class="choice"><input type="radio" name="rel" value="Father"><span>Father</span></label>'
+    +       '<label class="choice"><input type="radio" name="rel" value="Step-father"><span>Step-father</span></label>'
+    +       '<label class="choice"><input type="radio" name="rel" value="Grandfather"><span>Grandfather</span></label>'
+    +       '<label class="choice"><input type="radio" name="rel" value="Uncle"><span>Uncle</span></label>'
+    +       '<label class="choice"><input type="radio" name="rel" value="Other" id="relOther"><span>Other</span></label>'
+    +     '</div>'
+    +     '<input type="text" id="relOtherText" placeholder="Please specify" style="margin-top:.6rem;" hidden>'
+    +   '</div>'
+    +   '<div class="fg"><label class="lbl" for="s_streetAddress">Address</label><input type="text" id="s_streetAddress" autocomplete="street-address"></div>'
+    +   '<div class="grid2">'
+    +     '<div class="fg"><label class="lbl" for="s_city">City</label><input type="text" id="s_city" autocomplete="address-level2"></div>'
+    +     '<div class="fg"><label class="lbl" for="s_zipCode">Zip Code</label><input type="text" id="s_zipCode" inputmode="numeric" autocomplete="postal-code"></div>'
+    +   '</div>'
+    + '</div>'
+    + '<div class="section">'
+    +   '<div class="section-title">Child</div>'
+    +   '<div class="grid3">'
+    +     '<div class="fg"><label class="lbl" for="cFirst">First <span class="req">*</span></label><input type="text" id="cFirst"></div>'
+    +     '<div class="fg"><label class="lbl" for="cMiddle">Middle</label><input type="text" id="cMiddle"></div>'
+    +     '<div class="fg"><label class="lbl" for="cLast">Last <span class="req">*</span></label><input type="text" id="cLast"></div>'
+    +   '</div>'
+    +   '<div class="fg">'
+    +     '<label class="lbl">Child’s Gender</label>'
+    +     '<div class="choices">'
+    +       '<label class="choice"><input type="radio" name="cGender" value="Male"><span>Male</span></label>'
+    +       '<label class="choice"><input type="radio" name="cGender" value="Female"><span>Female</span></label>'
+    +       '<label class="choice"><input type="radio" name="cGender" value="Other"><span>Other</span></label>'
+    +     '</div>'
+    +   '</div>'
+    +   '<div class="fg">'
+    +     '<label class="lbl">Does your child identify as Native Hawaiian?</label>'
+    +     '<div class="choices">'
+    +       '<label class="choice"><input type="radio" name="nh" value="Yes"><span>Yes</span></label>'
+    +       '<label class="choice"><input type="radio" name="nh" value="No"><span>No</span></label>'
+    +     '</div>'
+    +   '</div>'
+    +   '<div class="fg">'
+    +     '<label class="lbl" for="ethnicity">Child’s Ethnicity</label>'
+    +     '<select id="ethnicity">'
+    +       '<option value="">— Select —</option>'
+    +       '<option>Hawaiian / Part Hawaiian</option>'
+    +       '<option>Filipino</option>'
+    +       '<option>Japanese</option>'
+    +       '<option>Chinese</option>'
+    +       '<option>Korean</option>'
+    +       '<option>Samoan</option>'
+    +       '<option>Chuukese</option>'
+    +       '<option>Marshallese</option>'
+    +       '<option>Tongan</option>'
+    +       '<option>Other Pacific Islander</option>'
+    +       '<option>Caucasian / White</option>'
+    +       '<option>Portuguese</option>'
+    +       '<option>Hispanic / Latino</option>'
+    +       '<option>Black / African American</option>'
+    +       '<option>Mixed / Two or more</option>'
+    +       '<option value="Other">Other (specify)</option>'
+    +     '</select>'
+    +     '<input type="text" id="ethnicityOther" placeholder="Please specify" style="margin-top:.6rem;" hidden>'
+    +   '</div>'
+    + '</div>'
+    + '<div class="section">'
+    +   '<div class="section-title">A Few Health Questions</div>'
+    +   '<div class="fg">'
+    +     '<label class="lbl">Does your child have a history of chronic ear infections?</label>'
+    +     '<div class="choices">'
+    +       '<label class="choice"><input type="radio" name="ear" value="Yes" data-detail="earDetail"><span>Yes</span></label>'
+    +       '<label class="choice"><input type="radio" name="ear" value="No" data-detail="earDetail"><span>No</span></label>'
+    +     '</div>'
+    +     '<div class="fg yn-detail" id="earDetail" hidden style="margin-top:.7rem;">'
+    +       '<label class="lbl" for="earWhen">If yes, when was the last ear infection?</label>'
+    +       '<input type="text" id="earWhen" placeholder="e.g. March 2026">'
+    +     '</div>'
+    +   '</div>'
+    +   '<div class="fg">'
+    +     '<label class="lbl">Has your child been sick within the last 2 weeks?</label>'
+    +     '<div class="choices">'
+    +       '<label class="choice"><input type="radio" name="sick" value="Yes" data-detail="sickDetail"><span>Yes</span></label>'
+    +       '<label class="choice"><input type="radio" name="sick" value="No" data-detail="sickDetail"><span>No</span></label>'
+    +     '</div>'
+    +     '<div class="fg yn-detail" id="sickDetail" hidden style="margin-top:.7rem;">'
+    +       '<label class="lbl" for="sickDesc">If yes, please describe (e.g. runny nose, fever, coughing)</label>'
+    +       '<input type="text" id="sickDesc">'
+    +     '</div>'
+    +   '</div>'
+    + '</div>'
+    + '<div class="section">'
+    +   '<div class="section-title">Consent</div>'
+    +   '<div class="consent-statement">'
+    +     'I understand this consent is valid for one (1) year from the date below, unless revoked by me in writing to an LDAH staff member. By my signature below, I, the parent / legal guardian of the child identified above, give my informed consent to have my child screened by LDAH staff.'
+    +   '</div>'
+    +   '<div class="fg">'
+    +     '<label class="lbl" for="sign">Type your first and last name to sign <span class="req">*</span></label>'
+    +     '<span class="hint">By printing your name here, you give your informed consent. This is a legally binding electronic signature.</span>'
+    +     '<input type="text" id="sign" style="font-family:\'Outfit\',cursive;font-size:1.2rem;font-style:italic;">'
+    +   '</div>'
+    +   '<div class="fg" style="color:var(--text-light);font-size:.92rem;">Date: <strong id="today"></strong></div>'
+    + '</div>';
+  }
+
+  function wireScreening(){
+    const form = $('form');
+    $('today').textContent = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+    // Conditional detail rows
+    document.querySelectorAll('input[type=radio][data-detail]').forEach(r => r.addEventListener('change', () => {
+      const d = $(r.getAttribute('data-detail')); if (d) d.hidden = (r.value !== 'Yes');
+    }));
+    // Relationship "Other"
+    document.querySelectorAll('input[name=rel]').forEach(r => r.addEventListener('change', () => {
+      $('relOtherText').hidden = (radioVal('rel') !== 'Other');
+    }));
+    // Ethnicity "Other"
+    $('ethnicity').addEventListener('change', () => { $('ethnicityOther').hidden = ($('ethnicity').value !== 'Other'); });
+    form.addEventListener('input', e => { if (e.target.classList) e.target.classList.remove('missing'); });
+    form.addEventListener('change', e => { const g = e.target.closest('.choices'); if (g) g.classList.remove('missing'); });
+    form.addEventListener('submit', submitScreening);
+  }
+
+  function collectScreening(){
+    const v = id => (($(id) && $(id).value) || '').trim();
+    let rel = radioVal('rel'); if (rel === 'Other') rel = 'Other: ' + v('relOtherText');
+    let eth = $('ethnicity').value; if (eth === 'Other') eth = v('ethnicityOther');
+    return {
+      parent: { email: v('email'), firstName: v('pFirst'), lastName: v('pLast'), relationship: rel,
+        streetAddress: v('s_streetAddress'), city: v('s_city'), zipCode: v('s_zipCode') },
+      child: { firstName: v('cFirst'), middleName: v('cMiddle'), lastName: v('cLast'),
+        gender: radioVal('cGender'), nativeHawaiian: radioVal('nh'), ethnicity: eth },
+      health: { chronicEar: radioVal('ear'), lastEarInfection: v('earWhen'),
+        sickRecently: radioVal('sick'), illnessDescribe: v('sickDesc') },
+      signedName: v('sign')
+    };
+  }
+
+  function validateScreening(d){
+    const miss = [];
+    const mark = id => { const el = $(id); if (el) el.classList.add('missing'); };
+    if (d.parent.email && d.parent.email.indexOf('@') === -1) { mark('email'); miss.push('a valid email (or leave it blank)'); }
+    if (!d.parent.firstName) { mark('pFirst'); miss.push('your first name'); }
+    if (!d.parent.lastName) { mark('pLast'); miss.push('your last name'); }
+    if (!radioVal('rel')) { $('relGroup').classList.add('missing'); miss.push('your relationship'); }
+    if (!d.child.firstName) { mark('cFirst'); miss.push("child's first name"); }
+    if (!d.child.lastName) { mark('cLast'); miss.push("child's last name"); }
+    if (!d.signedName || d.signedName.indexOf(' ') === -1) { mark('sign'); miss.push('your first AND last name to sign'); }
+    return miss;
+  }
+
+  async function submitScreening(e){
+    e.preventDefault();
+    clearErr();
+    const data = collectScreening();
+    const miss = validateScreening(data);
+    if (miss.length) {
+      showErr('Please provide ' + miss.slice(0,3).join(', ') + (miss.length>3?', and more.':'.'));
+      const bad = document.querySelector('.missing'); if (bad && bad.scrollIntoView) bad.scrollIntoView({behavior:'smooth',block:'center'});
+      return;
+    }
+    const btn = $('submitBtn');
+    btn.disabled = true; btn.textContent = 'Submitting…';
+    try {
+      // SAME payload shape as the kiosk, plus eventId (harmless if ignored)
+      const res = await fetch(ENDPOINT_SUBMIT, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ form: data, eventId: eventId }) });
+      if (!res.ok) {
+        let dd=''; try { const j = await res.json(); dd = j && j.error ? ' ('+j.error+')' : ''; } catch(_){}
+        showErr("We couldn't save the consent" + dd + '. Please try again.');
+        btn.disabled = false; btn.textContent = 'Sign & Submit';
+        return;
+      }
+      $('thanksMsg').textContent = 'Thank you, ' + data.parent.firstName + '. Consent for ' + (data.child.firstName || 'your child') + ' has been received. An LDAH staff member will call you for the screening.';
+      hide('formCard'); show('thanksCard');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      showErr("We couldn't reach the server. Please check the connection and try again.");
+      btn.disabled = false; btn.textContent = 'Sign & Submit';
+    }
+  }
+</script>
+</body>
+</html>

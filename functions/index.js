@@ -1546,6 +1546,32 @@ async function handleSignupCreated(snap, context, collectionName) {
       }
     }
 
+    // ── Special-outreach booth capture: partial-profile guard ──────────
+    // A QR-kiosk "special-outreach" signup captures only name/email (+
+    // optional booth extras) — never a full LL/CG registration. Flag the
+    // linked/created contact partialProfile:true so downstream code never
+    // assumes we hold complete info. MERGE-only via set({merge:true}): it
+    // never clobbers richer contact fields, and it never DOWNGRADES a
+    // contact a real registration already enriched (enrichedFrom/enrichedAt
+    // present) or one already marked partialProfile:false. Gated purely on
+    // signupSource === 'special-outreach', so it is completely inert for
+    // every existing signup (none of which set that field).
+    try {
+      if (signupData.signupSource === 'special-outreach' && linkedContactId) {
+        const contactRef = db.collection('contacts').doc(linkedContactId);
+        const contactSnap = await contactRef.get();
+        const c = contactSnap.exists ? (contactSnap.data() || {}) : {};
+        const alreadyEnriched = c.partialProfile === false
+          || c.enrichedFrom != null || c.enrichedAt != null;
+        if (!alreadyEnriched) {
+          await contactRef.set({ partialProfile: true }, { merge: true });
+          console.log(`Marked contact ${linkedContactId} partialProfile:true (special-outreach signup ${signupId})`);
+        }
+      }
+    } catch (partialErr) {
+      console.error(`partialProfile flag failed for signup ${signupId}:`, partialErr.message);
+    }
+
     // Write linkedContactId on the signup doc (null if no email/phone)
     await snap.ref.update({ linkedContactId });
 
@@ -3364,6 +3390,10 @@ async function handleSignupUpdated(change, context) {
     if (Object.keys(updates).length > 0) {
       updates.enrichedAt = admin.firestore.FieldValue.serverTimestamp();
       updates.enrichedFrom = "registration";
+      // A real LL/CG registration means we now hold full info — clear the
+      // special-outreach partial-profile flag. Additive; only runs on the
+      // same enrichment write that already stamps enrichedFrom.
+      updates.partialProfile = false;
       await contactRef.update(updates);
       console.log(`Enriched contact ${linkedContactId} with:`, JSON.stringify(updates));
     }
@@ -10270,6 +10300,15 @@ exports.submitReadinessConsent = functions
     const health = form.health || {};
     const email = (parent.email || "").toString().trim();
     const signedName = (form.signedName || "").toString().trim();
+    // Special-event context (present only when special.html posts screening
+    // mode): the event to mark 'attended' on, plus Option-B full mailing
+    // address. All optional — read defensively from a few plausible spots so
+    // the existing kiosk flow (which sends none of these) is untouched.
+    const eventId = (body.eventId || "").toString().trim();
+    const _addr = form.address || {};
+    const streetAddress = (parent.streetAddress || _addr.streetAddress || form.streetAddress || "").toString().trim();
+    const city = (parent.city || _addr.city || form.city || "").toString().trim();
+    const zipCode = (parent.zipCode || _addr.zipCode || form.zipCode || "").toString().trim();
     // Email is OPTIONAL on the in-person kiosk (walk-up families may not have one).
     // If provided it must look valid; if blank, we just create a contact without it.
     if (email && email.indexOf("@") === -1) { res.status(400).json({ error: "That email doesn't look right — fix it or leave it blank" }); return; }
@@ -10326,6 +10365,13 @@ exports.submitReadinessConsent = functions
           sickRecently: health.sickRecently || "", illnessDescribe: health.illnessDescribe || "",
         },
       };
+      // Option B: carry full mailing address on the screening record when the
+      // form supplied one. Omitted entirely when absent — never fabricated.
+      if (streetAddress || city || zipCode) {
+        screening.address = { streetAddress, city, zipCode };
+      }
+      // Tie the screening to its Special event when posted from special.html.
+      if (eventId) screening.eventId = eventId;
       await db.collection("contacts").doc(contactId).update({ screenings: FieldValue.arrayUnion(screening) });
 
       // Auto-log a "Screening" interaction (in-person; no email sent).
@@ -10344,6 +10390,31 @@ exports.submitReadinessConsent = functions
         source: "readiness-kiosk",
         createdAt: FieldValue.serverTimestamp(),
       });
+
+      // Special screening: mark this attendee 'attended' on the Special event
+      // so the Int Event Summary counts them. Load-bearing shape:
+      // attendanceStatus:'attended' + status:'confirmed' (not cancelled/archived).
+      // source:'special-screening' (NOT 'special-outreach') so onEventSignupCreated
+      // does NOT set partialProfile — screening captures are rich, not partial.
+      // The trigger will link this signup to the contact just created/matched by
+      // email. Own try/catch so a signup failure never fails the consent save.
+      // Fully inert for the existing kiosk flow, which sends no eventId.
+      if (eventId) {
+        try {
+          await db.collection("events").doc(eventId).collection("signups").add({
+            name: parentName,
+            email: emailLc,
+            status: "confirmed",
+            attendanceStatus: "attended",
+            attendanceMarkedAt: FieldValue.serverTimestamp(),
+            attendanceMarkedBy: "special-screening",
+            source: "special-screening",
+            createdAt: FieldValue.serverTimestamp(),
+          });
+        } catch (sErr) {
+          console.error("submitReadinessConsent attendance signup failed:", sErr.message);
+        }
+      }
 
       res.status(200).json({ ok: true, contactId });
     } catch (err) {

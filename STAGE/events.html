@@ -1266,6 +1266,13 @@
                 return;
               }
 
+              // Exclude Special Events (booth/kiosk outreach) from the public
+              // website listing. Only an explicit true is excluded; a missing
+              // field still shows. (special.html serves these via QR.)
+              if (data.specialEvent === true) {
+                return;
+              }
+
               // Skip documents with invalid IDs (corrupted)
               if (doc.id.length > 30) {
                 console.warn('⚠️ Skipping corrupted document:', doc.id.substring(0, 20) + '...');
