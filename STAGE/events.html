@@ -1266,12 +1266,11 @@
                 return;
               }
 
-              // Exclude Special Events (booth/kiosk outreach) from the public
-              // website listing. Only an explicit true is excluded; a missing
-              // field still shows. (special.html serves these via QR.)
-              if (data.specialEvent === true) {
-                return;
-              }
+              // Special Events (booth/kiosk outreach) DO appear on the public
+              // events calendar/listing so the community knows LDAH will be
+              // there. They carry no signupDates/enableSignup, so no public
+              // "Sign Up" button renders (card gate line ~1542, detail modal
+              // ~2179) — booth signups happen via the QR kiosk (special.html).
 
               // Skip documents with invalid IDs (corrupted)
               if (doc.id.length > 30) {
