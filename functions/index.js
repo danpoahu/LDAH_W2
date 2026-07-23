@@ -2217,6 +2217,134 @@ exports.resendRegistrationEmail = functions
 
 const EMAIL_SECRETS = ["RESEND_API_KEY", "SMTP_FROM"];
 
+// ─────────────────────────────────────────────────────────────────────────
+// System failure alarms → Daniel + Rosie (email) + LDAH-Int red banner.
+// The Firestore alert (systemAlerts) is the RELIABLE channel — it has zero
+// email dependency, so it fires even during a full email/domain outage (the
+// exact case that hurt us). The email is a convenience with a resend.dev
+// fallback to the account owner so a domain outage still pings at least Daniel.
+// ─────────────────────────────────────────────────────────────────────────
+const SYSTEM_ALERT_RECIPIENTS = "danpellegrini63@gmail.com, rrowe@ldahawaii.org";
+
+async function raiseSystemAlert({ kind, subject, html }) {
+  const db = admin.firestore();
+  // 1) Durable dashboard alert — always works (no email dependency).
+  try {
+    await db.collection("systemAlerts").add({
+      kind: kind || "system",
+      subject: String(subject || "System alert"),
+      html: String(html || ""),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      acknowledged: false,
+    });
+  } catch (e) { console.error("raiseSystemAlert: dashboard write failed:", e.message); }
+  // 2) Best-effort email to the team.
+  try {
+    await sendEmailViaResend({
+      from: "LDAH Alerts <" + String(process.env.SMTP_FROM || "onboarding@resend.dev").replace(/[\r\n\t]+/g, "").trim() + ">",
+      to: SYSTEM_ALERT_RECIPIENTS,
+      subject: subject,
+      html: html,
+      type: "system-alert",
+    });
+  } catch (e) {
+    console.error("raiseSystemAlert: primary email failed:", e.message);
+    // Fallback: resend.dev sender reaches the Resend account owner even when the
+    // ldahawaii.org domain is broken — so Daniel still gets pinged.
+    try {
+      await sendEmailViaResend({
+        from: "LDAH Alerts <onboarding@resend.dev>",
+        to: "danpellegrini63@gmail.com",
+        subject: "[FALLBACK] " + subject,
+        html: String(html || "") + "<p style='color:#888;font-size:12px;'>(Sent via fallback sender — the primary LDAH email domain appears to be failing.)</p>",
+        type: "system-alert-fallback",
+      });
+    } catch (e2) { console.error("raiseSystemAlert: fallback email failed:", e2.message); }
+  }
+}
+
+// Every 5 min: alert on any NEW outgoing-email failures (throttled by a state
+// doc so an ongoing problem alerts on fresh failures, not every run).
+exports.monitorEmailFailures = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 1, secrets: EMAIL_SECRETS })
+  .pubsub.schedule("every 5 minutes")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const since = new Date(Date.now() - 8 * 60 * 1000);
+    let snap;
+    try {
+      snap = await db.collection("emailLog").where("sentAt", ">=", since).get();
+    } catch (e) { console.error("monitorEmailFailures query:", e.message); return null; }
+    const failures = [];
+    snap.forEach((d) => { const x = d.data() || {}; if (x.success === false && x.type !== "system-alert" && x.type !== "system-alert-fallback") failures.push(x); });
+    if (!failures.length) return null;
+
+    const stateRef = db.collection("systemAlertState").doc("emailFailures");
+    const stateDoc = await stateRef.get();
+    const lastAlertMs = stateDoc.exists && stateDoc.data().lastAlertAt ? stateDoc.data().lastAlertAt.toMillis() : 0;
+    const fresh = failures.filter((f) => f.sentAt && typeof f.sentAt.toMillis === "function" && f.sentAt.toMillis() > lastAlertMs);
+    if (!fresh.length) return null;
+
+    const byType = {};
+    fresh.forEach((f) => { const t = f.type || "unknown"; byType[t] = (byType[t] || 0) + 1; });
+    const lines = Object.keys(byType).map((t) => "<li><strong>" + _emailEsc(t) + "</strong> — " + byType[t] + " failed</li>").join("");
+    const sampleErr = String(fresh[0].error || "").slice(0, 200);
+    const html = "<div style=\"font-family:Arial,Helvetica,sans-serif;color:#1f2937;\">" +
+      "<h2 style=\"color:#DC2626;margin:0 0 10px;\">&#9888; LDAH email failures detected</h2>" +
+      "<p><strong>" + fresh.length + "</strong> outgoing email(s) failed in the last few minutes:</p>" +
+      "<ul>" + lines + "</ul>" +
+      "<p style=\"color:#555;\">Example error: <code>" + _emailEsc(sampleErr) + "</code></p>" +
+      "<p>Open <strong>LDAH-Int &rarr; Admin &rarr; Email Log</strong> to review and hit <strong>Resend</strong> on the affected messages.</p></div>";
+    await raiseSystemAlert({ kind: "email-failure", subject: "⚠️ " + fresh.length + " LDAH email(s) failed", html });
+    await stateRef.set({ lastAlertAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    return null;
+  });
+
+// Hourly: verify the Resend DNS records for ldahawaii.org still exist/are valid.
+// Catches a deleted/mangled SPF (like the send.ldahawaii.org record that vanished
+// at GoDaddy) BEFORE it silently kills a batch of email. Throttled to 12h.
+exports.monitorEmailDns = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 1, secrets: EMAIL_SECRETS })
+  .pubsub.schedule("0 * * * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const dns = require("dns").promises;
+    const problems = [];
+    try {
+      const txt = await dns.resolveTxt("send.ldahawaii.org");
+      const flat = txt.map((a) => a.join("")).join(" ");
+      if (!/v=spf1/i.test(flat) || !/amazonses\.com/i.test(flat) || /google\.com\/url|https?:/i.test(flat)) {
+        problems.push("send.ldahawaii.org SPF is missing or malformed: " + (flat || "(empty)"));
+      }
+    } catch (e) { problems.push("send.ldahawaii.org SPF TXT lookup failed (" + (e.code || e.message) + ")"); }
+    try {
+      const dk = await dns.resolveTxt("resend._domainkey.ldahawaii.org");
+      const flat = dk.map((a) => a.join("")).join("");
+      if (!/p=/i.test(flat)) problems.push("resend._domainkey DKIM record missing its p= key");
+    } catch (e) { problems.push("resend._domainkey.ldahawaii.org DKIM lookup failed (" + (e.code || e.message) + ")"); }
+    try {
+      const mx = await dns.resolveMx("send.ldahawaii.org");
+      if (!mx.some((m) => /amazonses\.com/i.test(m.exchange))) problems.push("send.ldahawaii.org MX no longer points to Amazon SES");
+    } catch (e) { problems.push("send.ldahawaii.org MX lookup failed (" + (e.code || e.message) + ")"); }
+    if (!problems.length) return null;
+
+    const db = admin.firestore();
+    const stateRef = db.collection("systemAlertState").doc("emailDns");
+    const stateDoc = await stateRef.get();
+    const lastMs = stateDoc.exists && stateDoc.data().lastAlertAt ? stateDoc.data().lastAlertAt.toMillis() : 0;
+    if (Date.now() - lastMs < 12 * 3600 * 1000) return null;
+
+    const html = "<div style=\"font-family:Arial,Helvetica,sans-serif;color:#1f2937;\">" +
+      "<h2 style=\"color:#DC2626;margin:0 0 10px;\">&#9888; LDAH email DNS problem</h2>" +
+      "<p>The Resend DNS records for <strong>ldahawaii.org</strong> look broken &mdash; outgoing email may start failing:</p>" +
+      "<ul>" + problems.map((p) => "<li>" + _emailEsc(p) + "</li>").join("") + "</ul>" +
+      "<p>Have the GoDaddy admin (Tomo, twhuber@wbestp.com) re-add the missing record. The <code>send</code> TXT value must be exactly:</p>" +
+      "<p><code>v=spf1 include:amazonses.com ~all</code></p></div>";
+    await raiseSystemAlert({ kind: "email-dns", subject: "⚠️ LDAH email DNS problem detected", html });
+    await stateRef.set({ lastAlertAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    return null;
+  });
+
 // ── Check for a duplicate signup (same email + same event + overlapping date) ──
 // Public, read-only. Used by the W2 + App signup forms to WARN (not block)
 // before creating a possible duplicate. Mirrors the Part 1 definition: same
