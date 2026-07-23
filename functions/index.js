@@ -4033,7 +4033,7 @@ exports.resendLoggedEmail = functions
       const to = (overrideTo && String(overrideTo).trim()) || log.to;
       if (!to) { res.status(400).json({ error: "No recipient address" }); return; }
 
-      const fromAddress = log.from || `LDAH <${process.env.SMTP_FROM || "onboarding@resend.dev"}>`;
+      const fromAddress = String(log.from || `LDAH <${process.env.SMTP_FROM || "onboarding@resend.dev"}>`).replace(/[\r\n\t]+/g, "").trim();
       const result = await sendEmailViaResend({
         from: fromAddress,
         to,
@@ -8745,7 +8745,7 @@ exports.sendEventRecordingEmail = functions
         .filter((f) => f && f.downloadUrl)
         .map((f) => ({ downloadUrl: f.downloadUrl, fileName: f.fileName || "" }));
 
-      const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+      const fromAddress = String(process.env.SMTP_FROM || "onboarding@resend.dev").replace(/[\r\n\t]+/g, "").trim();
       const from = `LDAH <${fromAddress}>`;
       const apiKey = process.env.RESEND_API_KEY;
       if (!apiKey) { res.status(500).json({ error: "RESEND_API_KEY missing" }); return; }
@@ -9065,7 +9065,7 @@ exports.resendEventRecordingEmail = functions
 
       const apiKey = process.env.RESEND_API_KEY;
       if (!apiKey) { res.status(500).json({ error: "RESEND_API_KEY missing" }); return; }
-      const fromAddress = log.from || `LDAH <${process.env.SMTP_FROM || "onboarding@resend.dev"}>`;
+      const fromAddress = String(log.from || `LDAH <${process.env.SMTP_FROM || "onboarding@resend.dev"}>`).replace(/[\r\n\t]+/g, "").trim();
 
       // Try to re-attach the PDF if still in Storage
       let attachments = undefined;
