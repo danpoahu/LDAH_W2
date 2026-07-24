@@ -747,7 +747,10 @@
                 if (next) recurringCards.push({ ...data, _nextDate: next, isRecurring: true });
             });
             recurringCards.sort((a,b) => a._nextDate - b._nextDate);
-            const allCards = [...currentEvents, ...recurringCards.slice(0,1)].slice(0, 2);
+            // Only show events that have a flyer in the home-page Upcoming
+            // Events section — flyer-less events (e.g. booth/kiosk special
+            // events) don't render a bare placeholder card here. (2026-07-24)
+            const allCards = [...currentEvents, ...recurringCards.slice(0,1)].filter(c => c.imageUrl).slice(0, 2);
 
             // Information section = one-time infoOnly events (within their date
             // window) + ongoing flyer-only programs. Hidden when empty.
