@@ -1387,6 +1387,13 @@
       }
 
       function renderCurrentEvents(events) {
+        // Special (booth/kiosk) events with NO flyer appear only on the
+        // calendar, not as a Current-Events card (a flyer-less card looks
+        // bare). With a flyer uploaded they show normally. Calendar keeps
+        // them regardless (getAllCalendarItems reads allEventsData). (2026-07-24)
+        events = (events || []).filter(function (e) {
+          return !(e && e.specialEvent === true && !e.imageUrl);
+        });
         // Destroy old Swiper before replacing DOM to avoid orphaned instances
         if (currentSwiper) { try { currentSwiper.destroy(true, true); } catch(e) {} currentSwiper = null; }
         const container = document.getElementById('currentEventsCarousel');
