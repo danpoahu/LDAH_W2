@@ -742,7 +742,7 @@
             const recurringInfo = [];
             recurringSnap.docs.forEach(doc => {
                 const data = { id: doc.id, ...doc.data() };
-                if (data.flyerOnly) { recurringInfo.push({ ...data, _ongoing: true }); return; }
+                if (data.flyerOnly) { if (data.imageUrl) recurringInfo.push({ ...data, _ongoing: true }); return; }
                 const next = _nextOccurrence(data.schedules);
                 if (next) recurringCards.push({ ...data, _nextDate: next, isRecurring: true });
             });
@@ -757,6 +757,7 @@
             const infoEvents = eventsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(event => {
                 if (event.archived === true) return false;
                 if (event.infoOnly !== true) return false;
+                if (!event.imageUrl) return false;
                 if (!event.startDate || !event.moveToPastDate) return false;
                 const startDate = new Date(event.startDate + 'T00:00:00');
                 const moveToPastDate = new Date(event.moveToPastDate + 'T00:00:00');
@@ -807,7 +808,7 @@
             const ongoing = event._ongoing === true;
             const displayDate = (!ongoing && event.eventDate) ? new Date(event.eventDate + 'T00:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '';
             const badge = ongoing
-                ? '<div style="display:inline-block;padding:0.35rem 1rem;background:linear-gradient(135deg,#4DD0E1,#0891B2);color:white;border-radius:8px;font-size:0.85rem;font-weight:600;margin-top:1rem;">Ongoing</div>'
+                ? '<div style="display:inline-block;padding:0.35rem 1rem;background:linear-gradient(135deg,#4DD0E1,#0891B2);color:white;border-radius:8px;font-size:0.85rem;font-weight:600;margin-top:1rem;">Flyer</div>'
                 : '<div style="display:inline-block;padding:0.35rem 1rem;background:linear-gradient(135deg,#f59e0b,#d97706);color:white;border-radius:8px;font-size:0.85rem;font-weight:600;margin-top:1rem;">Information</div>';
             return '<div class="event-card" style="position:relative;cursor:pointer;" onclick="window.location.href=\'events.html?src=home\'">'
                 + (event.imageUrl ? (isPDF ? '<iframe src="' + event.imageUrl + '" style="width:100%;height:220px;display:block;border:none;overflow:hidden;"></iframe>' : '<img src="' + event.imageUrl + '" alt="' + event.title + '" style="width:100%;height:auto;display:block;">') : '<div style="width:100%;height:220px;background:linear-gradient(135deg,var(--ocean-deep) 0%,var(--ocean-mid) 100%);"></div>')

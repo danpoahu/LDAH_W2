@@ -1392,7 +1392,7 @@
         // bare). With a flyer uploaded they show normally. Calendar keeps
         // them regardless (getAllCalendarItems reads allEventsData). (2026-07-24)
         events = (events || []).filter(function (e) {
-          return !(e && e.specialEvent === true && !e.imageUrl);
+          return !(e && e.specialEvent === true && !e.imageUrl) && !(e && e.infoOnly === true);
         });
         // Destroy old Swiper before replacing DOM to avoid orphaned instances
         if (currentSwiper) { try { currentSwiper.destroy(true, true); } catch(e) {} currentSwiper = null; }
