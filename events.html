@@ -3470,6 +3470,7 @@
             status: _regStatus,
             registration: registration,
             registrantType: role,
+            eventTitle: draft.eventTitle || '',
             // Sibling draft was opened from a registration-token email link
             signupSource: 'registration-email',
             registrationCompletedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -3549,7 +3550,13 @@
         name: info.name || '',
         email: info.email || '',
         phone: info.phone || '',
-        selectedDates: Array.isArray(info.selectedDates) ? info.selectedDates.slice() : []
+        selectedDates: Array.isArray(info.selectedDates) ? info.selectedDates.slice() : [],
+        // Capture the event title now so the sibling signup isn't left as
+        // "Unknown Event" in the staff views. (2026-07-24)
+        eventTitle: (function(){
+          if (type === 'recurring') { var p = (window._recurringPrograms || {})[eventId]; return p ? (p.title || '') : ''; }
+          var e = (window.allEventsData || []).find(function(x){ return x.id === eventId; }); return e ? (e.title || '') : '';
+        })()
       };
 
       closeRegistrationModal();
