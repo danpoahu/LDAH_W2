@@ -2628,14 +2628,10 @@
                 </div>
                 <div id="group-fields" style="display: none; margin-bottom: 20px; padding-left: 26px;">
                   <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
-                    What is your group name and number of participants? *
+                    How many participants? *
                   </label>
-                  <div style="display: flex; gap: 12px;">
-                    <input type="text" id="group-name" placeholder="Group name"
-                      style="flex: 2; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">
-                    <input type="number" id="group-size" min="1" placeholder="# of participants"
-                      style="flex: 1; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">
-                  </div>
+                  <input type="number" id="group-size" min="1" placeholder="# of participants"
+                    style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px;">
                 </div>
                 ` : ''}
                 
@@ -3739,18 +3735,14 @@
 
     function toggleGroupFields(show) {
       const groupFields = document.getElementById('group-fields');
-      const groupName = document.getElementById('group-name');
       const groupSize = document.getElementById('group-size');
-      
+
       if (show) {
         groupFields.style.display = 'block';
-        groupName.setAttribute('required', 'required');
         groupSize.setAttribute('required', 'required');
       } else {
         groupFields.style.display = 'none';
-        groupName.removeAttribute('required');
         groupSize.removeAttribute('required');
-        groupName.value = '';
         groupSize.value = '';
       }
     }
@@ -4407,11 +4399,8 @@
                   </div>
                 </div>
                 <div id="group-fields" style="display:none;margin-bottom:20px;padding-left:26px;">
-                  <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Group name and number of participants? *</label>
-                  <div style="display:flex;gap:12px;">
-                    <input type="text" id="group-name" placeholder="Group name" style="flex:2;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
-                    <input type="number" id="group-size" min="1" placeholder="# of participants" style="flex:1;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
-                  </div>
+                  <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">How many participants? *</label>
+                  <input type="number" id="group-size" min="1" placeholder="# of participants" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
                 </div>
                 ` : ''}
                 <button type="submit" style="width:100%;padding:16px;background:linear-gradient(135deg,#004E7C,#0066a1);color:white;border:none;border-radius:12px;font-weight:bold;font-size:16px;cursor:pointer;transition:transform 0.2s;"
