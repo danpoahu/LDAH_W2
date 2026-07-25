@@ -2527,7 +2527,17 @@
                     font-size: 14px;
                   ">
                 </div>
-                
+
+                <div class="second-parent-block" style="margin-bottom: 20px;">
+                  <a href="#" id="addSecondParentLink" onclick="toggleSecondParent(event)" style="font-size:.9rem;color:#0891B2;text-decoration:none;font-weight:600;">+ Add a second parent/guardian (optional)</a>
+                  <div id="secondParentFields" style="display:none;margin-top:10px;">
+                    <div style="font-weight:600;margin-bottom:6px;color:#004E7C;">Second parent / guardian</div>
+                    <input type="text" id="secondParentFirst" placeholder="First name" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;margin-bottom:8px;">
+                    <input type="text" id="secondParentLast" placeholder="Last name" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;margin-bottom:8px;">
+                    <input type="email" id="secondParentEmail" placeholder="Email" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
+                  </div>
+                </div>
+
                 <div style="margin-bottom: 20px;">
                   <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
                     Preferred Method of Contact *
@@ -2779,6 +2789,7 @@
       if (event && event.target !== event.currentTarget) return;
       const modal = document.getElementById('signupModal');
       if (modal) modal.remove();
+      window._secondParentDraft = null;
     }
 
     // ===== PRE-FILL VERIFICATION (B'' OTP-by-email flow) =====
@@ -3469,6 +3480,13 @@
         accommodations: document.getElementById('regAccommodations').value
       };
 
+      // Second parent / guardian (optional): captured on the signup form, stashed
+      // in window._secondParentDraft (the signup inputs are gone from the DOM by
+      // this registration step). Persist into registration.secondParent so the
+      // funnel writes contacts/{id}.secondParent.
+      var _sp = _collectSecondParent() || window._secondParentDraft || null;
+      if (_sp) registration.secondParent = _sp;
+
       // Show loading
       document.getElementById('registrationFormContent').innerHTML = '<div style="text-align: center; padding: 40px;"><p style="color: #004E7C; font-weight: 600;">Submitting...</p></div>';
 
@@ -3506,6 +3524,7 @@
             selectedDates: Array.isArray(draft.selectedDates) ? draft.selectedDates : [],
             status: _regStatus,
             registration: registration,
+            ...(_sp ? { secondParent: _sp } : {}),
             registrantType: role,
             eventTitle: draft.eventTitle || '',
             // Sibling draft was opened from a registration-token email link
@@ -3527,6 +3546,7 @@
           await db.collection(collectionName).doc(eventId).collection('signups').doc(token)
             .update({
               registration: registration,
+              ...(_sp ? { secondParent: _sp } : {}),
               registrantType: role,
               status: _regStatus,
               registrationCompletedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -3788,6 +3808,27 @@
       }
     }
     
+    // ── Second parent / guardian (optional) — collapsed expander ─────────────
+    function toggleSecondParent(e){ e.preventDefault();
+      var f=document.getElementById('secondParentFields');
+      var l=document.getElementById('addSecondParentLink');
+      var show=f.style.display==='none'; f.style.display=show?'block':'none';
+      if(show) l.style.display='none';
+    }
+    function _collectSecondParent(){
+      var em=(document.getElementById('secondParentEmail')||{}).value||'';
+      em=em.trim(); if(!em) return null;
+      return { firstName:((document.getElementById('secondParentFirst')||{}).value||'').trim(),
+               lastName:((document.getElementById('secondParentLast')||{}).value||'').trim(),
+               email:em };
+    }
+    function _resetSecondParent(){
+      ['secondParentFirst','secondParentLast','secondParentEmail'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+      var f=document.getElementById('secondParentFields'); if(f) f.style.display='none';
+      var l=document.getElementById('addSecondParentLink'); if(l) l.style.display='';
+      window._secondParentDraft=null;
+    }
+
     async function submitSignup(event, eventId) {
       event.preventDefault();
 
@@ -3824,6 +3865,13 @@
         // Falls back to 'Individual' when the question is hidden (showGroupField: false)
         participationType: document.querySelector('input[name="participation-type"]:checked')?.value || 'Individual'
       };
+
+      // Second parent / guardian (optional). Attached top-level (via ...formData
+      // spread) on every signup-doc write, and mirrored into registration.secondParent
+      // for the funnel that persists contacts/{id}.secondParent.
+      var _sp = _collectSecondParent();
+      window._secondParentDraft = _sp;
+      if (_sp) formData.secondParent = _sp;
 
       // Add group fields if Group is selected (inputs only exist when showGroupField is true)
       if (formData.participationType === 'Group') {
@@ -3946,7 +3994,7 @@
           signupDocRef = await db.collection('events').doc(eventId).collection('signups').add({
             ...formData,
             ...sourceFields,
-            registration: _inlineReg,
+            registration: Object.assign({}, _inlineReg, formData.secondParent ? { secondParent: formData.secondParent } : {}),
             registrantType: formData.role,
             status: 'confirmed',
             registrationFlow: 'inline-at-signup',
@@ -4256,6 +4304,15 @@
                   <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Phone Number (for calls or texts) *</label>
                   <input type="tel" required id="signupPhone" placeholder="(808) 555-1234" pattern="[\\(]?\\d{3}[\\)]?[\\s.\\-]?\\d{3}[\\s.\\-]?\\d{4}" title="Please enter a valid 10-digit phone number, e.g. (808) 555-1234" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
                 </div>
+                <div class="second-parent-block" style="margin-bottom:20px;">
+                  <a href="#" id="addSecondParentLink" onclick="toggleSecondParent(event)" style="font-size:.9rem;color:#0891B2;text-decoration:none;font-weight:600;">+ Add a second parent/guardian (optional)</a>
+                  <div id="secondParentFields" style="display:none;margin-top:10px;">
+                    <div style="font-weight:600;margin-bottom:6px;color:#004E7C;">Second parent / guardian</div>
+                    <input type="text" id="secondParentFirst" placeholder="First name" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;margin-bottom:8px;">
+                    <input type="text" id="secondParentLast" placeholder="Last name" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;margin-bottom:8px;">
+                    <input type="email" id="secondParentEmail" placeholder="Email" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
+                  </div>
+                </div>
                 <div style="margin-bottom:20px;">
                   <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Preferred Method of Contact *</label>
                   <div style="display:flex;flex-direction:column;gap:8px;">
@@ -4548,6 +4605,11 @@
         careCoordinator: getVal('careCoordinator').trim()
       };
 
+      // Second parent / guardian (optional) — see submitSignup for rationale.
+      var _sp = _collectSecondParent();
+      window._secondParentDraft = _sp;
+      if (_sp) formData.secondParent = _sp;
+
       if (formData.participationType === 'Group') {
         formData.groupName = getVal('group-name');
         formData.groupSize = getVal('group-size');
@@ -4644,7 +4706,7 @@
           signupDocRef = await db.collection('recurringEvents').doc(programId).collection('signups').add({
             ...formData,
             ..._sourceFields,
-            registration: _inlineRegR,
+            registration: Object.assign({}, _inlineRegR, formData.secondParent ? { secondParent: formData.secondParent } : {}),
             registrantType: formData.role,
             status: 'confirmed',
             registrationFlow: 'inline-at-signup',

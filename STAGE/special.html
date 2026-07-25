@@ -245,6 +245,15 @@
     }
     if (fieldOn('childName'))
       h += fg('Child’s first name', fieldReq('childName'), '<input type="text" id="f_childName">');
+    // Second parent / guardian (optional) — collapsed expander.
+    h += '<div class="second-parent-block" style="margin-top:10px;">'
+       + '<a href="#" id="addSecondParentLink" onclick="toggleSecondParent(event)" style="font-size:.9rem;color:#0891B2;text-decoration:none;font-weight:600;">+ Add a second parent/guardian (optional)</a>'
+       + '<div id="secondParentFields" style="display:none;margin-top:10px;">'
+       + '<div style="font-weight:600;margin-bottom:6px;">Second parent / guardian</div>'
+       + fg('First name', false, '<input type="text" id="secondParentFirst" autocomplete="given-name">')
+       + fg('Last name', false, '<input type="text" id="secondParentLast" autocomplete="family-name">')
+       + fg('Email', false, '<input type="email" id="secondParentEmail" inputmode="email">')
+       + '</div></div>';
     h += '</div>';
 
     // Child section — only when childName gate is on
@@ -278,6 +287,26 @@
 
   function fg(label, required, control){
     return '<div class="fg"><label class="lbl">' + esc(label) + reqMark(required) + '</label>' + control + '</div>';
+  }
+
+  // ── Second parent / guardian (optional) — collapsed expander ───────────────
+  function toggleSecondParent(e){ e.preventDefault();
+    var f=document.getElementById('secondParentFields');
+    var l=document.getElementById('addSecondParentLink');
+    var show=f.style.display==='none'; f.style.display=show?'block':'none';
+    if(show) l.style.display='none';
+  }
+  function _collectSecondParent(){
+    var em=(document.getElementById('secondParentEmail')||{}).value||'';
+    em=em.trim(); if(!em) return null;
+    return { firstName:((document.getElementById('secondParentFirst')||{}).value||'').trim(),
+             lastName:((document.getElementById('secondParentLast')||{}).value||'').trim(),
+             email:em };
+  }
+  function _resetSecondParent(){
+    ['secondParentFirst','secondParentLast','secondParentEmail'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+    var f=document.getElementById('secondParentFields'); if(f) f.style.display='none';
+    var l=document.getElementById('addSecondParentLink'); if(l) l.style.display='';
   }
 
   function wireOutreach(){
@@ -357,11 +386,17 @@
     };
     if (fieldOn('phone') && val('f_phone')) doc.phone = val('f_phone');
 
+    // Second parent / guardian (optional): top-level for immediate confirmation
+    // sends, plus registration.secondParent for the funnel that persists contacts.
+    const _sp = _collectSecondParent();
+    if (_sp) { doc.secondParent = _sp; doc.registration = { secondParent: _sp }; }
+
     const btn = $('submitBtn');
     btn.disabled = true; btn.textContent = 'Submitting…';
     try {
       await db.collection('events').doc(eventId).collection('signups').add(doc);
       $('thanksMsg').textContent = 'Thank you, ' + name + '. Your information has been received and an LDAH team member will follow up.';
+      _resetSecondParent();
       hide('formCard'); show('thanksCard');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
