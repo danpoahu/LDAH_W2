@@ -28,6 +28,11 @@ const FLYER_TOOL_SCHEMA = {
       },
     },
     confidence: { type: ["string", "null"], enum: ["high", "medium", "low", null] },
+    suggestedType: {
+      type: ["string", "null"],
+      enum: ["learning_labs", "parent_talk_cafe", "connect_gen", "screening", "remote_signup", "outreach_booth", "flyer", null],
+      description: "Best-guess event category for this flyer per the classification rules; null if genuinely unsure",
+    },
   },
   required: ["title", "description", "sessions"],
 };

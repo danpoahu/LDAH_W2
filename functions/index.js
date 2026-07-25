@@ -201,6 +201,15 @@ exports.extractEventFromFlyer = functions
         "- 'modality' is 'virtual' when the flyer mentions Zoom/online; set 'location' to 'Zoom' in that case.",
         "- Keep the topic verbatim; keep each description to the flyer's wording, trimmed to one or two sentences.",
         "- Set 'confidence' to 'low' if the flyer is blurry or fields are ambiguous.",
+        "- Classify the flyer into EXACTLY ONE 'suggestedType' (or null if genuinely unsure):",
+        "    learning_labs = an LDAH monthly training webinar/workshop (usually Zoom) that takes signups.",
+        "    parent_talk_cafe = a 'Parent Talk Cafe' event (an LDAH Facebook-group parent discussion).",
+        "    connect_gen = a 'Connect-Gen' recurring small-group IEP/parent session.",
+        "    screening = a hearing/vision (developmental) screening event where consent is required.",
+        "    remote_signup = an OFF-SITE, IN-PERSON event that takes RSVPs/signups at a venue (e.g. a movie night at a theater).",
+        "    outreach_booth = a booth/table at someone else's event for contact capture, with NO signups.",
+        "    flyer = an informational announcement with NO signups.",
+        "  Match on the flyer's own wording/branding first (e.g. 'Parent Talk Cafe', 'Connect-Gen', 'screening'); use null when none clearly fits.",
       ].join("\n");
 
       const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY_FLYER });
@@ -220,6 +229,11 @@ exports.extractEventFromFlyer = functions
       }
       const ev = toolUse.input;
       ev.signupDates = sessionsToSignupDates(ev.sessions, ev.timeStart);
+      // Validate the AI's suggestedType against the 7-value allow-list; coerce
+      // anything else (unexpected string, undefined) to null. Additive field —
+      // existing callers simply ignore it.
+      const SUGGESTED_TYPES = ["learning_labs", "parent_talk_cafe", "connect_gen", "screening", "remote_signup", "outreach_booth", "flyer"];
+      ev.suggestedType = SUGGESTED_TYPES.indexOf(ev.suggestedType) === -1 ? null : ev.suggestedType;
       res.status(200).json({ ok: true, event: ev });
     } catch (err) {
       console.error("extractEventFromFlyer error:", err && err.message);
@@ -1574,6 +1588,27 @@ async function handleSignupCreated(snap, context, collectionName) {
 
     // Write linkedContactId on the signup doc (null if no email/phone)
     await snap.ref.update({ linkedContactId });
+
+    // Created-confirmed enrichment: a signup written already status:'confirmed'
+    // WITH a registration object (single .add(), e.g. the "register another
+    // child" sibling flow, or any inline-at-signup completion) never trips the
+    // onUpdate enrichment guard, so its child/demographics were never applied
+    // to the contact. Apply them now, on create. Non-blocking. NOT double
+    // enrichment: the subsequent linkedContactId write fires onUpdate, but
+    // there before.status==='confirmed' AND before.registration is present, so
+    // the onUpdate guard returns null. preferredContact is a top-level signup
+    // field, folded into registration so the helper's read is exact.
+    if (signupData.status === 'confirmed' && signupData.registration && linkedContactId) {
+      try {
+        await applyRegistrationToContact(
+          linkedContactId,
+          Object.assign({}, signupData.registration, { preferredContact: signupData.preferredContact }),
+          signupId,
+        );
+      } catch (e) {
+        console.error('created-confirmed enrichment failed:', e.message);
+      }
+    }
 
     // Instant prior-registration apply: a pending Parent/Guardian signup for a
     // one-time event whose contact completed a registration in the last 12
@@ -3189,27 +3224,12 @@ exports.onVolunteerApplicationUpdated = functions
 // object and a linkedContactId, enrich the contact record with
 // location and type from the registration demographics.
 
-async function handleSignupUpdated(change, context) {
-  try {
-    const before = change.before.data();
-    const after = change.after.data();
-
-    // Act when status transitions to "confirmed" OR when registration data is added
-    const statusJustConfirmed = before.status !== "confirmed" && after.status === "confirmed";
-    const registrationJustAdded = !before.registration && after.registration;
-    if (!statusJustConfirmed && !registrationJustAdded) return null;
-    if (after.status !== "confirmed") return null;
-
-    // Must have registration data and a linked contact
-    const registration = after.registration;
-    const linkedContactId = after.linkedContactId;
-    if (!registration || !linkedContactId) return null;
-
+async function applyRegistrationToContact(linkedContactId, registration, signupId) {
     const db = admin.firestore();
     const contactRef = db.collection("contacts").doc(linkedContactId);
     const contactSnap = await contactRef.get();
     if (!contactSnap.exists) {
-      console.warn(`Contact ${linkedContactId} not found for enrichment (signup ${context.params.signupId})`);
+      console.warn(`Contact ${linkedContactId} not found for enrichment (signup ${signupId})`);
       return null;
     }
 
@@ -3279,7 +3299,7 @@ async function handleSignupUpdated(change, context) {
     // registration). Mirror to contact so future prefill lookups don't need
     // the per-signup fallback query.
     {
-      const sigPref = (after.preferredContact || "").trim();
+      const sigPref = (registration.preferredContact || "").trim();
       const contactPref = (contactData.preferredContact || "").trim();
       if (sigPref && !contactPref) {
         updates.preferredContact = sigPref;
@@ -3344,11 +3364,11 @@ async function handleSignupUpdated(change, context) {
         // 2026-05-02 when Jake Test's contact card showed empty
         // demographics despite a complete registration submit.
         childEntry.addedAt = admin.firestore.Timestamp.now();
-        childEntry.sourceSignupId = context.params.signupId;
+        childEntry.sourceSignupId = signupId;
 
         const existingChildren = contactData.children || [];
         // Don't re-add if this exact signup already contributed a child.
-        const alreadyAdded = existingChildren.some(c => c.sourceSignupId === context.params.signupId);
+        const alreadyAdded = existingChildren.some(c => c.sourceSignupId === signupId);
         if (!alreadyAdded) {
           // Dedup-at-source (2026-06-09): a returning family re-registers the
           // SAME child under a new signup. Match an existing child by NAME
@@ -3384,7 +3404,7 @@ async function handleSignupUpdated(change, context) {
         }
       }
     } catch (childErr) {
-      console.error(`Children enrichment error (signup ${context.params.signupId}):`, childErr.message);
+      console.error(`Children enrichment error (signup ${signupId}):`, childErr.message);
     }
 
     if (Object.keys(updates).length > 0) {
@@ -3397,6 +3417,30 @@ async function handleSignupUpdated(change, context) {
       await contactRef.update(updates);
       console.log(`Enriched contact ${linkedContactId} with:`, JSON.stringify(updates));
     }
+  return null;
+}
+
+async function handleSignupUpdated(change, context) {
+  try {
+    const before = change.before.data();
+    const after = change.after.data();
+
+    // Act when status transitions to "confirmed" OR when registration data is added
+    const statusJustConfirmed = before.status !== "confirmed" && after.status === "confirmed";
+    const registrationJustAdded = !before.registration && after.registration;
+    if (!statusJustConfirmed && !registrationJustAdded) return null;
+    if (after.status !== "confirmed") return null;
+
+    // Must have registration data and a linked contact
+    const registration = after.registration;
+    const linkedContactId = after.linkedContactId;
+    if (!registration || !linkedContactId) return null;
+
+    await applyRegistrationToContact(
+      after.linkedContactId,
+      Object.assign({}, after.registration, { preferredContact: after.preferredContact }),
+      context.params.signupId,
+    );
   } catch (err) {
     // Never fail — log and move on
     console.error(`Contact enrichment error (signup ${context.params.signupId}):`, err.message);
@@ -10420,6 +10464,92 @@ exports.submitReadinessConsent = functions
     } catch (err) {
       console.error("submitReadinessConsent error:", err.message);
       res.status(500).json({ error: err.message });
+    }
+  });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// emailSpecialEventQR — email a Special event's kiosk QR to the staff member
+// who created it. Callable from the LDAH-Int dashboard. Standalone function:
+// touches no shared helper, so it deploys on its own
+// (firebase deploy --only functions:emailSpecialEventQR). The recipient is
+// ALWAYS the caller's own auth email — never a client-supplied address — so a
+// staff member can only ever mail the QR to themselves.
+// ═══════════════════════════════════════════════════════════════════════════
+exports.emailSpecialEventQR = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 5, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "Please sign in to email the QR.");
+    }
+    const toEmail = context.auth.token && context.auth.token.email;
+    if (!toEmail) {
+      throw new functions.https.HttpsError("failed-precondition", "Your account has no email address to send to.");
+    }
+
+    const eventId = (data && data.eventId ? String(data.eventId) : "").trim();
+    const pngBase64 = (data && data.pngBase64 ? String(data.pngBase64) : "").trim();
+    const title = (data && data.title ? String(data.title) : "").trim();
+    if (!eventId) {
+      throw new functions.https.HttpsError("invalid-argument", "Missing eventId.");
+    }
+    if (!pngBase64) {
+      throw new functions.https.HttpsError("invalid-argument", "Missing QR image.");
+    }
+
+    const url = "https://www.ldahawaii.org/special.html?eventId=" + encodeURIComponent(eventId);
+    const safeTitle = title || "your special event";
+    const subject = title ? ("Your kiosk QR — " + title) : "Your kiosk QR code";
+    const slug = (title || "special-event").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "special-event";
+    const filename = slug + "-kiosk-QR.png";
+
+    const greetName = _firstNameOnly((context.auth.token && context.auth.token.name) || "") || "there";
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0; padding:0; background:#f4f6f8; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; color:#1f2d3d;">
+  <div style="max-width:600px; margin:0 auto; padding:24px;">
+    <div style="background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+      <div style="background:#0b5394; padding:20px 24px;">
+        <h1 style="margin:0; color:#ffffff; font-size:20px; font-weight:600;">Leadership in Disabilities and Achievement of Hawai&#8216;i</h1>
+      </div>
+      <div style="padding:24px;">
+        <p style="margin:0 0 14px; font-size:16px;">Aloha ${greetName},</p>
+        <p style="margin:0 0 14px; font-size:15px; line-height:1.5;">Here is the kiosk QR code and sign-up link for your booth at <strong>${safeTitle}</strong>. Anyone who scans the QR or opens the link lands on the special-event sign-up form for this event.</p>
+        <p style="margin:0 0 8px; font-size:15px; line-height:1.5;">Your sign-up form link:</p>
+        <p style="margin:0 0 16px; font-size:15px;"><a href="${url}" style="color:#0b5394; font-weight:600; word-break:break-all;">${url}</a></p>
+        <p style="margin:0 0 14px; font-size:15px; line-height:1.5;">The QR code is attached to this email as a PNG so you can print it for your table.</p>
+        <p style="margin:16px 0 0; font-size:13px; color:#6b7c93; line-height:1.5;">If the link above is not clickable, copy and paste this into your browser:<br>${url}</p>
+      </div>
+      <div style="padding:16px 24px; border-top:1px solid #e6eaf0; font-size:12px; color:#8a99ab;">
+        Sent from the LDAH staff dashboard.
+      </div>
+    </div>
+  </div>
+</body></html>`;
+
+    const apiKey = process.env.RESEND_API_KEY;
+    const fromAddress = String(process.env.SMTP_FROM || "onboarding@resend.dev").replace(/[\r\n\t]+/g, "").trim();
+
+    try {
+      const resp = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + apiKey, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: `LDAH <${fromAddress}>`,
+          to: [toEmail],
+          subject,
+          html,
+          attachments: [{ filename, content: pngBase64 }],
+        }),
+      });
+      if (!resp.ok) {
+        const t = await resp.text();
+        console.error("emailSpecialEventQR Resend error (" + resp.status + "): " + t);
+        throw new functions.https.HttpsError("internal", "Could not send the QR email.");
+      }
+      return { ok: true };
+    } catch (err) {
+      if (err instanceof functions.https.HttpsError) throw err;
+      console.error("emailSpecialEventQR error:", err.message);
+      throw new functions.https.HttpsError("internal", "Could not send the QR email.");
     }
   });
 
