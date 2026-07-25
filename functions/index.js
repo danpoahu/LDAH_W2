@@ -241,6 +241,68 @@ exports.extractEventFromFlyer = functions
     }
   });
 
+// ── Public event capacity counter — returns ONLY numeric counts, never PII ──
+// The public events page cannot read the signups subcollection (rules require
+// auth; signups hold PII). This callable does the counting server-side (admin
+// SDK bypasses rules) and returns headcount + per-session counts with NO names
+// or emails. Intentionally UNAUTHENTICATED — the public page calls it without
+// sign-in, so it must not gate on context.auth. Read-only + additive.
+exports.getEventCapacity = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .https.onCall(async (data) => {
+    const eventId = (data && typeof data.eventId === "string") ? data.eventId.trim() : "";
+    if (!eventId) {
+      throw new functions.https.HttpsError("invalid-argument", "Missing eventId.");
+    }
+    // Only these two collections are allowed; anything else defaults to 'events'.
+    const collection = (data && data.collection === "recurringEvents") ? "recurringEvents" : "events";
+
+    const db = admin.firestore();
+    const eventRef = db.collection(collection).doc(eventId);
+    const eventSnap = await eventRef.get();
+    if (!eventSnap.exists) return { ok: false };
+    const event = eventSnap.data() || {};
+
+    const signupsSnap = await eventRef.collection("signups").get();
+
+    let headcount = 0;
+    const sessionCounts = {};
+    signupsSnap.forEach((doc) => {
+      const s = doc.data() || {};
+      // Count only live signups.
+      if (s.status === "cancelled" || s.archived === true) return;
+
+      // Headcount: a Group signup counts groupSize participants (min 1 when
+      // missing/NaN); an Individual counts 1.
+      if (s.participationType === "Group") {
+        const n = parseInt(s.groupSize, 10);
+        headcount += (isNaN(n) || n < 1) ? 1 : n;
+      } else {
+        headcount += 1;
+      }
+
+      // Per-session counts (Connect-Gen "3 families per session"): one signup
+      // contributes 1 toward each distinct session key it lists. Recurring
+      // signups use selectedSessions (pipe-delimited "YYYY-MM-DD|venue|time");
+      // Learning Labs use selectedDates. Key by the raw string, matching how
+      // the Int session sheets group (su.selectedSessions || su.selectedDates).
+      const rawKeys = (Array.isArray(s.selectedSessions) && s.selectedSessions.length)
+        ? s.selectedSessions
+        : (Array.isArray(s.selectedDates) ? s.selectedDates : []);
+      const seen = new Set();
+      for (const raw of rawKeys) {
+        const key = String(raw || "").trim();
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        sessionCounts[key] = (sessionCounts[key] || 0) + 1;
+      }
+    });
+
+    const maxCapacity = Number(event.maxCapacity) || null;
+    const full = (maxCapacity > 0) ? headcount >= maxCapacity : false;
+    return { ok: true, maxCapacity, headcount, full, sessionCounts };
+  });
+
 // ── Check Resource URL for iframe compatibility ──
 exports.checkResourceUrl = functions
   .runWith({ timeoutSeconds: 15, maxInstances: 10 })
