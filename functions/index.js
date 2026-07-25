@@ -17464,6 +17464,30 @@ exports.onMembershipCreated = functions
         });
       }
 
+      // Second parent / guardian (optional) — mirror onto the family contact so
+      // membership second parents are reachable by every contact-keyed family
+      // email too, consistent with all other capture surfaces. Merge-safe:
+      // never overwrite a second parent already on the contact (staff-set, or
+      // from a prior event signup). Non-fatal — a failure must not block the
+      // membership→contact link below.
+      try {
+        const _sp = m.secondParent;
+        const _spEmail = _sp ? String(_sp.email || "").trim() : "";
+        if (_spEmail && RESEND_EMAIL_RE.test(_spEmail)) {
+          const _cSnap = await contactRef.get();
+          const _existing = _cSnap.exists && _cSnap.data().secondParent
+            ? String(_cSnap.data().secondParent.email || "").trim() : "";
+          if (!_existing) {
+            await contactRef.set({ secondParent: {
+              firstName: String(_sp.firstName || "").trim(),
+              lastName: String(_sp.lastName || "").trim(),
+              email: _spEmail } }, { merge: true });
+          }
+        }
+      } catch (spErr) {
+        console.error("onMembershipCreated secondParent enrichment failed:", spErr.message);
+      }
+
       await snap.ref.set({
         linkedContactId: contactRef.id,
         processedAt: now,
