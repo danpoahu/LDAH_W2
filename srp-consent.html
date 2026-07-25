@@ -319,6 +319,16 @@
                             <input type="text" id="zipCode" name="zipCode" inputmode="numeric" autocomplete="postal-code">
                         </div>
                     </div>
+
+                    <div class="form-group second-parent-block" style="margin-top:10px;">
+                        <a href="#" id="addSecondParentLink" onclick="toggleSecondParent(event)" style="font-size:.9rem;color:#0891B2;text-decoration:none;font-weight:600;">+ Add a second parent/guardian (optional)</a>
+                        <div id="secondParentFields" style="display:none;margin-top:10px;">
+                            <div style="font-weight:600;margin-bottom:6px;">Second parent / guardian</div>
+                            <div class="form-group"><label class="fld-label" for="secondParentFirst">First name</label><input type="text" id="secondParentFirst" autocomplete="given-name"></div>
+                            <div class="form-group"><label class="fld-label" for="secondParentLast">Last name</label><input type="text" id="secondParentLast" autocomplete="family-name"></div>
+                            <div class="form-group"><label class="fld-label" for="secondParentEmail">Email</label><input type="email" id="secondParentEmail" inputmode="email"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Child -->
@@ -615,6 +625,21 @@
             return el ? el.value : '';
         }
 
+        // ── Second parent / guardian (optional) — collapsed expander ──────────
+        function toggleSecondParent(e){ e.preventDefault();
+            var f=document.getElementById('secondParentFields');
+            var l=document.getElementById('addSecondParentLink');
+            var show=f.style.display==='none'; f.style.display=show?'block':'none';
+            if(show) l.style.display='none';
+        }
+        function _collectSecondParent(){
+            var em=(document.getElementById('secondParentEmail')||{}).value||'';
+            em=em.trim(); if(!em) return null;
+            return { firstName:((document.getElementById('secondParentFirst')||{}).value||'').trim(),
+                     lastName:((document.getElementById('secondParentLast')||{}).value||'').trim(),
+                     email:em };
+        }
+
         function collectForm() {
             const v = id => (document.getElementById(id) || {}).value || '';
             return {
@@ -728,10 +753,11 @@
             }
             setBusy(true);
             try {
+                const _sp = _collectSecondParent();
                 const res = await fetch(ENDPOINT_POST, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token: token, form: data })
+                    body: JSON.stringify(Object.assign({ token: token, form: data }, _sp ? { secondParent: _sp } : {}))
                 });
                 if (res.status === 410) { showMessage('Already submitted', 'This screening consent has already been submitted. Mahalo!'); return; }
                 if (!res.ok) {

@@ -10304,6 +10304,24 @@ exports.submitSrpConsent = functions
       if (parent.zipCode) contactUpdate.zipCode = parent.zipCode;
       await db.collection("contacts").doc(contactId).update(contactUpdate);
 
+      // Second parent / guardian (optional): merge-safe enrichment. Only writes
+      // when a valid second-parent email is supplied AND the contact has no
+      // existing second-parent email — never overwrite one staff already set.
+      const _sp = body && body.secondParent;
+      const _spEmail = _sp ? String(_sp.email || "").trim() : "";
+      if (_spEmail && RESEND_EMAIL_RE.test(_spEmail)) {
+        const _cRef = db.collection("contacts").doc(contactId);
+        const _cSnap = await _cRef.get();
+        const _existing = _cSnap.exists && _cSnap.data().secondParent
+          ? String(_cSnap.data().secondParent.email || "").trim() : "";
+        if (!_existing) {
+          await _cRef.update({ secondParent: {
+            firstName: String(_sp.firstName || "").trim(),
+            lastName: String(_sp.lastName || "").trim(),
+            email: _spEmail } });
+        }
+      }
+
       await tokRef.update({ usedAt: FieldValue.serverTimestamp(), consentContactId: contactId, submittedName: signedName });
 
       res.status(200).json({ ok: true, contactId });
@@ -10483,6 +10501,24 @@ exports.submitReadinessConsent = functions
           createdAt: FieldValue.serverTimestamp(),
         });
         contactId = ref.id;
+      }
+
+      // Second parent / guardian (optional): merge-safe enrichment. Only writes
+      // when a valid second-parent email is supplied AND the contact has no
+      // existing second-parent email — never overwrite one staff already set.
+      const _sp = body && body.secondParent;
+      const _spEmail = _sp ? String(_sp.email || "").trim() : "";
+      if (_spEmail && RESEND_EMAIL_RE.test(_spEmail)) {
+        const _cRef = db.collection("contacts").doc(contactId);
+        const _cSnap = await _cRef.get();
+        const _existing = _cSnap.exists && _cSnap.data().secondParent
+          ? String(_cSnap.data().secondParent.email || "").trim() : "";
+        if (!_existing) {
+          await _cRef.update({ secondParent: {
+            firstName: String(_sp.firstName || "").trim(),
+            lastName: String(_sp.lastName || "").trim(),
+            email: _spEmail } });
+        }
       }
 
       const ip = (req.headers["x-forwarded-for"] || req.ip || "").toString().split(",")[0].trim();
@@ -10721,7 +10757,8 @@ exports.sendScreeningResults = functions
       const html = _screeningResultsEmailHtml({ parentName: c.firstName || "", childName, url });
       await sendEmailViaResend({
         from: lifecycleFromAddress(),
-        to: email,
+        // Fan out to both parents/guardians when a second one is on file.
+        to: familyEmails(c),
         subject: "Your child's screening results are ready — LDAH",
         html,
         type: "screening-results",

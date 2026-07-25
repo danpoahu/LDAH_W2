@@ -441,6 +441,15 @@
     +     '<div class="fg"><label class="lbl" for="s_city">City</label><input type="text" id="s_city" autocomplete="address-level2"></div>'
     +     '<div class="fg"><label class="lbl" for="s_zipCode">Zip Code</label><input type="text" id="s_zipCode" inputmode="numeric" autocomplete="postal-code"></div>'
     +   '</div>'
+    +   '<div class="second-parent-block" style="margin-top:10px;">'
+    +     '<a href="#" id="addSecondParentLink" onclick="toggleSecondParent(event)" style="font-size:.9rem;color:#0891B2;text-decoration:none;font-weight:600;">+ Add a second parent/guardian (optional)</a>'
+    +     '<div id="secondParentFields" style="display:none;margin-top:10px;">'
+    +       '<div style="font-weight:600;margin-bottom:6px;">Second parent / guardian</div>'
+    +       '<div class="fg"><label class="lbl" for="secondParentFirst">First name</label><input type="text" id="secondParentFirst" autocomplete="given-name"></div>'
+    +       '<div class="fg"><label class="lbl" for="secondParentLast">Last name</label><input type="text" id="secondParentLast" autocomplete="family-name"></div>'
+    +       '<div class="fg"><label class="lbl" for="secondParentEmail">Email</label><input type="email" id="secondParentEmail" inputmode="email"></div>'
+    +     '</div>'
+    +   '</div>'
     + '</div>'
     + '<div class="section">'
     +   '<div class="section-title">Child</div>'
@@ -587,7 +596,8 @@
     btn.disabled = true; btn.textContent = 'Submitting…';
     try {
       // SAME payload shape as the kiosk, plus eventId (harmless if ignored)
-      const res = await fetch(ENDPOINT_SUBMIT, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ form: data, eventId: eventId }) });
+      const _sp = _collectSecondParent();
+      const res = await fetch(ENDPOINT_SUBMIT, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(Object.assign({ form: data, eventId: eventId }, _sp ? { secondParent: _sp } : {})) });
       if (!res.ok) {
         let dd=''; try { const j = await res.json(); dd = j && j.error ? ' ('+j.error+')' : ''; } catch(_){}
         showErr("We couldn't save the consent" + dd + '. Please try again.');
@@ -595,6 +605,7 @@
         return;
       }
       $('thanksMsg').textContent = 'Thank you, ' + data.parent.firstName + '. Consent for ' + (data.child.firstName || 'your child') + ' has been received. An LDAH staff member will call you for the screening.';
+      _resetSecondParent();
       hide('formCard'); show('thanksCard');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
