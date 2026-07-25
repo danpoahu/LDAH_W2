@@ -32,6 +32,7 @@
   <script src="js/cms-donate.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
   <script src="./js/formatters.js"></script>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2365,7 +2366,7 @@
       customAnswers: []
     };
     
-    function openSignupModal(eventId) {
+    async function openSignupModal(eventId) {
       // Clean up any existing signup modal to prevent duplicate IDs
       const existingModal = document.getElementById('signupModal');
       if (existingModal) existingModal.remove();
@@ -2380,6 +2381,30 @@
 
       const event = window.allEventsData.find(e => e.id === eventId);
       if (!event) return;
+
+      // ── Capacity gate (ADDITIVE) ──────────────────────────────────────────
+      // Complete NO-OP unless the event declares a numeric maxCapacity > 0.
+      // An event without maxCapacity behaves EXACTLY as before these lines.
+      const _cap = Number(event.maxCapacity);
+      const _hasCap = Number.isFinite(_cap) && _cap > 0;
+      let _perFamilyMax = null;
+      let _capFull = false;
+      if (_hasCap) {
+        // Signups hold PII and the public page cannot read the subcollection, so
+        // capacity counting happens server-side. The callable returns numbers only.
+        try {
+          const _capRes = await firebase.functions().httpsCallable('getEventCapacity')({ eventId: eventId, collection: 'events' });
+          const _cd = (_capRes && _capRes.data) || {};
+          if (_cd.full === true) _capFull = true;
+          // Per-family limit (5) applies ONLY when maxCapacity <= 100 (authoritative
+          // value from the callable); larger caps impose no per-family limit.
+          const _mc = Number(_cd.maxCapacity);
+          if (Number.isFinite(_mc) && _mc > 0 && _mc <= 100) _perFamilyMax = 5;
+        } catch (err) {
+          // Fail-open: never block a normal signup on a capacity-call error.
+          console.error('getEventCapacity failed; showing form:', err);
+        }
+      }
 
       // Parent Talk Cafe is Parent/Guardian-only: show only that role option.
       const parentOnly = /parent\s*talk\s*caf[eé]/i.test(event.title || '');
@@ -2738,6 +2763,20 @@
       `;
 
       document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+      // Capacity enforcement (ADDITIVE — only fires when _hasCap is true).
+      if (_capFull) {
+        // Event at/over cap: replace the form with a "full" notice (no submit).
+        const _fc = document.getElementById('signupFormContent');
+        if (_fc) _fc.innerHTML = `
+          <h2 style="color:#004E7C;font-size:24px;font-weight:bold;margin-bottom:12px;padding-right:40px;">${event.title}</h2>
+          <p style="color:#374151;font-size:16px;line-height:1.6;margin:0;">This event is full.</p>
+        `;
+      } else if (_perFamilyMax) {
+        // Per-family cap: cap the "# of participants" input at 5 (maxCapacity <= 100).
+        const _gs = document.getElementById('group-size');
+        if (_gs) _gs.setAttribute('max', String(_perFamilyMax));
+      }
     }
 
     function closeSignupModal(event) {
@@ -3797,6 +3836,21 @@
         formData.groupSize = document.getElementById('group-size')?.value || '';
       }
 
+      // Per-family cap (ADDITIVE): when maxCapacity <= 100, a single signup may
+      // include at most 5 participants. No cap / maxCapacity > 100 => unchanged.
+      // Relaxed edge: we intentionally do NOT re-read headcount here to reject a
+      // crossing family — the open-time gate in openSignupModal is the close
+      // mechanism (open while under cap => this signup completes; the next opener
+      // sees "This event is full.").
+      const _capSubmit = Number(eventData.maxCapacity);
+      if (formData.participationType === 'Group' && Number.isFinite(_capSubmit) && _capSubmit > 0 && _capSubmit <= 100) {
+        const _gsNum = parseInt(formData.groupSize, 10);
+        if (isNaN(_gsNum) || _gsNum > 5) {
+          alert('For this event, a single signup can include at most 5 participants. Please enter 5 or fewer.');
+          return;
+        }
+      }
+
       // Get selected dates
       const dateCheckboxes = document.querySelectorAll('.signup-date-checkbox:checked');
       formData.selectedDates = Array.from(dateCheckboxes).map(cb => cb.value);
@@ -4138,18 +4192,16 @@
 
       // Fetch signups to determine which sessions are full
       const RECURRING_SESSION_CAPACITY = 3;
-      const sessionConfirmedCounts = {};
+      // Per-session counts come from a backend callable (numbers only, no PII —
+      // the public page cannot read the signups subcollection). sessionCounts
+      // already counts non-cancelled/non-archived (pending+confirmed), matching
+      // the hard "never exceeds 3 per session" rule. Fail-open: on any error,
+      // leave counts empty so sessions render normally rather than blocking.
+      let sessionConfirmedCounts = {};
       try {
-        const signupsSnap = await db.collection('recurringEvents').doc(programId).collection('signups').get();
-        signupsSnap.docs.forEach(doc => {
-          const s = doc.data();
-          if (s.status === 'confirmed' && !s.archived) {
-            (s.selectedSessions || []).forEach(sessionKey => {
-              sessionConfirmedCounts[sessionKey] = (sessionConfirmedCounts[sessionKey] || 0) + 1;
-            });
-          }
-        });
-      } catch (err) { console.error('Error fetching signups for capacity:', err); }
+        const _capRes = await firebase.functions().httpsCallable('getEventCapacity')({ eventId: programId, collection: 'recurringEvents' });
+        sessionConfirmedCounts = (_capRes && _capRes.data && _capRes.data.sessionCounts) || {};
+      } catch (err) { console.error('getEventCapacity failed; sessions shown as open:', err); }
 
       const modalHTML = `
         <div id="signupModal" style="
