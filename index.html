@@ -742,7 +742,18 @@
             const recurringInfo = [];
             recurringSnap.docs.forEach(doc => {
                 const data = { id: doc.id, ...doc.data() };
-                if (data.flyerOnly) { if (data.imageUrl) recurringInfo.push({ ...data, _ongoing: true }); return; }
+                if (data.flyerOnly) {
+                    // Respect optional lifecycle dates (Show / Move-to-Past) when
+                    // set; a flyer with no dates shows indefinitely (back-compat).
+                    if (data.imageUrl) {
+                        let show = true;
+                        if (data.startDate && /^\d{4}-\d{2}-\d{2}$/.test(data.startDate) && now < new Date(data.startDate + 'T00:00:00')) show = false;
+                        if (data.moveToPastDate && /^\d{4}-\d{2}-\d{2}$/.test(data.moveToPastDate) && now >= new Date(data.moveToPastDate + 'T00:00:00')) show = false;
+                        if (data.removeDate && /^\d{4}-\d{2}-\d{2}$/.test(data.removeDate) && now >= new Date(data.removeDate + 'T00:00:00')) show = false;
+                        if (show) recurringInfo.push({ ...data, _ongoing: true });
+                    }
+                    return;
+                }
                 const next = _nextOccurrence(data.schedules);
                 if (next) recurringCards.push({ ...data, _nextDate: next, isRecurring: true });
             });
