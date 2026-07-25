@@ -994,6 +994,15 @@
         <input id="mm-email" type="email" required autocomplete="email" style="width:100%;padding:11px;border:1px solid #CBD5E1;border-radius:10px;margin-bottom:12px;font-size:1rem;">
         <label style="font-weight:600;display:block;margin-bottom:4px;">Phone <span style="font-weight:400;color:var(--text-soft);">(optional)</span></label>
         <input id="mm-phone" type="tel" autocomplete="tel" style="width:100%;padding:11px;border:1px solid #CBD5E1;border-radius:10px;margin-bottom:16px;font-size:1rem;">
+        <div class="second-parent-block" style="margin-bottom:16px;">
+          <a href="#" id="addSecondParentLink" onclick="toggleSecondParent(event)" style="font-size:.9rem;color:#0891B2;text-decoration:none;font-weight:600;">+ Add a second parent/guardian (optional)</a>
+          <div id="secondParentFields" style="display:none;margin-top:10px;">
+            <div style="font-weight:600;margin-bottom:6px;color:var(--ocean-deep);">Second parent / guardian</div>
+            <input id="secondParentFirst" type="text" placeholder="First name" autocomplete="given-name" style="width:100%;padding:11px;border:1px solid #CBD5E1;border-radius:10px;margin-bottom:10px;font-size:1rem;">
+            <input id="secondParentLast" type="text" placeholder="Last name" autocomplete="family-name" style="width:100%;padding:11px;border:1px solid #CBD5E1;border-radius:10px;margin-bottom:10px;font-size:1rem;">
+            <input id="secondParentEmail" type="email" placeholder="Email" style="width:100%;padding:11px;border:1px solid #CBD5E1;border-radius:10px;font-size:1rem;">
+          </div>
+        </div>
         <button type="submit" id="mm-submit" class="mb-btn mb-btn-primary" style="width:100%;">Continue to Payment</button>
         <p id="mm-msg" style="color:var(--text-soft);font-size:.85rem;margin-top:10px;text-align:center;line-height:1.5;"></p>
       </form>
@@ -1030,6 +1039,8 @@
         sub.textContent = level + ' membership — $' + amount + ' per year. Enter your info below, then complete your gift securely through PayPal.';
         el('mm-msg').textContent = '';
         var f = el('mm-form'); if (f) { f.reset(); f.style.display = ''; }
+        var _spf = el('secondParentFields'); if (_spf) _spf.style.display = 'none';
+        var _spl = el('addSecondParentLink'); if (_spl) _spl.style.display = '';
         el('mm-pay-step').style.display = 'none';
         el('mm-pay-msg').textContent = '';
         el('mm-success').style.display = 'none';
@@ -1041,6 +1052,19 @@
         el('membership-modal').classList.remove('active');
       };
 
+      // Second parent / guardian (optional) — collapsed expander.
+      window.toggleSecondParent = function (e) {
+        if (e && e.preventDefault) e.preventDefault();
+        var f = el('secondParentFields'); var l = el('addSecondParentLink');
+        var show = f.style.display === 'none'; f.style.display = show ? 'block' : 'none';
+        if (show) l.style.display = 'none';
+      };
+      function _collectSecondParent() {
+        var em = (el('secondParentEmail') || {}).value || ''; em = em.trim(); if (!em) return null;
+        return { firstName: ((el('secondParentFirst') || {}).value || '').trim(),
+                 lastName: ((el('secondParentLast') || {}).value || '').trim(), email: em };
+      }
+
       window.submitMembership = async function (ev) {
         if (ev && ev.preventDefault) ev.preventDefault();
         var btn = el('mm-submit');
@@ -1049,14 +1073,15 @@
         var email = el('mm-email').value.trim();
         var phone = el('mm-phone').value.trim();
         if (!_mmName || !email) return;
+        var _sp = _collectSecondParent();
         btn.disabled = true; btn.textContent = 'Saving…';
         try {
-          var ref = await firebase.firestore().collection('members').add({
+          var ref = await firebase.firestore().collection('members').add(Object.assign({
             name: _mmName, email: email, phone: phone,
             level: _mmLevel, amount: _mmAmount,
             status: 'pending', source: 'web-howtohelp',
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
+          }, _sp ? { secondParent: _sp } : {}));
           _mmDocId = ref.id;
         } catch (e) {
           msg.textContent = 'Sorry, something went wrong saving your info. Please try again or call (808) 536-9684.';

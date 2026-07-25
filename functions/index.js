@@ -17527,7 +17527,8 @@ exports.onMembershipPaid = functions
 
       await sendEmailViaResend({
         from: `LDAH <${fromAddress}>`,
-        to: email,
+        // Fan out to both parents/guardians when a second one is on the member doc.
+        to: familyEmails(after),
         subject: "Mahalo for your LDAH membership",
         html,
         type: "membership-thank-you",
