@@ -3688,13 +3688,18 @@
       btn.disabled = true;
       btn.textContent = 'Applying...';
       try {
+        // Second parent / guardian (optional): mirror it onto each sibling doc —
+        // top-level for immediate emails AND registration.secondParent for the
+        // funnel. Sourced from the draft (same session) or reg.secondParent
+        // (already merged by submitRegistration).
+        var _sp = window._secondParentDraft || (reg && reg.secondParent) || null;
         var writes = checkedIdx.map(function(i) {
           var s = list[i];
-          return db.collection(s.collection).doc(s.eventId).collection('signups').doc(s.signupId).update({
-            registration: reg,
+          return db.collection(s.collection).doc(s.eventId).collection('signups').doc(s.signupId).update(Object.assign({
+            registration: (_sp ? Object.assign({}, reg, { secondParent: _sp }) : reg),
             status: 'confirmed',
             registrationCompletedAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
+          }, _sp ? { secondParent: _sp } : {}));
         });
         await Promise.all(writes);
         document.getElementById('regSiblingPrompt').innerHTML =
@@ -3828,12 +3833,6 @@
       return { firstName:((document.getElementById('secondParentFirst')||{}).value||'').trim(),
                lastName:((document.getElementById('secondParentLast')||{}).value||'').trim(),
                email:em };
-    }
-    function _resetSecondParent(){
-      ['secondParentFirst','secondParentLast','secondParentEmail'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
-      var f=document.getElementById('secondParentFields'); if(f) f.style.display='none';
-      var l=document.getElementById('addSecondParentLink'); if(l) l.style.display='';
-      window._secondParentDraft=null;
     }
 
     async function submitSignup(event, eventId) {
