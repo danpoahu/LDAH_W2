@@ -1680,7 +1680,9 @@
     
     // Get all calendar items (events + approved requests)
     function getAllCalendarItems() {
-      const regularEvents = window.allEventsData || [];
+      // Exclude archived events — archiving must hide an event everywhere,
+      // including the calendar (the card lists already filter archived).
+      const regularEvents = (window.allEventsData || []).filter(e => e.archived !== true);
       const approvedRequests = window.approvedEventRequests || [];
       return [...regularEvents, ...approvedRequests];
     }
