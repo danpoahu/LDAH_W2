@@ -507,6 +507,19 @@ function normalizeRecipients(value) {
   return out;
 }
 
+// Family-facing recipients: the primary email plus an optional second
+// parent/guardian. Works for any record carrying {email, secondParent:{email}}
+// — a contact, a signup (secondParent lives under registration there), or a
+// member. sendEmailViaResend()'s normalizeRecipients() dedupes + validates, so
+// a shared or blank second address is harmless. Returns [] for a null record.
+function familyEmails(rec) {
+  if (!rec) return [];
+  const sp = rec.secondParent || (rec.registration && rec.registration.secondParent) || null;
+  const out = [rec.email];
+  if (sp && sp.email) out.push(sp.email);
+  return out.filter(Boolean);
+}
+
 async function sendEmailViaResend({
   from, to, subject, html, bcc, cc,
   type, relatedEventId, relatedSignupId, recipientName,
@@ -1254,7 +1267,7 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
       const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
       await sendEmailViaResend({
         from: `LDAH <${fromAddress}>`,
-        to: after.email,
+        to: familyEmails(after),
         subject: `You're signed up -- ${eventTitle}`,
         html,
         type: "confirmation-parent-talk-cafe",
@@ -1327,7 +1340,7 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
       const fromAddress = lifecycleFromAddress();
       await sendEmailViaResend({
         from: fromAddress,
-        to: after.email,
+        to: familyEmails(after),
         subject: `Action needed -- consent form for ${eventTitle}`,
         html,
         type: "connect-gen-consent-required",
@@ -1391,7 +1404,7 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
       });
       await sendEmailViaResend({
         from: lifecycleFromAddress(),
-        to: after.email,
+        to: familyEmails(after),
         subject: `Complete your Parent Report Worksheet -- ${eventTitle}`,
         html,
         type: "connect-gen-worksheet-request",
@@ -1445,7 +1458,7 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
     const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
     await sendEmailViaResend({
       from: `LDAH <${fromAddress}>`,
-      to: after.email,
+      to: familyEmails(after),
       subject: `Confirmed -- ${eventTitle}`,
       html,
       type: "confirmation",
@@ -2011,7 +2024,7 @@ exports.sendDeferredRegistrationEmails = functions
             const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
             await sendEmailViaResend({
               from: `LDAH <${fromAddress}>`,
-              to: data.email,
+              to: familyEmails(data),
               subject: `Complete Your Registration -- ${eventTitle}`,
               html: htmlBody,
               type: "registration",
@@ -2188,7 +2201,7 @@ exports.processPendingParentRegistrations = functions
           const htmlBody = buildRegistrationEmailHtml({ name: data.name || "there", eventTitle: event.title || "an LDAH Event", eventDate, signupId: s.id, eventId, type: "event", orgFooterHtml });
           const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
           await sendEmailViaResend({
-            from: `LDAH <${fromAddress}>`, to: email,
+            from: `LDAH <${fromAddress}>`, to: familyEmails(data),
             subject: `Reminder: Complete Your Registration -- ${event.title || "LDAH Event"}`,
             html: htmlBody, type: "registration-reminder", relatedEventId: eventId, relatedSignupId: s.id, recipientName: data.name || "",
           });
@@ -2254,7 +2267,7 @@ exports.resendRegistrationEmail = functions
       const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
       await sendEmailViaResend({
         from: `LDAH <${fromAddress}>`,
-        to: signupData.email,
+        to: familyEmails(signupData),
         subject: `Complete Your Registration -- ${eventTitle}`,
         html: htmlBody,
         type: "registration-resend",
@@ -3407,6 +3420,23 @@ async function applyRegistrationToContact(linkedContactId, registration, signupI
       console.error(`Children enrichment error (signup ${signupId}):`, childErr.message);
     }
 
+    // Second parent/guardian — set from the signup only when the contact has no
+    // second parent yet. MERGE RULE: never overwrite a second parent staff already
+    // set (a public form must not clobber staff-maintained data). Requires a valid
+    // email; a blank second-parent email is ignored entirely.
+    {
+      const sp = registration.secondParent;
+      const spEmail = sp ? String(sp.email || "").trim() : "";
+      const existingSpEmail = contactData.secondParent ? String(contactData.secondParent.email || "").trim() : "";
+      if (spEmail && RESEND_EMAIL_RE.test(spEmail) && !existingSpEmail) {
+        updates.secondParent = {
+          firstName: String(sp.firstName || "").trim(),
+          lastName: String(sp.lastName || "").trim(),
+          email: spEmail,
+        };
+      }
+    }
+
     if (Object.keys(updates).length > 0) {
       updates.enrichedAt = admin.firestore.FieldValue.serverTimestamp();
       updates.enrichedFrom = "registration";
@@ -3568,7 +3598,7 @@ async function handleCancelledFromSessionEmails(change, context) {
       try {
         await sendEmailViaResend({
           from: fromAddr,
-          to: toEmail,
+          to: familyEmails(after),
           subject: subject,
           html: html,
           type: "session-cancelled-cr-modal",
@@ -3865,7 +3895,7 @@ exports.sendNoShowReInvites = functions
         try {
           await sendEmailViaResend({
             from: `LDAH <${fromAddress}>`,
-            to: signup.email,
+            to: familyEmails(signup),
             subject: `We missed you at ${eventTitle}!`,
             html: htmlBody,
             type: "no-show-reinvite",
@@ -4043,7 +4073,7 @@ exports.sendFeedbackEmails = functions
         try {
           await sendEmailViaResend({
             from: `LDAH <${fromAddress}>`,
-            to: data.email,
+            to: familyEmails(data),
             subject: `How was ${eventTitle}? We'd love your feedback`,
             html: htmlBody,
             type: "feedback-request",
@@ -4147,7 +4177,7 @@ async function sendOneFeedbackEmail({ collection, eventId, signupId, signup, ses
     : `How was ${eventTitle}? We'd love your feedback`;
   return sendEmailViaResend({
     from: `LDAH <${fromAddress}>`,
-    to: signup.email,
+    to: familyEmails(signup),
     subject,
     html,
     type: mode === "reminder" ? "feedback-reminder" : "feedback-request",
@@ -6594,7 +6624,7 @@ async function sendOneReminderEmail({
 
   return sendEmailViaResend({
     from: `LDAH <${fromAddress}>`,
-    to: signup.email,
+    to: familyEmails(signup),
     bcc: skipBcc ? undefined : REMINDER_BCC,
     cc: cc,
     subject,
@@ -7096,7 +7126,7 @@ async function sendOneDayOfReminderEmail({
 
   return sendEmailViaResend({
     from: `LDAH <${fromAddress}>`,
-    to: signup.email,
+    to: familyEmails(signup),
     bcc: skipBcc ? undefined : REMINDER_BCC,
     cc: cc,
     subject,
@@ -7713,7 +7743,7 @@ exports.sendEventAnnouncement = functions
           // Legacy/empty/other types are excluded by design — no backfill.
           if (_audience === 'parents' && (c.type || '').trim() !== 'Parent/Guardian') return;
           const displayName = (c.displayName || [c.firstName, c.lastName].filter(Boolean).join(' ')).trim() || 'Friend';
-          recipients.push({ id: d.id, displayName, email, unsubscribeToken: c.unsubscribeToken });
+          recipients.push({ id: d.id, displayName, email, secondParent: c.secondParent, unsubscribeToken: c.unsubscribeToken });
         });
         // Guard: if a filter selected zero recipients, fail loudly instead of
         // silently sending to nobody (dryRun returns counts; real send errors).
@@ -7835,7 +7865,7 @@ exports.sendEventAnnouncement = functions
           const html = buildAnnouncementEmailHtml({ event, contact: r, unsubscribeUrl, eventId, sessionDate: _sessionDate });
           await sendEmailViaResend({
             from: 'LDAH <' + fromAddress + '>',
-            to: r.email,
+            to: familyEmails(r),
             subject: 'New Event: ' + (event.title || 'Upcoming LDAH Event'),
             html,
             type: 'event-announcement',
@@ -8234,7 +8264,7 @@ async function handleSignupLifecycleEmails(change, context, collectionName) {
     try {
       await sendEmailViaResend({
         from: lifecycleFromAddress(),
-        to: toEmail,
+        to: familyEmails(after),
         subject,
         html,
         type: kind === "cancellation" ? "signup-cancellation" : "signup-reschedule",
@@ -8459,7 +8489,7 @@ async function handleEventLifecycleEmails(change, context, collectionName) {
         try {
           await sendEmailViaResend({
             from: fromAddr,
-            to: r.email,
+            to: familyEmails({ email: r.email, registration: r.data && r.data.registration }),
             subject,
             html,
             type: typeTag,
@@ -8567,7 +8597,7 @@ async function handleEventLifecycleEmails(change, context, collectionName) {
           try {
             await sendEmailViaResend({
               from: fromAddr,
-              to: r.email,
+              to: familyEmails({ email: r.email, registration: r.data && r.data.registration }),
               subject,
               html,
               type: "session-cancelled",
@@ -10003,7 +10033,7 @@ exports.submitConnectGenConsent = functions
             });
             await sendEmailViaResend({
               from: lifecycleFromAddress(),
-              to: fresh.email,
+              to: familyEmails(fresh),
               subject: "Consent received -- what's left for your Connect-Gen session",
               html,
               type: "connect-gen-consent-received",
@@ -10926,7 +10956,7 @@ async function _cgSendConfirmedEmail(ref, signup, event) {
 
   await sendEmailViaResend({
     from: lifecycleFromAddress(),
-    to: signup.email,
+    to: familyEmails(signup),
     subject: "Confirmed -- Connect-Gen prep documents inside",
     html,
     type: "connect-gen-prep",
@@ -11519,7 +11549,7 @@ exports.sendConnectGenUploadLaterEmail = functions
 
       await sendEmailViaResend({
         from: fromAddress,
-        to: recipientEmail,
+        to: familyEmails({ email: recipientEmail, registration: signup.registration }),
         subject,
         html,
         type: "connect-gen-upload-later",
@@ -14710,7 +14740,7 @@ async function _sendConnectGenUploadLaterEmailFor({ db, signupRef, signupData, e
 
   await sendEmailViaResend({
     from: fromAddress,
-    to: recipientEmail,
+    to: familyEmails({ email: recipientEmail, registration: signupData.registration }),
     subject,
     html,
     type: "connect-gen-upload-later",
@@ -14954,7 +14984,7 @@ async function _sendCgRescheduleEmail({
   const fromAddress = lifecycleFromAddress();
   await sendEmailViaResend({
     from: fromAddress,
-    to: recipientEmail,
+    to: familyEmails({ email: recipientEmail, registration: signupData.registration }),
     subject,
     html,
     type: mode === "reminder" ? "connect-gen-firm-reminder" : "connect-gen-reschedule-offer",
