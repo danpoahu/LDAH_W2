@@ -1677,7 +1677,7 @@ async function handleSignupCreated(snap, context, collectionName) {
       try {
         await applyRegistrationToContact(
           linkedContactId,
-          Object.assign({}, signupData.registration, { preferredContact: signupData.preferredContact }),
+          Object.assign({}, signupData.registration, { preferredContact: signupData.preferredContact, secondParent: signupData.registration.secondParent || signupData.secondParent }),
           signupId,
         );
       } catch (e) {
@@ -3500,12 +3500,17 @@ async function applyRegistrationToContact(linkedContactId, registration, signupI
     }
 
     if (Object.keys(updates).length > 0) {
+      // Whether anything BEYOND the second parent was enriched. A
+      // secondParent-only write (e.g. a booth attendee who added a co-parent)
+      // does NOT mean we now hold full info, so it must not clear the
+      // special-outreach partial-profile flag below.
+      const _substantive = Object.keys(updates).some((k) => k !== "secondParent");
       updates.enrichedAt = admin.firestore.FieldValue.serverTimestamp();
       updates.enrichedFrom = "registration";
       // A real LL/CG registration means we now hold full info — clear the
       // special-outreach partial-profile flag. Additive; only runs on the
       // same enrichment write that already stamps enrichedFrom.
-      updates.partialProfile = false;
+      if (_substantive) updates.partialProfile = false;
       await contactRef.update(updates);
       console.log(`Enriched contact ${linkedContactId} with:`, JSON.stringify(updates));
     }
@@ -3530,7 +3535,7 @@ async function handleSignupUpdated(change, context) {
 
     await applyRegistrationToContact(
       after.linkedContactId,
-      Object.assign({}, after.registration, { preferredContact: after.preferredContact }),
+      Object.assign({}, after.registration, { preferredContact: after.preferredContact, secondParent: after.registration.secondParent || after.secondParent }),
       context.params.signupId,
     );
   } catch (err) {
