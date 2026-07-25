@@ -10307,19 +10307,26 @@ exports.submitSrpConsent = functions
       // Second parent / guardian (optional): merge-safe enrichment. Only writes
       // when a valid second-parent email is supplied AND the contact has no
       // existing second-parent email — never overwrite one staff already set.
-      const _sp = body && body.secondParent;
-      const _spEmail = _sp ? String(_sp.email || "").trim() : "";
-      if (_spEmail && RESEND_EMAIL_RE.test(_spEmail)) {
-        const _cRef = db.collection("contacts").doc(contactId);
-        const _cSnap = await _cRef.get();
-        const _existing = _cSnap.exists && _cSnap.data().secondParent
-          ? String(_cSnap.data().secondParent.email || "").trim() : "";
-        if (!_existing) {
-          await _cRef.update({ secondParent: {
-            firstName: String(_sp.firstName || "").trim(),
-            lastName: String(_sp.lastName || "").trim(),
-            email: _spEmail } });
+      // Non-fatal: the consent is already durably recorded above and the token
+      // burn follows, so a failure here must never 500 the request (a retry
+      // would append a duplicate screening entry).
+      try {
+        const _sp = body && body.secondParent;
+        const _spEmail = _sp ? String(_sp.email || "").trim() : "";
+        if (_spEmail && RESEND_EMAIL_RE.test(_spEmail)) {
+          const _cRef = db.collection("contacts").doc(contactId);
+          const _cSnap = await _cRef.get();
+          const _existing = _cSnap.exists && _cSnap.data().secondParent
+            ? String(_cSnap.data().secondParent.email || "").trim() : "";
+          if (!_existing) {
+            await _cRef.update({ secondParent: {
+              firstName: String(_sp.firstName || "").trim(),
+              lastName: String(_sp.lastName || "").trim(),
+              email: _spEmail } });
+          }
         }
+      } catch (spErr) {
+        console.error(`submitSrpConsent secondParent write failed for ${contactId}:`, spErr.message);
       }
 
       await tokRef.update({ usedAt: FieldValue.serverTimestamp(), consentContactId: contactId, submittedName: signedName });
