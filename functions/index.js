@@ -9969,11 +9969,11 @@ function buildConnectGenPrepEmailHtml({ name, eventTitle, datesPhrase, prepDocs,
     '<h1 style="margin:0;font-size:22px;font-weight:700">You\'re Confirmed</h1></div>' +
     '<div style="padding:32px 24px">' +
     '<p style="margin:0 0 16px;font-size:16px">Aloha ' + safeName + ',</p>' +
-    '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Mahalo for returning your signed consent. Your appointment for <strong>' + safeTitle + '</strong>' + (safeDates ? '<strong>' + safeDates + '</strong>' : '') + ' is confirmed.</p>' +
+    '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Mahalo &mdash; your registration for <strong>' + safeTitle + '</strong>' + (safeDates ? ' <strong>' + safeDates + '</strong>' : '') + ' is complete and your session is confirmed. Here is everything you need to be ready.</p>' +
     '<div style="background:#FFFBEB;border:2px solid #F59E0B;border-radius:10px;padding:14px 18px;margin:18px 0;">' +
-      '<div style="font-weight:700;color:#92400E;font-size:1rem;margin-bottom:4px;">Important — please bring to the session</div>' +
+      '<div style="font-weight:700;color:#92400E;font-size:1rem;margin-bottom:4px;">Important — please have these ready for your session</div>' +
       '<div style="font-size:.95rem;color:#78350F;line-height:1.5;">Your child\'s most current <strong>IEP</strong> and the <strong>Evaluation that created the IEP</strong>. We won\'t be able to do a meaningful review without both of these on hand.</div>' +
-      '<div style="font-size:.95rem;color:#78350F;line-height:1.5;margin-top:8px;">Please also begin to fill out the <strong>Parent Report Worksheet — Concerns Affecting Education</strong> before attending.</div>' +
+      '<div style="font-size:.95rem;color:#78350F;line-height:1.5;margin-top:8px;">If you haven\'t already, please complete the <strong>Parent Report Worksheet — Concerns Affecting Education</strong> before your session. If you\'ve already submitted it, you\'re all set — mahalo!</div>' +
     '</div>' +
     zoomNoteBlock +
     docsHtml +
