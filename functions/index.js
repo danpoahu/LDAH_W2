@@ -3975,7 +3975,7 @@ exports.sendNoShowReInvites = functions
             type: "no-show-reinvite",
             relatedEventId: eventId,
             relatedSignupId: signup.id,
-            recipientName: signup.data().name || "",
+            recipientName: signup.name || "",
           });
 
           await signup.ref.update({
@@ -8971,23 +8971,39 @@ exports.sendEventRecordingEmail = functions
         // can't be guarded and fall through to send.
         const recKey = sessionKey || "_single";
         let signupRef = null;
+        let sgSnap = null;
         if (r.signupId) {
           signupRef = admin.firestore().collection(collection).doc(eventId)
             .collection("signups").doc(r.signupId);
+          // Load the signup once (used for both the dedup guard and the
+          // second-parent fan-out). Loaded regardless of `force` so a
+          // force-resend still reaches the second parent.
+          try {
+            sgSnap = await signupRef.get();
+          } catch (e) { /* read failed — sgSnap stays null; fall through and send */ }
           // When `force` is set, skip the guard entirely and re-send to everyone.
-          if (!force) {
-            try {
-              const sgSnap = await signupRef.get();
-              const res = sgSnap.exists ? (sgSnap.data().recordingEmailSent || null) : null;
-              if (res && res[recKey] && res[recKey][audience]) {
-                skippedDuplicate++;
-                continue;
-              }
-            } catch (e) { /* read failed — fall through and send */ }
+          if (!force && sgSnap) {
+            const res = sgSnap.exists ? (sgSnap.data().recordingEmailSent || null) : null;
+            if (res && res[recKey] && res[recKey][audience]) {
+              skippedDuplicate++;
+              continue;
+            }
           }
         }
 
-        const resendBody = { from, to: [r.email], subject: recipSubject, html: recipHtml };
+        // Fan out to the optional second parent/guardian recorded on the
+        // signup (top-level `secondParent`). Add only a valid, distinct address.
+        const toList = [r.email];
+        if (sgSnap && sgSnap.exists) {
+          const sp = sgSnap.data().secondParent;
+          const spEmail = sp && sp.email ? String(sp.email).trim() : "";
+          if (spEmail && RESEND_EMAIL_RE.test(spEmail) &&
+              spEmail.toLowerCase() !== String(r.email).toLowerCase()) {
+            toList.push(spEmail);
+          }
+        }
+
+        const resendBody = { from, to: toList, subject: recipSubject, html: recipHtml };
         if (attachments.length) {
           resendBody.attachments = attachments;
         }
@@ -9258,7 +9274,30 @@ exports.resendEventRecordingEmail = functions
         }
       }
 
-      const body = { from: fromAddress, to: [to], subject: log.subject || "(resend)", html: log.html };
+      // Fan out to the optional second parent/guardian on the signup, mirroring
+      // the bulk recording sender. Skip when staff supplied an explicit
+      // overrideTo (they've deliberately chosen the recipient). The email log
+      // doesn't record which collection the signup lives in, so probe both.
+      const toList = [to];
+      if (!overrideTo && log.relatedSignupId && log.relatedEventId) {
+        for (const coll of ["events", "recurringEvents"]) {
+          try {
+            const sgSnap = await db.collection(coll).doc(log.relatedEventId)
+              .collection("signups").doc(log.relatedSignupId).get();
+            if (sgSnap.exists) {
+              const sp = sgSnap.data().secondParent;
+              const spEmail = sp && sp.email ? String(sp.email).trim() : "";
+              if (spEmail && RESEND_EMAIL_RE.test(spEmail) &&
+                  spEmail.toLowerCase() !== String(to).toLowerCase()) {
+                toList.push(spEmail);
+              }
+              break;
+            }
+          } catch (e) { /* probe failed — continue */ }
+        }
+      }
+
+      const body = { from: fromAddress, to: toList, subject: log.subject || "(resend)", html: log.html };
       if (attachments) body.attachments = attachments;
 
       const resp = await fetch("https://api.resend.com/emails", {
