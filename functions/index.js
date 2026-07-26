@@ -562,9 +562,16 @@ function normalizeRecipients(value) {
     value.flatMap((v) => String(v || "").split(/[;,]/)) :
     String(value || "").split(/[;,]/);
   const out = [];
+  const seen = new Set();
   for (const part of raw) {
     const addr = part.trim();
-    if (RESEND_EMAIL_RE.test(addr) && !out.includes(addr)) out.push(addr);
+    // Dedupe case-insensitively — a family listing "Parent@Gmail.com" and
+    // "parent@gmail.com" (e.g. primary + second parent) must not send twice.
+    const lc = addr.toLowerCase();
+    if (RESEND_EMAIL_RE.test(addr) && !seen.has(lc)) {
+      seen.add(lc);
+      out.push(addr);
+    }
   }
   return out;
 }
@@ -8556,7 +8563,7 @@ async function handleEventLifecycleEmails(change, context, collectionName) {
         try {
           await sendEmailViaResend({
             from: fromAddr,
-            to: familyEmails({ email: r.email, registration: r.data && r.data.registration }),
+            to: familyEmails({ email: r.email, secondParent: r.data && r.data.secondParent, registration: r.data && r.data.registration }),
             subject,
             html,
             type: typeTag,
@@ -8664,7 +8671,7 @@ async function handleEventLifecycleEmails(change, context, collectionName) {
           try {
             await sendEmailViaResend({
               from: fromAddr,
-              to: familyEmails({ email: r.email, registration: r.data && r.data.registration }),
+              to: familyEmails({ email: r.email, secondParent: r.data && r.data.secondParent, registration: r.data && r.data.registration }),
               subject,
               html,
               type: "session-cancelled",
@@ -11660,7 +11667,7 @@ exports.sendConnectGenUploadLaterEmail = functions
 
       await sendEmailViaResend({
         from: fromAddress,
-        to: familyEmails({ email: recipientEmail, registration: signup.registration }),
+        to: familyEmails({ email: recipientEmail, secondParent: signup.secondParent, registration: signup.registration }),
         subject,
         html,
         type: "connect-gen-upload-later",
@@ -14851,7 +14858,7 @@ async function _sendConnectGenUploadLaterEmailFor({ db, signupRef, signupData, e
 
   await sendEmailViaResend({
     from: fromAddress,
-    to: familyEmails({ email: recipientEmail, registration: signupData.registration }),
+    to: familyEmails({ email: recipientEmail, secondParent: signupData.secondParent, registration: signupData.registration }),
     subject,
     html,
     type: "connect-gen-upload-later",
@@ -15095,7 +15102,7 @@ async function _sendCgRescheduleEmail({
   const fromAddress = lifecycleFromAddress();
   await sendEmailViaResend({
     from: fromAddress,
-    to: familyEmails({ email: recipientEmail, registration: signupData.registration }),
+    to: familyEmails({ email: recipientEmail, secondParent: signupData.secondParent, registration: signupData.registration }),
     subject,
     html,
     type: mode === "reminder" ? "connect-gen-firm-reminder" : "connect-gen-reschedule-offer",
