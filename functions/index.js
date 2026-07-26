@@ -11422,7 +11422,7 @@ exports.requestConnectGenUploadUrl = functions
 
 // Step 3: browser PUT'd the file at the signed URL; record it on the signup.
 exports.confirmConnectGenUpload = functions
-  .runWith({ memory: "2GB", timeoutSeconds: 180, maxInstances: 10 })
+  .runWith({ memory: "2GB", timeoutSeconds: 180, maxInstances: 10, secrets: EMAIL_SECRETS })
   .https.onRequest(async (req, res) => {
     res.set("Access-Control-Allow-Origin", "*");
     res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -12713,7 +12713,7 @@ exports.getConnectGenWorksheet = functions
   });
 
 exports.saveConnectGenWorksheet = functions
-  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: EMAIL_SECRETS })
   .https.onRequest(async (req, res) => {
     res.set("Access-Control-Allow-Origin", "*");
     res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -12788,7 +12788,7 @@ exports.saveConnectGenWorksheet = functions
 // any field. Every change is recorded in staffEdits, so the parent's own words
 // are never silently overwritten and can always be recovered.
 exports.staffSaveConnectGenWorksheet = functions
-  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: EMAIL_SECRETS })
   .https.onRequest(async (req, res) => {
     res.set("Access-Control-Allow-Origin", "*");
     res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
