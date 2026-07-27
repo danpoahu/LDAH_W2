@@ -1759,6 +1759,34 @@ async function handleSignupCreated(snap, context, collectionName) {
     console.error(`accommodations task failed for signup ${signupId}:`, accErr.message);
   }
 
+  // ── Created-confirmed confirmation email (2026-07-27) ──────────────
+  // A signup born status:'confirmed' WITH a registration — the inline-at-signup
+  // completion (full form filled straight from the announcement link) or the
+  // "register another child" sibling flow — is written in a single .add(), so
+  // it never produces the onUpdate status/registration transition that
+  // maybeSendRegistrationConfirmation fires on. Result: the confirmation email
+  // was silently never sent for these (the created-confirmed CONTACT enrichment
+  // above was patched for the same reason, but the email send was missed).
+  // Fire it here, once, on create. We synthesize a change whose `before` is
+  // empty so statusJustConfirmed is true; the function is idempotent (bails if
+  // confirmationEmailSentAt is already set) and re-reads the doc for
+  // prepToken/session data. NOTE: like the onUpdate path, this defers to the
+  // catch-up reminder when a session is within 3 days — but that reminder is
+  // itself onUpdate-only, so a created-confirmed signup inside the 3-day window
+  // still gets nothing; not fixed here (rare, separate follow-up).
+  if (signupData.status === 'confirmed' && signupData.registration) {
+    try {
+      const freshSnap = await snap.ref.get();
+      await maybeSendRegistrationConfirmation(
+        { before: { data: () => ({}) }, after: freshSnap },
+        context,
+        collectionName,
+      );
+    } catch (ccErr) {
+      console.error(`created-confirmed confirmation email failed for ${collectionName}/${eventId}/${signupId}:`, ccErr.message);
+    }
+  }
+
   return null;
 }
 
