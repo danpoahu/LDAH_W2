@@ -11289,26 +11289,38 @@ function buildConnectGenConsentReceivedEmailHtml({
   const safeName = lifecycleEsc(name || "there");
   const safeTitle = lifecycleEsc(eventTitle || "Connect-Gen");
   const safeDates = lifecycleEsc(datesPhrase || "");
-  // Documents are uploaded on the consent page itself, immediately after signing,
-  // so this email must NOT chase them — it fires seconds before the parent does
-  // exactly that, and listing "Upload Documents" as a to-do reads as though we
-  // hadn't noticed. The worksheet is the ONE requirement that is not on the
-  // consent page, so this email exists to point at that. Missing documents are
-  // backstopped by the reminder cron and by the fact that confirmation only
-  // fires once everything is in.
+  // The consent page reveals an upload card right after signing, but a parent who
+  // skips it there (or closes the page) has no way back — the old copy told them to
+  // "upload on the same page where you signed", a dead end once that session ends
+  // (the upload session expires). So when documents are still outstanding we now
+  // surface the standalone upload link (_cgUploadUrl -> token-based
+  // connect-gen-upload page) as a real button, with reply-by-email as a fallback.
+  // Confirmation still only fires once everything is in.
   const worksheetLeft = (outstanding || []).indexOf("worksheet") !== -1;
-  const stepsLeft = worksheetLeft ? "1 step left" : "almost there";
+  const docsLeft = (outstanding || []).indexOf("documents") !== -1;
+  const _stepN = (worksheetLeft ? 1 : 0) + (docsLeft ? 1 : 0);
+  const stepsLeft = _stepN >= 2 ? _stepN + " steps left" : (_stepN === 1 ? "1 step left" : "almost there");
 
   let checklist = '<ul style="margin:0 0 8px;padding-left:20px;font-size:15px;color:#334155;line-height:1.7">';
   if (worksheetLeft) {
     checklist += '<li style="margin:0 0 8px">Complete the <strong>Parent Report Worksheet</strong> — the concerns you want us to look at. It takes a few minutes and it is what makes the session useful.</li>';
   }
-  checklist += '<li style="margin:0 0 8px">Make sure your child’s <strong>IEP</strong> and <strong>Evaluation</strong> are uploaded. You can do this on the same page where you signed your consent — if you have already done it, you are all set.</li>';
+  if (docsLeft) {
+    checklist += '<li style="margin:0 0 8px">Upload your child’s most current <strong>IEP</strong> and <strong>Evaluation</strong>' + (uploadUrl ? ' using the button below' : ' — just reply to this email with them attached') + '. If you already uploaded them right after signing, you are all set.</li>';
+  } else {
+    checklist += '<li style="margin:0 0 8px">Your child’s <strong>IEP</strong> and <strong>Evaluation</strong> are on file — mahalo!</li>';
+  }
   checklist += '</ul>';
 
   let buttons = '';
+  if (docsLeft && uploadUrl) {
+    buttons += _emailBtn(uploadUrl, "Upload IEP &amp; Evaluation", { bg: "#0891B2", align: "center" });
+  }
   if (worksheetLeft && worksheetUrl) {
-    buttons += _emailBtn(worksheetUrl, "Complete the Worksheet", { bg: "#0891B2", align: "center" });
+    buttons += _emailBtn(worksheetUrl, "Complete the Worksheet", { bg: "#0E7490", align: "center" });
+  }
+  if (docsLeft && uploadUrl) {
+    buttons += '<p style="text-align:center;margin:6px 0 0;font-size:13px;color:#64748B;">Prefer email? Just reply to this message with the documents attached.</p>';
   }
 
   return '<!DOCTYPE html><html><head><meta charset="utf-8"></head>' +
