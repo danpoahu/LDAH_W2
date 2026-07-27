@@ -4583,6 +4583,66 @@ async function buildAnalyticsYtdHtml(db, esc, hawaiiNow) {
     + '<div style="text-align:center;font-size:11px;color:#666;">In LDAH-Int: Reports &rarr; Website &amp; App Analytics (staff login)</div>';
 }
 
+// ── Daily-report data-backup status (2026-07-27) ───────────────────────
+// Lists the newest Firestore scheduled backup (weekly, Sunday), stamps
+// system/backupStatus so the Int daily-report preview can show the same line,
+// and returns an HTML status row for the email. Green check when the newest
+// backup is <= 8 days old; amber warning when older or missing (a weekly run
+// was likely missed). Runs as the App Engine default SA, which holds
+// roles/datastore.backupsViewer (granted 2026-07-27). Never throws.
+async function buildBackupStatusHtml(db) {
+  var PROJECT = "ldah-932d5", LOCATION = "nam5";
+  var latest = null;
+  try {
+    var tokObj = await admin.credential.applicationDefault().getAccessToken();
+    var tok = tokObj && tokObj.access_token;
+    var url = "https://firestore.googleapis.com/v1/projects/" + PROJECT + "/locations/" + LOCATION + "/backups";
+    var resp = await fetch(url, { headers: { Authorization: "Bearer " + tok } });
+    var data = await resp.json();
+    ((data && data.backups) || []).forEach(function (b) {
+      var t = b.snapshotTime || b.createTime;
+      if (t && (!latest || t > latest.t)) latest = { t: t, name: b.name || "", state: b.state || "" };
+    });
+  } catch (err) {
+    console.warn("backup status: list failed:", err.message);
+  }
+
+  var lastMs = latest ? Date.parse(latest.t) : null;
+  var ageDays = lastMs ? Math.floor((Date.now() - lastMs) / 86400000) : null;
+  var overdue = !!latest && ageDays !== null && ageDays > 8; // amber: a weekly run was missed
+  var pending = !latest;                                      // grey: no backup yet (schedule new)
+  var stale = overdue;
+
+  try {
+    await db.collection("system").doc("backupStatus").set({
+      lastBackupTime: latest ? latest.t : null,
+      lastBackupName: latest ? latest.name : null,
+      ageDays: ageDays,
+      stale: stale,
+      checkedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+  } catch (err) {
+    console.warn("backup status: stamp failed:", err.message);
+  }
+
+  var accent = overdue ? "#B45309" : (pending ? "#475569" : "#047857");
+  var bg = overdue ? "#FEF3C7" : (pending ? "#F1F5F9" : "#ECFDF5");
+  var bd = overdue ? "#FCD34D" : (pending ? "#CBD5E1" : "#A7F3D0");
+  var icon = overdue ? "&#9888;" : (pending ? "&#128337;" : "&#10003;"); // warning / clock / check
+  var label;
+  if (!latest) {
+    label = "Weekly backup scheduled &mdash; first run this Sunday";
+  } else {
+    var dt = new Date(lastMs);
+    var dateStr = dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "Pacific/Honolulu" });
+    var ageStr = ageDays <= 0 ? "today" : (ageDays === 1 ? "1 day ago" : ageDays + " days ago");
+    label = "Last backup: " + dateStr + " (" + ageStr + ")" + (stale ? " &mdash; CHECK" : "");
+  }
+  return '<div style="background:' + bg + ';border:1px solid ' + bd + ';border-radius:8px;padding:10px 14px;font-size:13px;color:' + accent + ';font-weight:600;">'
+    + '&#128451; Data backup ' + icon + ' &nbsp;' + label
+    + ' <span style="font-weight:400;color:#6b7280;">&middot; weekly &middot; 14-wk retention</span></div>';
+}
+
 async function runDailyReport(overrideRecipients, opts) {
     const db = admin.firestore();
     const now = new Date();
@@ -5399,6 +5459,9 @@ async function runDailyReport(overrideRecipients, opts) {
     }
 
     const orgFooterHtml = await getOrgFooterHtml();
+    let backupStatusHtml = "";
+    try { backupStatusHtml = await buildBackupStatusHtml(db); }
+    catch (err) { console.warn("backup status build failed:", err.message); }
     const emailHtml = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -5419,6 +5482,8 @@ async function runDailyReport(overrideRecipients, opts) {
   </tr>
 
   ${cycleHtml ? `<tr><td style="padding:20px 28px 0;">${cycleHtml}</td></tr>` : ""}
+
+  ${backupStatusHtml ? `<tr><td style="padding:16px 28px 0;">${backupStatusHtml}</td></tr>` : ""}
 
   <!-- Section 1: All Active Events & Programs -->
   <tr>
