@@ -56,6 +56,16 @@
 
 .lv-below{max-width:760px;margin:0 auto 1.1rem;text-align:center;font-size:.88rem;color:#64748B}
 
+/* Shown when autoplay was only allowed muted — clicking it turns sound on
+   and restarts from the beginning so nothing is missed. */
+.lv-soundcue{position:absolute;left:50%;top:6%;transform:translateX(-50%);z-index:9;
+    display:none;align-items:center;gap:.45rem;background:rgba(15,23,42,.86);color:#fff;
+    border:none;border-radius:999px;padding:.5rem 1rem;font:600 .88rem 'Source Sans 3',-apple-system,sans-serif;
+    cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.28)}
+.lv-soundcue.on{display:flex}
+.lv-soundcue:hover{background:rgba(15,23,42,.96)}
+.lv-soundcue svg{width:16px;height:16px;fill:#fff;flex:0 0 auto}
+
 /* character motion */
 .lv-blink{animation:lvBlink 5.4s infinite}
 .lv-blink.b2{animation-delay:.14s}

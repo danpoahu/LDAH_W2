@@ -23,19 +23,23 @@
     var HOST = document.getElementById('letterVideo');
     if (!HOST) return;
 
+    // `d` is each clip's duration in seconds, measured at render time. Baked in
+    // so the progress bar and total are known immediately, without fetching
+    // metadata for twelve files on page load. If the audio is re-rendered with
+    // a different voice, update these to match or the scrub bar will drift.
     var LINES = [
-        { f: 'l00.m4a', greet: true, cap: '' },
-        { f: 'l01.m4a', cap: 'For more than five decades, LDAH has been helping families navigate complex educational systems,' },
-        { f: 'l02.m4a', cap: 'access critical resources, and advocate for children with disabilities and developmental concerns.' },
-        { f: 'l03.m4a', cap: 'Every day, parents turn to LDAH for trusted guidance, training, case advocacy, and support' },
-        { f: 'l04.m4a', cap: 'during some of the most important decisions affecting their child’s future.' },
-        { f: 'l05.m4a', cap: 'As a nonprofit organization, we rely on the generosity of individuals, families, businesses, and community partners' },
-        { f: 'l06.m4a', cap: 'to ensure these services remain available throughout Hawai‘i and the Pacific.' },
-        { f: 'l07.m4a', cap: 'LDAH is revamping our membership program — offering parents, professionals, and community members' },
-        { f: 'l08.m4a', cap: 'an opportunity to stay connected with the Parent Center network of over 100 parent centers across the nation.' },
-        { f: 'l09.m4a', cap: 'We invite you to become a member of LDAH' },
-        { f: 'l10.m4a', cap: 'and invest in stronger families, informed advocates, and brighter futures.' },
-        { f: 'l11.m4a', cap: 'Mahalo — from all of us at LDAH. 🤙' }
+        { f: 'l00.m4a', d: 3.93, greet: true, cap: '' },
+        { f: 'l01.m4a', d: 6.93, cap: 'For more than five decades, LDAH has been helping families navigate complex educational systems,' },
+        { f: 'l02.m4a', d: 5.92, cap: 'access critical resources, and advocate for children with disabilities and developmental concerns.' },
+        { f: 'l03.m4a', d: 7.37, cap: 'Every day, parents turn to LDAH for trusted guidance, training, case advocacy, and support' },
+        { f: 'l04.m4a', d: 4.23, cap: 'during some of the most important decisions affecting their child’s future.' },
+        { f: 'l05.m4a', d: 8.19, cap: 'As a nonprofit organization, we rely on the generosity of individuals, families, businesses, and community partners' },
+        { f: 'l06.m4a', d: 4.54, cap: 'to ensure these services remain available throughout Hawai‘i and the Pacific.' },
+        { f: 'l07.m4a', d: 7.18, cap: 'LDAH is revamping our membership program — offering parents, professionals, and community members' },
+        { f: 'l08.m4a', d: 6.43, cap: 'an opportunity to stay connected with the Parent Center network of over 100 parent centers across the nation.' },
+        { f: 'l09.m4a', d: 2.98, cap: 'We invite you to become a member of LDAH' },
+        { f: 'l10.m4a', d: 4.95, cap: 'and invest in stronger families, informed advocates, and brighter futures.' },
+        { f: 'l11.m4a', d: 2.94, cap: 'Mahalo — from all of us at LDAH. 🤙' }
     ];
     var DIR = 'letter-audio/';
     var GAP = 260; // ms between clips
@@ -115,6 +119,9 @@
     + '    <div class="lv-greet" id="lvGreet"><div class="lv-eyebrow">A message from LDAH</div>'
     + '      <h3>Dear Friend of Leadership in Disabilities &amp; Achievement of Hawai‘i</h3></div>'
     + '    <div class="lv-cap" aria-live="polite"><p id="lvCap"></p></div>'
+    + '    <button class="lv-soundcue" id="lvSoundCue">'
+    + '      <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"/></svg>'
+    + '      Tap for sound</button>'
     + '    <button class="lv-poster" id="lvPoster" aria-label="Play the message from LDAH">'
     + '      <span><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span></button>'
     + '  </div>'
@@ -135,23 +142,29 @@
     var stage = id('lvStage'), cap = id('lvCap'), greet = id('lvGreet'), playBtn = id('lvPlay'),
         playIcon = id('lvPlayIcon'), pauseIcon = id('lvPauseIcon'), prog = id('lvProg'),
         fill = id('lvFill'), timeEl = id('lvTime'), poster = id('lvPoster'), muteBtn = id('lvMute'),
-        sndOn = id('lvSndOn'), sndOff = id('lvSndOff');
+        sndOn = id('lvSndOn'), sndOff = id('lvSndOff'), soundCue = id('lvSoundCue');
 
-    var clips = LINES.map(function (L) { var a = new Audio(DIR + L.f); a.preload = 'metadata'; return a; });
+    // ONE audio element, whose src is swapped per line. Twelve separate Audio
+    // objects each need their own unlock from a user gesture, so playback died
+    // at the second clip once the gesture window lapsed. A single element stays
+    // unlocked for the whole sequence — the same reason this is the standard
+    // approach on iOS.
+    var player = new Audio();
+    player.preload = 'auto';
+
     var cur = 0, playing = false, muted = false, gapTimer = null, offsets = [], total = 0;
 
     function computeOffsets() {
         offsets = []; total = 0;
-        for (var i = 0; i < clips.length; i++) {
+        for (var i = 0; i < LINES.length; i++) {
             offsets.push(total);
-            var d = clips[i].duration;
-            total += (isFinite(d) && d > 0 ? d : 4) + GAP / 1000;
+            total += LINES[i].d + GAP / 1000;
         }
     }
     function fmt(s) { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
     function paint() {
-        var a = clips[cur];
-        var e = offsets[cur] + (a && isFinite(a.currentTime) ? a.currentTime : 0);
+        var into = isFinite(player.currentTime) ? Math.min(player.currentTime, LINES[cur].d) : 0;
+        var e = offsets[cur] + into;
         fill.style.width = (total ? e / total * 100 : 0).toFixed(2) + '%';
         timeEl.textContent = fmt(e) + ' / ' + fmt(total);
     }
@@ -166,42 +179,43 @@
     }
     function speaking(on) { stage.classList.toggle('playing', on); }
 
-    function playFrom(i) {
+    // Returns the play() promise. Pass ownErrorHandling when the caller wants
+    // to react to a rejection itself instead of just pausing (see autoStart).
+    function playFrom(i, ownErrorHandling) {
         cur = i; setCaption(i);
-        var a = clips[i];
-        a.currentTime = 0; a.muted = muted;
-        var p = a.play();
-        if (p && p.catch) p.catch(function () { pause(); });
+        player.src = DIR + LINES[i].f;
+        player.muted = muted;
+        var p = player.play();
         speaking(true);
+        if (!ownErrorHandling && p && p.catch) p.catch(function () { pause(); });
+        return p;
     }
     function advance() {
         speaking(false);
-        if (cur + 1 >= clips.length) { pause(); return; }
+        if (cur + 1 >= LINES.length) { pause(); return; }
         gapTimer = window.setTimeout(function () { if (playing) playFrom(cur + 1); }, GAP);
     }
     function start() {
         playing = true;
+        autoStarted = true;   // a manual start also satisfies the autoplay path
         poster.classList.add('gone');
         playIcon.style.display = 'none'; pauseIcon.style.display = '';
         playBtn.setAttribute('aria-label', 'Pause');
-        var a = clips[cur];
-        if (a.currentTime > 0 && !a.ended) { a.muted = muted; a.play(); speaking(true); setCaption(cur); }
-        else playFrom(cur);
+        if (player.src && player.currentTime > 0 && !player.ended) {
+            player.muted = muted; player.play(); speaking(true); setCaption(cur);
+        } else playFrom(cur);
     }
     function pause() {
         playing = false;
         if (gapTimer) window.clearTimeout(gapTimer);
-        clips[cur].pause();
+        player.pause();
         speaking(false);
         playIcon.style.display = ''; pauseIcon.style.display = 'none';
         playBtn.setAttribute('aria-label', 'Play');
     }
 
-    clips.forEach(function (a, i) {
-        a.addEventListener('ended', function () { if (playing && cur === i) advance(); });
-        a.addEventListener('timeupdate', function () { if (cur === i) paint(); });
-        a.addEventListener('loadedmetadata', function () { computeOffsets(); paint(); });
-    });
+    player.addEventListener('ended', function () { if (playing) advance(); });
+    player.addEventListener('timeupdate', paint);
 
     playBtn.addEventListener('click', function () { playing ? pause() : start(); });
     poster.addEventListener('click', start);
@@ -213,28 +227,113 @@
         var i = 0;
         while (i < offsets.length - 1 && offsets[i + 1] <= target) i++;
         var was = playing;
+        var into = Math.max(0, Math.min(target - offsets[i], LINES[i].d - 0.05));
         if (gapTimer) window.clearTimeout(gapTimer);
-        clips[cur].pause();
-        cur = i;
-        clips[i].currentTime = Math.max(0, Math.min(target - offsets[i], (clips[i].duration || 0) - 0.05));
-        setCaption(i); paint();
-        if (was) { clips[i].muted = muted; clips[i].play(); speaking(true); }
+        player.pause();
+        cur = i; setCaption(i);
+        player.src = DIR + LINES[i].f;
+        player.muted = muted;
+        // Can't seek until the new src reports a duration.
+        player.addEventListener('loadedmetadata', function seek() {
+            player.removeEventListener('loadedmetadata', seek);
+            player.currentTime = into;
+            paint();
+            if (was) { player.play(); speaking(true); }
+        });
+        player.load();
     });
 
-    muteBtn.addEventListener('click', function () {
-        muted = !muted;
-        clips.forEach(function (a) { a.muted = muted; });
-        sndOn.style.display = muted ? 'none' : '';
-        sndOff.style.display = muted ? '' : 'none';
-        muteBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
-        muteBtn.setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
+    function setMuted(m) {
+        muted = m;
+        player.muted = m;
+        sndOn.style.display = m ? 'none' : '';
+        sndOff.style.display = m ? '' : 'none';
+        muteBtn.setAttribute('aria-pressed', m ? 'true' : 'false');
+        muteBtn.setAttribute('aria-label', m ? 'Unmute' : 'Mute');
+    }
+    function showSoundCue(on) { soundCue.classList.toggle('on', !!on); }
+
+    muteBtn.addEventListener('click', function () { showSoundCue(false); setMuted(!muted); });
+
+    // Turning sound on restarts from the top, so nothing is missed while muted.
+    soundCue.addEventListener('click', function () {
+        showSoundCue(false);
+        setMuted(false);
+        if (gapTimer) window.clearTimeout(gapTimer);
+        player.pause();
+        playing = true;
+        playFrom(0);
     });
 
-    // Pause if the visitor scrolls the player well out of view.
+    // ── Autoplay ────────────────────────────────────────────────
+    // Browsers refuse to start audio without a prior user gesture, so try
+    // with sound first and fall back to a muted autoplay (which is always
+    // permitted) plus a one-tap unmute. If even that is refused, hand back
+    // to the poster button — the page still works, it just waits for a click.
+    var autoStarted = false;
+    function autoStart() {
+        if (autoStarted) return;
+        autoStarted = true;
+        poster.classList.add('gone');
+        playing = true;
+        playIcon.style.display = 'none'; pauseIcon.style.display = '';
+        playBtn.setAttribute('aria-label', 'Pause');
+        setMuted(false);
+        var p = playFrom(0, true);
+        if (!p || !p.catch) return;
+
+        p.catch(function () {
+            setMuted(true);
+            var p2 = player.play();
+            if (p2 && p2.catch) {
+                p2.catch(function () {
+                    // Muted autoplay refused too — revert to click-to-play.
+                    autoStarted = false; playing = false;
+                    setMuted(false);
+                    poster.classList.remove('gone');
+                    playIcon.style.display = ''; pauseIcon.style.display = 'none';
+                    playBtn.setAttribute('aria-label', 'Play');
+                    speaking(false);
+                });
+            }
+            showSoundCue(true);
+        });
+    }
+
+    // Autoplay needs BOTH conditions before the browser will allow it:
+    //   visible  — the player has scrolled into view (it sits below the fold,
+    //              and starting off-screen would waste the opening)
+    //   armed    — the visitor has interacted with the page at least once.
+    //              Browsers reject play() outright before any gesture, and
+    //              muting does NOT exempt <audio> the way it does <video>.
+    // Until both hold, the poster button is the way in. Never autoplay for
+    // visitors who asked for reduced motion.
+    var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var visible = false, armed = false;
+
+    function maybeAutoStart() {
+        if (autoStarted || reduceMotion || !visible || !armed) return;
+        autoStart();
+    }
+
+    function arm(e) {
+        armed = true;
+        // A click on the player itself is handled by its own controls —
+        // don't also fire the autostart path and double-trigger playback.
+        if (e && e.target && (stage.contains(e.target) || playBtn.contains(e.target))) return;
+        maybeAutoStart();
+    }
+    document.addEventListener('pointerdown', arm, true);
+    document.addEventListener('keydown', arm, true);
+
     if ('IntersectionObserver' in window) {
         new IntersectionObserver(function (entries) {
-            if (entries[0] && !entries[0].isIntersecting && playing) pause();
-        }, { threshold: 0 }).observe(stage);
+            var e = entries[0];
+            if (!e) return;
+            visible = e.isIntersecting && e.intersectionRatio >= 0.4;
+            if (visible) maybeAutoStart();
+            else if (!e.isIntersecting && playing) pause();
+        }, { threshold: [0, 0.4] }).observe(stage);
     }
 
     computeOffsets(); setCaption(0); paint();
