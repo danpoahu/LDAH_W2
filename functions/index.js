@@ -193,11 +193,14 @@ exports.extractEventFromFlyer = functions
         ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: fileBase64 } }
         : { type: "image",    source: { type: "base64", media_type: mediaType,        data: fileBase64 } };
 
+      const _nowHst = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
+      const _todayStr = _nowHst.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const system = [
         "You extract structured event details from a Learning & Disabilities Association of Hawaii (LDAH) event flyer.",
+        "TODAY'S DATE is " + _todayStr + " (Hawaii time) — use it to resolve any year the flyer leaves out.",
         "LDAH flyers are consistent: a title band, a weekday + time range, and one or more dated sessions each with a topic and a short description.",
         "Return ONLY via the provided tool. Rules:",
-        "- Every session 'date' MUST include the year in 'Month D, YYYY' form. If the flyer prints a year (usually near the title), use it. If not, infer the nearest upcoming year.",
+        "- Every session 'date' MUST include the year in 'Month D, YYYY' form. If the flyer prints an explicit year (usually near the title), use it EXACTLY. If the flyer OMITS the year, pick the year that makes the date fall ON OR AFTER today's date above (the nearest UPCOMING occurrence) — NEVER a past year, and never default to 2024.",
         "- 'modality' is 'virtual' when the flyer mentions Zoom/online; set 'location' to 'Zoom' in that case.",
         "- Keep the topic verbatim; keep each description to the flyer's wording, trimmed to one or two sentences.",
         "- Set 'confidence' to 'low' if the flyer is blurry or fields are ambiguous.",
