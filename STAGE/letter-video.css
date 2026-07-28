@@ -1,0 +1,95 @@
+/* ─────────────────────────────────────────────────────────────
+   letter-video.css — animated "Dear Friend of LDAH" player.
+
+   Progressive enhancement: letter-video.js injects the player into
+   #letterVideo. If JS is off, audio fails, or the browser can't play
+   AAC, the container stays empty and the written letter below it is
+   the content. The letter is never removed.
+
+   All classes are .lv-* prefixed and colours are literal, so this
+   drops into both LDAH_W2 (teal palette) and the App (navy palette)
+   without inheriting or clobbering host page variables.
+   ───────────────────────────────────────────────────────────── */
+
+.lv{max-width:760px;margin:0 auto 1.8rem;background:#fff;border-radius:20px;overflow:hidden;
+    box-shadow:0 12px 38px rgba(0,78,124,.15);border:1px solid rgba(8,145,178,.10)}
+.lv-stage{position:relative;background:linear-gradient(160deg,#E0F7FE 0%,#F0FBFF 45%,#FEF9EC 100%);
+    aspect-ratio:16/9;overflow:hidden}
+.lv-stage svg.lv-scene{width:100%;height:100%;display:block}
+
+.lv-cap{position:absolute;left:5%;right:5%;bottom:5.5%;text-align:center;pointer-events:none;z-index:5}
+.lv-cap p{display:inline-block;background:rgba(15,23,42,.80);color:#fff;
+    font-size:clamp(.84rem,1.75vw,1.12rem);line-height:1.5;padding:.5rem 1rem;border-radius:12px;
+    max-width:100%;opacity:0;transform:translateY(9px);transition:opacity .3s ease,transform .3s ease;
+    margin:0;text-wrap:balance}
+.lv-cap p.on{opacity:1;transform:translateY(0)}
+
+.lv-greet{position:absolute;left:50%;top:4.5%;transform:translateX(-50%) translateY(-14px);z-index:6;
+    opacity:0;transition:opacity .6s ease,transform .6s ease;text-align:center;width:min(86%,620px)}
+.lv-greet.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.lv-greet .lv-eyebrow{font-weight:700;font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;
+    color:#0891B2;margin-bottom:.2rem}
+.lv-greet h3{font-size:clamp(.98rem,2.3vw,1.55rem);color:#004E7C;font-weight:700;margin:0;
+    text-shadow:0 2px 14px rgba(255,255,255,.92);line-height:1.3}
+
+.lv-poster{position:absolute;inset:0;z-index:8;background:rgba(255,255,255,.16);border:none;
+    cursor:pointer;transition:opacity .35s;padding:0}
+.lv-poster.gone{opacity:0;pointer-events:none}
+.lv-poster span{position:absolute;left:50%;top:72%;transform:translate(-50%,-50%);width:70px;height:70px;
+    border-radius:50%;background:linear-gradient(135deg,#06B6D4,#22D3EE);display:flex;align-items:center;
+    justify-content:center;box-shadow:0 10px 30px rgba(8,145,178,.42)}
+.lv-poster svg{width:28px;height:28px;fill:#fff;margin-left:4px}
+
+.lv-bar{display:flex;align-items:center;gap:.85rem;padding:.8rem 1rem;background:#fff;border-top:1px solid #EEF2F6}
+.lv-btn{flex:0 0 auto;width:44px;height:44px;border-radius:50%;border:none;cursor:pointer;
+    background:linear-gradient(135deg,#06B6D4,#22D3EE);color:#fff;display:flex;align-items:center;
+    justify-content:center;transition:transform .15s,box-shadow .15s;padding:0}
+.lv-btn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(8,145,178,.34)}
+.lv-btn svg{width:18px;height:18px;fill:currentColor}
+.lv-prog{flex:1;height:7px;border-radius:99px;background:#E6EEF2;overflow:hidden;cursor:pointer}
+.lv-prog i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,#0891B2,#22D3EE)}
+.lv-time{font-variant-numeric:tabular-nums;font-size:.83rem;color:#64748B;font-weight:600;min-width:82px;text-align:right}
+.lv-mute{flex:0 0 auto;background:none;border:1.5px solid #CBD5E1;color:#64748B;border-radius:9px;
+    padding:.32rem .55rem;cursor:pointer;display:flex;align-items:center}
+.lv-mute svg{width:16px;height:16px;fill:currentColor}
+.lv-mute:hover{border-color:#0891B2;color:#0891B2}
+
+.lv-below{max-width:760px;margin:0 auto 1.1rem;text-align:center;font-size:.88rem;color:#64748B}
+
+/* character motion */
+.lv-blink{animation:lvBlink 5.4s infinite}
+.lv-blink.b2{animation-delay:.14s}
+@keyframes lvBlink{0%,94%,100%{transform:scaleY(.04)}96%,98%{transform:scaleY(1)}}
+.lv-breathe{animation:lvBreathe 4.6s ease-in-out infinite;transform-origin:210px 300px}
+@keyframes lvBreathe{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-2.6px) scale(1.006)}}
+.lv-sway{animation:lvSway 7.2s ease-in-out infinite;transform-origin:210px 210px}
+@keyframes lvSway{0%,100%{transform:rotate(-.9deg)}50%{transform:rotate(.9deg)}}
+.lv-brow{animation:lvBrow 6.8s ease-in-out infinite}
+@keyframes lvBrow{0%,84%,100%{transform:translateY(0)}88%,94%{transform:translateY(-2.6px)}}
+.lv-hand-l,.lv-hand-r{transform-origin:center;transition:transform .5s ease}
+.playing .lv-hand-l{animation:lvGestL 5.6s ease-in-out infinite}
+.playing .lv-hand-r{animation:lvGestR 6.4s ease-in-out infinite}
+@keyframes lvGestL{0%,100%{transform:translate(0,0) rotate(0)}30%{transform:translate(-7px,-13px) rotate(-8deg)}62%{transform:translate(-2px,-4px) rotate(-2deg)}}
+@keyframes lvGestR{0%,100%{transform:translate(0,0) rotate(0)}40%{transform:translate(7px,-11px) rotate(7deg)}70%{transform:translate(3px,-3px) rotate(2deg)}}
+
+/* mouth: one viseme visible at a time, cycling only while audio plays */
+.lv-viseme{opacity:0}
+.lv-viseme.rest{opacity:1}
+.playing .lv-viseme{animation:lvVis .96s steps(1,end) infinite}
+.playing .lv-v1{animation-delay:.16s}
+.playing .lv-v2{animation-delay:.32s}
+.playing .lv-v3{animation-delay:.48s}
+.playing .lv-v4{animation-delay:.64s}
+.playing .lv-v5{animation-delay:.80s}
+@keyframes lvVis{0%{opacity:1}16.6%{opacity:0}100%{opacity:0}}
+
+@media (prefers-reduced-motion: reduce){
+  .lv-blink,.lv-breathe,.lv-sway,.lv-brow,
+  .playing .lv-hand-l,.playing .lv-hand-r,.playing .lv-viseme{animation:none!important}
+  .lv-viseme{opacity:0}.lv-viseme.rest{opacity:1}
+}
+@media(max-width:600px){
+  .lv-time{min-width:0;font-size:.76rem}
+  .lv-poster span{width:58px;height:58px}
+  .lv-poster svg{width:23px;height:23px}
+}

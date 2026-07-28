@@ -557,6 +557,7 @@
       loadHeaderFooter();
     }
   </script>
+  <link rel="stylesheet" href="letter-video.css?v=1">
 </head>
 <body>
   <div id="header-container"></div>
@@ -574,6 +575,10 @@
   <!-- MEMBERSHIP: letter -->
   <section id="membership" class="mb-sec">
     <div class="mb-wrap">
+      <!-- Animated read-aloud of the letter. Injected by letter-video.js;
+           if that doesn't run, this stays empty and the written letter
+           below carries the section. -->
+      <div id="letterVideo"></div>
       <div class="mb-letter">
         <p class="mb-greeting">Dear Friend of Leadership in Disabilities &amp; Achievement of Hawai&lsquo;i (LDAH),</p>
         <p>For more than five decades, LDAH has been helping families navigate complex educational systems, access critical resources, and advocate for children with disabilities and developmental concerns. Every day, parents turn to LDAH for trusted guidance, training, case advocacy, and support during some of the most important decisions affecting their child&rsquo;s future.</p>
@@ -1157,5 +1162,6 @@
       });
     })();
   </script>
+  <script src="letter-video.js?v=1"></script>
 </body>
 </html>
