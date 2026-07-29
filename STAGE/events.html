@@ -2391,13 +2391,34 @@
       const _hasCap = Number.isFinite(_cap) && _cap > 0;
       let _perFamilyMax = null;
       let _capFull = false;
+      // Per-date counts, keyed by the raw signupDates string — the same value the
+      // date checkboxes carry, so a lookup is a direct match.
+      let _sessionCounts = {};
       if (_hasCap) {
         // Signups hold PII and the public page cannot read the subcollection, so
         // capacity counting happens server-side. The callable returns numbers only.
         try {
           const _capRes = await firebase.functions().httpsCallable('getEventCapacity')({ eventId: eventId, collection: 'events' });
           const _cd = (_capRes && _capRes.data) || {};
-          if (_cd.full === true) _capFull = true;
+          _sessionCounts = _cd.sessionCounts || {};
+
+          // maxCapacity is PER DATE. A booth running three shifts with a cap of
+          // 12 seats 12 people at EACH shift, not 12 across the whole event.
+          // The callable's own `full` flag is a whole-event headcount total, so
+          // it is only meaningful when there is at most one date to attend.
+          const _dates = Array.isArray(event.signupDates) ? event.signupDates : [];
+          const _liveDates = _dates.filter(function (d) {
+            const p = parseSignupDateString(d);
+            return !p || new Date(p + 'T23:59:59') >= new Date();
+          });
+          if (_liveDates.length > 1) {
+            // Multi-date: only close the whole form when EVERY remaining date is
+            // full. Otherwise the picker greys out the full ones individually.
+            _capFull = _liveDates.every(function (d) { return (_sessionCounts[d] || 0) >= _cap; });
+          } else if (_cd.full === true) {
+            _capFull = true;
+          }
+
           // Per-family limit (5) applies ONLY when maxCapacity <= 100 (authoritative
           // value from the callable); larger caps impose no per-family limit.
           const _mc = Number(_cd.maxCapacity);
@@ -2407,6 +2428,9 @@
           console.error('getEventCapacity failed; showing form:', err);
         }
       }
+      // Reachable from the date-picker template below.
+      window.__capPerDate = _hasCap ? _cap : null;
+      window.__capCounts = _sessionCounts;
 
       // Parent Talk Cafe is Parent/Guardian-only: show only that role option.
       const parentOnly = /parent\s*talk\s*caf[eé]/i.test(event.title || '');
@@ -2567,6 +2591,18 @@
                   });
                   // One available date: auto-select + show the date as a read-only line.
                   if (nonExpired.length === 1) {
+                    const _pd1 = window.__capPerDate;
+                    const _full1 = _pd1 ? ((window.__capCounts || {})[nonExpired[0]] || 0) >= _pd1 : false;
+                    if (_full1) {
+                      return `
+                      <div style="margin-bottom: 20px;">
+                        <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">Event Date</label>
+                        <div style="padding: 10px 12px; background: #FEF2F2; border-radius: 8px; border: 1px solid #FECACA; color: #991B1B; font-weight: 600; font-size: 14px;">
+                          ${nonExpired[0]} — FULL
+                        </div>
+                      </div>
+                    `;
+                    }
                     return `
                       <div style="margin-bottom: 20px;">
                         <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">Event Date</label>
@@ -2589,10 +2625,18 @@
                         ${allDates.map((date) => {
                           const parsedDate = parseSignupDateString(date);
                           const isExpired = parsedDate ? (new Date(parsedDate + 'T23:59:59') < new Date()) : false;
+                          // Capacity is per date, so a single shift can fill while
+                          // the others stay open. No cap set => never full.
+                          const _pd = window.__capPerDate;
+                          const _isFull = !isExpired && _pd
+                            ? ((window.__capCounts || {})[date] || 0) >= _pd
+                            : false;
+                          const off = isExpired || _isFull;
                           return `
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: ${isExpired ? 'not-allowed' : 'pointer'}; ${isExpired ? 'opacity: 0.6;' : ''}">
-                              <input type="checkbox" class="signup-date-checkbox" value="${date}" ${isExpired ? 'disabled' : ''} style="width: 18px; height: 18px; cursor: ${isExpired ? 'not-allowed' : 'pointer'};">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: ${off ? 'not-allowed' : 'pointer'}; ${off ? 'opacity: 0.6;' : ''}">
+                              <input type="checkbox" class="signup-date-checkbox" value="${date}" ${off ? 'disabled' : ''} style="width: 18px; height: 18px; cursor: ${off ? 'not-allowed' : 'pointer'};">
                               <span style="font-size: 14px; color: #374151; ${isExpired ? 'text-decoration: line-through;' : ''}">${date}</span>
+                              ${_isFull ? '<span style="font-size:11px;font-weight:700;color:#991B1B;background:#FEF2F2;border:1px solid #FECACA;border-radius:999px;padding:1px 8px;">FULL</span>' : ''}
                             </label>
                           `;
                         }).join('')}
