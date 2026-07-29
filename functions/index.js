@@ -5605,6 +5605,145 @@ exports.sendDailySessionSheet = functions
 // chase confirmations or cancel no-shows before the session happens.
 // Idempotent: skips an event if an Open "cancelPendingSignups" task
 // already exists for it (retry-safe, redeploy-safe).
+// ── Connect-Gen Parent Report Worksheet reminders ───────────────────────────
+// Phase 3 of the worksheet work. The worksheet request is a ONE-SHOT email
+// (maybeSendRegistrationConfirmation stamps cgWorksheetRequestEmailSentAt and
+// returns), and a Connect-Gen signup sits at 'pending' until the worksheet
+// lands — so a family who set the email aside was never chased, and their
+// status never flipped. This nudges them.
+//
+// Deliberate choices:
+//  - Does NOT require a known session date. A signup with an empty
+//    selectedDates (the shared-signup bug) is exactly the family most likely
+//    to be stuck, and skipping them would defend the wrong side.
+//  - Skips only when every known session is already in the past.
+//  - Caps at CG_WS_MAX_REMINDERS, spaced CG_WS_MIN_DAYS apart, counted from
+//    the last thing we sent (request or reminder) — so this can never become
+//    a drip campaign.
+//  - Never mails a dead link: requires a prepToken that has not expired.
+const CG_WS_MAX_REMINDERS = 3;
+const CG_WS_MIN_DAYS = 3;
+// Inside this many days of the session, drop to the tighter spacing below.
+const CG_WS_URGENT_DAYS = 4;
+const CG_WS_URGENT_MIN_DAYS = 1;
+
+exports.sendCgWorksheetReminders = functions
+  .runWith({ timeoutSeconds: 300, maxInstances: 1 })
+  .pubsub.schedule("0 9 * * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const nowMs = Date.now();
+    const todayISO = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }))
+      .toISOString().slice(0, 10);
+
+    const toMillis = (v) => (v && v.toMillis ? v.toMillis() : (v && v.seconds ? v.seconds * 1000 : 0));
+
+    let scanned = 0, sent = 0, skippedDone = 0, skippedCadence = 0, skippedPast = 0, skippedNoToken = 0, failed = 0;
+
+    for (const coll of ["recurringEvents", "events"]) {
+      let evs;
+      try {
+        evs = await db.collection(coll).where("zoomMode", "==", "program").get();
+      } catch (err) {
+        console.error(`sendCgWorksheetReminders: failed to read ${coll}:`, err.message);
+        continue;
+      }
+
+      for (const evDoc of evs.docs) {
+        const event = evDoc.data() || {};
+        let sigs;
+        try {
+          sigs = await evDoc.ref.collection("signups").get();
+        } catch (err) {
+          console.error(`sendCgWorksheetReminders: signups read failed for ${evDoc.ref.path}:`, err.message);
+          continue;
+        }
+
+        for (const sDoc of sigs.docs) {
+          const s = sDoc.data() || {};
+          scanned++;
+
+          if (s.archived === true) continue;
+          if (s.status === "cancelled" || s.status === "confirmed") continue;
+          if (!s.cgWorksheetRequestEmailSentAt) continue;          // never asked yet
+          if (!s.email) continue;
+
+          if (!s.prepToken) { skippedNoToken++; continue; }
+          const exp = toMillis(s.prepTokenExpiresAt);
+          if (exp && exp < nowMs) { skippedNoToken++; continue; }
+
+          let reqs;
+          try { reqs = _cgRequirements(s, event); } catch (_) { continue; }
+          if (!reqs.isConnectGen) continue;
+          if (reqs.outstanding.indexOf("worksheet") === -1) { skippedDone++; continue; }
+
+          // Only bail on dates we actually know. No sessions -> still remind.
+          const sessions = getSignupSessions(s, event) || [];
+          if (sessions.length) {
+            const anyUpcoming = sessions.some((x) => x && x.dateKey && x.dateKey >= todayISO);
+            if (!anyUpcoming) { skippedPast++; continue; }
+          }
+
+          const count = s.cgWorksheetReminderCount || 0;
+          if (count >= CG_WS_MAX_REMINDERS) { skippedCadence++; continue; }
+
+          // Tighten the spacing when the session is nearly here. At the base
+          // 3-day cadence a family who signs up two days before their session
+          // would not be reminded until after it had happened.
+          let minDays = CG_WS_MIN_DAYS;
+          if (sessions.length) {
+            const soonest = sessions.map((x) => x && x.dateKey).filter(Boolean).sort()[0];
+            if (soonest) {
+              const daysOut = (Date.parse(soonest + "T00:00:00-10:00") - nowMs) / 86400000;
+              if (daysOut <= CG_WS_URGENT_DAYS) minDays = CG_WS_URGENT_MIN_DAYS;
+            }
+          }
+          const lastMs = toMillis(s.cgWorksheetReminderLastSentAt) || toMillis(s.cgWorksheetRequestEmailSentAt);
+          if (nowMs - lastMs < minDays * 86400000) { skippedCadence++; continue; }
+
+          try {
+            const signatureHtml = await buildSignatureBlock("eventCoordinator");
+            const donateHtml = await buildDonateBlock("universal");
+            const html = buildConnectGenWorksheetRequestEmailHtml({
+              name: s.name || s.firstName || "there",
+              eventTitle: s.eventTitle || event.title || "Connect-Gen",
+              datesPhrase: formatDatesPhrase(sessions.map(function (x) { return x && x.dateKey; }).filter(Boolean)),
+              locationLine: _cgLocationLine(sessions),
+              worksheetUrl: _cgWorksheetUrl(s),
+              signatureHtml,
+              donateHtml,
+              isReminder: true,
+            });
+            await sendEmailViaResend({
+              from: lifecycleFromAddress(),
+              to: familyEmails(s),
+              subject: `Reminder: your Parent Report Worksheet -- ${s.eventTitle || event.title || "Connect-Gen"}`,
+              html,
+              type: "connect-gen-worksheet-reminder",
+              relatedEventId: evDoc.id,
+              relatedSignupId: sDoc.id,
+              recipientName: s.name || "",
+            });
+            await sDoc.ref.set({
+              cgWorksheetReminderCount: count + 1,
+              cgWorksheetReminderLastSentAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, { merge: true });
+            sent++;
+            console.log(`sendCgWorksheetReminders: reminder ${count + 1}/${CG_WS_MAX_REMINDERS} -> ${sDoc.ref.path}`);
+          } catch (err) {
+            failed++;
+            console.error(`sendCgWorksheetReminders: send failed for ${sDoc.ref.path}:`, err.message);
+          }
+        }
+      }
+    }
+
+    console.log(`sendCgWorksheetReminders: complete. scanned=${scanned} sent=${sent} ` +
+      `worksheetDone=${skippedDone} cadence=${skippedCadence} pastOnly=${skippedPast} noToken=${skippedNoToken} failed=${failed}`);
+    return null;
+  });
+
 exports.flagDayOfPendingSignups = functions
   .runWith({ timeoutSeconds: 120, maxInstances: 1 })
   .pubsub.schedule("0 6 * * *")
@@ -11361,8 +11500,12 @@ function buildConnectGenConsentReceivedEmailHtml({
 // The worksheet is their ONLY requirement, and the only thing standing between
 // them and a confirmed appointment.
 // Idempotence stamp: cgWorksheetRequestEmailSentAt.
+// isReminder only changes the framing (heading + opening line). The ask, the
+// button and the "bring your IEP" block are identical, so the reminder can
+// never drift from the original request.
 function buildConnectGenWorksheetRequestEmailHtml({
   name, eventTitle, datesPhrase, locationLine, worksheetUrl, signatureHtml, donateHtml,
+  isReminder,
 }) {
   const safeName = lifecycleEsc(name || "there");
   const safeTitle = lifecycleEsc(eventTitle || "Connect-Gen");
@@ -11374,10 +11517,12 @@ function buildConnectGenWorksheetRequestEmailHtml({
     '<div style="max-width:600px;margin:0 auto;background:#fff">' +
     '<div style="background-color:#0e7490;background:linear-gradient(135deg,#0e7490,#0891B2);padding:18px 24px 22px;text-align:center;color:#fff">' +
     '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;">' +
-    '<h1 style="margin:0;font-size:22px;font-weight:700">One Step to Confirm</h1></div>' +
+    '<h1 style="margin:0;font-size:22px;font-weight:700">' + (isReminder ? 'A Quick Reminder' : 'One Step to Confirm') + '</h1></div>' +
     '<div style="padding:32px 24px">' +
     '<p style="margin:0 0 16px;font-size:16px">Aloha ' + safeName + ',</p>' +
-    '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Mahalo for signing up for <strong>' + safeTitle + '</strong>' + (safeDates ? '<strong>' + safeDates + '</strong>' : '') + '. There is one thing we need before your appointment is confirmed: your <strong>Parent Report Worksheet</strong>.</p>' +
+    (isReminder
+      ? '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">We are still waiting on one thing for <strong>' + safeTitle + '</strong>' + (safeDates ? '<strong>' + safeDates + '</strong>' : '') + ': your <strong>Parent Report Worksheet</strong>. Your appointment is confirmed as soon as it comes in.</p>'
+      : '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Mahalo for signing up for <strong>' + safeTitle + '</strong>' + (safeDates ? '<strong>' + safeDates + '</strong>' : '') + '. There is one thing we need before your appointment is confirmed: your <strong>Parent Report Worksheet</strong>.</p>') +
     '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">The worksheet tells us what you are worried about, in your own words, before we sit down together. It is what turns two hours into two useful hours.</p>' +
     '<p style="text-align:center;margin:28px 0">' +
     _emailBtn(worksheetUrl, "Complete Your Worksheet", { bg: "#0891B2", align: "center" }) +
