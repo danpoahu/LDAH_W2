@@ -2692,18 +2692,18 @@
                 ${event.showGroupField !== false ? `
                 <div style="margin-bottom: 20px;">
                   <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
-                    Are you participating as an individual or with a group? *
+                    Are you attending on your own, or with others? *
                   </label>
                   <div style="display: flex; flex-direction: column; gap: 8px;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                       <input type="radio" name="participation-type" value="Individual" required
                         onchange="toggleGroupFields(false)" style="width: 18px; height: 18px; cursor: pointer;">
-                      <span style="font-size: 14px; color: #374151;">Individual</span>
+                      <span style="font-size: 14px; color: #374151;">Just me</span>
                     </label>
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                       <input type="radio" name="participation-type" value="Group" required checked
                         onchange="toggleGroupFields(true)" style="width: 18px; height: 18px; cursor: pointer;">
-                      <span style="font-size: 14px; color: #374151;">Group</span>
+                      <span style="font-size: 14px; color: #374151;">Me and others</span>
                     </label>
                   </div>
                 </div>
@@ -4556,15 +4556,15 @@
                 </div>
                 ${program.showGroupField ? `
                 <div style="margin-bottom:20px;">
-                  <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Are you participating as an individual or with a group? *</label>
+                  <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Are you attending on your own, or with others? *</label>
                   <div style="display:flex;flex-direction:column;gap:8px;">
                     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
                       <input type="radio" name="participation-type" value="Individual" required onchange="toggleGroupFields(false)" style="width:18px;height:18px;">
-                      <span style="font-size:14px;color:#374151;">Individual</span>
+                      <span style="font-size:14px;color:#374151;">Just me</span>
                     </label>
                     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
                       <input type="radio" name="participation-type" value="Group" required checked onchange="toggleGroupFields(true)" style="width:18px;height:18px;">
-                      <span style="font-size:14px;color:#374151;">Group</span>
+                      <span style="font-size:14px;color:#374151;">Me and others</span>
                     </label>
                   </div>
                 </div>
