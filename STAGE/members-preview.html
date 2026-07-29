@@ -74,6 +74,11 @@ h1,h2,h3{font-family:'Outfit',sans-serif;font-weight:600;line-height:1.3}
 .divider-or{display:flex;align-items:center;gap:.9rem;margin:1.6rem 0 1.2rem;color:#94A3B8;font-size:.85rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase}
 .divider-or::before,.divider-or::after{content:"";flex:1;height:1px;background:#E2E8F0}
 .dead-hint{text-align:center;font-size:.86rem;color:#94A3B8;margin-top:.55rem}
+/* Countdown under the "take a look" button. Nobody should sit here thinking
+   they need an account, so the preview walks itself in — visibly, and only
+   until the visitor does something of their own. */
+.auto-hint{display:none;text-align:center;font-size:.85rem;color:var(--primary-blue);margin-top:.6rem;font-weight:600}
+.auto-hint.on{display:block}
 .join-line{margin-top:1.4rem;padding-top:1rem;border-top:1px solid #EEF2F6;text-align:center;font-size:.95rem;color:var(--text-soft)}
 .join-line a{color:var(--primary-blue);font-weight:600;text-decoration:none}
 .join-line a:hover{text-decoration:underline}
@@ -248,6 +253,7 @@ footer{background:var(--text-dark);color:#fff;padding:1.75rem 2rem 1rem;position
       <p class="dead-hint">Members log in here. This sample doesn&rsquo;t accept a login.</p>
       <div class="divider-or">See what&rsquo;s inside</div>
       <a href="#" class="btn btn-outline btn-block" data-go="dash">Take a look at the member portal &rarr;</a>
+      <p class="auto-hint" id="autoHint" aria-live="polite"></p>
       <div class="join-line">Not a member yet? <a href="volunteer.html#membership">Become a member</a></div>
     </div>
   </div>
@@ -559,14 +565,61 @@ footer{background:var(--text-dark);color:#fff;padding:1.75rem 2rem 1rem;position
         id('pvBanner').innerHTML = BANNER[name];
 
         window.scrollTo(0, 0);
+
+        // Only the login screen walks itself forward, and only once.
+        if (name === 'login') armAuto(); else cancelAuto();
+    }
+
+    // ── Auto-advance off the login screen ───────────────────────────────
+    // The login card is a picture, but it still looks like a wall — visitors
+    // hesitate there wondering whether they need an account. After a short
+    // visible countdown the preview walks itself inside. Any action of the
+    // visitor's own cancels it, so it never yanks the page out from under
+    // someone who is reading or clicking.
+    var AUTO_SECONDS = 3;
+    var autoTick = null;
+
+    // Warm the dashboard tile photos while the login card is on screen. They
+    // are remote images and the auto-advance fires in three seconds — without
+    // this the tiles land as empty blocks for the first moment, which reads as
+    // broken in a live demo.
+    (function preloadTiles() {
+        var tiles = document.querySelectorAll('#sc-dash .tile-photo');
+        for (var i = 0; i < tiles.length; i++) {
+            var m = /url\(['"]?([^'")]+)/.exec(tiles[i].style.backgroundImage || '');
+            if (m && m[1]) { var im = new Image(); im.src = m[1]; }
+        }
+    })();
+
+    function cancelAuto() {
+        if (autoTick) { window.clearInterval(autoTick); autoTick = null; }
+        var hint = id('autoHint');
+        if (hint) { hint.classList.remove('on'); hint.textContent = ''; }
+    }
+
+    function armAuto() {
+        cancelAuto();
+        var hint = id('autoHint');
+        if (!hint) return;
+        // Someone who asked for reduced motion gets no surprise navigation.
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        var left = AUTO_SECONDS;
+        hint.textContent = 'Showing you the member portal in ' + left + '…';
+        hint.classList.add('on');
+        autoTick = window.setInterval(function () {
+            left--;
+            if (left <= 0) { cancelAuto(); show('dash'); return; }
+            hint.textContent = 'Showing you the member portal in ' + left + '…';
+        }, 1000);
     }
 
     document.addEventListener('click', function (e) {
         var el = e.target.closest ? e.target.closest('[data-go]') : null;
-        if (!el) return;
+        if (!el) { cancelAuto(); return; }   // any other click = they're driving
         e.preventDefault();
         show(el.getAttribute('data-go'));
     });
+    document.addEventListener('keydown', cancelAuto);
 
     var yr = document.querySelectorAll('.dynamic-year'), j;
     for (j = 0; j < yr.length; j++) yr[j].textContent = new Date().getFullYear();
