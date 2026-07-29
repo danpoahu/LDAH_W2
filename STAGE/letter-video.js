@@ -44,9 +44,18 @@
     var DIR = 'letter-audio/';
     var GAP = 260; // ms between clips
 
-    // Bail out quietly on browsers that can't play the format at all.
+    // Codec check, deliberately permissive. canPlayType is only ever a hint —
+    // it reports "" for plenty of browsers that play AAC fine (Edge on Windows
+    // has been seen doing this), and an over-strict check here hides the whole
+    // player. So try several spellings and only give up when every one comes
+    // back empty. A genuine failure is caught later by the audio error handler,
+    // which removes the player and leaves the written letter in place.
     var probe = document.createElement('audio');
-    if (!probe.canPlayType || !probe.canPlayType('audio/mp4')) return;
+    if (probe.canPlayType) {
+        var playable = ['audio/mp4', 'audio/mp4; codecs="mp4a.40.2"', 'audio/aac', 'audio/x-m4a']
+            .some(function (t) { return probe.canPlayType(t) !== ''; });
+        if (!playable) return;
+    }
 
     var SCENE =
     '<svg class="lv-scene" viewBox="0 0 640 360" role="img" aria-label="An illustrated presenter reading the LDAH membership letter">'
@@ -215,7 +224,17 @@
     }
 
     player.addEventListener('ended', function () { if (playing) advance(); });
-    player.addEventListener('timeupdate', paint);
+    player.addEventListener('timeupdate', function () { playedOk = true; paint(); });
+
+    // If the audio genuinely can't be decoded or fetched, don't leave a player
+    // sitting there that will never work — remove it and let the written letter
+    // carry the section, exactly as when the script doesn't run at all.
+    var playedOk = false;
+    player.addEventListener('error', function () {
+        if (playedOk) { pause(); return; }   // mid-run glitch: just stop
+        if (gapTimer) window.clearTimeout(gapTimer);
+        HOST.innerHTML = '';
+    });
 
     playBtn.addEventListener('click', function () { playing ? pause() : start(); });
     poster.addEventListener('click', start);
