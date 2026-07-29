@@ -5627,8 +5627,9 @@ const CG_WS_MIN_DAYS = 3;
 const CG_WS_URGENT_DAYS = 4;
 const CG_WS_URGENT_MIN_DAYS = 1;
 
+
 exports.sendCgWorksheetReminders = functions
-  .runWith({ timeoutSeconds: 300, maxInstances: 1 })
+  .runWith({ timeoutSeconds: 300, maxInstances: 1, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
   .pubsub.schedule("0 9 * * *")
   .timeZone("Pacific/Honolulu")
   .onRun(async () => {
