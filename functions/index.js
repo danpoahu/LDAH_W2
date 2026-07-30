@@ -5163,6 +5163,29 @@ async function runDailyReport(overrideRecipients, opts) {
       });
     } catch (err) { console.warn("Changelog contacts:", err.message); }
 
+    // New memberships — keyed on paidAt (the moment the membership actually
+    // became real), so pending/abandoned checkouts never show up here. A
+    // renewal is the same shape with source 'member-portal-renewal', so it
+    // gets the same line with a different verb. Pushed as `single` so the
+    // person+event grouper leaves it as its own line.
+    try {
+      const memSnap = await db.collection("members").where("paidAt", ">=", cutoffTimestamp).get();
+      memSnap.forEach((m) => {
+        const md = m.data() || {};
+        if (md.status !== "paid") return;
+        const isRenewal = /renewal/i.test(md.source || "");
+        const verb = isRenewal ? "renewed their membership" : "became a member";
+        const lvl = md.level ? ` &mdash; <em>${esc(md.level)}</em>` : "";
+        rawChanges.push({
+          single: true,
+          icon: "&#9733;",
+          text: `<strong>${esc(md.name || "Someone")}</strong> ${verb}${lvl}`,
+          time: fmtTs(md.paidAt),
+          sort: md.paidAt ? (md.paidAt.seconds || 0) : 0,
+        });
+      });
+    } catch (err) { console.warn("Changelog memberships:", err.message); }
+
     // Admin audit log — groupable status actions become structured; the rest are single lines.
     function auditToRaw(action, details) {
       if (!action || !details) return null;
