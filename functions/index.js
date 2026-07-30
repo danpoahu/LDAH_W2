@@ -2400,7 +2400,7 @@ const EMAIL_SECRETS = ["RESEND_API_KEY", "SMTP_FROM"];
 // ─────────────────────────────────────────────────────────────────────────
 const SYSTEM_ALERT_RECIPIENTS = "danpellegrini63@gmail.com, rrowe@ldahawaii.org";
 
-async function raiseSystemAlert({ kind, subject, html }) {
+async function raiseSystemAlert({ kind, subject, html, emailTeam = true }) {
   const db = admin.firestore();
   // 1) Durable dashboard alert — always works (no email dependency).
   try {
@@ -2412,7 +2412,10 @@ async function raiseSystemAlert({ kind, subject, html }) {
       acknowledged: false,
     });
   } catch (e) { console.error("raiseSystemAlert: dashboard write failed:", e.message); }
-  // 2) Best-effort email to the team.
+  // 2) Best-effort email to the team. Callers that are still deciding whether
+  // something is real (a single blip vs a genuine outage) pass emailTeam:false
+  // so the alert is recorded and visible without landing in anyone's inbox.
+  if (emailTeam === false) return;
   try {
     await sendEmailViaResend({
       from: "LDAH Alerts <" + String(process.env.SMTP_FROM || "onboarding@resend.dev").replace(/[\r\n\t]+/g, "").trim() + ">",
@@ -2451,13 +2454,54 @@ exports.monitorEmailFailures = functions
     } catch (e) { console.error("monitorEmailFailures query:", e.message); return null; }
     const failures = [];
     snap.forEach((d) => { const x = d.data() || {}; if (x.success === false && x.type !== "system-alert" && x.type !== "system-alert-fallback") failures.push(x); });
-    if (!failures.length) return null;
 
     const stateRef = db.collection("systemAlertState").doc("emailFailures");
     const stateDoc = await stateRef.get();
-    const lastAlertMs = stateDoc.exists && stateDoc.data().lastAlertAt ? stateDoc.data().lastAlertAt.toMillis() : 0;
-    const fresh = failures.filter((f) => f.sentAt && typeof f.sentAt.toMillis === "function" && f.sentAt.toMillis() > lastAlertMs);
+    const st = stateDoc.exists ? (stateDoc.data() || {}) : {};
+
+    // A single failed send is usually a bad address or a momentary blip, and
+    // paging Daniel and Rosie for each one trains them to ignore the alert.
+    // We now wait for TWO. Failures are counted across runs, so one failure now
+    // and another five minutes later still trips it — "two in a row", not "two
+    // at once". A clean run clears the count, so an isolated blip stays quiet.
+    if (!failures.length) {
+      if (st.pendingCount) await stateRef.set({ pendingCount: 0 }, { merge: true });
+      return null;
+    }
+
+    // Count each failure once. `countedThrough` is the newest failure already
+    // tallied — the 8-minute lookback overlaps the 5-minute schedule, so
+    // without this the same failure would be counted on consecutive runs and
+    // reach the threshold on its own.
+    const countedMs = st.countedThrough && typeof st.countedThrough.toMillis === "function" ? st.countedThrough.toMillis() : 0;
+    const lastAlertMs = st.lastAlertAt && typeof st.lastAlertAt.toMillis === "function" ? st.lastAlertAt.toMillis() : 0;
+    const floorMs = Math.max(countedMs, lastAlertMs);
+    const fresh = failures.filter((f) => f.sentAt && typeof f.sentAt.toMillis === "function" && f.sentAt.toMillis() > floorMs);
     if (!fresh.length) return null;
+
+    const newestMs = Math.max.apply(null, fresh.map((f) => f.sentAt.toMillis()));
+    const pending = (Number(st.pendingCount) || 0) + fresh.length;
+    await stateRef.set({
+      pendingCount: pending,
+      countedThrough: admin.firestore.Timestamp.fromMillis(newestMs),
+    }, { merge: true });
+
+    const EMAIL_FAILURE_ALERT_THRESHOLD = 2;
+    if (pending < EMAIL_FAILURE_ALERT_THRESHOLD) {
+      // Recorded on the dashboard so nothing is lost — just no inbox ping yet.
+      const oneByType = {};
+      fresh.forEach((f) => { const t = f.type || "unknown"; oneByType[t] = (oneByType[t] || 0) + 1; });
+      await raiseSystemAlert({
+        kind: "email-failure",
+        subject: "1 LDAH email failed (no alert sent \u2014 waiting for a second)",
+        html: "<div style=\"font-family:Arial,Helvetica,sans-serif;color:#1f2937;\">" +
+          "<p>One outgoing email failed (<strong>" + _emailEsc(Object.keys(oneByType).join(", ")) + "</strong>). " +
+          "No alert email was sent — we wait for a second failure before paging the team. " +
+          "Check <strong>LDAH-Int &rarr; Admin &rarr; Email Log</strong> if you want to resend it now.</p></div>",
+        emailTeam: false,
+      });
+      return null;
+    }
 
     const byType = {};
     fresh.forEach((f) => { const t = f.type || "unknown"; byType[t] = (byType[t] || 0) + 1; });
@@ -2465,12 +2509,15 @@ exports.monitorEmailFailures = functions
     const sampleErr = String(fresh[0].error || "").slice(0, 200);
     const html = "<div style=\"font-family:Arial,Helvetica,sans-serif;color:#1f2937;\">" +
       "<h2 style=\"color:#DC2626;margin:0 0 10px;\">&#9888; LDAH email failures detected</h2>" +
-      "<p><strong>" + fresh.length + "</strong> outgoing email(s) failed in the last few minutes:</p>" +
+      "<p><strong>" + pending + "</strong> outgoing email(s) failed in the last few minutes:</p>" +
       "<ul>" + lines + "</ul>" +
       "<p style=\"color:#555;\">Example error: <code>" + _emailEsc(sampleErr) + "</code></p>" +
       "<p>Open <strong>LDAH-Int &rarr; Admin &rarr; Email Log</strong> to review and hit <strong>Resend</strong> on the affected messages.</p></div>";
-    await raiseSystemAlert({ kind: "email-failure", subject: "⚠️ " + fresh.length + " LDAH email(s) failed", html });
-    await stateRef.set({ lastAlertAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    await raiseSystemAlert({ kind: "email-failure", subject: "⚠️ " + pending + " LDAH email(s) failed", html });
+    await stateRef.set({
+      lastAlertAt: admin.firestore.FieldValue.serverTimestamp(),
+      pendingCount: 0,
+    }, { merge: true });
     return null;
   });
 
