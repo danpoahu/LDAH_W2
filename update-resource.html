@@ -845,7 +845,7 @@
         async function loadFooter() {
             const footerContainer = document.getElementById('footer-container');
             try {
-                const res = await fetch('footer.html');
+                const res = await fetch('footer.html?v=62.8.0');
                 if (res.ok) {
                     footerContainer.innerHTML = await res.text();
                     // Set dynamic year

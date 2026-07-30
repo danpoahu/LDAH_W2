@@ -537,8 +537,8 @@
             try {
                 // Try to fetch from external files first
                 const [headerResponse, footerResponse] = await Promise.all([
-                    fetch('header.html'),
-                    fetch('footer.html')
+                    fetch('header.html?v=62.8.0'),
+                    fetch('footer.html?v=62.8.0')
                 ]);
                 
                 if (headerResponse.ok && footerResponse.ok) {
