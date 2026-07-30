@@ -17360,11 +17360,16 @@ exports.createResourceUpdateCallTasks = functions
         contactName: name,
         contactType: "",
         grantProgram: "",
-        summary: "Call " + name + " for resource-listing updates" + (email ? "" : " (no email on file)"),
+        // Phone goes in the SUMMARY, not just the notes. The summary is what La'a
+        // sees in My Day and on the interactions list; a number he has to open
+        // the task to find may as well not be there.
+        summary: "Call " + name + (r.phone ? " \u2014 " + r.phone : "") + " for resource-listing updates"
+          + (email ? "" : " (no email on file)"),
         followUpDate: todayKey,
         status: "Open",
-        notes: "Call " + name + (r.phone ? " at " + r.phone : "")
-          + " to confirm or update their resource listing. Open the resource card (button), make any edits, then check this off — that marks the listing updated for this cycle.",
+        contactPhone: r.phone || "",
+        notes: (r.phone ? "Phone: " + r.phone + "\n\n" : "No phone on file — check the resource card.\n\n")
+          + "Call " + name + " to confirm or update their resource listing. Open the resource card (button), make any edits, then check this off — that marks the listing updated for this cycle.",
         isDraft: false,
         owner: laaName,
         ownerUid: LIFECYCLE_LAA_UID,
