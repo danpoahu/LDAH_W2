@@ -4,18 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
-    <meta name="description" content="LDAH Member Portal — renew your membership.">
-    <title>Renew Membership - LDAH Member Portal</title>
+    <meta name="description" content="LDAH Member Portal — update your contact information.">
+    <title>My Information - LDAH Member Portal</title>
 
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-
-    <!-- PayPal JS SDK (Smart Buttons) for membership renewal.
-         SANDBOX client-id (fake-money testing) — matches STAGE/volunteer.html.
-         Swap to the LIVE client-id (Afw3qwuhNHDN…FnYY) only in the LIVE root /Members/renew.html at go-live. -->
-    <script src="https://www.paypal.com/sdk/js?client-id=ATtx66b6j9uKJtSvmxCeIP705ig-E6-1gwYdjyGxn9hNy2xsErTC-cFOaz-JWVodiKXkB5eRGcs_ybP8&currency=USD&intent=capture"></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -63,16 +57,32 @@
     .loading-spinner { display: inline-block; width: 36px; height: 36px; border: 3px solid rgba(8,145,178,0.2); border-top-color: var(--primary-blue); border-radius: 50%; animation: spin 0.9s linear infinite; margin-bottom: 1rem; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    .current-box { background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1.25rem; font-size: 0.95rem; line-height: 1.6; color: #0C4A6E; }
-    .current-box strong { color: #075985; }
+    .info-grid { display: flex; flex-direction: column; gap: 0.1rem; margin-bottom: 1rem; }
+    .info-row { display: flex; gap: 1rem; padding: 0.6rem 0; border-bottom: 1px solid #F1F5F9; }
+    .info-row:last-child { border-bottom: none; }
+    .info-label { flex: 0 0 140px; font-weight: 600; color: var(--text-dark); font-size: 0.95rem; }
+    .info-val { flex: 1; color: var(--text-soft); }
+    @media (max-width: 560px) { .info-row { flex-direction: column; gap: 0.15rem; } .info-label { flex-basis: auto; } }
 
     .muted-note { color: var(--text-light); font-size: 0.92rem; }
+    .lock-note { color: var(--text-light); font-size: 0.9rem; margin-top: 0.5rem; }
+    .lock-note a { color: var(--primary-blue); font-weight: 600; text-decoration: none; }
+    .lock-note a:hover { text-decoration: underline; }
 
     .form-group { margin-bottom: 1.3rem; }
     .form-group label.fld-label { display: block; font-weight: 600; color: var(--text-dark); margin-bottom: 0.4rem; font-size: 0.97rem; }
     .helper-text { display: block; font-size: 0.85rem; color: var(--text-light); margin-top: 0.15rem; margin-bottom: 0.45rem; font-weight: 400; }
-    .form-group input[type="text"], .form-group input[type="tel"], .form-group input[type="email"], .form-group select { width: 100%; padding: 0.7rem 0.9rem; font-family: inherit; font-size: 1rem; color: var(--text-dark); background: white; border: 1.5px solid #cbd5e1; border-radius: 10px; transition: border-color 0.2s, box-shadow 0.2s; }
+    .form-group input[type="text"], .form-group input[type="tel"], .form-group input[type="email"], .form-group input[type="password"], .form-group select { width: 100%; padding: 0.7rem 0.9rem; font-family: inherit; font-size: 1rem; color: var(--text-dark); background: white; border: 1.5px solid #cbd5e1; border-radius: 10px; transition: border-color 0.2s, box-shadow 0.2s; }
     .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--primary-blue); box-shadow: 0 0 0 3px rgba(8,145,178,0.15); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 560px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    .check-row { display: flex; align-items: flex-start; gap: 0.6rem; font-size: 0.97rem; color: var(--text-dark); }
+    .check-row input { margin-top: 0.28rem; width: 17px; height: 17px; accent-color: var(--primary-blue); flex-shrink: 0; }
+
+    .child-edit { border: 1px solid #E2E8F0; border-radius: 12px; padding: 1rem 1.1rem; margin-bottom: 1rem; background: #FAFCFE; }
+    .child-edit .child-name { font-weight: 600; color: var(--primary-blue); margin-bottom: 0.6rem; }
+    .child-edit .form-group:last-child { margin-bottom: 0; }
 
     .btn-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1.25rem; align-items: center; }
     .btn { display: inline-block; padding: 0.85rem 1.5rem; font-family: inherit; font-size: 1rem; font-weight: 600; border-radius: 10px; cursor: pointer; transition: all 0.2s ease; border: 2px solid transparent; text-align: center; text-decoration: none; }
@@ -80,11 +90,13 @@
     .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(8,145,178,0.3); }
     .btn-outline { background: white; border: 2px solid var(--primary-blue); color: var(--primary-blue); }
     .btn-outline:hover:not(:disabled) { background: #F0F9FF; }
-    .btn-block { width: 100%; }
     .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
     .inline-error { background: #FEE2E2; border: 1px solid #FCA5A5; color: #991B1B; border-radius: 10px; padding: 0.8rem 1rem; margin: 1rem 0; font-size: 0.95rem; display: none; }
     .inline-error.visible { display: block; }
+
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--text-dark); color: white; padding: 0.85rem 1.4rem; border-radius: 12px; font-size: 0.95rem; box-shadow: 0 8px 30px rgba(0,0,0,0.25); opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s; z-index: 1000; }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
     footer { background: var(--text-dark); color: white; padding: 1.75rem 2rem 1rem; position: relative; overflow: hidden; margin-top: auto; }
     .footer-content { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.4rem; margin-bottom: 1rem; position: relative; z-index: 1; }
@@ -124,12 +136,12 @@
     .nav-menu a { display: block; padding: 0.62rem 0.85rem; border-radius: 9px; color: var(--text-dark); text-decoration: none; font-weight: 600; font-size: 0.95rem; }
     .nav-menu a:hover { background: #F0F9FF; color: var(--primary-blue); }
 
-    .hero-section { position: relative; overflow: hidden; padding: 2.4rem 2rem 2.7rem;
+    .hero-section { position: sticky; top: 10px; z-index: 20; overflow: hidden; padding: 2.6rem 2rem 2.7rem;
         max-width: min(720px, calc(100% - 2rem)); margin: 1.3rem auto 0.3rem; border-radius: 22px;
         box-shadow: 0 12px 30px rgba(8,145,178,.26);
         background: linear-gradient(135deg, #0E7490 0%, var(--ocean-mid) 55%, var(--accent-teal) 120%); }
     .hero-section .hero-islands { position: absolute; left: 50%; top: 54%; width: 82%; max-width: 560px; color: #fff; opacity: 0.15; transform: translate(-50%,-50%) scaleY(-1); z-index: 0; }
-    .hero-section > *:not(.hero-islands):not(.lei) { position: relative; z-index: 1; }
+    .hero-section > *:not(.hero-islands):not(.lei):not(.hero-back) { position: relative; z-index: 1; }
     .hero-section h2 { font-weight: 800; }
     .hero-section .lei { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: linear-gradient(90deg, var(--sunset-coral), var(--plumeria), var(--accent-teal), var(--palm)); z-index: 2; }
 
@@ -183,8 +195,8 @@
     <section class="hero-section" id="heroSection" style="display:none;cursor:pointer;" title="Back to your portal" role="link" tabindex="0" onclick="location.href='index.html'" onkeydown="if(event.key==='Enter'){location.href='index.html'}">
         <svg class="hero-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
         <div class="hero-back">&lsaquo; Back to your portal</div>
-        <h2 id="heroTitle">Renew Your Membership</h2>
-        <p id="heroSub">Thank you for continuing to support LDAH families.</p>
+        <h2 id="heroTitle">Your Information</h2>
+        <p id="heroSub">Keep your contact details up to date.</p>
         <div class="lei"></div>
     </section>
 
@@ -193,11 +205,13 @@
             <div class="card">
                 <div class="loading-state">
                     <div class="loading-spinner"></div>
-                    <p>Loading your renewal&hellip;</p>
+                    <p>Loading your information&hellip;</p>
                 </div>
             </div>
         </div>
     </main>
+
+    <div id="toast" class="toast"></div>
 
     <footer>
         <div class="footer-content">
@@ -235,16 +249,6 @@
         });
         const auth = firebase.auth();
         const fns = firebase.functions();
-        const db = firebase.firestore();
-
-        var TIERS = [
-            { level: 'Individual', amount: 50 },
-            { level: 'Friend', amount: 100 },
-            { level: 'Supporter', amount: 200 },
-            { level: 'Sponsor', amount: 500 },
-            { level: 'Partner', amount: 1000 },
-            { level: 'Benefactor', amount: 2500 }
-        ];
 
         function id(x) { return document.getElementById(x); }
         function val(x) { var e = id(x); return e ? e.value : ''; }
@@ -254,22 +258,23 @@
         function showHero() { var h = id('heroSection'); if (h) h.style.display = 'flex'; }
         function showSignout() { var b = id('hdrActions'); if (b) b.style.display = 'flex'; }
         function hideSignout() { var b = id('hdrActions'); if (b) b.style.display = 'none'; var m = id('navMenu'); if (m) m.classList.remove('open'); }
-        function fmtDate(ms) { if (!ms) return ''; var d = new Date(Number(ms)); if (isNaN(d.getTime())) return ''; return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }); }
-        function money(n) { return Number(n).toLocaleString('en-US'); }
         function isUnverified(e) { return !!(e && (e.message === 'email-unverified' || (e.code && String(e.code).indexOf('failed-precondition') !== -1 && String(e.message || '').indexOf('email-unverified') !== -1))); }
+        function showToast(msg) {
+            var t = id('toast'); t.textContent = msg; t.classList.add('show');
+            clearTimeout(t._h); t._h = setTimeout(function () { t.classList.remove('show'); }, 3200);
+        }
         function guardMessage(title, body) {
             hideHero();
             setView('<div class="card message-card"><h3>' + esc(title) + '</h3><p>' + body + '</p><p style="margin-top:0.75rem;"><a href="index.html">Back to the portal</a></p></div>');
         }
 
-        var memberProfile = null;
-        var renewDocId = null, renewLevel = '', renewAmount = 0, renewName = '';
+        var existingChildren = [];
 
         auth.onAuthStateChanged(function (user) {
-            if (!user) { hideSignout(); guardMessage('Please log in', 'You need to be logged in to renew your membership.'); return; }
+            if (!user) { hideSignout(); guardMessage('Please log in', 'You need to be logged in to view this page.'); return; }
             showSignout();
             if (!user.emailVerified) { guardMessage('Verify your email', 'Please verify your email before continuing.'); return; }
-            loadRenew(user);
+            loadProfile(user);
         });
 
         id('signoutBtn').addEventListener('click', function () { auth.signOut(); });
@@ -283,7 +288,7 @@
 
         function callProfile() { return fns.httpsCallable('getMemberProfile')().then(function (r) { return r.data; }); }
 
-        async function loadRenew(user) {
+        async function loadProfile(user) {
             var res;
             try {
                 res = await callProfile();
@@ -295,210 +300,102 @@
             }
             if (!res || res.found === false) {
                 hideHero();
-                setView(''
-                    + '<div class="card message-card">'
-                    + '  <h3>No membership record found</h3>'
-                    + '  <p>We couldn’t find a membership record for <strong>' + esc(user.email) + '</strong>. To join LDAH, please use our membership page.</p>'
-                    + '  <div class="btn-row" style="justify-content:center;"><a class="btn btn-primary" href="https://www.ldahawaii.org/volunteer.html" target="_blank" rel="noopener">Become a member</a><a class="btn btn-outline" href="index.html">Back to portal</a></div>'
-                    + '</div>');
+                setView('<div class="card message-card"><h3>No active membership found</h3><p>We couldn’t find an active membership for <strong>' + esc(user.email) + '</strong>.</p><p style="margin-top:0.75rem;"><a href="index.html">Back to the portal</a></p></div>');
                 return;
             }
-            memberProfile = res.profile || {};
-            renderRenewForm(memberProfile);
+            renderForm(res.profile || {});
         }
 
         function showLoadError(user) {
             hideHero();
-            setView('<div class="card message-card"><h3>Something went wrong</h3><p>We couldn’t load your renewal right now. Please try again in a moment.</p><div class="btn-row" style="justify-content:center;"><button class="btn btn-primary" id="retryBtn">Try again</button></div></div>');
-            id('retryBtn').addEventListener('click', function () { loadRenew(user); });
+            setView('<div class="card message-card"><h3>Something went wrong</h3><p>We couldn’t load your information right now. Please try again in a moment.</p><div class="btn-row" style="justify-content:center;"><button class="btn btn-primary" id="retryBtn">Try again</button></div></div>');
+            id('retryBtn').addEventListener('click', function () { loadProfile(user); });
         }
 
-        function renderRenewForm(p) {
+        function renderForm(p) {
             showHero();
-            var fullName = p.displayName || ((p.firstName || '') + ' ' + (p.lastName || '')).trim();
-            var expDate = p.membershipExpiresAt ? fmtDate(p.membershipExpiresAt) : '';
+            existingChildren = (p.children || []).map(function (c) { return c || {}; });
 
-            var currentBox = '<div class="current-box">'
-                + '<div><strong>Current level:</strong> ' + esc(p.membershipLevel || '—') + (p.membershipStatus ? ' (' + esc(p.membershipStatus) + ')' : '') + '</div>'
-                + (expDate ? '<div><strong>Expires:</strong> ' + esc(expDate) + '</div>' : '')
-                + '</div>';
+            var fullName = ((p.firstName || '') + ' ' + (p.lastName || '')).trim();
+            var membershipLine = esc(p.membershipLevel || 'Member') + (p.membershipStatus ? ' (' + esc(p.membershipStatus) + ')' : '');
 
-            var options = TIERS.map(function (t) {
-                var sel = (p.membershipLevel && String(p.membershipLevel).toLowerCase() === t.level.toLowerCase()) ? ' selected' : '';
-                return '<option value="' + t.level + '"' + sel + '>' + t.level + ' — $' + money(t.amount) + ' / year</option>';
+            var childrenHtml = existingChildren.map(function (c, i) {
+                return '<div class="child-edit">'
+                    + '<div class="child-name">' + (esc(c.name) || 'Child ' + (i + 1)) + '</div>'
+                    + '<div class="grid-2">'
+                    + '  <div class="form-group"><label class="fld-label" for="child-grade-' + i + '">Grade</label><input type="text" id="child-grade-' + i + '" value="' + esc(c.grade) + '"></div>'
+                    + '  <div class="form-group"><label class="fld-label" for="child-school-' + i + '">School</label><input type="text" id="child-school-' + i + '" value="' + esc(c.school) + '"></div>'
+                    + '</div>'
+                    + '</div>';
             }).join('');
 
             setView(''
                 + '<div class="card">'
-                + '  <h3 class="card-title">Renew your membership</h3>'
-                + currentBox
-                + '  <div id="renewError" class="inline-error"></div>'
-                + '  <div class="form-group"><label class="fld-label" for="renewName">Full name</label><input type="text" id="renewName" autocomplete="name" value="' + esc(fullName) + '"></div>'
-                + '  <div class="form-group"><label class="fld-label" for="renewEmail">Email</label><input type="email" id="renewEmail" autocomplete="email" value="' + esc(p.email) + '"></div>'
-                + '  <div class="form-group"><label class="fld-label" for="renewPhone">Phone <span style="font-weight:400;color:var(--text-soft);">(optional)</span></label><input type="tel" id="renewPhone" autocomplete="tel" value="' + esc(p.phone) + '"></div>'
-                + '  <div class="form-group"><label class="fld-label" for="renewLevel">Membership level</label><select id="renewLevel">' + options + '</select></div>'
-                + '  <div class="btn-row"><button class="btn btn-primary btn-block" id="renewSubmit">Continue to payment</button></div>'
+                + '  <h3 class="card-title">Locked details</h3>'
+                + '  <div class="info-grid">'
+                + '    <div class="info-row"><span class="info-label">Name</span><span class="info-val">' + (esc(fullName) || '—') + '</span></div>'
+                + '    <div class="info-row"><span class="info-label">Email</span><span class="info-val">' + (esc(p.email) || '—') + '</span></div>'
+                + '    <div class="info-row"><span class="info-label">Membership</span><span class="info-val">' + membershipLine + '</span></div>'
+                + '  </div>'
+                + '  <p class="lock-note">To change your name or email, contact LDAH at <a href="mailto:rrowe@ldahawaii.org">rrowe@ldahawaii.org</a>.</p>'
                 + '</div>'
 
-                + '<div class="card" id="payCard" style="display:none;">'
-                + '  <h3 class="card-title">Complete your renewal</h3>'
-                + '  <p id="paySummary" class="muted-note" style="margin-bottom:1rem;"></p>'
-                + '  <div id="paypalButtons" style="min-height:44px;"></div>'
-                + '  <p id="payMsg" class="muted-note" style="margin-top:0.75rem;text-align:center;"></p>'
+                + '<div class="card">'
+                + '  <h3 class="card-title">Contact &amp; mailing</h3>'
+                + '  <div id="profileError" class="inline-error"></div>'
+                + '  <div class="form-group"><label class="fld-label" for="phone">Phone</label><input type="tel" id="phone" autocomplete="tel" value="' + esc(p.phone) + '"></div>'
+                + '  <div class="form-group"><label class="fld-label" for="streetAddress">Street address</label><input type="text" id="streetAddress" autocomplete="street-address" value="' + esc(p.streetAddress) + '"></div>'
+                + '  <div class="grid-2">'
+                + '    <div class="form-group"><label class="fld-label" for="city">City</label><input type="text" id="city" autocomplete="address-level2" value="' + esc(p.city) + '"></div>'
+                + '    <div class="form-group"><label class="fld-label" for="zipCode">Zip code</label><input type="text" id="zipCode" inputmode="numeric" autocomplete="postal-code" value="' + esc(p.zipCode) + '"></div>'
+                + '  </div>'
+                + '  <div class="grid-2">'
+                + '    <div class="form-group"><label class="fld-label" for="secondaryContactName">Secondary contact name</label><input type="text" id="secondaryContactName" value="' + esc(p.secondaryContactName) + '"></div>'
+                + '    <div class="form-group"><label class="fld-label" for="secondaryContactPhone">Secondary contact phone</label><input type="tel" id="secondaryContactPhone" value="' + esc(p.secondaryContactPhone) + '"></div>'
+                + '  </div>'
                 + '</div>'
 
-                + '<div class="card message-card" id="renewSuccess" style="display:none;">'
-                + '  <h3>Mahalo</h3>'
-                + '  <p>Your renewal is being processed. Your access updates shortly.</p>'
-                + '  <p style="margin-top:0.75rem;"><a href="index.html">Back to portal</a></p>'
-                + '</div>'
+                + (existingChildren.length ? ('<div class="card"><h3 class="card-title">Children</h3><p class="muted-note" style="margin-bottom:1.1rem;">You can update each child’s grade and school. To add or remove a child, contact LDAH.</p>' + childrenHtml + '</div>') : '')
 
-                + '<div class="card message-card"><p style="margin:0;"><a href="index.html">Back to portal</a></p></div>');
+                + '<div class="card">'
+                + '  <h3 class="card-title">Communication</h3>'
+                + '  <label class="check-row"><input type="checkbox" id="marketingOptIn"' + (p.marketingOptOut ? '' : ' checked') + '><span>Yes, send me LDAH updates, newsletters, and event announcements.</span></label>'
+                + '  <div class="btn-row"><button class="btn btn-primary" id="saveBtn">Save changes</button><a class="btn btn-outline" href="index.html">Back to portal</a></div>'
+                + '</div>');
 
-            id('renewSubmit').addEventListener('click', startRenewal);
+            id('saveBtn').addEventListener('click', saveProfile);
         }
 
-        function renewError(msg) { var e = id('renewError'); if (e) { e.textContent = msg; e.classList.add('visible'); } }
-        function clearRenewError() { var e = id('renewError'); if (e) { e.textContent = ''; e.classList.remove('visible'); } }
+        function profileError(msg) { var e = id('profileError'); if (e) { e.textContent = msg; e.classList.add('visible'); } }
+        function clearProfileError() { var e = id('profileError'); if (e) { e.textContent = ''; e.classList.remove('visible'); } }
 
-        async function startRenewal() {
-            clearRenewError();
-            renewName = val('renewName').trim();
-            var email = val('renewEmail').trim();
-            var phone = val('renewPhone').trim();
-            var levelSel = val('renewLevel');
-            var tier = TIERS.filter(function (t) { return t.level === levelSel; })[0];
-            if (!renewName || !email) { renewError('Please enter your name and email.'); return; }
-            if (!tier) { renewError('Please choose a membership level.'); return; }
-            renewLevel = tier.level; renewAmount = tier.amount;
-
-            var btn = id('renewSubmit'); btn.disabled = true; btn.textContent = 'Saving…';
+        async function saveProfile() {
+            clearProfileError();
+            var children = existingChildren.map(function (c, i) {
+                return { grade: val('child-grade-' + i).trim(), school: val('child-school-' + i).trim() };
+            });
+            var payload = {
+                phone: val('phone').trim(),
+                streetAddress: val('streetAddress').trim(),
+                city: val('city').trim(),
+                zipCode: val('zipCode').trim(),
+                secondaryContactName: val('secondaryContactName').trim(),
+                secondaryContactPhone: val('secondaryContactPhone').trim(),
+                marketingOptOut: !id('marketingOptIn').checked,
+                children: children
+            };
+            var btn = id('saveBtn'); btn.disabled = true; btn.textContent = 'Saving…';
             try {
-                var ref = await db.collection('members').add({
-                    name: renewName, email: email, phone: phone,
-                    level: renewLevel, amount: renewAmount,
-                    status: 'pending', source: 'member-portal-renewal',
-                    linkedContactId: (memberProfile && memberProfile.id) || null,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                renewDocId = ref.id;
+                var r = await fns.httpsCallable('updateMemberProfile')(payload);
+                var updated = (r.data && r.data.profile) || null;
+                showToast('Your information has been saved.');
+                if (updated) { renderForm(updated); }
+                else { btn.disabled = false; btn.textContent = 'Save changes'; }
             } catch (e) {
-                btn.disabled = false; btn.textContent = 'Continue to payment';
-                renewError('Sorry, something went wrong saving your info. Please try again or call (808) 536-9684.');
-                return;
+                btn.disabled = false; btn.textContent = 'Save changes';
+                if (isUnverified(e)) { profileError('Your session needs to refresh. Please reload the page and try again.'); }
+                else { profileError('We couldn’t save your changes right now. Please try again.'); }
             }
-
-            id('paySummary').innerHTML = 'You’re renewing as <strong>' + esc(renewLevel) + '</strong> &mdash; <strong>$' + money(renewAmount) + '</strong> per year. Complete your gift below.';
-            id('payMsg').textContent = '';
-            id('payCard').style.display = '';
-            id('payCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
-            renderPayPalButtons();
-        }
-
-        var _rnBtns = null, _rnSdkWait = null, _rnCapturing = false;
-
-        function _rnNoteError(stage, err) {
-            var text = '';
-            try { text = (err && (err.message || String(err))) || ''; } catch (_) {}
-            try { console.warn('[renew] ' + stage + ':', err); } catch (_) {}
-            if (!renewDocId) return;
-            try {
-                db.collection('members').doc(renewDocId).update({
-                    lastError: String(stage + ': ' + text).slice(0, 500),
-                    lastErrorAt: firebase.firestore.FieldValue.serverTimestamp()
-                }).catch(function () {});
-            } catch (_) {}
-        }
-        function _rnRetryLink(label) {
-            return ' <a href="#" onclick="event.preventDefault();retryRenewPayment();" style="color:#0891B2;font-weight:700;">' +
-                (label || 'Try again') + '</a>';
-        }
-        window.retryRenewPayment = function () { id('payMsg').innerHTML = ''; renderPayPalButtons(); };
-
-        /* Same five fixes as the public membership checkout — see the LDAH_W2
-           commit "Membership checkout: stop losing donors to a dead payment box".
-           A renewing member is an EXISTING paying member; making them fight an
-           empty payment box is worse here than on the join page. */
-        function renderPayPalButtons() {
-            var host = id('paypalButtons');
-            if (!host) return;
-            // Tear down through PayPal's API; innerHTML='' orphans its iframe and
-            // can make the next render fail silently.
-            if (_rnBtns && _rnBtns.close) { try { _rnBtns.close(); } catch (_) {} }
-            _rnBtns = null;
-            host.textContent = '';
-            var slot = document.createElement('div');
-            host.appendChild(slot);
-
-            if (!window.paypal || !window.paypal.Buttons) {
-                id('payMsg').innerHTML = 'Loading secure payment…';
-                if (_rnSdkWait) { clearInterval(_rnSdkWait); _rnSdkWait = null; }
-                var waited = 0;
-                _rnSdkWait = setInterval(function () {
-                    waited += 250;
-                    if (window.paypal && window.paypal.Buttons) {
-                        clearInterval(_rnSdkWait); _rnSdkWait = null;
-                        id('payMsg').innerHTML = ''; renderPayPalButtons();
-                    } else if (waited >= 12000) {
-                        clearInterval(_rnSdkWait); _rnSdkWait = null;
-                        _rnNoteError('sdk-load', 'window.paypal never appeared');
-                        id('payMsg').innerHTML = 'Secure payment could not load — usually an ad blocker or a spotty ' +
-                            'connection. Call (808) 536-9684 and we will take your renewal over the phone.' + _rnRetryLink();
-                    }
-                }, 250);
-                return;
-            }
-
-            _rnBtns = window.paypal.Buttons({
-                style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'paypal' },
-                createOrder: function (data, actions) {
-                    return actions.order.create({
-                        purchase_units: [{
-                            amount: { value: Number(renewAmount).toFixed(2), currency_code: 'USD' },
-                            description: 'LDAH ' + renewLevel + ' Membership Renewal',
-                            custom_id: renewDocId
-                        }]
-                    });
-                },
-                onApprove: function (data, actions) {
-                    if (_rnCapturing) return;
-                    _rnCapturing = true;
-                    id('payMsg').innerHTML = 'Completing your renewal…';
-                    return actions.order.capture().then(function (details) {
-                        var orderId = (details && details.id) || data.orderID || '';
-                        return db.collection('members').doc(renewDocId).update({
-                            status: 'paid',
-                            paypalOrderId: orderId,
-                            paidAt: firebase.firestore.FieldValue.serverTimestamp()
-                        }).then(showSuccess, showSuccess);
-                    }).catch(function (err) {
-                        _rnCapturing = false;
-                        _rnNoteError('capture', err);
-                        id('payMsg').innerHTML = 'PayPal took your details but we could not finish confirming. ' +
-                            '<strong>Please do not pay again</strong> — call (808) 536-9684 and we will sort it out.';
-                    });
-                },
-                onCancel: function () {
-                    _rnCapturing = false;
-                    id('payMsg').innerHTML = 'Payment cancelled. You can complete it whenever you’re ready.' + _rnRetryLink('Start again');
-                },
-                onError: function (err) {
-                    _rnCapturing = false;
-                    _rnNoteError('paypal-onerror', err);
-                    id('payMsg').innerHTML = 'Something went wrong with PayPal.' + _rnRetryLink() + ' Or call (808) 536-9684.';
-                }
-            });
-            var p = _rnBtns.render(slot);
-            if (p && p.catch) p.catch(function (err) {
-                _rnNoteError('render', err);
-                id('payMsg').innerHTML = 'The payment buttons could not be displayed.' + _rnRetryLink() + ' Or call (808) 536-9684.';
-            });
-        }
-
-        function showSuccess() {
-            id('payCard').style.display = 'none';
-            var s = id('renewSuccess'); s.style.display = '';
-            s.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
         document.querySelectorAll('.dynamic-year').forEach(function (el) { el.textContent = new Date().getFullYear(); });

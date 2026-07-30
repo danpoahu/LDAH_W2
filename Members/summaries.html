@@ -4,18 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
-    <meta name="description" content="LDAH Member Portal — renew your membership.">
-    <title>Renew Membership - LDAH Member Portal</title>
+    <meta name="description" content="LDAH Member Portal — watch past LDAH event recordings and slides.">
+    <title>AI Summaries - LDAH Member Portal</title>
 
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-
-    <!-- PayPal JS SDK (Smart Buttons) for membership renewal.
-         SANDBOX client-id (fake-money testing) — matches STAGE/volunteer.html.
-         Swap to the LIVE client-id (Afw3qwuhNHDN…FnYY) only in the LIVE root /Members/renew.html at go-live. -->
-    <script src="https://www.paypal.com/sdk/js?client-id=ATtx66b6j9uKJtSvmxCeIP705ig-E6-1gwYdjyGxn9hNy2xsErTC-cFOaz-JWVodiKXkB5eRGcs_ybP8&currency=USD&intent=capture"></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -52,9 +46,9 @@
 
     .card { background: white; border-radius: 20px; padding: 2.5rem; box-shadow: 0 4px 20px rgba(0,78,124,0.10); border: 1px solid rgba(8,145,178,0.08); margin-bottom: 1.5rem; }
     .card:last-child { margin-bottom: 0; }
-    .card-title { color: var(--primary-blue); font-size: 1.25rem; margin-bottom: 0.75rem; }
+    .card-title { color: var(--primary-blue); font-size: 1.25rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid #E0F2FE; }
     .card.message-card { text-align: center; }
-    .card.message-card h3 { color: var(--primary-blue); font-size: 1.4rem; margin-bottom: 0.75rem; }
+    .card.message-card h3 { color: var(--primary-blue); font-size: 1.4rem; margin-bottom: 0.75rem; padding: 0; border: none; }
     .card.message-card p { color: var(--text-light); font-size: 1.02rem; margin-bottom: 0.6rem; }
     .card.message-card a { color: var(--primary-blue); text-decoration: none; font-weight: 600; }
     .card.message-card a:hover { text-decoration: underline; }
@@ -63,16 +57,15 @@
     .loading-spinner { display: inline-block; width: 36px; height: 36px; border: 3px solid rgba(8,145,178,0.2); border-top-color: var(--primary-blue); border-radius: 50%; animation: spin 0.9s linear infinite; margin-bottom: 1rem; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    .current-box { background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1.25rem; font-size: 0.95rem; line-height: 1.6; color: #0C4A6E; }
-    .current-box strong { color: #075985; }
+    .resource-item { padding: 1rem 0; border-bottom: 1px solid #F1F5F9; }
+    .resource-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .resource-item:first-child { padding-top: 0; }
+    .resource-title { font-weight: 600; color: var(--text-dark); font-size: 1.05rem; }
+    .resource-desc { color: var(--text-soft); font-size: 0.95rem; margin: 0.25rem 0 0.5rem; }
+    .resource-link { display: inline-block; color: var(--primary-blue); font-weight: 600; text-decoration: none; }
+    .resource-link:hover { text-decoration: underline; }
 
-    .muted-note { color: var(--text-light); font-size: 0.92rem; }
-
-    .form-group { margin-bottom: 1.3rem; }
-    .form-group label.fld-label { display: block; font-weight: 600; color: var(--text-dark); margin-bottom: 0.4rem; font-size: 0.97rem; }
-    .helper-text { display: block; font-size: 0.85rem; color: var(--text-light); margin-top: 0.15rem; margin-bottom: 0.45rem; font-weight: 400; }
-    .form-group input[type="text"], .form-group input[type="tel"], .form-group input[type="email"], .form-group select { width: 100%; padding: 0.7rem 0.9rem; font-family: inherit; font-size: 1rem; color: var(--text-dark); background: white; border: 1.5px solid #cbd5e1; border-radius: 10px; transition: border-color 0.2s, box-shadow 0.2s; }
-    .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--primary-blue); box-shadow: 0 0 0 3px rgba(8,145,178,0.15); }
+    .muted-note { color: var(--text-light); font-size: 0.95rem; }
 
     .btn-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1.25rem; align-items: center; }
     .btn { display: inline-block; padding: 0.85rem 1.5rem; font-family: inherit; font-size: 1rem; font-weight: 600; border-radius: 10px; cursor: pointer; transition: all 0.2s ease; border: 2px solid transparent; text-align: center; text-decoration: none; }
@@ -80,11 +73,43 @@
     .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(8,145,178,0.3); }
     .btn-outline { background: white; border: 2px solid var(--primary-blue); color: var(--primary-blue); }
     .btn-outline:hover:not(:disabled) { background: #F0F9FF; }
-    .btn-block { width: 100%; }
-    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
-
-    .inline-error { background: #FEE2E2; border: 1px solid #FCA5A5; color: #991B1B; border-radius: 10px; padding: 0.8rem 1rem; margin: 1rem 0; font-size: 0.95rem; display: none; }
-    .inline-error.visible { display: block; }
+    .rec-pill { border-radius: 999px; padding: 0.5rem 1.25rem; font-size: 0.92rem; }
+    /* LDAH Video Library card */
+    .vlib { background:#fff; border-radius:20px; overflow:hidden; box-shadow:0 4px 20px rgba(0,78,124,0.10); border:1px solid rgba(8,145,178,0.08); }
+    .vlib-header { position:relative; height:150px; background:#0e5e8a; }
+    .vlib-header img { width:100%; height:100%; object-fit:cover; display:block; }
+    .vlib-header-ov { position:absolute; inset:0; background:linear-gradient(180deg,rgba(6,50,74,.12) 0%,rgba(6,50,74,.78) 100%); }
+    .vlib-header-txt { position:absolute; left:24px; right:24px; bottom:14px; color:#fff; }
+    .vlib-header-txt h2 { margin:0; font-size:1.6rem; font-weight:700; text-shadow:0 2px 10px rgba(0,0,0,.3); }
+    .vlib-header-txt p { margin:3px 0 0; font-size:.88rem; opacity:.95; }
+    .vlib-body { padding:12px 16px 18px; }
+    .vlib-rec { display:flex; gap:15px; padding:13px; border:1px solid #E6EEF2; border-radius:14px; margin-top:11px; background:#fff; transition:box-shadow .18s, transform .18s; }
+    .vlib-rec:first-child { margin-top:4px; }
+    .vlib-rec:hover { box-shadow:0 8px 20px rgba(8,78,124,.12); transform:translateY(-2px); }
+    .vlib-flyer { flex:0 0 auto; width:172px; height:230px; border-radius:11px; overflow:hidden; background:#f1f5f9; border:1px solid #E6EEF2; }
+    .vlib-flyer img { width:100%; height:100%; object-fit:cover; display:block; }
+    .vlib-flyer.ph { display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,var(--ocean-mid),var(--accent-teal)); }
+    .vlib-flyer.ph .play { width:0; height:0; border-style:solid; border-width:15px 0 15px 25px; border-color:transparent transparent transparent #fff; margin-left:5px; filter:drop-shadow(0 2px 4px rgba(0,0,0,.2)); }
+    .vlib-info { flex:1; min-width:0; display:flex; flex-direction:column; }
+    .vlib-title { font-size:1.1rem; font-weight:700; color:var(--primary-blue); line-height:1.25; margin:2px 0 2px; }
+    .vlib-date { font-size:.86rem; color:#EA580C; font-weight:800; letter-spacing:.2px; margin-bottom:6px; }
+    .vlib-desc { font-size:.9rem; color:#41535c; margin:0 0 12px; flex:1; }
+    /* AI Summary cards */
+    .sum-card { border:1px solid #E6EEF2; border-radius:14px; padding:18px 20px; margin-top:12px; background:#fff; }
+    .sum-card:first-child { margin-top:4px; }
+    .sum-title { font-size:1.2rem; font-weight:700; color:var(--primary-blue); line-height:1.3; }
+    .sum-date { font-size:.86rem; color:#EA580C; font-weight:800; letter-spacing:.2px; margin:2px 0 10px; }
+    .sum-overview { font-size:.98rem; color:#41535c; line-height:1.55; margin:0 0 12px; }
+    .sum-section { font-size:.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#0E7490; margin:12px 0 6px; }
+    .sum-list { margin:0; padding-left:20px; } .sum-list li { font-size:.92rem; color:#475569; line-height:1.5; margin:4px 0; }
+    .sum-ainote { font-size:.72rem; color:#94a3b8; margin-top:14px; font-style:italic; }
+    @media (max-width:560px){
+      .vlib-header { height:120px; } .vlib-header-txt h2 { font-size:1.3rem; }
+      .vlib-rec { gap:11px; padding:11px; } .vlib-flyer { width:112px; height:150px; }
+      .vlib-title { font-size:1rem; } .vlib-info .btn-row { flex-direction:row; align-items:center; }
+      .vlib-info .btn { width:auto; }
+    }
+    .rec-btn-row { margin-top: 0.9rem; gap: 0.6rem; }
 
     footer { background: var(--text-dark); color: white; padding: 1.75rem 2rem 1rem; position: relative; overflow: hidden; margin-top: auto; }
     .footer-content { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.4rem; margin-bottom: 1rem; position: relative; z-index: 1; }
@@ -124,17 +149,20 @@
     .nav-menu a { display: block; padding: 0.62rem 0.85rem; border-radius: 9px; color: var(--text-dark); text-decoration: none; font-weight: 600; font-size: 0.95rem; }
     .nav-menu a:hover { background: #F0F9FF; color: var(--primary-blue); }
 
-    .hero-section { position: relative; overflow: hidden; padding: 2.4rem 2rem 2.7rem;
+    .hero-section { position: sticky; top: 10px; z-index: 20; overflow: hidden; padding: 2.6rem 2rem 2.7rem;
         max-width: min(720px, calc(100% - 2rem)); margin: 1.3rem auto 0.3rem; border-radius: 22px;
         box-shadow: 0 12px 30px rgba(8,145,178,.26);
         background: linear-gradient(135deg, #0E7490 0%, var(--ocean-mid) 55%, var(--accent-teal) 120%); }
     .hero-section .hero-islands { position: absolute; left: 50%; top: 54%; width: 82%; max-width: 560px; color: #fff; opacity: 0.15; transform: translate(-50%,-50%) scaleY(-1); z-index: 0; }
-    .hero-section > *:not(.hero-islands):not(.lei) { position: relative; z-index: 1; }
+    .hero-section > *:not(.hero-islands):not(.lei):not(.hero-back) { position: relative; z-index: 1; }
     .hero-section h2 { font-weight: 800; }
     .hero-section .lei { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: linear-gradient(90deg, var(--sunset-coral), var(--plumeria), var(--accent-teal), var(--palm)); z-index: 2; }
 
     .card { transition: transform .18s ease, box-shadow .18s ease; }
     .card:hover { transform: translateY(-4px); box-shadow: 0 16px 34px rgba(8,145,178,.16); }
+
+    .resource-item { transition: background .15s ease, transform .15s ease; border-radius: 10px; }
+    .resource-item:hover { background: #F8FBFE; }
     @media (max-width: 600px) {
         .hero-section .hero-islands { width: 100%; max-width: 380px; }
     }
@@ -175,6 +203,7 @@
             <a href="index.html#eventsCard">My Events</a>
             <a href="screenings.html">Screening Results</a>
             <a href="resources.html">Member Resources</a>
+            <a href="videos.html">Video Library</a>
             <a href="profile.html">My Info</a>
             <a href="renew.html">Renew Membership</a>
         </nav>
@@ -183,8 +212,8 @@
     <section class="hero-section" id="heroSection" style="display:none;cursor:pointer;" title="Back to your portal" role="link" tabindex="0" onclick="location.href='index.html'" onkeydown="if(event.key==='Enter'){location.href='index.html'}">
         <svg class="hero-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
         <div class="hero-back">&lsaquo; Back to your portal</div>
-        <h2 id="heroTitle">Renew Your Membership</h2>
-        <p id="heroSub">Thank you for continuing to support LDAH families.</p>
+        <h2 id="heroTitle">AI Summaries</h2>
+        <p id="heroSub">Key takeaways from past LDAH Learning Labs &mdash; quick recaps for members.</p>
         <div class="lei"></div>
     </section>
 
@@ -193,10 +222,11 @@
             <div class="card">
                 <div class="loading-state">
                     <div class="loading-spinner"></div>
-                    <p>Loading your renewal&hellip;</p>
+                    <p>Loading your video library&hellip;</p>
                 </div>
             </div>
         </div>
+        <div id="recordingsSection"></div>
     </main>
 
     <footer>
@@ -235,41 +265,25 @@
         });
         const auth = firebase.auth();
         const fns = firebase.functions();
-        const db = firebase.firestore();
-
-        var TIERS = [
-            { level: 'Individual', amount: 50 },
-            { level: 'Friend', amount: 100 },
-            { level: 'Supporter', amount: 200 },
-            { level: 'Sponsor', amount: 500 },
-            { level: 'Partner', amount: 1000 },
-            { level: 'Benefactor', amount: 2500 }
-        ];
 
         function id(x) { return document.getElementById(x); }
-        function val(x) { var e = id(x); return e ? e.value : ''; }
         function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
         function setView(html) { id('view').innerHTML = html; }
         function hideHero() { var h = id('heroSection'); if (h) h.style.display = 'none'; }
         function showHero() { var h = id('heroSection'); if (h) h.style.display = 'flex'; }
         function showSignout() { var b = id('hdrActions'); if (b) b.style.display = 'flex'; }
         function hideSignout() { var b = id('hdrActions'); if (b) b.style.display = 'none'; var m = id('navMenu'); if (m) m.classList.remove('open'); }
-        function fmtDate(ms) { if (!ms) return ''; var d = new Date(Number(ms)); if (isNaN(d.getTime())) return ''; return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }); }
-        function money(n) { return Number(n).toLocaleString('en-US'); }
         function isUnverified(e) { return !!(e && (e.message === 'email-unverified' || (e.code && String(e.code).indexOf('failed-precondition') !== -1 && String(e.message || '').indexOf('email-unverified') !== -1))); }
         function guardMessage(title, body) {
             hideHero();
             setView('<div class="card message-card"><h3>' + esc(title) + '</h3><p>' + body + '</p><p style="margin-top:0.75rem;"><a href="index.html">Back to the portal</a></p></div>');
         }
 
-        var memberProfile = null;
-        var renewDocId = null, renewLevel = '', renewAmount = 0, renewName = '';
-
         auth.onAuthStateChanged(function (user) {
-            if (!user) { hideSignout(); guardMessage('Please log in', 'You need to be logged in to renew your membership.'); return; }
+            if (!user) { hideSignout(); guardMessage('Please log in', 'You need to be logged in to view the LDAH Video Library.'); return; }
             showSignout();
             if (!user.emailVerified) { guardMessage('Verify your email', 'Please verify your email before continuing.'); return; }
-            loadRenew(user);
+            loadRecordings(user);
         });
 
         id('signoutBtn').addEventListener('click', function () { auth.signOut(); });
@@ -281,224 +295,105 @@
             nm.addEventListener('click', function () { nm.classList.remove('open'); mb.setAttribute('aria-expanded', 'false'); });
         })();
 
-        function callProfile() { return fns.httpsCallable('getMemberProfile')().then(function (r) { return r.data; }); }
+        function showLoadError(user) {
+            hideHero();
+            setView('<div class="card message-card"><h3>Something went wrong</h3><p>We couldn’t load the video library right now. Please try again in a moment.</p><div class="btn-row" style="justify-content:center;"><button class="btn btn-primary" id="retryBtn">Try again</button></div></div>');
+            id('retryBtn').addEventListener('click', function () { loadRecordings(user); });
+        }
 
-        async function loadRenew(user) {
-            var res;
+        function extractDriveFileId(url) {
+            if (!url) return '';
+            var m = String(url).match(/\/d\/([a-zA-Z0-9_-]+)/); if (m) return m[1];
+            m = String(url).match(/[?&]id=([a-zA-Z0-9_-]+)/); if (m) return m[1];
+            return '';
+        }
+
+        var _memberRecordings = [];
+        function callRecordings() { return fns.httpsCallable('getMemberSummaries')().then(function (r) { return r.data; }); }
+
+        function openRecordingByIndex(i) {
+            var r = _memberRecordings[i]; if (!r) return;
+            var id2 = extractDriveFileId(r.recordingUrl);
+            var frame = id('recPlayerIframe');
+            var fb = id('recPlayerFallback');
+            id('recPlayerTitle').textContent = r.eventTitle || 'Recording';
+            if (id2) { frame.src = 'https://drive.google.com/file/d/' + id2 + '/preview'; frame.style.display = 'block'; }
+            else { frame.src = ''; frame.style.display = 'none'; }
+            fb.href = r.recordingUrl || (id2 ? 'https://drive.google.com/file/d/' + id2 + '/view' : '#');
+            id('recPlayerOverlay').style.display = 'flex';
+        }
+        function closeRecording() {
+            id('recPlayerIframe').src = '';
+            id('recPlayerOverlay').style.display = 'none';
+        }
+
+        function fmtRecDate(ymd) {
+            var m = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if (!m) return ymd || '';
+            var d = new Date(m[1] + '-' + m[2] + '-' + m[3] + 'T12:00:00');
+            return isNaN(d) ? (ymd || '') : d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        }
+        function renderRecordings(list) {
+            var host = id('recordingsSection');
+            _memberRecordings = list || [];
+            if (!host) return;
+            if (!_memberRecordings.length) { host.innerHTML = ''; return; }
+            var sorted = _memberRecordings.slice().sort(function (a, b) { return String((b && b.eventDate) || '').localeCompare(String((a && a.eventDate) || '')); });
+            _memberRecordings = sorted;
+            var rows = sorted.map(function (r) {
+                r = r || {};
+                var kp = (Array.isArray(r.keyPoints) ? r.keyPoints : []).map(function (p) { return '<li>' + esc(String(p)) + '</li>'; }).join('');
+                var ns = (Array.isArray(r.nextSteps) ? r.nextSteps : []).map(function (p) { return '<li>' + esc(String(p)) + '</li>'; }).join('');
+                return '<div class="sum-card">'
+                    + '<div class="sum-title">' + esc(r.title || r.eventTitle || 'Learning Lab recap') + '</div>'
+                    + '<div class="sum-date">' + esc(fmtRecDate(r.eventDate)) + '</div>'
+                    + (r.overview ? '<p class="sum-overview">' + esc(r.overview) + '</p>' : '')
+                    + (kp ? '<div class="sum-section">Key points</div><ul class="sum-list">' + kp + '</ul>' : '')
+                    + (ns ? '<div class="sum-section">Next steps</div><ul class="sum-list">' + ns + '</ul>' : '')
+                    + '<div class="sum-ainote">Auto-generated recap, reviewed by LDAH staff.</div>'
+                    + '</div>';
+            }).join('');
+            host.innerHTML =
+                '<div class="vlib"><div class="vlib-body">' + rows + '</div></div>';
+        }
+
+        async function loadRecordings(user) {
+            var data;
             try {
-                res = await callProfile();
+                data = await callRecordings();
             } catch (e) {
                 if (isUnverified(e)) {
-                    try { await user.getIdToken(true); res = await callProfile(); }
+                    try { await user.getIdToken(true); data = await callRecordings(); }
                     catch (e2) { if (isUnverified(e2)) { guardMessage('Verify your email', 'Please verify your email before continuing.'); return; } return showLoadError(user); }
                 } else { return showLoadError(user); }
             }
-            if (!res || res.found === false) {
+
+            if (data && data.locked) {
                 hideHero();
                 setView(''
                     + '<div class="card message-card">'
-                    + '  <h3>No membership record found</h3>'
-                    + '  <p>We couldn’t find a membership record for <strong>' + esc(user.email) + '</strong>. To join LDAH, please use our membership page.</p>'
-                    + '  <div class="btn-row" style="justify-content:center;"><a class="btn btn-primary" href="https://www.ldahawaii.org/volunteer.html" target="_blank" rel="noopener">Become a member</a><a class="btn btn-outline" href="index.html">Back to portal</a></div>'
+                    + '  <h3>Members-only recaps</h3>'
+                    + '  <p>These recaps are members-only. Renew your membership to regain access to LDAH Learning Lab summaries.</p>'
+                    + '  <div class="btn-row" style="justify-content:center;"><a class="btn btn-primary" href="renew.html">Renew membership</a><a class="btn btn-outline" href="index.html">Back to portal</a></div>'
                     + '</div>');
                 return;
             }
-            memberProfile = res.profile || {};
-            renderRenewForm(memberProfile);
-        }
 
-        function showLoadError(user) {
-            hideHero();
-            setView('<div class="card message-card"><h3>Something went wrong</h3><p>We couldn’t load your renewal right now. Please try again in a moment.</p><div class="btn-row" style="justify-content:center;"><button class="btn btn-primary" id="retryBtn">Try again</button></div></div>');
-            id('retryBtn').addEventListener('click', function () { loadRenew(user); });
-        }
+            var recordings = (data && data.summaries) || [];
+            if (!recordings.length) {
+                showHero();
+                setView(''
+                    + '<div class="card message-card">'
+                    + '  <h3>AI Summaries</h3>'
+                    + '  <p>No recaps yet &mdash; summaries of past Learning Labs will appear here soon.</p>'
+                    + '  <p style="margin-top:0.75rem;"><a href="index.html">Back to portal</a></p>'
+                    + '</div>');
+                return;
+            }
 
-        function renderRenewForm(p) {
             showHero();
-            var fullName = p.displayName || ((p.firstName || '') + ' ' + (p.lastName || '')).trim();
-            var expDate = p.membershipExpiresAt ? fmtDate(p.membershipExpiresAt) : '';
-
-            var currentBox = '<div class="current-box">'
-                + '<div><strong>Current level:</strong> ' + esc(p.membershipLevel || '—') + (p.membershipStatus ? ' (' + esc(p.membershipStatus) + ')' : '') + '</div>'
-                + (expDate ? '<div><strong>Expires:</strong> ' + esc(expDate) + '</div>' : '')
-                + '</div>';
-
-            var options = TIERS.map(function (t) {
-                var sel = (p.membershipLevel && String(p.membershipLevel).toLowerCase() === t.level.toLowerCase()) ? ' selected' : '';
-                return '<option value="' + t.level + '"' + sel + '>' + t.level + ' — $' + money(t.amount) + ' / year</option>';
-            }).join('');
-
-            setView(''
-                + '<div class="card">'
-                + '  <h3 class="card-title">Renew your membership</h3>'
-                + currentBox
-                + '  <div id="renewError" class="inline-error"></div>'
-                + '  <div class="form-group"><label class="fld-label" for="renewName">Full name</label><input type="text" id="renewName" autocomplete="name" value="' + esc(fullName) + '"></div>'
-                + '  <div class="form-group"><label class="fld-label" for="renewEmail">Email</label><input type="email" id="renewEmail" autocomplete="email" value="' + esc(p.email) + '"></div>'
-                + '  <div class="form-group"><label class="fld-label" for="renewPhone">Phone <span style="font-weight:400;color:var(--text-soft);">(optional)</span></label><input type="tel" id="renewPhone" autocomplete="tel" value="' + esc(p.phone) + '"></div>'
-                + '  <div class="form-group"><label class="fld-label" for="renewLevel">Membership level</label><select id="renewLevel">' + options + '</select></div>'
-                + '  <div class="btn-row"><button class="btn btn-primary btn-block" id="renewSubmit">Continue to payment</button></div>'
-                + '</div>'
-
-                + '<div class="card" id="payCard" style="display:none;">'
-                + '  <h3 class="card-title">Complete your renewal</h3>'
-                + '  <p id="paySummary" class="muted-note" style="margin-bottom:1rem;"></p>'
-                + '  <div id="paypalButtons" style="min-height:44px;"></div>'
-                + '  <p id="payMsg" class="muted-note" style="margin-top:0.75rem;text-align:center;"></p>'
-                + '</div>'
-
-                + '<div class="card message-card" id="renewSuccess" style="display:none;">'
-                + '  <h3>Mahalo</h3>'
-                + '  <p>Your renewal is being processed. Your access updates shortly.</p>'
-                + '  <p style="margin-top:0.75rem;"><a href="index.html">Back to portal</a></p>'
-                + '</div>'
-
-                + '<div class="card message-card"><p style="margin:0;"><a href="index.html">Back to portal</a></p></div>');
-
-            id('renewSubmit').addEventListener('click', startRenewal);
-        }
-
-        function renewError(msg) { var e = id('renewError'); if (e) { e.textContent = msg; e.classList.add('visible'); } }
-        function clearRenewError() { var e = id('renewError'); if (e) { e.textContent = ''; e.classList.remove('visible'); } }
-
-        async function startRenewal() {
-            clearRenewError();
-            renewName = val('renewName').trim();
-            var email = val('renewEmail').trim();
-            var phone = val('renewPhone').trim();
-            var levelSel = val('renewLevel');
-            var tier = TIERS.filter(function (t) { return t.level === levelSel; })[0];
-            if (!renewName || !email) { renewError('Please enter your name and email.'); return; }
-            if (!tier) { renewError('Please choose a membership level.'); return; }
-            renewLevel = tier.level; renewAmount = tier.amount;
-
-            var btn = id('renewSubmit'); btn.disabled = true; btn.textContent = 'Saving…';
-            try {
-                var ref = await db.collection('members').add({
-                    name: renewName, email: email, phone: phone,
-                    level: renewLevel, amount: renewAmount,
-                    status: 'pending', source: 'member-portal-renewal',
-                    linkedContactId: (memberProfile && memberProfile.id) || null,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                renewDocId = ref.id;
-            } catch (e) {
-                btn.disabled = false; btn.textContent = 'Continue to payment';
-                renewError('Sorry, something went wrong saving your info. Please try again or call (808) 536-9684.');
-                return;
-            }
-
-            id('paySummary').innerHTML = 'You’re renewing as <strong>' + esc(renewLevel) + '</strong> &mdash; <strong>$' + money(renewAmount) + '</strong> per year. Complete your gift below.';
-            id('payMsg').textContent = '';
-            id('payCard').style.display = '';
-            id('payCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
-            renderPayPalButtons();
-        }
-
-        var _rnBtns = null, _rnSdkWait = null, _rnCapturing = false;
-
-        function _rnNoteError(stage, err) {
-            var text = '';
-            try { text = (err && (err.message || String(err))) || ''; } catch (_) {}
-            try { console.warn('[renew] ' + stage + ':', err); } catch (_) {}
-            if (!renewDocId) return;
-            try {
-                db.collection('members').doc(renewDocId).update({
-                    lastError: String(stage + ': ' + text).slice(0, 500),
-                    lastErrorAt: firebase.firestore.FieldValue.serverTimestamp()
-                }).catch(function () {});
-            } catch (_) {}
-        }
-        function _rnRetryLink(label) {
-            return ' <a href="#" onclick="event.preventDefault();retryRenewPayment();" style="color:#0891B2;font-weight:700;">' +
-                (label || 'Try again') + '</a>';
-        }
-        window.retryRenewPayment = function () { id('payMsg').innerHTML = ''; renderPayPalButtons(); };
-
-        /* Same five fixes as the public membership checkout — see the LDAH_W2
-           commit "Membership checkout: stop losing donors to a dead payment box".
-           A renewing member is an EXISTING paying member; making them fight an
-           empty payment box is worse here than on the join page. */
-        function renderPayPalButtons() {
-            var host = id('paypalButtons');
-            if (!host) return;
-            // Tear down through PayPal's API; innerHTML='' orphans its iframe and
-            // can make the next render fail silently.
-            if (_rnBtns && _rnBtns.close) { try { _rnBtns.close(); } catch (_) {} }
-            _rnBtns = null;
-            host.textContent = '';
-            var slot = document.createElement('div');
-            host.appendChild(slot);
-
-            if (!window.paypal || !window.paypal.Buttons) {
-                id('payMsg').innerHTML = 'Loading secure payment…';
-                if (_rnSdkWait) { clearInterval(_rnSdkWait); _rnSdkWait = null; }
-                var waited = 0;
-                _rnSdkWait = setInterval(function () {
-                    waited += 250;
-                    if (window.paypal && window.paypal.Buttons) {
-                        clearInterval(_rnSdkWait); _rnSdkWait = null;
-                        id('payMsg').innerHTML = ''; renderPayPalButtons();
-                    } else if (waited >= 12000) {
-                        clearInterval(_rnSdkWait); _rnSdkWait = null;
-                        _rnNoteError('sdk-load', 'window.paypal never appeared');
-                        id('payMsg').innerHTML = 'Secure payment could not load — usually an ad blocker or a spotty ' +
-                            'connection. Call (808) 536-9684 and we will take your renewal over the phone.' + _rnRetryLink();
-                    }
-                }, 250);
-                return;
-            }
-
-            _rnBtns = window.paypal.Buttons({
-                style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'paypal' },
-                createOrder: function (data, actions) {
-                    return actions.order.create({
-                        purchase_units: [{
-                            amount: { value: Number(renewAmount).toFixed(2), currency_code: 'USD' },
-                            description: 'LDAH ' + renewLevel + ' Membership Renewal',
-                            custom_id: renewDocId
-                        }]
-                    });
-                },
-                onApprove: function (data, actions) {
-                    if (_rnCapturing) return;
-                    _rnCapturing = true;
-                    id('payMsg').innerHTML = 'Completing your renewal…';
-                    return actions.order.capture().then(function (details) {
-                        var orderId = (details && details.id) || data.orderID || '';
-                        return db.collection('members').doc(renewDocId).update({
-                            status: 'paid',
-                            paypalOrderId: orderId,
-                            paidAt: firebase.firestore.FieldValue.serverTimestamp()
-                        }).then(showSuccess, showSuccess);
-                    }).catch(function (err) {
-                        _rnCapturing = false;
-                        _rnNoteError('capture', err);
-                        id('payMsg').innerHTML = 'PayPal took your details but we could not finish confirming. ' +
-                            '<strong>Please do not pay again</strong> — call (808) 536-9684 and we will sort it out.';
-                    });
-                },
-                onCancel: function () {
-                    _rnCapturing = false;
-                    id('payMsg').innerHTML = 'Payment cancelled. You can complete it whenever you’re ready.' + _rnRetryLink('Start again');
-                },
-                onError: function (err) {
-                    _rnCapturing = false;
-                    _rnNoteError('paypal-onerror', err);
-                    id('payMsg').innerHTML = 'Something went wrong with PayPal.' + _rnRetryLink() + ' Or call (808) 536-9684.';
-                }
-            });
-            var p = _rnBtns.render(slot);
-            if (p && p.catch) p.catch(function (err) {
-                _rnNoteError('render', err);
-                id('payMsg').innerHTML = 'The payment buttons could not be displayed.' + _rnRetryLink() + ' Or call (808) 536-9684.';
-            });
-        }
-
-        function showSuccess() {
-            id('payCard').style.display = 'none';
-            var s = id('renewSuccess'); s.style.display = '';
-            s.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setView('');
+            renderRecordings(recordings);
         }
 
         document.querySelectorAll('.dynamic-year').forEach(function (el) { el.textContent = new Date().getFullYear(); });
@@ -510,5 +405,16 @@
         #a11y-panel { left: auto !important; right: 20px !important; }
     </style>
     <script src="https://www.ldahawaii.org/accessibility.js"></script>
+
+    <div id="recPlayerOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)closeRecording()">
+      <div style="background:#fff;border-radius:16px;max-width:900px;width:100%;padding:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <strong id="recPlayerTitle" style="color:#0891B2;"></strong>
+          <button onclick="closeRecording()" style="border:none;background:none;font-size:1.5rem;cursor:pointer;color:#64748B;">&times;</button>
+        </div>
+        <iframe id="recPlayerIframe" src="" style="width:100%;aspect-ratio:16/9;border:none;border-radius:8px;background:#000;" allow="autoplay;encrypted-media" allowfullscreen></iframe>
+        <a id="recPlayerFallback" href="#" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;font-size:.85rem;">Open in Google Drive</a>
+      </div>
+    </div>
 </body>
 </html>
