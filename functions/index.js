@@ -18086,12 +18086,65 @@ exports.getMemberProfile = functions
     // (previously paid, now expired) still get in — they can renew from inside.
     const everPaid = c.membershipStatus === "active" || c.membershipStatus === "paid" || !!c.membershipPaidAt;
     if (!c.isMember || !everPaid) return { found: false };
-    // Record the auth link so staff can see the member created a login.
-    if (c.memberAuthUid !== context.auth.uid) {
+    // Record the auth link, and log the member's FIRST portal sign-in on their
+    // contact timeline and in the audit log. Staff had no way to tell whether a
+    // member ever actually got in — only that we had emailed them a link.
+    //
+    // Done in a transaction: the portal calls this on every load, so two tabs
+    // opening together would otherwise both see "no first login yet" and write
+    // two interactions. The transaction decides the winner, and only the winner
+    // returns true.
+    let firstLogin = false;
+    try {
+      firstLogin = await db.runTransaction(async (tx) => {
+        const fresh = await tx.get(doc.ref);
+        const d = fresh.data() || {};
+        const isFirst = !d.portalFirstLoginAt;
+        const patch = {
+          memberAuthUid: context.auth.uid,
+          portalLastLoginAt: admin.firestore.FieldValue.serverTimestamp(),
+          portalLoginCount: admin.firestore.FieldValue.increment(1),
+        };
+        if (isFirst) patch.portalFirstLoginAt = admin.firestore.FieldValue.serverTimestamp();
+        tx.set(fresh.ref, patch, { merge: true });
+        return isFirst;
+      });
+    } catch (e) { console.warn("portal login stamp failed:", e.message); }
+
+    if (firstLogin) {
+      const who = c.name || [c.firstName, c.lastName].filter(Boolean).join(" ").trim() || email;
+      // Closed, not Open: this is something that HAPPENED, not a task for anyone.
       try {
-        await doc.ref.set({ memberAuthUid: context.auth.uid }, { merge: true });
-      } catch (e) { console.warn("memberAuthUid link failed:", e.message); }
+        await db.collection("interactions").add({
+          channel: "System",
+          interactionType: "Membership",
+          contactId: doc.id,
+          contactName: who,
+          contactType: c.contactType || "",
+          grantProgram: "",
+          summary: "Signed in to the member portal for the first time",
+          followUpDate: "",
+          status: "Closed",
+          notes: who + " created a login and signed in to the member portal for the first time"
+            + " (" + email + "). Recorded automatically the first time the portal loaded their profile.",
+          isDraft: false,
+          owner: "System (auto)",
+          ownerUid: "",
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (e) { console.warn("first-login interaction failed:", e.message); }
+      // Audit log so the daily-report changelog picks it up automatically.
+      try {
+        await db.collection("auditLog").add({
+          action: "Member signed in to the portal for the first time",
+          details: who + " (" + email + ")",
+          performedBy: "System (auto)",
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (e) { console.warn("first-login auditLog failed:", e.message); }
     }
+
     return { found: true, profile: _sanitizeMemberContact(doc.id, c) };
   });
 
