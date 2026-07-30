@@ -82,6 +82,18 @@ service cloud.firestore {
         && request.resource.data.status == 'paid'
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['status', 'paypalOrderId', 'paidAt']);
+      // Public retry (2026-07-29): a donor whose first attempt failed may correct
+      // their own details, bump the attempt counter, and leave a diagnostic on the
+      // record they already created, WHILE IT IS STILL PENDING. Erica Au left five
+      // separate pending records on 29 Jul because the page could only ever create
+      // a new one, and nothing recorded why any attempt failed.
+      // Cannot flip status, cannot touch a paid record, cannot write payment fields.
+      allow update: if request.auth == null
+        && resource.data.status == 'pending'
+        && request.resource.data.status == 'pending'
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['name', 'email', 'phone', 'level', 'amount', 'secondParent',
+                       'attempts', 'updatedAt', 'lastError', 'lastErrorAt']);
     }
     match /volunteers/{document=**} {
       allow read: if request.auth != null;

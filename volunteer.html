@@ -1035,11 +1035,17 @@
        contact-timeline interaction). onMembershipCreated links/creates the contact. */
     (function () {
       var _mmLevel = '', _mmAmount = 0, _mmDocId = null, _mmName = '';
+      var _mmBtns = null, _mmSdkWait = null, _mmCapturing = false, _mmPaid = false;
       function el(id) { return document.getElementById(id); }
 
       window.openMembershipModal = function (ev, level, amount) {
         if (ev && ev.preventDefault) ev.preventDefault();
-        _mmLevel = level; _mmAmount = amount; _mmDocId = null; _mmName = '';
+        _mmLevel = level; _mmAmount = amount; _mmName = '';
+        // Keep the pending record across re-opens so a second try updates it
+        // rather than creating a duplicate. A completed payment starts fresh.
+        if (_mmPaid) { _mmDocId = null; _mmPaid = false; }
+        _mmCapturing = false;
+        if (_mmSdkWait) { clearInterval(_mmSdkWait); _mmSdkWait = null; }
         el('mm-title').textContent = 'Join as ' + level;
         var sub = el('mm-sub');
         sub.style.display = '';
@@ -1072,6 +1078,10 @@
                  lastName: ((el('secondParentLast') || {}).value || '').trim(), email: em };
       }
 
+      /* One pending record per visitor, not one per attempt. Erica Au left FIVE
+         pending records on 29 Jul before her payment went through, because every
+         press of "Continue to Payment" called .add() again. A retry now updates
+         the record we already made and bumps `attempts`. */
       window.submitMembership = async function (ev) {
         if (ev && ev.preventDefault) ev.preventDefault();
         var btn = el('mm-submit');
@@ -1081,15 +1091,34 @@
         var phone = el('mm-phone').value.trim();
         if (!_mmName || !email) return;
         var _sp = _collectSecondParent();
+        msg.textContent = '';
         btn.disabled = true; btn.textContent = 'Saving…';
+        var payload = Object.assign({
+          name: _mmName, email: email, phone: phone,
+          level: _mmLevel, amount: _mmAmount,
+          status: 'pending', source: 'web-howtohelp'
+        }, _sp ? { secondParent: _sp } : {});
         try {
-          var ref = await firebase.firestore().collection('members').add(Object.assign({
-            name: _mmName, email: email, phone: phone,
-            level: _mmLevel, amount: _mmAmount,
-            status: 'pending', source: 'web-howtohelp',
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-          }, _sp ? { secondParent: _sp } : {}));
-          _mmDocId = ref.id;
+          var col = firebase.firestore().collection('members');
+          if (_mmDocId) {
+            /* Refreshing the details on a retry is a nicety, not a requirement.
+               The W2 page does NOT sign in anonymously, so this update can be
+               refused by the security rules — in which case we keep the record we
+               already have and go straight on to payment rather than failing and
+               sending them round again. */
+            payload.attempts = firebase.firestore.FieldValue.increment(1);
+            payload.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+            try {
+              await col.doc(_mmDocId).update(payload);
+            } catch (permErr) {
+              console.warn('[membership] retry update refused, reusing record:', permErr && permErr.code);
+            }
+          } else {
+            payload.attempts = 1;
+            payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+            var ref = await col.add(payload);
+            _mmDocId = ref.id;
+          }
         } catch (e) {
           msg.textContent = 'Sorry, something went wrong saving your info. Please try again or call (808) 536-9684.';
           btn.disabled = false; btn.textContent = 'Continue to Payment';
@@ -1104,14 +1133,63 @@
         renderPayPalButtons();
       };
 
+      function _mmPayMsg(html) { var m = el('mm-pay-msg'); if (m) m.innerHTML = html; }
+      function _mmRetryLink(label) {
+        return ' <a href="#" onclick="event.preventDefault();retryMembershipPayment();" style="color:#0891B2;font-weight:700;">' +
+          (label || 'Try again') + '</a>';
+      }
+      window.retryMembershipPayment = function () { _mmPayMsg(''); renderPayPalButtons(); };
+
+      /* Record WHY an attempt failed. Nothing was recorded before, so five failed
+         attempts left no trace at all and there was nothing to diagnose. */
+      function _mmNoteError(stage, err) {
+        var text = '';
+        try { text = (err && (err.message || String(err))) || ''; } catch (_) {}
+        try { console.warn('[membership] ' + stage + ':', err); } catch (_) {}
+        if (!_mmDocId) return;
+        try {
+          firebase.firestore().collection('members').doc(_mmDocId).update({
+            lastError: String(stage + ': ' + text).slice(0, 500),
+            lastErrorAt: firebase.firestore.FieldValue.serverTimestamp()
+          }).catch(function () {});   // diagnostics only — never surface a rules refusal
+        } catch (_) {}
+      }
+
       function renderPayPalButtons() {
-        var container = el('mm-paypal-buttons');
-        container.innerHTML = '';
+        var host = el('mm-paypal-buttons');
+        if (!host) return;
+        /* Tear the old instance down through PayPal's own API. Wiping innerHTML
+           out from under its iframe orphans it and can make the NEXT render fail,
+           which leaves the visitor staring at an empty payment box — retrying the
+           form is then the only thing they can do. */
+        if (_mmBtns && _mmBtns.close) { try { _mmBtns.close(); } catch (_) {} }
+        _mmBtns = null;
+        host.textContent = '';
+        var slot = document.createElement('div');
+        host.appendChild(slot);
+
         if (!window.paypal || !window.paypal.Buttons) {
-          el('mm-pay-msg').innerHTML = 'PayPal is still loading. Please wait a moment and refresh, or call (808) 536-9684.';
+          /* Wait for the SDK instead of telling someone to refresh the page —
+             refreshing loses the form and starts the whole thing over. */
+          _mmPayMsg('Loading secure payment…');
+          if (_mmSdkWait) { clearInterval(_mmSdkWait); _mmSdkWait = null; }
+          var waited = 0;
+          _mmSdkWait = setInterval(function () {
+            waited += 250;
+            if (window.paypal && window.paypal.Buttons) {
+              clearInterval(_mmSdkWait); _mmSdkWait = null;
+              _mmPayMsg(''); renderPayPalButtons();
+            } else if (waited >= 12000) {
+              clearInterval(_mmSdkWait); _mmSdkWait = null;
+              _mmNoteError('sdk-load', 'window.paypal never appeared');
+              _mmPayMsg('Secure payment could not load — usually an ad blocker or a spotty connection. ' +
+                'Call (808) 536-9684 and we will take it over the phone.' + _mmRetryLink());
+            }
+          }, 250);
           return;
         }
-        window.paypal.Buttons({
+
+        _mmBtns = window.paypal.Buttons({
           style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'paypal' },
           createOrder: function (data, actions) {
             return actions.order.create({
@@ -1123,6 +1201,9 @@
             });
           },
           onApprove: function (data, actions) {
+            if (_mmCapturing) return;              // guard a double click on the button
+            _mmCapturing = true;
+            _mmPayMsg('Completing your payment…');
             return actions.order.capture().then(function (details) {
               var orderId = (details && details.id) || data.orderID || '';
               return firebase.firestore().collection('members').doc(_mmDocId).update({
@@ -1130,18 +1211,34 @@
                 paypalOrderId: orderId,
                 paidAt: firebase.firestore.FieldValue.serverTimestamp()
               }).then(showSuccess, showSuccess); // payment captured — thank them either way; staff reconcile if the flag write fails
+            }).catch(function (err) {
+              _mmCapturing = false;
+              _mmNoteError('capture', err);
+              /* Never invite a second payment here: PayPal may already hold the
+                 money and we simply failed to finish. */
+              _mmPayMsg('PayPal took your details but we could not finish confirming. ' +
+                '<strong>Please do not pay again</strong> — call (808) 536-9684 and we will sort it out.');
             });
           },
           onCancel: function () {
-            el('mm-pay-msg').textContent = 'Payment cancelled. You can complete it whenever you’re ready.';
+            _mmCapturing = false;
+            _mmPayMsg('Payment cancelled. You can complete it whenever you’re ready.' + _mmRetryLink('Start again'));
           },
-          onError: function () {
-            el('mm-pay-msg').innerHTML = 'Something went wrong with PayPal. Please try again or call (808) 536-9684.';
+          onError: function (err) {
+            _mmCapturing = false;
+            _mmNoteError('paypal-onerror', err);
+            _mmPayMsg('Something went wrong with PayPal.' + _mmRetryLink() + ' Or call (808) 536-9684.');
           }
-        }).render('#mm-paypal-buttons');
+        });
+        var p = _mmBtns.render(slot);
+        if (p && p.catch) p.catch(function (err) {
+          _mmNoteError('render', err);
+          _mmPayMsg('The payment buttons could not be displayed.' + _mmRetryLink() + ' Or call (808) 536-9684.');
+        });
       }
 
       function showSuccess() {
+        _mmPaid = true;
         el('mm-pay-step').style.display = 'none';
         el('mm-success').style.display = '';
         el('mm-success-msg').innerHTML = 'Mahalo, ' + (_mmName.split(' ')[0] || '') + '! Your <strong>' + _mmLevel + '</strong> membership is confirmed. A thank-you email is on its way.';
