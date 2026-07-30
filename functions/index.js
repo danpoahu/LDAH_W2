@@ -17305,6 +17305,8 @@ exports.onRecurringSignupCreatedLifecycle = functions
 //     (from the system/resourceNudgeCycle config), once nudges are exhausted.
 // "Updated this cycle?" uses the same grace-window test as the nudge cron.
 // ----------------------------------------------------------------------------
+const RESOURCE_CALL_TASK_DUE_DAYS = 7;
+
 exports.createResourceUpdateCallTasks = functions
   .runWith({ timeoutSeconds: 540, maxInstances: 1 })
   .pubsub.schedule("0 5 * * *").timeZone("Pacific/Honolulu")
@@ -17365,7 +17367,11 @@ exports.createResourceUpdateCallTasks = functions
         // the task to find may as well not be there.
         summary: "Call " + name + (r.phone ? " \u2014 " + r.phone : "") + " for resource-listing updates"
           + (email ? "" : " (no email on file)"),
-        followUpDate: todayKey,
+        // A week to make the call, not the same day. Due-today meant every task
+        // was overdue by the next morning, so La'a opened My Day to a wall of
+        // late work he had never had a chance to do — which makes the whole
+        // list easier to ignore.
+        followUpDate: addDaysHst(todayKey, RESOURCE_CALL_TASK_DUE_DAYS),
         status: "Open",
         contactPhone: r.phone || "",
         notes: (r.phone ? "Phone: " + r.phone + "\n\n" : "No phone on file — check the resource card.\n\n")
