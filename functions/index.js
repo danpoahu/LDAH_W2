@@ -8123,7 +8123,10 @@ exports.sendEventAnnouncement = functions
           // Legacy/empty/other types are excluded by design — no backfill.
           if (_audience === 'parents' && (c.type || '').trim() !== 'Parent/Guardian') return;
           const displayName = (c.displayName || [c.firstName, c.lastName].filter(Boolean).join(' ')).trim() || 'Friend';
-          recipients.push({ id: d.id, displayName, email, secondParent: c.secondParent, unsubscribeToken: c.unsubscribeToken });
+          recipients.push({ id: d.id, displayName, email, secondParent: c.secondParent, unsubscribeToken: c.unsubscribeToken,
+        // Location, so the modal can offer "just the Big Island" and similar.
+        // Only ever used to pre-tick checkboxes — never to decide a send.
+        city: c.city || "", zipCode: String(c.zipCode || c.zip || "").trim() });
         });
         // Guard: if a filter selected zero recipients, fail loudly instead of
         // silently sending to nobody (dryRun returns counts; real send errors).
@@ -8200,6 +8203,11 @@ exports.sendEventAnnouncement = functions
               email: r.email,
               signedUp: _isSignedUp(r),
               alreadySent: alreadySent.has(r.id),
+              // Location for the modal's island quick-select. This projection is
+              // a whitelist, so anything not named here is dropped no matter what
+              // the source objects carry.
+              city: r.city || "",
+              zipCode: r.zipCode || "",
             }))
             .sort((a, b) => (a.displayName || '').toLowerCase().localeCompare((b.displayName || '').toLowerCase())),
         });
