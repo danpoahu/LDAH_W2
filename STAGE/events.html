@@ -2780,7 +2780,7 @@
                       <option value="Radio">Radio</option>
                       <option value="Website">Website</option>
                       <option value="Facebook">Facebook</option>
-                      <option value="Other">Other</option>
+                      <option value="Conference">Conference</option><option value="Doctor or therapist">Doctor or therapist</option><option value="Email">Email</option><option value="Friend or family">Friend or family</option><option value="Other">Other</option>
                     </select>
                     <div id="inlineHearAboutOtherWrap" style="display:none; margin-top:10px;">
                       <label style="display:block; color:#004E7C; font-weight:600; margin-bottom:6px; font-size:13px;">Please specify <span style="color:#DC2626;">*</span></label>
@@ -3446,7 +3446,7 @@
             '<label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">How did you hear about this training? <span style="color: #DC2626;">*</span></label>' +
             '<select id="regHearAbout" required onchange="var w=document.getElementById(\'regHearAboutOtherWrap\');var o=document.getElementById(\'regHearAboutOther\');if(this.value===\'Other\'){w.style.display=\'block\';o.setAttribute(\'required\',\'\');}else{w.style.display=\'none\';o.removeAttribute(\'required\');o.value=\'\';}" style="width: 100%; padding: 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 14px; background: white;">' +
               '<option value="">-- Select --</option>' +
-              ['Agency', 'Newspaper', 'School', 'Radio', 'Website', 'Facebook', 'Other'].map(function(h) {
+              ['Agency', 'Newspaper', 'School', 'Radio', 'Website', 'Facebook', 'Conference', 'Doctor or therapist', 'Email', 'Friend or family', 'Other'].map(function(h) {
                 return '<option value="' + h + '"' + (pf.howHeard === h ? ' selected' : '') + '>' + h + '</option>';
               }).join('') +
             '</select>' +
@@ -4580,7 +4580,7 @@
                       <option value="Radio">Radio</option>
                       <option value="Website">Website</option>
                       <option value="Facebook">Facebook</option>
-                      <option value="Other">Other</option>
+                      <option value="Conference">Conference</option><option value="Doctor or therapist">Doctor or therapist</option><option value="Email">Email</option><option value="Friend or family">Friend or family</option><option value="Other">Other</option>
                     </select>
                     <div id="inlineHearAboutOtherWrap" style="display:none;margin-top:10px;">
                       <label style="display:block;color:#004E7C;font-weight:600;margin-bottom:6px;font-size:13px;">Please specify <span style="color:#DC2626;">*</span></label>
