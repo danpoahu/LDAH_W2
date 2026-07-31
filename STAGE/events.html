@@ -2772,7 +2772,7 @@
                   <!-- How Heard -->
                   <div style="margin-bottom:14px;">
                     <label style="display:block; color:#004E7C; font-weight:bold; margin-bottom:8px; font-size:14px;">How did you hear about this training? <span style="color:#DC2626;">*</span></label>
-                    <select id="inlineHearAbout" onchange="var w=document.getElementById('inlineHearAboutOtherWrap');var o=document.getElementById('inlineHearAboutOther');if(this.value==='Other'){w.style.display='block';o.setAttribute('required','');}else{w.style.display='none';o.removeAttribute('required');o.value='';}" style="width:100%; padding:12px; border:1px solid #D1D5DB; border-radius:8px; font-size:14px; background:white;">
+                    <select id="inlineHearAbout" required onchange="var w=document.getElementById('inlineHearAboutOtherWrap');var o=document.getElementById('inlineHearAboutOther');if(this.value==='Other'){w.style.display='block';o.setAttribute('required','');}else{w.style.display='none';o.removeAttribute('required');o.value='';}" style="width:100%; padding:12px; border:1px solid #D1D5DB; border-radius:8px; font-size:14px; background:white;">
                       <option value="">-- Select --</option>
                       <option value="Agency">Agency</option>
                       <option value="Newspaper">Newspaper</option>
@@ -3483,7 +3483,37 @@
       });
     }
 
+    /* "Other" is the most-picked answer on this question (34% of all records),
+       and over half of those left the box empty — so for a third of people the
+       answer we store is the word "Other" and nothing else. `required` alone
+       does not fix that: a single space satisfies it, and so does "n/a".
+       This reads the value the way a person would. Returns '' when fine. */
+    function _ldahHowHeardOtherOk(v) {
+      var t = String(v == null ? '' : v).trim();
+      if (!t) return 'Please tell us how you heard about us.';
+      if (t.length < 3) return 'Please give us a little more detail \u2014 a few words is plenty.';
+      if (/^(n\/?a|na|none|no|nope|nil|null|other|others|idk|dunno|test|\.|-|--|\?)$/i.test(t)) {
+        return 'Please tell us how you actually heard about us \u2014 even just "a friend" or "my doctor" helps.';
+      }
+      return '';
+    }
+    function _ldahHowHeardGuard(selId, otherId) {
+      var sel = document.getElementById(selId);
+      if (!sel || sel.value !== 'Other') return true;
+      var box = document.getElementById(otherId);
+      var why = _ldahHowHeardOtherOk(box ? box.value : '');
+      if (!why) return true;
+      if (box) {
+        box.setCustomValidity(why);
+        box.reportValidity();
+        setTimeout(function () { try { box.setCustomValidity(''); } catch (e) {} }, 50);
+        try { box.focus(); } catch (e) {}
+      } else { alert(why); }
+      return false;
+    }
+
     async function submitRegistration(evt, token, eventId, type) {
+      if (!_ldahHowHeardGuard('regHearAbout', 'regHearAboutOther')) { if (evt && evt.preventDefault) evt.preventDefault(); return false; }
       evt.preventDefault();
 
       // Double-submit guard (2026-07-07): prevent a second tap from firing a
@@ -3880,6 +3910,7 @@
     }
 
     async function submitSignup(event, eventId) {
+      if (!_ldahHowHeardGuard('inlineHearAbout', 'inlineHearAboutOther')) { if (event && event.preventDefault) event.preventDefault(); return false; }
       event.preventDefault();
 
       // Double-submit guard (2026-07-07): the duplicate-check network call runs
@@ -4541,7 +4572,7 @@
                   </div>
                   <div style="margin-bottom:14px;">
                     <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">How did you hear about this training? <span style="color:#DC2626;">*</span></label>
-                    <select id="inlineHearAbout" onchange="var w=document.getElementById('inlineHearAboutOtherWrap');var o=document.getElementById('inlineHearAboutOther');if(this.value==='Other'){w.style.display='block';o.setAttribute('required','');}else{w.style.display='none';o.removeAttribute('required');o.value='';}" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;background:white;">
+                    <select id="inlineHearAbout" required onchange="var w=document.getElementById('inlineHearAboutOtherWrap');var o=document.getElementById('inlineHearAboutOther');if(this.value==='Other'){w.style.display='block';o.setAttribute('required','');}else{w.style.display='none';o.removeAttribute('required');o.value='';}" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;background:white;">
                       <option value="">-- Select --</option>
                       <option value="Agency">Agency</option>
                       <option value="Newspaper">Newspaper</option>
@@ -4631,6 +4662,7 @@
     };
 
     async function submitRecurringSignup(event, programId) {
+      if (!_ldahHowHeardGuard('inlineHearAbout', 'inlineHearAboutOther')) { if (event && event.preventDefault) event.preventDefault(); return false; }
       event.preventDefault();
       // Double-submit guard (2026-07-07): released in the finally below.
       if (window.__ldahLock_recurring) return;
