@@ -17926,6 +17926,14 @@ exports.onMembershipPaid = functions
         <div style="font-size:13px;color:#92400E;font-weight:bold;margin-bottom:4px;">Your Membership</div>
         <div style="font-size:14px;color:#374151;line-height:1.7;">Level: ${_emailEsc(level)}<br>Amount: $${amount}<br>Date: ${_emailEsc(today)}</div>
       </div>
+      <div style="background:#F0F9FF;border:1px solid #BAE6FD;border-radius:10px;padding:18px 20px;margin:0 0 18px;">
+        <div style="font-size:16px;color:#0C4A6E;font-weight:bold;margin-bottom:8px;">Set up your member login</div>
+        <p style="font-size:14px;line-height:1.6;margin:0 0 12px;color:#0F172A;">Your membership comes with a private member portal &mdash; your event signups, your keiki&#699;s screening results, the resource library, and recordings from past Learning Labs. It takes about a minute to set up, and you choose your own password.</p>
+        <p style="font-size:14px;line-height:1.6;margin:0 0 14px;color:#0F172A;">Go to the portal, choose <strong>Create your login</strong>, and use <strong>this email address</strong> &mdash; that is how we match you to your membership. We will send a link to verify it is you, then you are in.</p>
+        <p style="margin:0 0 4px;text-align:center;">
+          <a href="https://www.ldahawaii.org/Members/" style="display:inline-block;background:#0891B2;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:12px 28px;border-radius:8px;">Set Up My Login</a>
+        </p>
+      </div>
       <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">Please keep this email for your records. If you have any questions, reach us at (808) 536-9684 or rrowe@ldahawaii.org.</p>
       <p style="font-size:15px;line-height:1.6;margin:0 0 4px;">With sincere appreciation,</p>
       <p style="font-size:15px;line-height:1.5;margin:0;"><strong>Rosie Rowe</strong>, Executive Director<br><span style="color:#6b7280;">&amp; The LDAH Team of Parents Supporting Parents</span></p>
