@@ -807,7 +807,8 @@
 
     // Render the Information section. Hidden entirely when there are no
     // information-only flyers. Cards reuse the .event-card styling; clicking
-    // opens the flyer itself (image/PDF) when present.
+    // opens the flyer on its own in openFlyerView (this comment described the
+    // intent long before the code did — the card used to go to events.html).
     function renderInfoEvents(list) {
         const section = document.getElementById('infoEventsSection');
         const grid = document.getElementById('infoEventsGrid');
@@ -821,7 +822,19 @@
             const badge = ongoing
                 ? '<div style="display:inline-block;padding:0.35rem 1rem;background:linear-gradient(135deg,#4DD0E1,#0891B2);color:white;border-radius:8px;font-size:0.85rem;font-weight:600;margin-top:1rem;">Flyer</div>'
                 : '<div style="display:inline-block;padding:0.35rem 1rem;background:linear-gradient(135deg,#f59e0b,#d97706);color:white;border-radius:8px;font-size:0.85rem;font-weight:600;margin-top:1rem;">Information</div>';
-            return '<div class="event-card" style="position:relative;cursor:pointer;" onclick="window.location.href=\'events.html?src=home\'">'
+            // Open the flyer itself. These cards are informational — there is no
+            // signup and no detail page behind them — so sending people to the
+            // events list was a dead end that lost the thing they clicked on.
+            // Falls back to the events page only if a flyer somehow has no image.
+            // encodeURIComponent leaves the APOSTROPHE alone, and it sits inside a
+            // single-quoted JS string in an onclick — so "Hawai'i" would end the
+            // string and break the handler. Hawaiian names carry apostrophes
+            // constantly, so escape it explicitly.
+            const _enc = v => encodeURIComponent(String(v == null ? '' : v)).replace(/'/g, '%27');
+            const _fv = event.imageUrl
+                ? 'openFlyerView(decodeURIComponent(\'' + _enc(event.imageUrl) + '\'),decodeURIComponent(\'' + _enc(event.title || 'Flyer') + '\'))'
+                : "window.location.href='events.html?src=home'";
+            return '<div class="event-card" style="position:relative;cursor:zoom-in;" onclick="' + _fv + '">'
                 + (event.imageUrl ? (isPDF ? '<iframe src="' + event.imageUrl + '" style="width:100%;height:220px;display:block;border:none;overflow:hidden;"></iframe>' : '<img src="' + event.imageUrl + '" alt="' + event.title + '" style="width:100%;height:auto;display:block;">') : '<div style="width:100%;height:220px;background:linear-gradient(135deg,var(--ocean-deep) 0%,var(--ocean-mid) 100%);"></div>')
                 + '<div style="padding:2rem;">'
                 + (displayDate ? '<div style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.5rem 1rem;background:var(--sand-light);border-radius:8px;font-size:0.9rem;font-weight:600;color:var(--ocean-deep);margin-bottom:1rem;">' + displayDate + '</div>' : '')
@@ -864,6 +877,59 @@
     // Check on load in case page is already scrolled
     setTimeout(checkLogo, 500);
 })();
+</script>
+
+<!-- Flyer viewer — News and Information cards open the flyer on its own.
+     Self-contained on purpose: no shared modal, no external stylesheet, nothing
+     to forget when this page moves. -->
+<div id="flyerLightbox" role="dialog" aria-modal="true" aria-label="Flyer"
+     style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(8,20,32,.88);
+            padding:24px;overflow:auto;text-align:center;">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;
+              max-width:900px;margin:0 auto 12px;color:#fff;">
+    <div id="flyerLightboxTitle" style="font-family:Outfit,sans-serif;font-weight:700;
+         font-size:1.05rem;text-align:left;line-height:1.3;"></div>
+    <button type="button" onclick="closeFlyerView()" aria-label="Close"
+      style="flex-shrink:0;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.35);
+             background:rgba(255,255,255,.12);color:#fff;font-size:1.4rem;line-height:1;cursor:pointer;">&times;</button>
+  </div>
+  <div id="flyerLightboxBody" style="max-width:900px;margin:0 auto;"></div>
+  <div style="max-width:900px;margin:12px auto 0;text-align:center;">
+    <a id="flyerLightboxOpen" href="#" target="_blank" rel="noopener"
+       style="color:#7DD3FC;font-size:.9rem;font-weight:600;text-decoration:none;">Open full size in a new tab</a>
+  </div>
+</div>
+<script>
+    // Shows one flyer, nothing else. PDFs render in an iframe, images as an img.
+    function openFlyerView(url, title) {
+        var box = document.getElementById('flyerLightbox');
+        var body = document.getElementById('flyerLightboxBody');
+        if (!box || !body || !url) return;
+        var isPdf = String(url).toLowerCase().split('?')[0].indexOf('.pdf') !== -1;
+        document.getElementById('flyerLightboxTitle').textContent = title || 'Flyer';
+        var link = document.getElementById('flyerLightboxOpen');
+        if (link) link.href = url;
+        body.innerHTML = isPdf
+            ? '<iframe src="' + url + '" title="Flyer" style="width:100%;height:80vh;border:none;border-radius:12px;background:#fff;"></iframe>'
+            : '<img src="' + url + '" alt="' + (title || 'Flyer').replace(/"/g, '&quot;') + '" style="max-width:100%;max-height:82vh;border-radius:12px;display:block;margin:0 auto;box-shadow:0 18px 50px rgba(0,0,0,.45);">';
+        box.style.display = 'block';
+        document.body.style.overflow = 'hidden';   // don't scroll the page behind it
+    }
+    function closeFlyerView() {
+        var box = document.getElementById('flyerLightbox');
+        if (!box) return;
+        box.style.display = 'none';
+        document.getElementById('flyerLightboxBody').innerHTML = '';   // stop a PDF rendering in the background
+        document.body.style.overflow = '';
+    }
+    // Click the backdrop (not the flyer) to close, and Esc as well.
+    document.addEventListener('click', function (e) {
+        var box = document.getElementById('flyerLightbox');
+        if (box && box.style.display === 'block' && e.target === box) closeFlyerView();
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeFlyerView();
+    });
 </script>
 </body>
 </html>
