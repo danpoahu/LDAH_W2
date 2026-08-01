@@ -8193,6 +8193,10 @@ exports.sendEventAnnouncement = functions
           alreadySignedUp,
           willSendTo: newRecipients.length,
           audienceFilter: _audience,
+          // The real cap, so the modal can state it instead of carrying a
+          // hardcoded number. It said "Daily cap: 50" for four weeks after the
+          // constant was raised to 5000 on the Resend paid upgrade (3 Jul).
+          cap: ANNOUNCEMENT_DAILY_CAP,
           // Full recipient list so the modal can show a selectable roster with
           // signed-up rows flagged (green check + locked) and already-emailed
           // rows marked. Sorted by name for a stable display.
