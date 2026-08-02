@@ -19013,3 +19013,185 @@ exports.onRecordingPublishJob = functions
       return setStatus("error", { note: String(e.message).slice(0, 300) });
     }
   });
+
+// ── Abandoned membership follow-up ───────────────────────────────────────────
+// Someone reaches the payment step, a members doc is created as "pending", and
+// then they stop. Nothing chased them: the thank-you only fires on payment, so
+// they receive NOTHING at all. Henry Conar did exactly this on 1 Aug 2026 —
+// $100 Friend, one attempt, no error recorded.
+//
+// Deliberately a TASK FIRST, not an email. They may well have paid through
+// PayPal in a way our capture missed, and asking someone to pay a second time
+// is the one outcome worth engineering against. So La'a checks PayPal, then
+// chooses: mark paid (fires the normal thank-you) or send the reminder.
+const ABANDONED_MEMBERSHIP_AFTER_HOURS = 20;
+
+exports.createAbandonedMembershipTasks = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 1 })
+  .pubsub.schedule("0 8 * * *").timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const cutoff = Date.now() - ABANDONED_MEMBERSHIP_AFTER_HOURS * 3600 * 1000;
+    const laaName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID);
+    const snap = await db.collection("members").get();
+    let created = 0;
+
+    for (const d of snap.docs) {
+      const m = d.data() || {};
+      if (m.status === "paid" || m.archived === true) continue;
+      const createdMs = m.createdAt && m.createdAt.toMillis ? m.createdAt.toMillis() : 0;
+      if (!createdMs || createdMs > cutoff) continue;          // too fresh — they may still be mid-checkout
+
+      const existing = await db.collection("interactions")
+        .where("workflowEventId", "==", d.id)
+        .where("workflowStep", "==", "membershipUnpaid")
+        .limit(1).get();
+      if (!existing.empty) continue;                            // one per membership, ever
+
+      // Token for the resume link, minted now so the reminder button has one ready.
+      let resumeToken = m.resumeToken;
+      if (!resumeToken) {
+        resumeToken = crypto.randomBytes(16).toString("hex");
+        try { await d.ref.update({ resumeToken }); } catch (e) { console.warn("resumeToken write failed:", e.message); }
+      }
+
+      const who = String(m.name || m.email || "Someone").trim();
+      const amt = typeof m.amount === "number" ? m.amount : (parseInt(m.amount, 10) || 0);
+      const started = createdMs ? new Date(createdMs).toLocaleDateString("en-US", { timeZone: "Pacific/Honolulu", month: "short", day: "numeric" }) : "";
+
+      await db.collection("interactions").add({
+        channel: "Membership",
+        interactionType: "Membership",
+        contactId: m.linkedContactId || "",
+        contactName: who,
+        contactType: "",
+        grantProgram: "",
+        summary: "Check PayPal for a payment from " + who + " \u2014 $" + amt + " " + (m.level || "membership") + " not completed",
+        followUpDate: toHstDateKey(new Date()),
+        status: "Open",
+        notes: who + " started a $" + amt + " " + (m.level || "") + " membership on " + started +
+          " and the payment never completed.\n\n" +
+          "Email: " + (m.email || "\u2014") + "\nPhone: " + (m.phone || "\u2014") + "\n\n" +
+          "CHECK PAYPAL FIRST. If the money is there, use \u201cMark paid\u201d \u2014 that sends the normal " +
+          "thank-you with their member-portal login. Only if there is no payment, use " +
+          "\u201cSend reminder\u201d, which emails them a link back to their own checkout with " +
+          "their details already filled in. Never ask someone to pay twice.",
+        isDraft: false,
+        owner: laaName,
+        ownerUid: LIFECYCLE_LAA_UID,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        workflowEventId: d.id,
+        workflowEventCollection: "members",
+        workflowStep: "membershipUnpaid",
+        workflowSessionKey: d.id,
+      });
+      created++;
+    }
+    console.log("createAbandonedMembershipTasks: created", created);
+    return null;
+  });
+
+// Look up a pending membership by its resume token, for the checkout page to
+// prefill. Returns only what the form needs — never the whole document.
+exports.getMembershipByResumeToken = functions
+  .runWith({ timeoutSeconds: 15, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    try {
+      const token = String((req.query && req.query.token) || "").trim();
+      if (!token || token.length < 20) { res.status(400).json({ error: "bad token" }); return; }
+      const db = admin.firestore();
+      const q = await db.collection("members").where("resumeToken", "==", token).limit(1).get();
+      if (q.empty) { res.status(404).json({ error: "not found" }); return; }
+      const m = q.docs[0].data() || {};
+      if (m.status === "paid") { res.json({ alreadyPaid: true }); return; }
+      res.json({
+        memberId: q.docs[0].id,
+        name: m.name || "",
+        email: m.email || "",
+        phone: m.phone || "",
+        level: m.level || "",
+        amount: typeof m.amount === "number" ? m.amount : (parseInt(m.amount, 10) || 0),
+      });
+    } catch (e) {
+      console.error("getMembershipByResumeToken:", e);
+      res.status(500).json({ error: "error" });
+    }
+  });
+
+// Sends the "you are one step away" email. Called from the Int task button, and
+// only after a human has confirmed no payment exists.
+exports.sendMembershipResumeEmail = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 5, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    try {
+      const { memberId } = req.body || {};
+      if (!memberId) { res.status(400).json({ error: "missing memberId" }); return; }
+      const db = admin.firestore();
+      const ref = db.collection("members").doc(memberId);
+      const snap = await ref.get();
+      if (!snap.exists) { res.status(404).json({ error: "membership not found" }); return; }
+      const m = snap.data() || {};
+      if (m.status === "paid") { res.status(409).json({ error: "already paid — no reminder sent" }); return; }
+      const email = String(m.email || "").trim();
+      if (!email) { res.status(400).json({ error: "no email on this membership" }); return; }
+
+      let resumeToken = m.resumeToken;
+      if (!resumeToken) {
+        resumeToken = crypto.randomBytes(16).toString("hex");
+        await ref.update({ resumeToken });
+      }
+      const first = String(m.name || "").trim().split(/\s+/)[0] || "there";
+      const amt = typeof m.amount === "number" ? m.amount : (parseInt(m.amount, 10) || 0);
+      const link = "https://www.ldahawaii.org/volunteer.html?resume=" + encodeURIComponent(resumeToken);
+      const fromAddress = String(process.env.SMTP_FROM || "onboarding@resend.dev").replace(/[\r\n\t]+/g, "").trim();
+
+      const html = '<!DOCTYPE html><html><head><meta charset="utf-8"></head>' +
+        '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
+        '<div style="max-width:600px;margin:0 auto;background:#fff">' +
+        '<div style="background:linear-gradient(135deg,#0e7490,#0891B2);padding:18px 24px 22px;text-align:center;color:#fff">' +
+        '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;">' +
+        '<h1 style="margin:0;font-size:22px;font-weight:700">You are one step away</h1></div>' +
+        '<div style="padding:32px 24px">' +
+        '<p style="margin:0 0 16px;font-size:16px">Aloha ' + _emailEsc(first) + ',</p>' +
+        '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Thank you for starting a <strong>' +
+          _emailEsc(m.level || "") + '</strong> membership with LDAH. It looks like the payment did not finish \u2014 ' +
+          'no problem at all, and nothing has been charged.</p>' +
+        '<p style="margin:0 0 18px;font-size:16px;color:#334155;line-height:1.6">The link below picks up exactly where you left off, ' +
+          'with your details already filled in. It only takes a moment.</p>' +
+        '<p style="margin:0 0 24px;text-align:center">' +
+        '<a href="' + link + '" style="display:inline-block;background:#0891B2;color:#fff;text-decoration:none;font-weight:700;font-size:16px;padding:13px 30px;border-radius:8px">Finish my $' + amt + ' membership</a></p>' +
+        '<p style="margin:0 0 16px;font-size:15px;color:#64748B;line-height:1.6">If you have changed your mind, simply ignore this ' +
+          'email \u2014 we will not send another. And if you believe you have already paid, please reply and we will sort it out ' +
+          'rather than take a second payment.</p>' +
+        '<p style="margin:24px 0 4px;font-size:15px;color:#333;line-height:1.5">With gratitude,</p>' +
+        '<p style="margin:0;font-size:15px;color:#333;line-height:1.5"><strong>The LDAH Team</strong><br>' +
+        '<span style="color:#64748B;font-size:14px">Leadership in Disabilities and Achievement of Hawai&lsquo;i<br>(808) 536-9684</span></p>' +
+        '</div></div></body></html>';
+
+      await sendEmailViaResend({
+        from: `LDAH <${fromAddress}>`,
+        to: familyEmails(m),
+        subject: "You are one step away from your LDAH membership",
+        html,
+        type: "membership-resume",
+        recipientName: m.name || first,
+      });
+      await ref.update({
+        resumeEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+        resumeEmailCount: admin.firestore.FieldValue.increment(1),
+      });
+      res.json({ ok: true, to: email });
+    } catch (e) {
+      console.error("sendMembershipResumeEmail:", e);
+      res.status(500).json({ error: (e && e.message) || "error" });
+    }
+  });
