@@ -1244,6 +1244,47 @@
         el('mm-success-msg').innerHTML = 'Mahalo, ' + (_mmName.split(' ')[0] || '') + '! Your <strong>' + _mmLevel + '</strong> membership is confirmed. A thank-you email is on its way.';
       }
 
+      /* Resume link — volunteer.html?resume=<token>.
+         Sent by the "Send reminder" button in Int, only after staff have
+         confirmed no payment exists. It reopens THE SAME pending record rather
+         than starting a new one, so the doc that flips to paid is the one the
+         member already created, and every downstream trigger fires normally.
+         A direct PayPal link would have taken the money outside our flow: no
+         custom_id, so onApprove never runs, the record stays pending forever,
+         and nobody gets a thank-you or portal access. */
+      async function _mmResumeFromLink() {
+        var token = null;
+        try { token = new URLSearchParams(window.location.search).get('resume'); } catch (e) { return; }
+        if (!token) return;
+        try {
+          var resp = await fetch('https://us-central1-ldah-932d5.cloudfunctions.net/getMembershipByResumeToken?token=' + encodeURIComponent(token));
+          if (!resp.ok) return;
+          var m = await resp.json();
+          if (m.alreadyPaid) {
+            alert('Good news — this membership is already paid. Nothing more to do, and mahalo.');
+            return;
+          }
+          if (!m.memberId) return;
+          _mmLevel = m.level || '';
+          _mmAmount = m.amount || 0;
+          _mmDocId = m.memberId;          // reuse their record, do not create a second
+          _mmName = m.name || '';
+          _mmPaid = false;
+          el('mm-title').textContent = 'Finish joining as ' + _mmLevel;
+          var sub = el('mm-sub'); if (sub) sub.style.display = 'none';
+          var f = el('mm-form'); if (f) f.style.display = 'none';
+          el('mm-success').style.display = 'none';
+          el('mm-pay-summary').innerHTML = 'Welcome back' + (_mmName ? ', <strong>' + _mmName.split(' ')[0] + '</strong>' : '') +
+            '. You are joining as <strong>' + _mmLevel + '</strong> — <strong>$' + _mmAmount + '</strong> per year. Nothing has been charged yet.';
+          el('mm-pay-msg').textContent = '';
+          el('mm-pay-step').style.display = '';
+          el('membership-modal').classList.add('active');
+          renderPayPalButtons();
+        } catch (e) { console.warn('resume link failed:', e && e.message); }
+      }
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _mmResumeFromLink);
+      else _mmResumeFromLink();
+
       // Close on backdrop click / Esc
       document.addEventListener('click', function (e) {
         var m = document.getElementById('membership-modal');
