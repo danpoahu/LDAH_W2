@@ -19024,7 +19024,15 @@ exports.onRecordingPublishJob = functions
 // PayPal in a way our capture missed, and asking someone to pay a second time
 // is the one outcome worth engineering against. So La'a checks PayPal, then
 // chooses: mark paid (fires the normal thank-you) or send the reminder.
-const ABANDONED_MEMBERSHIP_AFTER_HOURS = 20;
+//
+// The threshold is 12h, not 20h, because of how it interacts with the 8am run:
+// a task appears at the first 8am where age > threshold, so at 20h the signup
+// had to land before NOON the day before to be chased the next morning. Anyone
+// starting at 12:01pm slipped past that morning and waited ~44h. Henry (2:30pm)
+// would have. At 12h the cutoff moves to 8pm, so effectively every signup gets
+// chased the very next morning, while someone still mid-checkout at 7:55am does
+// not get a task raised on them.
+const ABANDONED_MEMBERSHIP_AFTER_HOURS = 12;
 
 exports.createAbandonedMembershipTasks = functions
   .runWith({ timeoutSeconds: 120, maxInstances: 1 })
