@@ -2097,6 +2097,51 @@ exports.sendDeferredRegistrationEmails = functions
           if (data.archived === true) { skipped++; continue; }
           if (!data.email) { skipped++; continue; }
           if (data.registrationEmailSentAt) { skipped++; continue; }
+          if (data.registrationCarriedForwardAt) { skipped++; continue; }
+          if (data.registration && data.registrationCompletedAt) { skipped++; continue; }
+
+          // ── Returning family: never ask twice ────────────────────────────
+          // If this person has already completed a registration on an earlier
+          // signup, we have every answer. Asking again is a chore for them and
+          // produces nothing new. It happened 20 times to 18 people before this
+          // guard existed — Jesica LaRue registered in full on 31 Jul and was
+          // asked again on 4 Aug for Connect-Gen.
+          //
+          // Carrying it forward also fixes the ordering: writing `registration`
+          // fires maybeSendRegistrationConfirmation, so the confirmation (or the
+          // Connect-Gen worksheet request) lands AFTER registration is settled
+          // rather than racing it. Done before the grace check so a returning
+          // family is handled at once instead of waiting 10 minutes.
+          if (data.linkedContactId) {
+            try {
+              const prior = await db.collectionGroup("signups")
+                .where("linkedContactId", "==", data.linkedContactId).get();
+              let best = null;
+              prior.forEach(p => {
+                if (p.id === s.id) return;
+                const pv = p.data() || {};
+                if (pv.archived === true) return;
+                if (!pv.registration || !pv.registrationCompletedAt) return;
+                const ms = pv.registrationCompletedAt.toMillis ? pv.registrationCompletedAt.toMillis() : 0;
+                if (!best || ms > best.ms) best = { ms, reg: pv.registration, id: p.id };
+              });
+              if (best) {
+                await s.ref.update({
+                  registration: best.reg,
+                  registrationCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
+                  registrationCompletedVia: "carried-forward",
+                  registrationSharedFromSignupId: best.id,
+                  registrationCarriedForwardAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+                skipped++;
+                console.log(`Registration carried forward from ${best.id} to ${collection}/${eventId}/${s.id} — no email sent`);
+                continue;
+              }
+            } catch (e) {
+              // Never let this block the email it replaces.
+              console.warn(`carry-forward lookup failed for ${s.id}:`, e.message);
+            }
+          }
 
           // Grace period: skip if too fresh.
           const tsMs = (data.timestamp && data.timestamp.toMillis)
