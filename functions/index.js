@@ -5957,6 +5957,97 @@ exports.sendCgWorksheetReminders = functions
     return null;
   });
 
+// Staff "Resend" for the Parent Report Worksheet, from the signups modal.
+// Asked for on 2026-07-29: there was no way for anyone to nudge a family
+// manually — you either waited for the 3-day cron or did nothing.
+//
+// Deliberately NOT capped by CG_WS_MAX_REMINDERS. That cap exists to stop the
+// automatic drip becoming a nuisance; a person clicking Resend has made a
+// decision, and blocking them would just send them to their own mail client.
+// It DOES stamp cgWorksheetReminderLastSentAt, so the cron respects the nudge
+// and will not follow up the next morning on top of it.
+exports.resendCgWorksheetRequest = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 5, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    try {
+      const { collection, eventId, signupId, requestedBy } = req.body || {};
+      if (!eventId || !signupId) { res.status(400).json({ error: "missing eventId or signupId" }); return; }
+      const coll = collection === "events" ? "events" : "recurringEvents";
+      const db = admin.firestore();
+
+      const evSnap = await db.collection(coll).doc(eventId).get();
+      if (!evSnap.exists) { res.status(404).json({ error: "event not found" }); return; }
+      const event = evSnap.data() || {};
+
+      const sRef = db.collection(coll).doc(eventId).collection("signups").doc(signupId);
+      const sSnap = await sRef.get();
+      if (!sSnap.exists) { res.status(404).json({ error: "signup not found" }); return; }
+      const s = sSnap.data() || {};
+
+      if (!s.email) { res.status(400).json({ error: "This signup has no email address." }); return; }
+      if (s.archived === true || s.status === "cancelled") {
+        res.status(409).json({ error: "That signup is cancelled or archived." }); return;
+      }
+
+      // Don't chase someone who has already done it.
+      let reqs;
+      try { reqs = _cgRequirements(s, event); } catch (_) { reqs = null; }
+      if (reqs && reqs.isConnectGen && reqs.outstanding.indexOf("worksheet") === -1) {
+        res.status(409).json({ error: "Their worksheet is already complete — nothing to chase." }); return;
+      }
+
+      // Never mail a dead button.
+      if (!s.prepToken) {
+        res.status(409).json({ error: "This signup has no worksheet link yet. Open it once and try again." }); return;
+      }
+      const exp = s.prepTokenExpiresAt && s.prepTokenExpiresAt.toMillis ? s.prepTokenExpiresAt.toMillis() : 0;
+      if (exp && exp < Date.now()) {
+        res.status(409).json({ error: "The worksheet link for this family has expired." }); return;
+      }
+
+      const sessions = getSignupSessions(s, event) || [];
+      const signatureHtml = await buildSignatureBlock("eventCoordinator");
+      const donateHtml = await buildDonateBlock("universal");
+      const html = buildConnectGenWorksheetRequestEmailHtml({
+        name: s.name || s.firstName || "there",
+        eventTitle: s.eventTitle || event.title || "Connect-Gen",
+        datesPhrase: formatDatesPhrase(sessions.map(x => x && x.dateKey).filter(Boolean)),
+        locationLine: _cgLocationLine(sessions),
+        worksheetUrl: _cgWorksheetUrl(s),
+        signatureHtml,
+        donateHtml,
+        isReminder: true,
+      });
+
+      await sendEmailViaResend({
+        from: lifecycleFromAddress(),
+        to: familyEmails(s),
+        subject: `Reminder: your Parent Report Worksheet -- ${s.eventTitle || event.title || "Connect-Gen"}`,
+        html,
+        type: "connect-gen-worksheet-reminder",
+        relatedEventId: eventId,
+        relatedSignupId: signupId,
+        recipientName: s.name || "",
+      });
+
+      await sRef.set({
+        cgWorksheetReminderLastSentAt: admin.firestore.FieldValue.serverTimestamp(),
+        cgWorksheetManualNudges: admin.firestore.FieldValue.increment(1),
+        cgWorksheetLastNudgedBy: requestedBy || "staff",
+      }, { merge: true });
+
+      console.log(`resendCgWorksheetRequest: ${coll}/${eventId}/${signupId} by ${requestedBy || "staff"}`);
+      res.json({ ok: true, sentTo: familyEmails(s) });
+    } catch (e) {
+      console.error("resendCgWorksheetRequest:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
 exports.flagDayOfPendingSignups = functions
   .runWith({ timeoutSeconds: 120, maxInstances: 1 })
   .pubsub.schedule("0 6 * * *")
