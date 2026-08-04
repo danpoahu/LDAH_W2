@@ -59,6 +59,12 @@
   .btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(8,145,178,.3); }
   .btn:disabled { opacity: .55; cursor: not-allowed; }
   .btn-lg { margin-top: 1.5rem; }
+  /* Secondary action for the "another child?" prompt. .btn is width:100%, so the
+     pair needs its own sizing or they stack full-width on a tablet. */
+  .btn-ghost { background: #fff; color: var(--ocean-mid); border-color: var(--ocean-mid); }
+  .btn-ghost:hover:not(:disabled) { background: #F0F9FF; }
+  .btn-row { display:flex; gap:.8rem; justify-content:center; flex-wrap:wrap; }
+  .btn-row .btn { width:auto; min-width:15rem; flex:1 1 15rem; }
   .inline-error { background:#FEE2E2; border:1px solid #FCA5A5; color:#991B1B; border-radius:10px; padding:.8rem 1rem; margin-top:1rem; font-size:.98rem; display:none; }
   .inline-error.show { display:block; }
   .thanks h3 { color: var(--primary-blue); font-size: 1.6rem; margin-bottom: .6rem; }
@@ -88,10 +94,15 @@
       <div class="section">
         <div class="section-title">Parent / Guardian</div>
         <div class="fg">
-          <label class="lbl" for="email">Email <span style="font-weight:400;color:var(--text-light);">(optional)</span></label>
-          <span class="hint">If you have one, we&rsquo;ll check if you&rsquo;re already on file and can email your results. Leave blank if you don&rsquo;t have email.</span>
+          <label class="lbl" for="email">Email</label>
+          <span class="hint">If you have one, we&rsquo;ll check if you&rsquo;re already on file and can email your results.</span>
           <input type="email" id="email" autocomplete="email" inputmode="email">
           <div id="lookupNote" class="lookup-note"></div>
+        </div>
+        <div class="fg">
+          <label class="lbl" for="phone">Phone</label>
+          <span class="hint">Please give us an email <strong>or</strong> a phone number &mdash; whichever is easier &mdash; so we can reach you with the results.</span>
+          <input type="tel" id="phone" autocomplete="tel" inputmode="tel" placeholder="(808) 555-0123">
         </div>
         <div class="grid2">
           <div class="fg"><label class="lbl" for="pFirst">Your First Name <span class="req">*</span></label><input type="text" id="pFirst" autocomplete="given-name"></div>
@@ -207,6 +218,18 @@
   </div>
 
   <!-- Thank you (kiosk) -->
+  <!-- Shown after each child so siblings attach to the SAME parent record. -->
+  <div id="anotherCard" class="card center thanks" style="display:none;">
+    <h3>Got it &mdash; mahalo!</h3>
+    <p id="anotherMsg">Consent has been received.</p>
+    <p style="font-weight:700;margin-top:1rem;">Is there another child to screen today?</p>
+    <p class="hint" style="margin-bottom:1.2rem;">We&rsquo;ll keep your details &mdash; you only need to fill in the next child.</p>
+    <div class="btn-row">
+      <button type="button" class="btn" id="anotherYes">Yes, add another child</button>
+      <button type="button" class="btn btn-ghost" id="anotherNo">No, we&rsquo;re done</button>
+    </div>
+  </div>
+
   <div id="thanksCard" class="card center thanks" style="display:none;">
     <h3>Mahalo!</h3>
     <p id="thanksMsg">Your screening consent has been received.</p>
@@ -280,7 +303,7 @@
     let rel = radioVal('rel'); if (rel === 'Other') rel = 'Other: ' + v('relOtherText');
     let eth = $('ethnicity').value; if (eth === 'Other') eth = v('ethnicityOther');
     return {
-      parent: { email: v('email'), firstName: v('pFirst'), lastName: v('pLast'), relationship: rel },
+      parent: { email: v('email'), phone: v('phone'), firstName: v('pFirst'), lastName: v('pLast'), relationship: rel },
       child: { firstName: v('cFirst'), middleName: v('cMiddle'), lastName: v('cLast'),
         gender: radioVal('cGender'), nativeHawaiian: radioVal('nh'), ethnicity: eth },
       health: { chronicEar: radioVal('ear'), lastEarInfection: v('earWhen'),
@@ -293,6 +316,11 @@
     const miss = [];
     const mark = id => { const el = $(id); if (el) el.classList.add('missing'); };
     if (d.parent.email && d.parent.email.indexOf('@') === -1) { mark('email'); miss.push('a valid email (or leave it blank)'); }
+    // One of email / phone is required — without either there is no way to send
+    // results back, and no way to recognise this family next time.
+    if (!d.parent.email && (d.parent.phone || '').replace(/\D/g, '').length < 7) {
+      mark('email'); mark('phone'); miss.push('either an email address or a phone number');
+    }
     if (!d.parent.firstName) { mark('pFirst'); miss.push('your first name'); }
     if (!d.parent.lastName) { mark('pLast'); miss.push('your last name'); }
     if (!radioVal('rel')) { $('relGroup').classList.add('missing'); miss.push('your relationship'); }
@@ -301,6 +329,58 @@
     if (!d.signedName || d.signedName.indexOf(' ') === -1) { mark('sign'); miss.push('your first AND last name to sign'); }
     return miss;
   }
+
+  /* ── Another child? ────────────────────────────────────────────────────────
+     A family screening two or three children used to fill this form out once
+     per child, and each pass created a NEW parent contact — there was no way to
+     recognise a walk-up with no email. Asking outright is both simpler and
+     safer than guessing: the answer comes from the parent standing there, and
+     we reuse the contactId the server just gave us. */
+  let _contactId = '';        // set from the first successful submit
+  let _lastChildName = '';
+
+  function askAnotherChild() {
+    $('anotherMsg').textContent = 'Consent for ' + _lastChildName + ' has been received.';
+    $('anotherCard').style.display = 'block';
+    $('formCard').style.display = 'none';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function finishUp() {
+    $('anotherCard').style.display = 'none';
+    $('thanksMsg').textContent = 'Thank you, ' + ($('pFirst').value || '').trim() +
+      '. Your consent has been received. An LDAH staff member will call you for the screening.';
+    $('thanksCard').style.display = 'block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  /* Keep the parent's details on screen; clear only what belongs to the child
+     just submitted, including the signature so each consent is signed
+     deliberately rather than carried over. */
+  function nextChild() {
+    ['cFirst','cMiddle','cLast','earWhen','sickDesc','ethnicityOther','sign'].forEach(id => {
+      const el = $(id); if (el) el.value = '';
+    });
+    document.querySelectorAll('input[name=cGender],input[name=nh],input[name=ear],input[name=sick]')
+      .forEach(r => { r.checked = false; });
+    $('ethnicity').value = '';
+    $('ethnicityOther').hidden = true;
+    document.querySelectorAll('[data-detail]').forEach(r => {
+      const d = $(r.getAttribute('data-detail')); if (d) d.hidden = true;
+    });
+    document.querySelectorAll('.missing').forEach(el => el.classList.remove('missing'));
+    clearErr();
+
+    $('anotherCard').style.display = 'none';
+    $('formCard').style.display = 'block';
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Sign & Submit';
+    const first = $('cFirst');
+    if (first) { first.scrollIntoView({ behavior:'smooth', block:'center' }); first.focus(); }
+  }
+
+  $('anotherYes').addEventListener('click', nextChild);
+  $('anotherNo').addEventListener('click', finishUp);
 
   form.addEventListener('submit', async e => {
     e.preventDefault();
@@ -314,17 +394,21 @@
     }
     submitBtn.disabled = true; submitBtn.textContent = 'Submitting…';
     try {
-      const res = await fetch(ENDPOINT_SUBMIT, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ form: data }) });
+      const res = await fetch(ENDPOINT_SUBMIT, { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ form: data, contactId: _contactId || undefined }) });
       if (!res.ok) {
         let d=''; try { const j = await res.json(); d = j && j.error ? ' ('+j.error+')' : ''; } catch(_){}
         showErr("We couldn't save the consent" + d + '. Please try again.');
         submitBtn.disabled = false; submitBtn.textContent = 'Sign & Submit';
         return;
       }
-      $('thanksMsg').textContent = 'Thank you, ' + data.parent.firstName + '. Consent for ' + (data.child.firstName || 'your child') + ' has been received. An LDAH staff member will call you for the screening.';
-      $('formCard').style.display = 'none';
-      $('thanksCard').style.display = 'block';
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      // Remember the contact this family was filed under, so a sibling screened
+      // in the same visit attaches to the SAME parent record instead of creating
+      // a second one.
+      try { const j = await res.json(); if (j && j.contactId) _contactId = j.contactId; } catch (_) {}
+
+      _lastChildName = data.child.firstName || 'your child';
+      askAnotherChild();
     } catch (err) {
       showErr("We couldn't reach the server. Please check the connection and try again.");
       submitBtn.disabled = false; submitBtn.textContent = 'Sign & Submit';

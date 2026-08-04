@@ -10839,9 +10839,19 @@ exports.submitReadinessConsent = functions
     const streetAddress = (parent.streetAddress || _addr.streetAddress || form.streetAddress || "").toString().trim();
     const city = (parent.city || _addr.city || form.city || "").toString().trim();
     const zipCode = (parent.zipCode || _addr.zipCode || form.zipCode || "").toString().trim();
-    // Email is OPTIONAL on the in-person kiosk (walk-up families may not have one).
-    // If provided it must look valid; if blank, we just create a contact without it.
+    // Phone is the other half of the identity key. A walk-up family may have no
+    // email, but with NEITHER email nor phone there is nothing to recognise them
+    // by later — and nothing to send results to.
+    const phone = (parent.phone || form.phone || body.phone || "").toString().trim();
+    const phoneDigits = phone.replace(/\D/g, "");
+
+    // Email is OPTIONAL on the in-person kiosk (walk-up families may not have one)
+    // but one of email / phone is required.
     if (email && email.indexOf("@") === -1) { res.status(400).json({ error: "That email doesn't look right — fix it or leave it blank" }); return; }
+    if (!email && phoneDigits.length < 7) {
+      res.status(400).json({ error: "Please give either an email address or a phone number" });
+      return;
+    }
     if (!parent.firstName || !parent.lastName) { res.status(400).json({ error: "Parent/guardian name is required" }); return; }
     if (!child.firstName || !child.lastName) { res.status(400).json({ error: "Child name is required" }); return; }
     if (!signedName || signedName.indexOf(" ") === -1) { res.status(400).json({ error: "Please type your first and last name to sign" }); return; }
@@ -10851,10 +10861,23 @@ exports.submitReadinessConsent = functions
       const FieldValue = admin.firestore.FieldValue;
       const emailLc = email ? email.toLowerCase() : "";
 
-      // Find-or-create the contact. Match by email only when one was given;
-      // no email → always create a fresh contact (can't dedup without a key).
+      // Find-or-create the contact.
+      //
+      // 1. An explicit contactId wins. The kiosk asks "another child to screen
+      //    today?" and posts the id it got back from the first child, so a
+      //    parent with three children ends up as ONE contact with three
+      //    screenings. This replaced guessing: matching a no-email walk-up by
+      //    name would eventually fuse two different families, and at a booth
+      //    nobody can check. Deria Arlo got two records this way on 2026-08-03.
+      // 2. Otherwise match on email when one was given.
+      // 3. Otherwise create. A no-email family is still reachable by phone.
       let contactId = null;
-      if (emailLc && emailLc.indexOf("@") > -1) {
+      const claimedId = (body.contactId || "").toString().trim();
+      if (claimedId) {
+        const claimed = await db.collection("contacts").doc(claimedId).get();
+        if (claimed.exists) contactId = claimed.id;
+      }
+      if (!contactId && emailLc && emailLc.indexOf("@") > -1) {
         const snap = await db.collection("contacts").where("email", "==", emailLc).limit(1).get();
         if (!snap.empty) contactId = snap.docs[0].id;
       }
@@ -10864,7 +10887,7 @@ exports.submitReadinessConsent = functions
           firstName: parent.firstName || "",
           lastName: parent.lastName || "",
           email: emailLc,
-          phone: "",
+          phone: phone,
           type: "Parent/Guardian",
           source: "readiness-kiosk",
           createdBy: "readiness-kiosk",
@@ -10872,6 +10895,14 @@ exports.submitReadinessConsent = functions
           createdAt: FieldValue.serverTimestamp(),
         });
         contactId = ref.id;
+      } else if (phone) {
+        // Fill a blank phone on the matched contact; never overwrite one.
+        try {
+          const cur = await db.collection("contacts").doc(contactId).get();
+          if (cur.exists && !String((cur.data() || {}).phone || "").trim()) {
+            await db.collection("contacts").doc(contactId).update({ phone });
+          }
+        } catch (e) { console.warn("kiosk phone fill failed:", e.message); }
       }
 
       // Second parent / guardian (optional): merge-safe enrichment. Only writes
