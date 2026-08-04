@@ -949,6 +949,54 @@ function _emailLinkFooter(links) {
 /**
  * Build the registration email HTML.
  */
+// A registration older than this is carried forward as a DRAFT and the family is
+// asked to confirm it, rather than silently reused. Six months is roughly the
+// horizon over which a child's age range, school, IEP dates or an address stop
+// being safe to assume — and those fields feed grant reporting.
+const REGISTRATION_STALE_DAYS = 180;
+
+// "Still you?" — short by design. The full form is what we are trying to avoid
+// asking for twice; this asks them to glance at what we already hold. The link
+// opens the same registration form, pre-filled from the draft, so it is a review
+// and a Submit rather than a blank page.
+function buildRegistrationRefreshEmailHtml({ name, eventTitle, lastRegisteredOn, signupId, eventId, type, orgFooterHtml }) {
+  const url =
+    "https://ldahawaii.org/register.html?token=" + encodeURIComponent(signupId) +
+    "&eventId=" + encodeURIComponent(eventId) +
+    "&type=" + encodeURIComponent(type);
+  const safe = s => String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+  return '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1.0"></head>' +
+    '<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;">' +
+    '<tr><td align="center" style="padding:24px 16px;">' +
+    '<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;max-width:600px;width:100%;">' +
+    '<tr><td style="background-color:#ffffff;padding:28px 32px 20px;text-align:center;border-bottom:3px solid #1a3c6e;">' +
+    '<img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai‘i" width="150" style="display:block;margin:0 auto;border:0;">' +
+    '</td></tr>' +
+    '<tr><td style="padding:30px 32px 8px;">' +
+    '<h1 style="margin:0 0 14px;font-size:21px;color:#1a3c6e;">Does this still look right?</h1>' +
+    '<p style="margin:0 0 14px;font-size:15px;color:#333;line-height:1.6;">Aloha ' + safe(name || "there") + ',</p>' +
+    '<p style="margin:0 0 14px;font-size:15px;color:#333;line-height:1.6;">' +
+    'Mahalo for signing up for <strong>' + safe(eventTitle || "an LDAH event") + '</strong>. ' +
+    'We already have your registration details on file' +
+    (lastRegisteredOn ? ' from ' + safe(lastRegisteredOn) : '') +
+    ', so there is no need to fill everything in again.</p>' +
+    '<p style="margin:0 0 20px;font-size:15px;color:#333;line-height:1.6;">' +
+    'It has been a while, though, and things change &mdash; a new address, a new school year, ' +
+    'a different grade. Please take a moment to look them over. Everything is already filled ' +
+    'in; change anything that has moved on and press Submit.</p>' +
+    '<p style="margin:0 0 24px;text-align:center;">' +
+    '<a href="' + url + '" style="display:inline-block;background-color:#0891B2;color:#ffffff;text-decoration:none;font-weight:bold;font-size:16px;padding:13px 30px;border-radius:8px;">Review my details</a></p>' +
+    '<p style="margin:0 0 8px;font-size:13px;color:#666;line-height:1.6;">' +
+    'If nothing has changed, just press Submit &mdash; that is all we need.</p>' +
+    '</td></tr>' +
+    (orgFooterHtml || '') +
+    '</table></td></tr></table></body></html>';
+}
+
 function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eventId, type, orgFooterHtml }) {
   const registrationUrl =
     "https://ldahawaii.org/register.html?token=" + encodeURIComponent(signupId) +
@@ -2098,6 +2146,10 @@ exports.sendDeferredRegistrationEmails = functions
           if (!data.email) { skipped++; continue; }
           if (data.registrationEmailSentAt) { skipped++; continue; }
           if (data.registrationCarriedForwardAt) { skipped++; continue; }
+          // Already asked them to review a stale registration. This loop runs
+          // EVERY MINUTE, so without this the refresh email would be re-sent
+          // sixty times an hour until they got round to it.
+          if (data.registrationRefreshEmailSentAt) { skipped++; continue; }
           if (data.registration && data.registrationCompletedAt) { skipped++; continue; }
 
           // ── Returning family: never ask twice ────────────────────────────
@@ -2126,15 +2178,60 @@ exports.sendDeferredRegistrationEmails = functions
                 if (!best || ms > best.ms) best = { ms, reg: pv.registration, id: p.id };
               });
               if (best) {
-                await s.ref.update({
-                  registration: best.reg,
-                  registrationCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
-                  registrationCompletedVia: "carried-forward",
-                  registrationSharedFromSignupId: best.id,
-                  registrationCarriedForwardAt: admin.firestore.FieldValue.serverTimestamp(),
+                const ageDays = (Date.now() - best.ms) / 86400000;
+
+                if (ageDays <= REGISTRATION_STALE_DAYS) {
+                  // Fresh enough to reuse as-is. Silent, as agreed.
+                  await s.ref.update({
+                    registration: best.reg,
+                    registrationCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    registrationCompletedVia: "carried-forward",
+                    registrationSharedFromSignupId: best.id,
+                    registrationCarriedForwardAt: admin.firestore.FieldValue.serverTimestamp(),
+                  });
+                  skipped++;
+                  console.log(`Registration carried forward from ${best.id} to ${collection}/${eventId}/${s.id} (${Math.round(ageDays)}d old) — no email sent`);
+                  continue;
+                }
+
+                // Stale. Stage the old answers as a DRAFT and ask them to look.
+                // Deliberately NOT written to `registration` — that field is what
+                // fires maybeSendRegistrationConfirmation, which would confirm
+                // them on answers nobody has checked. The draft only pre-fills
+                // the form; status stays pending until they press Submit.
+                const lastOn = new Date(best.ms).toLocaleDateString("en-US", {
+                  timeZone: "Pacific/Honolulu", month: "long", year: "numeric",
                 });
-                skipped++;
-                console.log(`Registration carried forward from ${best.id} to ${collection}/${eventId}/${s.id} — no email sent`);
+                try {
+                  const orgFooterHtml = await getOrgFooterHtml();
+                  await sendEmailViaResend({
+                    from: `LDAH <${process.env.SMTP_FROM || "onboarding@resend.dev"}>`,
+                    to: familyEmails(data),
+                    subject: `Quick check on your details -- ${event.title || "LDAH"}`,
+                    html: buildRegistrationRefreshEmailHtml({
+                      name: data.name || data.firstName || "there",
+                      eventTitle: event.title || "an LDAH event",
+                      lastRegisteredOn: lastOn,
+                      signupId: s.id, eventId,
+                      type: collection === "recurringEvents" ? "recurring" : "event",
+                      orgFooterHtml,
+                    }),
+                    type: "registration-refresh",
+                    relatedEventId: eventId,
+                    relatedSignupId: s.id,
+                    recipientName: data.name || "",
+                  });
+                  await s.ref.update({
+                    registrationDraft: best.reg,
+                    registrationDraftFromSignupId: best.id,
+                    registrationRefreshEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+                  });
+                  sent++;
+                  console.log(`Registration refresh asked for ${collection}/${eventId}/${s.id} — prior was ${Math.round(ageDays)}d old`);
+                } catch (e) {
+                  console.error(`refresh email failed for ${s.id}:`, e.message);
+                  failed++;
+                }
                 continue;
               }
             } catch (e) {

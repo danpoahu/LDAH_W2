@@ -3267,7 +3267,12 @@
           // Bridge the role captured at signup into the registration form so we
           // don't re-ask "About You" (v61.18). Prefer the signup doc's role /
           // registrantType; fall back to any prior-registration prefill.
-          var regPrefill = Object.assign({}, prefillData || {});
+          // A registration older than six months is staged on the signup as
+          // `registrationDraft` and the family is emailed to review it, rather
+          // than having it reused silently. Seed the form from that draft so the
+          // link opens filled in — the ask is "check this", not "type it again".
+          // An explicit prefillData (sibling-share) still wins.
+          var regPrefill = Object.assign({}, data.registrationDraft || {}, prefillData || {});
           var signupRole = data.role || data.registrantType || regPrefill.role || '';
           if (signupRole) regPrefill.role = signupRole;
           // Bridge the child/student name from signup so registration doesn't
@@ -3289,7 +3294,7 @@
     function buildRegistrationForm(registrantName, token, eventId, type, prefillData) {
       var pf = prefillData || {};
       return '<h2 style="color: #004E7C; font-size: 24px; font-weight: bold; margin-bottom: 8px; padding-right: 40px;">Complete Registration for ' + registrantName + '</h2>' +
-        (prefillData ? '<div style="background: #ecfdf5; border: 1px solid #86efac; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; font-size: 14px; color: #166534;">Family information carried over from previous registration. Only child details need to be filled in.</div>' : '') +
+        (prefillData && Object.keys(prefillData).length ? '<div style="background: #ecfdf5; border: 1px solid #86efac; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; font-size: 14px; color: #166534;">We have filled this in from your previous registration. Please check it over and change anything that has moved on.</div>' : '') +
         '<p style="color: #666; font-size: 14px; margin-bottom: 24px;">* Indicates required question</p>' +
         '<form id="registrationForm" onsubmit="submitRegistration(event, \'' + token + '\', \'' + eventId + '\', \'' + type + '\')">' +
 
