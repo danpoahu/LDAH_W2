@@ -5899,6 +5899,81 @@ exports.sendCgWorksheetReminders = functions
           }
 
           const count = s.cgWorksheetReminderCount || 0;
+
+          // ── Two reminders ignored: stop emailing into the void, ask a person ──
+          // Email has had its turn. Hand it to whoever is actually presenting
+          // that session — they are the one who will be sitting across from this
+          // family — and fall back to La'a when no presenter is named. Checked
+          // BEFORE the cadence skip below, so it fires on the day the second
+          // reminder goes unanswered rather than waiting for the third to be due.
+          if (count >= 2 && !s.cgWorksheetEscalatedAt) {
+            try {
+              const _sessions = getSignupSessions(s, event) || [];
+              const _first = _sessions[0] || {};
+              const _pres = _lcResolveSessionPresenter(event, _sessions, _first.dateKey, _first.rawString) || {};
+              // Order: whoever staff have already put on this family, else the
+              // session's presenter, else La'a. The override exists because the
+              // person who has actually spoken to the family is the right one to
+              // chase them, and that is knowledge only staff have — Leilani had
+              // already phoned Kathryn Kuhaulua when this fired.
+              const _ownerUid = s.cgWorksheetEscalateToUid || _pres.presenterUid || LIFECYCLE_LAA_UID;
+              // Resolved here rather than reusing a `laaName` from elsewhere —
+              // this function has no such variable, and the reference would have
+              // thrown into the catch below and silently never escalated.
+              const _ownerName = s.cgWorksheetEscalateToUid
+                ? (s.cgWorksheetEscalateToName || await _lcResolveStaffName(db, s.cgWorksheetEscalateToUid))
+                : (_pres.presenterUid
+                    ? (_pres.presenter || "")
+                    : await _lcResolveStaffName(db, LIFECYCLE_LAA_UID));
+              const _who = s.name || s.firstName || "This family";
+              const _datesPhrase = formatDatesPhrase(_sessions.map(x => x && x.dateKey).filter(Boolean));
+              const _lastTs = s.cgWorksheetReminderLastSentAt || s.cgWorksheetRequestEmailSentAt;
+              const _lastWhen = _lastTs && _lastTs.toDate
+                ? _lastTs.toDate().toLocaleDateString("en-US", { timeZone: "Pacific/Honolulu", month: "short", day: "numeric" })
+                : "recently";
+
+              await db.collection("interactions").add({
+                channel: "Outbound Phone",
+                interactionType: "Connect-Gen",
+                contactId: s.linkedContactId || "",
+                contactName: _who,
+                contactType: "Parent/Guardian",
+                grantProgram: "",
+                summary: "Worksheet still not in — please call " + _who +
+                  " before Connect-Gen" + (_datesPhrase ? " " + _datesPhrase : ""),
+                followUpDate: toHstDateKey(new Date()),
+                status: "Open",
+                notes:
+                  _who + " signed up for Connect-Gen" + (_datesPhrase ? " " + _datesPhrase : "") +
+                  " and has not sent back the Parent Report Worksheet.\n\n" +
+                  "We have emailed them " + count + " times, most recently on " + _lastWhen +
+                  ". Email has not worked, so this is now a phone call rather than another message.\n\n" +
+                  "Email: " + (s.email || "—") + "\nPhone: " + (s.phone || "—") + "\n\n" +
+                  "The worksheet is what turns two hours into two useful hours — it tells us what " +
+                  "they are worried about before you sit down together. Without it the appointment " +
+                  "stays unconfirmed.\n\n" +
+                  "If it is easier to take their answers over the phone, you can record the " +
+                  "worksheet for them from the signup. There is also a Resend button beside " +
+                  "“Awaiting Worksheet” if they just need the link again.",
+                isDraft: false,
+                owner: _ownerName,
+                ownerUid: _ownerUid,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                workflowEventId: sDoc.id,
+                workflowEventCollection: coll,
+                workflowStep: "cgWorksheetStalled",
+              });
+              await sDoc.ref.set({
+                cgWorksheetEscalatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                cgWorksheetEscalatedTo: _ownerName,
+              }, { merge: true });
+              console.log(`sendCgWorksheetReminders: escalated ${sDoc.ref.path} to ${_ownerName} after ${count} reminders`);
+            } catch (e) {
+              console.error(`sendCgWorksheetReminders: escalation failed for ${sDoc.ref.path}:`, e.message);
+            }
+          }
+
           if (count >= CG_WS_MAX_REMINDERS) { skippedCadence++; continue; }
 
           // Tighten the spacing when the session is nearly here. At the base
