@@ -19229,13 +19229,19 @@ exports.flagDuplicateContacts = functions
     const decSnap = await db.collection("contactDupDecisions").get().catch(() => ({ forEach: () => {} }));
     decSnap.forEach(d => decided.add(d.id));
 
-    // Pairs already sitting in an open task.
-    const openSnap = await db.collection("interactions")
+    // Pairs that have EVER been raised — open or closed.
+    //
+    // Closed counts. Staff close a task with the normal Close button as often as
+    // with the Merge / Keep-separate buttons, and a closed task means a human has
+    // already looked at this pair. Only skipping OPEN ones meant a closed task
+    // came straight back the next morning, which is the nagging this guard exists
+    // to prevent. Daniel closed two on 2026-08-04 and both would have returned.
+    const taskSnap = await db.collection("interactions")
       .where("workflowStep", "==", "contactDuplicate").get();
     const alreadyTasked = new Set();
-    openSnap.forEach(d => {
+    taskSnap.forEach(d => {
       const v = d.data() || {};
-      if (v.status !== "Closed") alreadyTasked.add(v.workflowEventId);
+      if (v.workflowEventId) alreadyTasked.add(v.workflowEventId);
     });
 
     const snap = await db.collection("contacts").get();
