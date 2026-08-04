@@ -19131,6 +19131,258 @@ exports.createAbandonedMembershipTasks = functions
     return null;
   });
 
+// ── Duplicate contacts: propose, never decide ────────────────────────────────
+// Phone is a strong hint that two contact records are the same person, but it is
+// NOT proof: parents in one household, a couple, or staff on an office line all
+// legitimately share a number. Merging the wrong pair fuses two families' records
+// and is far worse than leaving a duplicate in the list. So this job only ever
+// PROPOSES — La'a decides, and his decision is remembered.
+
+const DUP_PHONE_MIN_DIGITS = 7;
+
+function _dupPhoneKey(raw) {
+  const d = String(raw || "").replace(/\D/g, "");
+  // Drop a US country code so 18085550142 and 8085550142 are the same number.
+  const t = d.length === 11 && d.startsWith("1") ? d.slice(1) : d;
+  return t.length >= DUP_PHONE_MIN_DIGITS ? t : "";
+}
+
+// Stable key for a pair, so a decision is remembered whichever order we see them.
+function _dupPairKey(a, b) { return [a, b].sort().join("__"); }
+
+// Merge `loser` into `keeper`: fill blanks only, union arrays, re-point every
+// reference, then delete the loser. Never overwrites a value the keeper already
+// has. Returns a short summary of what moved.
+async function _mergeContactPair(db, keeperId, loserId) {
+  const FieldValue = admin.firestore.FieldValue;
+  const [kSnap, lSnap] = await Promise.all([
+    db.collection("contacts").doc(keeperId).get(),
+    db.collection("contacts").doc(loserId).get(),
+  ]);
+  if (!kSnap.exists) throw new Error("keeper no longer exists");
+  if (!lSnap.exists) throw new Error("duplicate no longer exists");
+  const keeper = kSnap.data() || {}, loser = lSnap.data() || {};
+  const merged = Object.assign({}, keeper);
+  const moved = [];
+
+  const SCALARS = ["email","phone","streetAddress","city","zipCode","location","type","ethnicity",
+    "militaryStatus","militaryBranch","childAgeRange","childGender","priorTraining","priorTrainingDate",
+    "howHeard","accommodations","preferredContact","organization","grantProgram","unsubscribeToken"];
+  const blank = v => v === undefined || v === null || v === "";
+  for (const f of SCALARS) {
+    if (blank(merged[f]) && !blank(loser[f])) { merged[f] = loser[f]; moved.push(f); }
+  }
+  // A second, different email is real information — keep it rather than drop it.
+  if (!blank(loser.email) && !blank(keeper.email) &&
+      String(loser.email).toLowerCase() !== String(keeper.email).toLowerCase()) {
+    merged.alternateEmails = [...new Set([...(keeper.alternateEmails || []), String(loser.email)])];
+    moved.push("alternateEmails");
+  }
+  if (Array.isArray(loser.disabilityCategories)) {
+    merged.disabilityCategories = [...new Set([...(merged.disabilityCategories || []), ...loser.disabilityCategories])];
+  }
+  const kids = [...(keeper.children || []), ...(loser.children || [])];
+  const seen = new Map();
+  for (const c of kids) {
+    const n = String(c.name || ((c.firstName || "") + " " + (c.lastName || ""))).trim().toLowerCase();
+    const key = n || ("d:" + [c.ageRange || "", c.gender || "", c.ethnicity || ""].join("|"));
+    if (!seen.has(key)) seen.set(key, Object.assign({}, c));
+    else {
+      const ex = seen.get(key);
+      for (const [f, v] of Object.entries(c)) if (blank(ex[f]) && !blank(v)) ex[f] = v;
+    }
+  }
+  if (seen.size) merged.children = [...seen.values()];
+  const scr = [...(keeper.screenings || []), ...(loser.screenings || [])];
+  if (scr.length) { merged.screenings = scr; merged.hasScreenings = true; }
+  if (loser.notes && loser.notes !== merged.notes) {
+    merged.notes = [merged.notes, loser.notes].filter(Boolean).join("\n---\n");
+  }
+  merged.mergedFromContactIds = [...new Set([...(keeper.mergedFromContactIds || []), loserId])];
+  merged.mergedAt = FieldValue.serverTimestamp();
+
+  const [ints, sgs, toks] = await Promise.all([
+    db.collection("interactions").where("contactId", "==", loserId).get(),
+    db.collectionGroup("signups").where("linkedContactId", "==", loserId).get(),
+    db.collection("screeningResultTokens").where("contactId", "==", loserId).get().catch(() => ({ docs: [] })),
+  ]);
+  for (const d of ints.docs) await d.ref.update({ contactId: keeperId });
+  for (const d of sgs.docs) await d.ref.update({ linkedContactId: keeperId });
+  for (const d of (toks.docs || [])) await d.ref.update({ contactId: keeperId });
+
+  await db.collection("contacts").doc(keeperId).set(merged, { merge: true });
+  await db.collection("contacts").doc(loserId).delete();
+
+  return { fieldsFilled: moved, interactions: ints.size, signups: sgs.size, tokens: (toks.docs || []).length };
+}
+
+exports.flagDuplicateContacts = functions
+  .runWith({ timeoutSeconds: 300, maxInstances: 1 })
+  .pubsub.schedule("0 6 * * *").timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const laaName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID);
+
+    // Pairs already decided — a "keep separate" must never come back, or the
+    // task becomes noise and gets ignored.
+    const decided = new Set();
+    const decSnap = await db.collection("contactDupDecisions").get().catch(() => ({ forEach: () => {} }));
+    decSnap.forEach(d => decided.add(d.id));
+
+    // Pairs already sitting in an open task.
+    const openSnap = await db.collection("interactions")
+      .where("workflowStep", "==", "contactDuplicate").get();
+    const alreadyTasked = new Set();
+    openSnap.forEach(d => {
+      const v = d.data() || {};
+      if (v.status !== "Closed") alreadyTasked.add(v.workflowEventId);
+    });
+
+    const snap = await db.collection("contacts").get();
+    const byPhone = {};
+    snap.forEach(d => {
+      const v = d.data() || {};
+      if (v.archived === true) return;
+      const key = _dupPhoneKey(v.phone);
+      if (!key) return;
+      (byPhone[key] = byPhone[key] || []).push({ id: d.id, v });
+    });
+
+    let created = 0;
+    for (const [phoneKey, recs] of Object.entries(byPhone)) {
+      if (recs.length < 2) continue;
+      recs.sort((a, b) => (a.v.createdAt?.toMillis?.() || 0) - (b.v.createdAt?.toMillis?.() || 0));
+      for (let i = 1; i < recs.length; i++) {
+        const a = recs[0], b = recs[i];
+        const pairKey = _dupPairKey(a.id, b.id);
+        if (decided.has(pairKey) || alreadyTasked.has(pairKey)) continue;
+
+        const nm = r => String(r.v.displayName || ((r.v.firstName || "") + " " + (r.v.lastName || ""))).trim() || "(no name)";
+        const when = r => r.v.createdAt?.toDate?.()
+          ? r.v.createdAt.toDate().toLocaleDateString("en-US", { timeZone: "Pacific/Honolulu", month: "short", day: "numeric", year: "numeric" })
+          : "unknown date";
+        const line = r =>
+          "  " + nm(r) + "\n" +
+          "  email: " + (r.v.email || "—") + "\n" +
+          "  phone: " + (r.v.phone || "—") + "\n" +
+          "  added " + when(r) + " by " + (r.v.createdByName || "unknown") + "\n";
+
+        const sameName = nm(a).toLowerCase() === nm(b).toLowerCase();
+        // A shared email beats a shared name. Daisha-Ann Malagamaa / Daisha Aea
+        // share daisha@mauihui.org — different surnames, plainly one person who
+        // changed her name. Judging on the name alone would have pointed the
+        // wrong way, so say which signal is actually present.
+        const emA = String(a.v.email || "").trim().toLowerCase();
+        const emB = String(b.v.email || "").trim().toLowerCase();
+        const sameEmail = !!emA && emA === emB;
+
+        await db.collection("interactions").add({
+          channel: "Office",
+          interactionType: "Data review",
+          contactId: a.id,
+          contactName: nm(a),
+          contactType: "",
+          summary: "Possible duplicate — " + nm(a) + " and " + nm(b) + " share the phone number " + (a.v.phone || phoneKey),
+          followUpDate: toHstDateKey(new Date()),
+          status: "Open",
+          notes:
+            "Two contact records share the same phone number. Please decide whether these are ONE person or TWO.\n\n" +
+            "RECORD A — kept if you merge\n" + line(a) + "\n" +
+            "RECORD B — folded into A and removed if you merge\n" + line(b) + "\n" +
+            "WHAT TO LOOK FOR\n" +
+            "· MERGE if this is one person with two email addresses — a work one and a\n" +
+            "  personal one, or an old address they have stopped using. Same name plus\n" +
+            "  same phone is almost always one person.\n" +
+            "· KEEP SEPARATE if these are two different people sharing a phone — two\n" +
+            "  parents in one household, a couple, or staff on one office line.\n" +
+            "  Different first names on the same number is the usual sign.\n\n" +
+            (sameEmail
+              ? "WHAT THIS PAIR LOOKS LIKE: both records carry the SAME email address\n" +
+                "as well as the same phone. That is a strong sign of one person — even\n" +
+                "if the names differ, which happens when someone changes their surname.\n\n"
+              : sameName
+                ? "WHAT THIS PAIR LOOKS LIKE: both records carry the SAME name, which\n" +
+                  "points towards one person.\n\n"
+                : "WHAT THIS PAIR LOOKS LIKE: the names are DIFFERENT and the emails do\n" +
+                  "not match, which often means two people sharing one phone. Check\n" +
+                  "before merging.\n\n") +
+            "Nothing is merged until you choose. If you keep them separate, this pair\n" +
+            "will not be raised again.",
+          isDraft: false,
+          owner: laaName,
+          ownerUid: LIFECYCLE_LAA_UID,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          workflowEventId: pairKey,
+          workflowEventCollection: "contacts",
+          workflowStep: "contactDuplicate",
+          dupKeeperId: a.id,
+          dupLoserId: b.id,
+        });
+        created++;
+      }
+    }
+    console.log("flagDuplicateContacts: created", created);
+    return null;
+  });
+
+// Called from the Int task. action = 'merge' | 'keep-separate'.
+exports.resolveContactDuplicate = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 5 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    try {
+      const { action, keeperId, loserId, interactionId, decidedBy } = req.body || {};
+      if (!keeperId || !loserId) { res.status(400).json({ error: "missing ids" }); return; }
+      const db = admin.firestore();
+      const pairKey = _dupPairKey(keeperId, loserId);
+      const FieldValue = admin.firestore.FieldValue;
+
+      if (action === "keep-separate") {
+        // Remembered forever, so the daily job never raises this pair again.
+        await db.collection("contactDupDecisions").doc(pairKey).set({
+          decision: "keep-separate", contactIds: [keeperId, loserId].sort(),
+          decidedBy: decidedBy || "staff", decidedAt: FieldValue.serverTimestamp(),
+        });
+        if (interactionId) {
+          await db.collection("interactions").doc(interactionId).update({
+            status: "Closed",
+            resolutionNote: "Kept separate — confirmed as two different people. This pair will not be raised again.",
+            updatedAt: FieldValue.serverTimestamp(),
+          }).catch(() => {});
+        }
+        res.json({ ok: true, decision: "keep-separate" });
+        return;
+      }
+
+      if (action === "merge") {
+        const result = await _mergeContactPair(db, keeperId, loserId);
+        await db.collection("contactDupDecisions").doc(pairKey).set({
+          decision: "merged", contactIds: [keeperId, loserId].sort(), keptId: keeperId,
+          decidedBy: decidedBy || "staff", decidedAt: FieldValue.serverTimestamp(),
+        });
+        if (interactionId) {
+          await db.collection("interactions").doc(interactionId).update({
+            status: "Closed",
+            resolutionNote: "Merged into " + keeperId + " — moved " + result.interactions +
+              " interaction(s) and " + result.signups + " signup(s).",
+            updatedAt: FieldValue.serverTimestamp(),
+          }).catch(() => {});
+        }
+        res.json({ ok: true, decision: "merged", ...result });
+        return;
+      }
+
+      res.status(400).json({ error: "unknown action" });
+    } catch (e) {
+      console.error("resolveContactDuplicate:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
 // Look up a pending membership by its resume token, for the checkout page to
 // prefill. Returns only what the form needs — never the whole document.
 exports.getMembershipByResumeToken = functions
