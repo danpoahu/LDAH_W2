@@ -8524,9 +8524,11 @@
         return;
       }
       
-      // Build event data with signup counts
+      // Build event data with signup counts. Archived signups are excluded —
+      // merged duplicates are archived rather than deleted, and counting them
+      // would report more signups than the event actually has. (2026-08-04)
       const eventData = events.map(event => {
-        const signups = eventSignups[event.id] || [];
+        const signups = (eventSignups[event.id] || []).filter(s => s.archived !== true);
         const totalParticipants = signups.reduce((sum, s) => sum + (parseInt(s.numVolunteers) || 1), 0);
         const pendingCount = signups.filter(s => !s.status || s.status === 'new' || s.status === 'pending').length;
         return {
