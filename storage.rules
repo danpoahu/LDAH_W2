@@ -109,6 +109,17 @@ service firebase.storage {
       allow write: if false;
     }
 
+    // Paper screening consent forms scanned in by staff. A signed consent
+    // names a child and carries a parent signature, so it is treated like the
+    // other confidential child documents: no direct client read or write.
+    // Uploads use a resumable URL minted by requestScreeningConsentUploadUrl
+    // for one specific path; views are 10-minute V4 signed URLs issued by
+    // getScreeningConsentDownloadUrl, which audit-logs every one.
+    match /screeningConsents/{contactId}/{file=**} {
+      allow read: if false;
+      allow write: if false;
+    }
+
     // Logos uploaded by anonymous applicants from become-partner.html.
     // Public read so admins can display the logo while reviewing the
     // application. Public create-only with strict size + MIME constraints

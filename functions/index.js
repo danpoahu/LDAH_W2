@@ -19878,3 +19878,144 @@ exports.sendMembershipResumeEmail = functions
       res.status(500).json({ error: (e && e.message) || "error" });
     }
   });
+
+// ───────────────────────────────────────────────────────────────────────
+// Screening consent forms (paper, uploaded by staff) — 2026-08-05
+// ───────────────────────────────────────────────────────────────────────
+// Families who sign a consent form on paper at a screening have nothing on
+// their contact card to show for it. Staff scan or photograph the sheet and
+// attach it here.
+//
+// A signed consent names a child and carries a parent signature, so it is
+// treated like the other confidential child documents: the bucket refuses
+// direct client reads and writes, uploads go through a resumable URL minted
+// for one path, and every view is a short-lived V4 signed URL. Same shape as
+// requestStaffConnectGenUploadUrl / getConnectGenDocumentDownloadUrl.
+const SCREENING_CONSENT_MIME_EXT = {
+  "application/pdf": "pdf",
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/png": "png",
+  "image/heic": "heic",
+  "image/heif": "heic",
+};
+const SCREENING_CONSENT_MAX_BYTES = 25 * 1024 * 1024;
+const SCREENING_CONSENT_PREFIX = "screeningConsents/";
+
+exports.requestScreeningConsentUploadUrl = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const contactId = String(body.contactId || "").trim();
+    const mimeType = String(body.mimeType || "").trim().toLowerCase();
+    const sizeBytes = Number(body.sizeBytes);
+
+    if (!contactId) { res.status(400).json({ error: "Missing contactId" }); return; }
+    // contactId becomes part of the storage path, so it must be a plain
+    // Firestore id — no slashes, no dots, nothing that could climb out of the
+    // folder. The contact-exists check below is a second gate, not the only one.
+    if (!/^[A-Za-z0-9_-]{6,64}$/.test(contactId)) {
+      res.status(400).json({ error: "Invalid contactId" }); return;
+    }
+    const ext = SCREENING_CONSENT_MIME_EXT[mimeType];
+    if (!ext) { res.status(400).json({ error: "File type not allowed. Please use PDF, JPG, PNG, or HEIC." }); return; }
+    if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) { res.status(400).json({ error: "Invalid file size." }); return; }
+    if (sizeBytes > SCREENING_CONSENT_MAX_BYTES) { res.status(400).json({ error: "File is larger than 25 MB. Please choose a smaller file." }); return; }
+
+    let staff;
+    try { staff = await _verifyStaffIdToken(body.idToken); }
+    catch (err) { res.status(err.statusCode || 401).json({ error: err.message }); return; }
+
+    try {
+      const db = admin.firestore();
+      const snap = await db.collection("contacts").doc(contactId).get();
+      if (!snap.exists) { res.status(404).json({ error: "Contact not found" }); return; }
+
+      const ts = Date.now();
+      const storagePath = SCREENING_CONSENT_PREFIX + contactId + "/consent-" + ts + "." + ext;
+      const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
+      // Echo the caller's origin for the browser PUT — the dashboard runs from
+      // danpoahu.github.io for both live and STAGE.
+      const origin = req.headers.origin || "https://danpoahu.github.io";
+      const [uploadUrl] = await bucket.file(storagePath).createResumableUpload({
+        origin: origin,
+        metadata: { contentType: mimeType },
+      });
+      console.log("requestScreeningConsentUploadUrl:", storagePath, "by=", staff.email || staff.uid);
+      res.status(200).json({ ok: true, uploadUrl, storagePath });
+    } catch (err) {
+      console.error("requestScreeningConsentUploadUrl error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+exports.getScreeningConsentDownloadUrl = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const contactId = String(body.contactId || "").trim();
+    const storagePath = String(body.storagePath || "").trim();
+    if (!contactId) { res.status(400).json({ error: "Missing contactId" }); return; }
+    if (!storagePath) { res.status(400).json({ error: "Missing storagePath" }); return; }
+
+    let staff;
+    try { staff = await _verifyStaffIdToken(body.idToken); }
+    catch (err) { res.status(err.statusCode || 401).json({ error: err.message }); return; }
+
+    // Defense in depth: only ever sign a path inside this contact's own folder,
+    // however the caller asked for it.
+    //
+    // A prefix test alone is NOT enough. "screeningConsents/<id>/../../gallery/x"
+    // starts with the prefix, but GCS resolves the ".." and would hand back a
+    // signed URL for any object in the bucket — including the connectGen and
+    // caseAdvocacy folders that are locked down precisely so nobody can read
+    // them directly. Caught in end-to-end testing on 2026-08-05.
+    //
+    // So: exact prefix, no traversal, no sub-folders, and the filename must be
+    // one this service generated.
+    const expectedPrefix = SCREENING_CONSENT_PREFIX + contactId + "/";
+    const remainder = storagePath.slice(expectedPrefix.length);
+    const looksGenerated = /^consent-\d{10,}\.(pdf|jpg|png|heic)$/.test(remainder);
+    if (storagePath.indexOf(expectedPrefix) !== 0 ||
+        storagePath.indexOf("..") !== -1 ||
+        remainder.indexOf("/") !== -1 ||
+        !looksGenerated) {
+      res.status(400).json({ error: "storagePath does not belong to this contact" });
+      return;
+    }
+
+    try {
+      const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
+      const expiresAt = Date.now() + 10 * 60 * 1000;
+      const [url] = await bucket.file(storagePath).getSignedUrl({
+        version: "v4", action: "read", expires: expiresAt,
+      });
+      // One row per view. Unlike the Connect-Gen vault this is a single sheet,
+      // not a 14-thumbnail gallery, so the audit trail stays readable.
+      try {
+        await admin.firestore().collection("auditLog").add({
+          action: "Screening consent viewed",
+          details: "contact " + contactId + " — " + storagePath,
+          performedBy: staff.email || staff.name || staff.uid,
+          role: staff.role || "",
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (auditErr) { console.warn("audit write failed:", auditErr.message); }
+      res.status(200).json({ ok: true, url, expiresAt });
+    } catch (err) {
+      console.error("getScreeningConsentDownloadUrl error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
