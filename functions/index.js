@@ -8955,10 +8955,34 @@ async function handleSignupLifecycleEmails(change, context, collectionName) {
     const afterDates = useSessions ? afterSess : afterDatesRaw;
     const beforeKey = JSON.stringify(beforeDates.slice().sort());
     const afterKey = JSON.stringify(afterDates.slice().sort());
-    const datesChanged = beforeDates.length > 0 && afterDates.length > 0 && beforeKey !== afterKey;
+
+    // What counts as a reschedule is the DATE and TIME, not the whole key.
+    //
+    // A session key is "<YYYY-MM-DD>|<Location – Venue>|<start – end>", so the
+    // middle segment is just the venue's label — and renaming a venue changes
+    // nobody's schedule. Comparing the raw key treated a relabel as a
+    // reschedule: on 2026-08-04 a cleanup of those labels (Hawai'i → Hilo/Kona,
+    // then "Easter Seals- Hilo" → "Easter Seals", then a Kakui/Kukui typo)
+    // rewrote the keys on live signups and mailed nine "Your session dates have
+    // changed" notices to five families whose dates and times were identical —
+    // four of them about sessions back in April. The same thing would happen to
+    // every family on a program if staff simply corrected a venue name in the
+    // CMS, so this is not only a migration concern.
+    //
+    // Keys that are not in the three-part form (Learning Labs selectedDates,
+    // which carry a topic rather than a venue) are compared whole, as before.
+    const _whenOf = (k) => {
+      const parts = String(k).split("|");
+      return parts.length === 3 ? parts[0] + "|" + parts[2] : String(k);
+    };
+    const beforeWhen = beforeDates.map(_whenOf);
+    const afterWhen = afterDates.map(_whenOf);
+    const datesChanged = beforeDates.length > 0 && afterDates.length > 0 &&
+      JSON.stringify(beforeWhen.slice().sort()) !== JSON.stringify(afterWhen.slice().sort());
     // Skip if the only delta is that new dates were added (sibling sharing) —
-    // i.e., afterDates is a strict superset of beforeDates.
-    const isPureAdd = beforeDates.every((d) => afterDates.indexOf(d) !== -1) && afterDates.length > beforeDates.length;
+    // i.e., afterDates is a strict superset of beforeDates. Compared on the
+    // same date+time basis so a relabel cannot disguise an add.
+    const isPureAdd = beforeWhen.every((d) => afterWhen.indexOf(d) !== -1) && afterWhen.length > beforeWhen.length;
 
     if (!justCancelled && !datesChanged) return;
     if (datesChanged && isPureAdd) {
@@ -8982,6 +9006,19 @@ async function handleSignupLifecycleEmails(change, context, collectionName) {
     // (different key) still emails. Old "_sentAt" timestamp markers from
     // earlier deploys are ignored — those signups will email once more on
     // their next genuine state change, which is the intended behavior.
+    //
+    // This is also the supported way to SUPPRESS a notice for an administrative
+    // write. A bulk script that rewrites selectedSessions / selectedDates
+    // should set the marker to the post-write value in the SAME update:
+    //
+    //   ref.update({
+    //     selectedSessions: newKeys,
+    //     lifecycleEmail_reschedule_lastKey: JSON.stringify(newKeys.slice().sort()),
+    //   })
+    //
+    // The trigger then sees the marker already matching and returns before
+    // sending. Date/time comparison above covers pure relabels on its own, so
+    // this is for writes that genuinely move dates without wanting to mail.
     const markerField = "lifecycleEmail_" + kind + "_lastKey";
     if (after[markerField] && after[markerField] === afterKey) return;
 
