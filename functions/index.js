@@ -3638,27 +3638,56 @@ async function applyRegistrationToContact(linkedContactId, registration, signupI
       return map[s] || s; // unknown — pass through
     };
     try {
-      const childEntry = {};
-      // Child name: prefer registration.childName; fall back to studentName
-      // (recurring-event signups store the child's name there — the enrichment
-      // used to drop it, leaving "Child 1" placeholders). Guard: studentName is
-      // occasionally the registrant's OWN name mis-entered, so never use it when
-      // it matches the parent/contact name. (2026-06-09)
-      let _childNm = registration.childName ? String(registration.childName).trim() : "";
-      if (!_childNm && registration.studentName) {
-        const _sn = String(registration.studentName).trim();
-        const _parent = String((contactData && contactData.displayName) || registration.name || "").trim();
-        if (_sn && _sn.toLowerCase() !== _parent.toLowerCase()) _childNm = _sn;
-      }
-      if (_childNm) childEntry.name = _childNm;
-      if (registration.childAgeRange) childEntry.ageRange = _canonAgeRange(registration.childAgeRange);
-      if (registration.childGender) childEntry.gender = registration.childGender;
-      if (registration.ethnicity) childEntry.ethnicity = registration.ethnicity;
-      if (Array.isArray(registration.disabilityCategories) && registration.disabilityCategories.length) {
-        childEntry.disabilityCategories = registration.disabilityCategories;
-      }
+      // Child sources: the registrant's own child, plus any siblings added via
+      // "Register Another Child". Siblings live on the SAME signup as
+      // additionalChildren[] rather than in a second signup document
+      // (2026-08-04) — a second signup made the parent a duplicate of herself:
+      // two confirmation emails, two seats, and a DUPLICATE pill in Int, since
+      // the duplicate rule is same-email + overlapping dates and never looked
+      // at the child. Connect-Gen still uses one signup per child; there each
+      // child has their own appointment, consent and worksheet.
+      //
+      // sourceSignupId is the per-child idempotency key, so siblings are keyed
+      // "<signupId>#<child name>" — keying them all on the bare signupId would
+      // let the first child added block every sibling behind it.
+      const _childSources = [{ src: registration, key: signupId }];
+      (Array.isArray(registration.additionalChildren) ? registration.additionalChildren : [])
+        .forEach((ac, i) => {
+          if (!ac || typeof ac !== "object") return;
+          const _n = String(ac.childName || "").trim().toLowerCase();
+          _childSources.push({ src: ac, key: signupId + "#" + (_n || String(i)) });
+        });
 
-      if (Object.keys(childEntry).length > 0) {
+      const existingChildren = contactData.children || [];
+      let _childrenTouched = false;
+
+      for (const _cs of _childSources) {
+        const src = _cs.src;
+        const childEntry = {};
+        // Child name: prefer childName; fall back to studentName
+        // (recurring-event signups store the child's name there — the enrichment
+        // used to drop it, leaving "Child 1" placeholders). Guard: studentName is
+        // occasionally the registrant's OWN name mis-entered, so never use it when
+        // it matches the parent/contact name. (2026-06-09)
+        let _childNm = src.childName ? String(src.childName).trim() : "";
+        if (!_childNm && src.studentName) {
+          const _sn = String(src.studentName).trim();
+          const _parent = String((contactData && contactData.displayName) || registration.name || "").trim();
+          if (_sn && _sn.toLowerCase() !== _parent.toLowerCase()) _childNm = _sn;
+        }
+        if (_childNm) childEntry.name = _childNm;
+        if (src.childAgeRange) childEntry.ageRange = _canonAgeRange(src.childAgeRange);
+        if (src.childGender) childEntry.gender = src.childGender;
+        // Ethnicity is a family-level answer — siblings inherit it from the
+        // parent registration when their own entry does not carry one.
+        const _eth = src.ethnicity || registration.ethnicity;
+        if (_eth) childEntry.ethnicity = _eth;
+        if (Array.isArray(src.disabilityCategories) && src.disabilityCategories.length) {
+          childEntry.disabilityCategories = src.disabilityCategories;
+        }
+
+        if (Object.keys(childEntry).length === 0) continue;
+
         // NB: FieldValue.serverTimestamp() throws inside array elements.
         // Use a plain Timestamp (admin SDK converts on write) — the whole
         // contact enrichment update was being rejected before this fix
@@ -3666,45 +3695,45 @@ async function applyRegistrationToContact(linkedContactId, registration, signupI
         // 2026-05-02 when Jake Test's contact card showed empty
         // demographics despite a complete registration submit.
         childEntry.addedAt = admin.firestore.Timestamp.now();
-        childEntry.sourceSignupId = signupId;
+        childEntry.sourceSignupId = _cs.key;
 
-        const existingChildren = contactData.children || [];
-        // Don't re-add if this exact signup already contributed a child.
-        const alreadyAdded = existingChildren.some(c => c.sourceSignupId === signupId);
-        if (!alreadyAdded) {
-          // Dedup-at-source (2026-06-09): a returning family re-registers the
-          // SAME child under a new signup. Match an existing child by NAME
-          // (case-insensitive) and MERGE into it rather than appending a
-          // duplicate. NAME-ONLY on purpose — the "Register Another Child" flow
-          // means real siblings exist, so we never merge two children on
-          // demographics alone (siblings can share age/gender/ethnicity/
-          // disability). Nameless entries are always kept distinct (appended);
-          // the rare nameless cross-event dupe is left for manual cleanup rather
-          // than risk collapsing two real kids.
-          const _norm = v => String(v == null ? "" : v).trim();
-          const _matches = (a, b) => {
-            const an = _norm(a.name).toLowerCase(); const bn = _norm(b.name).toLowerCase();
-            return !!an && an === bn;   // merge only when both share a name
-          };
-          const idx = existingChildren.findIndex(c => _matches(c, childEntry));
-          if (idx === -1) {
-            existingChildren.push(childEntry);
-          } else {
-            // Merge into the existing child: fill blanks from the new entry,
-            // union disability categories. Never overwrite existing
-            // grade/school/notes (those come from staff-entered child records).
-            const cur = existingChildren[idx];
-            ["name", "ageRange", "gender", "ethnicity", "grade", "school", "notes"].forEach(f => {
-              if (!_norm(cur[f]) && _norm(childEntry[f])) cur[f] = childEntry[f];
-            });
-            const disU = {};
-            (cur.disabilityCategories || []).concat(childEntry.disabilityCategories || []).forEach(d => { if (_norm(d)) disU[_norm(d)] = true; });
-            if (Object.keys(disU).length) cur.disabilityCategories = Object.keys(disU);
-            existingChildren[idx] = cur;
-          }
-          updates.children = existingChildren;
+        // Don't re-add if this exact source already contributed a child.
+        if (existingChildren.some(c => c.sourceSignupId === _cs.key)) continue;
+
+        // Dedup-at-source (2026-06-09): a returning family re-registers the
+        // SAME child under a new signup. Match an existing child by NAME
+        // (case-insensitive) and MERGE into it rather than appending a
+        // duplicate. NAME-ONLY on purpose — the "Register Another Child" flow
+        // means real siblings exist, so we never merge two children on
+        // demographics alone (siblings can share age/gender/ethnicity/
+        // disability). Nameless entries are always kept distinct (appended);
+        // the rare nameless cross-event dupe is left for manual cleanup rather
+        // than risk collapsing two real kids.
+        const _norm = v => String(v == null ? "" : v).trim();
+        const _matches = (a, b) => {
+          const an = _norm(a.name).toLowerCase(); const bn = _norm(b.name).toLowerCase();
+          return !!an && an === bn;   // merge only when both share a name
+        };
+        const idx = existingChildren.findIndex(c => _matches(c, childEntry));
+        if (idx === -1) {
+          existingChildren.push(childEntry);
+        } else {
+          // Merge into the existing child: fill blanks from the new entry,
+          // union disability categories. Never overwrite existing
+          // grade/school/notes (those come from staff-entered child records).
+          const cur = existingChildren[idx];
+          ["name", "ageRange", "gender", "ethnicity", "grade", "school", "notes"].forEach(f => {
+            if (!_norm(cur[f]) && _norm(childEntry[f])) cur[f] = childEntry[f];
+          });
+          const disU = {};
+          (cur.disabilityCategories || []).concat(childEntry.disabilityCategories || []).forEach(d => { if (_norm(d)) disU[_norm(d)] = true; });
+          if (Object.keys(disU).length) cur.disabilityCategories = Object.keys(disU);
+          existingChildren[idx] = cur;
         }
+        _childrenTouched = true;
       }
+
+      if (_childrenTouched) updates.children = existingChildren;
     } catch (childErr) {
       console.error(`Children enrichment error (signup ${signupId}):`, childErr.message);
     }
@@ -3749,10 +3778,16 @@ async function handleSignupUpdated(change, context) {
     const before = change.before.data();
     const after = change.after.data();
 
-    // Act when status transitions to "confirmed" OR when registration data is added
+    // Act when status transitions to "confirmed", when registration data is
+    // added, OR when a sibling is added via "Register Another Child" — that
+    // last one appends to additionalChildren[] on an already-confirmed signup
+    // (2026-08-04), so neither of the first two gates would ever see it and the
+    // sibling's demographics would never reach the contact.
     const statusJustConfirmed = before.status !== "confirmed" && after.status === "confirmed";
     const registrationJustAdded = !before.registration && after.registration;
-    if (!statusJustConfirmed && !registrationJustAdded) return null;
+    const _acLen = v => (Array.isArray((v || {}).additionalChildren) ? v.additionalChildren.length : 0);
+    const siblingJustAdded = _acLen(after) > _acLen(before);
+    if (!statusJustConfirmed && !registrationJustAdded && !siblingJustAdded) return null;
     if (after.status !== "confirmed") return null;
 
     // Must have registration data and a linked contact
@@ -3762,7 +3797,13 @@ async function handleSignupUpdated(change, context) {
 
     await applyRegistrationToContact(
       after.linkedContactId,
-      Object.assign({}, after.registration, { preferredContact: after.preferredContact, secondParent: after.registration.secondParent || after.secondParent }),
+      Object.assign({}, after.registration, {
+        preferredContact: after.preferredContact,
+        secondParent: after.registration.secondParent || after.secondParent,
+        // Siblings are stored at signup top level; the enrichment reads them
+        // off the registration object it is handed.
+        additionalChildren: after.additionalChildren || after.registration.additionalChildren || [],
+      }),
       context.params.signupId,
     );
   } catch (err) {
