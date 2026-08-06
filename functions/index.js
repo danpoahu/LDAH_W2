@@ -3982,6 +3982,62 @@ exports.onSignupCancelledFromSession = functions
 // were silently excluded from every announcement. Seed a token (and default
 // opt-in) at creation time so this can't recur. The historical gap was closed by
 // backfill-unsubscribe-tokens.js.
+// ── Island resolution ────────────────────────────────────────────────
+// The SAME table lives in LDAH-Internal and the LDAH app. If you change it
+// here, change it there — a contact created on the website, in Int, or by an
+// import must all land on the same island.
+//
+// Zip decides it outright; there is no city-name guessing, because Waimea
+// exists on BOTH Hawaiʻi Island and Kauaʻi and Kilauea is a town on Kauaʻi as
+// well as the volcano on Hawaiʻi Island. Free text is only consulted as a last
+// resort, and only for names that are unambiguous.
+const LDAH_ISLAND_ZIPS = {
+  Oahu: ["96701","96706","96707","96709","96712","96717","96730","96731","96734","96744","96759","96762","96782","96786","96789","96791","96792","96795","96797","96801","96802","96803","96804","96805","96806","96807","96808","96809","96810","96811","96812","96813","96814","96815","96816","96817","96818","96819","96820","96821","96822","96823","96824","96825","96826","96827","96828","96830","96835","96836","96837","96838","96839","96840","96841","96843","96844","96846","96847","96848","96849","96850","96853","96854","96857","96858","96859","96860","96861","96863"],
+  Hawaii: ["96704","96710","96718","96719","96720","96721","96725","96726","96727","96728","96737","96738","96739","96740","96743","96745","96749","96750","96755","96760","96764","96771","96772","96773","96774","96776","96777","96778","96780","96781","96783","96785"],
+  Maui:   ["96708","96713","96732","96733","96753","96761","96767","96768","96779","96784","96788","96790","96793"],
+  Kauai:  ["96703","96705","96714","96715","96716","96722","96741","96746","96747","96751","96752","96754","96756","96765","96766","96769","96796"],
+  Molokai:["96729","96742","96748","96757","96770"],
+  Lanai:  ["96763"],
+};
+const LDAH_ISLAND_TEXT = [
+  ["Molokai", /\b(kaunakakai|hoolehua|kualapuu|maunaloa|kalaupapa|molokai)\b/i],
+  ["Lanai",   /\b(lanai)\b/i],
+  ["Kauai",   /\b(lihue|kapaa|princeville|hanalei|koloa|poipu|kalaheo|eleele|hanapepe|kekaha|anahola|kauai)\b/i],
+  ["Maui",    /\b(wailuku|kahului|kihei|lahaina|makawao|pukalani|paia|haiku|hana|kula|napili|kaanapali|wailea|maui)\b/i],
+  ["Hawaii",  /\b(hilo|kailua[- ]kona|kona|kea.?au|kamuela|honoka.?a|pahoa|volcano|na.?alehu|captain cook|kealakekua|holualoa|honaunau|waikoloa|hawi|kapaau|papaikou|pepeekeo|mountain view|kurtistown|laupahoehoe|ookala|paauilo|pahala|ocean view|big island)\b/i],
+  ["Oahu",    /\b(honolulu|kapolei|ewa|aiea|pearl city|waipahu|mililani|wahiawa|kaneohe|kailua|waianae|waimanalo|haleiwa|laie|kahuku|hauula|makakilo|nanakuli|schofield|hickam|manoa|kalihi|waipio|oahu)\b/i],
+];
+const LDAH_OFF_ISLAND = /\b(majuro|pago pago|hagatna|guam|saipan|tinian|rota|palau|koror|chuuk|pohnpei|kosrae|yap|marshall|micronesia|american samoa|cnmi)\b/i;
+
+/** Island from a zip code. '' when it cannot be determined. */
+function ldahIslandFromZip(zip) {
+  const z = String(zip == null ? "" : zip).trim().slice(0, 5);
+  if (!/^\d{5}$/.test(z)) return "";
+  for (const isl of Object.keys(LDAH_ISLAND_ZIPS)) {
+    if (LDAH_ISLAND_ZIPS[isl].includes(z)) return isl;
+  }
+  return "Other";   // a valid zip that is not a Hawaii zip is genuinely elsewhere
+}
+
+/**
+ * Best-effort island for a contact: zip first, then unambiguous place names in
+ * city/location. Returns "Unknown" rather than guessing, so the gap is visible
+ * and fixable instead of silently wrong.
+ */
+function ldahResolveIsland(c) {
+  const byZip = ldahIslandFromZip(c.zipCode);
+  if (byZip) return { island: byZip, islandSource: "zip" };
+  for (const field of ["city", "location", "streetAddress"]) {
+    const v = String(c[field] || "").trim();
+    if (!v) continue;
+    if (LDAH_OFF_ISLAND.test(v)) return { island: "Other", islandSource: field };
+    for (const [isl, re] of LDAH_ISLAND_TEXT) {
+      if (re.test(v)) return { island: isl, islandSource: field };
+    }
+  }
+  return { island: "Unknown", islandSource: "nothing on file" };
+}
+
 exports.onContactCreated = functions
   .runWith({ timeoutSeconds: 60, maxInstances: 5 })
   .firestore.document("contacts/{contactId}")
@@ -3994,6 +4050,16 @@ exports.onContactCreated = functions
       }
       if (c.marketingOptOut !== true && c.marketingOptOut !== false) {
         updates.marketingOptOut = false;
+      }
+      // Island backstop. Contacts are created from at least five places — Int,
+      // event-signup enrichment, SRP consent, the readiness kiosk and web
+      // membership — and expecting every one of them to remember would break
+      // the moment a sixth appears. Only fills a BLANK; never overrides a
+      // caller that already decided.
+      if (!c.island) {
+        const r = ldahResolveIsland(c);
+        updates.island = r.island;
+        updates.islandSource = r.islandSource;
       }
       if (Object.keys(updates).length === 0) return null;
       await snap.ref.update(updates);
@@ -4013,6 +4079,21 @@ exports.onContactUpdated = functions
       const before = change.before.data() || {};
       const after = change.after.data() || {};
       const contactId = context.params.contactId;
+
+      // Re-derive the island when the zip changes — a corrected zip should fix
+      // a wrong island. Two guards: a staff member's explicit pick
+      // (islandSource 'manual') always wins, and we never overwrite a good
+      // island with "Unknown", so clearing a zip cannot destroy known data.
+      if (String(before.zipCode || "") !== String(after.zipCode || "") &&
+          after.islandSource !== "manual") {
+        const r = ldahResolveIsland(after);
+        if (r.island !== after.island && r.island !== "Unknown") {
+          try {
+            await change.after.ref.update({ island: r.island, islandSource: r.islandSource });
+            console.log(`Contact ${contactId}: zip changed, island ${after.island || "(none)"} -> ${r.island}`);
+          } catch (e) { console.warn("island re-derive failed:", e.message); }
+        }
+      }
 
       const prevName = [before.firstName, before.lastName].filter(Boolean).join(" ").trim();
       const newName = [after.firstName, after.lastName].filter(Boolean).join(" ").trim();
