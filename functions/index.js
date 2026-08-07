@@ -2532,6 +2532,12 @@ exports.resendRegistrationEmail = functions
   });
 
 const EMAIL_SECRETS = ["RESEND_API_KEY", "SMTP_FROM"];
+// The reminder jobs also register attendees with Zoom to get each person their
+// own join link, so they need the Zoom credentials on top of the email ones.
+// Spelled out rather than referencing ZOOM_SECRETS: that const is declared far
+// below, and runWith() runs at module load, so using it here would hit the
+// temporal dead zone and take every reminder down.
+const REMINDER_SECRETS = EMAIL_SECRETS.concat(["ZOOM_ACCOUNT_ID", "ZOOM_CLIENT_ID", "ZOOM_CLIENT_SECRET"]);
 
 // ─────────────────────────────────────────────────────────────────────────
 // System failure alarms → Daniel + Rosie (email) + LDAH-Int red banner.
@@ -7380,9 +7386,17 @@ async function sendOneReminderEmail({
   if (modeOverride === "confirmed-in-person") isVirtual = false;
   else if (modeOverride === "confirmed-virtual") isVirtual = true;
 
-  const zoomUrl = isVirtual && zoomDefault && zoomDefault.meetingUrl ? String(zoomDefault.meetingUrl).trim() : "";
+  let zoomUrl = isVirtual && zoomDefault && zoomDefault.meetingUrl ? String(zoomDefault.meetingUrl).trim() : "";
   const meetingId = isVirtual && zoomDefault && zoomDefault.meetingId ? String(zoomDefault.meetingId).trim() : "";
   const passcode = isVirtual && zoomDefault && zoomDefault.passcode ? String(zoomDefault.passcode).trim() : "";
+  // Personal Zoom link, when this signup has been registered with Zoom. It
+  // identifies the person on the way in, which is what lets the attendance
+  // report match a signup instead of guessing at a typed display name.
+  // Falls back to the shared link whenever it is missing, so a registration
+  // that failed leaves that family no worse off than they are today.
+  if (isVirtual && signup && signup.zoomJoinUrl) {
+    zoomUrl = String(signup.zoomJoinUrl).trim() || zoomUrl;
+  }
   let locationLabel = isVirtual ? "" : getSessionLocationForDate(signup, sessionDateKey);
   // If override flipped this attendee to in-person but the session key had
   // no location component (e.g. virtual-by-default program), fall back to
@@ -7552,7 +7566,7 @@ async function maybeSendCatchupReminder(change, context, collection) {
 // (signup.sessionReminders[<dateKey>].threeDay) so existing dedupe state
 // continues to match. Window logic (3 days out, HST) is preserved verbatim.
 exports.sendEventReminders = functions
-  .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: EMAIL_SECRETS })
+  .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: REMINDER_SECRETS })
   .pubsub.schedule("0 16 * * *")
   .timeZone("Pacific/Honolulu")
   .onRun(async (context) => {
@@ -7646,6 +7660,18 @@ exports.sendEventReminders = functions
 
         try {
           const zoomDefault = pickZoomForEvent(zoomDoc, event, collection);
+          // Give this person their own Zoom link before the email is built, so
+          // the reminder carries it. Soft-fails to the shared link, and caches
+          // on the signup so the day-of reminder reuses it rather than
+          // registering the same family twice.
+          if (isSessionVirtual(event, sessionDateKey, signup)) {
+            try {
+              const _ju = await ensureZoomRegistration({
+                signupRef: signupDoc.ref, signup, event, collection,
+              });
+              if (_ju) signup.zoomJoinUrl = _ju;
+            } catch (e) { console.warn("ensureZoomRegistration (3day):", e.message); }
+          }
           await sendOneReminderEmail({
             collection, eventId, signupId, signup, event,
             sessionDateKey,
@@ -7899,9 +7925,17 @@ async function sendOneDayOfReminderEmail({
   const isVirtual = isSessionVirtual(event, sessionDateKey, signup);
   const locationLabel = isVirtual ? "" : (getSessionLocationForDate(signup, sessionDateKey) || (event && event.location) || "");
 
-  const zoomUrl = isVirtual && zoomDefault && zoomDefault.meetingUrl ? String(zoomDefault.meetingUrl).trim() : "";
+  let zoomUrl = isVirtual && zoomDefault && zoomDefault.meetingUrl ? String(zoomDefault.meetingUrl).trim() : "";
   const meetingId = isVirtual && zoomDefault && zoomDefault.meetingId ? String(zoomDefault.meetingId).trim() : "";
   const passcode = isVirtual && zoomDefault && zoomDefault.passcode ? String(zoomDefault.passcode).trim() : "";
+  // Personal Zoom link, when this signup has been registered with Zoom. It
+  // identifies the person on the way in, which is what lets the attendance
+  // report match a signup instead of guessing at a typed display name.
+  // Falls back to the shared link whenever it is missing, so a registration
+  // that failed leaves that family no worse off than they are today.
+  if (isVirtual && signup && signup.zoomJoinUrl) {
+    zoomUrl = String(signup.zoomJoinUrl).trim() || zoomUrl;
+  }
 
   // Survey URL — must include sessionDate for proper feedback grouping.
   // CANONICAL SHAPE: verbatim event.signupDates entry (NOT ISO yyyy-mm-dd).
@@ -8005,7 +8039,7 @@ function legacySessionsForSignup(signup, event) {
 // signup.sessionReminders[<dateKey>].dayOf) so existing dedupe state
 // continues to match.
 exports.sendDayOfReminders = functions
-  .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: EMAIL_SECRETS })
+  .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: REMINDER_SECRETS })
   .pubsub.schedule("0,30 * * * *")
   .timeZone("Pacific/Honolulu")
   .onRun(async (context) => {
@@ -8104,6 +8138,17 @@ exports.sendDayOfReminders = functions
           }
 
           const zoomDefault = pickZoomForEvent(zoomDoc, event, collection);
+          // Same personal link as the 3-day mail. Usually already cached by
+          // then, so this is a no-op; it also covers anyone who signed up
+          // inside the last three days and so never got a 3-day reminder.
+          if (isSessionVirtual(event, sessionDateKey, signup)) {
+            try {
+              const _ju = await ensureZoomRegistration({
+                signupRef: signupDoc.ref, signup, event, collection,
+              });
+              if (_ju) signup.zoomJoinUrl = _ju;
+            } catch (e) { console.warn("ensureZoomRegistration (dayof):", e.message); }
+          }
           await sendOneDayOfReminderEmail({
             collection, eventId, signupId, signup, event,
             sessionDateKey,
@@ -8177,7 +8222,7 @@ exports.sendDayOfReminders = functions
 // secret is not set, the CORS origin restriction is the only gate —
 // fine for an admin tool but bump the secret in before widespread use.
 exports.sendEventRemindersTest = functions
-  .runWith({ timeoutSeconds: 30, maxInstances: 3, secrets: EMAIL_SECRETS })
+  .runWith({ timeoutSeconds: 30, maxInstances: 3, secrets: REMINDER_SECRETS })
   .https.onRequest(async (req, res) => {
     res.set("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
     res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -19149,6 +19194,89 @@ async function _zoomAuth() {
     uid = JSON.parse(Buffer.from(p, "base64").toString()).uid || "";
   } catch (e) { /* leave blank */ }
   return { token: j.access_token, ownerUid: uid };
+}
+
+// ── Zoom registrants (attendance tracking) ──────────────────────────
+// A shared /j/ link tells Zoom nothing about who clicked it, so the participant
+// report comes back full of typed display names and blank emails. Registering
+// each signup gives that person their OWN join URL, and Zoom then reports them
+// by the name and email we already hold — which is what makes attendance
+// matchable instead of guesswork.
+//
+// Needs Zoom scopes meeting:read:meeting:admin + meeting:write:registrant:admin
+// on the S2S app. Until those are granted every call here 403s, which is
+// handled as a soft failure: the signup simply keeps the shared link.
+
+/** Meeting id for an event, from the same slot its emails already use. */
+async function _zoomMeetingIdForEvent(event, collection) {
+  const zoomDoc = (await admin.firestore().collection("settings").doc("zoomDefault").get()).data();
+  const slot = pickZoomForEvent(zoomDoc, event, collection);
+  if (!slot) return "";
+  const raw = String(slot.meetingId || "").replace(/\D/g, "");
+  if (raw) return raw;
+  const m = String(slot.meetingUrl || "").match(/\/j\/(\d+)/);
+  return m ? m[1] : "";
+}
+
+/**
+ * Register one signup with a Zoom meeting and return their personal join URL.
+ * Returns "" on any failure — the caller keeps the shared link rather than
+ * losing a family their way in.
+ */
+async function _zoomRegisterSignup({ meetingId, email, firstName, lastName }) {
+  if (!meetingId || !email) return "";
+  try {
+    const { token } = await _zoomAuth();
+    const r = await fetch("https://api.zoom.us/v2/meetings/" + meetingId + "/registrants", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: String(email).trim(),
+        first_name: String(firstName || "Guest").trim().slice(0, 64),
+        last_name: String(lastName || "").trim().slice(0, 64),
+        auto_approve: true,
+      }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.join_url) {
+      console.warn("zoomRegister failed for", email, r.status, j.code || "", j.message || "");
+      return "";
+    }
+    return String(j.join_url);
+  } catch (e) {
+    console.warn("zoomRegister threw for", email, e.message);
+    return "";
+  }
+}
+
+/**
+ * Ensure a signup has a personal Zoom link, caching it on the signup doc.
+ * Idempotent: an existing zoomJoinUrl is returned untouched, so re-running
+ * this before every reminder costs one read and no Zoom calls.
+ */
+async function ensureZoomRegistration({ signupRef, signup, event, collection }) {
+  if (!signup || signup.zoomJoinUrl) return (signup && signup.zoomJoinUrl) || "";
+  if (signup.status !== "confirmed") return "";          // only people actually coming
+  const email = String(signup.email || "").trim();
+  if (!email) return "";
+  const meetingId = await _zoomMeetingIdForEvent(event, collection);
+  if (!meetingId) return "";
+
+  const joinUrl = await _zoomRegisterSignup({
+    meetingId,
+    email,
+    firstName: signup.firstName || (signup.name || "").split(" ")[0] || "Guest",
+    lastName: signup.lastName || (signup.name || "").split(" ").slice(1).join(" "),
+  });
+  if (!joinUrl) return "";
+  try {
+    await signupRef.update({
+      zoomJoinUrl: joinUrl,
+      zoomRegisteredAt: admin.firestore.FieldValue.serverTimestamp(),
+      zoomMeetingId: meetingId,
+    });
+  } catch (e) { console.warn("could not cache zoomJoinUrl:", e.message); }
+  return joinUrl;
 }
 
 function _driveClient() {
