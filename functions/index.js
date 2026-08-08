@@ -17244,8 +17244,14 @@ async function _lcEnsureRecurringSessionTasks(db, eventId, ev, compositeKey, tod
   const dayAfterKey = new Date(baseMs + 1 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const common = { eventId, eventTitle: title, sessionKey: compositeKey, sessionLabel: label, collection: "recurringEvents" };
 
+  // A presenter picked on the Events Dashboard is already the answer this task
+  // asks for, so don't ask again — La'a was getting "Assign Presenter" for
+  // sessions Daniel had assigned days earlier. A name without a uid still
+  // counts: external presenters aren't in userRoles.
+  const presenterAssigned = !!(presenterSrc.presenterUid || String(presenterSrc.presenter || "").trim());
+
   let created = 0;
-  if (D <= 5) {
+  if (D <= 5 && !presenterAssigned) {
     const r = await _lcCreateIfMissing(db, Object.assign({}, common, {
       step: "assignPresenter", ownerUid: LIFECYCLE_LAA_UID, ownerName: laaName, dueDate: todayKey
     }));
@@ -18078,6 +18084,62 @@ exports.onEventUpdatedLifecycle = functions
       });
     }
 
+    return null;
+  });
+
+// Recurring counterpart of onEventUpdatedLifecycle's reverse-direction close.
+// onEventUpdatedLifecycle is bound to events/{eventId}, so for a recurring
+// program nothing was watching: assigning a presenter on the Events Dashboard
+// left the open "Assign Presenter" task sitting in La'a's list until someone
+// closed it by hand.
+//
+// Simpler than the events version — a recurring program's sessionSummaries key
+// IS the composite workflow key, so there is no rawString-to-dateKey mapping
+// to get wrong.
+exports.onRecurringEventUpdatedLifecycle = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 10 })
+  .firestore.document("recurringEvents/{eventId}")
+  .onUpdate(async (change, context) => {
+    const before = change.before.data() || {};
+    const after  = change.after.data()  || {};
+    const eventId = context.params.eventId;
+    const db = admin.firestore();
+
+    const beforeSS = (before.sessionSummaries && typeof before.sessionSummaries === "object") ? before.sessionSummaries : {};
+    const afterSS  = (after.sessionSummaries  && typeof after.sessionSummaries  === "object") ? after.sessionSummaries  : {};
+
+    for (const sessionKey of Object.keys(afterSS)) {
+      const beforeName = String((beforeSS[sessionKey] && beforeSS[sessionKey].presenter) || "").trim();
+      const afterName  = String((afterSS[sessionKey]  && afterSS[sessionKey].presenter)  || "").trim();
+      if (!afterName || afterName === beforeName) continue;   // no change, or cleared
+
+      const q = await db.collection("interactions")
+        .where("workflowEventId", "==", eventId)
+        .where("workflowStep", "==", "assignPresenter")
+        .where("workflowSessionKey", "==", sessionKey)
+        .where("status", "==", "Open")
+        .limit(1).get();
+      if (q.empty) continue;
+
+      // Prefer the uid the dashboard already recorded; fall back to a lookup,
+      // then to a non-empty marker so the chain engine's re-open guard (which
+      // fires on a blank assignedPresenterUid) doesn't resurrect the task.
+      let uid = String((afterSS[sessionKey] && afterSS[sessionKey].presenterUid) || "").trim();
+      if (!uid) {
+        try {
+          const ur = await db.collection("userRoles").where("displayName", "==", afterName).limit(1).get();
+          if (!ur.empty) uid = ur.docs[0].id;
+        } catch (e) { /* tolerate */ }
+      }
+      await q.docs[0].ref.update({
+        status: "Closed",
+        assignedPresenterUid:  uid || "(form-set)",
+        assignedPresenterName: afterName,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        notes: ((q.docs[0].data().notes || "") +
+          "\n[auto] Closed: presenter set on the Events Dashboard (" + afterName + ").").trim()
+      });
+    }
     return null;
   });
 
