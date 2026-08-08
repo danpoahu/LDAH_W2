@@ -19279,6 +19279,180 @@ async function ensureZoomRegistration({ signupRef, signup, event, collection }) 
   return joinUrl;
 }
 
+// ── Zoom attendance read-back ───────────────────────────────────────
+// Registration is the write half of attendance; this is the read half. Three
+// properties of the real report (verified against meeting 882 5025 9373) shape
+// everything below:
+//   1. One human produces SEVERAL rows — every rejoin is its own row. The
+//      Jul 22 lab reported 13 rows for 4 people.
+//   2. `duration` is in SECONDS, even though Zoom's docs say minutes. A row
+//      reading 3628 is one hour, not two and a half days.
+//   3. Until registration is enabled, `user_email` is blank for everyone but
+//      the host, so names are all we have to match on.
+//
+// NOTHING here writes sessionAttendance. Flipping a session to "attended"
+// fires maybeSendFeedbackEmailOnAttendance, which mails BOTH parents — a
+// fuzzy name match must never be able to pull that trigger. Matches are
+// written as proposals for staff to confirm in the dashboard, and the
+// confirmation is what marks attendance.
+
+const ZOOM_ATTEND_MIN_SECONDS = 300;   // under 5 min total reads as a misclick
+
+/**
+ * Normalize a display name for comparison. Zoom names are hand-typed, so
+ * case, accents, punctuation, and a trailing device tag ("Dayna (iPad)") all
+ * vary run to run and none of them carry meaning.
+ */
+function _normName(s) {
+  return String(s || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")    // strip accents
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, " ")                          // "(iPad)", "(she/her)"
+    .replace(/[^a-z\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Fold Zoom's per-rejoin rows into one record per human. */
+function _foldZoomParticipants(rows) {
+  const by = new Map();
+  for (const r of (rows || [])) {
+    const email = String(r.user_email || "").trim().toLowerCase();
+    const name = String(r.name || "").trim();
+    // Prefer identity by email; fall back to normalized name. participant_user_id
+    // is NOT stable for guests joining a shared link, so it can't be the key.
+    const key = email || ("name:" + _normName(name));
+    if (!key || key === "name:") continue;
+    const prev = by.get(key);
+    const join = r.join_time || "";
+    const leave = r.leave_time || "";
+    if (!prev) {
+      by.set(key, {
+        name, email,
+        seconds: Number(r.duration) || 0,
+        firstJoin: join, lastLeave: leave, sessions: 1,
+      });
+    } else {
+      prev.seconds += Number(r.duration) || 0;
+      if (join && (!prev.firstJoin || join < prev.firstJoin)) prev.firstJoin = join;
+      if (leave && (!prev.lastLeave || leave > prev.lastLeave)) prev.lastLeave = leave;
+      prev.sessions += 1;
+      if (!prev.email && email) prev.email = email;
+      if (name && name.length > prev.name.length) prev.name = name;   // keep the fullest spelling
+    }
+  }
+  // Rejoin rows can overlap (Zoom often logs a 4-second stub alongside the
+  // real row), so the raw sum overstates time in the room. The join→leave
+  // span is the ceiling; for someone who genuinely left and came back later
+  // the sum is smaller and stays the answer.
+  for (const p of by.values()) {
+    const span = (p.firstJoin && p.lastLeave)
+      ? (Date.parse(p.lastLeave) - Date.parse(p.firstJoin)) / 1000 : NaN;
+    if (Number.isFinite(span) && span > 0) p.seconds = Math.min(p.seconds, span);
+  }
+  return Array.from(by.values()).sort((a, b) => b.seconds - a.seconds);
+}
+
+/** Every page of the participant report for one meeting. */
+async function _zoomParticipants(meetingId) {
+  const { token } = await _zoomAuth();
+  const out = [];
+  let pageToken = "";
+  do {
+    const url = "https://api.zoom.us/v2/report/meetings/" + encodeURIComponent(meetingId) +
+      "/participants?page_size=300" + (pageToken ? "&next_page_token=" + encodeURIComponent(pageToken) : "");
+    const r = await fetch(url, { headers: { Authorization: "Bearer " + token } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      throw new functions.https.HttpsError("failed-precondition",
+        "Zoom report unavailable (" + (j.code || r.status) + "): " + (j.message || "unknown"));
+    }
+    out.push(...(j.participants || []));
+    pageToken = j.next_page_token || "";
+  } while (pageToken);
+  return out;
+}
+
+/**
+ * Match folded participants to this session's signups.
+ *
+ * Tiers, strongest first. A tier only claims a participant when it identifies
+ * exactly ONE signup — two Jennifers means neither is matched, because a wrong
+ * match here becomes a wrong attendance record and, on confirmation, a feedback
+ * email to the wrong family.
+ */
+function _matchZoomToSignups(people, signups, sessionKey) {
+  // Index both parents of every signup: either may be the one in the room.
+  const byEmail = new Map();
+  const byFull = new Map();
+  const byFirst = new Map();
+  const push = (m, k, v) => { if (!k) return; if (!m.has(k)) m.set(k, []); m.get(k).push(v); };
+
+  for (const s of signups) {
+    for (const person of [
+      { name: s.name, email: s.email },
+      { name: (s.secondParent && s.secondParent.name) || "", email: (s.secondParent && s.secondParent.email) || "" },
+    ]) {
+      if (person.email) push(byEmail, String(person.email).trim().toLowerCase(), s);
+      const n = _normName(person.name);
+      if (!n) continue;
+      push(byFull, n, s);
+      push(byFirst, n.split(" ")[0], s);
+    }
+  }
+  const only = (arr) => (arr && arr.length === 1) ? arr[0] : null;
+
+  return people.map((p) => {
+    const brief = Math.round(p.seconds) < ZOOM_ATTEND_MIN_SECONDS;
+    const n = _normName(p.name);
+    let signup = null, confidence = "", why = "";
+
+    const byMail = p.email ? only(byEmail.get(p.email)) : null;
+    if (byMail) { signup = byMail; confidence = "high"; why = "email matched"; }
+
+    if (!signup && n) {
+      const full = only(byFull.get(n));
+      if (full) { signup = full; confidence = "high"; why = "full name matched"; }
+    }
+    if (!signup && n) {
+      const cands = byFirst.get(n.split(" ")[0]) || [];
+      if (cands.length === 1) {
+        signup = cands[0]; confidence = "low";
+        why = "first name only — one signup matches";
+      } else if (cands.length > 1) {
+        why = cands.length + " signups share this first name — needs a human";
+      }
+    }
+    if (!signup && !why) why = "no signup with this name";
+
+    // Did this person actually sign up for the session being imported? Someone
+    // can join a lab they never registered for, and staff should see that
+    // rather than have it quietly recorded as an expected attendance.
+    let expected = null;
+    if (signup) {
+      const picked = (Array.isArray(signup.selectedSessions) && signup.selectedSessions.length)
+        ? signup.selectedSessions
+        : (Array.isArray(signup.selectedDates) ? signup.selectedDates : []);
+      expected = picked.length ? picked.indexOf(sessionKey) >= 0 : null;
+    }
+
+    return {
+      zoomName: p.name,
+      zoomEmail: p.email || "",
+      minutes: Math.round(p.seconds / 60),
+      joins: p.sessions,
+      firstJoin: p.firstJoin || "",
+      lastLeave: p.lastLeave || "",
+      brief,
+      signupId: signup ? signup.__id : "",
+      signupName: signup ? (signup.name || "") : "",
+      confidence: signup ? confidence : "none",
+      signedUpForThisSession: expected,
+      note: why,
+    };
+  });
+}
+
 function _driveClient() {
   const { google } = require("googleapis");
   const o = new google.auth.OAuth2(process.env.LDAH_DRIVE_CLIENT_ID, process.env.LDAH_DRIVE_CLIENT_SECRET);
@@ -19415,6 +19589,130 @@ function _matchMeeting(meetings, targetDate, publishedUuids) {
   if (!onDate.length) return null;
   return onDate.sort((a, b) => (b.duration || 0) - (a.duration || 0))[0];
 }
+
+/**
+ * Pull Zoom's participant report for one session and propose attendance.
+ *
+ * Writes to `zoomAttendanceProposed[sessionDate]` on each signup — never to
+ * sessionAttendance, which would email both parents on a guess. Staff review
+ * the proposals and confirm; confirming is what records attendance.
+ *
+ * `dryRun: true` returns exactly what a real run would write and writes
+ * nothing — the preview and the write are computed once, together, so the
+ * preview cannot drift from what actually happens.
+ */
+exports.importZoomAttendance = functions
+  .runWith({ timeoutSeconds: 300, maxInstances: 3, secrets: ZOOM_SECRETS })
+  .https.onCall(async (data, context) => {
+    const staff = await _requireStaff(context);
+    const collection = String((data && data.collection) || "");
+    const eventId = String((data && data.eventId) || "");
+    // The session key is the verbatim signupDates entry (one-time events) or the
+    // composite key (recurring) — the same string sessionAttendance is keyed by.
+    // NOT an ISO date: keying these by YYYY-MM-DD splits a session in two.
+    const sessionKey = String((data && (data.sessionKey || data.sessionDate)) || "");
+    const dryRun = !!(data && data.dryRun);
+    if (collection !== "events" && collection !== "recurringEvents") {
+      throw new functions.https.HttpsError("invalid-argument", "collection must be events or recurringEvents.");
+    }
+    if (!eventId || !sessionKey) {
+      throw new functions.https.HttpsError("invalid-argument", "eventId and sessionKey are required.");
+    }
+
+    const db = admin.firestore();
+    const eventSnap = await db.collection(collection).doc(eventId).get();
+    if (!eventSnap.exists) throw new functions.https.HttpsError("not-found", "Event not found.");
+    const event = eventSnap.data() || {};
+
+    // Resolve the session's calendar date through the canonical accessor, so
+    // this reader can't invent its own date parsing.
+    const sessions = getEventSessions(event, { isRecurring: collection === "recurringEvents" }) || [];
+    const match = sessions.find(s => s && (s.rawString === sessionKey || s.dateKey === sessionKey)) ||
+      sessions.find(s => s && sessionKey.indexOf(s.dateKey) === 0);
+    if (!match || !match.dateKey) {
+      throw new functions.https.HttpsError("invalid-argument",
+        "Could not resolve \"" + sessionKey + "\" to a session on this event.");
+    }
+    const sessionDateKey = match.dateKey;
+
+    const meetingId = await _zoomMeetingIdForEvent(event, collection);
+    if (!meetingId) throw new functions.https.HttpsError("failed-precondition", "No Zoom meeting configured for this event.");
+
+    // Guard against importing the wrong day's room. A recurring meeting id is
+    // reused every session, and this report endpoint returns only the most
+    // recent occurrence — so if that occurrence isn't the session being
+    // imported, stop rather than record one session's people against another.
+    const rows = await _zoomParticipants(meetingId);
+    if (!rows.length) {
+      return { ok: true, meetingId, sessionKey, sessionDateKey, participants: [], matched: 0, unmatched: 0, wrote: 0, note: "Zoom reported no participants for this meeting." };
+    }
+    const reportDate = _hstDate(rows[0].join_time);
+    if (reportDate !== sessionDateKey) {
+      throw new functions.https.HttpsError("failed-precondition",
+        "Zoom's most recent report for this meeting is " + reportDate + ", but this session is " +
+        sessionDateKey + ". Importing it would record the wrong session.");
+    }
+
+    const sigSnap = await db.collection(collection).doc(eventId).collection("signups").get();
+    const signups = [];
+    sigSnap.forEach((d) => {
+      const s = d.data() || {};
+      if (s.archived === true) return;
+      if (s.status !== "confirmed") return;
+      s.__id = d.id;
+      signups.push(s);
+    });
+
+    const people = _foldZoomParticipants(rows);
+    const results = _matchZoomToSignups(people, signups, sessionKey);
+
+    // Staff joining as the host are not attendees; surface them, don't propose them.
+    for (const r of results) {
+      if (/@ldahawaii\.org$/i.test(r.zoomEmail)) {
+        r.confidence = "staff"; r.signupId = ""; r.note = "LDAH staff/host — not an attendee";
+      }
+    }
+
+    const proposals = results.filter(r => r.signupId && !r.brief && r.confidence !== "staff");
+    if (!dryRun) {
+      const batch = db.batch();
+      for (const r of proposals) {
+        batch.set(
+          db.collection(collection).doc(eventId).collection("signups").doc(r.signupId),
+          {
+            // Nested object under set/merge, never a dotted update() path —
+            // composite keys carry pipes, spaces and en-dashes that would be
+            // parsed as field-path separators.
+            zoomAttendanceProposed: {
+              [sessionKey]: {
+                minutes: r.minutes,
+                zoomName: r.zoomName,
+                confidence: r.confidence,
+                firstJoin: r.firstJoin,
+                importedAt: admin.firestore.FieldValue.serverTimestamp(),
+                importedBy: staff.email || staff.uid,
+              },
+            },
+          },
+          { merge: true },
+        );
+      }
+      if (proposals.length) await batch.commit();
+    }
+
+    return {
+      ok: true,
+      dryRun,
+      meetingId,
+      sessionKey,
+      sessionDateKey,
+      totalRows: rows.length,
+      participants: results,
+      matched: proposals.length,
+      unmatched: results.filter(r => !r.signupId && r.confidence !== "staff").length,
+      wrote: dryRun ? 0 : proposals.length,
+    };
+  });
 
 exports.listZoomRecordings = functions
   .runWith({ timeoutSeconds: 120, maxInstances: 5, secrets: ZOOM_SECRETS })
