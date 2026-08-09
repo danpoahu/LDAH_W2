@@ -3183,12 +3183,51 @@ exports.onCalendarRequestCreated = functions
       const summary = "New calendar request from " + requesterName
         + (preferredDate ? " for " + preferredDate : "");
 
+      // Attach to an existing contact when we already know this person, so the
+      // request shows on their card instead of floating unattached. Email is
+      // lowercased before matching: contacts store it lowercase and request
+      // forms are typed by hand (Casie Heyward submitted
+      // "Casie.Heyward@EAHhousing.org" against a stored
+      // "casie.heyward@eahhousing.org" and went unlinked).
+      // Match only, never create — a request from a stranger should not quietly
+      // become a contact record.
+      let contactId = "";
+      let contactType = "";
+      try {
+        const emailLc = String(data.email || "").trim().toLowerCase();
+        let match = null;
+        if (emailLc) {
+          const byEmail = await db.collection("contacts").where("email", "==", emailLc).limit(1).get();
+          if (!byEmail.empty) match = byEmail.docs[0];
+        }
+        // Phone is stored inconsistently - most contacts hold "(808) 791-4194",
+        // a minority hold bare digits - so try both shapes rather than one.
+        // Matching on digits alone silently never fires.
+        if (!match) {
+          const digits = String(data.phone || "").replace(/\D/g, "").replace(/^1/, "");
+          if (digits.length === 10) {
+            const formatted = "(" + digits.slice(0, 3) + ") " + digits.slice(3, 6) + "-" + digits.slice(6);
+            for (const variant of [formatted, digits]) {
+              const byPhone = await db.collection("contacts").where("phone", "==", variant).limit(1).get();
+              if (!byPhone.empty) { match = byPhone.docs[0]; break; }
+            }
+          }
+        }
+        if (match) {
+          contactId = match.id;
+          contactType = (match.data() || {}).type || "";
+          console.log("onCalendarRequestCreated: linked " + requestId + " to contacts/" + contactId);
+        }
+      } catch (e) {
+        console.warn("onCalendarRequestCreated: contact match failed:", e.message);
+      }
+
       await db.collection("interactions").add({
         channel: "Calendar Onboarding",
         interactionType: "Calendar Request",
-        contactId: "",
+        contactId: contactId,
         contactName: requesterName,
-        contactType: "",
+        contactType: contactType,
         grantProgram: "",
         summary: summary,
         followUpDate: followUpDate,
