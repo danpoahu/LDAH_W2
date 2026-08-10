@@ -20874,44 +20874,92 @@ function _isPaidStatus(status) { return String(status || '').toLowerCase() === '
 // "true" == true is actually false in JS. Verified before relying on it.
 function _isTruthyFlag(v) { return v === true || String(v).toLowerCase() === 'true'; }
 
+// A doc's recipients are familyEmails(m) = [email, secondParent.email], and
+// this org deliberately mails both parents on every family email. Dedup and
+// the paid-guard MUST consider every address on the doc, not just the
+// primary one — keying on m.email alone let a paid member receive "nothing
+// has been charged" as somebody else's second parent, and let cross-
+// referenced Alice/Bob docs (Alice names Bob, Bob names Alice) double-send
+// to both. This is the address set both of those decisions are built on.
+function _recipientKeys(m) {
+  return familyEmails(m).map((e) => String(e || '').trim().toLowerCase()).filter(Boolean);
+}
+
 async function _runMembershipNudges({ dryRun }) {
   const db = admin.firestore();
   const now = Date.now();
+  const skipReasons = {};
+  const bump = (k) => { skipReasons[k] = (skipReasons[k] || 0) + 1; };
+
+  // "Ever paid" is a SEPARATE, unfiltered query — not derived from the
+  // floored candidate snapshot below. Ten unpaid `members` docs predate this
+  // feature, three of them from a member who DID pay; if paidEmails only saw
+  // docs after MEMBERSHIP_SEQUENCE_START, her paid doc (which predates the
+  // floor) would be invisible and a newer, unrelated pending doc on the same
+  // address could still be nudged. Every recipient address on a paid doc
+  // counts, not just its primary email — that's what stops a paid member
+  // being told "nothing has been charged" as somebody else's second parent.
+  const paidSnap = await db.collection('members').where('status', '==', 'paid').get();
+  const paidEmails = new Set();
+  for (const doc of paidSnap.docs) {
+    try {
+      const m = doc.data() || {};
+      for (const k of _recipientKeys(m)) paidEmails.add(k);
+    } catch (e) {
+      console.error('nudge sweep paid-scan errored for', doc.id, e.message);
+      // Not counted in skipReasons: this query is independent of the
+      // candidate snapshot the reconciliation invariant below is measured
+      // against, and a doc that can't be read here isn't a candidate anyway.
+    }
+  }
+
   // Structural floor: query on createdAt, not just an in-loop check, so a
   // scan can never even SEE a pre-feature doc. The in-loop check stays too —
   // defense in depth for any doc a future write path lands without createdAt.
   const snap = await db.collection('members').where('createdAt', '>=', MEMBERSHIP_SEQUENCE_START).get();
-  const skipReasons = {};
-  const bump = (k) => { skipReasons[k] = (skipReasons[k] || 0) + 1; };
 
-  // One PERSON, not one doc. A cold revisit to the checkout creates a fresh
-  // members doc (no client-side persistence), so the same human can hold
-  // several pending records — one member has three. Nudge only the newest
-  // pending doc per address, and never nudge an address that has ever paid.
-  // Every doc seen here ends up in exactly one bucket: paidEmails, the
-  // superseded pile, or the single surviving byEmail entry — which is what
-  // makes `wouldSend + sum(skipReasons) === snap.docs.length` hold below.
-  const byEmail = new Map();
-  const paidEmails = new Set();
+  // One PERSON (or family), not one doc. A cold revisit to the checkout
+  // creates a fresh members doc (no client-side persistence), so the same
+  // human can hold several pending records — one member has three. Sort
+  // newest-first and greedily claim every recipient address a surviving doc
+  // touches, so Alice-names-Bob / Bob-names-Alice cross-references collapse
+  // to one send instead of two, and a paid address suppresses every doc that
+  // names it, as primary OR second parent. Every doc seen here ends up in
+  // exactly one bucket — noEmail, addressAlreadyPaid, supersededDuplicate,
+  // errored, or a surviving candidate — which is what makes
+  // `wouldSend + sum(skipReasons) === snap.docs.length` hold below.
+  //
+  // doc.data() is read ONCE per doc, here, before sorting — not inside the
+  // sort comparator. Array.prototype.sort() has no per-call try/catch of its
+  // own, so a single malformed doc read there would throw out of the sort
+  // and abort the entire run for everyone, the exact failure mode the
+  // per-doc try/catch below exists to prevent.
+  const readable = [];
   for (const doc of snap.docs) {
-    // Same one-bad-doc-must-not-abort-the-run guarantee as the send loop
-    // below, applied here too — this pass runs first and touches every doc,
-    // so leaving it unprotected would reopen exactly the hole this is fixing.
     try {
       const m = doc.data() || {};
-      const key = String(m.email || '').trim().toLowerCase();
-      if (!key) { bump('noEmail'); continue; }
-      if (_isPaidStatus(m.status)) { paidEmails.add(key); bump('paid'); continue; }
-      const prev = byEmail.get(key);
-      const ms = m.createdAt && m.createdAt.toMillis ? m.createdAt.toMillis() : 0;
-      const prevMs = (prev && prev.data().createdAt && prev.data().createdAt.toMillis)
-        ? prev.data().createdAt.toMillis() : -1;
-      if (!prev || ms > prevMs) {
-        if (prev) bump('supersededDuplicate');
-        byEmail.set(key, doc);
-      } else {
-        bump('supersededDuplicate');
-      }
+      const createdMs = m.createdAt && m.createdAt.toMillis ? m.createdAt.toMillis() : 0;
+      readable.push({ doc, m, createdMs });
+    } catch (e) {
+      console.error('nudge sweep pre-scan errored for', doc.id, e.message);
+      bump('errored');
+    }
+  }
+  readable.sort((a, b) => b.createdMs - a.createdMs);   // newest first
+
+  const claimedKeys = new Set();
+  const survivors = [];
+  for (const { doc, m } of readable) {
+    // Same one-bad-doc-must-not-abort-the-run guarantee as the send loop
+    // below, applied here too — this pass runs first and touches every doc,
+    // so leaving it unprotected would reopen exactly the hole that fixes.
+    try {
+      const keys = _recipientKeys(m);
+      if (!keys.length) { bump('noEmail'); continue; }
+      if (keys.some((k) => paidEmails.has(k))) { bump('addressAlreadyPaid'); continue; }
+      if (keys.some((k) => claimedKeys.has(k))) { bump('supersededDuplicate'); continue; }
+      keys.forEach((k) => claimedKeys.add(k));
+      survivors.push(doc);
     } catch (e) {
       console.error('nudge sweep pre-scan errored for', doc.id, e.message);
       bump('errored');
@@ -20920,7 +20968,7 @@ async function _runMembershipNudges({ dryRun }) {
 
   let wouldSend = 0, sent = 0;
 
-  for (const doc of byEmail.values()) {
+  for (const doc of survivors) {
     // Whole per-doc body in one try/catch: one poisoned record (a malformed
     // Timestamp, a throwing template call) must never silence the rest of
     // the run for everyone else eligible this sweep. `counted` tracks
@@ -20930,8 +20978,6 @@ async function _runMembershipNudges({ dryRun }) {
     let counted = false;
     try {
       const m = doc.data() || {};
-      const key = String(m.email || '').trim().toLowerCase();
-      if (paidEmails.has(key)) { bump('addressAlreadyPaid'); continue; }
       if (_isTruthyFlag(m.archived)) { bump('archived'); continue; }
       if (m.optedOut === true) { bump('optedOut'); continue; }
       if (_isInternalMembership(m)) { bump('internalOrTest'); continue; }

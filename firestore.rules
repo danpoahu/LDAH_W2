@@ -71,7 +71,23 @@ service cloud.firestore {
     }
     match /members/{document=**} {
       allow read: if request.auth != null;
-      allow create: if true;
+      // Anyone may start a membership — the checkout is public and unauthenticated.
+      // But an injected doc must not be able to arrive already "due": the follow-up
+      // sweep reads createdAt/checkoutAbandonedAt to decide when to email, so a
+      // backdated create would skip the 60-minute window entirely, and with the
+      // sweep's 25/run cap that's still up to 2,400 emails/day from ldahawaii.org's
+      // sending domain once armed. Verified against all five checkout writers
+      // (volunteer.html, STAGE/volunteer.html, Members/renew.html,
+      // STAGE/Members/renew.html, ../LDAH/howtohelp.html — and its STAGE mirror)
+      // before shipping this: every one sets status:'pending' and createdAt via
+      // serverTimestamp(), and none writes any field in the blocked list below.
+      allow create: if request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time
+        && !request.resource.data.keys().hasAny([
+             'checkoutAbandonedAt', 'checkoutAbandonReason', 'nudgeCount',
+             'lastNudgeAt', 'nudgeHistory', 'paidAt', 'paypalOrderId',
+             'optedOut', 'optOutToken', 'resumeToken', 'archived', 'testSequence'
+           ]);
       allow delete: if request.auth != null;
       // Staff: full update.
       allow update: if request.auth != null;
