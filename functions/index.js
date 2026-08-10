@@ -20627,6 +20627,151 @@ exports.sendMembershipResumeEmail = functions
     }
   });
 
+// ── One-click opt-out from the membership follow-up sequence ────────────────
+// Deliberately does NOT touch marketingOptOut: they declined a MEMBERSHIP, not
+// the newsletter, and quietly dropping a family off the announcement list would
+// cost LDAH a reachable parent for no reason they asked for.
+//
+// Security scanners (Outlook Safe Links and friends) prefetch every URL in an
+// email, so a bare mutating GET can fire without a human. Hence the undo link
+// on the confirmation page — a scanner-triggered opt-out is recoverable rather
+// than a silent loss.
+exports.handleMembershipOptOut = functions
+  .runWith({ timeoutSeconds: 20, maxInstances: 5 })
+  .https.onRequest(async (req, res) => {
+    res.set('Content-Type', 'text/html');
+    const token = String((req.query && req.query.token) || '').trim();
+    const undo = String((req.query && req.query.undo) || '') === '1';
+    if (!token || token.length < 20) {
+      res.status(400).send(buildUnsubscribePage({
+        title: 'Invalid link',
+        body: 'This link is missing its code. If you would like us to stop emailing you about your membership, reply to any LDAH email and we will take care of it.',
+        ok: false,
+      }));
+      return;
+    }
+    try {
+      const db = admin.firestore();
+      const snap = await db.collection('members').where('optOutToken', '==', token).limit(1).get();
+      if (snap.empty) {
+        res.status(404).send(buildUnsubscribePage({
+          title: 'Link not recognized',
+          body: 'This link is no longer valid. If you would like us to stop emailing you about your membership, reply to any LDAH email and we will take care of it.',
+          ok: false,
+        }));
+        return;
+      }
+      const ref = snap.docs[0].ref;
+      const m = snap.docs[0].data() || {};
+      const first = String(m.name || '').trim().split(/\s+/)[0] || '';
+
+      if (m.status === 'paid') {
+        res.status(200).send(buildUnsubscribePage({
+          title: 'Your membership is complete',
+          body: (first ? first + ', your' : 'Your') + ' membership went through, so there is nothing to stop. You will not get any more emails about finishing it. Mahalo for your support.',
+          ok: true,
+        }));
+        return;
+      }
+
+      if (undo) {
+        await ref.set({
+          optedOut: admin.firestore.FieldValue.delete(),
+          optedOutAt: admin.firestore.FieldValue.delete(),
+          archived: admin.firestore.FieldValue.delete(),
+        }, { merge: true });
+        const open = await db.collection('interactions')
+          .where('workflowEventId', '==', ref.id)
+          .where('workflowStep', '==', 'membershipOptedOut').limit(1).get();
+        if (!open.empty) {
+          await open.docs[0].ref.update({
+            status: 'Closed',
+            notes: (open.docs[0].data().notes || '') + '\n\nThey used the "I still want to join" link, so this was undone automatically.',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+        res.status(200).send(buildUnsubscribePage({
+          title: 'Welcome back',
+          body: 'We have put your membership back where it was. Use the link in any of our emails to finish it whenever you are ready.',
+          ok: true,
+        }));
+        return;
+      }
+
+      await ref.set({
+        optedOut: true,
+        optedOutAt: admin.firestore.FieldValue.serverTimestamp(),
+        archived: true,
+      }, { merge: true });
+
+      // Clear the pending membership off the contact so reports and the contact
+      // card stop showing "Member (pending)". ONLY when pending — an active or
+      // lapsed member who abandoned a RENEWAL keeps what they already paid for.
+      if (m.linkedContactId) {
+        try {
+          const cRef = db.collection('contacts').doc(m.linkedContactId);
+          const c = (await cRef.get()).data() || {};
+          if (c.membershipStatus === 'pending') {
+            await cRef.set({
+              isMember: false,
+              membershipStatus: admin.firestore.FieldValue.delete(),
+              membershipLevel: admin.firestore.FieldValue.delete(),
+              membershipUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, { merge: true });
+          }
+        } catch (e) { console.warn('optOut contact clear failed:', e.message); }
+      }
+
+      // One task. An opt-out is NOT proof that no money moved — we have no
+      // server-side view of PayPal, so a human still confirms before closing.
+      try {
+        const laaName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID);
+        const who = String(m.name || m.email || 'Someone').trim();
+        const amt = typeof m.amount === 'number' ? m.amount : (parseInt(m.amount, 10) || 0);
+        await db.collection('interactions').add({
+          channel: 'Membership',
+          interactionType: 'Membership',
+          contactId: m.linkedContactId || '',
+          contactName: who,
+          summary: who + ' asked us to stop — confirm no PayPal payment, then close',
+          followUpDate: toHstDateKey(new Date()),
+          status: 'Open',
+          notes: who + ' clicked "not planning to join after all" on a $' + amt + ' ' +
+            (m.level || '') + ' membership, so the follow-up emails have stopped and the ' +
+            'attempt is archived.\n\nEmail: ' + (m.email || '—') + '\nPhone: ' + (m.phone || '—') +
+            '\n\nCHECK PAYPAL ONCE before closing. Opting out is not proof they never paid — ' +
+            'if the money is there, use "Mark paid" and they get the normal thank-you and portal login.',
+          isDraft: false,
+          owner: laaName,
+          ownerUid: LIFECYCLE_LAA_UID,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          workflowEventId: ref.id,
+          workflowEventCollection: 'members',
+          workflowStep: 'membershipOptedOut',
+          workflowSessionKey: ref.id,
+        });
+      } catch (e) { console.warn('optOut task failed:', e.message); }
+
+      const undoUrl = membershipOptOutLink(token) + '&undo=1';
+      res.status(200).send(buildUnsubscribePage({
+        title: 'Done — we have stopped',
+        body: (first ? first + ', we' : 'We') + ' will not email you about finishing this membership again. ' +
+          'Nothing was charged at any point.<br><br>' +
+          'Clicked this by mistake, or changed your mind? ' +
+          '<a href="' + undoUrl + '">Actually, I still want to join</a>.',
+        ok: true,
+      }));
+    } catch (err) {
+      console.error('handleMembershipOptOut error:', err.message);
+      res.status(500).send(buildUnsubscribePage({
+        title: 'Something went wrong',
+        body: 'Please try again later, or reply to any LDAH email and we will sort it out.',
+        ok: false,
+      }));
+    }
+  });
+
 // ───────────────────────────────────────────────────────────────────────
 // Screening consent forms (paper, uploaded by staff) — 2026-08-05
 // ───────────────────────────────────────────────────────────────────────
