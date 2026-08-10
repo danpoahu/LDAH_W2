@@ -20668,17 +20668,47 @@ exports.handleMembershipOptOut = functions
       if (m.status === 'paid') {
         res.status(200).send(buildUnsubscribePage({
           title: 'Your membership is complete',
-          body: (first ? first + ', your' : 'Your') + ' membership went through, so there is nothing to stop. You will not get any more emails about finishing it. Mahalo for your support.',
+          body: (first ? _emailEsc(first) + ', your' : 'Your') + ' membership went through, so there is nothing to stop. You will not get any more emails about finishing it. Mahalo for your support.',
+          ok: true,
+        }));
+        return;
+      }
+
+      // Idempotency. Scanners prefetch links and people click twice. Re-running
+      // the mutation is mostly harmless, but interactions.add() has no natural
+      // dedup, so every extra GET would spawn another task for La'a. Re-render
+      // the same page and change nothing.
+      if (m.optedOut === true && !undo) {
+        const undoUrlAgain = membershipOptOutLink(token) + '&undo=1';
+        res.status(200).send(buildUnsubscribePage({
+          title: 'Done — we have stopped',
+          body: (first ? _emailEsc(first) + ', we' : 'We') + ' will not email you about finishing this membership again. ' +
+            'Nothing was charged at any point.<br><br>' +
+            'Clicked this by mistake, or changed your mind? ' +
+            '<a href="' + undoUrlAgain + '">Actually, I still want to join</a>.',
           ok: true,
         }));
         return;
       }
 
       if (undo) {
+        // Put the contact back exactly as we found it, if we changed it.
+        const saved = m.optOutClearedContact;
+        if (saved && m.linkedContactId) {
+          try {
+            await db.collection('contacts').doc(m.linkedContactId).set({
+              isMember: saved.isMember === true,
+              membershipStatus: saved.membershipStatus || 'pending',
+              membershipLevel: saved.membershipLevel || '',
+              membershipUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, { merge: true });
+          } catch (e) { console.warn('optOut undo contact restore failed:', e.message); }
+        }
         await ref.set({
           optedOut: admin.firestore.FieldValue.delete(),
           optedOutAt: admin.firestore.FieldValue.delete(),
           archived: admin.firestore.FieldValue.delete(),
+          optOutClearedContact: admin.firestore.FieldValue.delete(),
         }, { merge: true });
         const open = await db.collection('interactions')
           .where('workflowEventId', '==', ref.id)
@@ -20705,13 +20735,21 @@ exports.handleMembershipOptOut = functions
       }, { merge: true });
 
       // Clear the pending membership off the contact so reports and the contact
-      // card stop showing "Member (pending)". ONLY when pending — an active or
-      // lapsed member who abandoned a RENEWAL keeps what they already paid for.
+      // card stop showing "Member (pending)". ONLY when pending AND they have
+      // never paid — an active or lapsed member who abandoned a RENEWAL is also
+      // 'pending' upstream, and keeps what they already paid for. Record what we
+      // clear so undo can restore it exactly, rather than leaving the contact
+      // permanently stuck reading "not a member" after a scanner-triggered undo.
       if (m.linkedContactId) {
         try {
           const cRef = db.collection('contacts').doc(m.linkedContactId);
           const c = (await cRef.get()).data() || {};
-          if (c.membershipStatus === 'pending') {
+          if (c.membershipStatus === 'pending' && !c.membershipPaidAt) {
+            await ref.set({ optOutClearedContact: {
+              isMember: c.isMember === true,
+              membershipStatus: String(c.membershipStatus || ''),
+              membershipLevel: String(c.membershipLevel || ''),
+            } }, { merge: true });
             await cRef.set({
               isMember: false,
               membershipStatus: admin.firestore.FieldValue.delete(),
@@ -20756,7 +20794,7 @@ exports.handleMembershipOptOut = functions
       const undoUrl = membershipOptOutLink(token) + '&undo=1';
       res.status(200).send(buildUnsubscribePage({
         title: 'Done — we have stopped',
-        body: (first ? first + ', we' : 'We') + ' will not email you about finishing this membership again. ' +
+        body: (first ? _emailEsc(first) + ', we' : 'We') + ' will not email you about finishing this membership again. ' +
           'Nothing was charged at any point.<br><br>' +
           'Clicked this by mistake, or changed your mind? ' +
           '<a href="' + undoUrl + '">Actually, I still want to join</a>.',
