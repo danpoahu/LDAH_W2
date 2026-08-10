@@ -20383,6 +20383,137 @@ exports.resolveContactDuplicate = functions
     }
   });
 
+// ── Abandoned-membership follow-up sequence (2026-08-10) ────────────────────
+// Four emails over nine days from `checkoutAbandonedAt`. All four share one shell and
+// all four carry BOTH a resume link and a one-click opt-out. Copy escalates —
+// four identical sends read as a broken mail loop and train spam filters.
+//
+// Nothing here ever asserts "you have not paid". We genuinely cannot know that:
+// there is no server-side PayPal integration, so a capture that succeeded at
+// PayPal but failed to write to Firestore looks exactly like an abandonment.
+// Every variant therefore says the payment "did not finish" and offers a reply
+// path rather than a second charge.
+const MEMBERSHIP_NUDGE_OFFSET_HOURS = [0, 48, 120, 216];   // day 0, 2, 5, 9
+
+function _isRenewalSource(src) { return /renewal/i.test(String(src || '')); }
+
+function membershipResumeLink(m, token) {
+  const page = _isRenewalSource(m && m.source)
+    ? 'https://www.ldahawaii.org/Members/renew.html'
+    : 'https://www.ldahawaii.org/volunteer.html';
+  return page + '?resume=' + encodeURIComponent(token);
+}
+
+function membershipOptOutLink(token) {
+  return 'https://us-central1-ldah-932d5.cloudfunctions.net/handleMembershipOptOut?token=' +
+    encodeURIComponent(token);
+}
+
+// n is 0-indexed: 0..3 maps to emails 1..4.
+function buildMembershipNudgeEmail({ member, n, resumeToken, optOutToken }) {
+  const m = member || {};
+  const first = String(m.name || '').trim().split(/\s+/)[0] || 'there';
+  const level = String(m.level || 'membership');
+  const amount = typeof m.amount === 'number' ? m.amount : (parseInt(m.amount, 10) || 0);
+  const money = '$' + amount;
+  const renewal = _isRenewalSource(m.source);
+  const resumeUrl = membershipResumeLink(m, resumeToken);
+  const optOutUrl = membershipOptOutLink(optOutToken);
+  const E = _emailEsc;
+
+  // Friend ($100) and above carry case-advocacy eligibility — a real, concrete
+  // benefit worth naming once, in the impact email only.
+  const advocacyEligible = amount >= 100;
+
+  const opening = renewal
+    ? 'Thank you for renewing your <strong>' + E(level) + '</strong> membership with LDAH.'
+    : 'Thank you for starting a <strong>' + E(level) + '</strong> membership with LDAH.';
+
+  const VARIANTS = [
+    {
+      subject: 'You are one step away from your LDAH membership',
+      heading: 'You are one step away',
+      body:
+        '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">' + opening +
+          ' It looks like the payment did not finish &mdash; no problem at all, and nothing has been charged.</p>' +
+        '<p style="margin:0 0 18px;font-size:16px;color:#334155;line-height:1.6">The link below picks up exactly ' +
+          'where you left off, with your details already filled in. It only takes a moment.</p>',
+      tail:
+        '<p style="margin:0 0 16px;font-size:15px;color:#64748B;line-height:1.6">If you believe you have already ' +
+          'paid, please reply and we will sort it out rather than take a second payment.</p>',
+    },
+    {
+      subject: 'Still holding your ' + level + ' membership',
+      heading: 'Your membership is still waiting',
+      body:
+        '<p style="margin:0 0 18px;font-size:16px;color:#334155;line-height:1.6">Your <strong>' + E(level) +
+          '</strong> membership is still sitting half-finished, and we wanted to make sure the link reached you. ' +
+          'Nothing has been charged.</p>',
+      tail:
+        '<p style="margin:0 0 16px;font-size:15px;color:#64748B;line-height:1.6">If something went wrong at the ' +
+          'payment step, we would genuinely like to know &mdash; a phone call to (808) 536-9684 sorts most of it ' +
+          'out in a minute, and we can take it over the phone if that is easier.</p>',
+    },
+    {
+      subject: 'What your ' + money + ' makes possible',
+      heading: 'What your membership does',
+      body:
+        '<p style="margin:0 0 18px;font-size:16px;color:#334155;line-height:1.6">We will keep this one short. LDAH ' +
+          'is parents supporting parents &mdash; when a family calls because their child&rsquo;s IEP meeting went ' +
+          'badly, or because nobody has explained what a 504 plan is, a person picks up. Membership is what keeps ' +
+          'that person there.</p>',
+      tail:
+        '<p style="margin:0 0 16px;font-size:15px;color:#64748B;line-height:1.6">Your <strong>' + E(level) +
+          '</strong> membership is still open and nothing has been charged.' +
+          (advocacyEligible
+            ? ' A ' + E(level) + ' membership also makes you eligible for case advocacy support.'
+            : '') +
+          '</p>',
+    },
+    {
+      subject: 'Last one from us',
+      heading: 'Last one from us',
+      body:
+        '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">This is the last email we will ' +
+          'send about this &mdash; we mean that, and there is nothing further to ignore.</p>' +
+        '<p style="margin:0 0 18px;font-size:16px;color:#334155;line-height:1.6">Your <strong>' + E(level) +
+          '</strong> membership is still open if you want it, and nothing has been charged.</p>',
+      tail:
+        '<p style="margin:0 0 16px;font-size:15px;color:#64748B;line-height:1.6">' +
+          (renewal
+            ? 'If the timing is wrong, that is completely fine &mdash; your current membership is unaffected until it expires.'
+            : 'If the timing is wrong, that is completely fine. You are welcome at any LDAH event whether you are a ' +
+              'member or not, and the door stays open.') +
+          '</p>',
+    },
+  ];
+
+  const v = VARIANTS[Math.max(0, Math.min(3, n | 0))];
+
+  const html = '<!DOCTYPE html><html><head><meta charset="utf-8"></head>' +
+    '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
+    '<div style="max-width:600px;margin:0 auto;background:#fff">' +
+    '<div style="background:linear-gradient(135deg,#0e7490,#0891B2);padding:18px 24px 22px;text-align:center;color:#fff">' +
+    '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;">' +
+    '<h1 style="margin:0;font-size:22px;font-weight:700">' + E(v.heading) + '</h1></div>' +
+    '<div style="padding:32px 24px">' +
+    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + E(first) + ',</p>' +
+    v.body +
+    '<p style="margin:0 0 24px;text-align:center">' +
+    '<a href="' + resumeUrl + '" style="display:inline-block;background:#0891B2;color:#fff;text-decoration:none;' +
+      'font-weight:700;font-size:16px;padding:13px 30px;border-radius:8px">Finish my ' + money + ' membership</a></p>' +
+    v.tail +
+    '<p style="margin:24px 0 4px;font-size:15px;color:#333;line-height:1.5">With gratitude,</p>' +
+    '<p style="margin:0;font-size:15px;color:#333;line-height:1.5"><strong>The LDAH Team</strong><br>' +
+    '<span style="color:#64748B;font-size:14px">Leadership in Disabilities and Achievement of Hawai&lsquo;i<br>(808) 536-9684</span></p>' +
+    '<p style="margin:22px 0 0;padding-top:14px;border-top:1px solid #e2e8f0;font-size:13px;color:#94a3b8;line-height:1.6">' +
+    'Not planning to join after all? <a href="' + optOutUrl + '" style="color:#64748B">Let us know and we will stop</a> ' +
+    '&mdash; one click, and you will hear no more about it.</p>' +
+    '</div></div></body></html>';
+
+  return { subject: v.subject, html };
+}
+
 // Look up a pending membership by its resume token, for the checkout page to
 // prefill. Returns only what the form needs — never the whole document.
 exports.getMembershipByResumeToken = functions
@@ -20627,3 +20758,12 @@ exports.getScreeningConsentDownloadUrl = functions
       res.status(500).json({ error: err.message });
     }
   });
+
+// Test hook — lets the scratchpad verification scripts exercise pure helpers
+// without deploying. Adds no surface to the deployed functions.
+exports.__test = {
+  buildMembershipNudgeEmail,
+  membershipResumeLink,
+  membershipOptOutLink,
+  MEMBERSHIP_NUDGE_OFFSET_HOURS,
+};
