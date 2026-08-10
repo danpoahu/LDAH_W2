@@ -20416,24 +20416,27 @@ function buildMembershipNudgeEmail({ member, n, resumeToken, optOutToken }) {
   // `level` is written by an UNAUTHENTICATED browser (members has `allow create:
   // if true`), so it is attacker-controlled and lands in a SUBJECT line. Subjects
   // are plain text — HTML-escaping one would show a literal "&amp;" to the reader
-  // — so sanitise at the source instead: keep letters, digits, spaces, hyphens,
-  // apostrophes, and cap the length. Everything downstream is then safe in both
-  // the subject and the HTML body.
-  const level = String(m.level || 'membership').replace(/[^A-Za-z0-9 '\-]/g, '').trim().slice(0, 40) || 'membership';
+  // — so sanitise at the source: keep letters, digits, spaces, hyphens and
+  // apostrophes, and cap the length. May legitimately end up EMPTY; every
+  // template below is written to read correctly without it, because the word
+  // "membership" already follows it in each one.
+  const level = String(m.level || '').replace(/[^A-Za-z0-9 '\-]/g, '').trim().slice(0, 40);
+  const tidy = (s) => String(s).replace(/\s{2,}/g, ' ').trim();
   const amount = typeof m.amount === 'number' ? m.amount : (parseInt(m.amount, 10) || 0);
   const money = '$' + amount;
   const renewal = _isRenewalSource(m.source);
   const resumeUrl = membershipResumeLink(m, resumeToken);
   const optOutUrl = membershipOptOutLink(optOutToken);
   const E = _emailEsc;
+  const levelTag = level ? '<strong>' + E(level) + '</strong> ' : '';   // NOTE the trailing space
 
   // Friend ($100) and above carry case-advocacy eligibility — a real, concrete
   // benefit worth naming once, in the impact email only.
   const advocacyEligible = amount >= 100;
 
   const opening = renewal
-    ? 'Thank you for renewing your <strong>' + E(level) + '</strong> membership with LDAH.'
-    : 'Thank you for starting a <strong>' + E(level) + '</strong> membership with LDAH.';
+    ? 'Thank you for renewing your ' + levelTag + 'membership with LDAH.'
+    : 'Thank you for starting a ' + levelTag + 'membership with LDAH.';
 
   const VARIANTS = [
     {
@@ -20449,11 +20452,11 @@ function buildMembershipNudgeEmail({ member, n, resumeToken, optOutToken }) {
           'paid, please reply and we will sort it out rather than take a second payment.</p>',
     },
     {
-      subject: 'Still holding your ' + level + ' membership',
+      subject: tidy('Still holding your ' + level + ' membership'),
       heading: 'Your membership is still waiting',
       body:
-        '<p style="margin:0 0 18px;font-size:16px;color:#334155;line-height:1.6">Your <strong>' + E(level) +
-          '</strong> membership is still sitting half-finished, and we wanted to make sure the link reached you. ' +
+        '<p style="margin:0 0 18px;font-size:16px;color:#334155;line-height:1.6">Your ' + levelTag +
+          'membership is still sitting half-finished, and we wanted to make sure the link reached you. ' +
           'Nothing has been charged.</p>',
       tail:
         '<p style="margin:0 0 16px;font-size:15px;color:#64748B;line-height:1.6">If something went wrong at the ' +
@@ -20469,9 +20472,9 @@ function buildMembershipNudgeEmail({ member, n, resumeToken, optOutToken }) {
           'badly, or because nobody has explained what a 504 plan is, a person picks up. Membership is what keeps ' +
           'that person there.</p>',
       tail:
-        '<p style="margin:0 0 16px;font-size:15px;color:#64748B;line-height:1.6">Your <strong>' + E(level) +
-          '</strong> membership is still open and nothing has been charged.' +
-          (advocacyEligible
+        '<p style="margin:0 0 16px;font-size:15px;color:#64748B;line-height:1.6">Your ' + levelTag +
+          'membership is still open and nothing has been charged.' +
+          (advocacyEligible && level
             ? ' A ' + E(level) + ' membership also makes you eligible for case advocacy support.'
             : '') +
           '</p>',
@@ -20482,8 +20485,8 @@ function buildMembershipNudgeEmail({ member, n, resumeToken, optOutToken }) {
       body:
         '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">This is the last email we will ' +
           'send about this &mdash; we mean that, and there is nothing further to ignore.</p>' +
-        '<p style="margin:0 0 18px;font-size:16px;color:#334155;line-height:1.6">Your <strong>' + E(level) +
-          '</strong> membership is still open if you want it, and nothing has been charged.</p>',
+        '<p style="margin:0 0 18px;font-size:16px;color:#334155;line-height:1.6">Your ' + levelTag +
+          'membership is still open if you want it, and nothing has been charged.</p>',
       tail:
         '<p style="margin:0 0 16px;font-size:15px;color:#64748B;line-height:1.6">' +
           (renewal
