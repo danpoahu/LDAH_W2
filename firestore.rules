@@ -82,18 +82,20 @@ service cloud.firestore {
         && request.resource.data.status == 'paid'
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['status', 'paypalOrderId', 'paidAt']);
-      // Public retry (2026-07-29): a donor whose first attempt failed may correct
-      // their own details, bump the attempt counter, and leave a diagnostic on the
-      // record they already created, WHILE IT IS STILL PENDING. Erica Au left five
-      // separate pending records on 29 Jul because the page could only ever create
-      // a new one, and nothing recorded why any attempt failed.
+      // Public retry (2026-07-29) + abandon stamp (2026-08-10): a donor whose
+      // attempt failed may correct their own details, bump the attempt counter,
+      // leave a diagnostic, and record THAT they walked away — all while the
+      // record is still pending. The abandon stamp is what starts the follow-up
+      // email clock; without it here the browser write is refused silently and
+      // every abandonment falls back to the 60-minute sweep.
       // Cannot flip status, cannot touch a paid record, cannot write payment fields.
       allow update: if request.auth == null
         && resource.data.status == 'pending'
         && request.resource.data.status == 'pending'
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['name', 'email', 'phone', 'level', 'amount', 'secondParent',
-                       'attempts', 'updatedAt', 'lastError', 'lastErrorAt']);
+                       'attempts', 'updatedAt', 'lastError', 'lastErrorAt',
+                       'checkoutAbandonedAt', 'checkoutAbandonReason']);
     }
     match /volunteers/{document=**} {
       allow read: if request.auth != null;
