@@ -20859,10 +20859,11 @@ const MEMBERSHIP_INTERNAL_EMAILS = [
 function _isInternalMembership(m) {
   if (m && m.testSequence === true) return false;         // explicit override
   if (String((m && m.name) || '').toLowerCase().indexOf('test') !== -1) return true;
-  const e = String((m && m.email) || '').trim().toLowerCase();
-  if (!e) return false;
-  if (/@ldahawaii\.org$/.test(e)) return true;
-  return MEMBERSHIP_INTERNAL_EMAILS.indexOf(e) !== -1;
+  // Every recipient key, not just the primary email — a staff address
+  // sitting in secondParent must not slip a doc past this guard.
+  const keys = _recipientKeys(m);
+  if (!keys.length) return false;
+  return keys.some((e) => /@ldahawaii\.org$/.test(e) || MEMBERSHIP_INTERNAL_EMAILS.indexOf(e) !== -1);
 }
 
 function _isPaidStatus(status) { return String(status || '').toLowerCase() === 'paid'; }
@@ -20874,15 +20875,22 @@ function _isPaidStatus(status) { return String(status || '').toLowerCase() === '
 // "true" == true is actually false in JS. Verified before relying on it.
 function _isTruthyFlag(v) { return v === true || String(v).toLowerCase() === 'true'; }
 
-// A doc's recipients are familyEmails(m) = [email, secondParent.email], and
-// this org deliberately mails both parents on every family email. Dedup and
-// the paid-guard MUST consider every address on the doc, not just the
-// primary one — keying on m.email alone let a paid member receive "nothing
-// has been charged" as somebody else's second parent, and let cross-
-// referenced Alice/Bob docs (Alice names Bob, Bob names Alice) double-send
-// to both. This is the address set both of those decisions are built on.
+// A doc's recipients are normalizeRecipients(familyEmails(m)) — NOT
+// familyEmails(m) directly. familyEmails() returns [email, secondParent.email]
+// as raw strings, and sendEmailViaResend() passes that straight through
+// normalizeRecipients(), which SPLITS each string on /[;,]/ before validating
+// and deduping (functions/index.js:563 — a contact's email field legitimately
+// holds "mom@x.com; dad@y.com", which is why the splitter exists at all).
+// Building the guard's key set from familyEmails() alone therefore missed any
+// address riding along behind a delimiter: a paid, opted-out, or internal
+// address hidden in "bob@ex.com, alice@ex.com" would still get mailed,
+// because the guard never split the string the sender was about to split.
+// Using normalizeRecipients() here — the SAME function the sender calls —
+// makes the key set identical to the actual recipient set by construction,
+// not two implementations that have to be kept in agreement by hand.
 function _recipientKeys(m) {
-  return familyEmails(m).map((e) => String(e || '').trim().toLowerCase()).filter(Boolean);
+  return normalizeRecipients(familyEmails(m))
+    .map((e) => String(e || '').trim().toLowerCase()).filter(Boolean);
 }
 
 async function _runMembershipNudges({ dryRun }) {
@@ -20891,23 +20899,32 @@ async function _runMembershipNudges({ dryRun }) {
   const skipReasons = {};
   const bump = (k) => { skipReasons[k] = (skipReasons[k] || 0) + 1; };
 
-  // "Ever paid" is a SEPARATE, unfiltered query — not derived from the
-  // floored candidate snapshot below. Ten unpaid `members` docs predate this
-  // feature, three of them from a member who DID pay; if paidEmails only saw
-  // docs after MEMBERSHIP_SEQUENCE_START, her paid doc (which predates the
-  // floor) would be invisible and a newer, unrelated pending doc on the same
-  // address could still be nudged. Every recipient address on a paid doc
-  // counts, not just its primary email — that's what stops a paid member
-  // being told "nothing has been charged" as somebody else's second parent.
-  const paidSnap = await db.collection('members').where('status', '==', 'paid').get();
+  // "Ever paid" and "ever opted out" are built from ONE unfiltered scan of
+  // the whole collection — not derived from the floored candidate snapshot
+  // below, and not from a `.where('status','==','paid')` query. Ten unpaid
+  // `members` docs predate this feature, three of them from a member who DID
+  // pay; if these sets only saw docs after MEMBERSHIP_SEQUENCE_START, her
+  // paid doc (which predates the floor) would be invisible. And Firestore
+  // can't do a case-insensitive query: `_isPaidStatus()` (used everywhere
+  // else in this function) treats "Paid" as paid, but `where('status','==',
+  // 'paid')` would silently miss it — so the filtering happens here, in JS,
+  // after reading everything, not in the query. Every recipient address on a
+  // paid or opted-out doc counts, not just its primary email — that's what
+  // stops a paid member being told "nothing has been charged", or an
+  // opted-out member being re-mailed with someone ELSE's opt-out token, as
+  // somebody else's second parent.
+  const allSnap = await db.collection('members').get();
   const paidEmails = new Set();
-  for (const doc of paidSnap.docs) {
+  const optedOutEmails = new Set();
+  for (const doc of allSnap.docs) {
     try {
       const m = doc.data() || {};
-      for (const k of _recipientKeys(m)) paidEmails.add(k);
+      const keys = _recipientKeys(m);
+      if (_isPaidStatus(m.status)) keys.forEach((k) => paidEmails.add(k));
+      if (m.optedOut === true) keys.forEach((k) => optedOutEmails.add(k));
     } catch (e) {
-      console.error('nudge sweep paid-scan errored for', doc.id, e.message);
-      // Not counted in skipReasons: this query is independent of the
+      console.error('nudge sweep paid/optout-scan errored for', doc.id, e.message);
+      // Not counted in skipReasons: this scan is independent of the floored
       // candidate snapshot the reconciliation invariant below is measured
       // against, and a doc that can't be read here isn't a candidate anyway.
     }
@@ -20925,8 +20942,8 @@ async function _runMembershipNudges({ dryRun }) {
   // touches, so Alice-names-Bob / Bob-names-Alice cross-references collapse
   // to one send instead of two, and a paid address suppresses every doc that
   // names it, as primary OR second parent. Every doc seen here ends up in
-  // exactly one bucket — noEmail, addressAlreadyPaid, supersededDuplicate,
-  // errored, or a surviving candidate — which is what makes
+  // exactly one bucket — noEmail, addressAlreadyPaid, addressOptedOut,
+  // supersededDuplicate, errored, or a surviving candidate — which is what makes
   // `wouldSend + sum(skipReasons) === snap.docs.length` hold below.
   //
   // doc.data() is read ONCE per doc, here, before sorting — not inside the
@@ -20957,6 +20974,14 @@ async function _runMembershipNudges({ dryRun }) {
       const keys = _recipientKeys(m);
       if (!keys.length) { bump('noEmail'); continue; }
       if (keys.some((k) => paidEmails.has(k))) { bump('addressAlreadyPaid'); continue; }
+      // Per-ADDRESS, not per-doc: Alice can opt out on HER OWN doc and still
+      // be mailed as Bob's second parent on HIS — and the opt-out link in
+      // that email would carry Bob's token, not hers, leaving her with no
+      // way to actually stop it. Deliberately NOT done for `archived` (see
+      // the per-doc check below): that is staff bookkeeping on one record,
+      // not a promise made to a person, and treating it per-address would
+      // let tidying one row silence an unrelated family.
+      if (keys.some((k) => optedOutEmails.has(k))) { bump('addressOptedOut'); continue; }
       if (keys.some((k) => claimedKeys.has(k))) { bump('supersededDuplicate'); continue; }
       keys.forEach((k) => claimedKeys.add(k));
       survivors.push(doc);
