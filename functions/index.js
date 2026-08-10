@@ -20461,7 +20461,9 @@ function buildMembershipNudgeEmail({ member, n, resumeToken, optOutToken }) {
       tail:
         '<p style="margin:0 0 16px;font-size:15px;color:#64748B;line-height:1.6">If something went wrong at the ' +
           'payment step, we would genuinely like to know &mdash; a phone call to (808) 536-9684 sorts most of it ' +
-          'out in a minute, and we can take it over the phone if that is easier.</p>',
+          'out in a minute, and we can take it over the phone if that is easier.</p>' +
+        '<p style="margin:0 0 16px;font-size:15px;color:#64748B;line-height:1.6">If you believe you have already ' +
+          'paid, please reply and we will sort it out rather than take a second payment.</p>',
     },
     {
       subject: 'What your ' + money + ' makes possible',
@@ -20477,7 +20479,9 @@ function buildMembershipNudgeEmail({ member, n, resumeToken, optOutToken }) {
           (advocacyEligible && level
             ? ' A ' + E(level) + ' membership also makes you eligible for case advocacy support.'
             : '') +
-          '</p>',
+          '</p>' +
+        '<p style="margin:0 0 16px;font-size:15px;color:#64748B;line-height:1.6">If you believe you have already ' +
+          'paid, please reply and we will sort it out rather than take a second payment.</p>',
     },
     {
       subject: 'Last one from us',
@@ -20493,7 +20497,9 @@ function buildMembershipNudgeEmail({ member, n, resumeToken, optOutToken }) {
             ? 'If the timing is wrong, that is completely fine &mdash; your current membership is unaffected until it expires.'
             : 'If the timing is wrong, that is completely fine. You are welcome at any LDAH event whether you are a ' +
               'member or not, and the door stays open.') +
-          '</p>',
+          '</p>' +
+        '<p style="margin:0 0 16px;font-size:15px;color:#64748B;line-height:1.6">If you believe you have already ' +
+          'paid, please reply and we will sort it out rather than take a second payment.</p>',
     },
   ];
 
@@ -20829,6 +20835,17 @@ const MEMBERSHIP_SEQUENCE_ARMED = false;
 const MEMBERSHIP_SEQUENCE_START = admin.firestore.Timestamp.fromDate(new Date('2026-08-11T00:00:00Z'));
 const MEMBERSHIP_FALLBACK_ABANDON_MINUTES = 60;
 
+// Offsets are absolute from abandonedMs, so a doc that becomes eligible after a
+// gap (kill switch re-armed, opt-out undone, deploy outage) would otherwise
+// advance one nudge per sweep and burst the whole sequence in under an hour.
+const MEMBERSHIP_MIN_NUDGE_GAP_HOURS = 24;
+
+// `members` allows unauthenticated create, so once armed this sweep is the
+// only thing standing between that open door and outbound mail on LDAH's
+// domain. A legitimate run will never approach this; it exists purely as a
+// circuit breaker.
+const MEMBERSHIP_MAX_SENDS_PER_RUN = 25;
+
 // Staff and test checkouts are not chased. This mirrors _mrIsInternal in
 // LDAH-Int's membership report (index.html ~44911) so the report and the sweep
 // agree on what "internal" means — if you change one, change the other.
@@ -20848,88 +20865,182 @@ function _isInternalMembership(m) {
   return MEMBERSHIP_INTERNAL_EMAILS.indexOf(e) !== -1;
 }
 
+function _isPaidStatus(status) { return String(status || '').toLowerCase() === 'paid'; }
+
+// A truthy flag that also survives an attacker writing the STRING "true"
+// instead of the boolean. `x == true` looks like it would catch that too,
+// but it does not: loose equality coerces the boolean side to a number
+// (true -> 1) and then the string side to a number ("true" -> NaN), so
+// "true" == true is actually false in JS. Verified before relying on it.
+function _isTruthyFlag(v) { return v === true || String(v).toLowerCase() === 'true'; }
+
 async function _runMembershipNudges({ dryRun }) {
   const db = admin.firestore();
   const now = Date.now();
-  const snap = await db.collection('members').get();
+  // Structural floor: query on createdAt, not just an in-loop check, so a
+  // scan can never even SEE a pre-feature doc. The in-loop check stays too —
+  // defense in depth for any doc a future write path lands without createdAt.
+  const snap = await db.collection('members').where('createdAt', '>=', MEMBERSHIP_SEQUENCE_START).get();
   const skipReasons = {};
   const bump = (k) => { skipReasons[k] = (skipReasons[k] || 0) + 1; };
+
+  // One PERSON, not one doc. A cold revisit to the checkout creates a fresh
+  // members doc (no client-side persistence), so the same human can hold
+  // several pending records — one member has three. Nudge only the newest
+  // pending doc per address, and never nudge an address that has ever paid.
+  // Every doc seen here ends up in exactly one bucket: paidEmails, the
+  // superseded pile, or the single surviving byEmail entry — which is what
+  // makes `wouldSend + sum(skipReasons) === snap.docs.length` hold below.
+  const byEmail = new Map();
+  const paidEmails = new Set();
+  for (const doc of snap.docs) {
+    // Same one-bad-doc-must-not-abort-the-run guarantee as the send loop
+    // below, applied here too — this pass runs first and touches every doc,
+    // so leaving it unprotected would reopen exactly the hole this is fixing.
+    try {
+      const m = doc.data() || {};
+      const key = String(m.email || '').trim().toLowerCase();
+      if (!key) { bump('noEmail'); continue; }
+      if (_isPaidStatus(m.status)) { paidEmails.add(key); bump('paid'); continue; }
+      const prev = byEmail.get(key);
+      const ms = m.createdAt && m.createdAt.toMillis ? m.createdAt.toMillis() : 0;
+      const prevMs = (prev && prev.data().createdAt && prev.data().createdAt.toMillis)
+        ? prev.data().createdAt.toMillis() : -1;
+      if (!prev || ms > prevMs) {
+        if (prev) bump('supersededDuplicate');
+        byEmail.set(key, doc);
+      } else {
+        bump('supersededDuplicate');
+      }
+    } catch (e) {
+      console.error('nudge sweep pre-scan errored for', doc.id, e.message);
+      bump('errored');
+    }
+  }
+
   let wouldSend = 0, sent = 0;
 
-  for (const doc of snap.docs) {
-    const m = doc.data() || {};
-    if (m.status === 'paid')  { bump('paid'); continue; }
-    if (m.archived === true)  { bump('archived'); continue; }
-    if (m.optedOut === true)  { bump('optedOut'); continue; }
-    if (_isInternalMembership(m)) { bump('internalOrTest'); continue; }
-
-    const createdMs = m.createdAt && m.createdAt.toMillis ? m.createdAt.toMillis() : 0;
-    if (!createdMs || createdMs < MEMBERSHIP_SEQUENCE_START.toMillis()) { bump('beforeSequenceStart'); continue; }
-
-    const n = m.nudgeCount || 0;
-    if (n >= MEMBERSHIP_NUDGE_OFFSET_HOURS.length) { bump('sequenceComplete'); continue; }
-
-    // The clock. An explicit checkoutAbandonedAt (PayPal told us) wins; otherwise they
-    // are treated as abandoned 60 minutes after they created the record.
-    const abandonedMs = (m.checkoutAbandonedAt && m.checkoutAbandonedAt.toMillis)
-      ? m.checkoutAbandonedAt.toMillis()
-      : createdMs + MEMBERSHIP_FALLBACK_ABANDON_MINUTES * 60 * 1000;
-    if (now < abandonedMs) { bump('stillMidCheckout'); continue; }
-    if (now < abandonedMs + MEMBERSHIP_NUDGE_OFFSET_HOURS[n] * 3600 * 1000) { bump('notDueYet'); continue; }
-
-    wouldSend++;
-    if (dryRun) continue;
-
-    // Stamp the derived abandon time, NOT `now` — stamping now would push the
-    // whole remaining schedule later by however long the sweep took to notice.
-    const patch = {};
-    if (!m.checkoutAbandonedAt) {
-      patch.checkoutAbandonedAt = admin.firestore.Timestamp.fromMillis(abandonedMs);
-      patch.checkoutAbandonReason = 'sweep-timeout';
-    }
-    let resumeToken = m.resumeToken, optOutToken = m.optOutToken;
-    if (!resumeToken) { resumeToken = crypto.randomBytes(16).toString('hex'); patch.resumeToken = resumeToken; }
-    if (!optOutToken) { optOutToken = crypto.randomBytes(16).toString('hex'); patch.optOutToken = optOutToken; }
-    if (Object.keys(patch).length) await doc.ref.set(patch, { merge: true });
-
-    // Claim the send. Re-reading inside the transaction is what guarantees we
-    // never chase someone who paid in the last few seconds, and makes a double
-    // run of the scheduler harmless.
-    let claimed = false;
+  for (const doc of byEmail.values()) {
+    // Whole per-doc body in one try/catch: one poisoned record (a malformed
+    // Timestamp, a throwing template call) must never silence the rest of
+    // the run for everyone else eligible this sweep. `counted` tracks
+    // whether THIS doc has already added itself to wouldSend, so an
+    // unexpected throw after that point still nets out to exactly one
+    // skipReasons bump instead of double-counting the doc.
+    let counted = false;
     try {
-      claimed = await db.runTransaction(async (tx) => {
-        const fresh = await tx.get(doc.ref);
-        const f = fresh.data() || {};
-        if (f.status === 'paid' || f.archived === true || f.optedOut === true) return false;
-        if ((f.nudgeCount || 0) !== n) return false;
-        tx.set(fresh.ref, {
-          nudgeCount: n + 1,
-          lastNudgeAt: admin.firestore.FieldValue.serverTimestamp(),
-          nudgeHistory: admin.firestore.FieldValue.arrayUnion({
-            n: n + 1, sentAt: admin.firestore.Timestamp.fromMillis(now),
-          }),
-        }, { merge: true });
-        return true;
-      });
-    } catch (e) { console.warn('nudge claim failed for', doc.id, e.message); }
-    if (!claimed) { bump('claimLost'); wouldSend--; continue; }
+      const m = doc.data() || {};
+      const key = String(m.email || '').trim().toLowerCase();
+      if (paidEmails.has(key)) { bump('addressAlreadyPaid'); continue; }
+      if (_isTruthyFlag(m.archived)) { bump('archived'); continue; }
+      if (m.optedOut === true) { bump('optedOut'); continue; }
+      if (_isInternalMembership(m)) { bump('internalOrTest'); continue; }
+      // PayPal captured but our Firestore write failed: the checkout page
+      // already told them "please do not pay again" and the doc carries the
+      // evidence, even though `status` never made it to 'paid'. Chasing this
+      // is the exact disaster the sequence exists to avoid.
+      if (m.paypalOrderId || m.paidAt) { bump('hasPaymentEvidence'); continue; }
+      if (/^capture:/.test(String(m.lastError || ''))) { bump('captureFailedMayHavePaid'); continue; }
 
-    try {
-      const { subject, html } = buildMembershipNudgeEmail({ member: m, n, resumeToken, optOutToken });
-      const fromAddress = String(process.env.SMTP_FROM || 'onboarding@resend.dev').replace(/[\r\n\t]+/g, '').trim();
-      await sendEmailViaResend({
-        from: `LDAH <${fromAddress}>`,
-        to: familyEmails(m),
-        subject,
-        html,
-        type: 'membership-nudge-' + (n + 1),
-        recipientName: m.name || '',
-      });
-      sent++;
+      const createdMs = m.createdAt && m.createdAt.toMillis ? m.createdAt.toMillis() : 0;
+      if (!createdMs || createdMs < MEMBERSHIP_SEQUENCE_START.toMillis()) { bump('beforeSequenceStart'); continue; }
+
+      const n = m.nudgeCount || 0;
+      if (n >= MEMBERSHIP_NUDGE_OFFSET_HOURS.length) { bump('sequenceComplete'); continue; }
+
+      // Offsets are absolute from abandonedMs, not relative to the last send,
+      // so without this a doc that goes stale-then-eligible (kill switch
+      // re-armed, opt-out undone) would advance one nudge per 15-min sweep
+      // and burst all four emails inside an hour.
+      if (m.lastNudgeAt && m.lastNudgeAt.toMillis &&
+          (now - m.lastNudgeAt.toMillis()) < MEMBERSHIP_MIN_NUDGE_GAP_HOURS * 3600 * 1000) {
+        bump('tooSoonSinceLast'); continue;
+      }
+
+      // The clock. An explicit checkoutAbandonedAt (PayPal told us) wins; otherwise they
+      // are treated as abandoned 60 minutes after they created the record.
+      const abandonedMs = (m.checkoutAbandonedAt && m.checkoutAbandonedAt.toMillis)
+        ? m.checkoutAbandonedAt.toMillis()
+        : createdMs + MEMBERSHIP_FALLBACK_ABANDON_MINUTES * 60 * 1000;
+      if (now < abandonedMs) { bump('stillMidCheckout'); continue; }
+      if (now < abandonedMs + MEMBERSHIP_NUDGE_OFFSET_HOURS[n] * 3600 * 1000) { bump('notDueYet'); continue; }
+
+      if (wouldSend >= MEMBERSHIP_MAX_SENDS_PER_RUN) {
+        bump('runCapReached');
+        console.error('membershipNudges: MEMBERSHIP_MAX_SENDS_PER_RUN (' + MEMBERSHIP_MAX_SENDS_PER_RUN +
+          ') reached — remaining eligible docs skipped this run. Investigate before re-running.');
+        continue;
+      }
+
+      wouldSend++;
+      counted = true;
+      if (dryRun) continue;
+
+      // Mint tokens in memory only — nothing is written until the claim
+      // below actually succeeds. Writing the abandon stamp/tokens BEFORE the
+      // claim (the previous version of this function) permanently mislabels
+      // a doc as a sweep-detected abandonment even when the claim is then
+      // rejected because the doc turned out to be paid or opted out — and
+      // Task 5 reads checkoutAbandonedAt to raise a task about it.
+      let resumeToken = m.resumeToken, optOutToken = m.optOutToken;
+      const mintResume = !resumeToken;
+      const mintOptOut = !optOutToken;
+      if (mintResume) resumeToken = crypto.randomBytes(16).toString('hex');
+      if (mintOptOut) optOutToken = crypto.randomBytes(16).toString('hex');
+
+      // Claim the send. Re-reading inside the transaction is what guarantees we
+      // never chase someone who paid in the last few seconds, and makes a double
+      // run of the scheduler harmless.
+      let claimed = false;
+      try {
+        claimed = await db.runTransaction(async (tx) => {
+          const fresh = await tx.get(doc.ref);
+          const f = fresh.data() || {};
+          if (_isPaidStatus(f.status) || _isTruthyFlag(f.archived) || f.optedOut === true) return false;
+          if ((f.nudgeCount || 0) !== n) return false;
+          const claimPatch = {
+            nudgeCount: n + 1,
+            lastNudgeAt: admin.firestore.FieldValue.serverTimestamp(),
+            nudgeHistory: admin.firestore.FieldValue.arrayUnion({
+              n: n + 1, sentAt: admin.firestore.Timestamp.fromMillis(now),
+            }),
+          };
+          // Stamp the derived abandon time, NOT `now` — stamping now would push
+          // the whole remaining schedule later by however long the sweep took
+          // to notice.
+          if (!f.checkoutAbandonedAt) {
+            claimPatch.checkoutAbandonedAt = admin.firestore.Timestamp.fromMillis(abandonedMs);
+            claimPatch.checkoutAbandonReason = 'sweep-timeout';
+          }
+          if (mintResume) claimPatch.resumeToken = resumeToken;
+          if (mintOptOut) claimPatch.optOutToken = optOutToken;
+          tx.set(fresh.ref, claimPatch, { merge: true });
+          return true;
+        });
+      } catch (e) { console.warn('nudge claim failed for', doc.id, e.message); }
+      if (!claimed) { bump('claimLost'); wouldSend--; continue; }
+
+      try {
+        const { subject, html } = buildMembershipNudgeEmail({ member: m, n, resumeToken, optOutToken });
+        const fromAddress = String(process.env.SMTP_FROM || 'onboarding@resend.dev').replace(/[\r\n\t]+/g, '').trim();
+        await sendEmailViaResend({
+          from: `LDAH <${fromAddress}>`,
+          to: familyEmails(m),
+          subject,
+          html,
+          type: 'membership-nudge-' + (n + 1),
+          recipientName: m.name || '',
+        });
+        sent++;
+      } catch (e) {
+        console.error('nudge send failed for', doc.id, e.message);
+        // The claim already incremented, so a hard failure costs that one variant
+        // rather than looping the same email every 15 minutes.
+      }
     } catch (e) {
-      console.error('nudge send failed for', doc.id, e.message);
-      // The claim already incremented, so a hard failure costs that one variant
-      // rather than looping the same email every 15 minutes.
+      console.error('nudge sweep errored for', doc.id, e.message);
+      if (counted) wouldSend--;   // keep wouldSend + sum(skipReasons) === doc count
+      bump('errored');
     }
   }
 
@@ -20949,6 +21060,15 @@ exports.sendMembershipNudges = functions
 // Manual trigger, dry-run capable. dryRun blocks the sendEmailViaResend call
 // itself, not merely the recipient list — a dryRun that only filters recipients
 // is worse than none, which the Moloka'i import proved.
+//
+// Dry runs stay open with no auth — they return counts only, never PII, and
+// staff need to be able to check them without a login flow. A LIVE send is a
+// different animal: this repo is PUBLIC, this file's contents (including
+// this exact URL) are already on origin/main, and the project id sits a few
+// lines away — "unguessable" is not a real property of this endpoint. A live
+// send therefore requires BOTH the arm switch and a verified staff token, so
+// the kill switch actually means "nothing sends," not "nothing sends on the
+// 15-minute schedule."
 exports.runMembershipNudgesNow = functions
   .runWith({ timeoutSeconds: 300, maxInstances: 1, secrets: ['RESEND_API_KEY', 'SMTP_FROM'] })
   .https.onRequest(async (req, res) => {
@@ -20958,6 +21078,13 @@ exports.runMembershipNudgesNow = functions
     if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
     try {
       const dryRun = !((req.body || {}).dryRun === false);   // defaults to DRY
+      if (!dryRun) {
+        if (!MEMBERSHIP_SEQUENCE_ARMED) {
+          res.status(409).json({ error: 'sequence is disarmed — live sends refused' }); return;
+        }
+        try { await _verifyStaffIdToken((req.body || {}).idToken); }
+        catch (err) { res.status(err.statusCode || 401).json({ error: err.message }); return; }
+      }
       res.json(await _runMembershipNudges({ dryRun }));
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
@@ -21116,4 +21243,6 @@ exports.__test = {
   MEMBERSHIP_SEQUENCE_START,
   MEMBERSHIP_FALLBACK_ABANDON_MINUTES,
   MEMBERSHIP_INTERNAL_EMAILS,
+  MEMBERSHIP_MIN_NUDGE_GAP_HOURS,
+  MEMBERSHIP_MAX_SENDS_PER_RUN,
 };
