@@ -20413,7 +20413,13 @@ function membershipOptOutLink(token) {
 function buildMembershipNudgeEmail({ member, n, resumeToken, optOutToken }) {
   const m = member || {};
   const first = String(m.name || '').trim().split(/\s+/)[0] || 'there';
-  const level = String(m.level || 'membership');
+  // `level` is written by an UNAUTHENTICATED browser (members has `allow create:
+  // if true`), so it is attacker-controlled and lands in a SUBJECT line. Subjects
+  // are plain text — HTML-escaping one would show a literal "&amp;" to the reader
+  // — so sanitise at the source instead: keep letters, digits, spaces, hyphens,
+  // apostrophes, and cap the length. Everything downstream is then safe in both
+  // the subject and the HTML body.
+  const level = String(m.level || 'membership').replace(/[^A-Za-z0-9 '\-]/g, '').trim().slice(0, 40) || 'membership';
   const amount = typeof m.amount === 'number' ? m.amount : (parseInt(m.amount, 10) || 0);
   const money = '$' + amount;
   const renewal = _isRenewalSource(m.source);
