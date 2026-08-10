@@ -20810,6 +20810,158 @@ exports.handleMembershipOptOut = functions
     }
   });
 
+// ── Abandoned-membership follow-up: the sweep ───────────────────────────────
+// Sends email and ONLY email. Tasks are raised by createAbandonedMembershipTasks
+// at 8 AM, so nobody gets a task in their My Day at 2 AM because that happens to
+// be when someone closed a tab.
+//
+// SEQUENCE_START is the hard floor. Ten unpaid `members` docs predate this
+// feature, three of them from a member who DID pay, and chasing her four times
+// would be a genuinely bad outcome. `archived` already excludes all ten; this
+// is the second, independent guard. Do not remove either.
+// KILL SWITCH. Deploying the scheduled function must NOT start it — the build
+// runs across several days and a real abandonment mid-build would otherwise get
+// live emails before La'a has the buttons to respond to them. Task 10 flips this
+// to true, and only after a production dry run reports zero sends. It stays in
+// the code afterwards as the off switch: set false, redeploy, everything stops.
+const MEMBERSHIP_SEQUENCE_ARMED = false;
+
+const MEMBERSHIP_SEQUENCE_START = admin.firestore.Timestamp.fromDate(new Date('2026-08-11T00:00:00Z'));
+const MEMBERSHIP_FALLBACK_ABANDON_MINUTES = 60;
+
+// Staff and test checkouts are not chased. This mirrors _mrIsInternal in
+// LDAH-Int's membership report (index.html ~44911) so the report and the sweep
+// agree on what "internal" means — if you change one, change the other.
+// `testSequence: true` on the doc overrides it, which is the ONLY way to run a
+// real end-to-end test, since Daniel's own address is on the internal list.
+const MEMBERSHIP_INTERNAL_EMAILS = [
+  'danpellegrini63@gmail.com',   // Daniel's own checkout testing
+  'ldahhelp@gmail.com',          // the LDAH help account
+  'info@discovermore.app',       // Chester McTester
+];
+function _isInternalMembership(m) {
+  if (m && m.testSequence === true) return false;         // explicit override
+  if (String((m && m.name) || '').toLowerCase().indexOf('test') !== -1) return true;
+  const e = String((m && m.email) || '').trim().toLowerCase();
+  if (!e) return false;
+  if (/@ldahawaii\.org$/.test(e)) return true;
+  return MEMBERSHIP_INTERNAL_EMAILS.indexOf(e) !== -1;
+}
+
+async function _runMembershipNudges({ dryRun }) {
+  const db = admin.firestore();
+  const now = Date.now();
+  const snap = await db.collection('members').get();
+  const skipReasons = {};
+  const bump = (k) => { skipReasons[k] = (skipReasons[k] || 0) + 1; };
+  let wouldSend = 0, sent = 0;
+
+  for (const doc of snap.docs) {
+    const m = doc.data() || {};
+    if (m.status === 'paid')  { bump('paid'); continue; }
+    if (m.archived === true)  { bump('archived'); continue; }
+    if (m.optedOut === true)  { bump('optedOut'); continue; }
+    if (_isInternalMembership(m)) { bump('internalOrTest'); continue; }
+
+    const createdMs = m.createdAt && m.createdAt.toMillis ? m.createdAt.toMillis() : 0;
+    if (!createdMs || createdMs < MEMBERSHIP_SEQUENCE_START.toMillis()) { bump('beforeSequenceStart'); continue; }
+
+    const n = m.nudgeCount || 0;
+    if (n >= MEMBERSHIP_NUDGE_OFFSET_HOURS.length) { bump('sequenceComplete'); continue; }
+
+    // The clock. An explicit checkoutAbandonedAt (PayPal told us) wins; otherwise they
+    // are treated as abandoned 60 minutes after they created the record.
+    const abandonedMs = (m.checkoutAbandonedAt && m.checkoutAbandonedAt.toMillis)
+      ? m.checkoutAbandonedAt.toMillis()
+      : createdMs + MEMBERSHIP_FALLBACK_ABANDON_MINUTES * 60 * 1000;
+    if (now < abandonedMs) { bump('stillMidCheckout'); continue; }
+    if (now < abandonedMs + MEMBERSHIP_NUDGE_OFFSET_HOURS[n] * 3600 * 1000) { bump('notDueYet'); continue; }
+
+    wouldSend++;
+    if (dryRun) continue;
+
+    // Stamp the derived abandon time, NOT `now` — stamping now would push the
+    // whole remaining schedule later by however long the sweep took to notice.
+    const patch = {};
+    if (!m.checkoutAbandonedAt) {
+      patch.checkoutAbandonedAt = admin.firestore.Timestamp.fromMillis(abandonedMs);
+      patch.checkoutAbandonReason = 'sweep-timeout';
+    }
+    let resumeToken = m.resumeToken, optOutToken = m.optOutToken;
+    if (!resumeToken) { resumeToken = crypto.randomBytes(16).toString('hex'); patch.resumeToken = resumeToken; }
+    if (!optOutToken) { optOutToken = crypto.randomBytes(16).toString('hex'); patch.optOutToken = optOutToken; }
+    if (Object.keys(patch).length) await doc.ref.set(patch, { merge: true });
+
+    // Claim the send. Re-reading inside the transaction is what guarantees we
+    // never chase someone who paid in the last few seconds, and makes a double
+    // run of the scheduler harmless.
+    let claimed = false;
+    try {
+      claimed = await db.runTransaction(async (tx) => {
+        const fresh = await tx.get(doc.ref);
+        const f = fresh.data() || {};
+        if (f.status === 'paid' || f.archived === true || f.optedOut === true) return false;
+        if ((f.nudgeCount || 0) !== n) return false;
+        tx.set(fresh.ref, {
+          nudgeCount: n + 1,
+          lastNudgeAt: admin.firestore.FieldValue.serverTimestamp(),
+          nudgeHistory: admin.firestore.FieldValue.arrayUnion({
+            n: n + 1, sentAt: admin.firestore.Timestamp.fromMillis(now),
+          }),
+        }, { merge: true });
+        return true;
+      });
+    } catch (e) { console.warn('nudge claim failed for', doc.id, e.message); }
+    if (!claimed) { bump('claimLost'); wouldSend--; continue; }
+
+    try {
+      const { subject, html } = buildMembershipNudgeEmail({ member: m, n, resumeToken, optOutToken });
+      const fromAddress = String(process.env.SMTP_FROM || 'onboarding@resend.dev').replace(/[\r\n\t]+/g, '').trim();
+      await sendEmailViaResend({
+        from: `LDAH <${fromAddress}>`,
+        to: familyEmails(m),
+        subject,
+        html,
+        type: 'membership-nudge-' + (n + 1),
+        recipientName: m.name || '',
+      });
+      sent++;
+    } catch (e) {
+      console.error('nudge send failed for', doc.id, e.message);
+      // The claim already incremented, so a hard failure costs that one variant
+      // rather than looping the same email every 15 minutes.
+    }
+  }
+
+  console.log('membershipNudges:', JSON.stringify({ dryRun: !!dryRun, wouldSend, sent, skipReasons }));
+  return { wouldSend, sent, skipReasons };
+}
+
+exports.sendMembershipNudges = functions
+  .runWith({ timeoutSeconds: 300, maxInstances: 1, secrets: ['RESEND_API_KEY', 'SMTP_FROM'] })
+  .pubsub.schedule('*/15 * * * *').timeZone('Pacific/Honolulu')
+  .onRun(async () => {
+    if (!MEMBERSHIP_SEQUENCE_ARMED) { console.log('membershipNudges: disarmed, skipping'); return null; }
+    await _runMembershipNudges({ dryRun: false });
+    return null;
+  });
+
+// Manual trigger, dry-run capable. dryRun blocks the sendEmailViaResend call
+// itself, not merely the recipient list — a dryRun that only filters recipients
+// is worse than none, which the Moloka'i import proved.
+exports.runMembershipNudgesNow = functions
+  .runWith({ timeoutSeconds: 300, maxInstances: 1, secrets: ['RESEND_API_KEY', 'SMTP_FROM'] })
+  .https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+    try {
+      const dryRun = !((req.body || {}).dryRun === false);   // defaults to DRY
+      res.json(await _runMembershipNudges({ dryRun }));
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
 // ───────────────────────────────────────────────────────────────────────
 // Screening consent forms (paper, uploaded by staff) — 2026-08-05
 // ───────────────────────────────────────────────────────────────────────
@@ -20958,4 +21110,10 @@ exports.__test = {
   membershipResumeLink,
   membershipOptOutLink,
   MEMBERSHIP_NUDGE_OFFSET_HOURS,
+  _runMembershipNudges,
+  _isInternalMembership,
+  MEMBERSHIP_SEQUENCE_ARMED,
+  MEMBERSHIP_SEQUENCE_START,
+  MEMBERSHIP_FALLBACK_ABANDON_MINUTES,
+  MEMBERSHIP_INTERNAL_EMAILS,
 };
