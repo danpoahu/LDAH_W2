@@ -9057,8 +9057,15 @@ function buildLifecycleEmailHtml({ kind, name, eventTitle, oldDates, newDates, s
       (newStr
         ? '<p style="margin:0 0 16px;font-size:15px;color:#475569"><strong>Now scheduled:</strong> ' + newStr + '</p>'
         : '') +
+      // Deliberately generic. This used to read "No action needed on your end",
+      // which is FALSE whenever the family still owes us consent, documents or a
+      // worksheet — and it arrives AFTER the request for them, so the family
+      // believes the newer message. One parent was asked for consent at 9:23am
+      // and told he was all set at 9:52am on 2026-08-10. Wording that is true in
+      // both cases beats a readiness check that can itself be wrong.
       '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6">' +
-        'No action needed on your end — we just wanted to keep you in the loop. Mahalo.' +
+        'We have got your move covered &mdash; your place is held. If we have asked you for any ' +
+        'paperwork, please still send it in. Mahalo.' +
       '</p>';
   }
 
