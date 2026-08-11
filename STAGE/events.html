@@ -1033,8 +1033,8 @@
             
             try {
                 const [headerResponse, footerResponse] = await Promise.all([
-                    fetch('header.html?v=62.3.5'),
-                    fetch('footer.html?v=62.3.5')
+                    fetch('header.html?v=62.8.0'),
+                    fetch('footer.html?v=62.8.0')
                 ]);
                 
                 if (headerResponse.ok && footerResponse.ok) {
@@ -1273,12 +1273,6 @@
                 console.warn('⚠️ Skipping document without title:', doc.id);
                 return;
               }
-
-              // Special Events (booth/kiosk outreach) DO appear on the public
-              // events calendar/listing so the community knows LDAH will be
-              // there. They carry no signupDates/enableSignup, so no public
-              // "Sign Up" button renders (card gate line ~1542, detail modal
-              // ~2179) — booth signups happen via the QR kiosk (special.html).
 
               // Skip documents with invalid IDs (corrupted)
               if (doc.id.length > 30) {
@@ -1803,7 +1797,7 @@
           // are revealed by "+N more" rather than being dropped. (2026-08-04)
           const CAL_PILL_CAP = 2;
           dayEvents.forEach((event, _pillIdx) => {
-            const isPast = currentDayDate < today; // per calendar-cell date, not the event's primary eventDate
+            const isPast = currentDayDate < today; // per calendar-cell date, NOT the event's primary eventDate — so a multi-date event's future sessions (e.g. a Learning Labs 2nd date) aren't greyed as past
             const isRequest = event.isEventRequest === true;
             const isAdditional = event.isAdditionalDate === true;
             const isRecurring = event.isRecurring === true;
@@ -3293,7 +3287,7 @@
           const data = doc.data();
 
           // Store signup info for potential "Register Another Child" flow
-          window._lastSignupInfo = { name: data.name || '', email: data.email || '', phone: data.phone || '', selectedDates: Array.isArray(data.selectedDates) ? data.selectedDates.slice() : [], eventId: eventId, type: type };
+          window._lastSignupInfo = { name: data.name || '', email: data.email || '', phone: data.phone || '', selectedDates: Array.isArray(data.selectedDates) ? data.selectedDates.slice() : [], eventId: eventId, type: type, signupId: token };
 
           // Inline-flow dead-end (v62.0.0): this signup was already fully registered
           // at signup time. No form needed — show a clean "you're all set" state.
@@ -3313,9 +3307,13 @@
             var confirmedRole = (data.registration && data.registration.role) || '';
             var confirmedIsParent = confirmedRole === 'Parent/Guardian';
             contentEl.innerHTML = '<div style="text-align: center; padding: 40px;"><div style="width: 56px; height: 56px; border-radius: 50%; background: #22c55e; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div><h2 style="color: #004E7C; font-size: 24px; font-weight: bold; margin-bottom: 12px;">You have already completed registration. Mahalo!</h2>' +
+              // Wording is deliberately neutral: whether a second child gets
+              // their own signup (Connect-Gen) or is recorded on this one
+              // (parent workshops) is decided at submit, and the event's
+              // zoomMode is not loaded on this screen. (2026-08-04)
               (confirmedIsParent ?
-                '<p style="color:#555; font-size:14px; margin-top:16px;">Do you have another child to register for this event?</p>' +
-                '<button onclick="registerAnotherChild(\'' + eventId + '\', \'' + type + '\')" style="padding:12px 24px; background:linear-gradient(135deg, #0891b2, #0e7490); color:white; border:none; border-radius:10px; font-weight:600; font-size:14px; cursor:pointer; margin-top:8px;">+ Register Another Child</button>'
+                '<p style="color:#555; font-size:14px; margin-top:16px;">Do you have another child to add for this event?</p>' +
+                '<button onclick="registerAnotherChild(\'' + eventId + '\', \'' + type + '\')" style="padding:12px 24px; background:linear-gradient(135deg, #0891b2, #0e7490); color:white; border:none; border-radius:10px; font-weight:600; font-size:14px; cursor:pointer; margin-top:8px;">+ Add Another Child</button>'
               : '') +
             '</div>';
             return;
@@ -3326,7 +3324,12 @@
           // Bridge the role captured at signup into the registration form so we
           // don't re-ask "About You" (v61.18). Prefer the signup doc's role /
           // registrantType; fall back to any prior-registration prefill.
-          var regPrefill = Object.assign({}, prefillData || {});
+          // A registration older than six months is staged on the signup as
+          // `registrationDraft` and the family is emailed to review it, rather
+          // than having it reused silently. Seed the form from that draft so the
+          // link opens filled in — the ask is "check this", not "type it again".
+          // An explicit prefillData (sibling-share) still wins.
+          var regPrefill = Object.assign({}, data.registrationDraft || {}, prefillData || {});
           var signupRole = data.role || data.registrantType || regPrefill.role || '';
           if (signupRole) regPrefill.role = signupRole;
           // Bridge the child/student name from signup so registration doesn't
@@ -3348,7 +3351,7 @@
     function buildRegistrationForm(registrantName, token, eventId, type, prefillData) {
       var pf = prefillData || {};
       return '<h2 style="color: #004E7C; font-size: 24px; font-weight: bold; margin-bottom: 8px; padding-right: 40px;">Complete Registration for ' + registrantName + '</h2>' +
-        (prefillData ? '<div style="background: #ecfdf5; border: 1px solid #86efac; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; font-size: 14px; color: #166534;">Family information carried over from previous registration. Only child details need to be filled in.</div>' : '') +
+        (prefillData && Object.keys(prefillData).length ? '<div style="background: #ecfdf5; border: 1px solid #86efac; border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; font-size: 14px; color: #166534;">We have filled this in from your previous registration. Please check it over and change anything that has moved on.</div>' : '') +
         '<p style="color: #666; font-size: 14px; margin-bottom: 24px;">* Indicates required question</p>' +
         '<form id="registrationForm" onsubmit="submitRegistration(event, \'' + token + '\', \'' + eventId + '\', \'' + type + '\')">' +
 
@@ -3424,7 +3427,6 @@
           // Why we ask. Under the header so it covers the whole section — name, age,
           // gender, ethnicity, disability — not just the name field. (2026-07-14)
           '<div style="margin-bottom: 14px; font-size: 13px; color: #6B7280; line-height: 1.4;">* We collect this information for grant purposes only.</div>' +
-          // (2026-07-14)
 
           '<div style="margin-bottom: 14px;">' +
             '<label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">Child\'s full name <span style="color: #DC2626;">*</span></label>' +
@@ -3651,6 +3653,36 @@
               return;
             }
           }
+          var _primaryId = draft.primarySignupId || '';
+          if (!_isConnectGen && _primaryId) {
+            // Parent workshops (Learning Labs and the like): the PARENT is the
+            // attendee and the children do not occupy seats, so a second child
+            // is extra demographics on the SAME signup — never a second signup.
+            //
+            // Creating one made the parent a duplicate of herself: two
+            // confirmation emails, two seats against capacity, duplicate
+            // reminders, and a DUPLICATE pill in Int, whose rule is
+            // same-email + overlapping dates and never looked at the child.
+            // Two families hit this on the August Learning Labs before it was
+            // found (Kuhaulua 7-24, Ahuna 8-4); both were merged by hand.
+            //
+            // Connect-Gen keeps one signup per child — there each child has
+            // their own appointment, consent and worksheet.
+            //
+            // No timestamp in the payload, so arrayUnion collapses an
+            // identical resubmit instead of recording the child twice.
+            await db.collection(collectionName).doc(eventId).collection('signups').doc(_primaryId)
+              .update({
+                additionalChildren: firebase.firestore.FieldValue.arrayUnion({
+                  childName: registration.childName || '',
+                  childAgeRange: registration.childAgeRange || '',
+                  childGender: registration.childGender || '',
+                  disabilityCategories: Array.isArray(registration.disabilityCategories) ? registration.disabilityCategories : []
+                })
+              });
+            window._siblingDraft = null;
+            token = _primaryId;   // a third child attaches to the primary too
+          } else {
           var newDocRef = await db.collection(collectionName).doc(eventId).collection('signups').add({
             name: draft.name || '',
             email: draft.email || '',
@@ -3676,6 +3708,7 @@
           }
           window._siblingDraft = null;
           token = newDocRef.id; // so subsequent code (siblings prompt, etc.) has a real token
+          }
         } else {
           await db.collection(collectionName).doc(eventId).collection('signups').doc(token)
             .update({
@@ -3692,6 +3725,10 @@
         if (!window._lastSignupInfo) window._lastSignupInfo = {};
         window._lastSignupInfo.eventId = eventId;
         window._lastSignupInfo.type = type;
+        // The signup a further sibling should attach to. After a non-Connect-Gen
+        // sibling this is still the PRIMARY signup, so a third child attaches
+        // there too rather than starting a new chain.
+        window._lastSignupInfo.signupId = token;
 
         document.getElementById('registrationFormContent').innerHTML =
           '<div style="text-align: center; padding: 40px;">' +
@@ -3705,9 +3742,16 @@
               '<p style="margin:0;color:#1E293B;font-size:13.5px;line-height:1.5;">We will send you a reminder <strong>3 days before</strong> your session and again <strong>on the day of the session</strong>, with the Zoom link or location and anything you may need to bring.</p>' +
             '</div>' +
             '<div id="regSiblingPrompt" style="margin-top:20px;"></div>' +
+            // Outside Connect-Gen the parent is the attendee, so a second child
+            // is information we record — not a second registration. Saying
+            // "register" there invited the duplicate signup this flow used to
+            // create. (2026-08-04)
             (isParent ?
-              '<p style="color:#555; font-size:14px; margin-top:16px;">Do you have another child to register for this event?</p>' +
-              '<button onclick="registerAnotherChild(\'' + eventId + '\', \'' + type + '\')" style="padding:12px 24px; background:linear-gradient(135deg, #0891b2, #0e7490); color:white; border:none; border-radius:10px; font-weight:600; font-size:14px; cursor:pointer; margin-top:8px;">+ Register Another Child</button>'
+              (_isConnectGen
+                ? '<p style="color:#555; font-size:14px; margin-top:16px;">Do you have another child to register for this event?</p>' +
+                  '<button onclick="registerAnotherChild(\'' + eventId + '\', \'' + type + '\')" style="padding:12px 24px; background:linear-gradient(135deg, #0891b2, #0e7490); color:white; border:none; border-radius:10px; font-weight:600; font-size:14px; cursor:pointer; margin-top:8px;">+ Register Another Child</button>'
+                : '<p style="color:#555; font-size:14px; margin-top:16px;">Do you have another child we should know about? Your seat is already reserved — this just adds their details to your family record.</p>' +
+                  '<button onclick="registerAnotherChild(\'' + eventId + '\', \'' + type + '\')" style="padding:12px 24px; background:linear-gradient(135deg, #0891b2, #0e7490); color:white; border:none; border-radius:10px; font-weight:600; font-size:14px; cursor:pointer; margin-top:8px;">+ Add Another Child</button>')
             : '') +
           '</div>';
         // Check for other pending signups for this email and offer to apply this registration
@@ -3742,6 +3786,9 @@
         email: info.email || '',
         phone: info.phone || '',
         selectedDates: Array.isArray(info.selectedDates) ? info.selectedDates.slice() : [],
+        // The signup this sibling belongs to. Outside Connect-Gen the sibling is
+        // recorded ON this signup instead of getting one of their own.
+        primarySignupId: info.signupId || '',
         // Capture the event title now so the sibling signup isn't left as
         // "Unknown Event" in the staff views. (2026-07-24)
         eventTitle: (function(){
