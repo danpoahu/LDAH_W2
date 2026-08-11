@@ -1,6 +1,20 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    /* Staff are people with a userRoles doc. This matters because
+       `request.auth != null` is NOT "staff": the member portal lets members
+       create their own Firebase Auth account (Members/index.html
+       createUserWithEmailAndPassword), so any member — or anyone who signs up —
+       satisfied that condition. */
+    function isStaff() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/userRoles/$(request.auth.uid));
+    }
+    function isSuperAdmin() {
+      return isStaff()
+        && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role == 'superAdmin';
+    }
     match /categories/{document=**} {
       allow read: if true;
       allow write: if request.auth != null;
@@ -70,7 +84,12 @@ service cloud.firestore {
       allow write: if request.auth != null;
     }
     match /members/{document=**} {
-      allow read: if request.auth != null;
+      // Staff only. This collection is names, emails, phones and amounts, and
+      // any signed-in member could previously read all of it. Nothing public
+      // depends on this: the member portal reads through Cloud Functions on the
+      // admin SDK, and no public page reads members at all (checked across
+      // volunteer.html, Members/*, and the app's howtohelp.html).
+      allow read: if isStaff();
       // Anyone may start a membership — the checkout is public and unauthenticated.
       // But an injected doc must not be able to arrive already "due": the follow-up
       // sweep reads createdAt/checkoutAbandonedAt to decide when to email, so a
@@ -88,13 +107,22 @@ service cloud.firestore {
              'lastNudgeAt', 'nudgeHistory', 'paidAt', 'paypalOrderId',
              'optedOut', 'optOutToken', 'resumeToken', 'archived', 'testSequence'
            ]);
-      allow delete: if request.auth != null;
-      // Staff: full update.
-      allow update: if request.auth != null;
+      // Deleting a membership destroys the record behind a real payment.
+      allow delete: if isSuperAdmin();
+      // Staff may edit a membership but may NOT flip it to paid — that emails
+      // the member and opens their portal login. Mirrors the dashboard, which
+      // asks "are you sure they paid?" and shows the button to superAdmins only.
+      allow update: if isStaff()
+        && !(request.resource.data.status == 'paid' && resource.data.status != 'paid');
+      // Marking paid: Super Admin only.
+      allow update: if isSuperAdmin();
       // Public PayPal confirmation: an unauthenticated donor's browser may flip a
       // pending doc to paid, and ONLY the payment fields may change.
-      allow update: if request.auth == null
-        && resource.data.status == 'pending'
+      // Not restricted to unauthenticated: a member renewing in the portal IS
+      // signed in (Members/renew.html captures then writes these same three
+      // fields), and would otherwise fall through to the staff rule and be
+      // refused. Safe either way — only these keys, only out of pending.
+      allow update: if resource.data.status == 'pending'
         && request.resource.data.status == 'paid'
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['status', 'paypalOrderId', 'paidAt']);
@@ -105,8 +133,8 @@ service cloud.firestore {
       // email clock; without it here the browser write is refused silently and
       // every abandonment falls back to the 60-minute sweep.
       // Cannot flip status, cannot touch a paid record, cannot write payment fields.
-      allow update: if request.auth == null
-        && resource.data.status == 'pending'
+      // Same reasoning as above: signed-in renewals hit this too.
+      allow update: if resource.data.status == 'pending'
         && request.resource.data.status == 'pending'
         && request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['name', 'email', 'phone', 'level', 'amount', 'secondParent',
