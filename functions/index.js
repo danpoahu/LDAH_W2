@@ -6290,6 +6290,100 @@ exports.resendCgWorksheetRequest = functions
     }
   });
 
+// ── Resend the Connect-Gen consent form ──────────────────────────────────────
+// The worksheet has had a manual Resend since 2026-08-04; consent never did, so
+// the only way to re-ask a family was a one-off script (which is what happened
+// for the 27 Jul Thursday->Monday move). Mirrors resendCgWorksheetRequest.
+//
+// Two things this does that the worksheet version does not need to:
+//  - refuses outright once consentSignedAt is set, so a family who has already
+//    signed can never be asked again by an accidental click;
+//  - MINTS a consent token when the signup has none. A family moved from a
+//    Thursday (no consent) to a Monday (consent required) never gets one from
+//    the automatic path, so without this there is nothing to link them to.
+exports.resendCgConsentRequest = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 5, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    try {
+      const { collection, eventId, signupId, requestedBy } = req.body || {};
+      if (!eventId || !signupId) { res.status(400).json({ error: "missing eventId or signupId" }); return; }
+      const coll = collection === "events" ? "events" : "recurringEvents";
+      const db = admin.firestore();
+
+      const evSnap = await db.collection(coll).doc(eventId).get();
+      if (!evSnap.exists) { res.status(404).json({ error: "event not found" }); return; }
+      const event = evSnap.data() || {};
+
+      const sRef = db.collection(coll).doc(eventId).collection("signups").doc(signupId);
+      const sSnap = await sRef.get();
+      if (!sSnap.exists) { res.status(404).json({ error: "signup not found" }); return; }
+      const s = sSnap.data() || {};
+
+      if (!s.email) { res.status(400).json({ error: "This signup has no email address." }); return; }
+      if (s.archived === true || s.status === "cancelled") {
+        res.status(409).json({ error: "That signup is cancelled or archived." }); return;
+      }
+      if (s.consentSignedAt) {
+        res.status(409).json({ error: "They have already signed the consent form -- nothing to chase." }); return;
+      }
+
+      // Reuse their existing token so any link already in their inbox keeps
+      // working; mint one only when there is genuinely none.
+      let consentToken = s.consentToken;
+      let minted = false;
+      if (!consentToken) { consentToken = crypto.randomBytes(16).toString("hex"); minted = true; }
+
+      const consentUrl = "https://www.ldahawaii.org/connect-gen-consent.html" +
+        "?token=" + encodeURIComponent(consentToken) +
+        "&e=" + encodeURIComponent(eventId) +
+        "&s=" + encodeURIComponent(signupId) +
+        "&c=" + encodeURIComponent(coll);
+
+      const sessions = getSignupSessions(s, event) || [];
+      const eventTitle = s.eventTitle || event.title || "Connect-Gen";
+      const signatureHtml = await buildSignatureBlock("eventCoordinator");
+      const donateHtml = await buildDonateBlock("universal");
+      const html = buildConsentRequiredEmailHtml({
+        name: s.name || s.firstName || "there",
+        eventTitle,
+        datesPhrase: formatDatesPhrase(sessions.map((x) => x && x.dateKey).filter(Boolean)),
+        consentUrl,
+        signatureHtml,
+        donateHtml,
+      });
+
+      await sendEmailViaResend({
+        from: lifecycleFromAddress(),
+        to: familyEmails(s),
+        subject: `Action needed -- consent form for ${eventTitle}`,
+        html,
+        type: "connect-gen-consent-required",
+        relatedEventId: eventId,
+        relatedSignupId: signupId,
+        recipientName: s.name || "",
+      });
+
+      await sRef.set({
+        consentToken,
+        // Stamped so the readiness panel can show when we last asked, and so a
+        // future automatic chaser counts from the same field a human used.
+        consentRequiredEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
+        consentManualNudges: admin.firestore.FieldValue.increment(1),
+        consentLastNudgedBy: requestedBy || "staff",
+      }, { merge: true });
+
+      console.log(`resendCgConsentRequest: ${coll}/${eventId}/${signupId} by ${requestedBy || "staff"}${minted ? " (token minted)" : ""}`);
+      res.json({ ok: true, sentTo: familyEmails(s), mintedToken: minted });
+    } catch (e) {
+      console.error("resendCgConsentRequest:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
 exports.flagDayOfPendingSignups = functions
   .runWith({ timeoutSeconds: 120, maxInstances: 1 })
   .pubsub.schedule("0 6 * * *")
