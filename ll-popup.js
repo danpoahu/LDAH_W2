@@ -9,6 +9,7 @@
  *   - Parent Talk Café                         — June 17  (window June 12–17)
  *   - Learning Labs · Understanding ADHD       — June 24  (window June 19–24)
  *   - Learning Labs · A-B-Cs of Advocacy       — July 8   (window July 3–8; hard stop 5 PM HST July 8)
+ *   - Learning Labs · IDEA / Chapter 60        — Aug 12  (window Aug 7–12; hard stop 5 PM HST Aug 12)
  *
  * Behavior:
  *   - 5-day window: show only when 0 <= daysUntil <= 5. Picks the soonest
@@ -34,6 +35,7 @@
     var LL_IMG = 'https://firebasestorage.googleapis.com/v0/b/ldah-932d5.firebasestorage.app/o/event-images%2F1779995116728_June%20LL.jpg?alt=media&token=d0d2052f-feec-4e5f-a933-45c8a2ab66c0';
     var PTC_IMG = 'https://firebasestorage.googleapis.com/v0/b/ldah-932d5.firebasestorage.app/o/event-images%2F1780510227059_June%202026..jpg?alt=media&token=eedabbf6-206f-4493-b8af-376627649d43';
     var LL_JULY_IMG = 'https://firebasestorage.googleapis.com/v0/b/ldah-932d5.firebasestorage.app/o/event-images%2F1783039515710_July%20%20LL%202.jpg?alt=media&token=30236f21-a314-46bc-afa9-b5ed69f5149b';
+    var LL_AUG_IMG = 'https://firebasestorage.googleapis.com/v0/b/ldah-932d5.firebasestorage.app/o/event-images%2F1784843405905_August.jpg?alt=media&token=07323c84-3b7d-4bd9-aee5-752e8dd2e43c';
     var MEMBER_IMG = 'assets/images/become-a-member.png';
 
     // ── Schedule (edit here to add / change events) ───────────────────────────
@@ -69,6 +71,23 @@
             when: 'June 24 &middot; 5:00 PM on Zoom',
             eventId: 'WyaBRKf0xhFsahAWgcbn',
             image: LL_IMG
+        },
+        {
+            // August session 1 of 2. The default 5-day window (Aug 7-12) already
+            // covers today, so no windowDays override is needed. endsAt stops it
+            // the moment the session starts rather than letting it run out the
+            // day: HST is UTC-10, so 5 PM HST Aug 12 == 2026-08-13T03:00:00Z.
+            // Session 2 (Aug 26, Understanding Evaluations) is deliberately not
+            // scheduled yet - the membership promo covers Aug 13-20.
+            key: 'll-2026-08-12',
+            date: '2026-08-12',
+            endsAt: '2026-08-13T03:00:00Z',
+            label: 'Learning Labs for {month}',
+            sub: 'Free virtual Learning Lab for Hawaiʻi families.',
+            topic: 'IDEA / Chapter 60',
+            when: 'August 12 &middot; 5:00 PM on Zoom',
+            eventId: 'IqTwpWFPtpONhThQZmzs',
+            image: LL_AUG_IMG
         },
         {
             // Evergreen membership promo — replaces the event popup. Shows the
