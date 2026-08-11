@@ -21140,6 +21140,22 @@ exports.reconcileMembershipPayments = functions
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }
     try {
       const body = req.body || {};
+
+      // Super Admin only, enforced HERE rather than only in the dashboard.
+      // This endpoint is public: marking paid grants portal access and sends the
+      // member a thank-you email, so a hidden button is not a permission.
+      let staff;
+      try {
+        staff = await _verifyStaffIdToken(body.idToken);
+      } catch (e) {
+        res.status(e.statusCode || 401).json({ error: e.message });
+        return;
+      }
+      if (staff.role !== "superAdmin") {
+        res.status(403).json({ error: "Super Admin only" });
+        return;
+      }
+
       const days = Math.min(Math.max(parseInt(body.days, 10) || 180, 1), 730);
       const dryRun = body.dryRun === true;
       const db = admin.firestore();
@@ -21200,7 +21216,8 @@ exports.reconcileMembershipPayments = functions
         found.push({ memberId: p.id, name: p.m.name || "", amount: hit.amount, date: hit.date });
         if (dryRun) continue;
         const r = await _markMembershipPaid(p.id, {
-          captureId: hit.captureId, amount: hit.amount, source: "paypal-reconcile",
+          captureId: hit.captureId, amount: hit.amount,
+          source: "paypal-reconcile by " + (staff.email || staff.uid),
         });
         if (r.ok) marked.push({ memberId: p.id, name: p.m.name || "", amount: hit.amount });
       }
