@@ -20539,6 +20539,16 @@ function buildMembershipNudgeEmail({ member, n, resumeToken, optOutToken }) {
     ? 'Thank you for renewing your ' + levelTag + 'membership with LDAH.'
     : 'Thank you for starting a ' + levelTag + 'membership with LDAH.';
 
+  // Payments reach our records through PayPal's reporting feed, which can run up
+  // to three hours behind. Someone who paid twenty minutes ago is still 'pending'
+  // to us, and this sequence is armed — so the copy has to account for the gap
+  // rather than the code. Says it once, used by all four variants below.
+  const alreadyPaidNote =
+    '<p style="margin:0 0 16px;font-size:15px;color:#64748B;line-height:1.6">If you have already paid, ' +
+      'please ignore this. Payments can take up to three hours to show in our records, so a recent one ' +
+      'may not have reached us yet &mdash; and if it has been longer than that, reply and we will sort ' +
+      'it out rather than take a second payment.</p>'
+
   const VARIANTS = [
     {
       subject: 'You are one step away from your LDAH membership',
@@ -20549,8 +20559,7 @@ function buildMembershipNudgeEmail({ member, n, resumeToken, optOutToken }) {
         '<p style="margin:0 0 18px;font-size:16px;color:#334155;line-height:1.6">The link below picks up exactly ' +
           'where you left off, with your details already filled in. It only takes a moment.</p>',
       tail:
-        '<p style="margin:0 0 16px;font-size:15px;color:#64748B;line-height:1.6">If you believe you have already ' +
-          'paid, please reply and we will sort it out rather than take a second payment.</p>',
+        alreadyPaidNote,
     },
     {
       subject: tidy('Still holding your ' + level + ' membership'),
@@ -20563,8 +20572,7 @@ function buildMembershipNudgeEmail({ member, n, resumeToken, optOutToken }) {
         '<p style="margin:0 0 16px;font-size:15px;color:#64748B;line-height:1.6">If something went wrong at the ' +
           'payment step, we would genuinely like to know &mdash; a phone call to (808) 536-9684 sorts most of it ' +
           'out in a minute, and we can take it over the phone if that is easier.</p>' +
-        '<p style="margin:0 0 16px;font-size:15px;color:#64748B;line-height:1.6">If you believe you have already ' +
-          'paid, please reply and we will sort it out rather than take a second payment.</p>',
+        alreadyPaidNote,
     },
     {
       subject: 'What your ' + money + ' makes possible',
@@ -20581,8 +20589,7 @@ function buildMembershipNudgeEmail({ member, n, resumeToken, optOutToken }) {
             ? ' A ' + E(level) + ' membership also makes you eligible for case advocacy support.'
             : '') +
           '</p>' +
-        '<p style="margin:0 0 16px;font-size:15px;color:#64748B;line-height:1.6">If you believe you have already ' +
-          'paid, please reply and we will sort it out rather than take a second payment.</p>',
+        alreadyPaidNote,
     },
     {
       subject: 'Last one from us',
@@ -20599,8 +20606,7 @@ function buildMembershipNudgeEmail({ member, n, resumeToken, optOutToken }) {
             : 'If the timing is wrong, that is completely fine. You are welcome at any LDAH event whether you are a ' +
               'member or not, and the door stays open.') +
           '</p>' +
-        '<p style="margin:0 0 16px;font-size:15px;color:#64748B;line-height:1.6">If you believe you have already ' +
-          'paid, please reply and we will sort it out rather than take a second payment.</p>',
+        alreadyPaidNote,
     },
   ];
 
@@ -20914,6 +20920,315 @@ exports.handleMembershipOptOut = functions
         body: 'Please try again later, or reply to any LDAH email and we will sort it out.',
         ok: false,
       }));
+    }
+  });
+
+/* ── PayPal: server-side payment reconciliation ──────────────────────────────
+   Until now a membership became paid because JavaScript in the MEMBER'S browser
+   said so — volunteer.html / howtohelp.html onApprove, straight after
+   actions.order.capture(). If that write never landed (tab closed, connection
+   dropped, Firestore call failed) PayPal held the money and our record stayed
+   pending forever, with nothing but a human reading PayPal to catch it. Worse,
+   the armed nudge sequence would then email a donor who HAD paid and ask again.
+
+   This is the server-side answer: PayPal tells us directly. custom_id on every
+   order is already the members doc id, so nothing about the data model changed.
+   Flipping status to paid is enough — onMembershipPaid sends the thank-you with
+   portal login off the transition, exactly as it does for the staff button. */
+
+let _ppTokenCache = { token: null, expiresAt: 0 };
+
+async function _paypalToken() {
+  const now = Date.now();
+  if (_ppTokenCache.token && now < _ppTokenCache.expiresAt) return _ppTokenCache.token;
+  const id = process.env.PAYPAL_CLIENT_ID;
+  const secret = process.env.PAYPAL_SECRET;
+  if (!id || !secret) throw new Error("PayPal credentials are not configured");
+  const r = await fetch("https://api-m.paypal.com/v1/oauth2/token", {
+    method: "POST",
+    headers: {
+      Authorization: "Basic " + Buffer.from(id + ":" + secret).toString("base64"),
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: "grant_type=client_credentials",
+  });
+  const d = await r.json();
+  if (!d.access_token) throw new Error("PayPal auth failed: " + JSON.stringify(d).slice(0, 200));
+  // Refresh a minute early rather than racing the expiry.
+  _ppTokenCache = { token: d.access_token, expiresAt: now + ((d.expires_in || 32400) - 60) * 1000 };
+  return d.access_token;
+}
+
+/* Ask PayPal whether this body really came from PayPal.
+   This is the single most important line of defence in the file: without it the
+   endpoint is a public URL where anyone who guesses a members doc id can grant
+   portal access and fire a donor email. Any failure here must REJECT. */
+async function _paypalVerifyWebhook(req) {
+  const webhookId = process.env.PAYPAL_WEBHOOK_ID;
+  if (!webhookId) throw new Error("PAYPAL_WEBHOOK_ID is not configured");
+  if (!req.rawBody) throw new Error("rawBody unavailable — cannot verify signature");
+  const h = req.headers;
+  const body = {
+    auth_algo: h["paypal-auth-algo"],
+    cert_url: h["paypal-cert-url"],
+    transmission_id: h["paypal-transmission-id"],
+    transmission_sig: h["paypal-transmission-sig"],
+    transmission_time: h["paypal-transmission-time"],
+    webhook_id: webhookId,
+    // Must be the event exactly as PayPal signed it. Parsed from rawBody rather
+    // than reusing req.body, because re-serialising a parsed object is not
+    // guaranteed byte-identical and fails verification intermittently.
+    webhook_event: JSON.parse(req.rawBody.toString("utf8")),
+  };
+  const token = await _paypalToken();
+  const r = await fetch("https://api-m.paypal.com/v1/notifications/verify-webhook-signature", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const d = await r.json();
+  return d.verification_status === "SUCCESS";
+}
+
+/* Flip a membership to paid, mirroring the staff button's write shape so the
+   record looks the same however it got there. Idempotent: returns already-paid
+   rather than writing, so a replayed webhook cannot produce a second thank-you
+   (onMembershipPaid only fires on the transition INTO paid) or a second audit
+   row. Uses _isPaidStatus because status is not reliably lower-case. */
+async function _markMembershipPaid(memberId, info) {
+  const db = admin.firestore();
+  const ref = db.collection("members").doc(String(memberId));
+  const snap = await ref.get();
+  if (!snap.exists) return { ok: false, reason: "no-such-member" };
+  const m = snap.data() || {};
+  if (_isPaidStatus(m.status)) return { ok: false, reason: "already-paid", member: m };
+
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  const update = {
+    status: "paid",
+    paidAt: now,
+    paidMarkedBy: info.source || "paypal-webhook",
+  };
+  if (info.orderId) update.paypalOrderId = info.orderId;
+  if (info.captureId) update.paypalCaptureId = info.captureId;
+  if (info.amount) update.paypalAmount = String(info.amount);
+  await ref.update(update);
+
+  // Same mirror the staff button does; best-effort, never fails the payment.
+  if (m.linkedContactId) {
+    try {
+      await db.collection("contacts").doc(m.linkedContactId)
+        .update({ membershipStatus: "paid", membershipPaidAt: now });
+    } catch (e) { console.warn("contact mirror failed:", e.message); }
+  }
+  return { ok: true, member: m };
+}
+
+/* PayPal webhook. Subscribed to PAYMENT.CAPTURE.COMPLETED / .REFUNDED / .REVERSED.
+   Always answers 200 once handled, including for events we ignore — PayPal
+   retries non-2xx and will disable an endpoint that keeps failing. */
+exports.paypalWebhook = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10,
+             secrets: ["PAYPAL_CLIENT_ID", "PAYPAL_SECRET", "PAYPAL_WEBHOOK_ID"] })
+  .https.onRequest(async (req, res) => {
+    if (req.method !== "POST") { res.status(405).send("POST only"); return; }
+    const db = admin.firestore();
+    try {
+      let verified = false;
+      try {
+        verified = await _paypalVerifyWebhook(req);
+      } catch (e) {
+        console.error("paypalWebhook verification error:", e.message);
+        res.status(401).send("unverified");
+        return;
+      }
+      if (!verified) {
+        console.error("paypalWebhook: signature did NOT verify — refusing");
+        res.status(401).send("unverified");
+        return;
+      }
+
+      const evt = req.body || {};
+      const type = String(evt.event_type || "");
+      const rsrc = evt.resource || {};
+      const customId = String(rsrc.custom_id || "").trim();
+      const captureId = String(rsrc.id || "");
+      const amount = (rsrc.amount && rsrc.amount.value) || "";
+
+      if (type === "PAYMENT.CAPTURE.COMPLETED") {
+        if (!customId) {
+          // A donation through the generic donate button, or a payment taken
+          // outside our flow. Never guess by amount or email — park it for the
+          // membership report to surface and let a human decide.
+          await db.collection("paypalUnmatched").doc(captureId || String(Date.now())).set({
+            reason: "no-custom-id", eventType: type, captureId, amount,
+            payerEmail: (rsrc.payer && rsrc.payer.email_address) || "",
+            receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+            raw: JSON.stringify(rsrc).slice(0, 4000),
+          }, { merge: true });
+          res.status(200).send("parked-no-custom-id");
+          return;
+        }
+        const r = await _markMembershipPaid(customId, {
+          orderId: (rsrc.supplementary_data && rsrc.supplementary_data.related_ids
+                    && rsrc.supplementary_data.related_ids.order_id) || "",
+          captureId, amount, source: "paypal-webhook",
+        });
+        if (!r.ok && r.reason === "no-such-member") {
+          await db.collection("paypalUnmatched").doc(captureId || String(Date.now())).set({
+            reason: "custom-id-matches-no-member", eventType: type, captureId, amount, customId,
+            receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+          res.status(200).send("parked-unknown-member");
+          return;
+        }
+        console.log("paypalWebhook capture", captureId, "member", customId, "->", r.ok ? "marked paid" : r.reason);
+        res.status(200).send(r.ok ? "marked-paid" : r.reason);
+        return;
+      }
+
+      if (type === "PAYMENT.CAPTURE.REFUNDED" || type === "PAYMENT.CAPTURE.REVERSED") {
+        // Deliberately does NOT change status or revoke portal access. A refund
+        // usually means a conversation is already happening, and auto-revoking
+        // mid-conversation is worse than a staff task. Flag it; staff decide.
+        if (customId) {
+          try {
+            await db.collection("members").doc(customId).update({
+              paypalRefund: {
+                eventType: type, captureId, amount,
+                at: admin.firestore.FieldValue.serverTimestamp(),
+              },
+            });
+          } catch (e) { console.warn("refund flag failed:", e.message); }
+        }
+        await db.collection("paypalUnmatched").doc((captureId || String(Date.now())) + "-refund").set({
+          reason: "refund", eventType: type, captureId, amount, customId: customId || "",
+          receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        res.status(200).send("refund-flagged");
+        return;
+      }
+
+      res.status(200).send("ignored:" + type);
+    } catch (e) {
+      console.error("paypalWebhook error:", e);
+      res.status(500).send("error");
+    }
+  });
+
+/* Reconciliation sweep — the safety net behind the webhook.
+   The webhook is real time and authoritative, but a delivery can be missed
+   (downtime, a bad deploy, an endpoint disabled after repeated failures). This
+   walks PayPal's reporting feed and marks any pending membership that has in
+   fact been paid. Called by LDAH-Int's Membership Report, which is client-side
+   and therefore cannot hold the PayPal secret itself.
+
+   Reads transactions in <=31 day windows because that is the Transaction Search
+   limit, builds one custom_field -> capture map, then matches. That is far
+   fewer API calls than querying per pending member.
+
+   ⚠ Transaction Search runs up to ~3 hours behind. A payment taken minutes ago
+   will not appear here. The webhook covers that window; this covers everything
+   the webhook missed. */
+exports.reconcileMembershipPayments = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 3,
+             secrets: ["PAYPAL_CLIENT_ID", "PAYPAL_SECRET"] })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    try {
+      const body = req.body || {};
+      const days = Math.min(Math.max(parseInt(body.days, 10) || 180, 1), 730);
+      const dryRun = body.dryRun === true;
+      const db = admin.firestore();
+
+      // Unfiltered scan on purpose: status is not reliably lower-case, so a
+      // where('status','==','paid') query silently misses a doc stored "Paid".
+      const snap = await db.collection("members").get();
+      const pending = [];
+      snap.forEach((doc) => {
+        const m = doc.data() || {};
+        if (_isPaidStatus(m.status)) return;
+        if (_isTruthyFlag(m.archived)) return;
+        pending.push({ id: doc.id, m });
+      });
+
+      // One pass over PayPal, chunked to the API's 31-day ceiling.
+      const token = await _paypalToken();
+      const byCustomId = new Map();
+      const endMs = Date.now();
+      const startMs = endMs - days * 86400000;
+      let cursor = startMs;
+      let windows = 0;
+      while (cursor < endMs) {
+        const winEnd = Math.min(cursor + 30 * 86400000, endMs);
+        const qs = "start_date=" + new Date(cursor).toISOString().replace(/\.\d+Z$/, "Z") +
+                   "&end_date=" + new Date(winEnd).toISOString().replace(/\.\d+Z$/, "Z") +
+                   "&fields=transaction_info&page_size=500";
+        const r = await fetch("https://api-m.paypal.com/v1/reporting/transactions?" + qs, {
+          headers: { Authorization: "Bearer " + token },
+        });
+        const d = await r.json();
+        windows++;
+        for (const t of (d.transaction_details || [])) {
+          const ti = t.transaction_info || {};
+          const cid = String(ti.custom_field || "").trim();
+          // T0006 is a capture; status S is completed. Anything else (refunds,
+          // fees, transfers) must not be read as "they paid".
+          if (!cid) continue;
+          if (String(ti.transaction_status || "") !== "S") continue;
+          const amt = (ti.transaction_amount || {}).value || "";
+          if (String(amt).startsWith("-")) continue;   // refunds come through negative
+          if (!byCustomId.has(cid)) {
+            byCustomId.set(cid, {
+              captureId: ti.transaction_id || "",
+              amount: amt,
+              date: ti.transaction_initiation_date || "",
+            });
+          }
+        }
+        cursor = winEnd + 1000;
+      }
+
+      const marked = [];
+      const found = [];
+      for (const p of pending) {
+        const hit = byCustomId.get(p.id);
+        if (!hit) continue;
+        found.push({ memberId: p.id, name: p.m.name || "", amount: hit.amount, date: hit.date });
+        if (dryRun) continue;
+        const r = await _markMembershipPaid(p.id, {
+          captureId: hit.captureId, amount: hit.amount, source: "paypal-reconcile",
+        });
+        if (r.ok) marked.push({ memberId: p.id, name: p.m.name || "", amount: hit.amount });
+      }
+
+      // Anything the webhook could not attach to a member, for staff to eyeball.
+      const unmatchedSnap = await db.collection("paypalUnmatched").limit(50).get();
+      const unmatched = [];
+      unmatchedSnap.forEach((d) => {
+        const u = d.data() || {};
+        unmatched.push({ id: d.id, reason: u.reason || "", amount: u.amount || "",
+                         customId: u.customId || "", eventType: u.eventType || "" });
+      });
+
+      res.json({
+        dryRun,
+        daysScanned: days,
+        paypalWindows: windows,
+        paypalCapturesWithMemberId: byCustomId.size,
+        pendingMembers: pending.length,
+        matchedPending: found.length,
+        found,
+        marked,
+        unmatched,
+        note: "Transaction Search lags up to ~3 hours; very recent payments are covered by the webhook, not this sweep.",
+      });
+    } catch (e) {
+      console.error("reconcileMembershipPayments:", e);
+      res.status(500).json({ error: e.message });
     }
   });
 
