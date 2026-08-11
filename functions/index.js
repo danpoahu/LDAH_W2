@@ -20931,9 +20931,9 @@ exports.handleMembershipOptOut = functions
 // live emails before La'a has the buttons to respond to them. Task 10 flips this
 // to true, and only after a production dry run reports zero sends. It stays in
 // the code afterwards as the off switch: set false, redeploy, everything stops.
-const MEMBERSHIP_SEQUENCE_ARMED = false;
+const MEMBERSHIP_SEQUENCE_ARMED = true;   // ARMED 2026-08-10 by Daniel, for the first real case
 
-const MEMBERSHIP_SEQUENCE_START = admin.firestore.Timestamp.fromDate(new Date('2026-08-11T00:00:00Z'));
+const MEMBERSHIP_SEQUENCE_START = admin.firestore.Timestamp.fromDate(new Date('2026-08-10T20:00:00Z'));
 const MEMBERSHIP_FALLBACK_ABANDON_MINUTES = 60;
 
 // Offsets are absolute from abandonedMs, so a doc that becomes eligible after a
