@@ -729,6 +729,10 @@
             const currentEvents = eventsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(event => {
                 if (event.archived === true) return false;
                 if (event.infoOnly === true) return false;
+                // Screening / Outreach Booth are calendar-only — never a home-page
+                // card, flyer or not. Remote Signup is not specialEvent and still
+                // shows here as before. (2026-08-11)
+                if (event.specialEvent === true) return false;
                 if (!event.startDate || !event.moveToPastDate) return false;
                 const startDate = new Date(event.startDate + 'T00:00:00');
                 const moveToPastDate = new Date(event.moveToPastDate + 'T00:00:00');

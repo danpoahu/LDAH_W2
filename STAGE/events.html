@@ -1395,12 +1395,17 @@
       }
 
       function renderCurrentEvents(events) {
-        // Special (booth/kiosk) events with NO flyer appear only on the
-        // calendar, not as a Current-Events card (a flyer-less card looks
-        // bare). With a flyer uploaded they show normally. Calendar keeps
-        // them regardless (getAllCalendarItems reads allEventsData). (2026-07-24)
+        // Special (booth/kiosk) events — Screening and Outreach Booth — are
+        // calendar-only. They belong on the calendar so a day reads as spoken
+        // for, but they never take a Current-Events card, flyer or not: they are
+        // staffed tables reached by QR on the day, not something to sign up for
+        // from this page. Remote Signup is NOT special and is unaffected — it
+        // posts its flyer publicly and keeps its card. specialEvent===true
+        // selects exactly Screening + Outreach Booth (see _cmsDeriveEventType,
+        // which tests specialEvent before remoteSignup). Calendar keeps them
+        // regardless (getAllCalendarItems reads allEventsData). (2026-08-11)
         events = (events || []).filter(function (e) {
-          return !(e && e.specialEvent === true && !e.imageUrl) && !(e && e.infoOnly === true);
+          return !(e && e.specialEvent === true) && !(e && e.infoOnly === true);
         });
         // Destroy old Swiper before replacing DOM to avoid orphaned instances
         if (currentSwiper) { try { currentSwiper.destroy(true, true); } catch(e) {} currentSwiper = null; }
@@ -1457,6 +1462,11 @@
       }
 
       function renderPastEvents(events) {
+        // Same calendar-only rule as Current Events — without this a booth that
+        // is calendar-only all week reappears as a Past Events card afterwards.
+        events = (events || []).filter(function (e) {
+          return !(e && e.specialEvent === true) && !(e && e.infoOnly === true);
+        });
         const container = document.getElementById('pastEventsCarousel');
         const countBadge = document.getElementById('pastCount');
         
