@@ -1083,7 +1083,7 @@
                  lastName: ((el('secondParentLast') || {}).value || '').trim(), email: em };
       }
 
-      /* One pending record per visitor, not one per attempt. Erica Au left FIVE
+      /* One pending record per visitor, not one per attempt. one member left FIVE
          pending records on 29 Jul before her payment went through, because every
          press of "Continue to Payment" called .add() again. A retry now updates
          the record we already made and bumps `attempts`. */

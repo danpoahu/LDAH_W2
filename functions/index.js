@@ -20136,7 +20136,7 @@ exports.onRecordingPublishJob = functions
 // ── Abandoned membership follow-up ───────────────────────────────────────────
 // Someone reaches the payment step, a members doc is created as "pending", and
 // then they stop. Nothing chased them: the thank-you only fires on payment, so
-// they receive NOTHING at all. Henry Conar did exactly this on 1 Aug 2026 —
+// they receive NOTHING at all. A real signup did exactly this on 1 Aug 2026 —
 // $100 Friend, one attempt, no error recorded.
 //
 // Deliberately a TASK FIRST, not an email. They may well have paid through
