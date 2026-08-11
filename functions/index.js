@@ -4949,6 +4949,87 @@ async function buildAnalyticsYtdHtml(db, esc, hawaiiNow) {
 // backup is <= 8 days old; amber warning when older or missing (a weekly run
 // was likely missed). Runs as the App Engine default SA, which holds
 // roles/datastore.backupsViewer (granted 2026-07-27). Never throws.
+/* Case advocacy without a paid membership.
+   Advocacy requires membership at the Friend level, so an advocate can be deep
+   in a case for a family who never joined — nobody finds out until someone
+   happens to look. This surfaces it daily instead.
+
+   CASE_ADVOCACY_MEMBERSHIP_REQUIRED_FROM is the "legacy" line: families already
+   in advocacy before the requirement existed are not chased for it. Change this
+   ONE date to move the line. */
+const CASE_ADVOCACY_MEMBERSHIP_REQUIRED_FROM = "2026-08-11";
+
+async function buildAdvocacyMembershipGapHtml(db) {
+  const cutoffMs = new Date(CASE_ADVOCACY_MEMBERSHIP_REQUIRED_FROM + "T00:00:00-10:00").getTime();
+  let ixSnap;
+  try {
+    ixSnap = await db.collection("interactions").where("interactionType", "==", "Case Advocacy").get();
+  } catch (e) {
+    console.warn("advocacy/membership gap: interactions query failed:", e.message);
+    return "";
+  }
+
+  // Newest advocacy interaction per contact, so a family with several is judged
+  // on when their advocacy actually began rather than once per interaction.
+  const byContact = new Map();
+  ixSnap.forEach((d) => {
+    const x = d.data() || {};
+    const cid = x.contactId;
+    if (!cid) return;
+    let ms = null;
+    try {
+      const c = x.createdAt;
+      if (c && typeof c.toMillis === "function") ms = c.toMillis();
+      else if (c) ms = new Date(c).getTime();
+    } catch (_) {}
+    if (ms === null) return;
+    const prev = byContact.get(cid);
+    if (!prev || ms > prev.ms) byContact.set(cid, { ms, status: x.status || "" });
+  });
+
+  const rows = [];
+  for (const [cid, info] of byContact) {
+    if (info.ms < cutoffMs) continue;                 // legacy — predates the requirement
+    let cSnap;
+    try { cSnap = await db.collection("contacts").doc(cid).get(); } catch (_) { continue; }
+    if (!cSnap.exists) continue;
+    const c = cSnap.data() || {};
+    const paid = String(c.membershipStatus || "").toLowerCase() === "paid";
+    if (paid) continue;
+    rows.push({
+      name: c.name || c.displayName || "(no name)",
+      email: c.email || "",
+      state: c.membershipStatus ? String(c.membershipStatus) : "no membership",
+      started: new Date(info.ms).toLocaleDateString("en-US",
+        { month: "short", day: "numeric", year: "numeric", timeZone: "Pacific/Honolulu" }),
+      open: info.status === "Open",
+    });
+  }
+  if (!rows.length) return "";
+  rows.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+  const cells = rows.map((r) =>
+    '<tr>' +
+      '<td style="padding:6px 10px;border-bottom:1px solid #eee;font-size:13px;">' +
+        lifecycleEsc(r.name) + (r.open ? '' : ' <span style="color:#94a3b8;">(closed)</span>') +
+        (r.email ? '<br><span style="color:#64748b;font-size:12px;">' + lifecycleEsc(r.email) + '</span>' : '') +
+      '</td>' +
+      '<td style="padding:6px 10px;border-bottom:1px solid #eee;font-size:13px;color:#B91C1C;">' + lifecycleEsc(r.state) + '</td>' +
+      '<td style="padding:6px 10px;border-bottom:1px solid #eee;font-size:13px;color:#475569;">' + lifecycleEsc(r.started) + '</td>' +
+    '</tr>').join("");
+
+  return '<div style="border:1px solid #FECACA;background:#FEF2F2;border-radius:10px;padding:16px 18px;">' +
+    '<h3 style="margin:0 0 4px;font-size:15px;color:#991B1B;">Case advocacy without a paid membership (' + rows.length + ')</h3>' +
+    '<p style="margin:0 0 12px;font-size:13px;color:#7F1D1D;">Advocacy is a Friend-level member benefit. ' +
+      'Families whose advocacy began before ' + CASE_ADVOCACY_MEMBERSHIP_REQUIRED_FROM + ' are not listed.</p>' +
+    '<table style="width:100%;border-collapse:collapse;">' +
+      '<tr><th align="left" style="padding:6px 10px;font-size:12px;color:#7F1D1D;">Family</th>' +
+      '<th align="left" style="padding:6px 10px;font-size:12px;color:#7F1D1D;">Membership</th>' +
+      '<th align="left" style="padding:6px 10px;font-size:12px;color:#7F1D1D;">Advocacy started</th></tr>' +
+      cells +
+    '</table></div>';
+}
+
 async function buildBackupStatusHtml(db) {
   var PROJECT = "ldah-932d5", LOCATION = "nam5";
   var latest = null;
@@ -5844,6 +5925,9 @@ async function runDailyReport(overrideRecipients, opts) {
     let backupStatusHtml = "";
     try { backupStatusHtml = await buildBackupStatusHtml(db); }
     catch (err) { console.warn("backup status build failed:", err.message); }
+    let advocacyGapHtml = "";
+    try { advocacyGapHtml = await buildAdvocacyMembershipGapHtml(db); }
+    catch (err) { console.warn("advocacy/membership gap build failed:", err.message); }
     const emailHtml = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -5866,6 +5950,8 @@ async function runDailyReport(overrideRecipients, opts) {
   ${cycleHtml ? `<tr><td style="padding:20px 28px 0;">${cycleHtml}</td></tr>` : ""}
 
   ${backupStatusHtml ? `<tr><td style="padding:16px 28px 0;">${backupStatusHtml}</td></tr>` : ""}
+
+  ${advocacyGapHtml ? `<tr><td style="padding:16px 28px 0;">${advocacyGapHtml}</td></tr>` : ""}
 
   <!-- Section 1: All Active Events & Programs -->
   <tr>
@@ -14806,7 +14892,29 @@ exports.sendCaseAdvocacyAuthorizationLink = functions
       const authUrl = "https://www.ldahawaii.org/case-advocacy-authorization.html?token=" + token;
       const displayName = contact.name || contact.firstName || "there";
       const signatureHtml = await buildSignatureBlock("resourceCoordinator");
-      const donateHtml = await buildDonateBlock("universal");
+      /* Membership block, NOT the donate block (2026-08-11, Daniel).
+         Case advocacy requires membership at the Friend level, so asking this
+         family for a donation is both the wrong ask and a confusing one — they
+         need to join, not give. Deliberately written flat and warm rather than
+         as a pitch: this arrives in the same email as a consent form, at a
+         moment when a family is already worried about their child. It states
+         the requirement, says what it costs, and gets out of the way. No
+         urgency, no benefits list, no exclamation marks. */
+      const membershipHtml =
+        '<div style="margin:28px 0 8px;padding:18px 20px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;">' +
+          '<p style="margin:0 0 10px;font-size:15px;color:#334155;line-height:1.6">' +
+            'One thing to mention, so nothing catches you by surprise later: case advocacy is ' +
+            'for LDAH members, starting at the Friend level. If you are not a member yet, you can ' +
+            'join below whenever it suits you.' +
+          '</p>' +
+          '<p style="margin:0 0 14px;font-size:15px;color:#334155;line-height:1.6">' +
+            'If membership is difficult right now, please say so — that is a normal thing to tell ' +
+            'us, and it will not stop us helping your family.' +
+          '</p>' +
+          '<p style="text-align:center;margin:0;">' +
+            _emailBtn("https://www.ldahawaii.org/volunteer.html", "Become a member", { bg: "#0E7C4D" }) +
+          '</p>' +
+        '</div>';
       const html = '<!DOCTYPE html><html><head><meta charset="utf-8"></head>' +
         '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
         '<div style="max-width:600px;margin:0 auto;background:#fff">' +
@@ -14822,7 +14930,7 @@ exports.sendCaseAdvocacyAuthorizationLink = functions
         '</p>' +
         '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6">This link expires in 7 days. If you have questions, please reach out anytime.</p>' +
         '<p style="margin:24px 0 4px;font-size:15px;color:#333;line-height:1.5;">With gratitude,</p>' +
-        (donateHtml || '') +
+        membershipHtml +
         (signatureHtml || '') +
         '</div></div></body></html>';
 
@@ -18436,40 +18544,40 @@ exports.scheduledCaseAdvocacyDocLifecycle = functions
 
         const ageDaysMs = nowMs - lastClosedMs;
 
-        // ── Destroy branch ── (>= 3 days since last close)
+        /* ── Destruction is OFF (2026-08-11, Daniel) ────────────────────────
+           This was written on the Connect-Gen model: documents arrive for a
+           session, a determination follows in 48 hours, done. Case advocacy is
+           not that. A case can run a year or more, and the documents are the
+           case — an IEP and evaluations the advocate works from throughout.
+           Deleting them on a timer three days after someone happens to close an
+           interaction destroys live working material.
+
+           The signed release agrees: documents "will be held until a
+           determination is made about receiving additional support with LDAH,
+           such as case advocacy", and are destroyed only if the family does NOT
+           need that support. Nothing in it promises destruction after advocacy.
+
+           So removal is now a deliberate human act. The cron stays, but it only
+           REMINDS: a closed case still holding documents surfaces to the
+           advocate rather than being quietly emptied. Never let a deletion be
+           something nobody decided to do. */
         if (ageDaysMs >= THREE_DAYS_MS) {
-          try {
-            const result = await _destroyCaseAdvocacyStorageFiles(cid, docs);
-            await contactDoc.ref.update({
-              caseAdvocacyDocuments: [],
-              caseAdvocacyDocsDestroyedAt: FieldValue.serverTimestamp(),
-              caseAdvocacyDocsDestroyedBy: "system (3-day post-advocacy)",
-              caseAdvocacyDocsDestroyedReason: "Auto-destroyed 3 days after last Case Advocacy interaction closed",
-            });
-            destroyed++;
-            try {
-              await db.collection("auditLog").add({
-                action: "Case Advocacy documents auto-destroyed (3-day post-close)",
-                details: (contact.name || contact.firstName || "(unknown)") +
-                  " — contact " + cid +
-                  " — files deleted: " + (result.deleted.length || 0) +
-                  (result.errors.length ? " (errors: " + result.errors.join("; ") + ")" : ""),
-                performedBy: "system (auto)",
-                performedByRole: "system",
-                timestamp: FieldValue.serverTimestamp(),
-                contactId: cid,
-              });
-            } catch (e) { console.warn("auditLog write failed:", e.message); }
-          } catch (e) {
-            errors++;
-            console.error("scheduledCaseAdvocacyDocLifecycle destroy failed for contact " + cid + ":", e.message);
-          }
-          continue;
+          // Falls through to the reminder branch below rather than destroying.
         }
 
-        // ── Courtesy-alert branch ── (>= 2 days, < 3 days, alert not yet sent)
+        // ── Reminder branch ── (>= 2 days since close, documents still held)
+        // No upper bound any more: with destruction off, this is the ONLY thing
+        // that surfaces a closed case still holding a family's documents.
         if (ageDaysMs >= TWO_DAYS_MS) {
-          if (contact.caseAdvocacyDocsAlertSentAt) { skipped++; continue; }
+          // Re-remind every 30 days rather than once, so a case closed months
+          // ago does not fall silent while still holding an IEP.
+          const lastAlert = contact.caseAdvocacyDocsAlertSentAt;
+          let lastAlertMs = null;
+          try {
+            if (lastAlert && typeof lastAlert.toMillis === "function") lastAlertMs = lastAlert.toMillis();
+            else if (lastAlert) lastAlertMs = new Date(lastAlert).getTime();
+          } catch (_) { lastAlertMs = null; }
+          if (lastAlertMs && (nowMs - lastAlertMs) < 30 * 24 * 60 * 60 * 1000) { skipped++; continue; }
           try {
             // Send in-app notification to the advocate (owner uid of most-recent
             // closed advocacy). Skip notification when no uid is known; the
