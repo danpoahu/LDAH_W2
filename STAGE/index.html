@@ -765,7 +765,37 @@
             // Only show events that have a flyer in the home-page Upcoming
             // Events section — flyer-less events (e.g. booth/kiosk special
             // events) don't render a bare placeholder card here. (2026-07-24)
-            const allCards = [...currentEvents, ...recurringCards.slice(0,1)].filter(c => c.imageUrl).slice(0, 2);
+            /* ── Home rotation ────────────────────────────────────────────
+               Staff tick what they want shown in LDAH-Int (CMS > Home Rotation),
+               which sets homeRotation:true. When anything is ticked, the two
+               cards come from that pool instead of "the two newest with a
+               flyer"; when nothing is, behaviour is exactly as it was.
+
+               "Don't show the same twice" is remembered in localStorage, not a
+               cookie: a cookie would be sent to the server on every request for
+               no reason. It is per-browser, so a visitor on their phone and then
+               their laptop may see a repeat — which Daniel decided is fine.
+
+               Once someone has seen everything, the list clears and starts
+               again rather than showing them nothing. */
+            const _rotPool = [...currentEvents, ...recurringCards]
+              .filter(c => c.homeRotation === true && c.imageUrl);
+            let allCards;
+            if (_rotPool.length) {
+              let seen = [];
+              try { seen = JSON.parse(localStorage.getItem('ldah_home_seen') || '[]'); } catch (_) { seen = []; }
+              let unseen = _rotPool.filter(c => seen.indexOf(c.id) === -1);
+              if (!unseen.length) { seen = []; unseen = _rotPool; }   // full cycle — start over
+              allCards = unseen.slice(0, 2);
+              try {
+                localStorage.setItem('ldah_home_seen',
+                  JSON.stringify(seen.concat(allCards.map(c => c.id)).slice(-60)));
+              } catch (_) {}
+            } else {
+              // Unchanged fallback: the two newest that have a flyer. A
+              // flyer-less event (booth/kiosk) never renders a bare card here.
+              allCards = [...currentEvents, ...recurringCards.slice(0,1)].filter(c => c.imageUrl).slice(0, 2);
+            }
 
             // Information section = one-time infoOnly events (within their date
             // window) + ongoing flyer-only programs. Hidden when empty.
