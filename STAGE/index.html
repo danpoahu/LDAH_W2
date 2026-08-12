@@ -778,8 +778,19 @@
 
                Once someone has seen everything, the list clears and starts
                again rather than showing them nothing. */
-            const _rotPool = [...currentEvents, ...recurringCards]
-              .filter(c => c.homeRotation === true && c.imageUrl);
+            // A multi-session event contributes one entry PER ticked session, so
+            // August Learning Labs can put IDEA/Chapter 60 in front of one visitor
+            // and Understanding Evaluations in front of the next.
+            const _rotPool = [];
+            [...currentEvents, ...recurringCards].forEach(c => {
+              if (!c.imageUrl) return;
+              const picked = Array.isArray(c.homeRotationDates) ? c.homeRotationDates : [];
+              if (picked.length) {
+                picked.forEach(lbl => _rotPool.push({ ...c, id: c.id + '::' + lbl, _rotSession: lbl }));
+              } else if (c.homeRotation === true) {
+                _rotPool.push(c);
+              }
+            });
             let allCards;
             if (_rotPool.length) {
               let seen = [];
