@@ -786,18 +786,24 @@
               if (!c.imageUrl) return;
               const picked = Array.isArray(c.homeRotationDates) ? c.homeRotationDates : [];
               if (picked.length) {
-                picked.forEach(lbl => _rotPool.push({ ...c, id: c.id + '::' + lbl, _rotSession: lbl }));
+                picked.forEach(lbl => _rotPool.push({ ...c, id: c.id + '::' + lbl, _rotSession: lbl,
+                  _pinned: String(c.homePinned || '') === lbl }));
               } else if (c.homeRotation === true) {
-                _rotPool.push(c);
+                _rotPool.push({ ...c, _pinned: c.homePinned === true });
               }
             });
+            // A pinned item ignores the already-seen rule entirely: it holds one
+            // of the two slots for every visitor on every visit until unpinned.
+            // That is what "plaster it on the home page" has to mean, or the
+            // person who just announced something waits behind seven flyers.
+            const _pinnedCard = _rotPool.find(c => c._pinned);
             let allCards;
             if (_rotPool.length) {
               let seen = [];
               try { seen = JSON.parse(localStorage.getItem('ldah_home_seen') || '[]'); } catch (_) { seen = []; }
-              let unseen = _rotPool.filter(c => seen.indexOf(c.id) === -1);
-              if (!unseen.length) { seen = []; unseen = _rotPool; }   // full cycle — start over
-              allCards = unseen.slice(0, 2);
+              let unseen = _rotPool.filter(c => seen.indexOf(c.id) === -1 && !c._pinned);
+              if (!unseen.length) { seen = []; unseen = _rotPool.filter(c => !c._pinned); }
+              allCards = _pinnedCard ? [_pinnedCard, ...unseen].slice(0, 2) : unseen.slice(0, 2);
               try {
                 localStorage.setItem('ldah_home_seen',
                   JSON.stringify(seen.concat(allCards.map(c => c.id)).slice(-60)));
