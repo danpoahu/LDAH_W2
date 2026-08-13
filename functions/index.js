@@ -4961,7 +4961,9 @@ async function buildAnalyticsYtdHtml(db, esc, hawaiiNow) {
    Caveat worth knowing: this catches the word "Test", not typos of it. A test
    account saved as "Text Geni Wong" is invisible to this rule — rename it. */
 // More new contacts than this in one day reads as an import, not as walk-ins.
-const BULK_NEW_CONTACT_THRESHOLD = 10;
+// 20, not 10: Daniel's imports run into the hundreds, and a genuinely busy
+// intake day can clear 10 real families without being an import (2026-08-13).
+const BULK_NEW_CONTACT_THRESHOLD = 20;
 
 const REPORT_INTERNAL_EMAILS = [
   "danpellegrini63@gmail.com",   // Daniel's own checkout testing
