@@ -14998,8 +14998,255 @@ const CASE_ADVOCACY_AUTH_VERSION = CONSENT_TEXT_VERSION;
 
 // (1) Staff-only: mint a 16-byte hex token and email the family a link to
 //     the public authorization form.
+// ── Case-advocacy opening letter (2026-08-12) ───────────────────────────────
+// This is Noe's "Case Opening Letter-Consent" (Revised 07/26; ND) as an email.
+// She approved it verbatim on 2026-08-12 on one condition: it must be signed by
+// the advocate actually assigned to the family. So DO NOT reword the body — the
+// only deviations from the PDF are the ones an email forces:
+//   • the postal date/address block is dropped
+//   • "Enclosed is a Consent…" → "Linked below is a Consent…" (a button, not an enclosure)
+//   • the RE: line carries the child's name only — no date of birth is stored
+//     anywhere on a contact, only an age range
+//   • "Enclosures: Consent Form" is dropped — the button is the enclosure
+// Requirement #1 of the letter ("Become a member of LDAH") is deliberately NOT
+// in the numbered list: Daniel's call, membership is offered, never required.
+// The Membership Levels panel below carries the wording from volunteer.html.
+const CASE_ADVOCACY_OPENING_SUBJECT = "Your LDAH Case Advocacy — welcome and next steps";
+
+// The letter tells the family their file may close if consent is not received
+// "within six (6) weeks". A 7-day token contradicted that in the same email.
+const CASE_ADVOCACY_TOKEN_DAYS = 45;
+
+const CASE_ADVOCACY_MEMBERSHIP_URL = "https://www.ldahawaii.org/volunteer.html#membership";
+
+// Look up the assigned advocate's email. presenterStaff (which feeds the
+// advocate picker) stores a name and nothing else, so the address comes from
+// userRoles, matched on displayName. Both collections agree on spelling today
+// (including "Kailawa"), but compare case-insensitively and trimmed anyway.
+async function _caResolveAdvocate(db, advocateName) {
+  const target = String(advocateName || "").trim().toLowerCase();
+  const out = { name: String(advocateName || "").trim(), email: "" };
+  if (!target) return out;
+  try {
+    const snap = await db.collection("userRoles").get();
+    snap.forEach((doc) => {
+      if (out.email) return;
+      const d = doc.data() || {};
+      if (d.isArchived === true) return;
+      if (String(d.displayName || "").trim().toLowerCase() === target) {
+        out.email = String(d.email || "").trim();
+      }
+    });
+  } catch (e) {
+    console.warn("_caResolveAdvocate failed:", e.message);
+  }
+  return out;
+}
+
+const _CA_MONTHS = ["January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"];
+
+// "2026-07-30" → "July 30, 2026". Parsed by regex, never by new Date(), which
+// would shift the day backwards for an HST reader.
+function _caPrettyDate(ymd) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(ymd || ""));
+  if (!m) return "";
+  const mi = parseInt(m[2], 10) - 1;
+  if (mi < 0 || mi > 11) return "";
+  return _CA_MONTHS[mi] + " " + parseInt(m[3], 10) + ", " + m[1];
+}
+
+// The date of the family's Connect-Gen session, for the opening line. Lives on
+// the signup, which the contact points at via connectGenConsent. Session keys
+// are "<date>|<Location – Venue>|<start – end>", so take the leading date.
+// Returns "" when it cannot be established — the sentence has a fallback.
+async function _caConnectGenSessionDate(db, contact) {
+  try {
+    const cg = contact.connectGenConsent || null;
+    if (!cg || !cg.eventId || !cg.signupId) return "";
+    const order = ["recurringEvents", "events"];
+    for (const col of order) {
+      const snap = await db.collection(col).doc(cg.eventId)
+        .collection("signups").doc(cg.signupId).get();
+      if (!snap.exists) continue;
+      const sg = snap.data() || {};
+      const keys = Array.isArray(sg.selectedSessions) ? sg.selectedSessions
+        : (Array.isArray(sg.selectedDates) ? sg.selectedDates : []);
+      for (const k of keys) {
+        const d = _caPrettyDate(String(k || "").split("|")[0].trim());
+        if (d) return d;
+      }
+      const one = _caPrettyDate(sg.sessionDate || sg.date || "");
+      if (one) return one;
+    }
+  } catch (e) {
+    console.warn("_caConnectGenSessionDate failed:", e.message);
+  }
+  return "";
+}
+
+function _caMembershipPanelHtml() {
+  const tier = (label, price) =>
+    '<tr><td style="padding:11px 16px;border-bottom:1px solid #F5F5F4;font-size:14px;color:#14305A;font-weight:700;">' + label + '</td>' +
+    '<td style="padding:11px 16px;border-bottom:1px solid #F5F5F4;font-size:14px;color:#0891B2;font-weight:700;text-align:right;white-space:nowrap;">' +
+    price + ' <span style="color:#A8A29E;font-weight:400;">/ yr</span></td></tr>';
+  return '' +
+  '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:30px 0 8px;background-color:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;">' +
+    '<tr><td style="padding:24px 20px;">' +
+      '<p style="margin:0 0 12px;text-align:center;"><span style="display:inline-block;background-color:#FEF3C7;color:#B45309;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:6px 14px;border-radius:999px;">Membership Levels</span></p>' +
+      '<h2 style="margin:0 0 10px;font-size:20px;line-height:1.3;color:#14305A;font-weight:700;text-align:center;">Choose the level that reflects your commitment</h2>' +
+      '<p style="margin:0 0 6px;font-size:14px;color:#57534E;line-height:1.6;text-align:center;">We invite you to become a member of LDAH and invest in stronger families, informed advocates, and brighter futures.</p>' +
+      '<p style="margin:0 0 20px;font-size:13px;color:#78716C;line-height:1.6;text-align:center;">Every level includes local &amp; national OSERS resources, monthly IDEA &amp; Hawai&#699;i Administrative Rules Chapter 60 materials, current training materials, and our annual newsletter.</p>' +
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;border:2px solid #F97316;border-radius:10px;">' +
+        '<tr><td style="background-color:#F97316;padding:7px 16px;border-radius:8px 8px 0 0;"><span style="font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#ffffff;">Case Advocacy</span></td></tr>' +
+        '<tr><td style="padding:18px 20px 20px;">' +
+          '<p style="margin:0 0 4px;font-size:19px;font-weight:700;color:#14305A;">Friend</p>' +
+          '<p style="margin:0 0 12px;font-size:15px;color:#0891B2;font-weight:700;"><span style="font-size:30px;">$100</span> <span style="color:#78716C;font-weight:400;font-size:14px;">/ year</span></p>' +
+          '<p style="margin:0 0 12px;"><span style="display:inline-block;background-color:#FEF3C7;color:#92400E;font-size:12px;font-weight:700;padding:5px 12px;border-radius:6px;">Eligible for Case Advocacy Services</span></p>' +
+          '<p style="margin:0;font-size:14px;color:#44403C;line-height:1.65;">Your membership directly supports families seeking individualized guidance. Members at this level are eligible to receive LDAH Case Advocacy services when needed, plus all Individual benefits.</p>' +
+          '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:16px 0 0;"><tr><td align="center" bgcolor="#0891B2" style="border-radius:8px;background:#0891B2;">' +
+            '<a href="' + CASE_ADVOCACY_MEMBERSHIP_URL + '" style="display:block;padding:13px 20px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;">Become a Friend</a>' +
+          '</td></tr></table>' +
+        '</td></tr>' +
+      '</table>' +
+      '<p style="margin:22px 0 8px;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#78716C;">Other Levels</p>' +
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;border:1px solid #E7E5E4;border-radius:10px;">' +
+        tier("Individual", "$50") + tier("Supporter", "$200") + tier("Sponsor", "$500") +
+        tier("Partner", "$1,000") +
+        '<tr><td style="padding:11px 16px;font-size:14px;color:#14305A;font-weight:700;">Benefactor</td>' +
+        '<td style="padding:11px 16px;font-size:14px;color:#0891B2;font-weight:700;text-align:right;white-space:nowrap;">$2,500 <span style="color:#A8A29E;font-weight:400;">/ yr</span></td></tr>' +
+      '</table>' +
+      '<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:16px auto 0;"><tr><td align="center" style="border:2px solid #0891B2;border-radius:8px;">' +
+        '<a href="' + CASE_ADVOCACY_MEMBERSHIP_URL + '" style="display:inline-block;padding:11px 26px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;color:#0891B2;text-decoration:none;">See all membership levels</a>' +
+      '</td></tr></table>' +
+    '</td></tr>' +
+  '</table>';
+}
+
+function _buildCaseAdvocacyOpeningEmailHtml(o) {
+  const esc = _emailEsc;
+  const h2 = 'margin:30px 0 10px;font-size:17px;color:#14305A;font-weight:700';
+  const pB = 'margin:0 0 14px;font-size:15px;color:#334155;line-height:1.6';
+  const li = 'margin:0;padding-left:22px;font-size:15px;color:#334155;line-height:1.75';
+
+  const reLine = o.childName
+    ? '<p style="margin:0 0 6px;font-size:13px;color:#64748B">RE: ' + esc(o.childName) + '</p>'
+    : '';
+
+  const openingLine = o.sessionDateLabel
+    ? 'Mahalo for participating in our Connect Gen Session on ' + esc(o.sessionDateLabel) + '.'
+    : 'Mahalo for participating in our recent Connect Gen Session.';
+
+  const sigEmail = o.advocate.email
+    ? 'Email: <a href="mailto:' + esc(o.advocate.email) + '" style="color:#1a73e8;text-decoration:none;">' + esc(o.advocate.email) + '</a><br>'
+    : '';
+
+  return '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1.0"></head>' +
+    '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
+    '<div style="max-width:600px;margin:0 auto;background:#fff">' +
+
+    '<div style="background-color:#1e40af;background:linear-gradient(135deg,#1e40af,#0891B2);padding:18px 24px 22px;text-align:center;color:#fff">' +
+      '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;">' +
+      '<h1 style="margin:0;font-size:22px;font-weight:700">Case Advocacy</h1>' +
+    '</div>' +
+
+    '<div style="padding:32px 24px">' +
+      reLine +
+      '<p style="margin:0 0 18px;font-size:16px">Dear ' + esc(o.parentName) + ',</p>' +
+
+      '<p style="margin:0 0 14px;font-size:16px;color:#334155;line-height:1.6">' + openingLine +
+        ' During the session, you shared concerns regarding your child&rsquo;s educational program and requested additional support through LDAH&rsquo;s Case Advocacy services.</p>' +
+      '<p style="margin:0 0 14px;font-size:16px;color:#334155;line-height:1.6">After reviewing the information discussed, I have been assigned to support you as your Parent Consultant and will be the primary point of contact throughout the advocacy process.</p>' +
+      '<p style="margin:0 0 14px;font-size:16px;color:#334155;line-height:1.6">At Leadership in Disabilities &amp; Achievement of Hawai&#699;i (LDAH), we believe that parents and caregivers are their child&rsquo;s first and most important advocates. Our role is to provide information, guidance, support, and skill-building opportunities that help families make informed decisions and effectively participate in their child&rsquo;s educational journey.</p>' +
+
+      '<h2 style="' + h2 + '">What to Expect from Case Advocacy</h2>' +
+      '<p style="margin:0 0 10px;font-size:15px;color:#334155;line-height:1.6">Case Advocacy is a partnership between your family and LDAH. Together, we will:</p>' +
+      '<ul style="' + li + '">' +
+        '<li>Identify and prioritize your primary concerns.</li>' +
+        '<li>Review educational records and relevant documentation.</li>' +
+        '<li>Discuss your rights and responsibilities under special education law.</li>' +
+        '<li>Develop strategies to address concerns and improve educational outcomes.</li>' +
+        '<li>Prepare for meetings and communication with schools and service providers.</li>' +
+        '<li>Connect you with resources, training opportunities, and community supports.</li>' +
+      '</ul>' +
+
+      '<h2 style="' + h2 + '">Family Participation Requirements</h2>' +
+      '<p style="margin:0 0 10px;font-size:15px;color:#334155;line-height:1.6">To ensure families receive the greatest benefit from our services, we ask that all families participating in Case Advocacy:</p>' +
+      '<ol style="' + li + '">' +
+        '<li>Actively participate in scheduled meetings and communications.</li>' +
+        '<li>Gather and organize important records discussed during Connect Gen, including:' +
+          '<ul style="margin:6px 0 6px;padding-left:20px;line-height:1.7">' +
+            '<li>Current and previous IEPs</li>' +
+            '<li>Evaluations and assessment reports</li>' +
+            '<li>Progress reports and report cards</li>' +
+            '<li>School correspondence</li>' +
+            '<li>Medical or service provider reports</li>' +
+          '</ul>' +
+        '</li>' +
+        '<li>Complete the document highlighting process discussed during your Connect Gen Session.</li>' +
+        '<li>Complete LDAH&rsquo;s core advocacy training series within three (3) months of case assignment, including:' +
+          '<ul style="margin:6px 0 6px;padding-left:20px;line-height:1.7">' +
+            '<li>IDEA &amp; Chapter 60</li>' +
+            '<li>Understanding Evaluations</li>' +
+            '<li>Developing an Effective IEP</li>' +
+          '</ul>' +
+        '</li>' +
+      '</ol>' +
+      '<p style="margin:10px 0 0;padding-left:22px;font-size:15px;color:#334155;line-height:1.6">These training courses provide the foundation necessary for meaningful participation in the special education process and strengthen your ability to advocate effectively for your child.</p>' +
+
+      '<h2 style="' + h2 + '">Consent to Communicate</h2>' +
+      '<p style="' + pB + '">Linked below is a Consent for Release and Exchange of Information form. This form allows LDAH to communicate with schools, agencies, service providers, or other individuals involved in your child&rsquo;s education when necessary.</p>' +
+      _emailBtn(o.authUrl, "Read & Sign the Consent Form", { bg: "#0891B2" }) +
+      '<p style="margin:16px 0 14px;font-size:15px;color:#334155;line-height:1.6">Please review, sign, and return the consent form as soon as possible. If there is anyone you do not wish us to contact, or if you have questions regarding the consent, please contact me before signing the consent.</p>' +
+
+      '<h2 style="' + h2 + '">Confidentiality</h2>' +
+      '<p style="margin:0 0 12px;font-size:15px;color:#334155;line-height:1.6">All information shared with LDAH will remain confidential and maintained in accordance with agency policies and procedures. Case files are typically maintained for approximately six (6) months. At the conclusion of your case, you will be offered the opportunity to retrieve any original documents or request that records be securely destroyed.</p>' +
+      '<p style="' + pB + '">Please note that LDAH does not provide legal advice or legal representation.</p>' +
+
+      '<h2 style="' + h2 + '">Paying It Forward</h2>' +
+      '<p style="' + pB + '">As your case concludes, we may invite you to participate in our Parents as Partners (PAP) program. This volunteer opportunity allows families to share their experiences, skills, and encouragement with other parents who are beginning their own advocacy journey. Your story and experience can help strengthen the community of families supporting children with disabilities across Hawai&#699;i and the Pacific.</p>' +
+
+      _caMembershipPanelHtml() +
+
+      '<h2 style="' + h2 + '">Important Notice</h2>' +
+      '<p style="' + pB + '">Due to the high demand for Case Advocacy services, your file may be closed if we do not receive the signed consent form or are unable to establish contact with you within six (6) weeks of the date of this letter.</p>' +
+
+      '<p style="margin:20px 0 16px;font-size:15px;color:#334155;line-height:1.6">We look forward to partnering with you and supporting your family as you navigate the special education process and work toward positive outcomes for your child.</p>' +
+
+      '<p style="margin:26px 0 4px;font-size:15px;color:#333;line-height:1.5;">With Aloha,</p>' +
+      '<p style="margin:16px 0 2px;font-size:14px;color:#555555;line-height:1.5;">' +
+        '<strong>' + esc(o.advocate.name) + '</strong><br>' +
+        'Parent Consultant<br>' +
+        'Leadership in Disabilities &amp; Achievement of Hawai&#699;i (LDAH)<br>' +
+        '245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>' +
+        'Phone: (808) 536-9684<br>' +
+        sigEmail +
+        '<a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>' +
+      '</p>' +
+    '</div>' +
+
+    '<div style="background-color:#f0f0f0;padding:24px 32px;text-align:center;border-top:1px solid #dddddd;">' +
+      '<p style="margin:0 0 4px;font-size:13px;color:#777777;font-weight:bold;">Leadership in Disabilities &amp; Achievement of Hawai&#699;i</p>' +
+      '<p style="margin:0 0 4px;font-size:12px;color:#999999;">245 N. Kukui St., Suite 205, Honolulu, HI 96817</p>' +
+      '<p style="margin:0 0 4px;font-size:12px;color:#999999;">Phone: (808) 536-9684</p>' +
+      '<p style="margin:0;font-size:12px;color:#999999;">Email: <a href="mailto:rrowe@ldahawaii.org" style="color:#999999;">rrowe@ldahawaii.org</a></p>' +
+    '</div>' +
+
+    '</div></body></html>';
+}
+
+// (1) Staff-only: mint a token and email the family the case opening letter
+//     with a link to the public authorization form.
+//
+//     Body: { idToken, contactId, advocateName?, force?, previewOnly? }
+//       advocateName — who signs. Omitted → read from the family's OPEN
+//                      case-advocacy task. No advocate anywhere → 409, because
+//                      the letter is signed by the assigned consultant.
+//       force        — resend even though it has already been sent once.
+//       previewOnly  — render and return the HTML; send nothing, write nothing.
 exports.sendCaseAdvocacyAuthorizationLink = functions
-  .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: EMAIL_SECRETS })
+  .runWith({ timeoutSeconds: 60, maxInstances: 10, secrets: EMAIL_SECRETS })
   .https.onRequest(async (req, res) => {
     res.set("Access-Control-Allow-Origin", "*");
     res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -15009,6 +15256,8 @@ exports.sendCaseAdvocacyAuthorizationLink = functions
 
     const body = req.body || {};
     const contactId = String(body.contactId || "").trim();
+    const force = body.force === true;
+    const previewOnly = body.previewOnly === true;
     if (!contactId) { res.status(400).json({ error: "Missing contactId" }); return; }
 
     let staff;
@@ -15027,76 +15276,100 @@ exports.sendCaseAdvocacyAuthorizationLink = functions
       const contact = contactSnap.data() || {};
       if (!contact.email) { res.status(400).json({ error: "Contact has no email address on file." }); return; }
 
-      const token = crypto.randomBytes(16).toString("hex");
-      const expiresAt = admin.firestore.Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
-      await contactRef.update({
-        caseAdvocacyAuthToken: token,
-        caseAdvocacyAuthTokenExpiresAt: expiresAt,
+      // Sent once per family. Re-ticking the checkbox, reassigning the advocate
+      // or clicking the button again must not re-send a case opening letter.
+      if (!previewOnly && !force && contact.caseAdvocacyOpeningEmailSentAt) {
+        let when = "";
+        try { when = contact.caseAdvocacyOpeningEmailSentAt.toDate().toISOString().slice(0, 10); } catch (e) {}
+        res.status(200).json({ ok: true, skipped: "already-sent", sentAt: when });
+        return;
+      }
+
+      // Who signs. The letter is signed by the assigned Parent Consultant, so
+      // without one there is nothing legitimate to put at the bottom.
+      let advocateName = String(body.advocateName || "").trim();
+      if (!advocateName) {
+        try {
+          const ixSnap = await db.collection("interactions")
+            .where("contactId", "==", contactId).get();
+          ixSnap.forEach((doc) => {
+            if (advocateName) return;
+            const x = doc.data() || {};
+            if (x.workflowStep === "caseAdvocacy" && x.status === "Open" &&
+                x.needsAdvocateAssignment !== true) {
+              advocateName = String(x.owner || "").trim();
+            }
+          });
+        } catch (e) { console.warn("advocate lookup failed:", e.message); }
+      }
+      if (!advocateName) {
+        res.status(409).json({ error: "No parent consultant is assigned yet — the letter is signed by the assigned consultant, so assign one first." });
+        return;
+      }
+      const advocate = await _caResolveAdvocate(db, advocateName);
+
+      const childName = (Array.isArray(contact.children) ? contact.children : [])
+        .map((c) => String((c && c.name) || "").trim()).filter(Boolean).join(" and ");
+      const parentName = contact.name ||
+        [contact.firstName, contact.lastName].filter(Boolean).join(" ") || "there";
+      const sessionDateLabel = await _caConnectGenSessionDate(db, contact);
+
+      // previewOnly renders with a placeholder link — no token is minted, so
+      // nothing about the family's live record changes.
+      let token = "";
+      if (!previewOnly) {
+        token = crypto.randomBytes(16).toString("hex");
+        await contactRef.update({
+          caseAdvocacyAuthToken: token,
+          caseAdvocacyAuthTokenExpiresAt: admin.firestore.Timestamp.fromDate(
+            new Date(Date.now() + CASE_ADVOCACY_TOKEN_DAYS * 24 * 60 * 60 * 1000)),
+        });
+      }
+      const authUrl = "https://www.ldahawaii.org/case-advocacy-authorization.html" +
+        (token ? "?token=" + token : "");
+
+      const html = _buildCaseAdvocacyOpeningEmailHtml({
+        parentName: parentName,
+        childName: childName,
+        sessionDateLabel: sessionDateLabel,
+        authUrl: authUrl,
+        advocate: advocate,
       });
 
-      const authUrl = "https://www.ldahawaii.org/case-advocacy-authorization.html?token=" + token;
-      const displayName = contact.name || contact.firstName || "there";
-      const signatureHtml = await buildSignatureBlock("resourceCoordinator");
-      /* Membership block, NOT the donate block (2026-08-11, Daniel).
-         Case advocacy requires membership at the Friend level, so asking this
-         family for a donation is both the wrong ask and a confusing one — they
-         need to join, not give. Deliberately written flat and warm rather than
-         as a pitch: this arrives in the same email as a consent form, at a
-         moment when a family is already worried about their child. It states
-         the requirement, says what it costs, and gets out of the way. No
-         urgency, no benefits list, no exclamation marks. */
-      const membershipHtml =
-        '<div style="margin:28px 0 8px;padding:18px 20px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;">' +
-          '<p style="margin:0 0 10px;font-size:15px;color:#334155;line-height:1.6">' +
-            'One thing to mention, so nothing catches you by surprise later: case advocacy is ' +
-            'for LDAH members, starting at the Friend level. If you are not a member yet, you can ' +
-            'join below whenever it suits you.' +
-          '</p>' +
-          '<p style="margin:0 0 14px;font-size:15px;color:#334155;line-height:1.6">' +
-            'If membership is difficult right now, please say so — that is a normal thing to tell ' +
-            'us, and it will not stop us helping your family.' +
-          '</p>' +
-          '<p style="text-align:center;margin:0;">' +
-            _emailBtn("https://www.ldahawaii.org/volunteer.html", "Become a member", { bg: "#0E7C4D" }) +
-          '</p>' +
-        '</div>';
-      const html = '<!DOCTYPE html><html><head><meta charset="utf-8"></head>' +
-        '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
-        '<div style="max-width:600px;margin:0 auto;background:#fff">' +
-        '<div style="background-color:#1e40af;background:linear-gradient(135deg,#1e40af,#0891B2);padding:18px 24px 22px;text-align:center;color:#fff">' +
-        '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;">' +
-        '<h1 style="margin:0;font-size:22px;font-weight:700">Action Required</h1></div>' +
-        '<div style="padding:32px 24px">' +
-        '<p style="margin:0 0 16px;font-size:16px">Aloha ' + lifecycleEsc(displayName) + ',</p>' +
-        '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">LDAH would like to begin case advocacy support for your family. Before we can proceed, we need a signed authorization on file giving LDAH permission to receive, view, and discuss your child\'s confidential documents.</p>' +
-        '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Please read and sign the authorization by clicking the button below.</p>' +
-        '<p style="text-align:center;margin:32px 0">' +
-        _emailBtn(authUrl, "Read & Sign the Authorization", { bg: "#0891B2" }) +
-        '</p>' +
-        '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6">This link expires in 7 days. If you have questions, please reach out anytime.</p>' +
-        '<p style="margin:24px 0 4px;font-size:15px;color:#333;line-height:1.5;">With gratitude,</p>' +
-        membershipHtml +
-        (signatureHtml || '') +
-        '</div></div></body></html>';
+      if (previewOnly) {
+        res.status(200).json({
+          ok: true, previewOnly: true, to: contact.email,
+          subject: CASE_ADVOCACY_OPENING_SUBJECT,
+          advocate: advocate, childName: childName,
+          sessionDateLabel: sessionDateLabel, html: html,
+        });
+        return;
+      }
 
-      const fromAddress = lifecycleFromAddress();
       await sendEmailViaResend({
-        from: fromAddress,
+        from: lifecycleFromAddress(),
         to: contact.email,
-        subject: "Action required — Case Advocacy Authorization",
+        subject: CASE_ADVOCACY_OPENING_SUBJECT,
         html,
-        type: "case-advocacy-auth-link",
+        type: "case-advocacy-opening-letter",
         relatedContactId: contactId,
-        recipientName: displayName,
+        recipientName: parentName,
+      });
+
+      await contactRef.update({
+        caseAdvocacyOpeningEmailSentAt: FieldValue.serverTimestamp(),
+        caseAdvocacyOpeningEmailTo: contact.email,
+        caseAdvocacyOpeningEmailAdvocate: advocate.name,
       });
 
       const performedBy = staff.email || staff.name || staff.uid;
       try {
-        const db2 = db;
-        await db2.collection("auditLog").add({
-          action: "Case-advocacy authorization link sent",
+        await db.collection("auditLog").add({
+          action: "Case-advocacy opening letter sent",
           details: (contact.name || contact.firstName || "(unknown)") +
-            " — contact " + contactId + " — email: " + contact.email,
+            " — contact " + contactId + " — email: " + contact.email +
+            " — signed by " + advocate.name +
+            (force ? " (forced resend)" : ""),
           performedBy,
           performedByRole: staff.role,
           timestamp: FieldValue.serverTimestamp(),
@@ -15104,7 +15377,7 @@ exports.sendCaseAdvocacyAuthorizationLink = functions
         });
       } catch (e) { console.warn("auditLog write failed:", e.message); }
 
-      res.status(200).json({ ok: true });
+      res.status(200).json({ ok: true, sentTo: contact.email, advocate: advocate.name });
     } catch (err) {
       console.error("sendCaseAdvocacyAuthorizationLink error:", err.message);
       res.status(500).json({ error: err.message });
