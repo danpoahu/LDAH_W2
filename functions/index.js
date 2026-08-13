@@ -4994,12 +4994,37 @@ async function buildAdvocacyMembershipGapHtml(db) {
     try { cSnap = await db.collection("contacts").doc(cid).get(); } catch (_) { continue; }
     if (!cSnap.exists) continue;
     const c = cSnap.data() || {};
-    const paid = String(c.membershipStatus || "").toLowerCase() === "paid";
-    if (paid) continue;
+    // Use the SAME membership test as the rest of the app (_membershipIsActive).
+    // A family who pays through checkout is stamped membershipStatus:"active" by
+    // onMembershipPaid, while the PayPal reconciliation webhook stamps "paid" —
+    // two writers, two words, both meaning paid. Testing only for "paid" flagged
+    // every member who came through the normal checkout, including Friend-level
+    // families in good standing, and printed "active" next to their name in a
+    // section titled "without a paid membership" (found 2026-08-13).
+    if (_membershipIsActive(c)) continue;
+
+    // Say WHY they are listed instead of echoing the raw status word — an
+    // expired member still reads "active" in that field, which is exactly what
+    // made this section unreadable.
+    let state;
+    const _statusPaidish = c.membershipStatus === "active" || c.membershipStatus === "paid";
+    const _expMs = (c.membershipExpiresAt && typeof c.membershipExpiresAt.toMillis === "function")
+      ? c.membershipExpiresAt.toMillis() : null;
+    if (!c.membershipStatus) {
+      state = "no membership";
+    } else if (_statusPaidish && _expMs !== null && _expMs <= Date.now()) {
+      state = "expired " + new Date(_expMs).toLocaleDateString("en-US",
+        { month: "short", day: "numeric", year: "numeric", timeZone: "Pacific/Honolulu" });
+    } else if (_statusPaidish && !c.isMember) {
+      state = String(c.membershipStatus) + " (not flagged as a member)";
+    } else {
+      state = String(c.membershipStatus);
+    }
+
     rows.push({
       name: c.name || c.displayName || "(no name)",
       email: c.email || "",
-      state: c.membershipStatus ? String(c.membershipStatus) : "no membership",
+      state: state,
       started: new Date(info.ms).toLocaleDateString("en-US",
         { month: "short", day: "numeric", year: "numeric", timeZone: "Pacific/Honolulu" }),
       open: info.status === "Open",
