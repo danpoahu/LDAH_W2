@@ -13698,6 +13698,135 @@ async function _findConnectGenSignupDoc(eventId, signupId, preferredCollection) 
   return null;
 }
 
+// ── Case-advocacy allocation (2026-08-12) ───────────────────────────────────
+// All case advocacy at LDAH is allocated by one coordinator. Dispositioning a
+// Connect-Gen family to Case Advocacy used to stamp the signup and write an
+// audit line and nothing else — no task, no notification, nobody assigned — so
+// a family could be sent down the advocacy path with no one holding the case.
+// This raises the same canonical per-contact task the dashboard raises, owned
+// by the coordinator, so she can allocate a parent consultant.
+//
+// Deliberately skipped when the dashboard calls this endpoint as part of
+// turning advocacy on from an interaction (source: "advocacyRetention"):
+// spawnOrReassignCaseAdvocacy is already creating or reassigning that task,
+// and raising one here would ping her about a case that already has an
+// advocate named.
+const CASE_ADVOCACY_COORDINATOR_NAME = "Noelani Dela Vega";
+
+async function _raiseCaseAdvocacyAssignmentTask(db, FieldValue, signup, signupId, performedBy) {
+  const signupName = signup.name ||
+    [signup.firstName, signup.lastName].filter(Boolean).join(" ") || "";
+
+  // Signups carry no contactId — the link lives on the CONTACT
+  // (connectGenConsent.signupId), so it has to be looked up in reverse.
+  // Without it the task cannot dedupe and will not surface on the contact card.
+  let contactId = "";
+  let contactName = signupName;
+  let contactType = "";
+  try {
+    const cSnap = await db.collection("contacts")
+      .where("connectGenConsent.signupId", "==", signupId).limit(1).get();
+    if (!cSnap.empty) {
+      contactId = cSnap.docs[0].id;
+      const c = cSnap.docs[0].data() || {};
+      contactName = c.name ||
+        [c.firstName, c.lastName].filter(Boolean).join(" ") || signupName;
+      contactType = c.contactType || "";
+    }
+  } catch (e) {
+    console.warn("advocacy task: contact lookup failed:", e.message);
+  }
+
+  // Same per-contact idempotency the dashboard uses: ONE open case-advocacy
+  // task per family, never one per trigger. Query by contactId alone (single
+  // field, no composite index) and filter in code.
+  if (contactId) {
+    try {
+      const ex = await db.collection("interactions")
+        .where("contactId", "==", contactId).get();
+      let existingId = "";
+      ex.forEach((doc) => {
+        if (existingId) return;
+        const x = doc.data() || {};
+        if (x.workflowStep === "caseAdvocacy" && x.status === "Open") existingId = doc.id;
+      });
+      if (existingId) {
+        return { created: false, reason: "a case-advocacy task is already open", interactionId: existingId };
+      }
+    } catch (e) {
+      console.warn("advocacy task: dedup lookup failed:", e.message);
+    }
+  }
+
+  // Resolve the coordinator by email; fall back to the known uid this file
+  // already uses for Connect-Gen alerts if userRoles cannot be read.
+  let uid = "";
+  try {
+    const uSnap = await db.collection("userRoles").get();
+    const target = String(CONNECT_GEN_ALERT_CC_EMAIL).trim().toLowerCase();
+    uSnap.forEach((doc) => {
+      if (uid) return;
+      const d = doc.data() || {};
+      if (d.isArchived === true) return;
+      if (String(d.email || "").trim().toLowerCase() === target) uid = doc.id;
+    });
+  } catch (e) {
+    console.warn("advocacy task: coordinator lookup failed:", e.message);
+  }
+  if (!uid) uid = CONNECT_GEN_ALERT_CC_UID;
+
+  // en-CA gives YYYY-MM-DD, which is the format followUpDate is stored in.
+  const todayHst = new Date().toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
+  const who = contactName || "a Connect-Gen family";
+
+  let notes = "Connect-Gen disposition set to Case Advocacy by " + performedBy +
+    " on " + todayHst + ". No advocate was chosen at that point, so this was " +
+    "raised to " + CASE_ADVOCACY_COORDINATOR_NAME + " to assign a parent consultant.";
+  if (!contactId) {
+    notes += "\nNo contact record could be matched to this signup, so this task " +
+      "is not linked to a contact card — link it by hand.";
+  }
+
+  const ref = await db.collection("interactions").add({
+    channel: "Case Advocacy",
+    interactionType: "Case Advocacy",
+    workflowStep: "caseAdvocacy",
+    contactId: contactId,
+    contactName: contactName,
+    contactType: contactType,
+    summary: "Case advocacy — assign a parent consultant for " + who,
+    notes: notes,
+    followUpDate: todayHst,
+    status: "Open",
+    owner: CASE_ADVOCACY_COORDINATOR_NAME,
+    ownerUid: uid,
+    needsAdvocateAssignment: true,
+    caseAdvocacySignupId: signupId,
+    createdBy: performedBy,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  if (uid) {
+    try {
+      await db.collection("notifications").add({
+        recipientUid: uid,
+        recipientName: CASE_ADVOCACY_COORDINATOR_NAME,
+        type: "case-advocacy-needs-advocate",
+        title: "Assign a parent consultant for " + who,
+        message: performedBy + " marked " + who + " as Case Advocacy from Connect-Gen. " +
+          "No advocate has been chosen yet — please assign a parent consultant.",
+        interactionId: ref.id,
+        read: false,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      console.warn("advocacy task: notifications write failed:", e.message);
+    }
+  }
+
+  return { created: true, interactionId: ref.id, uid: uid, contactId: contactId };
+}
+
 exports.setConnectGenDisposition = functions
   .runWith({ timeoutSeconds: 60, maxInstances: 10 })
   .https.onRequest(async (req, res) => {
@@ -13756,6 +13885,22 @@ exports.setConnectGenDisposition = functions
 
       await ref.update(updates);
 
+      // All advocacy runs through the coordinator — raise her the assignment
+      // task unless the dashboard is calling this as part of its own advocacy
+      // flow, which already owns that task.
+      let advocacyTask = null;
+      if (disposition === "caseAdvocacy" && String(body.source || "") !== "advocacyRetention") {
+        try {
+          advocacyTask = await _raiseCaseAdvocacyAssignmentTask(
+            db, FieldValue, signup, signupId, performedBy);
+        } catch (e) {
+          // Never fail the disposition over the task — the disposition is the
+          // record of consent, the task is follow-up. Logged loudly instead.
+          console.error("raiseCaseAdvocacyAssignmentTask failed:", e.message);
+          advocacyTask = { created: false, error: e.message };
+        }
+      }
+
       const dispLabel = disposition === "noSupport"
         ? "No Additional Support (documents destroyed)"
         : "Case Advocacy (documents retained)";
@@ -13771,7 +13916,7 @@ exports.setConnectGenDisposition = functions
         });
       } catch (e) { console.warn("auditLog write failed:", e.message); }
 
-      res.status(200).json({ ok: true });
+      res.status(200).json({ ok: true, advocacyTask: advocacyTask });
     } catch (err) {
       console.error("setConnectGenDisposition error:", err.message);
       res.status(500).json({ error: err.message });
