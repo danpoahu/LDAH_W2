@@ -4949,6 +4949,36 @@ async function buildAnalyticsYtdHtml(db, esc, hawaiiNow) {
 // backup is <= 8 days old; amber warning when older or missing (a weekly run
 // was likely missed). Runs as the App Engine default SA, which holds
 // roles/datastore.backupsViewer (granted 2026-07-27). Never throws.
+/* Internal and test records, kept out of staff-facing reports.
+
+   Mirrors the exclusions the Membership Report already uses, with ONE
+   deliberate difference Daniel asked for (2026-08-13): the name test matches
+   "test" only as a WHOLE WORD, first or last. The Membership Report matches it
+   as a substring, which also catches "Chester McTester" — fine there, wrong
+   here, where a real family called Testa or Chester would silently vanish from
+   the daily activity feed.
+
+   Caveat worth knowing: this catches the word "Test", not typos of it. A test
+   account saved as "Text Geni Wong" is invisible to this rule — rename it. */
+// More new contacts than this in one day reads as an import, not as walk-ins.
+const BULK_NEW_CONTACT_THRESHOLD = 10;
+
+const REPORT_INTERNAL_EMAILS = [
+  "danpellegrini63@gmail.com",   // Daniel's own checkout testing
+  "info@discovermore.app",       // Chester McTester
+];
+
+function isInternalOrTestRecord(name, email) {
+  const e = String(email || "").trim().toLowerCase();
+  if (e) {
+    if (/@ldahawaii\.org$/.test(e)) return true;          // staff, not the public
+    if (REPORT_INTERNAL_EMAILS.indexOf(e) !== -1) return true;
+  }
+  // \btest\b — "Test La'a", "Leilani Test", "Test Geni Wong" go; "Testa" stays.
+  if (/\btest\b/i.test(String(name || ""))) return true;
+  return false;
+}
+
 /* Case advocacy without a paid membership.
    Advocacy requires membership at the Friend level, so an advocate can be deep
    in a case for a family who never joined — nobody finds out until someone
@@ -5545,6 +5575,7 @@ async function runDailyReport(overrideRecipients, opts) {
       const groups = new Map();
       const singles = [];
       const newContacts = [];
+      const unattached = [];
       raw.forEach((it) => {
         if (it.single) { singles.push(it); return; }
         if (it.kind === "newContact") { newContacts.push(it); return; }
@@ -5563,8 +5594,24 @@ async function runDailyReport(overrideRecipients, opts) {
         let attached = null, best = -1;
         groups.forEach((g) => { if (g.person === nc.person && g.sort > best) { best = g.sort; attached = g; } });
         if (attached) { attached.newContact = true; if ((nc.sort || 0) > attached.sort) { attached.sort = nc.sort || 0; attached.time = nc.time || attached.time; } }
-        else { singles.push({ single: true, icon: "&#128100;", text: `New contact created: <strong>${escFn(nc.person)}</strong>${nc.source ? " (from " + escFn(nc.source) + ")" : ""}`, time: nc.time, sort: nc.sort || 0 }); }
+        else { unattached.push(nc); }
       });
+      // A bulk import would otherwise bury the day's real activity under
+      // hundreds of "New contact created" lines. Past the threshold they
+      // collapse to one line naming the sources.
+      if (unattached.length > BULK_NEW_CONTACT_THRESHOLD) {
+        const srcs = Array.from(new Set(unattached.map((n) => n.source).filter(Boolean)));
+        const newest = unattached.reduce((a, b) => ((b.sort || 0) > (a.sort || 0) ? b : a), unattached[0]);
+        singles.push({
+          single: true, icon: "&#128100;",
+          text: `<strong>${unattached.length} new contacts created</strong>` +
+            (srcs.length ? ` (from ${escFn(srcs.join(", "))})` : "") +
+            ` <span style="color:#999;">&mdash; bulk import, individual lines hidden</span>`,
+          time: newest.time, sort: newest.sort || 0,
+        });
+      } else {
+        unattached.forEach((nc) => singles.push({ single: true, icon: "&#128100;", text: `New contact created: <strong>${escFn(nc.person)}</strong>${nc.source ? " (from " + escFn(nc.source) + ")" : ""}`, time: nc.time, sort: nc.sort || 0 }));
+      }
       const lines = [];
       groups.forEach((g) => {
         let verb;
@@ -5591,7 +5638,7 @@ async function runDailyReport(overrideRecipients, opts) {
         const parentRef = doc.ref.parent.parent;
         const parentDoc = await parentRef.get();
         const evTitle = (parentDoc.data() || {}).title || "Unknown Event";
-        rawChanges.push({ kind: "signup", person: nd.name || "Someone", event: evTitle, time: fmtTs(nd.timestamp), sort: nd.timestamp ? (nd.timestamp.seconds || 0) : 0 });
+        rawChanges.push({ kind: "signup", person: nd.name || "Someone", email: nd.email || "", event: evTitle, time: fmtTs(nd.timestamp), sort: nd.timestamp ? (nd.timestamp.seconds || 0) : 0 });
       }
     } catch (err) { console.warn("Changelog signups:", err.message); }
 
@@ -5603,7 +5650,7 @@ async function runDailyReport(overrideRecipients, opts) {
         const parentRef = doc.ref.parent.parent;
         const parentDoc = await parentRef.get();
         const pTitle = (parentDoc.data() || {}).title || "Unknown Event";
-        rawChanges.push({ kind: "completedReg", person: cd.name || "Someone", event: pTitle, time: fmtTs(cd.registrationCompletedAt), sort: cd.registrationCompletedAt ? (cd.registrationCompletedAt.seconds || 0) : 0 });
+        rawChanges.push({ kind: "completedReg", person: cd.name || "Someone", email: cd.email || "", event: pTitle, time: fmtTs(cd.registrationCompletedAt), sort: cd.registrationCompletedAt ? (cd.registrationCompletedAt.seconds || 0) : 0 });
       }
     } catch (err) { console.warn("Changelog regs:", err.message); }
 
@@ -5621,7 +5668,7 @@ async function runDailyReport(overrideRecipients, opts) {
       const ctSnap = await db.collection("contacts").where("createdAt", ">=", cutoffTimestamp).get();
       ctSnap.forEach((c) => {
         const cdata = c.data();
-        rawChanges.push({ kind: "newContact", person: cdata.displayName || cdata.firstName || "Unknown", source: cdata.source || "", time: fmtTs(cdata.createdAt), sort: cdata.createdAt ? (cdata.createdAt.seconds || 0) : 0 });
+        rawChanges.push({ kind: "newContact", person: cdata.displayName || cdata.firstName || "Unknown", email: cdata.email || "", source: cdata.source || "", time: fmtTs(cdata.createdAt), sort: cdata.createdAt ? (cdata.createdAt.seconds || 0) : 0 });
       });
     } catch (err) { console.warn("Changelog contacts:", err.message); }
 
@@ -5659,7 +5706,13 @@ async function runDailyReport(overrideRecipients, opts) {
       if (action === "Archived signup") { m = details.match(/^(.*?)\s+—\s+(.*)$/); if (m) return { kind: "status", person: m[1], event: m[2], statusWord: "archived" }; }
       if (action === "Restored signup") { m = details.match(/^(.*?)\s+—\s+(.*)$/); if (m) return { kind: "status", person: m[1], event: m[2], statusWord: "restored" }; }
       if (action === "Rescheduled signup") { m = details.match(/^(.*?)\s+—\s+from\s+(.*?)\s+to\s+(.*)$/); if (m) return { single: true, icon: "&#128197;", text: `<strong>${esc(m[1])}</strong> was rescheduled from ${esc(m[2])} to ${esc(m[3])}` }; }
-      if (action === "Saved attendance") return { single: true, icon: "&#9989;", text: `Attendance saved — <em>${esc(details)}</em>` };
+      // Admin bookkeeping — deliberately NOT in this feed (2026-08-13, Daniel):
+      // "this section [is] about the clients only not admin stuff". Attendance,
+      // event summaries and admin notes are staff actions ON a record, not
+      // something a family did. They remain in the Audit Log.
+      if (action === "Saved attendance") return null;
+      if (action === "Saved event summary") return null;
+      if (action === "Updated signup notes") return null;
       if (action === "Cancelled session") return { single: true, icon: "&#10060;", text: `Session cancelled — <em>${esc(details)}</em>` };
       if (action === "Restored session") return { single: true, icon: "&#9200;", text: `Session restored — <em>${esc(details)}</em>` };
       if (action === "Sent no-show re-invites") return { single: true, icon: "&#128231;", text: `No-show re-invites sent — <em>${esc(details)}</em>` };
@@ -5667,11 +5720,6 @@ async function runDailyReport(overrideRecipients, opts) {
         m = details.match(/^(.*?)\s+--\s+(.*)$/);
         if (m) return { single: true, icon: "&#128205;", text: `<strong>${esc(m[1])}</strong> requested follow-up support after <em>${esc(m[2])}</em>` };
         return { single: true, icon: "&#128205;", text: `Follow-up support requested — <em>${esc(details)}</em>` };
-      }
-      if (action === "Saved event summary") return { single: true, icon: "&#128203;", text: `Event summary saved — <em>${esc(details)}</em>` };
-      if (action === "Updated signup notes") {
-        m = details.match(/^(.*?)\s+—\s+(.*)$/);
-        if (m) return { single: true, icon: "&#9999;", text: `Admin notes updated for <strong>${esc(m[1])}</strong> on <em>${esc(m[2])}</em>` };
       }
       return null;
     }
@@ -5689,8 +5737,12 @@ async function runDailyReport(overrideRecipients, opts) {
       });
     } catch (err) { console.warn("Changelog audit:", err.message); }
 
+    // Drop staff and test records before grouping, so a filtered person cannot
+    // survive as half of a grouped line.
+    const clientChanges = rawChanges.filter((it) => !isInternalOrTestRecord(it.person, it.email));
+
     // Group related entries → one line per person+event.
-    const changeLines = buildGroupedChangeLines(rawChanges, esc);
+    const changeLines = buildGroupedChangeLines(clientChanges, esc);
 
     let changelogHtml = "";
     if (changeLines.length === 0) {
