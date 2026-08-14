@@ -5022,6 +5022,11 @@ async function buildAdvocacyMembershipGapHtml(db) {
   const rows = [];
   for (const [cid, info] of byContact) {
     if (info.ms < cutoffMs) continue;                 // legacy — predates the requirement
+    // Closed cases are out (2026-08-13, Daniel). This box exists to chase a
+    // membership before or during the work; once the case is closed the service
+    // has been delivered and there is nothing actionable left, so listing it is
+    // noise in a box that should be short enough to act on.
+    if (info.status !== "Open") continue;
     let cSnap;
     try { cSnap = await db.collection("contacts").doc(cid).get(); } catch (_) { continue; }
     if (!cSnap.exists) continue;
@@ -5059,7 +5064,6 @@ async function buildAdvocacyMembershipGapHtml(db) {
       state: state,
       started: new Date(info.ms).toLocaleDateString("en-US",
         { month: "short", day: "numeric", year: "numeric", timeZone: "Pacific/Honolulu" }),
-      open: info.status === "Open",
     });
   }
   if (!rows.length) return "";
@@ -5068,7 +5072,7 @@ async function buildAdvocacyMembershipGapHtml(db) {
   const cells = rows.map((r) =>
     '<tr>' +
       '<td style="padding:6px 10px;border-bottom:1px solid #eee;font-size:13px;">' +
-        lifecycleEsc(r.name) + (r.open ? '' : ' <span style="color:#94a3b8;">(closed)</span>') +
+        lifecycleEsc(r.name) +
         (r.email ? '<br><span style="color:#64748b;font-size:12px;">' + lifecycleEsc(r.email) + '</span>' : '') +
       '</td>' +
       '<td style="padding:6px 10px;border-bottom:1px solid #eee;font-size:13px;color:#B91C1C;">' + lifecycleEsc(r.state) + '</td>' +
@@ -5077,7 +5081,7 @@ async function buildAdvocacyMembershipGapHtml(db) {
 
   return '<div style="border:1px solid #FECACA;background:#FEF2F2;border-radius:10px;padding:16px 18px;">' +
     '<h3 style="margin:0 0 4px;font-size:15px;color:#991B1B;">Case advocacy without a paid membership (' + rows.length + ')</h3>' +
-    '<p style="margin:0 0 12px;font-size:13px;color:#7F1D1D;">Advocacy is a Friend-level member benefit. ' +
+    '<p style="margin:0 0 12px;font-size:13px;color:#7F1D1D;">Advocacy is a Friend-level member benefit. Open cases only. ' +
       'Families whose advocacy began before ' + CASE_ADVOCACY_MEMBERSHIP_REQUIRED_FROM + ' are not listed.</p>' +
     '<table style="width:100%;border-collapse:collapse;">' +
       '<tr><th align="left" style="padding:6px 10px;font-size:12px;color:#7F1D1D;">Family</th>' +
