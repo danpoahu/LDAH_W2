@@ -18,7 +18,16 @@ const SIGNUP_ID = "HrrGvoOdcBhWV0VprO17";
 const SESSION_DATE = "2026-04-27"; // yyyy-mm-dd
 const OFFICE_LOCATION = "LDAH Office — 245 N. Kukui St., Suite 205, Honolulu, HI 96817";
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY || "re_GweFg3U8_L4VoPVKE7dcqdKoGDBK97LLs";
+// SECURITY (2026-08-13): a hardcoded Resend key used to sit here as a fallback.
+// This repo is PUBLIC, so it was readable by anyone and remains in git history.
+// The key has been rotated and now returns 401, so the exposure is closed — but
+// the fallback is removed so it cannot be copied into the next script.
+// Run as: RESEND_API_KEY=... node functions/<script>.js
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+if (!RESEND_API_KEY) {
+  console.error("RESEND_API_KEY is not set. Export it before running; it is deliberately not stored in the repo.");
+  process.exit(1);
+}
 const SMTP_FROM = process.env.SMTP_FROM || "registration@ldahawaii.org";
 
 function formatHstDateParts(ymd) {
