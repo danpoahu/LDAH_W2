@@ -22161,6 +22161,237 @@ async function _runMembershipNudges({ dryRun }) {
   return { wouldSend, sent, skipReasons };
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// AUTO-ARCHIVE DEAD MEMBERSHIP LEADS
+// ══════════════════════════════════════════════════════════════════════
+// A checkout that is abandoned and then ignores all four nudges is treated as
+// a lead that was never real. Rather than leaving it in Contacts forever, the
+// membership doc and the contact are both soft-archived so staff views stay
+// clean. Both use archived:true — the SAME reversible flag Int's manual
+// "Archive contact" button writes — so nothing is deleted and a mistake is one
+// field-flip away from undone.
+//
+// The whole point of the guards below is that this must NEVER touch a real
+// family. It only ever fires on a contact the membership form itself created
+// (source AND createdBy both "web-membership") that has accumulated nothing
+// since. A family who already existed gets LINKED by onMembershipCreated, not
+// created, so they fail that test on the first condition and are unreachable
+// by this sweep no matter what else is true.
+//
+// Trigger audit done BEFORE this was written, per the rule that you check what
+// watches a field before writing it on live data: onContactUpdated only acts
+// when email/phone/name changed (writing archived leaves its syncFields empty,
+// so it returns null); maintainHasScreenings is an idempotent boolean guard;
+// onMembershipPaid only fires on the transition INTO status "paid". Nothing
+// in this path emails a family.
+const MEMBERSHIP_ARCHIVE_ARMED = false;   // DISARMED — flip to true to enable
+
+// Measured from the LAST nudge actually sent (lastNudgeAt), not from a computed
+// due date, so a delayed or retried nudge still gets its full grace window.
+// Seven days: the 4th nudge is a call to action, and archiving someone the same
+// day we ask them to pay would make them unfindable exactly when they might.
+const MEMBERSHIP_ARCHIVE_GRACE_HOURS = 168;
+
+// Fields the membership path itself is expected to leave on a contact it
+// created: what onMembershipCreated writes, plus the onContactCreated backstops
+// (unsubscribeToken, island/islandSource, marketingOptOut) and the
+// maintainHasScreenings boolean. This is an ALLOW-list on purpose. A deny-list
+// ("no children, no address") silently fails OPEN the day someone adds a new
+// field; an allow-list fails CLOSED — any field we did not predict means a
+// human or another system touched this contact, so we leave it alone.
+const MEMBERSHIP_ARCHIVE_KNOWN_CONTACT_FIELDS = new Set([
+  'firstName', 'lastName', 'displayName', 'email', 'phone', 'type', 'isMember',
+  'membershipLevel', 'membershipStatus', 'membershipUpdatedAt', 'source',
+  'createdBy', 'createdAt', 'secondParent', 'unsubscribeToken',
+  'marketingOptOut', 'island', 'islandSource', 'hasScreenings',
+  'archived', 'archivedAt', 'archivedReason',
+]);
+
+// Pure decision — no I/O, so functions/test-membership-archive.js can exercise
+// every branch without deploying or touching live data. Returns
+// { archive, reason }. reason is ALWAYS populated: on a skip it names the guard
+// that stopped it, which is what makes a dry run readable.
+function _membershipArchiveDecision({ member, contact, refCounts, nowMs }) {
+  const m = member || {};
+  const no = (reason) => ({ archive: false, reason });
+
+  if (_isTruthyFlag(m.archived)) return no('alreadyArchived');
+  if (_isInternalMembership(m)) return no('internal');
+
+  // Any hint of money — the same evidence the nudge sweep respects, plus a
+  // failed capture, which can mean PayPal took the money and we lost the
+  // response. Never archive anyone who might have paid.
+  if (_isPaidStatus(m.status)) return no('paid');
+  if (m.paidAt || m.paypalOrderId) return no('hasPaymentEvidence');
+  if (/^capture:/.test(String(m.lastError || ''))) return no('captureFailedMayHavePaid');
+
+  // Same floor the nudge sequence uses. Historical records predate the whole
+  // feature and were never nudged, so they must never be swept up by it.
+  const createdMs = m.createdAt && m.createdAt.toMillis ? m.createdAt.toMillis() : 0;
+  if (!createdMs || createdMs < MEMBERSHIP_SEQUENCE_START.toMillis()) return no('beforeSequenceStart');
+
+  // The sequence must have actually finished. nudgeCount counts nudges SENT,
+  // so this is "all four went out", not "four were due".
+  const n = m.nudgeCount || 0;
+  if (n < MEMBERSHIP_NUDGE_OFFSET_HOURS.length) return no('sequenceNotFinished');
+
+  const lastNudgeMs = m.lastNudgeAt && m.lastNudgeAt.toMillis ? m.lastNudgeAt.toMillis() : 0;
+  if (!lastNudgeMs) return no('noLastNudgeStamp');
+  if (nowMs < lastNudgeMs + MEMBERSHIP_ARCHIVE_GRACE_HOURS * 3600 * 1000) return no('graceNotElapsed');
+
+  // ── The contact ──
+  if (!m.linkedContactId) return no('noLinkedContact');
+  if (!contact) return no('contactMissing');
+
+  // The provenance test. onMembershipCreated sets BOTH of these only on a
+  // contact it created from scratch; an existing family is linked and keeps
+  // whatever source it already had. Requiring both means a single hand-edited
+  // field cannot make a real family eligible.
+  if (contact.source !== 'web-membership') return no('contactNotMembershipOrigin');
+  if (contact.createdBy !== 'web-membership') return no('contactNotMembershipCreated');
+  if (_isTruthyFlag(contact.archived)) return no('contactAlreadyArchived');
+
+  // Staff retyped them as something real, or a paid membership reached the
+  // contact by another route.
+  if (contact.type && contact.type !== 'Member') return no('contactRetyped');
+  if (contact.membershipStatus === 'active' || contact.membershipStatus === 'paid') {
+    return no('contactMembershipActive');
+  }
+
+  // The allow-list. Any populated field we did not predict means someone
+  // touched this contact. Empty strings, empty arrays and nulls are not
+  // activity — the create path leaves several of those behind.
+  const populated = Object.keys(contact).filter((k) => {
+    const v = contact[k];
+    if (v === null || v === undefined || v === '') return false;
+    if (Array.isArray(v) && v.length === 0) return false;
+    return true;
+  });
+  const unexpected = populated.filter((k) => !MEMBERSHIP_ARCHIVE_KNOWN_CONTACT_FIELDS.has(k));
+  if (unexpected.length) return no('contactHasOtherData:' + unexpected.sort().join('+'));
+
+  // Anything anywhere else in the system pointing at this contact.
+  const r = refCounts || {};
+  const referenced = ['interactions', 'tasks', 'contactNotes', 'signups', 'otherMemberDocs']
+    .filter((k) => (r[k] || 0) > 0);
+  if (referenced.length) return no('contactReferencedBy:' + referenced.join('+'));
+
+  return { archive: true, reason: 'deadLead' };
+}
+
+// Counts every reference we know how to make to a contact. Kept beside the
+// decision it feeds so the two cannot drift. Every query FAILS CLOSED: an
+// error returns a non-zero count, which blocks the archive rather than
+// allowing one on incomplete information.
+async function _membershipContactRefCounts(db, contactId, memberDocId) {
+  const count = async (coll, field) => {
+    try { return (await db.collection(coll).where(field, '==', contactId).limit(1).get()).size; }
+    catch (e) { console.warn('refCount ' + coll + ' failed:', e.message); return 1; }
+  };
+  let signups = 1;
+  try {
+    signups = (await db.collectionGroup('signups').where('linkedContactId', '==', contactId).limit(1).get()).size;
+  } catch (e) { console.warn('refCount signups failed:', e.message); }
+
+  // Another membership doc on the same contact — a renewal or a duplicate. If
+  // any other one exists we stay out entirely; the contact is not this one
+  // doc's to retire.
+  let otherMemberDocs = 1;
+  try {
+    const others = await db.collection('members').where('linkedContactId', '==', contactId).get();
+    otherMemberDocs = others.docs.filter((d) => d.id !== memberDocId).length;
+  } catch (e) { console.warn('refCount members failed:', e.message); }
+
+  return {
+    interactions: await count('interactions', 'clientId'),
+    tasks: await count('tasks', 'contactId'),
+    contactNotes: await count('contactNotes', 'contactId'),
+    signups,
+    otherMemberDocs,
+  };
+}
+
+async function _runMembershipArchive({ dryRun }) {
+  const db = admin.firestore();
+  const nowMs = Date.now();
+  const skipReasons = {};
+  const bump = (k) => { skipReasons[k] = (skipReasons[k] || 0) + 1; };
+  const archived = [];
+
+  const snap = await db.collection('members').where('createdAt', '>=', MEMBERSHIP_SEQUENCE_START).get();
+
+  for (const doc of snap.docs) {
+    try {
+      const m = doc.data() || {};
+
+      // Cheap local guards first — only pay for the contact read and the
+      // reference queries on docs that have already cleared everything else.
+      const pre = _membershipArchiveDecision({ member: m, contact: null, refCounts: null, nowMs });
+      if (!pre.archive && pre.reason !== 'contactMissing') { bump(pre.reason); continue; }
+
+      const cSnap = await db.collection('contacts').doc(m.linkedContactId).get();
+      if (!cSnap.exists) { bump('contactMissing'); continue; }
+      const contact = cSnap.data() || {};
+
+      const refCounts = await _membershipContactRefCounts(db, m.linkedContactId, doc.id);
+      const d = _membershipArchiveDecision({ member: m, contact, refCounts, nowMs });
+      if (!d.archive) { bump(d.reason); continue; }
+
+      // The snapshot Rosie's weekly report reads. Written onto the MEMBER doc,
+      // not the contact, because the contact is about to become invisible and
+      // the report still has to show her a name, an email and a phone number
+      // she can actually call.
+      const snapshot = {
+        name: m.name || contact.displayName || '',
+        email: m.email || contact.email || '',
+        phone: m.phone || contact.phone || '',
+        level: m.level || contact.membershipLevel || '',
+        amount: typeof m.amount === 'number' ? m.amount : (parseInt(m.amount, 10) || 0),
+        checkoutAbandonedAt: m.checkoutAbandonedAt || null,
+        nudgeHistory: m.nudgeHistory || null,
+        contactId: m.linkedContactId,
+      };
+
+      if (dryRun) { archived.push({ id: doc.id, dryRun: true, snapshot }); continue; }
+
+      const stamp = admin.firestore.FieldValue.serverTimestamp();
+      // Member doc first. If the second write fails we get an archived member
+      // doc and a still-visible contact — obviously incomplete, and safe. The
+      // reverse would hide the person while the record still looked open.
+      await doc.ref.update({
+        archived: true,
+        archivedAt: stamp,
+        archivedReason: 'deadLead:noPaymentAfterFullNudgeSequence',
+        archivedSnapshot: snapshot,
+        reportedToRosieAt: null,
+      });
+      await cSnap.ref.update({
+        archived: true,
+        archivedAt: stamp,
+        archivedReason: 'deadLead:membershipNeverPaid',
+      });
+
+      archived.push({ id: doc.id, contactId: m.linkedContactId, snapshot });
+      console.log('membershipArchive: archived ' + doc.id + ' (' + snapshot.email + ', $' + snapshot.amount + ')');
+    } catch (err) {
+      console.error('membershipArchive error on ' + doc.id + ':', err.message);
+      bump('errored');
+    }
+  }
+
+  console.log('membershipArchive:', JSON.stringify({ dryRun: !!dryRun, archived: archived.length, skipReasons }));
+  return { archived, skipReasons };
+}
+
+exports.archiveDeadMembershipLeads = functions
+  .runWith({ timeoutSeconds: 300, maxInstances: 1 })
+  .pubsub.schedule('30 8 * * *').timeZone('Pacific/Honolulu')
+  .onRun(async () => {
+    if (!MEMBERSHIP_ARCHIVE_ARMED) { console.log('membershipArchive: disarmed, skipping'); return null; }
+    await _runMembershipArchive({ dryRun: false });
+    return null;
+  });
+
 exports.sendMembershipNudges = functions
   .runWith({ timeoutSeconds: 300, maxInstances: 1, secrets: ['RESEND_API_KEY', 'SMTP_FROM'] })
   .pubsub.schedule('*/15 * * * *').timeZone('Pacific/Honolulu')
@@ -22347,6 +22578,12 @@ exports.getScreeningConsentDownloadUrl = functions
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
   buildMembershipNudgeEmail,
+  _membershipArchiveDecision,
+  _membershipContactRefCounts,
+  _runMembershipArchive,
+  MEMBERSHIP_ARCHIVE_ARMED,
+  MEMBERSHIP_ARCHIVE_GRACE_HOURS,
+  MEMBERSHIP_ARCHIVE_KNOWN_CONTACT_FIELDS,
   membershipResumeLink,
   membershipOptOutLink,
   MEMBERSHIP_NUDGE_OFFSET_HOURS,
