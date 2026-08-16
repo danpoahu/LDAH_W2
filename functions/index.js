@@ -19251,6 +19251,125 @@ exports.onMembershipCreated = functions
 // branded thank-you to the donor via Resend and record it on their contact
 // timeline. Fires on manual "Mark as Paid", the Membership Report quick-pay,
 // or (future) PayPal auto-confirm. Idempotent via thankYouSentAt.
+/* Send a paid member the "set up your login" instructions on demand.
+ *
+ * Those instructions previously existed ONLY inside onMembershipPaid, which is
+ * a Firestore trigger that fires once when a membership is marked paid. Anyone
+ * who paid before the member portal existed got a thank-you with no portal
+ * section in it, and there was no way to send it to them afterwards short of
+ * faking a payment. Rosie Rowe is exactly that case.
+ *
+ * Guarded, because this email tells someone to go and create an account:
+ *   - must be a contact we can email
+ *   - must have ACTUALLY PAID at least once -- the portal refuses anyone else,
+ *     so inviting an abandoned checkout would send them to a door that will not
+ *     open. Both "active" and "paid" mean paid; see the two-word status trap.
+ *   - must not already be in. If they have a login, there is nothing to send.
+ */
+exports.sendPortalLoginInstructions = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 5, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    try {
+      const { contactId, requestedBy, previewOnly } = req.body || {};
+      if (!contactId) { res.status(400).json({ error: "missing contactId" }); return; }
+
+      const db = admin.firestore();
+      const snap = await db.collection("contacts").doc(contactId).get();
+      if (!snap.exists) { res.status(404).json({ error: "contact not found" }); return; }
+      const c = snap.data() || {};
+
+      const email = String(c.email || "").trim();
+      if (!email) { res.status(400).json({ error: "That contact has no email address." }); return; }
+
+      const everPaid = c.membershipStatus === "active" || c.membershipStatus === "paid" || !!c.membershipPaidAt;
+      if (!everPaid) {
+        res.status(409).json({ error: "That membership has never been paid -- the portal would refuse them." });
+        return;
+      }
+      if (c.memberAuthUid || c.portalFirstLoginAt) {
+        res.status(409).json({ error: "They already have a portal login." });
+        return;
+      }
+
+      const firstName = String(c.firstName || (c.name || "").split(" ")[0] || "there").trim();
+      const name = String(c.name || [c.firstName, c.lastName].filter(Boolean).join(" ")).trim() || email;
+      const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+      const today = new Date().toLocaleDateString("en-US",
+        { year: "numeric", month: "long", day: "numeric", timeZone: "Pacific/Honolulu" });
+
+      const html = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1f2937;">
+  <div style="max-width:600px;margin:0 auto;background:#ffffff;">
+    <div style="background:linear-gradient(135deg,#0891B2,#06B6D4);padding:26px 24px;text-align:center;">
+      <div style="color:#ffffff;font-size:20px;font-weight:bold;letter-spacing:.3px;">Leadership in Disabilities &amp; Achievement of Hawai&#699;i</div>
+    </div>
+    <div style="padding:28px 28px 10px;">
+      <h1 style="color:#004E7C;font-size:22px;margin:0 0 14px;">Aloha ${_emailEsc(firstName)},</h1>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 14px;">Your LDAH membership comes with a private member portal, and our records show you have not set up your login yet. If you joined before the portal opened, this simply was not available at the time &mdash; here is how to get in.</p>
+      <div style="background:#F0F9FF;border:1px solid #BAE6FD;border-radius:10px;padding:18px 20px;margin:0 0 18px;">
+        <div style="font-size:16px;color:#0C4A6E;font-weight:bold;margin-bottom:8px;">Set up your member login</div>
+        <p style="font-size:14px;line-height:1.6;margin:0 0 12px;color:#0F172A;">Inside you will find your event signups, your keiki&#699;s screening results, the resource library, and recordings from past Learning Labs. It takes about a minute to set up, and you choose your own password.</p>
+        <p style="font-size:14px;line-height:1.6;margin:0 0 14px;color:#0F172A;">Go to the portal, choose <strong>Create your login</strong>, and use <strong>this email address</strong> &mdash; that is how we match you to your membership. We will send a link to verify it is you, then you are in.</p>
+        <p style="margin:0 0 4px;text-align:center;">
+          <a href="https://www.ldahawaii.org/Members/" style="display:inline-block;background:#0891B2;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:12px 28px;border-radius:8px;">Set Up My Login</a>
+        </p>
+      </div>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">If you have any questions, or the link gives you trouble, reach us at (808) 536-9684 or rrowe@ldahawaii.org and we will walk you through it.</p>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 4px;">With sincere appreciation,</p>
+      <p style="font-size:15px;line-height:1.5;margin:0;"><strong>Rosie Rowe</strong>, Executive Director<br><span style="color:#6b7280;">&amp; The LDAH Team of Parents Supporting Parents</span></p>
+    </div>
+    <div style="padding:18px 28px;border-top:1px solid #eef2f5;color:#9ca3af;font-size:12px;line-height:1.6;">
+      Leadership in Disabilities &amp; Achievement of Hawai&#699;i<br>
+      (808) 536-9684 &middot; www.ldahawaii.org
+    </div>
+  </div>
+</body></html>`;
+
+      // previewOnly lets staff (and me) confirm the copy without emailing a real
+      // member. Same guard shape as the Case Opening letter.
+      if (previewOnly) { res.json({ ok: true, preview: true, to: email, html }); return; }
+
+      await sendEmailViaResend({
+        from: `LDAH <${fromAddress}>`,
+        to: [email],
+        subject: "Set up your LDAH member login",
+        html,
+        type: "member-portal-invite",
+        recipientName: name,
+      });
+
+      await db.collection("contacts").doc(contactId).set({
+        portalInviteSentAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      // On the timeline, so the next person to open this contact can see it went
+      // out and does not send a second one.
+      try {
+        await db.collection("interactions").add({
+          channel: "Email",
+          interactionType: "Membership",
+          contactId: contactId,
+          contactName: name,
+          summary: "Member portal login instructions sent",
+          notes: `Portal set-up instructions sent to ${email} on ${today}.`,
+          status: "Closed",
+          owner: requestedBy || "System",
+          ownerUid: "",
+          workflowStep: "memberPortalInvite",
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (e) { console.warn("portal invite interaction failed:", e.message); }
+
+      res.json({ ok: true, to: email });
+    } catch (err) {
+      console.error("sendPortalLoginInstructions failed:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
 exports.onMembershipPaid = functions
   .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
   .firestore.document("members/{memberId}")
