@@ -1157,8 +1157,11 @@
       /* Same for a lesson whose predecessor is unfinished. Checked here rather
          than only on the row, so the Next button and any direct call obey it. */
       if (!cdLessonUnlocked(lid)) {
+        var order0 = activeLessonOrder(), prevId = order0[order0.indexOf(lid) - 1];
+        var prevL = LESSON_DATA[prevId] || {};
         var needs = cdPrevLessonTitle(lid);
-        cdShowToast(ico('lock') + (needs ? ' Finish "' + needs + '" first.' : ' Finish the previous lesson first.'));
+        var verb = prevL.isPopQuiz ? 'Take' : 'Finish';
+        cdShowToast(ico('lock') + (needs ? ' ' + verb + ' "' + needs + '" first.' : ' Finish the previous lesson first.'));
         return;
       }
       currentLesson = lid;
@@ -1357,6 +1360,10 @@
           + continueBtn + quizClaimCta(tier, isPopQuiz) + '</div>';
         cdShowToast(ico('check') + (isPopQuiz ? ' Pop quiz passed' : ' ' + TIER_LABEL[tier] + ' quiz passed'));
       } else {
+        /* An ATTEMPTED pop quiz clears the gate even when it is not passed, so
+           the rows have to repaint here too — the pass branch is no longer the
+           only thing that can unlock a lesson. */
+        cdRefreshGating();
         var retryFn = 'cdRenderQuiz(\'' + tier + '\',document.getElementById(\'lv-quiz-container\'),' + isPopQuiz + ')';
         area.innerHTML = '<div class="cd-quiz-result failed"><div class="cd-quiz-result-icon">' + ico('book') + '</div>'
           + '<div class="cd-quiz-result-title">Not quite yet</div>'
@@ -1378,11 +1385,34 @@
        activeLessonOrder() is the single source of truth for what "before"
        means — it already skips locked tiers, so gating never points at a
        lesson the member cannot reach. */
+    /* What counts as "cleared" for the purpose of opening the next lesson.
+
+       A pop quiz is FORMATIVE — its own intro says it is there to check your
+       understanding, not to catch you out, and it passes at 67% with unlimited
+       retries. Treating it as a wall turns a confidence check into a barrier
+       and strands anyone who is struggling exactly where they need the next
+       lesson most. So attempting it clears the way; you may carry on and come
+       back to it.
+
+       The final quiz is SUMMATIVE and is the one that gates the credential:
+       80%, and issueCertificate re-checks it server-side along with EVERY
+       lesson, the pop quiz included. So a member can keep learning past a
+       failed pop quiz, but cannot be certified without eventually passing it.
+       That split is the whole point — do not "simplify" it into one rule. */
+    function cdGateCleared(lid) {
+      if (LS.done('lesson_' + lid)) return true;
+      var l = LESSON_DATA[lid];
+      if (l && l.isPopQuiz) {
+        var q = (CERT.cache.quizzes || {})[lid] || {};
+        return Number(q.attempts) > 0;
+      }
+      return false;
+    }
     function cdLessonUnlocked(lid) {
       var order = activeLessonOrder();
       var idx = order.indexOf(lid);
       if (idx <= 0) return true;                       // not in the order, or the first
-      return LS.done('lesson_' + order[idx - 1]);
+      return cdGateCleared(order[idx - 1]);
     }
     function cdPrevLessonTitle(lid) {
       var order = activeLessonOrder(), idx = order.indexOf(lid);
