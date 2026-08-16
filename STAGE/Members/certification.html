@@ -332,40 +332,43 @@
        "Print, then Save as PDF" produces a clean single page, so a library would
        be ~200KB for nothing. */
     .cd-cert-sheet { display: none; }
-    /* ── Island Watermark ──
-       This is design D from the 2026-08-15 sample sheet, reproduced as drawn.
-       The geometry is the design: a fixed-ratio sheet that CENTRES its content
-       as a flex column with an even gap, NOT block flow with per-element
-       margins. Porting only the decoration onto the old margins crushed the
-       spacing and dropped the meta row onto the corner brackets — the whole
-       composition comes from the box, so do not unpick it.
+    /* ── Island Watermark (design D) ──
+       These rules are LIFTED VERBATIM from the sample sheet Daniel chose
+       (Reports/2026-08-15-ldah-certificate-designs.html), extracted by script
+       rather than retyped, and scoped under .cd-cert-sheet so the generic
+       class names cannot collide with the page. The ONLY edit is .logo,
+       74px -> 111px (1.5x) at his request.
 
-       print-color-adjust keeps the warm paper and the watermark: browsers
-       discard backgrounds by default, which would print the old plain sheet. */
-    .cd-cert-sheet-inner { position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; width: 1000px; min-height: 707px; max-width: 100%; margin: 0 auto; padding: 52px 64px; text-align: center; background: #FFFDF9; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .cd-cert-sheet-inner::after { content: ''; position: absolute; inset: 26px; border: 1px solid var(--bronze); opacity: .42; pointer-events: none; z-index: 1; }
-    .cd-cert-sheet-inner > * { position: relative; z-index: 2; }
-    /* These two MUST stay below the rule above — same specificity, so source
-       order is what puts the watermark and corners behind the text. */
-    .cd-cert-islands { position: absolute; left: 50%; top: 53%; width: 88%; transform: translate(-50%, -50%) scaleY(-1); color: var(--ocean-deep); opacity: .07; z-index: 0; pointer-events: none; }
-    .cd-cert-corner { position: absolute; width: 34px; height: 34px; z-index: 1; border-color: var(--bronze); opacity: .75; pointer-events: none; }
-    .cd-cert-corner.tl { top: 19px; left: 19px; border-top: 3px solid; border-left: 3px solid; }
-    .cd-cert-corner.tr { top: 19px; right: 19px; border-top: 3px solid; border-right: 3px solid; }
-    .cd-cert-corner.bl { bottom: 19px; left: 19px; border-bottom: 3px solid; border-left: 3px solid; }
-    .cd-cert-corner.br { bottom: 19px; right: 19px; border-bottom: 3px solid; border-right: 3px solid; }
-    .cd-cert-diamond { color: var(--bronze); font-size: 0.6rem; letter-spacing: .5em; margin: 12px 0 2px; }
-    /* 74px in the sample, doubled at Daniel's request. The only change to D. */
-    .cd-cert-logo { width: 148px; height: 148px; display: block; }
-    .cd-cert-org { font-family: 'Outfit', sans-serif; font-size: 0.78rem; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: var(--text-soft); }
-    .cd-cert-kicker { font-size: 0.85rem; letter-spacing: .17em; text-transform: uppercase; color: var(--text-soft); }
-    .cd-cert-title { font-family: 'Outfit', sans-serif; font-size: 2.3rem; font-weight: 800; color: var(--bronze); line-height: 1.1; letter-spacing: -.01em; }
-    .cd-cert-presented { font-size: 0.95rem; color: var(--text-soft); }
-    .cd-cert-person { font-family: 'Outfit', sans-serif; font-size: 2.25rem; font-weight: 700; color: var(--text-dark); letter-spacing: .005em; border-bottom: 2px solid var(--bronze); display: inline-block; padding: 0 44px 10px; }
-    .cd-cert-body { font-size: 0.97rem; line-height: 1.75; color: #41535c; max-width: 600px; margin: 0 auto; }
-    .cd-cert-meta { display: flex; justify-content: center; gap: 44px; flex-wrap: wrap; }
-    .cd-cert-meta div { text-align: center; }
-    .cd-cert-meta dt { font-size: 0.66rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-soft); margin-bottom: 3px; }
-    .cd-cert-meta dd { margin: 0; font-size: 0.92rem; font-weight: 700; color: var(--text-dark); font-variant-numeric: tabular-nums; }
+       Do not "tidy" these into the page's own conventions. Two attempts to
+       reproduce D by hand changed the geometry and broke the composition;
+       the box, the flex centring and the gap ARE the design.
+
+       print-color-adjust keeps the paper and watermark, which browsers drop
+       from backgrounds by default. */
+    .cd-cert-sheet .cert { position:relative;width:1000px;min-height:707px;margin:0 auto;background:#fff; overflow:hidden;display:flex;flex-direction:column;align-items:center; justify-content:center;text-align:center;padding:52px 64px }
+    .cd-cert-sheet .cert * { position:relative;z-index:2 }
+    .cd-cert-sheet .isl { position:absolute;z-index:0;pointer-events:none;transform:scaleY(-1) }
+    .cd-cert-sheet .logo { width:111px;height:111px;margin-bottom:12px }
+    .cd-cert-sheet .org { font-size:.78rem;font-weight:700;letter-spacing:.22em;text-transform:uppercase; color:var(--text-soft) }
+    .cd-cert-sheet .kick { font-size:.85rem;letter-spacing:.17em;text-transform:uppercase;color:var(--text-soft) }
+    .cd-cert-sheet .tier { font-size:2.3rem;font-weight:800;color:var(--bronze);line-height:1.1 }
+    .cd-cert-sheet .cert-that { font-size:.95rem;color:var(--text-soft) }
+    .cd-cert-sheet .person { font-size:2.2rem;font-weight:700;color:var(--text-dark) }
+    .cd-cert-sheet .body { font-size:.97rem;line-height:1.75;color:#41535c;max-width:600px }
+    .cd-cert-sheet .meta { display:flex;justify-content:center;gap:44px;flex-wrap:wrap }
+    .cd-cert-sheet .meta dt { font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-soft);margin-bottom:3px }
+    .cd-cert-sheet .meta dd { margin:0;font-weight:700;font-size:.92rem }
+    .cd-cert-sheet .cert.d { background:#FFFDF9;gap:12px }
+    .cd-cert-sheet .d-frame { position:absolute;inset:26px;border:1px solid var(--bronze);opacity:.42;z-index:1;pointer-events:none }
+    .cd-cert-sheet .d-isl { left:50%;top:53%;width:88%;transform:translate(-50%,-50%) scaleY(-1);color:var(--ocean-deep);opacity:.07 }
+    .cd-cert-sheet .d-corner { position:absolute;width:34px;height:34px;z-index:1;border-color:var(--bronze);opacity:.75 }
+    .cd-cert-sheet .d-corner.tl { top:19px;left:19px;border-top:3px solid;border-left:3px solid }
+    .cd-cert-sheet .d-corner.tr { top:19px;right:19px;border-top:3px solid;border-right:3px solid }
+    .cd-cert-sheet .d-corner.bl { bottom:19px;left:19px;border-bottom:3px solid;border-left:3px solid }
+    .cd-cert-sheet .d-corner.br { bottom:19px;right:19px;border-bottom:3px solid;border-right:3px solid }
+    .cd-cert-sheet .d-diamond { color:var(--bronze);font-size:.6rem;letter-spacing:.5em;margin:12px 0 2px }
+    .cd-cert-sheet .d-tier { letter-spacing:-.01em }
+    .cd-cert-sheet .d-person { font-size:2.25rem;letter-spacing:.005em; border-bottom:2px solid var(--bronze);padding:0 44px 10px }
 
     /* ── full-name prompt ──
        The contacts record has firstName/lastName only and neither is a legal
@@ -400,9 +403,6 @@
         .cd-lv-nav-bar, .cd-welcome-bar { padding: 11px 16px; }
         .cd-tabs { padding: 0 12px; }
         .cd-lv-lesson-title { font-size: 1.35rem; }
-        .cd-cert-sheet-inner { padding: 28px 20px; }
-        .cd-cert-person { font-size: 1.5rem; padding: 0 12px 8px; }
-        .cd-cert-title { font-size: 1.5rem; }
     }
 
     /* ── print ──
@@ -412,15 +412,16 @@
         body { background: #fff !important; display: block; }
         .page-header, .hero-section, footer, .cd-shell, .cd-toast, .cd-modal,
         .bg-islands, #a11y-toggle, #a11y-panel, .cd-cert-noprint { display: none !important; }
-        /* .bg-islands above is the PAGE watermark. .cd-cert-islands is the one
-           printed INSIDE the certificate — different element, keep it. */
-        .cd-cert-islands { display: block !important; }
+        /* .bg-islands above is the PAGE watermark. The certificate's own
+           islands are .isl inside .cd-cert-sheet — different element, keep it. */
+        .cd-cert-sheet .isl { display: block !important; }
         .main-wrap { max-width: none; padding: 0; margin: 0; }
         .cd-cert-sheet { display: block !important; }
-        /* Letter landscape less 12mm margins is ~966x726px, so the sheet's
-           1000x707 proportions carry over almost exactly. Width goes fluid;
-           min-height stays so the column keeps centring on paper. */
-        .cd-cert-sheet-inner { box-shadow: none; width: 100%; max-width: none; min-height: 6.8in; page-break-inside: avoid; }
+        /* D is a fixed 1000x707 box; letter landscape less 12mm margins is
+           ~966px, so the fixed width would clip. Width goes fluid and the
+           min-height holds — every child is centred, so the composition is
+           unchanged, the frame simply meets the page edge as it should. */
+        .cd-cert-sheet .cert { width: 100%; min-height: 6.8in; page-break-inside: avoid; }
         @page { size: landscape; margin: 12mm; }
     }
     </style>
@@ -1514,21 +1515,22 @@
     function cdPrintCertificate(tier) {
       var cert = CERT.certificates[tier]; if (!cert) return;
       id('certSheet').innerHTML = ''
-        + '<div class="cd-cert-sheet-inner">'
-        +   '<svg class="cd-cert-islands" viewBox="0 0 3880 2880" aria-hidden="true"><use href="#hawaii-islands"/></svg>'
-        +   '<div class="cd-cert-corner tl"></div><div class="cd-cert-corner tr"></div>'
-        +   '<div class="cd-cert-corner bl"></div><div class="cd-cert-corner br"></div>'
-        +   '<img class="cd-cert-logo" src="https://www.ldahawaii.org/logo_blue.png" alt="">'
-        +   '<div class="cd-cert-org">Leadership in Disabilities and Achievement of Hawai&#699;i</div>'
-        +   '<div class="cd-cert-diamond">&#9670;</div>'
-        +   '<div class="cd-cert-kicker">Certificate of Completion</div>'
-        +   '<div class="cd-cert-title">' + esc(TIER_LABEL[cert.tier] || cert.tier) + ' &mdash; ' + esc(TIER_SUB[cert.tier] || '') + '</div>'
-        +   '<div class="cd-cert-presented">This certifies that</div>'
-        +   '<div class="cd-cert-person">' + esc(cert.memberName || '') + '</div>'
-        +   '<div class="cd-cert-body">has completed every lesson and passed the final assessment of the '
+        + '<div class="cert d">'
+        +   '<svg class="isl d-isl" viewBox="0 0 3880 2880" aria-hidden="true"><use href="#hawaii-islands"/></svg>'
+        +   '<div class="d-frame"></div>'
+        +   '<div class="d-corner tl"></div><div class="d-corner tr"></div>'
+        +   '<div class="d-corner bl"></div><div class="d-corner br"></div>'
+        +   '<img class="logo" src="https://www.ldahawaii.org/logo_blue.png" alt="">'
+        +   '<div class="org">Leadership in Disabilities and Achievement of Hawai&#699;i</div>'
+        +   '<div class="d-diamond">&#9670;</div>'
+        +   '<div class="kick">Certificate of Completion</div>'
+        +   '<div class="tier d-tier">' + esc(TIER_LABEL[cert.tier] || cert.tier) + ' &mdash; ' + esc(TIER_SUB[cert.tier] || '') + '</div>'
+        +   '<div class="cert-that">This certifies that</div>'
+        +   '<div class="person d-person">' + esc(cert.memberName || '') + '</div>'
+        +   '<div class="body">has completed every lesson and passed the final assessment of the '
         +     esc(TIER_LABEL[cert.tier] || cert.tier) + ' tier of the LDAH Certification Program, demonstrating a working knowledge of '
         +     'special education, parent rights under IDEA, and the evaluation process in Hawai&#699;i.</div>'
-        +   '<div class="cd-cert-meta">'
+        +   '<div class="meta">'
         +     '<div><dt>Certificate number</dt><dd>' + esc(cert.certNumber || '') + '</dd></div>'
         +     '<div><dt>Date issued</dt><dd>' + esc(fmtCertDate(cert.issuedAt || cert.issuedAtMs)) + '</dd></div>'
         +     (cert.quizScore && cert.quizScore.total ? '<div><dt>Final assessment</dt><dd>' + cert.quizScore.pct + '%</dd></div>' : '')
