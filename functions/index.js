@@ -19274,7 +19274,7 @@ exports.sendPortalLoginInstructions = functions
     res.set("Access-Control-Allow-Headers", "Content-Type");
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }
     try {
-      const { contactId, requestedBy, previewOnly } = req.body || {};
+      const { contactId, requestedBy, previewOnly, resend } = req.body || {};
       if (!contactId) { res.status(400).json({ error: "missing contactId" }); return; }
 
       const db = admin.firestore();
@@ -19292,6 +19292,25 @@ exports.sendPortalLoginInstructions = functions
       }
       if (c.memberAuthUid || c.portalFirstLoginAt) {
         res.status(409).json({ error: "They already have a portal login." });
+        return;
+      }
+
+      /* Do not send it twice by accident. Learned the hard way on 2026-08-15:
+         Rosie Rowe received two identical invites three minutes apart, because
+         two people acted on the same contact and nothing here said no. The UI
+         showing "Instructions sent" is not a guard — the page can be reloaded,
+         opened in another tab, or driven by a second person.
+         A deliberate resend is still allowed; it just has to say so. */
+      const invitedMs = c.portalInviteSentAt && c.portalInviteSentAt.toMillis
+        ? c.portalInviteSentAt.toMillis() : null;
+      const RESEND_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+      if (invitedMs && !resend && !previewOnly && (Date.now() - invitedMs) < RESEND_COOLDOWN_MS) {
+        const when = new Date(invitedMs).toLocaleDateString("en-US",
+          { month: "long", day: "numeric", timeZone: "Pacific/Honolulu" });
+        res.status(409).json({
+          error: "Instructions already went out on " + when + ". Use Resend if you meant to send them again.",
+          alreadySentAt: new Date(invitedMs).toISOString(),
+        });
         return;
       }
 
