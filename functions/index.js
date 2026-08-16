@@ -19890,6 +19890,14 @@ exports.getMemberSummaries = functions
         id: r.id,
         title: String(g.title || ""),
         eventDate: String(g.eventDate || ""),
+        // Join keys back to eventRecordings, so the Video Library can hang an
+        // "AI Summary" button on the matching event card. publishedRecordingId
+        // is the real link (set by the Zoom publish flow); zoomMeetingUuid is
+        // the fallback. A recap written by hand — because Zoom lost the
+        // original recording, say — may carry NEITHER, so the client also has
+        // an eventDate fallback that only fires when the date is unambiguous.
+        publishedRecordingId: String(g.publishedRecordingId || ""),
+        zoomMeetingUuid: String(g.zoomMeetingUuid || ""),
         overview: String(g.overview || ""),
         keyPoints: Array.isArray(g.keyPoints) ? g.keyPoints.map(function (x) { return String(x); }) : [],
         nextSteps: Array.isArray(g.nextSteps) ? g.nextSteps.map(function (x) { return String(x); }) : [],
@@ -19945,6 +19953,8 @@ exports.getMemberRecordings = functions
         slidesUrl: String(g.slidesUrl || ""),
         files: files,
         description: String(g.description || ""),
+        // Lets the Video Library match a published AI recap to this recording.
+        zoomMeetingUuid: String(g.zoomMeetingUuid || ""),
         // The recording's own flyer wins; fall back to the linked event's image below.
         flyerUrl: String(g.flyerUrl || ""),
         _eventId: eid,

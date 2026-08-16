@@ -102,6 +102,16 @@
     }
     .rec-btn-row { margin-top: 0.9rem; gap: 0.6rem; }
 
+    /* AI recap modal. Ported from the old summaries.html, which this page
+       absorbed — the recap now hangs off its event's card instead of living
+       on a separate page nobody could find. */
+    .sum-title { font-size:1.2rem; font-weight:700; color:var(--primary-blue); line-height:1.3; }
+    .sum-date { font-size:.86rem; color:#EA580C; font-weight:800; letter-spacing:.2px; margin:2px 0 10px; }
+    .sum-overview { font-size:.98rem; color:#41535c; line-height:1.55; margin:0 0 12px; }
+    .sum-section { font-size:.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#0E7490; margin:12px 0 6px; }
+    .sum-list { margin:0; padding-left:20px; } .sum-list li { font-size:.92rem; color:#475569; line-height:1.5; margin:4px 0; }
+    .sum-ainote { font-size:.72rem; color:#94a3b8; margin-top:14px; font-style:italic; }
+
     footer { background: var(--text-dark); color: white; padding: 1.75rem 2rem 1rem; position: relative; overflow: hidden; margin-top: auto; }
     .footer-content { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.4rem; margin-bottom: 1rem; position: relative; z-index: 1; }
     .footer-section h3 { color: var(--plumeria); margin-bottom: 0.7rem; font-family: 'Outfit', sans-serif; font-size: 1rem; }
@@ -192,6 +202,7 @@
         <nav id="navMenu" class="nav-menu" aria-label="Portal navigation">
             <a href="index.html">Portal Home</a>
             <a href="index.html#eventsCard">My Events</a>
+            <a href="certification.html">Certification Program</a>
             <a href="screenings.html">Screening Results</a>
             <a href="resources.html">Member Resources</a>
             <a href="videos.html">Video Library</a>
@@ -302,6 +313,61 @@
         var _memberRecordings = [];
         function callRecordings() { return fns.httpsCallable('getMemberRecordings')().then(function (r) { return r.data; }); }
 
+        function callSummaries() { return fns.httpsCallable('getMemberSummaries')().then(function (r) { return r.data; }); }
+
+        /* Recap lookup, keyed by the recording it belongs to.
+           Three ways in, most reliable first:
+             1. publishedRecordingId — the real link, set by the Zoom publish flow.
+             2. zoomMeetingUuid      — same meeting, different record.
+             3. eventDate            — ONLY when exactly one recording carries
+                                       that date. A hand-written recap (Zoom lost
+                                       the 8/12 original, so that one was typed up
+                                       from the session) has neither key above,
+                                       and guessing between two same-day events
+                                       would attach the wrong recap to the wrong
+                                       recording. Ambiguous dates match nothing. */
+        var _summaryByRecId = {};
+        function indexSummaries(recordings, summaries) {
+            _summaryByRecId = {};
+            if (!Array.isArray(recordings) || !Array.isArray(summaries)) return;
+            var byId = {}, byUuid = {}, byDate = {}, dateCount = {};
+            recordings.forEach(function (r) {
+                if (!r || !r.id) return;
+                byId[r.id] = r.id;
+                if (r.zoomMeetingUuid) byUuid[r.zoomMeetingUuid] = r.id;
+                var d = String(r.eventDate || '');
+                if (!d) return;
+                dateCount[d] = (dateCount[d] || 0) + 1;
+                byDate[d] = r.id;
+            });
+            summaries.forEach(function (sm) {
+                if (!sm) return;
+                var rid = (sm.publishedRecordingId && byId[sm.publishedRecordingId])
+                    || (sm.zoomMeetingUuid && byUuid[sm.zoomMeetingUuid])
+                    || null;
+                if (!rid) {
+                    var d = String(sm.eventDate || '');
+                    if (d && dateCount[d] === 1) rid = byDate[d];
+                }
+                if (rid && !_summaryByRecId[rid]) _summaryByRecId[rid] = sm;
+            });
+        }
+
+        function openSummaryByRecId(rid) {
+            var sm = _summaryByRecId[rid]; if (!sm) return;
+            var kp = (Array.isArray(sm.keyPoints) ? sm.keyPoints : []).map(function (p) { return '<li>' + esc(String(p)) + '</li>'; }).join('');
+            var ns = (Array.isArray(sm.nextSteps) ? sm.nextSteps : []).map(function (p) { return '<li>' + esc(String(p)) + '</li>'; }).join('');
+            id('sumTitle').textContent = sm.title || 'Learning Lab recap';
+            id('sumBody').innerHTML = ''
+                + '<div class="sum-date">' + esc(fmtRecDate(sm.eventDate)) + '</div>'
+                + (sm.overview ? '<p class="sum-overview">' + esc(sm.overview) + '</p>' : '')
+                + (kp ? '<div class="sum-section">Key points</div><ul class="sum-list">' + kp + '</ul>' : '')
+                + (ns ? '<div class="sum-section">Next steps</div><ul class="sum-list">' + ns + '</ul>' : '')
+                + '<div class="sum-ainote">Auto-generated recap, reviewed by LDAH staff.</div>';
+            id('sumOverlay').style.display = 'flex';
+        }
+        function closeSummary() { id('sumOverlay').style.display = 'none'; }
+
         function openRecordingByIndex(i) {
             var r = _memberRecordings[i]; if (!r) return;
             var id2 = extractDriveFileId(r.recordingUrl);
@@ -353,6 +419,9 @@
                     +   '<div class="btn-row rec-btn-row">'
                     +     '<a class="btn btn-primary rec-pill" href="javascript:void(0)" onclick="openRecordingByIndex(' + i + ')">Watch recording</a>'
                     +     slides
+                    +     (_summaryByRecId[r.id]
+                            ? '<a class="btn btn-outline rec-pill" href="javascript:void(0)" onclick="openSummaryByRecId(\'' + esc(String(r.id)) + '\')">AI Summary</a>'
+                            : '')
                     +   '</div>'
                     + '</div>'
                     + '</div>';
@@ -395,6 +464,15 @@
                 return;
             }
 
+            // Recaps are supplementary: if this call fails the library still renders,
+            // just without the AI Summary buttons.
+            var summaries = [];
+            try {
+                var sdata = await callSummaries();
+                if (sdata && !sdata.locked) summaries = sdata.summaries || [];
+            } catch (e) { summaries = []; }
+            indexSummaries(recordings, summaries);
+
             showHero();
             setView('');
             renderRecordings(recordings);
@@ -418,6 +496,16 @@
         </div>
         <iframe id="recPlayerIframe" src="" style="width:100%;aspect-ratio:16/9;border:none;border-radius:8px;background:#000;" allow="autoplay;encrypted-media" allowfullscreen></iframe>
         <a id="recPlayerFallback" href="#" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;font-size:.85rem;">Open in Google Drive</a>
+      </div>
+    </div>
+
+    <div id="sumOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)closeSummary()">
+      <div style="background:#fff;border-radius:16px;max-width:760px;width:100%;padding:20px;max-height:85vh;overflow-y:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:4px;">
+          <strong id="sumTitle" class="sum-title"></strong>
+          <button onclick="closeSummary()" aria-label="Close" style="border:none;background:none;font-size:1.5rem;cursor:pointer;color:#64748B;line-height:1;">&times;</button>
+        </div>
+        <div id="sumBody"></div>
       </div>
     </div>
 </body>
