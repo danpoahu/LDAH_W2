@@ -256,6 +256,11 @@
     .cd-lesson-row-done-badge { font-size: 0.72rem; font-weight: 700; color: var(--success); background: #fff; border: 1px solid var(--success); padding: 3px 10px; border-radius: 99px; display: none; align-items: center; gap: 4px; }
     .cd-lesson-row.done .cd-lesson-row-done-badge { display: inline-flex; }
 
+    /* A lesson whose predecessor is unfinished. Deliberately still clickable:
+       the click is what explains WHY it is locked, and an inert row cannot. */
+    .cd-lesson.lesson-locked, .cd-lesson-row.lesson-locked { opacity: .42; }
+    .cd-lesson-row.lesson-locked { cursor: default; }
+
     /* A locked tier shows its curriculum but nothing is clickable and nothing
        pretends to be unlockable. The lock icon carries it with NO wording —
        do not add "Coming soon" or "complete Bronze to unlock". Those words are
@@ -1149,6 +1154,13 @@
         cdShowToast(ico('lock') + ' ' + TIER_LABEL[lesson.tier] + ' is not open yet.');
         return;
       }
+      /* Same for a lesson whose predecessor is unfinished. Checked here rather
+         than only on the row, so the Next button and any direct call obey it. */
+      if (!cdLessonUnlocked(lid)) {
+        var needs = cdPrevLessonTitle(lid);
+        cdShowToast(ico('lock') + (needs ? ' Finish "' + needs + '" first.' : ' Finish the previous lesson first.'));
+        return;
+      }
       currentLesson = lid;
       cdSwitchTab('dashboard', document.querySelector('.cd-tab'));
       id('lesson-viewer').classList.add('active');
@@ -1169,7 +1181,9 @@
       var prevBtn = id('lv-prev-btn'), nextBtn = id('lv-next-btn');
       if (prevBtn) prevBtn.disabled = (idx <= 0);
       var nextId = lesson.next && LESSON_DATA[lesson.next] && order.indexOf(lesson.next) !== -1 ? lesson.next : '';
-      if (nextBtn) nextBtn.disabled = !nextId;
+      /* Disabled until this lesson is complete — otherwise Next would walk
+         straight past the gate the rows enforce. */
+      if (nextBtn) nextBtn.disabled = !nextId || !cdLessonUnlocked(nextId);
 
       var timerEl = id('lv-timer-text');
       if (timerEl) timerEl.innerHTML = lesson.duration ? esc(lesson.duration) : '&mdash;';
@@ -1356,6 +1370,27 @@
     /* ── gating and progress ── */
     function cdAllDone(tier) { return TIER_LESSONS[tier].every(function (lid) { return LS.done('lesson_' + lid); }); }
 
+    /* Sequential gating: a lesson opens only when the one before it in the
+       active order is done. Lessons are completed by an explicit Complete
+       button and quizzes by passing, so this genuinely holds someone to the
+       order rather than just to having clicked through.
+
+       activeLessonOrder() is the single source of truth for what "before"
+       means — it already skips locked tiers, so gating never points at a
+       lesson the member cannot reach. */
+    function cdLessonUnlocked(lid) {
+      var order = activeLessonOrder();
+      var idx = order.indexOf(lid);
+      if (idx <= 0) return true;                       // not in the order, or the first
+      return LS.done('lesson_' + order[idx - 1]);
+    }
+    function cdPrevLessonTitle(lid) {
+      var order = activeLessonOrder(), idx = order.indexOf(lid);
+      if (idx <= 0) return '';
+      var prev = LESSON_DATA[order[idx - 1]];
+      return prev ? prev.title : '';
+    }
+
     /* Where a tier stands, for the three places that offer to claim.
        The claim bar itself lives in the All Lessons panel, and a member who
        has just passed the final quiz has no reason to open that tab — they
@@ -1394,6 +1429,17 @@
     function cdRefreshGating() {
       var dashPrimary = id('dashPrimaryAction');
       if (dashPrimary) dashPrimary.innerHTML = dashPrimaryHtml();
+      /* Completing a lesson unlocks the next one. Next is set when a lesson is
+         opened, so without this it would stay disabled until a re-render and
+         the member would think finishing had done nothing. */
+      if (currentLesson) {
+        var curLesson = LESSON_DATA[currentLesson];
+        var nb = id('lv-next-btn');
+        if (nb && curLesson) {
+          var nid = curLesson.next && LESSON_DATA[curLesson.next] && activeLessonOrder().indexOf(curLesson.next) !== -1 ? curLesson.next : '';
+          nb.disabled = !nid || !cdLessonUnlocked(nid);
+        }
+      }
       liveTiers().forEach(function (tier) {
         var lessons = TIER_LESSONS[tier];
         var done = lessons.filter(function (lid) { return LS.done('lesson_' + lid); }).length;
@@ -1404,9 +1450,10 @@
         else { if (mcBtn) { mcBtn.style.display = ''; mcBtn.disabled = !allDone; } if (mcDone) mcDone.classList.remove('visible'); }
         lessons.forEach(function (lid) {
           var isDone = LS.done('lesson_' + lid);
+          var isLocked = !cdLessonUnlocked(lid);
           var row = id('row-' + lid), sideEl = document.querySelector('[data-lesson="' + lid + '"]');
-          if (row) row.classList.toggle('done', isDone);
-          if (sideEl) sideEl.classList.toggle('done', isDone);
+          if (row) { row.classList.toggle('done', isDone); row.classList.toggle('lesson-locked', isLocked); }
+          if (sideEl) { sideEl.classList.toggle('done', isDone); sideEl.classList.toggle('lesson-locked', isLocked); }
         });
       });
       var wEl = document.querySelector('[data-lesson="welcome1"]');
