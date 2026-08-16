@@ -417,11 +417,7 @@
         .cd-cert-sheet .isl { display: block !important; }
         .main-wrap { max-width: none; padding: 0; margin: 0; }
         .cd-cert-sheet { display: block !important; }
-        /* D is a fixed 1000x707 box; letter landscape less 12mm margins is
-           ~966px, so the fixed width would clip. Width goes fluid and the
-           min-height holds — every child is centred, so the composition is
-           unchanged, the frame simply meets the page edge as it should. */
-        .cd-cert-sheet .cert { width: 100%; min-height: 6.8in; page-break-inside: avoid; }
+        .cd-cert-sheet .cert { page-break-inside: avoid; }
         @page { size: landscape; margin: 12mm; }
     }
     </style>
