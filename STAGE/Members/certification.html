@@ -332,14 +332,31 @@
        "Print, then Save as PDF" produces a clean single page, so a library would
        be ~200KB for nothing. */
     .cd-cert-sheet { display: none; }
-    .cd-cert-sheet-inner { position: relative; background: #fff; border: 3px double var(--bronze); border-radius: 6px; padding: 46px 52px 40px; text-align: center; max-width: 900px; margin: 0 auto; }
-    .cd-cert-sheet-inner::after { content: ''; position: absolute; inset: 10px; border: 1px solid var(--bronze-line); border-radius: 3px; pointer-events: none; }
-    .cd-cert-logo { width: 78px; height: 78px; margin: 0 auto 10px; display: block; }
+    /* Island Watermark. The chain sits large and faint directly behind the
+       name so it reads as texture, not decoration, with bracket corners in
+       place of a full border. print-color-adjust keeps the warm paper and the
+       watermark from being dropped — browsers discard backgrounds by default,
+       and without it this prints as the plain sheet it used to be. */
+    .cd-cert-sheet-inner { position: relative; overflow: hidden; background: #FFFDF9; border-radius: 6px; padding: 46px 52px 40px; text-align: center; max-width: 900px; margin: 0 auto; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .cd-cert-sheet-inner::after { content: ''; position: absolute; inset: 26px; border: 1px solid var(--bronze); opacity: .42; pointer-events: none; z-index: 1; }
+    .cd-cert-sheet-inner > * { position: relative; z-index: 2; }
+    /* These two MUST stay below the rule above — same specificity, so order is
+       what puts the watermark and corners behind the text rather than over it. */
+    .cd-cert-islands { position: absolute; left: 50%; top: 53%; width: 88%; transform: translate(-50%, -50%) scaleY(-1); color: var(--ocean-deep); opacity: .08; z-index: 0; pointer-events: none; }
+    .cd-cert-corner { position: absolute; width: 34px; height: 34px; z-index: 1; border-color: var(--bronze); opacity: .75; pointer-events: none; }
+    .cd-cert-corner.tl { top: 19px; left: 19px; border-top: 3px solid; border-left: 3px solid; }
+    .cd-cert-corner.tr { top: 19px; right: 19px; border-top: 3px solid; border-right: 3px solid; }
+    .cd-cert-corner.bl { bottom: 19px; left: 19px; border-bottom: 3px solid; border-left: 3px solid; }
+    .cd-cert-corner.br { bottom: 19px; right: 19px; border-bottom: 3px solid; border-right: 3px solid; }
+    .cd-cert-diamond { color: var(--bronze); font-size: 0.6rem; letter-spacing: .5em; margin: 12px 0 2px; }
+    /* Doubled from 78px at Daniel's request — the sheet had the headroom, so
+       nothing else moved. */
+    .cd-cert-logo { width: 152px; height: 152px; margin: 0 auto 10px; display: block; }
     .cd-cert-org { font-family: 'Outfit', sans-serif; font-size: 0.82rem; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: var(--text-soft); margin-bottom: 22px; }
     .cd-cert-kicker { font-size: 0.9rem; letter-spacing: .16em; text-transform: uppercase; color: var(--text-soft); margin-bottom: 8px; }
     .cd-cert-title { font-family: 'Outfit', sans-serif; font-size: 2.15rem; font-weight: 800; color: var(--bronze); line-height: 1.15; margin-bottom: 20px; }
     .cd-cert-presented { font-size: 0.95rem; color: var(--text-soft); margin-bottom: 6px; }
-    .cd-cert-person { font-family: 'Outfit', sans-serif; font-size: 2rem; font-weight: 700; color: var(--text-dark); border-bottom: 2px solid var(--bronze-line); display: inline-block; padding: 0 34px 8px; margin-bottom: 20px; }
+    .cd-cert-person { font-family: 'Outfit', sans-serif; font-size: 2rem; font-weight: 700; color: var(--text-dark); border-bottom: 2px solid var(--bronze); display: inline-block; padding: 0 44px 10px; margin-bottom: 20px; }
     .cd-cert-body { font-size: 1rem; line-height: 1.75; color: #41535c; max-width: 620px; margin: 0 auto 26px; }
     .cd-cert-meta { display: flex; justify-content: center; gap: 46px; flex-wrap: wrap; margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--bronze-line); }
     .cd-cert-meta div { text-align: center; }
@@ -391,6 +408,9 @@
         body { background: #fff !important; display: block; }
         .page-header, .hero-section, footer, .cd-shell, .cd-toast, .cd-modal,
         .bg-islands, #a11y-toggle, #a11y-panel, .cd-cert-noprint { display: none !important; }
+        /* .bg-islands above is the PAGE watermark. .cd-cert-islands is the one
+           printed INSIDE the certificate — different element, keep it. */
+        .cd-cert-islands { display: block !important; }
         .main-wrap { max-width: none; padding: 0; margin: 0; }
         .cd-cert-sheet { display: block !important; }
         .cd-cert-sheet-inner { border-radius: 0; box-shadow: none; max-width: none; page-break-inside: avoid; }
@@ -1488,8 +1508,12 @@
       var cert = CERT.certificates[tier]; if (!cert) return;
       id('certSheet').innerHTML = ''
         + '<div class="cd-cert-sheet-inner">'
+        +   '<svg class="cd-cert-islands" viewBox="0 0 3880 2880" aria-hidden="true"><use href="#hawaii-islands"/></svg>'
+        +   '<div class="cd-cert-corner tl"></div><div class="cd-cert-corner tr"></div>'
+        +   '<div class="cd-cert-corner bl"></div><div class="cd-cert-corner br"></div>'
         +   '<img class="cd-cert-logo" src="https://www.ldahawaii.org/logo_blue.png" alt="">'
         +   '<div class="cd-cert-org">Leadership in Disabilities and Achievement of Hawai&#699;i</div>'
+        +   '<div class="cd-cert-diamond">&#9670;</div>'
         +   '<div class="cd-cert-kicker">Certificate of Completion</div>'
         +   '<div class="cd-cert-title">' + esc(TIER_LABEL[cert.tier] || cert.tier) + ' &mdash; ' + esc(TIER_SUB[cert.tier] || '') + '</div>'
         +   '<div class="cd-cert-presented">This certifies that</div>'
