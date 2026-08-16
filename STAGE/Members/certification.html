@@ -332,36 +332,40 @@
        "Print, then Save as PDF" produces a clean single page, so a library would
        be ~200KB for nothing. */
     .cd-cert-sheet { display: none; }
-    /* Island Watermark. The chain sits large and faint directly behind the
-       name so it reads as texture, not decoration, with bracket corners in
-       place of a full border. print-color-adjust keeps the warm paper and the
-       watermark from being dropped — browsers discard backgrounds by default,
-       and without it this prints as the plain sheet it used to be. */
-    .cd-cert-sheet-inner { position: relative; overflow: hidden; background: #FFFDF9; border-radius: 6px; padding: 46px 52px 40px; text-align: center; max-width: 900px; margin: 0 auto; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    /* ── Island Watermark ──
+       This is design D from the 2026-08-15 sample sheet, reproduced as drawn.
+       The geometry is the design: a fixed-ratio sheet that CENTRES its content
+       as a flex column with an even gap, NOT block flow with per-element
+       margins. Porting only the decoration onto the old margins crushed the
+       spacing and dropped the meta row onto the corner brackets — the whole
+       composition comes from the box, so do not unpick it.
+
+       print-color-adjust keeps the warm paper and the watermark: browsers
+       discard backgrounds by default, which would print the old plain sheet. */
+    .cd-cert-sheet-inner { position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; width: 1000px; min-height: 707px; max-width: 100%; margin: 0 auto; padding: 52px 64px; text-align: center; background: #FFFDF9; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .cd-cert-sheet-inner::after { content: ''; position: absolute; inset: 26px; border: 1px solid var(--bronze); opacity: .42; pointer-events: none; z-index: 1; }
     .cd-cert-sheet-inner > * { position: relative; z-index: 2; }
-    /* These two MUST stay below the rule above — same specificity, so order is
-       what puts the watermark and corners behind the text rather than over it. */
-    .cd-cert-islands { position: absolute; left: 50%; top: 53%; width: 88%; transform: translate(-50%, -50%) scaleY(-1); color: var(--ocean-deep); opacity: .08; z-index: 0; pointer-events: none; }
+    /* These two MUST stay below the rule above — same specificity, so source
+       order is what puts the watermark and corners behind the text. */
+    .cd-cert-islands { position: absolute; left: 50%; top: 53%; width: 88%; transform: translate(-50%, -50%) scaleY(-1); color: var(--ocean-deep); opacity: .07; z-index: 0; pointer-events: none; }
     .cd-cert-corner { position: absolute; width: 34px; height: 34px; z-index: 1; border-color: var(--bronze); opacity: .75; pointer-events: none; }
     .cd-cert-corner.tl { top: 19px; left: 19px; border-top: 3px solid; border-left: 3px solid; }
     .cd-cert-corner.tr { top: 19px; right: 19px; border-top: 3px solid; border-right: 3px solid; }
     .cd-cert-corner.bl { bottom: 19px; left: 19px; border-bottom: 3px solid; border-left: 3px solid; }
     .cd-cert-corner.br { bottom: 19px; right: 19px; border-bottom: 3px solid; border-right: 3px solid; }
     .cd-cert-diamond { color: var(--bronze); font-size: 0.6rem; letter-spacing: .5em; margin: 12px 0 2px; }
-    /* Doubled from 78px at Daniel's request — the sheet had the headroom, so
-       nothing else moved. */
-    .cd-cert-logo { width: 152px; height: 152px; margin: 0 auto 10px; display: block; }
-    .cd-cert-org { font-family: 'Outfit', sans-serif; font-size: 0.82rem; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: var(--text-soft); margin-bottom: 22px; }
-    .cd-cert-kicker { font-size: 0.9rem; letter-spacing: .16em; text-transform: uppercase; color: var(--text-soft); margin-bottom: 8px; }
-    .cd-cert-title { font-family: 'Outfit', sans-serif; font-size: 2.15rem; font-weight: 800; color: var(--bronze); line-height: 1.15; margin-bottom: 20px; }
-    .cd-cert-presented { font-size: 0.95rem; color: var(--text-soft); margin-bottom: 6px; }
-    .cd-cert-person { font-family: 'Outfit', sans-serif; font-size: 2rem; font-weight: 700; color: var(--text-dark); border-bottom: 2px solid var(--bronze); display: inline-block; padding: 0 44px 10px; margin-bottom: 20px; }
-    .cd-cert-body { font-size: 1rem; line-height: 1.75; color: #41535c; max-width: 620px; margin: 0 auto 26px; }
-    .cd-cert-meta { display: flex; justify-content: center; gap: 46px; flex-wrap: wrap; margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--bronze-line); }
+    /* 74px in the sample, doubled at Daniel's request. The only change to D. */
+    .cd-cert-logo { width: 148px; height: 148px; display: block; }
+    .cd-cert-org { font-family: 'Outfit', sans-serif; font-size: 0.78rem; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: var(--text-soft); }
+    .cd-cert-kicker { font-size: 0.85rem; letter-spacing: .17em; text-transform: uppercase; color: var(--text-soft); }
+    .cd-cert-title { font-family: 'Outfit', sans-serif; font-size: 2.3rem; font-weight: 800; color: var(--bronze); line-height: 1.1; letter-spacing: -.01em; }
+    .cd-cert-presented { font-size: 0.95rem; color: var(--text-soft); }
+    .cd-cert-person { font-family: 'Outfit', sans-serif; font-size: 2.25rem; font-weight: 700; color: var(--text-dark); letter-spacing: .005em; border-bottom: 2px solid var(--bronze); display: inline-block; padding: 0 44px 10px; }
+    .cd-cert-body { font-size: 0.97rem; line-height: 1.75; color: #41535c; max-width: 600px; margin: 0 auto; }
+    .cd-cert-meta { display: flex; justify-content: center; gap: 44px; flex-wrap: wrap; }
     .cd-cert-meta div { text-align: center; }
-    .cd-cert-meta dt { font-size: 0.7rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-soft); margin-bottom: 3px; }
-    .cd-cert-meta dd { font-size: 0.95rem; font-weight: 700; color: var(--text-dark); font-variant-numeric: tabular-nums; }
+    .cd-cert-meta dt { font-size: 0.66rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-soft); margin-bottom: 3px; }
+    .cd-cert-meta dd { margin: 0; font-size: 0.92rem; font-weight: 700; color: var(--text-dark); font-variant-numeric: tabular-nums; }
 
     /* ── full-name prompt ──
        The contacts record has firstName/lastName only and neither is a legal
@@ -413,7 +417,10 @@
         .cd-cert-islands { display: block !important; }
         .main-wrap { max-width: none; padding: 0; margin: 0; }
         .cd-cert-sheet { display: block !important; }
-        .cd-cert-sheet-inner { border-radius: 0; box-shadow: none; max-width: none; page-break-inside: avoid; }
+        /* Letter landscape less 12mm margins is ~966x726px, so the sheet's
+           1000x707 proportions carry over almost exactly. Width goes fluid;
+           min-height stays so the column keeps centring on paper. */
+        .cd-cert-sheet-inner { box-shadow: none; width: 100%; max-width: none; min-height: 6.8in; page-break-inside: avoid; }
         @page { size: landscape; margin: 12mm; }
     }
     </style>
