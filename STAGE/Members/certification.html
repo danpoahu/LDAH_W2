@@ -257,9 +257,9 @@
     .cd-lesson-row.done .cd-lesson-row-done-badge { display: inline-flex; }
 
     /* A locked tier shows its curriculum but nothing is clickable and nothing
-       pretends to be unlockable. Copy says "Coming soon", not "complete Bronze
-       to unlock" — Silver and Gold are not built yet, and saying otherwise
-       would be a promise the page cannot keep. */
+       pretends to be unlockable. The lock icon carries it with NO wording —
+       do not add "Coming soon" or "complete Bronze to unlock". Those words are
+       banned house-wide, and a date we cannot keep is worse than silence. */
     .cd-tier-block.locked .cd-lessons-list { pointer-events: none; opacity: .45; }
     .cd-tier-block.locked .cd-lesson-row { cursor: default; }
     .cd-coming-soon { display: flex; align-items: flex-start; gap: 11px; background: #F8FAFC; border: 1.5px dashed #CBD5E1; border-radius: 12px; padding: 14px 17px; margin-bottom: 12px; color: var(--text-soft); font-size: 0.92rem; line-height: 1.6; }
@@ -909,7 +909,7 @@
        Ported from the standalone prototype. Behaviour is unchanged except:
          - progress reads/writes go through the Firestore-backed LS shim
          - quiz scores are recorded, not discarded
-         - Silver and Gold are locked with honest "coming soon" copy
+         - Silver and Gold are locked with a bare lock icon, no wording
          - every emoji is replaced by an SVG icon from the sprite
     ═══════════════════════════════════════════════ */
 
@@ -975,7 +975,7 @@
         side += '<div class="cd-section ' + tier + (live ? ' open' : ' locked') + '" id="sec-' + tier + '" data-tier="' + tier + '">'
              +   '<div class="cd-section-header"' + (live ? ' onclick="cdToggle(\'sec-' + tier + '\')"' : '') + '>'
              +     '<span class="cd-section-title">' + TIER_LABEL[tier] + ' &mdash; ' + TIER_SUB[tier]
-             +       (live ? '' : '<span class="cd-lock-badge">' + ico('lock') + ' Coming soon</span>') + '</span>'
+             +       (live ? '' : '<span class="cd-lock-badge">' + ico('lock') + '</span>') + '</span>'
              +     '<button class="cd-section-icon" aria-hidden="true">+</button>'
              +   '</div><div class="cd-lessons">';
         if (live) {
@@ -1032,7 +1032,7 @@
         +         '<div id="certHome"></div>'
         +       '</div>'
         +       '<div class="cd-action-col">'
-        +         '<button class="cd-action-btn cd-action-primary" onclick="cdOpenLesson(\'b1\')">Start Bronze<span class="cd-action-btn-sub">Begin your foundations</span></button>'
+        +         '<span id="dashPrimaryAction">' + dashPrimaryHtml() + '</span>'
         +         '<a class="cd-action-btn cd-action-secondary" href="https://www.ldahawaii.org/events.html" target="_blank" rel="noopener">Join the Next Workshop<span class="cd-action-btn-sub">Register for live events</span></a>'
         +         '<a class="cd-action-btn cd-action-tertiary" href="https://www.ldahawaii.org/contact.html" target="_blank" rel="noopener">Ask LDAH a Question<span class="cd-action-btn-sub">Send us your question</span></a>'
         +       '</div></div>'
@@ -1057,7 +1057,7 @@
         html += '<div class="cd-tier-block' + (live ? '' : ' locked') + '" data-tier-block="' + tier + '">'
              +    '<div class="cd-tier-block-header"><span class="cd-tier-medal ' + tier + '">' + ico('award') + '</span>'
              +      '<span class="cd-tier-block-title ' + tier + '-txt">' + TIER_LABEL[tier] + ' &mdash; ' + TIER_SUB[tier] + ' Certification</span>'
-             +      (live ? '' : '<span class="cd-lock-badge">' + ico('lock') + ' Coming soon</span>') + '</div>';
+             +      (live ? '' : '<span class="cd-lock-badge">' + ico('lock') + '</span>') + '</div>';
         if (!live) {
           html += '<div class="cd-coming-soon">' + ico('info') + '<div><strong>' + TIER_LABEL[tier] + ' is not open yet.</strong> '
                +  'The outline below is what this tier will cover. There is no date for it yet &mdash; when it opens, it will appear here and you will not need to do anything to get access.</div></div>';
@@ -1113,7 +1113,7 @@
         var src = cdParseYouTube(lesson.videoUrl) || lesson.videoUrl;
         embed.innerHTML = '<iframe src="' + esc(src) + '" allowfullscreen allow="autoplay; fullscreen; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" title="' + esc(lesson.title) + '"></iframe>';
       } else {
-        embed.innerHTML = '<div class="cd-lv-video-empty">' + ico('play', 'ico-lg') + '<span>Video coming soon</span></div>';
+        embed.innerHTML = '<div class="cd-lv-video-empty">' + ico('play', 'ico-lg') + '<span>No video for this lesson</span></div>';
       }
     }
 
@@ -1217,7 +1217,7 @@
       if (!container) return;
       var quizId = isPopQuiz ? POP_QUIZ_ID[tier] : TIER_QUIZ_ID[tier];
       var questions = isPopQuiz ? POP_QUIZ_DATA[tier] : QUIZ_DATA[tier];
-      if (!questions) { container.innerHTML = '<div class="cd-quiz-result"><div class="cd-quiz-result-title">Coming soon</div></div>'; return; }
+      if (!questions) { container.innerHTML = '<div class="cd-quiz-result"><div class="cd-quiz-result-title">This quiz is locked</div></div>'; return; }
 
       if (LS.done('lesson_' + quizId)) {
         var prev = (CERT.cache.quizzes || {})[quizId];
@@ -1226,7 +1226,8 @@
           : 'You have already completed this ' + (isPopQuiz ? 'pop quiz' : 'quiz') + '.';
         container.innerHTML = '<div class="cd-quiz-result passed"><div class="cd-quiz-result-icon">' + ico('check-circle') + '</div>'
           + '<div class="cd-quiz-result-title">' + (isPopQuiz ? 'Pop quiz passed' : 'Quiz passed') + '</div>'
-          + '<div class="cd-quiz-result-score">' + scoreLine + '</div></div>';
+          + '<div class="cd-quiz-result-score">' + scoreLine + '</div>'
+          + quizClaimCta(tier, isPopQuiz) + '</div>';
         return;
       }
 
@@ -1315,7 +1316,7 @@
           + '<div class="cd-quiz-result-title">' + (isPopQuiz ? 'Nice work' : 'You passed') + '</div>'
           + '<div class="cd-quiz-result-score">You scored <strong>' + score + ' out of ' + total + ' (' + pct + '%)</strong>.'
           + (isPopQuiz ? ' Good understanding of the material so far.' : ' You have finished every ' + TIER_LABEL[tier] + ' assessment.') + '</div>'
-          + continueBtn + '</div>';
+          + continueBtn + quizClaimCta(tier, isPopQuiz) + '</div>';
         cdShowToast(ico('check') + (isPopQuiz ? ' Pop quiz passed' : ' ' + TIER_LABEL[tier] + ' quiz passed'));
       } else {
         var retryFn = 'cdRenderQuiz(\'' + tier + '\',document.getElementById(\'lv-quiz-container\'),' + isPopQuiz + ')';
@@ -1331,7 +1332,44 @@
     /* ── gating and progress ── */
     function cdAllDone(tier) { return TIER_LESSONS[tier].every(function (lid) { return LS.done('lesson_' + lid); }); }
 
+    /* Where a tier stands, for the three places that offer to claim.
+       The claim bar itself lives in the All Lessons panel, and a member who
+       has just passed the final quiz has no reason to open that tab — they
+       see 100% and nothing to do. So the same action is offered wherever
+       they happen to be standing when they finish. */
+    function cdClaimState(tier) {
+      if (!isTierLive(tier)) return 'locked';
+      if (CERT.certificates[tier] || LS.done('tier_' + tier)) return 'issued';
+      return cdAllDone(tier) ? 'claimable' : 'progress';
+    }
+
+    /* The dashboard's primary action follows the member: start the tier,
+       then claim it, then print it. */
+    function dashPrimaryHtml() {
+      var tier = liveTiers()[0];
+      if (!tier) return '';
+      var st = cdClaimState(tier);
+      if (st === 'claimable') {
+        return '<button class="cd-action-btn cd-action-primary" onclick="cdMarkTierComplete(\'' + tier + '\')">'
+             + 'Claim my ' + TIER_LABEL[tier] + ' certificate<span class="cd-action-btn-sub">You have finished every lesson</span></button>';
+      }
+      if (st === 'issued') {
+        return '<button class="cd-action-btn cd-action-primary" onclick="cdPrintCertificate(\'' + tier + '\')">'
+             + 'Print my ' + TIER_LABEL[tier] + ' certificate<span class="cd-action-btn-sub">Opens the printable certificate</span></button>';
+      }
+      return '<button class="cd-action-btn cd-action-primary" onclick="cdOpenLesson(\'' + TIER_LESSONS[tier][0] + '\')">'
+           + 'Start ' + TIER_LABEL[tier] + '<span class="cd-action-btn-sub">Begin your foundations</span></button>';
+    }
+
+    /* Offered on the final quiz result — never on a pop quiz, which earns nothing. */
+    function quizClaimCta(tier, isPopQuiz) {
+      if (isPopQuiz || cdClaimState(tier) !== 'claimable') return '';
+      return '<button class="cd-quiz-continue" onclick="cdMarkTierComplete(\'' + tier + '\')">Claim my ' + TIER_LABEL[tier] + ' certificate</button>';
+    }
+
     function cdRefreshGating() {
+      var dashPrimary = id('dashPrimaryAction');
+      if (dashPrimary) dashPrimary.innerHTML = dashPrimaryHtml();
       liveTiers().forEach(function (tier) {
         var lessons = TIER_LESSONS[tier];
         var done = lessons.filter(function (lid) { return LS.done('lesson_' + lid); }).length;
