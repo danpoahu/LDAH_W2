@@ -252,6 +252,58 @@ service cloud.firestore {
       allow write: if request.auth != null && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin','admin'];
     }
 
+    /* ══════════════════════════════════════════════════════════════════
+       CERTIFICATION PROGRAM  (Members/certification.html)
+
+       A member's course progress lives UNDER their contact, not in the
+       `members` collection: `members` holds one doc per checkout ATTEMPT,
+       so a renewing member has several and none of them is "the member".
+
+       Note the parent rule `match /contacts/{docId}` above is a SINGLE
+       path segment, so it does NOT reach these subcollections. Everything
+       below is granted explicitly here; nothing widens the contacts rule.
+
+       Ownership is the auth uid that getMemberProfile stamps on the contact
+       (`memberAuthUid`, functions/index.js). certification.html calls that
+       callable and waits for it BEFORE it touches Firestore, so the stamp
+       is always present by the time these rules run. If the contact does
+       not exist the get() errors and the request is DENIED, which is the
+       outcome we want. */
+    function _ownsContact(cid) {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && get(/databases/$(database)/documents/contacts/$(cid)).data.memberAuthUid == request.auth.uid;
+    }
+
+    match /contacts/{cid}/certification/{docId} {
+      // A member reads and writes their own progress. Staff read, never write.
+      allow read: if _ownsContact(cid) || isStaff();
+      allow write: if _ownsContact(cid);
+    }
+
+    match /contacts/{cid}/certificates/{certId} {
+      /* Read-only to the member who earned it. Certificates are minted by
+         the issueCertificate callable on the Admin SDK (which bypasses these
+         rules) and are immutable — re-completing a tier must never reissue,
+         renumber, or redate one. Same `allow write: if false` shape as
+         photoReleases. */
+      allow read: if _ownsContact(cid) || isStaff();
+      allow write: if false;
+    }
+
+    /* The staff report reads every member's progress with a collectionGroup
+       query. Those are evaluated against a recursive-wildcard rule, NOT the
+       two paths above, so staff access is granted here and only here — a
+       member running the same query matches this rule, fails isStaff(), and
+       is refused. */
+    match /{path=**}/certification/{docId} {
+      allow read: if isStaff();
+    }
+    match /{path=**}/certificates/{certId} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
     match /interactions/{docId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null;
@@ -438,6 +490,14 @@ service cloud.firestore {
     // IP rate-limit ledger for the Native Hawaiian survey. Only the
     // CF (admin SDK) ever reads or writes. Clients must never access.
     match /nhSurveyIpHistory/{ipHash} {
+      allow read, write: if false;
+    }
+
+    /* Certificate serial counters, one doc per tier per year, bumped inside
+       the transaction that mints a certificate number. Only issueCertificate
+       (Admin SDK) ever touches these — a client must never be able to read
+       the next serial or bump it. */
+    match /certificateCounters/{counterId} {
       allow read, write: if false;
     }
   }

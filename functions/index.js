@@ -20401,6 +20401,145 @@ function _matchMeeting(meetings, targetDate, publishedUuids) {
   return onDate.sort((a, b) => (b.duration || 0) - (a.duration || 0))[0];
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// CERTIFICATION PROGRAM — certificate issuing  (Members/certification.html)
+//
+// Progress itself is written by the member's browser straight to
+// contacts/{id}/certification/progress, guarded by firestore.rules. Only the
+// CERTIFICATE is minted here, for three reasons the client cannot satisfy:
+//
+//   1. The serial has to be unique and human-readable (LDAH-B-2026-0142).
+//      That needs a counter, and a counter a client can bump is a counter a
+//      client can forge.
+//   2. Completion must be checked against the stored progress doc. "I clicked
+//      the button" is not evidence a tier was earned.
+//   3. Certificates are immutable. The member has NO write access to them at
+//      all (`allow write: if false`), so issuing has to happen on the Admin SDK.
+//
+// Re-claiming an already-issued tier returns the SAME certificate, unchanged.
+// ══════════════════════════════════════════════════════════════════════
+
+const CERT_TIER_LETTER = { bronze: "B", silver: "S", gold: "G" };
+const CERT_TIER_LESSONS = {
+  bronze: ["b1", "b2", "b2pq", "b3", "b4", "bquiz"],
+  silver: ["s1", "s2", "s2pq", "s3", "s4", "squiz"],
+  gold: ["g1", "g2", "g2pq", "g3", "g4", "gquiz"],
+};
+const CERT_TIER_QUIZ = { bronze: "bquiz", silver: "squiz", gold: "gquiz" };
+
+/* Which tiers may be certified. This MIRRORS TIER_STATE in
+   Members/certification.html — opening a tier means flipping BOTH, and the
+   server is the one that actually decides. */
+const CERT_TIER_OPEN = { bronze: true, silver: false, gold: false };
+
+function _certOut(tier, d) {
+  const iss = d.issuedAt;
+  return {
+    tier: tier,
+    memberName: String(d.memberName || ""),
+    certNumber: String(d.certNumber || ""),
+    issuedAtMs: (iss && typeof iss.toMillis === "function") ? iss.toMillis() : 0,
+    quizScore: d.quizScore || null,
+  };
+}
+
+exports.issueCertificate = functions
+  .runWith({ timeoutSeconds: 20, maxInstances: 10 })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Please sign in.");
+    if (!context.auth.token.email_verified) {
+      throw new functions.https.HttpsError("failed-precondition", "email-unverified");
+    }
+    const db = admin.firestore();
+    const tier = String((data && data.tier) || "").trim().toLowerCase();
+    if (!CERT_TIER_OPEN[tier]) {
+      throw new functions.https.HttpsError("invalid-argument", "That certification tier is not open.");
+    }
+
+    // Identity is the VERIFIED email, exactly as every other member callable.
+    const doc = await _findMemberContactByEmail(db, context.auth.token.email);
+    if (!doc) throw new functions.https.HttpsError("not-found", "No membership found.");
+    const c = doc.data() || {};
+    if (!_membershipIsActive(c)) {
+      throw new functions.https.HttpsError("failed-precondition", "membership-inactive");
+    }
+
+    const certRef = doc.ref.collection("certificates").doc(tier);
+
+    // Already issued: hand back the same one. No reissue, no renumber, no redate.
+    const existing = await certRef.get();
+    if (existing.exists) return { certificate: _certOut(tier, existing.data() || {}) };
+
+    // Completion is verified from the STORED progress, not from the request.
+    const progSnap = await doc.ref.collection("certification").doc("progress").get();
+    const prog = progSnap.exists ? (progSnap.data() || {}) : {};
+    const lessons = prog.lessons || {};
+    const missing = CERT_TIER_LESSONS[tier].filter((k) => !lessons[k]);
+    if (missing.length) {
+      throw new functions.https.HttpsError("failed-precondition",
+        "Not all " + tier + " lessons are complete (" + missing.length + " outstanding).");
+    }
+    const quiz = (prog.quizzes || {})[CERT_TIER_QUIZ[tier]] || {};
+    if (!quiz.passed) {
+      throw new functions.https.HttpsError("failed-precondition", "The final quiz has not been passed.");
+    }
+
+    /* The name on the credential. contacts carries firstName/lastName only and
+       neither is a legal name, so the page may supply one. An email address is
+       never an acceptable fallback — we ask instead. */
+    let memberName = String((data && data.memberName) || "").trim().replace(/\s+/g, " ").slice(0, 120);
+    if (!memberName) memberName = [c.firstName, c.lastName].filter(Boolean).join(" ").trim();
+    if (!memberName) memberName = String(c.displayName || "").trim();
+    if (!memberName || memberName.indexOf("@") !== -1) return { needsName: true };
+
+    const year = new Intl.DateTimeFormat("en-US", { timeZone: "Pacific/Honolulu", year: "numeric" }).format(new Date());
+    const issuedAt = admin.firestore.Timestamp.now();
+    const quizScore = {
+      score: Number(quiz.score) || 0,
+      total: Number(quiz.total) || 0,
+      pct: Number(quiz.pct) || 0,
+      attempts: Number(quiz.attempts) || 0,
+    };
+
+    /* Serial + document in ONE transaction, so two tabs racing cannot take the
+       same number or burn one without writing a certificate. */
+    const out = await db.runTransaction(async (tx) => {
+      const fresh = await tx.get(certRef);
+      if (fresh.exists) return _certOut(tier, fresh.data() || {});
+
+      const counterRef = db.collection("certificateCounters").doc(tier + "-" + year);
+      const cSnap = await tx.get(counterRef);
+      const next = ((cSnap.exists && Number(cSnap.data().seq)) || 0) + 1;
+      const certNumber = "LDAH-" + CERT_TIER_LETTER[tier] + "-" + year + "-" + String(next).padStart(4, "0");
+
+      tx.set(counterRef, { seq: next, tier: tier, year: year, updatedAt: issuedAt }, { merge: true });
+      tx.set(certRef, {
+        tier: tier,
+        memberName: memberName,
+        certNumber: certNumber,
+        contactId: doc.id,
+        email: String(c.email || ""),
+        quizScore: quizScore,
+        issuedAt: issuedAt,
+      });
+      return { tier: tier, memberName: memberName, certNumber: certNumber, issuedAtMs: issuedAt.toMillis(), quizScore: quizScore, _new: true };
+    });
+
+    // Audit row so the daily-report changelog picks certifications up for free.
+    if (out._new) {
+      try {
+        await db.collection("auditLog").add({
+          action: "Certification earned",
+          details: memberName + " earned " + tier + " (" + out.certNumber + ", " + quizScore.pct + "%)",
+          performedBy: "System (auto)",
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (e) { console.warn("certificate auditLog failed:", e.message); }
+      delete out._new;
+    }
+    return { certificate: out };
+  });
+
 /**
  * Pull Zoom's participant report for one session and propose attendance.
  *

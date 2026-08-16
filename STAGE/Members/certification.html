@@ -1,0 +1,1620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <meta name="description" content="LDAH Member Portal — the LDAH Certification Program for Hawai&#699;i families.">
+    <title>LDAH Certification Program - LDAH Member Portal</title>
+
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+    /* Portal palette — copied from Members/videos.html so this page sits in the
+       same family as the rest of the portal. The prototype's own palette
+       (cream #f4f0e6, Playfair Display, teal #30b9d1) is deliberately NOT
+       carried over; only the tier accents below are new. */
+    :root {
+        --ocean-deep: #0891B2; --ocean-mid: #06B6D4; --ocean-light: #22D3EE;
+        --sunset-coral: #F97316; --sunset-warm: #FB923C; --sand: #FEF3C7; --sand-light: #FFFBEB;
+        --palm: #65A30D; --plumeria: #FBBF24; --white: #FFFFFF;
+        --text-dark: #1E293B; --text-soft: #64748B; --bg-warm: #FEFDFB;
+        --primary-blue: #0891B2; --light-blue: #06B6D4; --accent-teal: #22D3EE;
+        --bg-light: #FFFBEB; --text-light: #64748B;
+        /* Tier accents. Bronze reuses the amber the Int membership report
+           already uses (#B45309) so the two read as the same programme. */
+        --bronze: #B45309; --bronze-bg: #FEF6EC; --bronze-line: #F3D9B8;
+        --silver: #64748B; --silver-bg: #F1F5F9; --silver-line: #DDE3EA;
+        --gold: #A16207; --gold-bg: #FEFAEC; --gold-line: #EFE0B0;
+        --success: #16A34A; --success-bg: #F0FDF4; --danger: #DC2626; --danger-bg: #FEF2F2;
+        --border: #E6EEF2;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: var(--text-dark); line-height: 1.7; background: var(--bg-warm); overflow-x: hidden; display: flex; flex-direction: column; min-height: 100vh; }
+    h1, h2, h3 { font-family: 'Outfit', sans-serif; font-weight: 600; line-height: 1.3; }
+
+    /* ── shared portal chrome (header / hero / footer) ── */
+    .page-header { background: rgba(255,255,255,0.97); backdrop-filter: blur(12px); box-shadow: 0 1px 20px rgba(8,145,178,0.08); border-bottom: 1px solid rgba(8,145,178,0.1); position: relative; z-index: 30; }
+    .page-header-inner { max-width: 1280px; margin: 0 auto; padding: 1rem 2rem; display: flex; align-items: center; gap: 1rem; }
+    .page-header .brand { display: flex; align-items: center; gap: 1rem; }
+    .page-header img { width: 72px; height: 72px; flex-shrink: 0; }
+    .page-header .header-text h1 { color: var(--primary-blue); font-size: 1.4rem; font-weight: 600; margin: 0; }
+    .page-header .header-text p { color: var(--text-light); font-size: 0.95rem; margin: 0; line-height: 1.4; }
+    .brand:hover .header-text h1 { text-decoration: underline; }
+    .hdr-actions { margin-left: auto; display: flex; align-items: center; gap: 0.8rem; }
+    .signout-link { background: none; border: none; color: var(--text-soft); font: 600 0.92rem 'Source Sans 3', sans-serif; cursor: pointer; padding: 0.3rem 0.1rem; }
+    .signout-link:hover { color: var(--primary-blue); text-decoration: underline; }
+    .menu-btn { background: none; border: none; cursor: pointer; padding: 0.45rem 0.3rem; display: flex; flex-direction: column; gap: 5px; border-radius: 8px; }
+    .menu-btn:hover { background: #F0F9FF; }
+    .menu-btn span { display: block; width: 24px; height: 2.5px; background: var(--primary-blue); border-radius: 2px; }
+    .nav-menu { position: absolute; top: 100%; right: 1.2rem; margin-top: 0.35rem; background: #fff; border: 1px solid rgba(8,145,178,.12); border-radius: 14px; box-shadow: 0 14px 34px rgba(0,78,124,.20); padding: 0.5rem; min-width: 216px; display: none; flex-direction: column; z-index: 40; }
+    .nav-menu.open { display: flex; }
+    .nav-menu a { display: block; padding: 0.62rem 0.85rem; border-radius: 9px; color: var(--text-dark); text-decoration: none; font-weight: 600; font-size: 0.95rem; }
+    .nav-menu a:hover { background: #F0F9FF; color: var(--primary-blue); }
+
+    body { background: linear-gradient(180deg,#F0FBFF 0%, var(--bg-warm) 260px, var(--bg-warm) 100%); position: relative; }
+    .bg-islands { position: fixed; left: 50%; bottom: -8%; width: min(150%, 1050px); color: var(--ocean-deep); opacity: 0.04; z-index: 0; pointer-events: none; transform: translateX(-50%) scaleY(-1); }
+    .main-wrap, footer { position: relative; z-index: 1; }
+
+    .hero-section { position: relative; overflow: hidden; padding: 2.6rem 2rem 2.7rem;
+        max-width: min(1180px, calc(100% - 2rem)); margin: 1.3rem auto 0.3rem; border-radius: 22px;
+        box-shadow: 0 12px 30px rgba(8,145,178,.26); color: #fff; text-align: center;
+        background: linear-gradient(135deg, #0E7490 0%, var(--ocean-mid) 55%, var(--accent-teal) 120%); }
+    .hero-section .hero-islands { position: absolute; left: 50%; top: 54%; width: 82%; max-width: 560px; color: #fff; opacity: 0.15; transform: translate(-50%,-50%) scaleY(-1); z-index: 0; }
+    .hero-section > *:not(.hero-islands):not(.lei):not(.hero-back) { position: relative; z-index: 1; }
+    .hero-section h2 { font-size: 1.8rem; margin-bottom: 0.4rem; font-weight: 800; letter-spacing: -0.5px; color: #fff; }
+    .hero-section p { font-size: 1rem; max-width: 640px; margin: 0 auto; line-height: 1.5; opacity: 0.95; }
+    .hero-section .lei { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: linear-gradient(90deg, var(--sunset-coral), var(--plumeria), var(--accent-teal), var(--palm)); z-index: 2; }
+    .hero-back { position: absolute; top: 0.7rem; left: 1.1rem; font-size: 0.85rem; font-weight: 600; color: rgba(255,255,255,0.92); z-index: 3; text-decoration: none; }
+    .hero-back:hover { text-decoration: underline; }
+
+    /* This page is a course player, so it needs more room than the 760px the
+       other portal pages use. Everything still collapses to one column at 900px. */
+    .main-wrap { flex: 1; max-width: 1180px; width: 100%; margin: 0 auto; padding: 26px 20px 60px; }
+
+    .card { background: white; border-radius: 20px; padding: 2.5rem; box-shadow: 0 4px 20px rgba(0,78,124,0.10); border: 1px solid rgba(8,145,178,0.08); margin-bottom: 1.5rem; }
+    .card.message-card { text-align: center; max-width: 760px; margin-left: auto; margin-right: auto; }
+    .card.message-card h3 { color: var(--primary-blue); font-size: 1.4rem; margin-bottom: 0.75rem; }
+    .card.message-card p { color: var(--text-light); font-size: 1.02rem; margin-bottom: 0.6rem; }
+    .card.message-card a { color: var(--primary-blue); text-decoration: none; font-weight: 600; }
+    .card.message-card a:hover { text-decoration: underline; }
+    .loading-state { text-align: center; padding: 3rem 1rem; color: var(--text-light); }
+    .loading-spinner { display: inline-block; width: 36px; height: 36px; border: 3px solid rgba(8,145,178,0.2); border-top-color: var(--primary-blue); border-radius: 50%; animation: spin 0.9s linear infinite; margin-bottom: 1rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .btn { display: inline-block; padding: 0.85rem 1.5rem; font-family: inherit; font-size: 1rem; font-weight: 600; border-radius: 10px; cursor: pointer; transition: all 0.2s ease; border: 2px solid transparent; text-align: center; text-decoration: none; }
+    .btn-primary { background: linear-gradient(135deg, var(--ocean-mid), var(--accent-teal)); color: white; }
+    .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(8,145,178,0.3); }
+    .btn-outline { background: white; border: 2px solid var(--primary-blue); color: var(--primary-blue); }
+    .btn-outline:hover:not(:disabled) { background: #F0F9FF; }
+    .btn-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1.25rem; align-items: center; }
+
+    footer { background: var(--text-dark); color: white; padding: 1.75rem 2rem 1rem; position: relative; overflow: hidden; margin-top: auto; }
+    .footer-content { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.4rem; margin-bottom: 1rem; position: relative; z-index: 1; }
+    .footer-section h3 { color: var(--plumeria); margin-bottom: 0.7rem; font-family: 'Outfit', sans-serif; font-size: 1rem; }
+    .footer-section p { color: rgba(255,255,255,0.7); line-height: 1.5; font-size: 0.9rem; }
+    .footer-section a { color: rgba(255,255,255,0.7); text-decoration: none; display: block; margin-bottom: 0.35rem; font-size: 0.9rem; }
+    .footer-section a:hover { color: var(--plumeria); }
+    .footer-bottom { max-width: 1200px; margin: 0 auto; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); text-align: center; color: rgba(255,255,255,0.5); position: relative; z-index: 1; font-size: 0.85rem; }
+    .footer-bottom p { margin: 0.25rem 0; }
+    .footer-bottom a { color: var(--plumeria); text-decoration: none; }
+
+    /* ── icons ──
+       Feather-style 24x24 line icons, the same vocabulary events.html uses.
+       These replace every emoji the prototype shipped with (medals, trophy,
+       lightbulb, lock, checkmarks, star, clipboard). */
+    .ico { width: 1em; height: 1em; flex-shrink: 0; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -0.125em; }
+    .ico-lg { width: 1.5em; height: 1.5em; }
+    /* Feather icons are 2px strokes on a 24px grid. Below ~14px the outline
+       shapes stop being readable — a stroked triangle reads as a flag. Solid
+       fills are used for the small bullet glyphs instead. */
+    .ico-fill { fill: currentColor; stroke: none; }
+
+    /* ── course shell ── */
+    .cd-shell { display: grid; grid-template-columns: 268px 1fr; gap: 20px; align-items: start; }
+    .cd-sidebar { background: #fff; border: 1px solid var(--border); border-radius: 18px; box-shadow: 0 4px 20px rgba(0,78,124,0.07); overflow: hidden; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; }
+    .cd-sidebar-header { padding: 18px 18px 14px; border-bottom: 1px solid var(--border); }
+    .cd-sidebar-title { font-family: 'Outfit', sans-serif; font-size: 1rem; font-weight: 700; color: var(--primary-blue); line-height: 1.3; }
+    .cd-sidebar-sub { font-size: 0.8rem; color: var(--text-soft); margin-top: 2px; }
+    .cd-section { border-bottom: 1px solid var(--border); }
+    .cd-section:last-child { border-bottom: none; }
+    .cd-section-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px; cursor: pointer; transition: background .18s; user-select: none; }
+    .cd-section-header:hover { background: #F8FBFE; }
+    .cd-section-title { font-size: 0.86rem; font-weight: 700; color: var(--text-dark); display: flex; align-items: center; gap: 7px; }
+    .cd-section-icon { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; border: none; background: #EEF4F8; color: var(--text-soft); transition: all .2s; }
+    .cd-section.open .cd-section-icon { background: var(--primary-blue); color: #fff; transform: rotate(45deg); }
+    .cd-lessons { display: none; padding-bottom: 6px; }
+    .cd-section.open .cd-lessons { display: block; }
+    .cd-lesson { display: flex; align-items: flex-start; gap: 8px; padding: 8px 16px 8px 14px; font-size: 0.86rem; color: var(--text-soft); transition: background .18s, color .18s; border-left: 3px solid transparent; line-height: 1.4; cursor: pointer; }
+    .cd-lesson:hover { background: #F0F9FF; color: var(--primary-blue); border-left-color: var(--primary-blue); }
+    .cd-lesson.active { background: #F0F9FF; color: var(--primary-blue); border-left-color: var(--primary-blue); font-weight: 600; }
+    .cd-lesson-icon { flex-shrink: 0; margin-top: 5px; display: flex; }
+    .cd-lesson-icon .ico { width: 13px; height: 13px; }
+    .cd-lesson-text { flex: 1; }
+    .cd-lesson-check { color: var(--success); flex-shrink: 0; margin-top: 5px; display: none; }
+    .cd-lesson-check .ico { width: 14px; height: 14px; stroke-width: 2.6; }
+    .cd-lesson.done .cd-lesson-check { display: block; }
+    .cd-section.bronze .cd-section-title { color: var(--bronze); }
+    .cd-section.silver .cd-section-title { color: var(--silver); }
+    .cd-section.gold   .cd-section-title { color: var(--gold); }
+    .cd-section.bronze.open .cd-section-icon { background: var(--bronze); }
+    /* A locked tier is genuinely inert: not clickable, not hoverable, and the
+       lesson list stays collapsed. No fake affordance. */
+    .cd-section.locked .cd-section-header { opacity: .55; cursor: default; }
+    .cd-section.locked .cd-section-header:hover { background: transparent; }
+    .cd-section.locked .cd-section-icon { display: none; }
+    .cd-lock-badge .ico { width: 12px; height: 12px; stroke-width: 2.6; }
+    .cd-lock-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 0.66rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; background: #EEF2F6; color: var(--text-soft); border-radius: 99px; padding: 2px 8px; margin-left: 4px; }
+    .cd-main { min-width: 0; }
+    .cd-panelbox { background: #fff; border: 1px solid var(--border); border-radius: 18px; box-shadow: 0 4px 20px rgba(0,78,124,0.07); overflow: hidden; }
+
+    .cd-welcome-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 24px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+    .cd-welcome-name { font-family: 'Outfit', sans-serif; font-size: 1.12rem; font-weight: 700; color: var(--text-dark); margin-bottom: 3px; }
+    .cd-progress-row { display: flex; align-items: center; gap: 10px; }
+    .cd-progress-bar { width: 170px; height: 7px; border-radius: 99px; background: #E8EEF3; overflow: hidden; }
+    .cd-progress-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--ocean-mid), var(--accent-teal)); width: 0%; transition: width .7s ease; }
+    .cd-progress-label { font-size: 0.72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-soft); }
+    .cd-save-state { font-size: 0.74rem; color: var(--text-soft); min-height: 1.1em; display: flex; align-items: center; gap: 5px; }
+    .cd-save-state.err { color: var(--sunset-coral); font-weight: 600; }
+
+    .cd-tabs { display: flex; align-items: center; padding: 0 24px; border-bottom: 1px solid var(--border); background: #FCFDFE; }
+    .cd-tab { padding: 12px 18px; font-family: inherit; font-size: 0.92rem; font-weight: 600; color: var(--text-soft); border: none; background: transparent; border-bottom: 3px solid transparent; cursor: pointer; transition: all .2s; }
+    .cd-tab:hover { color: var(--text-dark); }
+    .cd-tab.active { color: var(--primary-blue); border-bottom-color: var(--primary-blue); }
+    .cd-tab-panel { display: none; }
+    .cd-tab-panel.active { display: block; }
+
+    /* ── lesson viewer ── */
+    .cd-lesson-viewer { display: none; }
+    .cd-lesson-viewer.active { display: block; }
+    .cd-lv-video-zone { background: #0F172A; width: 100%; }
+    .cd-lv-video-embed { width: 100%; aspect-ratio: 16/9; position: relative; background: #000; }
+    .cd-lv-video-embed iframe, .cd-lv-video-embed video { position: absolute; inset: 0; width: 100%; height: 100%; border: none; display: block; }
+    .cd-lv-video-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: rgba(255,255,255,.45); font-size: 0.8rem; letter-spacing: .06em; text-transform: uppercase; }
+    .cd-lv-nav-bar { border-bottom: 1px solid var(--border); padding: 11px 24px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .cd-lv-nav-arrow { width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid var(--border); background: #fff; color: var(--text-soft); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .2s; flex-shrink: 0; }
+    .cd-lv-nav-arrow:hover:not(:disabled) { border-color: var(--primary-blue); color: var(--primary-blue); background: #F0F9FF; }
+    .cd-lv-nav-arrow:disabled { opacity: .35; cursor: not-allowed; }
+    .cd-lv-nav-timer { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--text-soft); font-weight: 500; }
+    .cd-lv-nav-spacer { flex: 1; }
+    .cd-lv-complete-btn { padding: 9px 22px; border-radius: 9px; border: 2px solid var(--primary-blue); font-family: inherit; font-size: 0.88rem; font-weight: 700; cursor: pointer; background: #fff; color: var(--primary-blue); transition: all .2s; display: inline-flex; align-items: center; gap: 7px; }
+    .cd-lv-complete-btn:hover:not(.is-done) { background: var(--primary-blue); color: #fff; }
+    .cd-lv-complete-btn.is-done { background: var(--success-bg); border-color: var(--success); color: var(--success); cursor: default; }
+    .cd-lv-fav-btn { width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid var(--border); background: #fff; color: var(--text-soft); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .2s; flex-shrink: 0; }
+    .cd-lv-fav-btn:hover { border-color: var(--plumeria); color: #B45309; }
+    .cd-lv-fav-btn.starred { border-color: var(--plumeria); color: #B45309; background: var(--sand-light); }
+    .cd-lv-fav-btn.starred .ico { fill: currentColor; }
+    .cd-lv-content-area { max-width: 780px; margin: 0 auto; padding: 30px 28px 52px; }
+    .cd-lv-tier-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+    .cd-lv-back { background: #F8FBFE; border: 1.5px solid var(--border); border-radius: 99px; padding: 6px 15px; font-family: inherit; font-size: 0.8rem; font-weight: 700; color: var(--text-soft); cursor: pointer; transition: all .2s; display: inline-flex; align-items: center; gap: 6px; }
+    .cd-lv-back:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+    .cd-tier-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 0.7rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; padding: 5px 13px; border-radius: 99px; }
+    .cd-tier-bronze { background: var(--bronze-bg); color: var(--bronze); border: 1px solid var(--bronze-line); }
+    .cd-tier-silver { background: var(--silver-bg); color: var(--silver); border: 1px solid var(--silver-line); }
+    .cd-tier-gold   { background: var(--gold-bg);   color: var(--gold);   border: 1px solid var(--gold-line); }
+    .cd-lv-lesson-title { font-family: 'Outfit', sans-serif; font-size: 1.7rem; font-weight: 700; color: var(--text-dark); margin-bottom: 20px; line-height: 1.25; }
+    .cd-lv-content h2 { font-family: 'Outfit', sans-serif; font-size: 1.2rem; font-weight: 700; color: var(--text-dark); margin: 26px 0 10px; }
+    .cd-lv-content h3 { font-family: 'Outfit', sans-serif; font-size: 1.02rem; font-weight: 700; color: var(--primary-blue); margin: 20px 0 8px; }
+    .cd-lv-content p { font-size: 1rem; line-height: 1.8; color: #41535c; margin-bottom: 14px; }
+    .cd-lv-content ul { margin: 10px 0 18px 20px; }
+    .cd-lv-content ul li { font-size: 1rem; line-height: 1.75; color: #41535c; margin-bottom: 7px; }
+    .cd-lv-content strong { color: var(--text-dark); font-weight: 700; }
+    .cd-callout { display: flex; gap: 12px; background: #F0F9FF; border-left: 4px solid var(--primary-blue); border-radius: 0 12px 12px 0; padding: 15px 18px; margin: 18px 0; font-size: 0.96rem; line-height: 1.7; color: #41535c; }
+    .cd-callout .ico { color: var(--primary-blue); width: 1.2rem; height: 1.2rem; margin-top: 3px; }
+    .cd-callout strong { color: var(--primary-blue); }
+    .cd-takeaways { border: 1.5px solid var(--border); border-radius: 14px; padding: 20px 22px; margin: 26px 0; background: #FCFDFE; }
+    .cd-takeaways-title { font-size: 0.76rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text-soft); margin-bottom: 12px; }
+    .cd-takeaways ul { list-style: none; margin: 0; padding: 0; }
+    .cd-takeaways ul li { display: flex; align-items: flex-start; gap: 10px; font-size: 0.95rem; line-height: 1.65; color: #41535c; padding: 6px 0; border-bottom: 1px solid var(--border); }
+    .cd-takeaways ul li:last-child { border-bottom: none; }
+    .cd-takeaways ul li .ico { color: var(--primary-blue); margin-top: 4px; }
+    .pop-badge { font-size: 0.6rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; background: var(--primary-blue); color: #fff; border-radius: 99px; padding: 2px 7px; margin-left: 4px; }
+
+    /* ── dashboard + lesson list ── */
+    .cd-dash-content, .cd-lessons-panel-content { padding: 26px 28px 34px; }
+    .cd-dashboard-grid { display: grid; grid-template-columns: 1fr 268px; gap: 26px; align-items: start; }
+    .cd-dash-heading { font-family: 'Outfit', sans-serif; font-size: 1.5rem; font-weight: 700; color: var(--primary-blue); margin-bottom: 12px; line-height: 1.3; }
+    .cd-dash-intro { font-size: 1rem; line-height: 1.8; color: #41535c; margin-bottom: 20px; }
+    .cd-action-col { display: flex; flex-direction: column; gap: 12px; }
+    .cd-action-btn { display: block; text-align: left; border-radius: 12px; padding: 16px 18px; font-family: inherit; font-size: 0.98rem; font-weight: 700; line-height: 1.3; color: #fff; transition: transform .2s, box-shadow .2s; text-decoration: none; cursor: pointer; border: none; }
+    .cd-action-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,78,124,.15); }
+    .cd-action-btn-sub { display: block; font-size: 0.78rem; font-weight: 500; color: rgba(255,255,255,.85); margin-top: 4px; }
+    .cd-action-primary { background: linear-gradient(135deg, var(--ocean-mid), var(--accent-teal)); }
+    .cd-action-secondary { background: var(--bronze); }
+    .cd-action-tertiary { background: #0E7490; }
+    .cd-tiers-list { display: flex; flex-direction: column; gap: 26px; }
+    .cd-tier-block-header { display: flex; align-items: center; gap: 11px; margin-bottom: 14px; padding-bottom: 11px; border-bottom: 2px solid var(--border); flex-wrap: wrap; }
+    .cd-tier-block-title { font-family: 'Outfit', sans-serif; font-size: 1.2rem; font-weight: 700; }
+    .bronze-txt { color: var(--bronze); } .silver-txt { color: var(--silver); } .gold-txt { color: var(--gold); }
+    .cd-tier-medal { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 2px solid; }
+    .cd-tier-medal.bronze { background: var(--bronze-bg); color: var(--bronze); border-color: var(--bronze-line); }
+    .cd-tier-medal.silver { background: var(--silver-bg); color: var(--silver); border-color: var(--silver-line); }
+    .cd-tier-medal.gold   { background: var(--gold-bg);   color: var(--gold);   border-color: var(--gold-line); }
+    .cd-lessons-list { display: flex; flex-direction: column; gap: 9px; }
+    .cd-lesson-row { display: flex; align-items: center; gap: 13px; background: #fff; border: 1.5px solid var(--border); border-radius: 12px; padding: 12px 16px; transition: border-color .2s, box-shadow .2s; cursor: pointer; flex-wrap: wrap; }
+    .cd-lesson-row:hover { border-color: var(--primary-blue); box-shadow: 0 4px 16px rgba(8,145,178,.10); }
+    .cd-lesson-row.done { border-color: var(--success); background: var(--success-bg); }
+    .cd-lesson-row.pop-quiz-row { border-style: dashed; }
+    .cd-lesson-row-num .ico { width: 15px; height: 15px; }
+    .cd-lesson-row-num { width: 31px; height: 31px; border-radius: 50%; font-size: 0.82rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .bronze-num { background: var(--bronze-bg); color: var(--bronze); }
+    .silver-num { background: var(--silver-bg); color: var(--silver); }
+    .gold-num   { background: var(--gold-bg);   color: var(--gold); }
+    .cd-lesson-row-title { font-size: 0.95rem; font-weight: 600; color: var(--text-dark); flex: 1; min-width: 160px; }
+    .cd-lesson-row-meta { font-size: 0.8rem; color: var(--text-soft); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .cd-lesson-row-tag { background: #F4F8FB; border: 1px solid var(--border); border-radius: 99px; padding: 3px 10px; font-size: 0.72rem; font-weight: 600; letter-spacing: .03em; }
+    .cd-lesson-row-tag.pop { background: #F0F9FF; border-color: var(--primary-blue); color: var(--primary-blue); }
+    .cd-lesson-row-done-badge { font-size: 0.72rem; font-weight: 700; color: var(--success); background: #fff; border: 1px solid var(--success); padding: 3px 10px; border-radius: 99px; display: none; align-items: center; gap: 4px; }
+    .cd-lesson-row.done .cd-lesson-row-done-badge { display: inline-flex; }
+
+    /* A locked tier shows its curriculum but nothing is clickable and nothing
+       pretends to be unlockable. Copy says "Coming soon", not "complete Bronze
+       to unlock" — Silver and Gold are not built yet, and saying otherwise
+       would be a promise the page cannot keep. */
+    .cd-tier-block.locked .cd-lessons-list { pointer-events: none; opacity: .45; }
+    .cd-tier-block.locked .cd-lesson-row { cursor: default; }
+    .cd-coming-soon { display: flex; align-items: flex-start; gap: 11px; background: #F8FAFC; border: 1.5px dashed #CBD5E1; border-radius: 12px; padding: 14px 17px; margin-bottom: 12px; color: var(--text-soft); font-size: 0.92rem; line-height: 1.6; }
+    .cd-coming-soon .ico { color: var(--text-soft); margin-top: 3px; }
+    .cd-coming-soon strong { color: var(--text-dark); }
+
+    .cd-mc-bar { display: flex; align-items: center; gap: 13px; padding: 16px 18px; background: #FCFDFE; border: 1.5px solid var(--border); border-radius: 14px; margin-top: 14px; flex-wrap: wrap; }
+    .cd-mc-bar-text { flex: 1; min-width: 190px; }
+    .cd-mc-bar-title { font-size: 0.95rem; font-weight: 700; color: var(--text-dark); margin-bottom: 2px; }
+    .cd-mc-bar-sub { font-size: 0.82rem; color: var(--text-soft); }
+    .cd-mc-btn { padding: 10px 20px; border-radius: 99px; font-family: inherit; font-size: 0.86rem; font-weight: 700; cursor: pointer; transition: all .2s; flex-shrink: 0; background: var(--bronze-bg); color: var(--bronze); border: 1.5px solid var(--bronze); }
+    .cd-mc-btn:not(:disabled):hover { background: var(--bronze); color: #fff; }
+    .cd-mc-btn:disabled { opacity: .45; cursor: not-allowed; }
+    .cd-mc-done { font-size: 0.86rem; font-weight: 700; color: var(--success); background: var(--success-bg); border: 1px solid var(--success); padding: 9px 16px; border-radius: 99px; display: none; align-items: center; gap: 6px; flex-shrink: 0; }
+    .cd-mc-done.visible { display: inline-flex; }
+
+    /* ── quiz ── */
+    .cd-quiz-wrap { max-width: 680px; margin: 0 auto; }
+    .cd-quiz-intro { border-radius: 14px; padding: 22px 24px; margin-bottom: 24px; }
+    .cd-quiz-intro.is-pop { background: #F0F9FF; border: 2px solid var(--primary-blue); }
+    .cd-quiz-intro.is-final { background: #FCFDFE; border: 1.5px solid var(--border); }
+    .cd-quiz-intro-title { font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 700; color: var(--text-dark); margin-bottom: 8px; display: flex; align-items: center; gap: 9px; }
+    .cd-quiz-intro-sub { font-size: 0.96rem; color: #41535c; line-height: 1.7; }
+    .cd-quiz-progress { font-size: 0.74rem; font-weight: 700; color: var(--text-soft); letter-spacing: .1em; text-transform: uppercase; margin-bottom: 16px; }
+    .cd-quiz-q { background: #fff; border: 1.5px solid var(--border); border-radius: 14px; padding: 24px; margin-bottom: 18px; }
+    .cd-quiz-q-text { font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 700; color: var(--text-dark); margin-bottom: 18px; line-height: 1.4; }
+    .cd-quiz-options { display: flex; flex-direction: column; gap: 9px; }
+    .cd-quiz-option { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border: 1.5px solid var(--border); border-radius: 10px; cursor: pointer; transition: all .2s; font-size: 0.96rem; color: #41535c; }
+    .cd-quiz-option:hover { border-color: var(--primary-blue); background: #F0F9FF; }
+    .cd-quiz-option.selected { border-color: var(--primary-blue); background: #F0F9FF; color: var(--primary-blue); font-weight: 600; }
+    .cd-quiz-option.correct { border-color: var(--success); background: var(--success-bg); color: var(--success); font-weight: 600; }
+    .cd-quiz-option.wrong { border-color: var(--danger); background: var(--danger-bg); color: var(--danger); }
+    .cd-quiz-option-letter { width: 27px; height: 27px; border-radius: 50%; background: #F4F8FB; display: flex; align-items: center; justify-content: center; font-size: 0.76rem; font-weight: 700; flex-shrink: 0; }
+    .cd-quiz-submit { margin-top: 14px; padding: 11px 28px; border-radius: 99px; border: none; font-family: inherit; font-size: 0.92rem; font-weight: 700; cursor: pointer; background: linear-gradient(135deg, var(--ocean-mid), var(--accent-teal)); color: #fff; transition: all .2s; }
+    .cd-quiz-submit:disabled { opacity: .4; cursor: not-allowed; }
+    .cd-quiz-feedback { padding: 12px 16px; border-radius: 10px; margin-top: 12px; font-size: 0.94rem; font-weight: 600; display: none; align-items: center; gap: 8px; }
+    .cd-quiz-feedback.correct { background: var(--success-bg); color: var(--success); display: flex; }
+    .cd-quiz-feedback.wrong { background: var(--danger-bg); color: var(--danger); display: flex; }
+    .cd-quiz-next-q { margin-top: 11px; padding: 10px 22px; border-radius: 99px; border: 1.5px solid var(--primary-blue); font-family: inherit; font-size: 0.86rem; font-weight: 700; cursor: pointer; background: #fff; color: var(--primary-blue); display: none; }
+    .cd-quiz-next-q.visible { display: inline-block; }
+    .cd-quiz-result { background: #fff; border: 2px solid var(--border); border-radius: 16px; padding: 30px; text-align: center; }
+    .cd-quiz-result.passed { border-color: var(--success); }
+    .cd-quiz-result.failed { border-color: var(--danger); }
+    .cd-quiz-result-icon { display: flex; align-items: center; justify-content: center; width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 14px; }
+    .cd-quiz-result.passed .cd-quiz-result-icon { background: var(--success-bg); color: var(--success); }
+    .cd-quiz-result.failed .cd-quiz-result-icon { background: var(--danger-bg); color: var(--danger); }
+    .cd-quiz-result-icon .ico { width: 30px; height: 30px; }
+    .cd-quiz-result-title { font-family: 'Outfit', sans-serif; font-size: 1.4rem; font-weight: 700; margin-bottom: 8px; }
+    .cd-quiz-result.passed .cd-quiz-result-title { color: var(--success); }
+    .cd-quiz-result.failed .cd-quiz-result-title { color: var(--danger); }
+    .cd-quiz-result-score { font-size: 1rem; color: #41535c; margin-bottom: 18px; }
+    .cd-quiz-retry { padding: 11px 28px; border-radius: 99px; border: 2px solid var(--danger); font-family: inherit; font-size: 0.92rem; font-weight: 700; cursor: pointer; background: #fff; color: var(--danger); }
+    .cd-quiz-retry:hover { background: var(--danger); color: #fff; }
+    .cd-quiz-continue { padding: 11px 28px; border-radius: 99px; border: none; font-family: inherit; font-size: 0.92rem; font-weight: 700; cursor: pointer; background: linear-gradient(135deg, var(--ocean-mid), var(--accent-teal)); color: #fff; margin-left: 8px; }
+
+    .cd-toast { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--text-dark); color: #fff; border-radius: 12px; padding: 12px 22px; font-size: 0.94rem; font-weight: 600; box-shadow: 0 8px 32px rgba(0,0,0,.22); z-index: 9999; transition: transform .35s cubic-bezier(.34,1.56,.64,1), opacity .35s ease; opacity: 0; pointer-events: none; max-width: min(92vw, 460px); display: flex; align-items: center; gap: 9px; }
+    .cd-toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+    /* ── certificate ── */
+    .cd-cert-card { display: flex; align-items: center; gap: 18px; background: linear-gradient(135deg, #FFFDF7 0%, var(--bronze-bg) 100%); border: 1.5px solid var(--bronze-line); border-radius: 16px; padding: 20px 22px; margin-top: 14px; flex-wrap: wrap; }
+    .cd-cert-seal { width: 54px; height: 54px; border-radius: 50%; background: #fff; border: 2px solid var(--bronze); color: var(--bronze); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .cd-cert-seal .ico { width: 28px; height: 28px; }
+    .cd-cert-info { flex: 1; min-width: 190px; }
+    .cd-cert-info h4 { font-family: 'Outfit', sans-serif; font-size: 1.05rem; font-weight: 700; color: var(--bronze); margin-bottom: 2px; }
+    .cd-cert-num { font-size: 0.86rem; color: var(--text-soft); font-variant-numeric: tabular-nums; letter-spacing: .03em; }
+    .cd-cert-name { font-size: 0.92rem; color: var(--text-dark); font-weight: 600; }
+
+    /* The printable certificate. Kept in the DOM, hidden on screen, and the
+       ONLY thing that survives the print stylesheet below. No PDF library:
+       "Print, then Save as PDF" produces a clean single page, so a library would
+       be ~200KB for nothing. */
+    .cd-cert-sheet { display: none; }
+    .cd-cert-sheet-inner { position: relative; background: #fff; border: 3px double var(--bronze); border-radius: 6px; padding: 46px 52px 40px; text-align: center; max-width: 900px; margin: 0 auto; }
+    .cd-cert-sheet-inner::after { content: ''; position: absolute; inset: 10px; border: 1px solid var(--bronze-line); border-radius: 3px; pointer-events: none; }
+    .cd-cert-logo { width: 78px; height: 78px; margin: 0 auto 10px; display: block; }
+    .cd-cert-org { font-family: 'Outfit', sans-serif; font-size: 0.82rem; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: var(--text-soft); margin-bottom: 22px; }
+    .cd-cert-kicker { font-size: 0.9rem; letter-spacing: .16em; text-transform: uppercase; color: var(--text-soft); margin-bottom: 8px; }
+    .cd-cert-title { font-family: 'Outfit', sans-serif; font-size: 2.15rem; font-weight: 800; color: var(--bronze); line-height: 1.15; margin-bottom: 20px; }
+    .cd-cert-presented { font-size: 0.95rem; color: var(--text-soft); margin-bottom: 6px; }
+    .cd-cert-person { font-family: 'Outfit', sans-serif; font-size: 2rem; font-weight: 700; color: var(--text-dark); border-bottom: 2px solid var(--bronze-line); display: inline-block; padding: 0 34px 8px; margin-bottom: 20px; }
+    .cd-cert-body { font-size: 1rem; line-height: 1.75; color: #41535c; max-width: 620px; margin: 0 auto 26px; }
+    .cd-cert-meta { display: flex; justify-content: center; gap: 46px; flex-wrap: wrap; margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--bronze-line); }
+    .cd-cert-meta div { text-align: center; }
+    .cd-cert-meta dt { font-size: 0.7rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-soft); margin-bottom: 3px; }
+    .cd-cert-meta dd { font-size: 0.95rem; font-weight: 700; color: var(--text-dark); font-variant-numeric: tabular-nums; }
+
+    /* ── full-name prompt ──
+       The contacts record has firstName/lastName only and neither is a legal
+       name, so a certificate must never be printed with a blank line or an
+       email address on it. We ask once, before issuing. */
+    .cd-modal { position: fixed; inset: 0; background: rgba(15,23,42,.55); z-index: 900; display: none; align-items: center; justify-content: center; padding: 20px; }
+    .cd-modal.open { display: flex; }
+    .cd-modal-box { background: #fff; border-radius: 18px; padding: 28px; max-width: 460px; width: 100%; box-shadow: 0 24px 60px rgba(0,0,0,.3); }
+    .cd-modal-box h3 { font-size: 1.2rem; color: var(--primary-blue); margin-bottom: 8px; }
+    .cd-modal-box p { font-size: 0.95rem; color: var(--text-soft); margin-bottom: 16px; line-height: 1.6; }
+    .cd-modal-box label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-dark); margin-bottom: 5px; }
+    .cd-modal-box input { width: 100%; padding: 11px 14px; border: 1.5px solid #CBD5E1; border-radius: 10px; font-family: inherit; font-size: 1rem; color: var(--text-dark); }
+    .cd-modal-box input:focus { outline: none; border-color: var(--primary-blue); }
+    .cd-modal-err { color: var(--danger); font-size: 0.88rem; font-weight: 600; margin-top: 8px; display: none; }
+    .cd-modal-err.visible { display: block; }
+
+    @media (max-width: 900px) {
+        .cd-shell { grid-template-columns: 1fr; }
+        .cd-sidebar { position: static; max-height: none; }
+        .cd-dashboard-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 600px) {
+        .page-header-inner { padding: 0.75rem 1rem; gap: 0.75rem; }
+        .page-header img { width: 56px; height: 56px; }
+        .page-header .header-text h1 { font-size: 1.1rem; }
+        .page-header .header-text p { font-size: 0.82rem; }
+        .hero-section { padding: 1.9rem 1rem 2rem; }
+        .hero-section h2 { font-size: 1.4rem; }
+        .main-wrap { padding: 18px 12px 40px; }
+        .cd-dash-content, .cd-lessons-panel-content { padding: 18px 16px 26px; }
+        .cd-lv-content-area { padding: 22px 16px 42px; }
+        .cd-lv-nav-bar, .cd-welcome-bar { padding: 11px 16px; }
+        .cd-tabs { padding: 0 12px; }
+        .cd-lv-lesson-title { font-size: 1.35rem; }
+        .cd-cert-sheet-inner { padding: 28px 20px; }
+        .cd-cert-person { font-size: 1.5rem; padding: 0 12px 8px; }
+        .cd-cert-title { font-size: 1.5rem; }
+    }
+
+    /* ── print ──
+       Everything except the certificate sheet is removed, so Print / Save as
+       PDF gives a clean credential with no portal chrome around it. */
+    @media print {
+        body { background: #fff !important; display: block; }
+        .page-header, .hero-section, footer, .cd-shell, .cd-toast, .cd-modal,
+        .bg-islands, #a11y-toggle, #a11y-panel, .cd-cert-noprint { display: none !important; }
+        .main-wrap { max-width: none; padding: 0; margin: 0; }
+        .cd-cert-sheet { display: block !important; }
+        .cd-cert-sheet-inner { border-radius: 0; box-shadow: none; max-width: none; page-break-inside: avoid; }
+        @page { size: landscape; margin: 12mm; }
+    }
+    </style>
+</head>
+<body>
+    <!-- Icon sprite. Feather-style 24x24 line icons, matching the set already
+         used in the public site's events.html. These are the replacements for
+         the prototype's emoji: award=tier medal, lock=locked tier,
+         check=completed, play=lesson, clipboard=quiz, zap=pop quiz,
+         info=callout, star=bookmark, printer=print certificate. -->
+    <svg style="display:none;" aria-hidden="true"><defs>
+      <g id="i-award"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></g>
+      <g id="i-lock"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></g>
+      <g id="i-check"><polyline points="20 6 9 17 4 12"/></g>
+      <g id="i-check-circle"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></g>
+      <g id="i-x-circle"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></g>
+      <g id="i-play"><polygon points="5 3 19 12 5 21 5 3"/></g>
+      <g id="i-clipboard"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></g>
+      <g id="i-zap"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></g>
+      <g id="i-info"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></g>
+      <g id="i-star"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></g>
+      <g id="i-clock"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></g>
+      <g id="i-printer"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></g>
+      <g id="i-arrow-left"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></g>
+      <g id="i-arrow-right"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></g>
+      <g id="i-book"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></g>
+      <g id="i-cloud-off"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A6.5 6.5 0 0 1 18 15c0 1.66-1.34 3-3 3H6.5"/><path d="M5.5 18A4.5 4.5 0 0 1 5 9.06"/></g>
+      <g id="i-cloud-done"><path d="M18 17H6.5A4.5 4.5 0 1 1 8 8.2 6 6 0 0 1 19 11a3 3 0 0 1-1 6z"/></g>
+      <g id="hawaii-islands" fill="currentColor">
+    <path d="M542 2864 c-7 -13 -13 -14 -31 -5 -17 9 -27 9 -49 -2 -15 -8 -39 -19 -53 -25 -16 -6 -29 -21 -33 -37 -4 -15 -16 -40 -28 -55 -18 -25 -19 -31 -7 -56 8 -16 28 -35 44 -43 17 -9 47 -26 67 -39 23 -15 44 -21 57 -17 11 3 30 1 41 -5 29 -16 55 -5 90 40 26 33 29 42 20 65 -8 20 -7 32 5 48 41 58 -7 147 -79 147 -22 0 -38 -6 -44 -16z"/>
+    <path d="M107 2654 c-7 -14 -24 -31 -37 -37 -14 -7 -30 -23 -36 -36 -6 -12 -17 -28 -23 -34 -15 -15 -14 -33 5 -51 19 -20 34 -12 34 18 0 28 34 66 59 66 14 0 20 9 23 33 3 17 8 40 13 50 12 28 -22 21 -38 -9z"/>
+    <path d="M1599 2408 c-8 -7 -27 -30 -42 -50 -31 -42 -57 -54 -87 -38 -16 9 -25 8 -35 0 -12 -10 -10 -21 15 -67 17 -31 30 -60 30 -66 0 -6 7 -18 16 -28 9 -10 19 -33 23 -51 6 -30 10 -33 46 -36 22 -1 47 2 55 7 12 8 12 12 -3 29 -19 21 -23 37 -7 27 6 -4 18 -1 26 6 20 16 28 5 14 -20 -14 -28 -6 -39 24 -34 18 4 29 -2 41 -20 15 -23 22 -25 78 -24 76 2 82 16 37 82 -17 25 -29 49 -25 54 3 5 1 12 -5 16 -5 3 -10 -1 -10 -9 0 -19 -23 -21 -38 -3 -6 6 -13 29 -17 50 -4 20 -15 47 -25 60 -9 12 -20 34 -23 48 -8 32 -44 79 -61 79 -7 0 -19 -6 -27 -12z"/>
+    <path d="M2144 1984 c4 -9 -2 -23 -13 -32 -11 -10 -21 -26 -23 -37 -3 -19 3 -20 89 -22 65 -1 112 -8 158 -23 37 -12 76 -19 90 -16 33 8 85 54 85 75 0 26 -44 43 -77 30 -21 -8 -42 -7 -83 4 -53 15 -184 37 -216 37 -11 0 -14 -5 -10 -16z"/>
+    <path d="M2565 1797 c-17 -32 -17 -36 -1 -84 22 -65 44 -85 105 -91 56 -5 64 -17 54 -89 -5 -37 -2 -48 17 -68 30 -32 98 -35 125 -5 12 13 31 20 57 20 43 0 110 37 128 70 23 43 -26 121 -66 106 -7 -3 -18 3 -24 14 -6 11 -16 20 -22 20 -6 0 -28 16 -49 35 -43 39 -63 42 -116 20 -55 -23 -70 -19 -93 25 -35 68 -86 80 -115 27z"/>
+    <path d="M2313 1740 c-29 -12 -29 -27 -2 -56 12 -13 24 -37 28 -55 8 -38 29 -54 62 -46 37 10 46 19 53 54 14 60 -80 128 -141 103z"/>
+    <path d="M2576 1427 c-31 -26 -36 -35 -25 -44 9 -7 30 -8 54 -4 38 6 40 8 40 41 0 46 -20 48 -69 7z"/>
+    <path d="M3122 1158 c-21 -21 -13 -74 19 -134 21 -40 28 -66 24 -83 -9 -36 -62 -109 -84 -116 -27 -8 -71 -87 -71 -125 0 -33 15 -69 36 -85 7 -5 18 -28 23 -50 6 -22 20 -72 32 -112 22 -69 22 -77 10 -176 -11 -94 -11 -107 5 -140 12 -25 26 -38 46 -43 17 -3 50 -26 76 -50 25 -24 47 -44 49 -44 1 0 11 17 22 38 11 21 27 44 36 52 9 7 22 28 30 46 7 18 32 46 55 61 23 15 62 45 87 66 39 32 50 37 79 31 28 -5 46 1 114 41 85 50 170 135 170 170 0 10 -23 43 -51 71 -32 32 -54 64 -58 85 -5 26 -13 35 -38 41 -37 10 -48 34 -38 85 6 33 3 38 -58 97 -85 82 -219 166 -264 166 -26 0 -53 14 -115 60 -80 59 -113 71 -136 48z"/>
+    </g>
+    </defs></svg>
+    <svg class="bg-islands" viewBox="0 0 3880 2880" aria-hidden="true"><use href="#hawaii-islands"/></svg>
+
+    <header class="page-header">
+        <div class="page-header-inner">
+            <div class="brand" role="link" tabindex="0" title="Back to your portal" style="cursor:pointer;" onclick="location.href='index.html'" onkeydown="if(event.key==='Enter'){location.href='index.html'}">
+                <img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH Logo">
+                <div class="header-text">
+                    <h1>Member Portal</h1>
+                    <p>Leadership in Disabilities &amp; Achievement of Hawai&#699;i</p>
+                </div>
+            </div>
+            <div class="hdr-actions" id="hdrActions" style="display:none;">
+                <button id="signoutBtn" class="signout-link">Sign out</button>
+                <button id="menuBtn" class="menu-btn" aria-label="Open menu" aria-expanded="false" aria-controls="navMenu"><span></span><span></span><span></span></button>
+            </div>
+        </div>
+        <nav id="navMenu" class="nav-menu" aria-label="Portal navigation">
+            <a href="index.html">Portal Home</a>
+            <a href="index.html#eventsCard">My Events</a>
+            <a href="certification.html">Certification Program</a>
+            <a href="screenings.html">Screening Results</a>
+            <a href="resources.html">Member Resources</a>
+            <a href="videos.html">Video Library</a>
+            <a href="profile.html">My Info</a>
+            <a href="renew.html">Renew Membership</a>
+        </nav>
+    </header>
+
+    <section class="hero-section" id="heroSection" style="display:none;">
+        <svg class="hero-islands" viewBox="0 0 3880 2880" aria-hidden="true"><use href="#hawaii-islands"/></svg>
+        <a class="hero-back" href="index.html">&lsaquo; Back to your portal</a>
+        <h2>LDAH Certification Program</h2>
+        <p>Build the knowledge and confidence to advocate for your keiki &mdash; at your own pace, with an LDAH credential at the end.</p>
+        <div class="lei"></div>
+    </section>
+
+    <main class="main-wrap">
+        <div id="view">
+            <div class="card">
+                <div class="loading-state">
+                    <div class="loading-spinner"></div>
+                    <p>Loading your certification program&hellip;</p>
+                </div>
+            </div>
+        </div>
+        <div id="course" style="display:none;"></div>
+        <div class="cd-cert-sheet" id="certSheet"></div>
+    </main>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h3>About LDAH</h3>
+                <p>Hawai&lsquo;i &amp; Pacific Island Parent Training &amp; Information Center &mdash; empowering families and children with disabilities.</p>
+            </div>
+            <div class="footer-section">
+                <h3>Quick Links</h3>
+                <a href="https://www.ldahawaii.org/whoweare.html">Who We Are</a>
+                <a href="https://www.ldahawaii.org/events.html">Events</a>
+                <a href="https://www.ldahawaii.org/volunteer.html">How to Help</a>
+                <a href="https://www.ldahawaii.org/resources.html">Resources</a>
+                <a href="https://www.ldahawaii.org/contact.html">Contact Us</a>
+            </div>
+            <div class="footer-section">
+                <h3>Honolulu Office</h3>
+                <p>Harry and Jeanette Weinberg Kukui Center<br>245 North Kukui Street, Suite 205<br>Honolulu, HI 96817<br>(808) 536-9684<br><a href="mailto:rrowe@ldahawaii.org">rrowe@ldahawaii.org</a></p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; <span class="dynamic-year"></span> Leadership in Disabilities and Achievement of Hawai&lsquo;i. All rights reserved.</p>
+            <p>Made with Aloha by DP Consulting</p>
+        </div>
+    </footer>
+
+    <div class="cd-modal" id="nameModal" role="dialog" aria-modal="true" aria-labelledby="nameModalTitle">
+        <div class="cd-modal-box">
+            <h3 id="nameModalTitle">Name for your certificate</h3>
+            <p>Your certificate is a formal credential, so we print the full name you want to appear on it. This is used for the certificate only.</p>
+            <label for="certNameInput">Full name</label>
+            <input type="text" id="certNameInput" autocomplete="name" maxlength="120" placeholder="e.g. Jane Q. Kealoha">
+            <div class="cd-modal-err" id="certNameErr"></div>
+            <div class="btn-row">
+                <button class="btn btn-primary" id="certNameSave">Issue my certificate</button>
+                <button class="btn btn-outline" id="certNameCancel">Not now</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="cd-toast" id="cd-toast" role="status" aria-live="polite"></div>
+
+    <script>
+        firebase.initializeApp({
+            apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk",
+            authDomain: "ldah-932d5.firebaseapp.com",
+            projectId: "ldah-932d5",
+            storageBucket: "ldah-932d5.firebasestorage.app",
+            messagingSenderId: "662130454003",
+            appId: "1:662130454003:web:437576d5a5811ecd8df686"
+        });
+        const auth = firebase.auth();
+        const fns = firebase.functions();
+        const db = firebase.firestore();
+
+        /* Shared portal helpers — same shapes as Members/videos.html. */
+        function id(x) { return document.getElementById(x); }
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+        function setView(html) { id('view').innerHTML = html; }
+        function hideHero() { var h = id('heroSection'); if (h) h.style.display = 'none'; }
+        function showHero() { var h = id('heroSection'); if (h) h.style.display = ''; }
+        function showSignout() { var b = id('hdrActions'); if (b) b.style.display = 'flex'; }
+        function hideSignout() { var b = id('hdrActions'); if (b) b.style.display = 'none'; var m = id('navMenu'); if (m) m.classList.remove('open'); }
+        /* viewBox is REQUIRED: without it the <svg> maps user units 1:1, so a 24-unit
+           icon drawn into a 13px box gets clipped to its top-left corner. */
+        function ico(name, cls) { return '<svg class="ico' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-' + name + '"/></svg>'; }
+        function isUnverified(e) { return !!(e && (e.message === 'email-unverified' || (e.code && String(e.code).indexOf('failed-precondition') !== -1 && String(e.message || '').indexOf('email-unverified') !== -1))); }
+        function guardMessage(title, body) {
+            hideHero();
+            id('course').style.display = 'none';
+            setView('<div class="card message-card"><h3>' + esc(title) + '</h3><p>' + body + '</p><p style="margin-top:0.75rem;"><a href="index.html">Back to the portal</a></p></div>');
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           PROGRESS STORE
+
+           The prototype kept everything in localStorage behind a three-method
+           shim (get / set / done). That surface is preserved exactly, so every
+           call site further down is unchanged — what changed is underneath:
+
+             - ONE Firestore read on page load, into `CERT.cache`.
+             - done() and get() read that cache. Synchronous, no await, no
+               per-lesson read, no flicker.
+             - set() mutates the cache immediately (so the UI is instant) and
+               queues a debounced write-through.
+             - Every mutation is ALSO mirrored to localStorage. If the
+               Firestore write fails — hotel wifi, dead tunnel, expired token —
+               the completed lesson survives in the mirror and is merged back
+               in and retried on the next load. A member never loses work.
+
+           Writes only ever ADD keys to `lessons` / `tiers`, and replace whole
+           values in `quizzes` / `favorites`, so set({merge:true}) is always the
+           correct write and two devices can never clobber each other's lessons.
+           ═══════════════════════════════════════════════════════════════ */
+        var CERT = {
+            contactId: null,
+            profile: null,
+            cache: null,
+            certificates: {},
+            _ref: null,
+            _timer: null,
+            _saving: false,
+            _again: false,
+            _dirty: false,
+            _retryMs: 4000
+        };
+
+        CERT._pendKey = function () { return 'ldah_cert_pending_' + (CERT.contactId || 'anon'); };
+
+        CERT._blank = function () { return { lessons: {}, quizzes: {}, tiers: {}, favorites: [] }; };
+
+        /* Coerce whatever is on the doc into the shape the engine expects.
+           Anything unexpected is dropped rather than trusted. */
+        CERT._normalise = function (d) {
+            var out = CERT._blank();
+            d = d || {};
+            if (d.lessons && typeof d.lessons === 'object') {
+                Object.keys(d.lessons).forEach(function (k) {
+                    var v = d.lessons[k];
+                    var ms = (v && typeof v.toMillis === 'function') ? v.toMillis() : (typeof v === 'number' ? v : (v ? Date.now() : 0));
+                    if (ms) out.lessons[k] = ms;
+                });
+            }
+            if (d.tiers && typeof d.tiers === 'object') {
+                Object.keys(d.tiers).forEach(function (k) {
+                    var v = d.tiers[k] || {};
+                    var ms = (v.completedAt && typeof v.completedAt.toMillis === 'function') ? v.completedAt.toMillis() : (typeof v.completedAt === 'number' ? v.completedAt : 0);
+                    if (ms) out.tiers[k] = { completedAt: ms };
+                });
+            }
+            if (d.quizzes && typeof d.quizzes === 'object') {
+                Object.keys(d.quizzes).forEach(function (k) {
+                    var q = d.quizzes[k] || {};
+                    var last = (q.lastAt && typeof q.lastAt.toMillis === 'function') ? q.lastAt.toMillis() : (typeof q.lastAt === 'number' ? q.lastAt : 0);
+                    out.quizzes[k] = {
+                        score: Number(q.score) || 0, total: Number(q.total) || 0,
+                        pct: Number(q.pct) || 0, passed: !!q.passed,
+                        attempts: Number(q.attempts) || 0, lastAt: last
+                    };
+                });
+            }
+            if (Array.isArray(d.favorites)) out.favorites = d.favorites.filter(function (x) { return typeof x === 'string'; });
+            return out;
+        };
+
+        /* Union of the server copy and an unflushed local copy. A lesson keeps
+           its EARLIEST completion time (you finished it when you finished it),
+           and a quiz keeps the higher attempt count and the better score. */
+        CERT._merge = function (a, b) {
+            var out = CERT._blank();
+            [a, b].forEach(function (src) {
+                if (!src) return;
+                Object.keys(src.lessons || {}).forEach(function (k) {
+                    var t = src.lessons[k];
+                    if (!out.lessons[k] || t < out.lessons[k]) out.lessons[k] = t;
+                });
+                Object.keys(src.tiers || {}).forEach(function (k) {
+                    var t = (src.tiers[k] || {}).completedAt;
+                    if (t && (!out.tiers[k] || t < out.tiers[k].completedAt)) out.tiers[k] = { completedAt: t };
+                });
+                Object.keys(src.quizzes || {}).forEach(function (k) {
+                    var q = src.quizzes[k], cur = out.quizzes[k];
+                    if (!cur) { out.quizzes[k] = Object.assign({}, q); return; }
+                    out.quizzes[k] = {
+                        score: Math.max(cur.score, q.score), total: Math.max(cur.total, q.total),
+                        pct: Math.max(cur.pct, q.pct), passed: cur.passed || q.passed,
+                        attempts: Math.max(cur.attempts, q.attempts), lastAt: Math.max(cur.lastAt, q.lastAt)
+                    };
+                });
+                (src.favorites || []).forEach(function (f) { if (out.favorites.indexOf(f) === -1) out.favorites.push(f); });
+            });
+            return out;
+        };
+
+        CERT._readPending = function () {
+            try {
+                var raw = localStorage.getItem(CERT._pendKey());
+                return raw ? CERT._normalise(JSON.parse(raw)) : null;
+            } catch (e) { return null; }
+        };
+        CERT._writePending = function () {
+            try { localStorage.setItem(CERT._pendKey(), JSON.stringify(CERT.cache)); } catch (e) {}
+        };
+        CERT._clearPending = function () {
+            try { localStorage.removeItem(CERT._pendKey()); } catch (e) {}
+        };
+
+        CERT.load = async function () {
+            CERT._ref = db.collection('contacts').doc(CERT.contactId).collection('certification').doc('progress');
+            var remote = null, readFailed = false;
+            try {
+                var snap = await CERT._ref.get();
+                remote = snap.exists ? CERT._normalise(snap.data()) : CERT._blank();
+            } catch (e) {
+                readFailed = true;
+                console.warn('[certification] progress read failed:', (e && e.message) || e);
+                remote = CERT._blank();
+            }
+            var pending = CERT._readPending();
+            CERT.cache = pending ? CERT._merge(remote, pending) : remote;
+            CERT._readFailed = readFailed;
+            /* Something was left unsent last visit — push it now, before the
+               member does anything else. */
+            if (pending && !readFailed) { CERT._dirty = true; CERT.flush(); }
+            await CERT.loadCertificates();
+        };
+
+        CERT.loadCertificates = async function () {
+            CERT.certificates = {};
+            try {
+                var snap = await db.collection('contacts').doc(CERT.contactId).collection('certificates').get();
+                snap.forEach(function (d) { CERT.certificates[d.id] = Object.assign({ _id: d.id }, d.data() || {}); });
+            } catch (e) {
+                console.warn('[certification] certificate read failed:', (e && e.message) || e);
+            }
+        };
+
+        CERT.queueSave = function () {
+            CERT._dirty = true;
+            CERT._writePending();
+            CERT.setSaveState('saving');
+            if (CERT._timer) clearTimeout(CERT._timer);
+            /* Debounced so a burst of clicks (or a quiz run) is one write, not
+               one per interaction. */
+            CERT._timer = setTimeout(CERT.flush, 1200);
+        };
+
+        CERT.flush = async function () {
+            if (CERT._timer) { clearTimeout(CERT._timer); CERT._timer = null; }
+            if (!CERT._dirty || !CERT._ref) return;
+            if (CERT._saving) { CERT._again = true; return; }
+            CERT._saving = true;
+            CERT._dirty = false;
+            var payload = {
+                lessons: CERT.cache.lessons,
+                quizzes: CERT.cache.quizzes,
+                tiers: CERT.cache.tiers,
+                favorites: CERT.cache.favorites.slice(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            try {
+                await CERT._ref.set(payload, { merge: true });
+                CERT._clearPending();
+                CERT._retryMs = 4000;
+                CERT.setSaveState('saved');
+            } catch (e) {
+                console.warn('[certification] progress write failed:', (e && e.message) || e);
+                CERT._dirty = true;               /* keep the mirror, try again */
+                CERT.setSaveState('offline');
+                setTimeout(CERT.flush, CERT._retryMs);
+                CERT._retryMs = Math.min(CERT._retryMs * 2, 60000);
+            }
+            CERT._saving = false;
+            if (CERT._again) { CERT._again = false; CERT.flush(); }
+        };
+
+        CERT.setSaveState = function (state) {
+            var el = id('saveState'); if (!el) return;
+            el.classList.toggle('err', state === 'offline');
+            if (state === 'saving') el.innerHTML = 'Saving&hellip;';
+            else if (state === 'saved') el.innerHTML = ico('cloud-done') + ' Progress saved';
+            else if (state === 'offline') el.innerHTML = ico('cloud-off') + ' Saved on this device &mdash; will sync when you reconnect';
+            else el.innerHTML = '';
+        };
+
+        /* Last chance to persist. beforeunload is unreliable on phones, so the
+           real hooks are visibilitychange and pagehide. */
+        document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') CERT.flush(); });
+        window.addEventListener('pagehide', function () { CERT.flush(); });
+
+        /* ── the shim the engine talks to ───────────────────────────────
+           Identical surface to the prototype's localStorage LS, so none of
+           the 16 call sites below had to change. */
+        var LS = {
+            get: function (k) { var v = LS._read(k); return v === null ? null : (v ? 'true' : 'false'); },
+            set: function (k, v) { LS._write(k, v === true || v === 'true'); },
+            done: function (k) { return LS._read(k) === true; }
+        };
+        LS._read = function (k) {
+            if (!CERT.cache) return false;
+            if (k.indexOf('lesson_') === 0) return !!CERT.cache.lessons[k.slice(7)];
+            if (k.indexOf('fav_') === 0) return CERT.cache.favorites.indexOf(k.slice(4)) !== -1;
+            if (k.indexOf('tier_') === 0) { var t = CERT.cache.tiers[k.slice(5)]; return !!(t && t.completedAt); }
+            return false;
+        };
+        LS._write = function (k, on) {
+            if (!CERT.cache) return;
+            var now = Date.now(), changed = false;
+            if (k.indexOf('lesson_') === 0) {
+                var lid = k.slice(7);
+                if (on && !CERT.cache.lessons[lid]) { CERT.cache.lessons[lid] = now; changed = true; }
+            } else if (k.indexOf('fav_') === 0) {
+                var fid = k.slice(4), at = CERT.cache.favorites.indexOf(fid);
+                if (on && at === -1) { CERT.cache.favorites.push(fid); changed = true; }
+                else if (!on && at !== -1) { CERT.cache.favorites.splice(at, 1); changed = true; }
+            } else if (k.indexOf('tier_') === 0) {
+                var tid = k.slice(5);
+                if (on && !CERT.cache.tiers[tid]) { CERT.cache.tiers[tid] = { completedAt: now }; changed = true; }
+            }
+            if (changed) CERT.queueSave();
+        };
+
+        /* The prototype threw quiz scores away — it only set lesson_<quizId>.
+           Every attempt is recorded here, pass or fail, because the score goes
+           on the certificate and into the staff report. */
+        CERT.recordQuiz = function (quizId, score, total, pct, passed) {
+            if (!CERT.cache) return;
+            var prev = CERT.cache.quizzes[quizId] || { attempts: 0, score: 0, total: 0, pct: 0, passed: false };
+            CERT.cache.quizzes[quizId] = {
+                score: passed || pct >= prev.pct ? score : prev.score,
+                total: total,
+                pct: Math.max(pct, prev.pct),
+                passed: prev.passed || passed,
+                attempts: (prev.attempts || 0) + 1,
+                lastAt: Date.now()
+            };
+            CERT.queueSave();
+        };
+    </script>
+
+    <script>
+    /* ═══════════════════════════════════════════════
+       LESSON DATA
+       Bronze is live. Silver and Gold are kept here so the curriculum is not
+       lost, but they are LOCKED in the UI and have no video URLs yet — see
+       TIER_STATE below. Do not unlock them by editing this object alone.
+    ═══════════════════════════════════════════════ */
+    var LESSON_DATA = {
+      'welcome1':{tier:'welcome',title:'Welcome to the LDAH Certification Program',duration:'5 min',noVideo:true,videoUrl:'',videoFile:'',captionsUrl:'',
+        body:`<p>Welcome! We are so glad you are here. This program was created to give Hawai'i families the knowledge, confidence, and tools they need to be strong advocates for their keiki in the special education system.</p>
+        <h2>What You Will Learn</h2><p>The Bronze tier builds your understanding of what special education is, your rights as a parent, and how children are identified and evaluated.</p>
+        <div class="cd-callout"><svg class="ico" viewBox="0 0 24 24"><use href="#i-info"/></svg><div><strong>Tip:</strong> Work through the lessons in order. Each one builds on the last, and the pop quiz partway through is there to check your understanding, not to catch you out.</div></div>
+        <h2>How to Use This Page</h2><p>Watch the lesson video or read the supporting content, then select <strong>Complete</strong> in the bar above when you finish. Your progress is saved to your member account, so you can stop and pick up again on any device.</p>`,
+        takeaways:[],next:'b1'},
+
+      'b1':{tier:'bronze',title:'Lesson 1: What Is Special Education?',duration:'15 min',videoUrl:'https://www.youtube.com/watch?v=61KriS6dBaI',videoFile:'',captionsUrl:'',
+        body:`<p>Special education is a system of supports and services designed to meet the unique educational needs of children with disabilities. Under federal law, children with disabilities are entitled to receive a Free Appropriate Public Education (FAPE) through specially designed instruction and related services when needed.</p>
+        <h2>What does "Special Education" Actually Mean?</h2><p>Under IDEA, special education is defined as: <em>"Specially designed instruction, at no cost to the parents, to meet the unique needs of a child with a disability."</em></p>
+        <h3>1. Specially Designed Instruction</h3><p>Special education involves adapting the content, methodology, or delivery of instruction to address the unique learning needs of a child with a disability.</p>
+        <h3>2. At No Cost to Parents</h3><p>Special education services are provided at no cost to families through the public education system.</p>
+        <h3>3. Meets the Unique Needs of the Child</h3><p>Every child learns differently. Special education is individualized to meet the specific academic, functional, developmental, communication, social, emotional, or behavioral needs of the student.</p>
+        <h2>Special Education is a Service — NOT a Place</h2><p>Under IDEA, special education is a set of services and supports, not a place. Placement decisions are determined individually by the IEP team based on the student's needs.</p>
+        <h2>Least Restrictive Environment (LRE)</h2><p>IDEA requires that students with disabilities be educated with nondisabled peers to the maximum extent appropriate.</p>
+        <div class="cd-callout"><svg class="ico" viewBox="0 0 24 24"><use href="#i-info"/></svg><div><strong>Remember:</strong> As a parent, you are a full and equal member of your child's IEP team. Your voice matters.</div></div>`,
+        takeaways:["Special education is specially designed to meet the unique needs of a child with a disability.","Special education is a service and support system, not a specific classroom or location.","The IEP is a legally binding document outlining goals, services, and placement.","Every student with a disability has a right to a Free Appropriate Public Education (FAPE)."],next:'b2'},
+
+      'b2':{tier:'bronze',title:'Lesson 2: What Do I Need to Know About Special Education?',duration:'10 min',videoUrl:'https://www.youtube.com/watch?v=eOMTB6J9c80',videoFile:'',captionsUrl:'',
+        body:`<p>Now that you have a foundational understanding of special education, it's time to build on what you've learned. The information in this section provides the essential knowledge that every IEP advocate should have. As you continue through the course, you'll gain a deeper understanding of the special education process and develop the skills needed to advocate with confidence and purpose.</p>
+        <h2>What Does Special Education Mean?</h2><p>Specially designed instruction, at no cost to parents, meeting a child's disability-related needs. Delivered in classrooms, homes, hospitals, or wherever the child attends school.</p>
+        <h3>1. Related Services (PWN)</h3><p>Speech-language, audiology, interpreting, psychological services, PT/OT, recreation, early identification, counseling, orientation/mobility, medical evaluation, school health/nursing, social work, parent counseling and training.</p>
+        <h3>2. Referral</h3><p>The school or the parent can request an evaluation, in writing. The district must respond in writing — yes, no, or "try something else first" (new teaching method, accommodations).</p>
+        <h3>3. Evaluation</h3><p>Determines if a child has a disability and needs services. Includes tests, medical reports, observation, work samples, and interviews. If results don't fit what you know about your child: say so in writing, meet, ask for more testing, or request an Independent Educational Evaluation (IEE).</p>
+        <h3>4. Eligibility</h3><p>Decided by a team of parents and professionals. Disagree, and you put it in writing and follow up. Agree, and the team meets to write the IEP; parents must be invited.</p>
+        <h3>5. IEP Team</h3><p>Parents, special ed teacher, regular ed teacher, district rep, an evaluation expert — plus optionally the child and others. School must give advance notice, set a workable time and place, and explain purpose and attendees.</p>
+        <h3>6. Developing the IEP</h3><p>Team must cover: strengths, parent concerns, evaluation results, academic and functional needs, services, behavior, language needs, Braille (if needed), assistive technology. Final IEP includes: current performance, annual goals, services, Least Restrictive Environment, modifications, service dates and locations, transition services (age 14+), age of majority, progress measurement.</p>
+        <h3>7. Placement</h3><p>A program, not a place. Team sets goals and services first, then decides where — aiming for the Least Restrictive Environment. Parents help decide and can contest in writing.</p>
+        <h3>8. Due Process Rights</h3><p>Meet with school staff, Mediation, Resolution Session (within 15 days of complaint), Due Process Hearing, State Complaint.</p>
+        <div class="cd-callout"><svg class="ico" viewBox="0 0 24 24"><use href="#i-info"/></svg><div><strong>Pro Tip:</strong> Put every request to the school — for evaluation, records, or a meeting — in writing, since verbal requests are harder to track and don't start the clock on the school's response deadlines.</div></div>`,
+        takeaways:["Special education is a program built around your child's needs, not a physical location.","You are a required, equal member of the IEP team, not just an invited guest.","If you disagree with any decision — eligibility, placement, or otherwise — you can contest it in writing and request further review.","Due process gives you a clear path to resolve disagreements, from an informal meeting all the way to a formal state complaint."],next:'b2pq'},
+
+      'b2pq':{tier:'bronze',title:'Pop Quiz — Bronze Lessons 1 and 2',duration:'',isPopQuiz:true,popTier:'bronze',body:'',takeaways:[],next:'b3'},
+
+      'b3':{tier:'bronze',title:'Lesson 3: Your Rights As a Parent',duration:'15 min',videoUrl:'https://www.youtube.com/watch?v=iXYnbgGcYjc',videoFile:'',captionsUrl:'',
+        body:`<p>One of the most powerful things you can do as a parent is <strong>know your rights</strong>. IDEA provides a robust set of procedural safeguards specifically designed to protect you and your child.</p>
+        <h2>Your Key Rights Under IDEA</h2>
+        <h3>1. Prior Written Notice (PWN)</h3><p>The school must give you written notice before it proposes or refuses to make any changes to your child's identification, evaluation, educational placement, or provision of FAPE.</p>
+        <h3>2. Informed Consent</h3><p>The school must obtain your <strong>written consent</strong> before conducting an initial evaluation, providing initial special education services, or reevaluating your child.</p>
+        <h3>3. Access to Records</h3><p>You have the right to inspect and review all education records relating to your child. Schools must respond within 45 days.</p>
+        <h3>4. Participation in IEP Meetings</h3><p>You are a <strong>required member</strong> of your child's IEP team. The school must make reasonable efforts to ensure you can attend.</p>
+        <h3>5. Due Process</h3><p>If you disagree with the school's decisions, you have options: <strong>Mediation</strong>, a <strong>Due Process Hearing</strong>, or a <strong>State Complaint</strong> to the Hawai'i DOE.</p>
+        <div class="cd-callout"><svg class="ico" viewBox="0 0 24 24"><use href="#i-info"/></svg><div><strong>Pro Tip:</strong> Always keep copies of all correspondence with the school. Documentation is your best friend as an advocate.</div></div>`,
+        takeaways:["Schools must provide Prior Written Notice before making any changes to your child's program.","Your written consent is required before evaluations and initial services.","You have the right to access all of your child's school records within 45 days.","You are a required and equal member of the IEP team."],next:'b4'},
+
+      'b4':{tier:'bronze',title:'Lesson 4: Child Find and Free Appropriate Public Education (FAPE)',duration:'20 min',videoUrl:'https://www.youtube.com/watch?v=82_LBIRdFGs',videoFile:'',captionsUrl:'',
+        body:`<p>Under IDEA, school districts have an ongoing legal obligation to identify, locate, and evaluate children who may have disabilities — known as <strong>Child Find</strong>.</p>
+        <h2>Understanding Child Find</h2><p>Per <strong>34 C.F.R. &sect; 300.111</strong>, school districts must have policies and procedures to ensure that all children with disabilities needing special education are identified, located, and evaluated.</p>
+        <h2>Referral for Evaluation</h2><p>Referrals may be initiated by parents, teachers, administrators, or medical professionals. Parents are encouraged to submit requests in writing to establish documentation and timelines.</p>
+        <h2>Evaluation Requirements</h2><p>Under <strong>34 C.F.R. &sect; 300.304</strong>, schools must use a variety of assessment tools, assess all suspected areas of disability, avoid discriminatory testing, and use qualified personnel.</p>
+        <h2>Reevaluations</h2><p>IDEA requires reevaluations at least once every three years to determine continued eligibility, review progress, and determine appropriate services.</p>
+        <div class="cd-callout"><svg class="ico" viewBox="0 0 24 24"><use href="#i-info"/></svg><div><strong>Parent Tip:</strong> You have the right to request an Independent Educational Evaluation (IEE) if you disagree with the school's assessment results.</div></div>`,
+        takeaways:["Child Find requires schools to identify and evaluate students.","Evaluations determine eligibility and student needs.","Parents have rights during the evaluation process.","Evaluations must be comprehensive and nondiscriminatory."],next:'bquiz'},
+
+      'bquiz':{tier:'bronze',title:'Bronze Final Quiz',isQuiz:true,body:'',takeaways:[],next:''},
+
+      's1':{tier:'silver',title:'Lesson 1: The IEP Team — Roles and Responsibilities',duration:'25 min',videoUrl:'',videoFile:'',captionsUrl:'',body:'',takeaways:[],next:'s2'},
+      's2':{tier:'silver',title:"Lesson 2: Reading Your Child's Evaluation Report",duration:'30 min',videoUrl:'',videoFile:'',captionsUrl:'',body:'',takeaways:[],next:'s2pq'},
+      's2pq':{tier:'silver',title:'Pop Quiz — Silver Lessons 1 and 2',duration:'',isPopQuiz:true,popTier:'silver',body:'',takeaways:[],next:'s3'},
+      's3':{tier:'silver',title:'Lesson 3: IEP Meeting Participation Skills',duration:'35 min',videoUrl:'',videoFile:'',captionsUrl:'',body:'',takeaways:[],next:'s4'},
+      's4':{tier:'silver',title:'Lesson 4: Goals, Accommodations and Services',duration:'30 min',videoUrl:'',videoFile:'',captionsUrl:'',body:'',takeaways:[],next:'squiz'},
+      'squiz':{tier:'silver',title:'Silver Final Quiz',isQuiz:true,body:'',takeaways:[],next:''},
+
+      'g1':{tier:'gold',title:'Lesson 1: Systems-Level Advocacy',duration:'35 min',videoUrl:'',videoFile:'',captionsUrl:'',body:'',takeaways:[],next:'g2'},
+      'g2':{tier:'gold',title:'Lesson 2: Mentoring Other Families',duration:'30 min',videoUrl:'',videoFile:'',captionsUrl:'',body:'',takeaways:[],next:'g2pq'},
+      'g2pq':{tier:'gold',title:'Pop Quiz — Gold Lessons 1 and 2',duration:'',isPopQuiz:true,popTier:'gold',body:'',takeaways:[],next:'g3'},
+      'g3':{tier:'gold',title:'Lesson 3: Pacific Island Cultural Advocacy',duration:'40 min',videoUrl:'',videoFile:'',captionsUrl:'',body:'',takeaways:[],next:'g4'},
+      'g4':{tier:'gold',title:'Lesson 4: Building Advocacy Networks',duration:'35 min',videoUrl:'',videoFile:'',captionsUrl:'',body:'',takeaways:[],next:'gquiz'},
+      'gquiz':{tier:'gold',title:'Gold Leadership Certification Quiz',isQuiz:true,body:'',takeaways:[],next:''}
+    };
+
+    var PASS_SCORE = 80;
+    var POP_PASS_SCORE = 67;   /* pop quizzes: 2 of 3 correct */
+
+    var POP_QUIZ_DATA = {
+      bronze:[
+        {q:'What does the "F" in FAPE stand for?',options:['Federal','Free','Formal','Full'],correct:1},
+        {q:'True or False: Your written consent is required before the school evaluates your child.',options:['True','False','Only for initial evaluations','Only if you request it'],correct:0},
+        {q:'Which of the following is NOT one of your rights under IDEA?',options:['Access to your child\'s school records','Prior Written Notice before program changes','Choosing your child\'s teacher','Participation in IEP meetings'],correct:2}
+      ]
+    };
+
+    var QUIZ_DATA = {
+      bronze:[
+        {q:'What does FAPE stand for?',options:['Free Appropriate Public Education','Federal Assessment and Program Evaluation','Family Advocacy and Parent Engagement','Formal Academic Performance Evaluation'],correct:0},
+        {q:'Which federal law is the primary law governing special education in the United States?',options:['The Americans with Disabilities Act (ADA)','Section 504 of the Rehabilitation Act','The Individuals with Disabilities Education Act (IDEA)','The Elementary and Secondary Education Act (ESEA)'],correct:2},
+        {q:'How many disability categories does IDEA recognize?',options:['8','10','13','15'],correct:2},
+        {q:'Before the school can evaluate your child for special education, what must they obtain from you?',options:["A doctor's note",'Your written consent','A completed behavior checklist','Proof of residency'],correct:1},
+        {q:'What is an Independent Educational Evaluation (IEE)?',options:['A school-arranged evaluation paid for by the district',"An evaluation conducted by a qualified examiner not employed by the school",'A yearly check-in with the school psychologist',"An evaluation of the school's special education program"],correct:1},
+        {q:'Which best describes the Least Restrictive Environment (LRE)?',options:['A separate classroom for students with disabilities','A requirement that students attend private schools','A rule limiting class sizes','The requirement to educate students with disabilities alongside nondisabled peers to the maximum extent appropriate'],correct:3}
+      ]
+    };
+    </script>
+
+    <script>
+    /* ═══════════════════════════════════════════════
+       ENGINE
+       Ported from the standalone prototype. Behaviour is unchanged except:
+         - progress reads/writes go through the Firestore-backed LS shim
+         - quiz scores are recorded, not discarded
+         - Silver and Gold are locked with honest "coming soon" copy
+         - every emoji is replaced by an SVG icon from the sprite
+    ═══════════════════════════════════════════════ */
+
+    /* Bronze is the only tier that ships in this phase. Silver and Gold have
+       no lesson bodies and no videos yet, so they are advertised as coming
+       soon rather than dangled behind a fake unlock. Flipping one of these to
+       'live' is NOT enough on its own — the content has to exist first. */
+    var TIER_STATE = { bronze: 'live', silver: 'soon', gold: 'soon' };
+    var TIER_LABEL  = { bronze: 'Bronze', silver: 'Silver', gold: 'Gold' };
+    var TIER_SUB    = { bronze: 'Foundations', silver: 'Advocate', gold: 'Leadership' };
+
+    var TIER_LESSONS = {
+      bronze:['b1','b2','b2pq','b3','b4','bquiz'],
+      silver:['s1','s2','s2pq','s3','s4','squiz'],
+      gold:['g1','g2','g2pq','g3','g4','gquiz']
+    };
+    var TIER_QUIZ_ID = { bronze:'bquiz', silver:'squiz', gold:'gquiz' };
+    var POP_QUIZ_ID  = { bronze:'b2pq',  silver:'s2pq',  gold:'g2pq' };
+
+    /* Only live tiers count toward the progress bar. Counting locked Silver
+       and Gold would peg a finished Bronze member at 33% forever. */
+    function liveTiers() { return ['bronze','silver','gold'].filter(function (t) { return TIER_STATE[t] === 'live'; }); }
+    function activeLessonOrder() {
+      var out = ['welcome1'];
+      liveTiers().forEach(function (t) { out = out.concat(TIER_LESSONS[t]); });
+      return out;
+    }
+    function isTierLive(t) { return TIER_STATE[t] === 'live'; }
+
+    var currentLesson = null;
+    var quizState = { tier:'', questions:[], current:0, score:0, answered:false, selected:-1, isPopQuiz:false };
+
+    var LESSON_META = {
+      b1:{n:'1',   tag:'15 min'}, b2:{n:'2', tag:'10 min'}, b2pq:{n:'pop', tag:'Quick Check'},
+      b3:{n:'3',   tag:'15 min'}, b4:{n:'4', tag:'20 min'}, bquiz:{n:'quiz', tag:'Final Assessment'},
+      s1:{n:'1',   tag:'25 min'}, s2:{n:'2', tag:'30 min'}, s2pq:{n:'pop', tag:'Quick Check'},
+      s3:{n:'3',   tag:'35 min'}, s4:{n:'4', tag:'30 min'}, squiz:{n:'quiz', tag:'Final Assessment'},
+      g1:{n:'1',   tag:'35 min'}, g2:{n:'2', tag:'30 min'}, g2pq:{n:'pop', tag:'Quick Check'},
+      g3:{n:'3',   tag:'40 min'}, g4:{n:'4', tag:'35 min'}, gquiz:{n:'quiz', tag:'Final Assessment'}
+    };
+
+    function lessonIcon(lid) {
+      var l = LESSON_DATA[lid] || {};
+      if (l.isQuiz) return ico('clipboard');
+      if (l.isPopQuiz) return ico('zap', 'ico-fill');
+      return ico('play', 'ico-fill');
+    }
+    function rowNumCell(lid, tier) {
+      var m = LESSON_META[lid] || { n:'' };
+      var inner = (m.n === 'pop') ? ico('zap', 'ico-fill') : (m.n === 'quiz') ? ico('clipboard') : m.n;
+      return '<div class="cd-lesson-row-num ' + tier + '-num">' + inner + '</div>';
+    }
+
+    /* ── build the course DOM (only ever runs for a signed-in member) ── */
+    function buildCourse() {
+      var side = '';
+      side += '<div class="cd-sidebar-header"><div class="cd-sidebar-title">LDAH Certification Program</div><div class="cd-sidebar-sub">Bronze tier &mdash; open now</div></div>';
+      side += '<div class="cd-section open" id="sec-welcome"><div class="cd-section-header" onclick="cdToggle(\'sec-welcome\')"><span class="cd-section-title">Welcome</span><button class="cd-section-icon" aria-hidden="true">+</button></div><div class="cd-lessons">'
+            + '<div class="cd-lesson" data-lesson="welcome1" onclick="cdOpenLesson(\'welcome1\',this)"><span class="cd-lesson-icon">' + ico('play') + '</span><span class="cd-lesson-text">Start Here &mdash; Welcome to LDAH</span><span class="cd-lesson-check">' + ico('check') + '</span></div>'
+            + '</div></div>';
+      ['bronze','silver','gold'].forEach(function (tier) {
+        var live = isTierLive(tier);
+        side += '<div class="cd-section ' + tier + (live ? ' open' : ' locked') + '" id="sec-' + tier + '" data-tier="' + tier + '">'
+             +   '<div class="cd-section-header"' + (live ? ' onclick="cdToggle(\'sec-' + tier + '\')"' : '') + '>'
+             +     '<span class="cd-section-title">' + TIER_LABEL[tier] + ' &mdash; ' + TIER_SUB[tier]
+             +       (live ? '' : '<span class="cd-lock-badge">' + ico('lock') + ' Coming soon</span>') + '</span>'
+             +     '<button class="cd-section-icon" aria-hidden="true">+</button>'
+             +   '</div><div class="cd-lessons">';
+        if (live) {
+          TIER_LESSONS[tier].forEach(function (lid) {
+            var l = LESSON_DATA[lid];
+            var isPop = !!l.isPopQuiz;
+            side += '<div class="cd-lesson" data-lesson="' + lid + '" onclick="cdOpenLesson(\'' + lid + '\',this)">'
+                 +    '<span class="cd-lesson-icon">' + lessonIcon(lid) + '</span>'
+                 +    '<span class="cd-lesson-text">' + esc(isPop ? 'Pop Quiz' : l.title) + (isPop ? '<span class="pop-badge">Quick Check</span>' : '') + '</span>'
+                 +    '<span class="cd-lesson-check">' + ico('check') + '</span></div>';
+          });
+        }
+        side += '</div></div>';
+      });
+      side += '<div class="cd-section" id="sec-resources"><div class="cd-section-header" onclick="cdToggle(\'sec-resources\')"><span class="cd-section-title">Resources</span><button class="cd-section-icon" aria-hidden="true">+</button></div><div class="cd-lessons">'
+            + '<a class="cd-lesson" href="resources.html"><span class="cd-lesson-icon">' + ico('book') + '</span><span class="cd-lesson-text">Member Resources</span></a>'
+            + '<a class="cd-lesson" href="videos.html"><span class="cd-lesson-icon">' + ico('play') + '</span><span class="cd-lesson-text">Video Library</span></a>'
+            + '<a class="cd-lesson" href="https://www.ldahawaii.org/" target="_blank" rel="noopener"><span class="cd-lesson-icon">' + ico('info') + '</span><span class="cd-lesson-text">LDAH Hawai&#699;i Website</span></a>'
+            + '</div></div>';
+
+      var who = (CERT.profile && (CERT.profile.firstName || CERT.profile.displayName)) || '';
+      var main = ''
+        + '<div class="cd-panelbox">'
+        +   '<div class="cd-welcome-bar">'
+        +     '<div><div class="cd-welcome-name">Welcome' + (who ? ' back, ' + esc(who) : '') + '</div>'
+        +       '<div class="cd-progress-row"><span class="cd-progress-label" id="prog-label">0% Complete</span>'
+        +       '<div class="cd-progress-bar"><div class="cd-progress-fill" id="prog-fill"></div></div></div></div>'
+        +     '<div class="cd-save-state" id="saveState"></div>'
+        +   '</div>'
+        +   '<div class="cd-tabs"><button class="cd-tab active" onclick="cdSwitchTab(\'dashboard\',this)">Dashboard</button>'
+        +     '<button class="cd-tab" onclick="cdSwitchTab(\'lessons\',this)">All Lessons</button></div>'
+        +   '<div class="cd-tab-panel active" id="panel-dashboard">'
+        +     '<div class="cd-lesson-viewer" id="lesson-viewer">'
+        +       '<div class="cd-lv-video-zone" id="lv-video-zone"><div class="cd-lv-video-embed" id="lv-video-embed"></div></div>'
+        +       '<div class="cd-lv-nav-bar">'
+        +         '<button class="cd-lv-nav-arrow" id="lv-prev-btn" onclick="cdPrevLesson()" title="Previous lesson" aria-label="Previous lesson">' + ico('arrow-left') + '</button>'
+        +         '<span class="cd-lv-nav-timer">' + ico('clock') + '<span id="lv-timer-text">&mdash;</span></span>'
+        +         '<div class="cd-lv-nav-spacer"></div>'
+        +         '<button class="cd-lv-fav-btn" id="lv-fav-btn" onclick="cdToggleFav()" title="Bookmark this lesson" aria-label="Bookmark this lesson">' + ico('star') + '</button>'
+        +         '<button class="cd-lv-complete-btn" id="lv-complete-btn" onclick="cdCompleteLesson()">Complete</button>'
+        +         '<button class="cd-lv-nav-arrow" id="lv-next-btn" onclick="cdNextLesson()" title="Next lesson" aria-label="Next lesson">' + ico('arrow-right') + '</button>'
+        +       '</div>'
+        +       '<div class="cd-lv-content-area">'
+        +         '<div class="cd-lv-tier-row"><button class="cd-lv-back" onclick="cdSwitchTab(\'lessons\',document.querySelectorAll(\'.cd-tab\')[1])">' + ico('arrow-left') + ' All Lessons</button><span class="cd-tier-badge" id="lv-tier-badge"></span></div>'
+        +         '<div class="cd-lv-lesson-title" id="lv-title"></div>'
+        +         '<div class="cd-lv-content" id="lv-content"></div>'
+        +         '<div id="lv-quiz-container"></div>'
+        +       '</div>'
+        +     '</div>'
+        +     '<div id="dashboard-home" class="cd-dash-content">'
+        +       '<div class="cd-dashboard-grid"><div>'
+        +         '<div class="cd-dash-heading">Welcome to the LDAH Certification Program</div>'
+        +         '<p class="cd-dash-intro">This program is designed to empower Hawai&#699;i families with the knowledge, skills, and confidence to advocate for their keiki in the special education system. The Bronze tier is open now &mdash; work through it at your own pace and earn your LDAH credential.</p>'
+        +         '<div id="certHome"></div>'
+        +       '</div>'
+        +       '<div class="cd-action-col">'
+        +         '<button class="cd-action-btn cd-action-primary" onclick="cdOpenLesson(\'b1\')">Start Bronze<span class="cd-action-btn-sub">Begin your foundations</span></button>'
+        +         '<a class="cd-action-btn cd-action-secondary" href="https://www.ldahawaii.org/events.html" target="_blank" rel="noopener">Join the Next Workshop<span class="cd-action-btn-sub">Register for live events</span></a>'
+        +         '<a class="cd-action-btn cd-action-tertiary" href="https://www.ldahawaii.org/contact.html" target="_blank" rel="noopener">Ask LDAH a Question<span class="cd-action-btn-sub">Send us your question</span></a>'
+        +       '</div></div>'
+        +     '</div>'
+        +   '</div>'
+        +   '<div class="cd-tab-panel" id="panel-lessons"><div class="cd-lessons-panel-content"><div class="cd-tiers-list">' + tierBlocks() + '</div></div></div>'
+        + '</div>';
+
+      id('course').innerHTML = '<div class="cd-shell"><aside class="cd-sidebar">' + side + '</aside><div class="cd-main">' + main + '</div></div>';
+      id('course').style.display = '';
+      setView('');
+      showHero();
+      cdRefreshGating();
+      renderCertificateHome();
+      if (CERT._readFailed) CERT.setSaveState('offline');
+    }
+
+    function tierBlocks() {
+      var html = '';
+      ['bronze','silver','gold'].forEach(function (tier) {
+        var live = isTierLive(tier);
+        html += '<div class="cd-tier-block' + (live ? '' : ' locked') + '" data-tier-block="' + tier + '">'
+             +    '<div class="cd-tier-block-header"><span class="cd-tier-medal ' + tier + '">' + ico('award') + '</span>'
+             +      '<span class="cd-tier-block-title ' + tier + '-txt">' + TIER_LABEL[tier] + ' &mdash; ' + TIER_SUB[tier] + ' Certification</span>'
+             +      (live ? '' : '<span class="cd-lock-badge">' + ico('lock') + ' Coming soon</span>') + '</div>';
+        if (!live) {
+          html += '<div class="cd-coming-soon">' + ico('info') + '<div><strong>' + TIER_LABEL[tier] + ' is not open yet.</strong> '
+               +  'The outline below is what this tier will cover. There is no date for it yet &mdash; when it opens, it will appear here and you will not need to do anything to get access.</div></div>';
+        }
+        html += '<div class="cd-lessons-list">';
+        TIER_LESSONS[tier].forEach(function (lid) {
+          var l = LESSON_DATA[lid], m = LESSON_META[lid] || {};
+          var isPop = !!l.isPopQuiz;
+          html += '<div class="cd-lesson-row' + (isPop ? ' pop-quiz-row' : '') + '" id="row-' + lid + '"' + (live ? ' onclick="cdOpenLesson(\'' + lid + '\')"' : '') + '>'
+               +    rowNumCell(lid, tier)
+               +    '<div class="cd-lesson-row-title">' + esc(l.title.replace(/^Lesson \d+: /, '')) + '</div>'
+               +    '<div class="cd-lesson-row-meta"><span class="cd-lesson-row-tag' + (isPop ? ' pop' : '') + '">' + esc(m.tag || '') + '</span>'
+               +      '<span class="cd-lesson-row-done-badge">' + ico('check') + ' Done</span></div></div>';
+        });
+        html += '</div>';
+        if (live) {
+          html += '<div class="cd-mc-bar" id="mc-' + tier + '">'
+               +    '<span class="cd-tier-medal ' + tier + '">' + ico('award') + '</span>'
+               +    '<div class="cd-mc-bar-text"><div class="cd-mc-bar-title">Finish every ' + TIER_LABEL[tier] + ' lesson and the final quiz to earn your certificate</div>'
+               +      '<div class="cd-mc-bar-sub" id="mc-' + tier + '-sub">0 of ' + TIER_LESSONS[tier].length + ' items completed</div></div>'
+               +    '<button class="cd-mc-btn" id="mc-' + tier + '-btn" onclick="cdMarkTierComplete(\'' + tier + '\')" disabled>Claim my ' + TIER_LABEL[tier] + ' certificate</button>'
+               +    '<div class="cd-mc-done" id="mc-' + tier + '-done">' + ico('check') + ' ' + TIER_LABEL[tier] + ' complete</div></div>'
+               +  '<div id="cert-' + tier + '"></div>';
+        }
+        html += '</div>';
+      });
+      return html;
+    }
+    </script>
+
+    <script>
+    /* ── video ── */
+    function cdParseYouTube(url) {
+      if (!url) return null;
+      var id2 = null, m;
+      m = url.match(/youtu\.be\/([A-Za-z0-9_\-]{11})/); if (m) id2 = m[1];
+      if (!id2) { m = url.match(/[?&]v=([A-Za-z0-9_\-]{11})/); if (m) id2 = m[1]; }
+      if (!id2) { m = url.match(/\/(?:embed|shorts)\/([A-Za-z0-9_\-]{11})/); if (m) id2 = m[1]; }
+      if (!id2 && /^[A-Za-z0-9_\-]{11}$/.test(String(url).trim())) id2 = String(url).trim();
+      if (!id2) return null;
+      return 'https://www.youtube-nocookie.com/embed/' + id2 + '?rel=0&cc_load_policy=1';
+    }
+
+    function cdRenderVideo(lesson) {
+      var embed = id('lv-video-embed'), zone = id('lv-video-zone');
+      if (!embed || !zone) return;
+      if (lesson.isQuiz || lesson.isPopQuiz || lesson.noVideo) { zone.style.display = 'none'; embed.innerHTML = ''; return; }
+      zone.style.display = '';
+      if (lesson.videoFile) {
+        var cc = lesson.captionsUrl ? '<track kind="captions" src="' + esc(lesson.captionsUrl) + '" srclang="en" label="English Captions" default>' : '';
+        embed.innerHTML = '<video controls crossorigin="anonymous"><source src="' + esc(lesson.videoFile) + '" type="video/mp4">' + cc + 'Your browser does not support the video tag.</video>';
+      } else if (lesson.videoUrl) {
+        var src = cdParseYouTube(lesson.videoUrl) || lesson.videoUrl;
+        embed.innerHTML = '<iframe src="' + esc(src) + '" allowfullscreen allow="autoplay; fullscreen; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" title="' + esc(lesson.title) + '"></iframe>';
+      } else {
+        embed.innerHTML = '<div class="cd-lv-video-empty">' + ico('play', 'ico-lg') + '<span>Video coming soon</span></div>';
+      }
+    }
+
+    /* ── open a lesson ── */
+    function cdOpenLesson(lid, sidebarEl) {
+      var lesson = LESSON_DATA[lid]; if (!lesson) return;
+      /* A locked tier is not reachable, even by a hand-typed call. */
+      if (lesson.tier !== 'welcome' && !isTierLive(lesson.tier)) {
+        cdShowToast(ico('lock') + ' ' + TIER_LABEL[lesson.tier] + ' is not open yet.');
+        return;
+      }
+      currentLesson = lid;
+      cdSwitchTab('dashboard', document.querySelector('.cd-tab'));
+      id('lesson-viewer').classList.add('active');
+      id('dashboard-home').style.display = 'none';
+      document.querySelectorAll('.cd-lesson').forEach(function (l) { l.classList.remove('active'); });
+      var side = sidebarEl || document.querySelector('[data-lesson="' + lid + '"]');
+      if (side) side.classList.add('active');
+
+      var badge = id('lv-tier-badge');
+      badge.className = 'cd-tier-badge';
+      if (lesson.tier === 'welcome') { badge.innerHTML = 'Welcome'; badge.classList.add('cd-tier-bronze'); }
+      else { badge.innerHTML = ico('award') + ' ' + TIER_LABEL[lesson.tier]; badge.classList.add('cd-tier-' + lesson.tier); }
+
+      id('lv-title').textContent = lesson.title;
+      cdRenderVideo(lesson);
+
+      var order = activeLessonOrder(), idx = order.indexOf(lid);
+      var prevBtn = id('lv-prev-btn'), nextBtn = id('lv-next-btn');
+      if (prevBtn) prevBtn.disabled = (idx <= 0);
+      var nextId = lesson.next && LESSON_DATA[lesson.next] && order.indexOf(lesson.next) !== -1 ? lesson.next : '';
+      if (nextBtn) nextBtn.disabled = !nextId;
+
+      var timerEl = id('lv-timer-text');
+      if (timerEl) timerEl.innerHTML = lesson.duration ? esc(lesson.duration) : '&mdash;';
+
+      var completeBtn = id('lv-complete-btn');
+      var favBtn = id('lv-fav-btn');
+      if (lesson.isQuiz || lesson.isPopQuiz) {
+        if (completeBtn) completeBtn.style.display = 'none';
+        if (favBtn) favBtn.style.display = 'none';
+      } else {
+        if (completeBtn) { completeBtn.style.display = ''; cdUpdateCompleteBtn(lid); }
+        if (favBtn) { favBtn.style.display = ''; favBtn.classList.toggle('starred', LS.done('fav_' + lid)); }
+      }
+
+      var contentEl = id('lv-content');
+      contentEl.innerHTML = lesson.body || '';
+      if (lesson.takeaways && lesson.takeaways.length) {
+        var tw = '<div class="cd-takeaways"><div class="cd-takeaways-title">Key Takeaways</div><ul>';
+        lesson.takeaways.forEach(function (t) { tw += '<li>' + ico('check') + '<span>' + esc(t) + '</span></li>'; });
+        contentEl.innerHTML += tw + '</ul></div>';
+      }
+
+      var quizContainer = id('lv-quiz-container');
+      if (lesson.isQuiz) cdRenderQuiz(lesson.tier, quizContainer, false);
+      else if (lesson.isPopQuiz) cdRenderQuiz(lesson.popTier, quizContainer, true);
+      else quizContainer.innerHTML = '';
+
+      id('lesson-viewer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function cdUpdateCompleteBtn(lid) {
+      var btn = id('lv-complete-btn'); if (!btn) return;
+      if (LS.done('lesson_' + lid)) { btn.innerHTML = ico('check') + ' Completed'; btn.classList.add('is-done'); btn.onclick = null; }
+      else { btn.textContent = 'Complete'; btn.classList.remove('is-done'); btn.onclick = cdCompleteLesson; }
+    }
+
+    function cdCompleteLesson() {
+      if (!currentLesson) return;
+      var lesson = LESSON_DATA[currentLesson];
+      if (lesson && (lesson.isQuiz || lesson.isPopQuiz)) return;
+      LS.set('lesson_' + currentLesson, 'true');
+      cdUpdateCompleteBtn(currentLesson);
+      cdRefreshGating();
+      cdShowToast(ico('check') + ' Lesson marked complete');
+    }
+
+    function cdToggleFav() {
+      if (!currentLesson) return;
+      var key = 'fav_' + currentLesson, cur = LS.done(key);
+      LS.set(key, cur ? 'false' : 'true');
+      var favBtn = id('lv-fav-btn');
+      if (favBtn) favBtn.classList.toggle('starred', !cur);
+      cdShowToast(cur ? 'Bookmark removed' : ico('star') + ' Bookmarked');
+    }
+
+    function cdPrevLesson() {
+      if (!currentLesson) return;
+      var order = activeLessonOrder(), idx = order.indexOf(currentLesson);
+      if (idx > 0) cdOpenLesson(order[idx - 1]);
+    }
+    function cdNextLesson() {
+      if (!currentLesson) return;
+      var lesson = LESSON_DATA[currentLesson];
+      if (lesson && lesson.next && activeLessonOrder().indexOf(lesson.next) !== -1) cdOpenLesson(lesson.next);
+    }
+
+    /* ── quiz engine (pop + final) ── */
+    function cdRenderQuiz(tier, container, isPopQuiz) {
+      if (!container) return;
+      var quizId = isPopQuiz ? POP_QUIZ_ID[tier] : TIER_QUIZ_ID[tier];
+      var questions = isPopQuiz ? POP_QUIZ_DATA[tier] : QUIZ_DATA[tier];
+      if (!questions) { container.innerHTML = '<div class="cd-quiz-result"><div class="cd-quiz-result-title">Coming soon</div></div>'; return; }
+
+      if (LS.done('lesson_' + quizId)) {
+        var prev = (CERT.cache.quizzes || {})[quizId];
+        var scoreLine = prev && prev.total
+          ? 'Your best score: <strong>' + prev.score + ' out of ' + prev.total + ' (' + prev.pct + '%)</strong>.'
+          : 'You have already completed this ' + (isPopQuiz ? 'pop quiz' : 'quiz') + '.';
+        container.innerHTML = '<div class="cd-quiz-result passed"><div class="cd-quiz-result-icon">' + ico('check-circle') + '</div>'
+          + '<div class="cd-quiz-result-title">' + (isPopQuiz ? 'Pop quiz passed' : 'Quiz passed') + '</div>'
+          + '<div class="cd-quiz-result-score">' + scoreLine + '</div></div>';
+        return;
+      }
+
+      var passThreshold = isPopQuiz ? POP_PASS_SCORE : PASS_SCORE;
+      quizState = { tier:tier, questions:questions, current:0, score:0, answered:false, selected:-1, isPopQuiz:isPopQuiz, quizId:quizId, passThreshold:passThreshold };
+      var introTitle = isPopQuiz ? 'Quick Check — ' + TIER_LABEL[tier] + ' Lessons 1 and 2' : TIER_LABEL[tier] + ' Certification Quiz';
+      var introSub = isPopQuiz
+        ? '<strong>' + questions.length + ' quick questions</strong> to check your understanding so far. You need <strong>' + passThreshold + '%</strong> to pass, and you can retry as many times as you like.'
+        : 'This quiz has <strong>' + questions.length + ' questions</strong>. You need <strong>' + passThreshold + '%</strong> or higher to pass. You can retry if you do not pass first time.';
+      container.innerHTML = '<div class="cd-quiz-wrap"><div class="cd-quiz-intro ' + (isPopQuiz ? 'is-pop' : 'is-final') + '">'
+        + '<div class="cd-quiz-intro-title">' + ico(isPopQuiz ? 'zap' : 'clipboard') + esc(introTitle) + '</div>'
+        + '<div class="cd-quiz-intro-sub">' + introSub + '</div></div><div id="quiz-question-area"></div></div>';
+      cdRenderQuestion();
+    }
+
+    function cdRenderQuestion() {
+      var area = id('quiz-question-area'); if (!area) return;
+      var q = quizState.questions[quizState.current];
+      var letters = ['A','B','C','D'];
+      var html = '<div class="cd-quiz-progress">Question ' + (quizState.current + 1) + ' of ' + quizState.questions.length + '</div>';
+      html += '<div class="cd-quiz-q"><div class="cd-quiz-q-text">' + esc(q.q) + '</div><div class="cd-quiz-options">';
+      q.options.forEach(function (opt, i) {
+        html += '<div class="cd-quiz-option" id="opt-' + i + '" onclick="cdSelectOption(' + i + ')" role="button" tabindex="0"><div class="cd-quiz-option-letter">' + letters[i] + '</div><span>' + esc(opt) + '</span></div>';
+      });
+      html += '</div><button class="cd-quiz-submit" id="quiz-submit-btn" onclick="cdSubmitAnswer()" disabled>Submit Answer</button>';
+      html += '<div class="cd-quiz-feedback" id="quiz-feedback"></div>';
+      html += '<button class="cd-quiz-next-q" id="quiz-next-q" onclick="cdNextQuestion()">Next Question</button></div>';
+      area.innerHTML = html;
+      quizState.answered = false; quizState.selected = -1;
+    }
+
+    function cdSelectOption(i) {
+      if (quizState.answered) return;
+      quizState.selected = i;
+      document.querySelectorAll('.cd-quiz-option').forEach(function (o) { o.classList.remove('selected'); });
+      var el = id('opt-' + i); if (el) el.classList.add('selected');
+      var sub = id('quiz-submit-btn'); if (sub) sub.disabled = false;
+    }
+
+    function cdSubmitAnswer() {
+      if (quizState.answered) return;
+      quizState.answered = true;
+      var q = quizState.questions[quizState.current];
+      var sel = quizState.selected, correct = q.correct;
+      var fb = id('quiz-feedback'), sub = id('quiz-submit-btn'), nextQ = id('quiz-next-q');
+      if (sub) sub.disabled = true;
+      document.querySelectorAll('.cd-quiz-option').forEach(function (o) { o.style.pointerEvents = 'none'; });
+      var selEl = id('opt-' + sel), corrEl = id('opt-' + correct);
+      if (sel === correct) {
+        quizState.score++;
+        if (selEl) selEl.classList.add('correct');
+        if (fb) { fb.className = 'cd-quiz-feedback correct'; fb.innerHTML = ico('check-circle') + ' Correct. Well done.'; }
+      } else {
+        if (selEl) selEl.classList.add('wrong');
+        if (corrEl) corrEl.classList.add('correct');
+        if (fb) { fb.className = 'cd-quiz-feedback wrong'; fb.innerHTML = ico('x-circle') + ' Not quite. The correct answer is highlighted above.'; }
+      }
+      if (nextQ) { nextQ.textContent = (quizState.current < quizState.questions.length - 1) ? 'Next Question' : 'See My Results'; nextQ.classList.add('visible'); }
+    }
+
+    function cdNextQuestion() {
+      quizState.current++;
+      if (quizState.current < quizState.questions.length) cdRenderQuestion();
+      else cdShowQuizResult();
+    }
+
+    function cdShowQuizResult() {
+      var total = quizState.questions.length, score = quizState.score;
+      var pct = Math.round((score / total) * 100);
+      var passed = pct >= quizState.passThreshold;
+      var tier = quizState.tier, isPopQuiz = quizState.isPopQuiz, quizId = quizState.quizId;
+      var area = id('quiz-question-area'); if (!area) return;
+
+      /* Recorded on EVERY attempt — the prototype only stored a pass flag, so
+         the score (which goes on the certificate) and the retry count were
+         both lost. */
+      CERT.recordQuiz(quizId, score, total, pct, passed);
+
+      if (passed) {
+        LS.set('lesson_' + quizId, 'true');
+        cdRefreshGating();
+        var nextId = LESSON_DATA[quizId] ? LESSON_DATA[quizId].next : '';
+        var canGo = nextId && activeLessonOrder().indexOf(nextId) !== -1;
+        var continueBtn = canGo ? '<button class="cd-quiz-continue" onclick="cdOpenLesson(\'' + nextId + '\')">Continue to the next lesson</button>' : '';
+        area.innerHTML = '<div class="cd-quiz-result passed"><div class="cd-quiz-result-icon">' + ico('check-circle') + '</div>'
+          + '<div class="cd-quiz-result-title">' + (isPopQuiz ? 'Nice work' : 'You passed') + '</div>'
+          + '<div class="cd-quiz-result-score">You scored <strong>' + score + ' out of ' + total + ' (' + pct + '%)</strong>.'
+          + (isPopQuiz ? ' Good understanding of the material so far.' : ' You have finished every ' + TIER_LABEL[tier] + ' assessment.') + '</div>'
+          + continueBtn + '</div>';
+        cdShowToast(ico('check') + (isPopQuiz ? ' Pop quiz passed' : ' ' + TIER_LABEL[tier] + ' quiz passed'));
+      } else {
+        var retryFn = 'cdRenderQuiz(\'' + tier + '\',document.getElementById(\'lv-quiz-container\'),' + isPopQuiz + ')';
+        area.innerHTML = '<div class="cd-quiz-result failed"><div class="cd-quiz-result-icon">' + ico('book') + '</div>'
+          + '<div class="cd-quiz-result-title">Not quite yet</div>'
+          + '<div class="cd-quiz-result-score">You scored <strong>' + score + ' out of ' + total + ' (' + pct + '%)</strong>. You need ' + quizState.passThreshold + '% to pass.'
+          + (isPopQuiz ? ' Review the first two lessons and try again.' : ' Review the lessons and try again.') + '</div>'
+          + '<button class="cd-quiz-retry" onclick="' + retryFn + '">Try again</button></div>';
+        cdShowToast('Score: ' + pct + '%. Review the lessons and try again.');
+      }
+    }
+
+    /* ── gating and progress ── */
+    function cdAllDone(tier) { return TIER_LESSONS[tier].every(function (lid) { return LS.done('lesson_' + lid); }); }
+
+    function cdRefreshGating() {
+      liveTiers().forEach(function (tier) {
+        var lessons = TIER_LESSONS[tier];
+        var done = lessons.filter(function (lid) { return LS.done('lesson_' + lid); }).length;
+        var allDone = cdAllDone(tier);
+        var mcBtn = id('mc-' + tier + '-btn'), mcDone = id('mc-' + tier + '-done'), mcSub = id('mc-' + tier + '-sub');
+        if (mcSub) mcSub.textContent = done + ' of ' + lessons.length + ' items completed';
+        if (LS.done('tier_' + tier)) { if (mcBtn) mcBtn.style.display = 'none'; if (mcDone) mcDone.classList.add('visible'); }
+        else { if (mcBtn) { mcBtn.style.display = ''; mcBtn.disabled = !allDone; } if (mcDone) mcDone.classList.remove('visible'); }
+        lessons.forEach(function (lid) {
+          var isDone = LS.done('lesson_' + lid);
+          var row = id('row-' + lid), sideEl = document.querySelector('[data-lesson="' + lid + '"]');
+          if (row) row.classList.toggle('done', isDone);
+          if (sideEl) sideEl.classList.toggle('done', isDone);
+        });
+      });
+      var wEl = document.querySelector('[data-lesson="welcome1"]');
+      if (wEl) wEl.classList.toggle('done', LS.done('lesson_welcome1'));
+
+      var order = activeLessonOrder();
+      var totalDone = order.filter(function (lid) { return LS.done('lesson_' + lid); }).length;
+      var pct = order.length ? Math.round((totalDone / order.length) * 100) : 0;
+      var fill = id('prog-fill'), label = id('prog-label');
+      if (fill) fill.style.width = pct + '%';
+      if (label) label.textContent = pct + '% Complete';
+      if (currentLesson) { var l = LESSON_DATA[currentLesson]; if (l && !l.isQuiz && !l.isPopQuiz) cdUpdateCompleteBtn(currentLesson); }
+    }
+
+    function cdToggle(secId) {
+      var el = id(secId); if (!el || el.classList.contains('locked')) return;
+      el.classList.toggle('open');
+    }
+
+    function cdSwitchTab(name, btn) {
+      document.querySelectorAll('.cd-tab').forEach(function (t) { t.classList.remove('active'); });
+      document.querySelectorAll('.cd-tab-panel').forEach(function (p) { p.classList.remove('active'); });
+      if (btn) btn.classList.add('active');
+      var panel = id('panel-' + name);
+      if (panel) panel.classList.add('active');
+      if (name !== 'dashboard') {
+        var lv = id('lesson-viewer'); if (lv) lv.classList.remove('active');
+        var dh = id('dashboard-home'); if (dh) dh.style.display = '';
+        currentLesson = null;
+      }
+    }
+
+    function cdShowToast(msg) {
+      var toast = id('cd-toast'); if (!toast) return;
+      toast.innerHTML = msg;
+      toast.classList.add('show');
+      clearTimeout(toast._t);
+      toast._t = setTimeout(function () { toast.classList.remove('show'); }, 4000);
+    }
+    </script>
+
+    <script>
+    /* ═══════════════════════════════════════════════
+       CERTIFICATES
+       Minted server-side by the issueCertificate callable. The client never
+       generates a number and can never write the document — see firestore.rules
+       (`allow write: if false`). Re-claiming returns the SAME certificate.
+    ═══════════════════════════════════════════════ */
+
+    function tsMs(v) {
+      if (!v) return 0;
+      if (typeof v === 'number') return v;
+      if (typeof v.toMillis === 'function') return v.toMillis();
+      if (typeof v._seconds === 'number') return v._seconds * 1000;
+      if (typeof v.seconds === 'number') return v.seconds * 1000;
+      return 0;
+    }
+    function fmtCertDate(v) {
+      var ms = tsMs(v);
+      if (!ms) return '';
+      return new Date(ms).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    }
+
+    function profileFullName() {
+      var p = CERT.profile || {};
+      var n = [p.firstName, p.lastName].filter(Boolean).join(' ').trim();
+      if (!n) n = String(p.displayName || '').trim();
+      /* An email address is not a name and must never end up on a certificate. */
+      if (!n || n.indexOf('@') !== -1) return '';
+      return n;
+    }
+
+    function certCardHtml(cert) {
+      return '<div class="cd-cert-card">'
+        + '<div class="cd-cert-seal">' + ico('award') + '</div>'
+        + '<div class="cd-cert-info">'
+        +   '<h4>' + esc(TIER_LABEL[cert.tier] || cert.tier) + ' Certificate</h4>'
+        +   '<div class="cd-cert-name">' + esc(cert.memberName || '') + '</div>'
+        +   '<div class="cd-cert-num">' + esc(cert.certNumber || '') + ' &middot; issued ' + esc(fmtCertDate(cert.issuedAt || cert.issuedAtMs)) + '</div>'
+        + '</div>'
+        + '<button class="btn btn-outline" onclick="cdPrintCertificate(\'' + esc(cert.tier) + '\')">' + ico('printer') + ' View / print</button>'
+        + '</div>';
+    }
+
+    function renderCertificate(tier) {
+      var host = id('cert-' + tier); if (!host) return;
+      var cert = CERT.certificates[tier];
+      host.innerHTML = cert ? certCardHtml(cert) : '';
+    }
+
+    function renderCertificateHome() {
+      var host = id('certHome'); if (!host) return;
+      var mine = Object.keys(CERT.certificates).map(function (k) { return CERT.certificates[k]; });
+      if (!mine.length) { host.innerHTML = ''; return; }
+      host.innerHTML = '<div style="font-family:\'Outfit\',sans-serif;font-weight:700;color:var(--text-dark);margin-top:6px;">Your certificates</div>'
+        + mine.map(certCardHtml).join('');
+      liveTiers().forEach(renderCertificate);
+    }
+
+    /* The printable sheet. Filled on demand, then window.print() — the print
+       stylesheet hides everything else on the page. */
+    function cdPrintCertificate(tier) {
+      var cert = CERT.certificates[tier]; if (!cert) return;
+      id('certSheet').innerHTML = ''
+        + '<div class="cd-cert-sheet-inner">'
+        +   '<img class="cd-cert-logo" src="https://www.ldahawaii.org/logo_blue.png" alt="">'
+        +   '<div class="cd-cert-org">Leadership in Disabilities and Achievement of Hawai&#699;i</div>'
+        +   '<div class="cd-cert-kicker">Certificate of Completion</div>'
+        +   '<div class="cd-cert-title">' + esc(TIER_LABEL[cert.tier] || cert.tier) + ' &mdash; ' + esc(TIER_SUB[cert.tier] || '') + '</div>'
+        +   '<div class="cd-cert-presented">This certifies that</div>'
+        +   '<div class="cd-cert-person">' + esc(cert.memberName || '') + '</div>'
+        +   '<div class="cd-cert-body">has completed every lesson and passed the final assessment of the '
+        +     esc(TIER_LABEL[cert.tier] || cert.tier) + ' tier of the LDAH Certification Program, demonstrating a working knowledge of '
+        +     'special education, parent rights under IDEA, and the evaluation process in Hawai&#699;i.</div>'
+        +   '<div class="cd-cert-meta">'
+        +     '<div><dt>Certificate number</dt><dd>' + esc(cert.certNumber || '') + '</dd></div>'
+        +     '<div><dt>Date issued</dt><dd>' + esc(fmtCertDate(cert.issuedAt || cert.issuedAtMs)) + '</dd></div>'
+        +     (cert.quizScore && cert.quizScore.total ? '<div><dt>Final assessment</dt><dd>' + cert.quizScore.pct + '%</dd></div>' : '')
+        +   '</div>'
+        + '</div>';
+      window.print();
+    }
+
+    /* ── claiming ── */
+    var _claiming = false;
+
+    function cdMarkTierComplete(tier) {
+      if (!isTierLive(tier)) return;
+      if (CERT.certificates[tier]) { cdPrintCertificate(tier); return; }
+      if (!cdAllDone(tier)) { cdShowToast('Finish every lesson and the final quiz first.'); return; }
+      var name = profileFullName();
+      if (!name) { openNameModal(tier); return; }
+      claimCertificate(tier, null);
+    }
+
+    async function claimCertificate(tier, nameOverride) {
+      if (_claiming) return;
+      _claiming = true;
+      var btn = id('mc-' + tier + '-btn');
+      var restore = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = 'Issuing your certificate…'; }
+      try {
+        /* The callable re-checks completion against the STORED progress doc,
+           and our writes are debounced by 1.2s. Claiming straight after
+           passing the quiz would otherwise race the write and be refused as
+           "quiz not passed". Flush first, every time. */
+        await CERT.flush();
+        var payload = { tier: tier };
+        if (nameOverride) payload.memberName = nameOverride;
+        var res = await fns.httpsCallable('issueCertificate')(payload);
+        var out = res.data || {};
+        if (out.needsName) { _claiming = false; if (btn) { btn.disabled = false; btn.textContent = restore; } openNameModal(tier); return; }
+        if (!out.certificate) throw new Error('no certificate returned');
+        CERT.certificates[tier] = out.certificate;
+        LS.set('tier_' + tier, 'true');
+        cdRefreshGating();
+        renderCertificate(tier);
+        renderCertificateHome();
+        cdShowToast(ico('award') + ' ' + TIER_LABEL[tier] + ' certificate issued: ' + esc(out.certificate.certNumber));
+      } catch (e) {
+        console.warn('[certification] issue failed:', (e && e.message) || e);
+        if (btn) { btn.disabled = false; btn.textContent = restore; }
+        cdShowToast('We could not issue your certificate just now. Your progress is saved — please try again in a moment.');
+      }
+      _claiming = false;
+    }
+
+    /* ── full-name prompt ──
+       The contact record holds firstName/lastName only, and neither is a legal
+       name. Rather than print a blank line or an email address, we ask. */
+    var _nameModalTier = null;
+    function openNameModal(tier) {
+      _nameModalTier = tier;
+      var input = id('certNameInput');
+      input.value = profileFullName();
+      id('certNameErr').classList.remove('visible');
+      id('nameModal').classList.add('open');
+      setTimeout(function () { input.focus(); }, 50);
+    }
+    function closeNameModal() { id('nameModal').classList.remove('open'); _nameModalTier = null; }
+
+    id('certNameCancel').addEventListener('click', closeNameModal);
+    id('nameModal').addEventListener('click', function (e) { if (e.target === this) closeNameModal(); });
+    id('certNameSave').addEventListener('click', function () {
+      var v = String(id('certNameInput').value || '').trim().replace(/\s+/g, ' ');
+      var err = id('certNameErr');
+      if (v.length < 2 || v.indexOf('@') !== -1) {
+        err.textContent = 'Please enter the full name you would like on your certificate.';
+        err.classList.add('visible');
+        return;
+      }
+      var tier = _nameModalTier;
+      closeNameModal();
+      claimCertificate(tier, v);
+    });
+    id('certNameInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') id('certNameSave').click(); });
+
+    /* ═══════════════════════════════════════════════
+       AUTH GUARD + BOOT
+       Same three layers as the rest of /Members: signed in, email verified,
+       and the Cloud Function decides membership. No Firestore is touched
+       until getMemberProfile has returned — that call is also what stamps
+       memberAuthUid on the contact, which is what firestore.rules checks.
+    ═══════════════════════════════════════════════ */
+    function callProfile() { return fns.httpsCallable('getMemberProfile')().then(function (r) { return r.data; }); }
+
+    function showLoadError(user) {
+      hideHero();
+      id('course').style.display = 'none';
+      setView('<div class="card message-card"><h3>Something went wrong</h3><p>We could not load the certification program right now. Please try again in a moment.</p><div class="btn-row" style="justify-content:center;"><button class="btn btn-primary" id="retryBtn">Try again</button></div></div>');
+      id('retryBtn').addEventListener('click', function () { startCertification(user); });
+    }
+    function renderNotAMember() {
+      id('course').style.display = 'none';
+      setView('<div class="card message-card"><h3>Members-only program</h3>'
+        + '<p>The LDAH Certification Program is part of LDAH membership. If you have just joined, it can take a moment for your membership to be recorded.</p>'
+        + '<div class="btn-row" style="justify-content:center;"><a class="btn btn-primary" href="https://www.ldahawaii.org/volunteer.html">How to become a member</a><a class="btn btn-outline" href="index.html">Back to portal</a></div></div>');
+    }
+    function renderLapsed() {
+      id('course').style.display = 'none';
+      setView('<div class="card message-card"><h3>Your membership has lapsed</h3>'
+        + '<p>Renew your membership to pick the certification program back up. Your progress is saved and will be waiting for you.</p>'
+        + '<div class="btn-row" style="justify-content:center;"><a class="btn btn-primary" href="renew.html">Renew membership</a><a class="btn btn-outline" href="index.html">Back to portal</a></div></div>');
+    }
+
+    async function startCertification(user) {
+      setView('<div class="card"><div class="loading-state"><div class="loading-spinner"></div><p>Loading your certification program&hellip;</p></div></div>');
+      var data;
+      try { data = await callProfile(); }
+      catch (e) {
+        if (isUnverified(e)) {
+          try { await user.getIdToken(true); data = await callProfile(); }
+          catch (e2) {
+            if (isUnverified(e2)) { guardMessage('Verify your email', 'Please verify your email before continuing.'); return; }
+            return showLoadError(user);
+          }
+        } else { return showLoadError(user); }
+      }
+      if (!data || !data.found || !data.profile) { hideHero(); return renderNotAMember(); }
+      if (!data.profile.membershipActive) { hideHero(); return renderLapsed(); }
+      CERT.contactId = data.profile.id;
+      CERT.profile = data.profile;
+      await CERT.load();
+      buildCourse();
+    }
+
+    auth.onAuthStateChanged(function (user) {
+      if (!user) { hideSignout(); guardMessage('Please log in', 'You need to be logged in to view the LDAH Certification Program.'); return; }
+      showSignout();
+      if (!user.emailVerified) { guardMessage('Verify your email', 'Please verify your email before continuing.'); return; }
+      startCertification(user);
+    });
+
+    id('signoutBtn').addEventListener('click', function () { CERT.flush(); auth.signOut(); });
+    (function () {
+      var mb = id('menuBtn'), nm = id('navMenu');
+      if (!mb || !nm) return;
+      mb.addEventListener('click', function (e) { e.stopPropagation(); var open = nm.classList.toggle('open'); mb.setAttribute('aria-expanded', open ? 'true' : 'false'); });
+      document.addEventListener('click', function (e) { if (nm.classList.contains('open') && !nm.contains(e.target) && e.target !== mb && !mb.contains(e.target)) { nm.classList.remove('open'); mb.setAttribute('aria-expanded', 'false'); } });
+      nm.addEventListener('click', function () { nm.classList.remove('open'); mb.setAttribute('aria-expanded', 'false'); });
+    })();
+
+    document.querySelectorAll('.dynamic-year').forEach(function (el) { el.textContent = new Date().getFullYear(); });
+    </script>
+
+    <!-- Accessibility widget (font size, contrast/dark mode). Shared with the W2 site; repositioned bottom-right. -->
+    <style>
+        #a11y-toggle { left: auto !important; right: 20px !important; }
+        #a11y-panel { left: auto !important; right: 20px !important; }
+    </style>
+    <script src="https://www.ldahawaii.org/accessibility.js"></script>
+</body>
+</html>
