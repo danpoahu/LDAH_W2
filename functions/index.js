@@ -8903,7 +8903,12 @@ exports.sendEventAnnouncement = functions
           recipients.push({ id: d.id, displayName, email, secondParent: c.secondParent, unsubscribeToken: c.unsubscribeToken,
         // Location, so the modal can offer "just the Big Island" and similar.
         // Only ever used to pre-tick checkboxes — never to decide a send.
-        city: c.city || "", zipCode: String(c.zipCode || c.zip || "").trim() });
+        city: c.city || "", zipCode: String(c.zipCode || c.zip || "").trim(),
+        // The maintained island field (backfilled 2026-08-06, kept current by
+        // onContactCreated/onContactUpdated, hand-overridable by staff). The
+        // modal prefers this over guessing from the ZIP -- guessing found 8
+        // Molokai contacts where the field knows about 37.
+        island: c.island || "" });
         });
         // Guard: if a filter selected zero recipients, fail loudly instead of
         // silently sending to nobody (dryRun returns counts; real send errors).
@@ -8989,6 +8994,7 @@ exports.sendEventAnnouncement = functions
               // the source objects carry.
               city: r.city || "",
               zipCode: r.zipCode || "",
+              island: r.island || "",
             }))
             .sort((a, b) => (a.displayName || '').toLowerCase().localeCompare((b.displayName || '').toLowerCase())),
         });
