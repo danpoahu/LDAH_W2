@@ -167,11 +167,9 @@
     chips += '</div>';
 
     var html = '<div class="mm-home">'
-      + '<div class="mm-greet">'
-      + '  <img src="https://www.ldahawaii.org/logo_blue.png" alt="">'
-      + '  <div class="mm-gtext"><b>' + (s.name ? 'Aloha, ' + esc(s.name) : 'Aloha') + '</b>'
-      + '  <span>Member Portal</span></div>'
-      + '</div>'
+      /* Name only. The page header directly above already carries the LDAH logo
+         AND the words "Member Portal", so repeating either here read as a bug. */
+      + '<div class="mm-greet"><b>' + (s.name ? 'Aloha, ' + esc(s.name) : 'Aloha') + '</b></div>'
       + chips
       + '<a class="mm-cta" href="certification.html">'
       + '  <div class="mm-lbl"><small>Certification Program</small><b>Open my training</b></div>'

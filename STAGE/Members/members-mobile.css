@@ -51,14 +51,13 @@
   /* ── Mobile home block ──────────────────────────────────────────────── */
   .mm-home { margin: 0 0 1.2rem; }
 
-  .mm-greet { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.85rem; }
-  .mm-greet img { width: 42px; height: 42px; flex: 0 0 42px; object-fit: contain; }
-  .mm-greet .mm-gtext { min-width: 0; }
+  /* Just the greeting. The page header immediately above already shows the LDAH
+     logo and the words "Member Portal"; repeating either here looked like a bug. */
+  .mm-greet { margin-bottom: 0.8rem; }
   .mm-greet b {
     display: block; font-family: 'Outfit', sans-serif; font-weight: 600;
-    font-size: 1.18rem; line-height: 1.25; color: var(--primary-blue, #0891B2);
+    font-size: 1.22rem; line-height: 1.25; color: var(--primary-blue, #0891B2);
   }
-  .mm-greet span { display: block; font-size: 0.8rem; color: var(--text-soft, #64748B); }
 
   /* Status chips. Two across at 390+, stacked at 360 if the words are long. */
   .mm-status { display: flex; gap: 0.55rem; margin-bottom: 0.7rem; }
