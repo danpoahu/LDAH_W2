@@ -182,6 +182,15 @@
      status card states more clearly, directly above it. */
   body.mm-on .cd-welcome-bar { display: none; }
 
+  /* The three stacked action buttons at the foot of the dashboard are all
+     duplicated elsewhere on a phone: "Print my certificate" is already the
+     View / print button on the certificate card directly above it, the workshop
+     link is the Events tab, and "Ask LDAH a Question" is a tile on the home
+     screen. Hidden, NOT removed — the primary button is also how a member claims
+     a finished tier, and the mobile action clicks it programmatically, which
+     still works on a display:none element. */
+  body.mm-on .cd-action-col { display: none; }
+
   .mm-statcard {
     background: #FEF6EC; border: 1px solid #F3D9B8; border-radius: 15px;
     padding: 0.7rem 0.8rem; margin-bottom: 0.7rem;

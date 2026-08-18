@@ -236,12 +236,29 @@
     if (!s.total) return;                       /* tree not rendered yet */
 
     var allDone = s.done >= s.total;
-    var cta = allDone
-      ? '<a class="mm-cta" href="#panel-dashboard"><div class="mm-lbl"><small>Bronze complete</small>'
-        + '<b>Get my certificate</b></div>' + svg(I.chev) + '</a>'
-      : '<button class="mm-cta" type="button" data-mm-open="' + esc(s.nextId) + '">'
-        + '<div class="mm-lbl"><small>' + (s.done ? 'Pick up where you left off' : 'Start here') + '</small>'
-        + '<b>' + esc((s.nextText || 'Begin').trim()) + '</b></div>' + svg(I.chev) + '</button>';
+
+    /* Once the tier is finished the page's own primary button is the ONLY way to
+       claim it — and after claiming it becomes Print. Rather than reimplement
+       either, mirror its label and click the real button. Whatever the page
+       decides the action is, mobile does exactly that and cannot drift from it. */
+    var prim = document.querySelector('#dashPrimaryAction button, #dashPrimaryAction a');
+    var primLabel = '', primSub = '';
+    if (prim) {
+      var subEl = prim.querySelector('.cd-action-btn-sub');
+      primSub = subEl ? (subEl.textContent || '').trim() : '';
+      primLabel = (prim.textContent || '').replace(primSub, '').replace(/\s+/g, ' ').trim();
+    }
+
+    var cta;
+    if (allDone && prim) {
+      cta = '<button class="mm-cta" type="button" data-mm-primary="1">'
+          + '<div class="mm-lbl"><small>' + esc(primSub || 'Bronze complete') + '</small>'
+          + '<b>' + esc(primLabel) + '</b></div>' + svg(I.chev) + '</button>';
+    } else {
+      cta = '<button class="mm-cta" type="button" data-mm-open="' + esc(s.nextId) + '">'
+          + '<div class="mm-lbl"><small>' + (s.done ? 'Pick up where you left off' : 'Start here') + '</small>'
+          + '<b>' + esc((s.nextText || 'Begin').trim()) + '</b></div>' + svg(I.chev) + '</button>';
+    }
 
     var html = '<div class="mm-cert">'
       + '<button class="mm-back" type="button" data-mm-back="1">' + svg('<path d="M15 6l-6 6 6 6"/>') + 'Certification</button>'
@@ -272,6 +289,12 @@
         window.cdOpenLesson(openBtn.getAttribute('data-mm-open'));
         var v = document.getElementById('lesson-viewer');
         if (v) v.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+      if (e.target.closest('[data-mm-primary]')) {
+        e.preventDefault();
+        var real = document.querySelector('#dashPrimaryAction button, #dashPrimaryAction a');
+        if (real) real.click();
         return;
       }
       var tree = e.target.closest('[data-mm-tree]');
