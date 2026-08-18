@@ -51,7 +51,7 @@
   var TABS = [
     { key: 'home',    href: 'index.html',         label: 'Home',     icon: I.home },
     { key: 'learn',   href: 'certification.html', label: 'Learning', icon: I.learn },
-    { key: 'events',  href: 'index.html#eventsCard', label: 'Events', icon: I.event },
+    { key: 'events',  href: 'events.html',         label: 'Events',   icon: I.event },
     { key: 'profile', href: 'profile.html',       label: 'Profile',  icon: I.gear }
   ];
 
@@ -61,7 +61,8 @@
      more confusing than none lit. */
   function currentTab() {
     var f = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
-    if (f === '' || f === 'index.html') return location.hash === '#eventsCard' ? 'events' : 'home';
+    if (f === '' || f === 'index.html') return 'home';
+    if (f === 'events.html') return 'events';
     if (f === 'certification.html') return 'learn';
     if (f === 'profile.html') return 'profile';
     return '';
@@ -89,43 +90,65 @@
       + '<div><b>' + esc(title) + '</b><span>' + sub + '</span></div></a>';
   }
 
-  /* Everything below is READ from the rendered dashboard, never re-fetched, so
-     the mobile block cannot contradict the desktop cards sitting under it. */
+  /* READ from what the page already rendered, never re-fetched.
+
+     The source is the HERO, not the dashboard cards: home is now greeting +
+     navigation only, and every card the old version scraped (membership pill,
+     status line, info rows) has moved to its own page. The hero chip is still
+     populated by the page with level, active state and expiry, and it stays in
+     the DOM when mobile hides it — so it remains the honest source, and the
+     mobile chip can never disagree with what the portal decided. */
   function readState() {
-    var s = { name: '', level: '', active: null, renews: '', signups: 0, screenings: false };
+    var s = { name: '', level: '', active: null, renews: '', signups: '', screenings: '' };
 
-    var pill = document.querySelector('#view .pill');
-    if (pill) s.active = /active/i.test(pill.textContent) && !/inactive|expired/i.test(pill.textContent);
-
-    var status = document.querySelector('#view .status-line');
-    if (status) {
-      var m = status.textContent.match(/active through\s+(.+?)\.?$/i);
-      if (m) s.renews = m[1].trim();
+    var t = document.getElementById('heroTitle');
+    if (t) {
+      var m = (t.textContent || '').match(/aloha,\s*(.+)$/i);
+      if (m) s.name = m[1].trim().split(/\s+/)[0];
     }
 
-    var nameRow = document.querySelector('#view .info-row .info-val');
-    if (nameRow) s.name = (nameRow.textContent || '').trim().split(/\s+/)[0] || '';
+    var chip = document.querySelector('#heroChip .mchip');
+    if (chip) {
+      s.active = !chip.classList.contains('inactive');
+      var txt = (chip.textContent || '').replace(/\s+/g, ' ').trim();
+      var lv = txt.match(/^(.+?)\s+member\b/i);
+      if (lv) s.level = lv[1].trim() + ' member';
+      var th = txt.match(/active through\s+(.+)$/i);
+      if (th) s.renews = th[1].trim();
+    }
 
-    /* The hero used to show "Friend member · Active" and is hidden on mobile, so
-       the level has to survive somewhere — it moves into the membership chip. */
-    var lvl = document.querySelector('#view .level-line strong');
-    if (lvl) s.level = (lvl.textContent || '').trim();
-
-    var sc = document.getElementById('screeningCard');
-    s.screenings = !!(sc && sc.style.display !== 'none');
-
-    var box = document.getElementById('signupsBox');
-    if (box) s.signups = box.querySelectorAll('[data-signup-id], .signup-row, .su-row').length;
+    /* The tile subtitles are filled by preloadSignups() and loadScreenings(). */
+    var es = document.getElementById('tileEventsSub');
+    if (es && /\d/.test(es.textContent || '')) s.signups = (es.textContent || '').trim();
+    var ss = document.getElementById('tileScreenSub');
+    if (ss && /\d/.test(ss.textContent || '')) s.screenings = (ss.textContent || '').trim();
 
     return s;
   }
 
+  /* preloadSignups() and loadScreenings() finish AFTER the dashboard paints and
+     then rewrite the tile subtitles in place. That is a text change, not a child
+     change, so it never fires a childList observer — the counts would sit at
+     their defaults forever. Refresh them rather than rebuilding the block. */
+  function refreshHome() {
+    var home = document.querySelector('.mm-home');
+    if (!home) return;
+    var s = readState();
+    [['events.html', s.signups], ['screenings.html', s.screenings]].forEach(function (pair) {
+      if (!pair[1]) return;
+      var t = home.querySelector('.mm-tile[href="' + pair[0] + '"] span');
+      if (t && t.textContent !== pair[1]) t.textContent = pair[1];
+    });
+  }
+
   function buildHome() {
     var view = document.getElementById('view');
-    if (!view || document.querySelector('.mm-home')) return;
+    if (!view) return;
+    if (document.querySelector('.mm-home')) { refreshHome(); return; }
     /* Only on the signed-in dashboard: the same #view also holds the login and
-       error states, and a menu of member-only links has no business there. */
-    if (!document.getElementById('eventsCard')) return;
+       error states, and a menu of member-only links has no business there. The
+       photo tiles are the marker now that the cards are gone. */
+    if (!view.querySelector('.tiles')) return;
 
     var s = readState();
 
@@ -156,10 +179,8 @@
       + '<div class="mm-mtitle">Main menu</div>'
       + '<div class="mm-tiles">'
       + tile('certification.html', I.cert, '#B45309', '#FEF6EC', 'Certification', 'Advocacy training')
-      + tile('#eventsCard', I.event, '#F97316', '#FFF7ED', 'My Events', 'Your signups',
-             { badge: s.signups > 0 ? String(s.signups) : '' })
-      + tile('screenings.html', I.pulse, '#16A34A', '#F0FDF4', 'Screening Results', 'Hearing &amp; vision',
-             { badge: s.screenings ? 'New' : '' })
+      + tile('events.html', I.event, '#F97316', '#FFF7ED', 'My Events', s.signups ? esc(s.signups) : 'Your signups')
+      + tile('screenings.html', I.pulse, '#16A34A', '#F0FDF4', 'Screening Results', s.screenings ? esc(s.screenings) : 'Hearing &amp; vision')
       + tile('videos.html', I.play, '#0891B2', '#ECFEFF', 'Recordings', 'Past Learning Labs')
       + tile('resources.html', I.doc, '#7C3AED', '#F5F3FF', 'Resources', 'Links &amp; training')
       + tile('profile.html', I.gear, '#64748B', '#F1F5F9', 'Profile', 'Your details and keiki')
@@ -290,7 +311,7 @@
     var host = document.getElementById('view') || document.getElementById('course');
     if (host && !observer) {
       observer = new MutationObserver(function () { if (mounted) { buildHome(); buildCert(); } });
-      observer.observe(host, { childList: true, subtree: true });
+      observer.observe(host, { childList: true, subtree: true, characterData: true });
     }
   }
 
