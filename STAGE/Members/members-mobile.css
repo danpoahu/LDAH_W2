@@ -1,0 +1,167 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Member portal — mobile shell
+   ---------------------------------------------------------------------------
+   MOBILE ONLY. Every rule in this file lives inside @media (max-width:900px)
+   AND is scoped to body.mm-on, which members-mobile.js only ever adds below
+   that width. Above 900px this file contributes nothing and the desktop page
+   is untouched — that is a hard requirement, not a preference.
+
+   Class prefix is mm- throughout because the portal already owns .tile,
+   .tiles, .card and .pill. Colliding with those would silently restyle the
+   desktop page.
+
+   Android is the primary target (Rosie's device):
+     · 360px is the real floor — Galaxy phones report 360, not the 390 an
+       iPhone does. Everything here is checked at 360, 390 and 412.
+     · env(safe-area-inset-bottom) covers the gesture nav pill. Android
+       Chrome honours it the same way iOS does.
+     · 48dp is Material's minimum touch target, larger than iOS's 44pt, so
+       48 is the floor used here.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 900px) {
+
+  body.mm-on {
+    /* Clear the fixed tab bar: bar height + the gesture inset. */
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* The LDAH accessibility widget is pinned bottom-right and would sit under
+     the tab bar. Lift it by the same amount. */
+  body.mm-on #accessibility-widget-button,
+  body.mm-on .accessibility-widget-button,
+  body.mm-on [id*="accessibility"][class*="button"] {
+    bottom: calc(74px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* ── Mobile home block ──────────────────────────────────────────────── */
+  .mm-home { margin: 0 0 1.2rem; }
+
+  .mm-greet { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.85rem; }
+  .mm-greet img { width: 42px; height: 42px; flex: 0 0 42px; object-fit: contain; }
+  .mm-greet .mm-gtext { min-width: 0; }
+  .mm-greet b {
+    display: block; font-family: 'Outfit', sans-serif; font-weight: 600;
+    font-size: 1.18rem; line-height: 1.25; color: var(--primary-blue, #0891B2);
+  }
+  .mm-greet span { display: block; font-size: 0.8rem; color: var(--text-soft, #64748B); }
+
+  /* Status chips. Two across at 390+, stacked at 360 if the words are long. */
+  .mm-status { display: flex; gap: 0.55rem; margin-bottom: 0.7rem; }
+  .mm-chip {
+    flex: 1 1 0; min-width: 0; border-radius: 13px; padding: 0.6rem 0.7rem;
+    border: 1px solid; line-height: 1.3;
+  }
+  .mm-chip small {
+    display: block; font: 700 0.63rem 'Outfit', sans-serif; letter-spacing: 0.7px;
+    text-transform: uppercase; opacity: 0.85;
+  }
+  .mm-chip b {
+    display: block; font: 600 0.92rem 'Outfit', sans-serif; margin-top: 1px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mm-chip .mm-sub { font-size: 0.7rem; font-weight: 600; opacity: 0.8; }
+  .mm-chip.ok { background: #F0FDF4; border-color: #C6EFD3; color: #166534; }
+  .mm-chip.warn { background: #FEF2F2; border-color: #FECACA; color: #B91C1C; }
+  .mm-chip.br { background: #FEF6EC; border-color: #F3D9B8; color: #B45309; }
+
+  .mm-bar { height: 6px; border-radius: 99px; background: #F6E6D0; margin-top: 6px; overflow: hidden; }
+  .mm-bar i { display: block; height: 100%; border-radius: 99px; background: #B45309; }
+
+  /* One primary action. Never more than one on a screen. */
+  .mm-cta {
+    display: flex; align-items: center; gap: 0.7rem; width: 100%;
+    min-height: 56px; padding: 0.7rem 0.9rem; margin-bottom: 1rem;
+    border: none; border-radius: 14px; text-align: left; cursor: pointer;
+    background: linear-gradient(135deg, #F97316, #FB923C); color: #fff;
+    box-shadow: 0 6px 16px rgba(249,115,22,.3);
+    font-family: 'Source Sans 3', sans-serif;
+  }
+  .mm-cta .mm-lbl { flex: 1; min-width: 0; }
+  .mm-cta small {
+    display: block; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.4px;
+    text-transform: uppercase; opacity: 0.93;
+  }
+  .mm-cta b {
+    display: block; font: 600 0.98rem 'Outfit', sans-serif; line-height: 1.3;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mm-cta svg { width: 20px; height: 20px; flex: 0 0 20px; fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; }
+
+  .mm-mtitle {
+    font: 600 0.7rem 'Outfit', sans-serif; letter-spacing: 0.9px; text-transform: uppercase;
+    color: var(--text-soft, #64748B); margin: 0 0 0.5rem;
+  }
+
+  /* Icon tiles. Two columns hold at 360px because the icon is fixed at 38px
+     and the label wraps rather than truncating. */
+  .mm-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; }
+  .mm-tile {
+    background: #fff; border: 1px solid #E6EEF2; border-radius: 16px;
+    padding: 0.75rem; min-height: 108px; display: flex; flex-direction: column;
+    gap: 0.5rem; text-decoration: none; color: inherit; position: relative;
+  }
+  .mm-tile:active { background: #FAFCFD; }
+  .mm-tile.wide {
+    grid-column: 1 / -1; min-height: 0; flex-direction: row; align-items: center;
+    gap: 0.7rem; padding: 0.75rem 0.8rem;
+  }
+  .mm-tile b { display: block; font: 600 0.93rem 'Outfit', sans-serif; line-height: 1.25; }
+  .mm-tile span { display: block; font-size: 0.75rem; color: var(--text-soft, #64748B); line-height: 1.35; }
+  .mm-tile.locked { opacity: 0.62; }
+
+  .mm-ico { width: 38px; height: 38px; border-radius: 11px; flex: 0 0 38px; display: flex; align-items: center; justify-content: center; }
+  .mm-ico svg { width: 19px; height: 19px; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* Floating badges are for SHORT alerts only ("2", "New"). A wide badge such
+     as "3 / 5" collides with a long tile title — progress counts go in the
+     subtitle line instead, where they also read better. */
+  .mm-badge {
+    position: absolute; top: 0.75rem; right: 0.7rem; font: 700 0.63rem 'Outfit', sans-serif;
+    padding: 2px 8px; border-radius: 99px; background: #F97316; color: #fff; line-height: 1.4;
+  }
+
+  .mm-chev { width: 16px; height: 16px; flex: 0 0 16px; fill: none; stroke: #B6C2CF; stroke-width: 2.4; stroke-linecap: round; }
+
+  /* ── Bottom tab bar ─────────────────────────────────────────────────── */
+  .mm-tabbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+    display: flex; background: #fff; border-top: 1px solid #E6EEF2;
+    padding: 5px 4px calc(5px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -2px 14px rgba(0,78,124,.06);
+  }
+  .mm-tab {
+    flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 2px; min-height: 48px; padding: 4px 2px;
+    text-decoration: none; color: var(--text-soft, #64748B);
+  }
+  .mm-tab svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .mm-tab span {
+    font: 600 0.64rem 'Outfit', sans-serif; line-height: 1;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mm-tab.on { color: var(--primary-blue, #0891B2); }
+  .mm-tab:active { background: #F6FBFD; }
+
+  /* ── Back row, for pages entered from a tab ─────────────────────────── */
+  .mm-back {
+    display: flex; align-items: center; gap: 0.5rem; min-height: 48px;
+    margin: 0 0 0.6rem; background: none; border: none; padding: 0;
+    color: var(--primary-blue, #0891B2); font: 600 1rem 'Outfit', sans-serif; cursor: pointer;
+  }
+  .mm-back svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+
+  /* Anything the mobile shell replaces. */
+  body.mm-on .mm-hide-mobile { display: none !important; }
+
+  /* 360px — Galaxy. Trim the gaps rather than the type. */
+  @media (max-width: 374px) {
+    .mm-tiles { gap: 0.5rem; }
+    .mm-tile { padding: 0.65rem; min-height: 100px; }
+    .mm-tile b { font-size: 0.89rem; }
+    .mm-tile span { font-size: 0.72rem; }
+    .mm-status { gap: 0.45rem; }
+    .mm-chip { padding: 0.55rem 0.6rem; }
+    .mm-tab span { font-size: 0.6rem; }
+  }
+}
