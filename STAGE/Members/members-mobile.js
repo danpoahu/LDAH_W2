@@ -173,6 +173,103 @@
     if (photoTiles) photoTiles.classList.add('mm-hide-mobile');
   }
 
+
+  /* ── certification page ─────────────────────────────────────────────── */
+
+  /* Everything here is READ from the rendered course tree — the .done and
+     .lesson-locked classes that cdRefreshGating() puts on each row, and the
+     page's own #prog-label. Nothing re-derives gating, so the mobile card can
+     never disagree with the tree, and none of the page's internal scope is
+     depended on (LS lives inside a closure and is not reachable from here). */
+  function certRead() {
+    var live = document.querySelector('.cd-section.bronze, .cd-section.silver, .cd-section.gold');
+    var rows = live ? [].slice.call(live.querySelectorAll('[data-lesson]')) : [];
+    var done = rows.filter(function (r) { return r.classList.contains('done'); });
+    var next = rows.filter(function (r) {
+      return !r.classList.contains('done') && !r.classList.contains('lesson-locked');
+    })[0] || null;
+
+    var label = document.getElementById('prog-label');
+    var pct = 0;
+    if (label) { var m = (label.textContent || '').match(/(\d+)\s*%/); if (m) pct = parseInt(m[1], 10); }
+
+    var head = live ? live.querySelector('.cd-section-title') : null;
+
+    return {
+      tierName: head ? (head.textContent || '').replace(/\s+/g, ' ').trim() : 'Bronze',
+      total: rows.length,
+      done: done.length,
+      pct: pct,
+      nextId: next ? next.getAttribute('data-lesson') : '',
+      nextText: next ? (next.querySelector('.cd-lesson-text') || {}).textContent || '' : ''
+    };
+  }
+
+  function buildCert() {
+    var shell = document.querySelector('.cd-shell');
+    if (!shell || document.querySelector('.mm-cert')) return;
+    var s = certRead();
+    if (!s.total) return;                       /* tree not rendered yet */
+
+    var allDone = s.done >= s.total;
+    var cta = allDone
+      ? '<a class="mm-cta" href="#panel-dashboard"><div class="mm-lbl"><small>Bronze complete</small>'
+        + '<b>Get my certificate</b></div>' + svg(I.chev) + '</a>'
+      : '<button class="mm-cta" type="button" data-mm-open="' + esc(s.nextId) + '">'
+        + '<div class="mm-lbl"><small>' + (s.done ? 'Pick up where you left off' : 'Start here') + '</small>'
+        + '<b>' + esc((s.nextText || 'Begin').trim()) + '</b></div>' + svg(I.chev) + '</button>';
+
+    var html = '<div class="mm-cert">'
+      + '<button class="mm-back" type="button" data-mm-back="1">' + svg('<path d="M15 6l-6 6 6 6"/>') + 'Certification</button>'
+      + '<div class="mm-statcard">'
+      + '  <div class="mm-srow"><b>' + esc(s.tierName) + '</b><span class="mm-pct">' + s.pct + '%</span></div>'
+      + '  <div class="mm-bar"><i style="width:' + s.pct + '%"></i></div>'
+      + '  <p>' + s.done + ' of ' + s.total + ' steps done' + (allDone ? '' : ' &middot; the next level opens when this one is finished') + '</p>'
+      + '</div>'
+      + cta
+      + '<div class="mm-mtitle">This level</div>'
+      + '<div class="mm-tiles">'
+      + '  <a class="mm-tile" href="#" data-mm-tree="1">'
+      + '    <div class="mm-ico" style="background:#ECFEFF">' + svg(I.learn, '#0891B2') + '</div>'
+      + '    <div><b>All Lessons</b><span>' + s.done + ' of ' + s.total + ' done</span></div></a>'
+      + '  <a class="mm-tile" href="#panel-dashboard">'
+      + '    <div class="mm-ico" style="background:#FEF6EC">' + svg(I.cert, '#B45309') + '</div>'
+      + '    <div><b>My Certificate</b><span>' + (allDone ? 'Ready to claim' : 'Ready once this level is done') + '</span></div></a>'
+      + '</div>'
+      + '</div>';
+
+    shell.parentNode.insertBefore(mmFrag(html), shell);
+
+    var block = document.querySelector('.mm-cert');
+    block.addEventListener('click', function (e) {
+      var openBtn = e.target.closest('[data-mm-open]');
+      if (openBtn && typeof window.cdOpenLesson === 'function') {
+        e.preventDefault();
+        window.cdOpenLesson(openBtn.getAttribute('data-mm-open'));
+        var v = document.getElementById('lesson-viewer');
+        if (v) v.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+      var tree = e.target.closest('[data-mm-tree]');
+      if (tree) {
+        e.preventDefault();
+        var side = document.querySelector('.cd-sidebar');
+        if (!side) return;
+        var showing = side.classList.toggle('mm-show');
+        tree.querySelector('b').textContent = showing ? 'Hide Lessons' : 'All Lessons';
+        if (showing) side.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+      if (e.target.closest('[data-mm-back]')) { e.preventDefault(); location.href = 'index.html'; }
+    });
+  }
+
+  function mmFrag(html) {
+    var t = document.createElement('div');
+    t.innerHTML = html;
+    return t.firstChild;
+  }
+
   /* ── mount / unmount ────────────────────────────────────────────────── */
   var observer = null;
 
@@ -182,9 +279,13 @@
     document.body.classList.add('mm-on');
     buildTabBar();
     buildHome();
-    if (document.getElementById('view') && !observer) {
-      observer = new MutationObserver(function () { if (mounted) buildHome(); });
-      observer.observe(document.getElementById('view'), { childList: true, subtree: true });
+    buildCert();
+    /* Both pages render asynchronously after auth, and certification.html also
+       re-renders the whole tree on cdRefreshGating(), which wipes the block. */
+    var host = document.getElementById('view') || document.getElementById('course');
+    if (host && !observer) {
+      observer = new MutationObserver(function () { if (mounted) { buildHome(); buildCert(); } });
+      observer.observe(host, { childList: true, subtree: true });
     }
   }
 
@@ -194,6 +295,8 @@
     document.body.classList.remove('mm-on');
     var bar = document.querySelector('.mm-tabbar'); if (bar) bar.remove();
     var home = document.querySelector('.mm-home'); if (home) home.remove();
+    var cert = document.querySelector('.mm-cert'); if (cert) cert.remove();
+    var side = document.querySelector('.cd-sidebar'); if (side) side.classList.remove('mm-show');
     document.querySelectorAll('.mm-hide-mobile').forEach(function (el) { el.classList.remove('mm-hide-mobile'); });
     if (observer) { observer.disconnect(); observer = null; }
   }

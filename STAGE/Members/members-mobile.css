@@ -151,6 +151,33 @@
   }
   .mm-back svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
 
+  /* ── Certification page ─────────────────────────────────────────────
+     The measured defect: certification.html emits <aside class="cd-sidebar">
+     BEFORE .cd-main, so when .cd-shell collapses to one column the whole course
+     tree lands on top and the first real content sits at y = 1,068px — three
+     screens down on a phone.
+
+     Do NOT fix this by reordering the DOM; desktop wants the sidebar first.
+     Hide it on mobile and let the "All Lessons" tile reveal it in place. The
+     tree keeps its own gating, state and click handlers because it is the same
+     node, not a copy. */
+  body.mm-on .cd-sidebar { display: none; }
+  body.mm-on .cd-sidebar.mm-show { display: block; max-height: none; margin-bottom: 1rem; }
+  body.mm-on .cd-shell { gap: 0; }
+
+  /* The desktop dashboard repeats the welcome and progress that the mobile
+     status card states more clearly, directly above it. */
+  body.mm-on .cd-welcome-bar { display: none; }
+
+  .mm-statcard {
+    background: #FEF6EC; border: 1px solid #F3D9B8; border-radius: 15px;
+    padding: 0.7rem 0.8rem; margin-bottom: 0.7rem;
+  }
+  .mm-statcard .mm-srow { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+  .mm-statcard b { font: 600 0.95rem 'Outfit', sans-serif; color: #B45309; }
+  .mm-statcard .mm-pct { font: 700 0.93rem 'Outfit', sans-serif; color: #B45309; }
+  .mm-statcard p { font-size: 0.77rem; color: #8A6236; margin: 0.4rem 0 0; line-height: 1.35; }
+
   /* Anything the mobile shell replaces. */
   body.mm-on .mm-hide-mobile { display: none !important; }
 
