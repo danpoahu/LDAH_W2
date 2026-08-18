@@ -26,13 +26,27 @@
     padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
-  /* The LDAH accessibility widget is pinned bottom-right and would sit under
-     the tab bar. Lift it by the same amount. */
-  body.mm-on #accessibility-widget-button,
-  body.mm-on .accessibility-widget-button,
-  body.mm-on [id*="accessibility"][class*="button"] {
-    bottom: calc(74px + env(safe-area-inset-bottom, 0px)) !important;
+  /* The LDAH accessibility widget. Its real id is #a11y-toggle (see
+     ldahawaii.org/accessibility.js), and the portal pages themselves move it to
+     the right with `right: 20px !important`, which parks it directly on top of
+     the Profile tab. Lifting it needs !important to beat that rule.
+
+     🔴 An earlier version of this targeted #accessibility-widget-button, which
+     does not exist. The harness asserted that non-existent element cleared the
+     bar and happily passed, while on a real phone the button sat over the tab.
+     Assert the element the page actually renders, not the one you assumed. */
+  body.mm-on #a11y-toggle {
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
   }
+  body.mm-on #a11y-panel {
+    bottom: calc(132px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* The portal's own hero repeats the greeting and membership status that the
+     mobile block states immediately below it, so on a phone it is a screenful
+     of duplication before anything useful. Desktop keeps it. */
+  body.mm-on #heroSection,
+  body.mm-on .hero-section { display: none !important; }
 
   /* ── Mobile home block ──────────────────────────────────────────────── */
   .mm-home { margin: 0 0 1.2rem; }

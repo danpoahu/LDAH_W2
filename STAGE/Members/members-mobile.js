@@ -92,7 +92,7 @@
   /* Everything below is READ from the rendered dashboard, never re-fetched, so
      the mobile block cannot contradict the desktop cards sitting under it. */
   function readState() {
-    var s = { name: '', active: null, renews: '', signups: 0, screenings: false };
+    var s = { name: '', level: '', active: null, renews: '', signups: 0, screenings: false };
 
     var pill = document.querySelector('#view .pill');
     if (pill) s.active = /active/i.test(pill.textContent) && !/inactive|expired/i.test(pill.textContent);
@@ -105,6 +105,11 @@
 
     var nameRow = document.querySelector('#view .info-row .info-val');
     if (nameRow) s.name = (nameRow.textContent || '').trim().split(/\s+/)[0] || '';
+
+    /* The hero used to show "Friend member · Active" and is hidden on mobile, so
+       the level has to survive somewhere — it moves into the membership chip. */
+    var lvl = document.querySelector('#view .level-line strong');
+    if (lvl) s.level = (lvl.textContent || '').trim();
 
     var sc = document.getElementById('screeningCard');
     s.screenings = !!(sc && sc.style.display !== 'none');
@@ -128,8 +133,8 @@
     if (s.active === null) {
       chips += '';
     } else if (s.active) {
-      chips += '<div class="mm-chip ok"><small>Membership</small><b>Active</b>'
-             + (s.renews ? '<div class="mm-sub">Through ' + esc(s.renews) + '</div>' : '') + '</div>';
+      chips += '<div class="mm-chip ok"><small>Membership</small><b>' + esc(s.level || 'Active') + '</b>'
+             + '<div class="mm-sub">' + (s.renews ? 'Active through ' + esc(s.renews) : 'Active') + '</div></div>';
     } else {
       chips += '<div class="mm-chip warn"><small>Membership</small><b>Not active</b>'
              + '<div class="mm-sub">Tap to renew</div></div>';
