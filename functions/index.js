@@ -1917,8 +1917,8 @@ async function detectAndFlagReturningCG(snap, signupData, signupId) {
     ownerUid = p && p.uid ? p.uid : "";
     ownerName = p && p.fullName ? p.fullName : "";
   } catch (_) {}
-  if (!ownerUid) ownerUid = "hj6YnfnZ66Yul9mtnULRW5FTWKH3";
-  if (!ownerName) ownerName = "La'a Salvani";
+  if (!ownerUid) ownerUid = LIFECYCLE_ADMIN_UID;
+  if (!ownerName) ownerName = "Maria Kashem";
 
   const followUpDate = addDaysHst(toHstDateKey(new Date()), 2);
 
@@ -2051,8 +2051,8 @@ async function createAccommodationsTask(snap, signupData, signupId, eventId, col
   }
   // 5e. last resort → La'a, so the note is never lost
   if (!ownerUid) {
-    ownerUid = LIFECYCLE_LAA_UID;
-    try { ownerName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID); } catch (_) {}
+    ownerUid = LIFECYCLE_ADMIN_UID;
+    try { ownerName = await _lcResolveStaffName(db, LIFECYCLE_ADMIN_UID); } catch (_) {}
     autoRouted = true;
   }
   if (!ownerName && ownerUid) {
@@ -2357,7 +2357,7 @@ exports.processPendingParentRegistrations = functions
     const todayMs = new Date(todayKey + "T12:00:00-10:00").getTime();
     const TWO_DAYS = 2 * 24 * 60 * 60 * 1000;
     const TWELVE_MONTHS_MS = 365 * 24 * 60 * 60 * 1000;
-    const laaName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID);
+    const laaName = await _lcResolveStaffName(db, LIFECYCLE_ADMIN_UID);
     let applied = 0, emailed = 0, tasked = 0;
 
     const evs = await db.collection("events").get();           // one-time events only
@@ -2418,7 +2418,7 @@ exports.processPendingParentRegistrations = functions
                 + " — registration still pending for " + (event.title || "event") + " (" + upcoming.join(", ") + "). Offer to help them complete it.",
               isDraft: false,
               owner: laaName,
-              ownerUid: LIFECYCLE_LAA_UID,
+              ownerUid: LIFECYCLE_ADMIN_UID,
               createdAt: FieldValue.serverTimestamp(),
               updatedAt: FieldValue.serverTimestamp(),
               workflowStep: "registrationAssist",
@@ -3003,11 +3003,11 @@ exports.onEventFeedbackCreated = functions
           if (!urSnap.empty) ownerUid = urSnap.docs[0].id;
         } catch (_) {}
       }
-      if (!ownerUid) ownerUid = LIFECYCLE_LAA_UID;
+      if (!ownerUid) ownerUid = LIFECYCLE_ADMIN_UID;
       let ownerName = await _lcResolveStaffName(db, ownerUid);
       if (!ownerName) {
         ownerName = presenterNameFromEvent
-          || (ownerUid === LIFECYCLE_LAA_UID ? "La'a Salvani" : "");
+          || (ownerUid === LIFECYCLE_ADMIN_UID ? "Maria Kashem" : "");
       }
 
       await db.collection("interactions").add({
@@ -3079,14 +3079,14 @@ exports.onProviderRequestCreated = functions
       try {
         const urDoc = await db.collection("userRoles").doc(ownerUid).get();
         if (!urDoc.exists || urDoc.data().active === false) {
-          ownerUid = LIFECYCLE_LAA_UID;
+          ownerUid = LIFECYCLE_ADMIN_UID;
         }
       } catch (_) {
-        ownerUid = LIFECYCLE_LAA_UID;
+        ownerUid = LIFECYCLE_ADMIN_UID;
       }
       let ownerName = await _lcResolveStaffName(db, ownerUid);
       if (!ownerName) {
-        ownerName = ownerUid === LIFECYCLE_LAA_UID ? "La'a Salvani" : "Chassidy Kruse";
+        ownerName = ownerUid === LIFECYCLE_ADMIN_UID ? "Maria Kashem" : "Chassidy Kruse";
       }
 
       const orgName = (data.organizationName || "").trim() || "Unknown organization";
@@ -3160,11 +3160,11 @@ exports.onCalendarRequestCreated = functions
         return null;
       }
 
-      // Owner: La'a Salvani. He's superAdmin so userRoles should always exist,
-      // but defensive resolve for display name.
-      const ownerUid = LIFECYCLE_LAA_UID;
+      // Owner: the lifecycle admin. Resolved from userRoles; the literal is
+      // only a fallback if that read fails.
+      const ownerUid = LIFECYCLE_ADMIN_UID;
       let ownerName = await _lcResolveStaffName(db, ownerUid);
-      if (!ownerName) ownerName = "La'a Salvani";
+      if (!ownerName) ownerName = "Maria Kashem";
 
       const requesterName = (data.name || "").trim() || "Unknown requester";
       const preferredDate = (data.preferredDate || "").trim();
@@ -3284,10 +3284,10 @@ exports.onResourceApplicationCreated = functions
         return null;
       }
 
-      // Owner: La'a Salvani (resource partner intake).
-      const ownerUid = LIFECYCLE_LAA_UID;
+      // Owner: the lifecycle admin (resource partner intake).
+      const ownerUid = LIFECYCLE_ADMIN_UID;
       let ownerName = await _lcResolveStaffName(db, ownerUid);
-      if (!ownerName) ownerName = "La'a Salvani";
+      if (!ownerName) ownerName = "Maria Kashem";
 
       const orgName = (data.name || "").trim() || "Unknown organization";
       const contactName = (data.contactName || "").trim();
@@ -3452,14 +3452,14 @@ exports.onVolunteerApplicationCreated = functions
       try {
         const urDoc = await db.collection("userRoles").doc(ownerUid).get();
         if (!urDoc.exists || urDoc.data().active === false) {
-          ownerUid = LIFECYCLE_LAA_UID;
+          ownerUid = LIFECYCLE_ADMIN_UID;
         }
       } catch (_) {
-        ownerUid = LIFECYCLE_LAA_UID;
+        ownerUid = LIFECYCLE_ADMIN_UID;
       }
       let ownerName = await _lcResolveStaffName(db, ownerUid);
       if (!ownerName) {
-        ownerName = ownerUid === LIFECYCLE_LAA_UID ? "La'a Salvani" : "Chassidy Kruse";
+        ownerName = ownerUid === LIFECYCLE_ADMIN_UID ? "Maria Kashem" : "Chassidy Kruse";
       }
 
       const applicantName = [data.firstName, data.lastName]
@@ -6252,7 +6252,7 @@ exports.sendCgWorksheetReminders = functions
               // person who has actually spoken to the family is the right one to
               // chase them, and that is knowledge only staff have — Leilani had
               // already phoned Kathryn Kuhaulua when this fired.
-              const _ownerUid = s.cgWorksheetEscalateToUid || _pres.presenterUid || LIFECYCLE_LAA_UID;
+              const _ownerUid = s.cgWorksheetEscalateToUid || _pres.presenterUid || LIFECYCLE_ADMIN_UID;
               // Resolved here rather than reusing a `laaName` from elsewhere —
               // this function has no such variable, and the reference would have
               // thrown into the catch below and silently never escalated.
@@ -6260,7 +6260,7 @@ exports.sendCgWorksheetReminders = functions
                 ? (s.cgWorksheetEscalateToName || await _lcResolveStaffName(db, s.cgWorksheetEscalateToUid))
                 : (_pres.presenterUid
                     ? (_pres.presenter || "")
-                    : await _lcResolveStaffName(db, LIFECYCLE_LAA_UID));
+                    : await _lcResolveStaffName(db, LIFECYCLE_ADMIN_UID));
               const _who = s.name || s.firstName || "This family";
               const _datesPhrase = formatDatesPhrase(_sessions.map(x => x && x.dateKey).filter(Boolean));
               const _lastTs = s.cgWorksheetReminderLastSentAt || s.cgWorksheetRequestEmailSentAt;
@@ -6575,9 +6575,9 @@ exports.flagDayOfPendingSignups = functions
       return (!s.status || s.status === "pending" || s.status === "new") && s.archived !== true;
     }
 
-    let laaName = "La'a Salvani";
+    let laaName = "Maria Kashem";
     try {
-      const resolved = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID);
+      const resolved = await _lcResolveStaffName(db, LIFECYCLE_ADMIN_UID);
       if (resolved) laaName = resolved;
     } catch (_) { /* keep hardcoded fallback */ }
 
@@ -6649,7 +6649,7 @@ exports.flagDayOfPendingSignups = functions
             status: "Open",
             isDraft: false,
             owner: laaName,
-            ownerUid: LIFECYCLE_LAA_UID,
+            ownerUid: LIFECYCLE_ADMIN_UID,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             createdBy: "System",
@@ -11015,7 +11015,7 @@ exports.submitResourceUpdate = functions
             summary: "Review pending resource update — " + _orgName,
             notes: _orgName + " submitted updates to their community resource listing. Open the resource to review and Approve or Reject.",
             followUpDate: addDaysHst(toHstDateKey(new Date()), 3), status: "Open", isDraft: false,
-            owner: "La'a Salvani", ownerUid: LIFECYCLE_LAA_UID,
+            owner: "Maria Kashem", ownerUid: LIFECYCLE_ADMIN_UID,
             createdAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
             createdBy: "System", createdByUid: "system",
@@ -17841,9 +17841,15 @@ exports._nhBuildAndSendReport = _nhBuildAndSendReport;
 //   onUpdate(events/{id})       -> archive cleanup + Event Summary auto-close
 // ============================================================================
 
-// La'a Salvani's userRoles document id — verified 2026-05-22 against live
-// userRoles collection (displayName "La'a Salvani", LSalvani@LDAHawaii.org).
-const LIFECYCLE_LAA_UID = "hj6YnfnZ66Yul9mtnULRW5FTWKH3";
+// The admin who owns the lifecycle tasks this file creates. Maria Kashem's
+// userRoles document id — verified 2026-08-19 against live userRoles
+// (displayName "Maria Kashem", Mkashem@ldahawaii.org, superAdmin).
+//
+// This was La'a Salvani until 2026-08-19. He has left LDAH and Maria replaced
+// him, so every task routed here now goes to her. Display names are resolved
+// from userRoles at run time via _lcResolveStaffName(); the string fallbacks
+// below apply only if that read fails.
+const LIFECYCLE_ADMIN_UID = "WFyi6IVyHiXsVP2ADaikE9begOC3";
 
 const LIFECYCLE_CHANNELS = {
   assignPresenter:  { channel: "Event Setup",   type: "Assign Presenter" },
@@ -18013,14 +18019,14 @@ async function _lcEnsureRecurringSessionTasks(db, eventId, ev, compositeKey, tod
   let created = 0;
   if (D <= 5 && !presenterAssigned) {
     const r = await _lcCreateIfMissing(db, Object.assign({}, common, {
-      step: "assignPresenter", ownerUid: LIFECYCLE_LAA_UID, ownerName: laaName, dueDate: todayKey
+      step: "assignPresenter", ownerUid: LIFECYCLE_ADMIN_UID, ownerName: laaName, dueDate: todayKey
     }));
     if (r) created++;
   }
   if (D <= 3) {
     const r = await _lcCreateIfMissing(db, Object.assign({}, common, {
       step: "presenterPrep",
-      ownerUid: presenterSrc.presenterUid || LIFECYCLE_LAA_UID,
+      ownerUid: presenterSrc.presenterUid || LIFECYCLE_ADMIN_UID,
       ownerName: presenterSrc.presenter || laaName,
       dueDate: dayAfterKey
     }));
@@ -18029,7 +18035,7 @@ async function _lcEnsureRecurringSessionTasks(db, eventId, ev, compositeKey, tod
   if (D === 0) {
     const r = await _lcCreateIfMissing(db, Object.assign({}, common, {
       step: "takeAttendance",
-      ownerUid: presenterSrc.presenterUid || LIFECYCLE_LAA_UID,
+      ownerUid: presenterSrc.presenterUid || LIFECYCLE_ADMIN_UID,
       ownerName: presenterSrc.presenter || laaName,
       dueDate: dateStr
     }));
@@ -18082,7 +18088,7 @@ exports.onEventCreatedLifecycle = functions
 
     const dueDate = ev.startDate || ev.eventDate || "";
     const title = ev.title || "(untitled event)";
-    const laaName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID);
+    const laaName = await _lcResolveStaffName(db, LIFECYCLE_ADMIN_UID);
     const creatorUid = ev.createdByUid;
     const creatorName = ev.createdByName || (await _lcResolveStaffName(db, creatorUid));
 
@@ -18103,7 +18109,7 @@ exports.onEventCreatedLifecycle = functions
     if (firstKey) {
       await _lcCreateIfMissing(db, {
         eventId, eventTitle: title, step: "assignPresenter", sessionKey: firstKey,
-        ownerUid: LIFECYCLE_LAA_UID, ownerName: laaName, dueDate
+        ownerUid: LIFECYCLE_ADMIN_UID, ownerName: laaName, dueDate
       });
       // One-off gatherings (hand-keyed into the Event Attendance Report after
       // the fact) are past events — no public announcement should go out, so
@@ -18265,7 +18271,7 @@ exports.onInteractionUpdatedLifecycle = functions
       let ownerUid  = presenterSrc.presenterUid || "";
       let ownerName = presenterSrc.presenter    || "";
       if (!ownerUid) {
-        if (isRecurring) { ownerUid = LIFECYCLE_LAA_UID; ownerName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID); }
+        if (isRecurring) { ownerUid = LIFECYCLE_ADMIN_UID; ownerName = await _lcResolveStaffName(db, LIFECYCLE_ADMIN_UID); }
         else { ownerUid = ev.createdByUid || ""; ownerName = ev.createdByName || ""; }
       }
 
@@ -18494,7 +18500,7 @@ exports.createPresenterPrepTasks = functions
     const targetKey   = new Date(baseMs + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const followUpKey = new Date(baseMs + 4 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10); // session (+3) + 1
 
-    const laaName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID);
+    const laaName = await _lcResolveStaffName(db, LIFECYCLE_ADMIN_UID);
 
     // Only workflow events still in 'setup' have sessions that haven't wrapped.
     const snap = await db.collection("events")
@@ -18521,7 +18527,7 @@ exports.createPresenterPrepTasks = functions
         ownerName = presenterSrc.presenter || "";
       } else {
         // No presenter assigned yet — fall back to La'a.
-        ownerUid  = LIFECYCLE_LAA_UID;
+        ownerUid  = LIFECYCLE_ADMIN_UID;
         ownerName = laaName;
       }
 
@@ -18555,7 +18561,7 @@ exports.createRecurringLifecycleTasks = functions
     const todayKey = nowHst.getFullYear()
       + "-" + String(nowHst.getMonth() + 1).padStart(2, "0")
       + "-" + String(nowHst.getDate()).padStart(2, "0");
-    const laaName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID);
+    const laaName = await _lcResolveStaffName(db, LIFECYCLE_ADMIN_UID);
 
     const progs = await db.collection("recurringEvents").get();
     let created = 0, scanned = 0;
@@ -18603,7 +18609,7 @@ exports.onRecurringSignupCreatedLifecycle = functions
     if (!evSnap.exists) return null;
     const ev = evSnap.data() || {};
     if (ev.archived === true) return null;
-    const laaName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID);
+    const laaName = await _lcResolveStaffName(db, LIFECYCLE_ADMIN_UID);
 
     let created = 0;
     for (const k of imminent) {
@@ -18644,7 +18650,7 @@ exports.createResourceUpdateCallTasks = functions
     const graceWindow = cyc.graceWindowMs;
     const cycleKey = cyc.cycleKey;                       // e.g. "2026-05-01"
     const atOrPastDeadline = (todayKey >= cyc.deadlineDateKey);
-    const laaName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID);
+    const laaName = await _lcResolveStaffName(db, LIFECYCLE_ADMIN_UID);
 
     const snap = await db.collection("resources").get();
     let created = 0;
@@ -18699,7 +18705,7 @@ exports.createResourceUpdateCallTasks = functions
           + "Call " + name + " to confirm or update their resource listing. Open the resource card (button), make any edits, then check this off — that marks the listing updated for this cycle.",
         isDraft: false,
         owner: laaName,
-        ownerUid: LIFECYCLE_LAA_UID,
+        ownerUid: LIFECYCLE_ADMIN_UID,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         workflowEventId: d.id,
@@ -21073,7 +21079,7 @@ exports.createAbandonedMembershipTasks = functions
   .onRun(async () => {
     const db = admin.firestore();
     const cutoff = Date.now() - ABANDONED_MEMBERSHIP_AFTER_HOURS * 3600 * 1000;
-    const laaName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID);
+    const laaName = await _lcResolveStaffName(db, LIFECYCLE_ADMIN_UID);
     const snap = await db.collection("members").get();
     let created = 0;
 
@@ -21119,7 +21125,7 @@ exports.createAbandonedMembershipTasks = functions
           "their details already filled in. Never ask someone to pay twice.",
         isDraft: false,
         owner: laaName,
-        ownerUid: LIFECYCLE_LAA_UID,
+        ownerUid: LIFECYCLE_ADMIN_UID,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         workflowEventId: d.id,
@@ -21223,7 +21229,7 @@ exports.flagDuplicateContacts = functions
   .pubsub.schedule("0 6 * * *").timeZone("Pacific/Honolulu")
   .onRun(async () => {
     const db = admin.firestore();
-    const laaName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID);
+    const laaName = await _lcResolveStaffName(db, LIFECYCLE_ADMIN_UID);
 
     // Pairs already decided — a "keep separate" must never come back, or the
     // task becomes noise and gets ignored.
@@ -21318,7 +21324,7 @@ exports.flagDuplicateContacts = functions
             "will not be raised again.",
           isDraft: false,
           owner: laaName,
-          ownerUid: LIFECYCLE_LAA_UID,
+          ownerUid: LIFECYCLE_ADMIN_UID,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           workflowEventId: pairKey,
@@ -21783,7 +21789,7 @@ exports.handleMembershipOptOut = functions
       // One task. An opt-out is NOT proof that no money moved — we have no
       // server-side view of PayPal, so a human still confirms before closing.
       try {
-        const laaName = await _lcResolveStaffName(db, LIFECYCLE_LAA_UID);
+        const laaName = await _lcResolveStaffName(db, LIFECYCLE_ADMIN_UID);
         const who = String(m.name || m.email || 'Someone').trim();
         const amt = typeof m.amount === 'number' ? m.amount : (parseInt(m.amount, 10) || 0);
         await db.collection('interactions').add({
@@ -21801,7 +21807,7 @@ exports.handleMembershipOptOut = functions
             'if the money is there, use "Mark paid" and they get the normal thank-you and portal login.',
           isDraft: false,
           owner: laaName,
-          ownerUid: LIFECYCLE_LAA_UID,
+          ownerUid: LIFECYCLE_ADMIN_UID,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           workflowEventId: ref.id,
