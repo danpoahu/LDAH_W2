@@ -13539,6 +13539,11 @@ exports.verifyPrefillCodeAndPrefill = functions
           priorTrainingDate: c.priorTrainingDate || "",
           howHeard: c.howHeard || "",
           accommodations: c.accommodations || "",
+          // The contact's `type` IS the person's role (Parent/Guardian, Grandparent,
+          // Professional...). getContactForPrefill has always mapped it; this
+          // endpoint omitted it, so the OTP prefill silently left the required
+          // Parent/Guardian field blank. Same expression, so the two agree.
+          role: c.type || c.role || "",
           children: Array.isArray(c.children) ? c.children.map(ch => ({
             name: ch.name || "",
             ageRange: ch.ageRange || ch.childAgeRange || "",

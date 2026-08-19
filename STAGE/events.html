@@ -3045,6 +3045,18 @@
       const setVal = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
       setVal('signupName', pf.displayName || ((pf.firstName || '') + ' ' + (pf.lastName || '')).trim());
       setVal('signupPhone', pf.phone || '');
+      /* Role, same rules as the blur lookup: only when nothing is chosen, only
+         when a radio matches, and always re-run the toggle so the inline block
+         and its `required` flags stay consistent. */
+      if (pf.role && !document.querySelector('input[name="registrantType"]:checked')) {
+        var pfMatched = false;
+        document.querySelectorAll('input[name="registrantType"]').forEach(function (r) {
+          if (r.value === pf.role) { r.checked = true; pfMatched = true; }
+        });
+        if (pfMatched && typeof ldahToggleInlineRegBlock === 'function') {
+          try { ldahToggleInlineRegBlock(); } catch (e) { /* never block the signup */ }
+        }
+      }
       // Stash full demographics for stage 2 (registration form). buildRegistrationForm
       // already supports a `prefillData` arg from sibling-share — reuse the shape.
       window._lastRegistration = {
@@ -3179,6 +3191,33 @@
             document.querySelectorAll('input[name="preferredContact"]').forEach(function(r) {
               if (r.value === c.preferredContact) r.checked = true;
             });
+          }
+        }
+
+        /* Registrant type (radio). The contact's `type` is the member's role on
+           file, and getContactForPrefill already returns it as `role` — it was
+           simply never applied here, which is why Parent/Guardian stayed blank on
+           a form that requires it.
+
+           Same guard as preferredContact above: only set when NOTHING is chosen,
+           so a choice the person already made is never overwritten. Only toggle
+           when a radio actually matched, so a contact type that is not one of the
+           options (e.g. "Member") leaves the form exactly as it was. */
+        if (c.role) {
+          var rtChosen = document.querySelector('input[name="registrantType"]:checked');
+          if (!rtChosen) {
+            var rtMatched = false;
+            document.querySelectorAll('input[name="registrantType"]').forEach(function(r) {
+              if (r.value === c.role) { r.checked = true; rtMatched = true; }
+            });
+            /* Setting .checked from JS does NOT fire onchange, and that handler
+               decides whether the inline registration block is shown AND whether
+               the student fields carry `required`. Skipping it could leave a
+               non-parent role selected with its extra questions hidden, or
+               required fields set on a section that is not visible. */
+            if (rtMatched && typeof ldahToggleInlineRegBlock === 'function') {
+              try { ldahToggleInlineRegBlock(); } catch (e) { /* never block the signup */ }
+            }
           }
         }
 
