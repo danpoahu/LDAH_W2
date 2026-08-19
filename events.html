@@ -1087,6 +1087,44 @@
     </script>
 </head>
 <body>
+  <!-- ══════════════════════════════════════════════════════════════════════
+       EMBED MODE — additive, and a strict no-op unless ?embed=1 is present.
+       Nothing on the live site sends that parameter, so a family arriving at
+       events.html sees and does exactly what they always have.
+
+       It exists so the member portal can open THIS page's real signup modal
+       inside an in-page frame, instead of the portal growing a second copy of
+       the signup form. That form is ~1,600 lines — capacity gates, prefill,
+       duplicate detection, sibling prompts, second parent, consent — and it
+       writes signups that email families. One implementation, surfaced in two
+       places, is the only safe arrangement.
+
+       All this does is hide the page's own chrome so the modal reads as a
+       modal. It changes no data path, no validation and no submit handler.
+       ══════════════════════════════════════════════════════════════════════ -->
+  <script>
+    (function () {
+      try {
+        if (new URLSearchParams(window.location.search).get('embed') !== '1') return;
+        document.documentElement.classList.add('ldah-embed');
+      } catch (e) { /* no embed mode; the page behaves normally */ }
+    })();
+  </script>
+  <style>
+    html.ldah-embed body { background: transparent; }
+    html.ldah-embed #header-container,
+    html.ldah-embed .page-header,
+    html.ldah-embed #footer-container,
+    html.ldah-embed .container,
+    html.ldah-embed .calendar-section,
+    html.ldah-embed .cta-banner,
+    html.ldah-embed .bg-islands { display: none !important; }
+    /* Everything the page normally shows is hidden; the signup and registration
+       modals position themselves fixed and are appended on demand, so they are
+       all that remains visible. Listing them by name rather than hiding every
+       child of <body> keeps a modal from being caught by the same rule. */
+    html.ldah-embed body { min-height: 0; }
+  </style>
   <!-- Header Container - Auto-loaded -->
   <div id="header-container"></div>
 
@@ -1646,8 +1684,22 @@
           return;
         }
         
-        // Sign in anonymously to get read access
+        /* 🔴 Do NOT sign in anonymously when embedded.
+
+           Firebase auth persistence is shared across the whole origin, so an
+           anonymous sign-in here REPLACES whatever session the host page holds.
+           Embedded in the member portal that signed the member out mid-signup and
+           left them staring at "Verify your email" — the portal saw an anonymous
+           user with no verified address.
+
+           Embed mode hides the calendar and the event-request UI, which is the
+           only thing this read feeds, so skipping it costs nothing there. */
         const auth = firebase.auth();
+        const _embedded = document.documentElement.classList.contains('ldah-embed');
+        if (_embedded) {
+          console.log('embed mode: skipping anonymous sign-in so the host session survives');
+          return;
+        }
         if (!auth.currentUser) {
           console.log('Signing in anonymously for eventRequests access...');
           await auth.signInAnonymously();

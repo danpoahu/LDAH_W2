@@ -197,6 +197,7 @@
         .tile-photo { height: 82px; }
     }
     </style>
+    <link rel="stylesheet" href="members-mobile.css?v=8">
 </head>
 <body>
     <svg style="display:none;"><defs><g id="hawaii-islands" fill="currentColor">
@@ -227,9 +228,10 @@
         </div>
         <nav id="navMenu" class="nav-menu" aria-label="Portal navigation">
             <a href="index.html">Portal Home</a>
-            <a href="index.html#eventsCard">My Events</a>
+            <a href="events.html">My Events</a>
             <a href="screenings.html">Screening Results</a>
             <a href="resources.html">Member Resources</a>
+            <a href="videos.html">Video Library</a>
             <a href="profile.html">My Info</a>
             <a href="renew.html">Renew Membership</a>
         </nav>
@@ -548,80 +550,32 @@
             // Photo quick-tiles
             var tilesHtml = '<div class="tiles">'
                 + tileHtml('screenings.html', IMG + 'Children-Chuuk_1600-1024x768.jpg', 'Screening Results', 'Hearing &amp; vision', 'tileScreenSub')
-                + tileHtml('#eventsCard', IMG + 'LDAH-Palau-14-768x576.jpg', 'My Events', 'Your signups', 'tileEventsSub')
+                + tileHtml('events.html', IMG + 'LDAH-Palau-14-768x576.jpg', 'My Events', 'Your signups', 'tileEventsSub')
                 + tileHtml('videos.html', IMG + 'LDAH-Palau-35.jpg', 'LDAH Video Library', 'Watch past events', '')
-                + tileHtml('summaries.html', IMG + 'LDAH-Guam-35.jpg', 'AI Summaries', 'Learning Lab recaps', '')
                 + tileHtml('resources.html', IMG + 'LDAH-Guam-24-768x576.jpg', 'Resources', 'Links &amp; training', '')
                 + tileHtml('profile.html', IMG + 'LDAH-American-Samoa-14-768x576.jpg', 'My Info', 'Edit profile', '')
                 + '</div>';
 
-            var pill = active ? '<span class="pill pill-active">Active</span>' : '<span class="pill pill-inactive">Expired / Inactive</span>';
-            var statusLine = active
-                ? (expDate ? '<p class="status-line">Your membership is active through <strong>' + esc(expDate) + '</strong>.</p>' : '<p class="status-line">Your membership is active.</p>')
-                : '<p class="status-line">Your membership is not currently active. Renew to keep your member benefits and resource access.</p>';
-            var renewCta = active
-                ? '<div class="btn-row"><a class="btn btn-outline" href="renew.html">Renew / extend</a></div>'
-                : '<div class="btn-row"><a class="btn btn-primary" href="renew.html">Renew membership</a></div><p class="renew-small"><a href="renew.html">Renew / extend your membership</a></p>';
+            /* The membership pill, status line, renew CTA, level line, address and
+               children list were all built here to fill cards that now live on
+               renew.html and profile.html. The hero chip above still carries level,
+               active state and expiry, which is the "info at top" this page keeps. */
 
-            var levelLine = '<p class="level-line"><strong>' + esc(p.membershipLevel || 'Member') + '</strong>'
-                + (p.membershipAmount ? ' &mdash; $' + esc(p.membershipAmount) + ' / year' : '') + '</p>';
+            /* Home is deliberately the greeting, the status and the navigation —
+               nothing else. Every card that used to sit here (event signups,
+               screening results, your information, membership, member resources)
+               already has its own page, so inline they were a screenful of
+               duplication a member had to scroll past to reach the links. Events
+               was the only one with nowhere to go, which is why it alone behaved as
+               an anchor and left people unsure what to do next; it now has
+               events.html. */
+            setView(tilesHtml);
 
-            var fullName = ((p.firstName || '') + ' ' + (p.lastName || '')).trim();
-            var addressParts = [p.streetAddress, p.city, p.zipCode].filter(Boolean).map(esc).join(', ');
-            var childrenHtml;
-            if (p.children && p.children.length) {
-                childrenHtml = '<ul class="child-list">' + p.children.map(function (c) {
-                    c = c || {};
-                    var bits = [c.grade ? 'Grade ' + esc(c.grade) : '', c.school ? 'at ' + esc(c.school) : ''].filter(Boolean).join(' ');
-                    return '<li>' + esc(c.name || 'Child') + (bits ? ' &mdash; ' + bits : '') + '</li>';
-                }).join('') + '</ul>';
-            } else {
-                childrenHtml = '<span class="muted-note">No children on file.</span>';
-            }
-
-            setView(''
-                + tilesHtml
-                + '<div class="card" id="eventsCard">'
-                + '  <h3 class="card-title">Your event signups</h3>'
-                + '  <div id="signupsBox"><div class="loading-state"><div class="loading-spinner"></div><p>Loading your signups…</p></div></div>'
-                + '  <div id="browseEventsBox"></div>'
-                + '  <div id="pastBox"></div>'
-                + '</div>'
-
-                + '<div class="card" id="screeningCard" style="display:none;">'
-                + '  <h3 class="card-title">Screening results</h3>'
-                + '  <div id="screeningTeaser"></div>'
-                + '  <div class="btn-row"><a class="btn btn-primary" href="screenings.html">View screening results</a></div>'
-                + '</div>'
-
-                + '<div class="card">'
-                + '  <h3 class="card-title">Your information</h3>'
-                + '  <div class="info-grid">'
-                + '    <div class="info-row"><span class="info-label">Name</span><span class="info-val">' + (esc(fullName) || '—') + '</span></div>'
-                + '    <div class="info-row"><span class="info-label">Email</span><span class="info-val">' + (esc(p.email) || '—') + '</span></div>'
-                + '    <div class="info-row"><span class="info-label">Phone</span><span class="info-val">' + (esc(p.phone) || '—') + '</span></div>'
-                + '    <div class="info-row"><span class="info-label">Mailing address</span><span class="info-val">' + (addressParts || '—') + '</span></div>'
-                + '    <div class="info-row"><span class="info-label">Children</span><span class="info-val">' + childrenHtml + '</span></div>'
-                + '  </div>'
-                + '  <div class="btn-row"><a class="btn btn-outline" href="profile.html">Edit my information</a></div>'
-                + '</div>'
-
-                + '<div class="card">'
-                + '  <div class="card-head-row"><h3 class="card-title">Membership</h3>' + pill + '</div>'
-                + levelLine + statusLine + renewCta
-                + '</div>'
-
-                + '<div class="card">'
-                + '  <h3 class="card-title">Member resources</h3>'
-                + '  <p>Curated Links &amp; Services, training materials, and newsletters for members.</p>'
-                + '  <div class="btn-row"><a class="btn btn-primary" href="resources.html">Open member resources</a></div>'
-                + '</div>');
-
-            loadSignups();
+            preloadSignups();
             loadScreenings();
 
             // The dashboard cards are rendered here (async, after auth), so a
-            // #hash deep-link (e.g. index.html#eventsCard from the nav menu) can't
+            // #hash deep-link can't
             // scroll natively — the target didn't exist at page load. Do it now.
             if (location.hash && location.hash.length > 1) {
                 var target = document.getElementById(location.hash.slice(1));
@@ -629,134 +583,35 @@
             }
         }
 
-        // Reveal the Screening Results card only if the member has results on file.
+        // Fills in the Screening Results tile subtitle. The card it used to reveal
+        // has moved to screenings.html, where it always belonged.
         async function loadScreenings() {
-            var card = id('screeningCard');
-            if (!card) return;
             try {
                 var r = await fns.httpsCallable('getMemberScreenings')();
                 var list = (r.data && r.data.screenings) || [];
                 var ssub = id('tileScreenSub');
                 if (ssub && list.length) ssub.textContent = list.length + (list.length === 1 ? ' record' : ' records');
-                if (!list.length) return;
-                var names = list.map(function (s) { return s && s.childName; }).filter(Boolean);
-                var uniq = names.filter(function (n, i) { return names.indexOf(n) === i; });
-                var who = uniq.length ? esc(uniq.join(', ')) : 'your child';
-                var teaser = id('screeningTeaser');
-                if (teaser) teaser.innerHTML = '<p>Hearing &amp; vision screening records for <strong>' + who + '</strong>.</p>';
-                card.style.display = '';
-            } catch (e) { /* no screening card on error */ }
+            } catch (e) { /* the tile keeps its default subtitle */ }
         }
 
-        // Turn a session/date entry like "2026-07-20|Oahu – 245 N. Kukui|3:00 PM"
-        // into a friendly "Jul 20, 2026" (falls back to the raw string).
-        function prettyDate(raw) {
-            var m = String(raw || '').match(/(\d{4})-(\d{2})-(\d{2})/);
-            if (!m) return String(raw || '');
-            var d = new Date(m[1] + '-' + m[2] + '-' + m[3] + 'T00:00:00');
-            return isNaN(d) ? String(raw) : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        }
-        var EVENTS_URL = 'https://www.ldahawaii.org/events.html';
-        function signupItem(s) {
-            s = s || {};
-            var dates = (s.selectedDates || []).map(prettyDate).filter(Boolean).map(esc).join(', ');
-            var label = s.cancelled ? 'Cancelled' : (s.attendanceStatus || s.status || '');
-            var cls = s.cancelled ? 'signup-status signup-status-cancelled' : 'signup-status';
-            // Only load a flyer for active/upcoming signups (skip past & cancelled
-            // so the accordion stays fast and light).
-            var thumb = (s.bucket === 'active' && s.flyerUrl)
-                ? '<a class="signup-thumb-link" href="' + EVENTS_URL + '" target="_blank" rel="noopener"><img class="signup-thumb" src="' + esc(s.flyerUrl) + '" alt="" loading="lazy"></a>'
-                : '';
-            return '<li class="signup-item">'
-                + thumb
-                + '<div class="signup-body">'
-                + '<div class="signup-title">' + esc(s.eventTitle || 'Event') + '</div>'
-                + (dates ? '<div class="signup-dates">' + dates + '</div>' : '')
-                + (label ? '<span class="' + cls + '">' + esc(label) + '</span>' : '')
-                + '</div>'
-                + '</li>';
-        }
-        // Short, friendly event name for the flyer label, e.g.
-        // "Learning Labs: For the Month of July…" -> "Learning Labs",
-        // "Parent Talk Cafe July: Solution…" -> "Parent Talk Cafe".
-        function shortEventName(title) {
-            var t = String(title || '').split(':')[0].trim();
-            t = t.replace(/\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s*$/i, '').trim();
-            return t || 'Event';
-        }
-        // Discover-more flyers: upcoming events the member isn't signed up for.
-        async function loadBrowseEvents(excludeIds) {
-            var box = id('browseEventsBox');
-            if (!box) return;
-            var fallback = '<div class="btn-row"><a class="btn btn-outline" href="' + EVENTS_URL + '" target="_blank" rel="noopener">Browse events</a></div>';
-            try {
-                var r = await fns.httpsCallable('getMemberBrowseEvents')({ exclude: excludeIds || [] });
-                var evs = (r.data && r.data.events) || [];
-                if (!evs.length) { box.innerHTML = fallback; return; }
-                box.innerHTML = '<div class="browse-head">More events you might like</div>'
-                    + '<div class="browse-grid">' + evs.map(function (e) {
-                        e = e || {};
-                        return '<a class="browse-thumb" href="' + EVENTS_URL + '" target="_blank" rel="noopener" title="' + esc(e.title || '') + '">'
-                            + '<img src="' + esc(e.flyerUrl) + '" alt="' + esc(e.title || '') + '" loading="lazy">'
-                            + '<span class="browse-label">' + esc(shortEventName(e.title)) + '</span></a>';
-                    }).join('') + '</div>';
-            } catch (e) { box.innerHTML = fallback; }
-        }
-        async function loadSignups() {
-            var box = id('signupsBox');
-            if (!box) return;
+        /* signupItem / prettyDate / shortEventName / loadBrowseEvents used to live
+           here to render the events card inline. That card is now events.html, which
+           carries its own copies, so keeping a second set here would only let two
+           versions of the same rendering drift apart. */
+
+        /* Warms the cache events.html paints from, so tapping "My Events" is
+           instant rather than watching the callable resolve. Session-scoped, and
+           events.html always follows it with a live call, so a stale entry can only
+           be on screen for the moment before real data replaces it. */
+        async function preloadSignups() {
             try {
                 var r = await fns.httpsCallable('getMemberSignups')();
                 var list = (r.data && r.data.signups) || [];
-                // Only exclude events the member is actively going to, or attended in
-                // the last 12 months. Cancelled-only signups keep them eligible, so
-                // those events still surface under "more events you might like".
-                var YEAR_MS = 365 * 24 * 60 * 60 * 1000;
-                var excludeIds = list.filter(function (s) {
-                    if (!s || !s.eventId || s.cancelled) return false;
-                    if (s.bucket === 'active') return true;
-                    if (/attend/i.test(s.attendanceStatus || '') && s.whenMs && (Date.now() - s.whenMs) < YEAR_MS) return true;
-                    return false;
-                }).map(function (s) { return s.eventId; });
-                loadBrowseEvents(excludeIds);
-                if (!list.length) { box.innerHTML = '<p class="muted-note">You have no event signups yet.</p>'; return; }
-                var active = list.filter(function (s) { return s && s.bucket !== 'past'; });
-                var past = list.filter(function (s) { return s && s.bucket === 'past'; });
+                try { sessionStorage.setItem('ldahMemberSignups', JSON.stringify({ at: Date.now(), signups: list })); } catch (e) {}
+                var active = list.filter(function (x) { return x && x.bucket !== 'past'; });
                 var esub = id('tileEventsSub');
                 if (esub) esub.textContent = active.length ? (active.length + ' upcoming') : 'Browse events';
-
-                // Active/upcoming signups go on top.
-                box.innerHTML = active.length
-                    ? '<ul class="signup-list">' + active.map(signupItem).join('') + '</ul>'
-                    : '<p class="muted-note">No upcoming signups.</p>';
-
-                // Past & cancelled goes into its own box, which sits BELOW the
-                // "More events you might like" grid in the card.
-                var pastBox = id('pastBox');
-                if (pastBox) {
-                    if (past.length) {
-                        pastBox.innerHTML = '<div class="signup-past-toggle" id="pastToggle" role="button" tabindex="0" aria-expanded="false">'
-                            + '<span class="acc-arrow" id="pastArrow">&#9654;</span> Past &amp; cancelled (' + past.length + ')</div>'
-                            + '<ul class="signup-list signup-list-past" id="pastList" style="display:none;">' + past.map(signupItem).join('') + '</ul>';
-                        var pt = id('pastToggle');
-                        if (pt) {
-                            var togglePast = function () {
-                                var l = id('pastList'), a = id('pastArrow');
-                                var open = l.style.display !== 'none';
-                                l.style.display = open ? 'none' : 'block';
-                                if (a) a.innerHTML = open ? '&#9654;' : '&#9660;';
-                                pt.setAttribute('aria-expanded', open ? 'false' : 'true');
-                            };
-                            pt.addEventListener('click', togglePast);
-                            pt.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePast(); } });
-                        }
-                    } else {
-                        pastBox.innerHTML = '';
-                    }
-                }
-            } catch (e) {
-                box.innerHTML = '<p class="muted-note">We couldn’t load your signups right now.</p>';
-            }
+            } catch (e) { /* the tile keeps its default subtitle */ }
         }
 
         /* ---------- wiring ---------- */
@@ -777,5 +632,6 @@
         #a11y-panel { left: auto !important; right: 20px !important; }
     </style>
     <script src="https://www.ldahawaii.org/accessibility.js"></script>
+    <script src="members-mobile.js?v=8"></script>
 </body>
 </html>
