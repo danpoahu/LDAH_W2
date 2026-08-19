@@ -176,6 +176,24 @@
     .signup-list-past { margin-top: 0.4rem; }
     .signup-list-past .signup-title { color: var(--text-soft); font-weight: 500; }
 
+    /* Suggestion flyers load over the network and were showing as blank white
+       boxes until each image arrived — on a phone that reads as broken rather
+       than loading. A shimmer placeholder sits behind every flyer and is removed
+       the moment its image decodes. */
+    .browse-skel { position: relative; }
+    .browse-skel::after {
+        content: ''; position: absolute; inset: 0; border-radius: 10px;
+        background: linear-gradient(100deg, #EEF3F7 30%, #F8FBFD 50%, #EEF3F7 70%);
+        background-size: 220% 100%; animation: browseShimmer 1.25s ease-in-out infinite;
+    }
+    .browse-thumb img { opacity: 0; transition: opacity .25s ease; }
+    .browse-thumb img.ready { opacity: 1; }
+    .browse-thumb.browse-skel img { position: relative; z-index: 0; }
+    @keyframes browseShimmer { 0% { background-position: 130% 0; } 100% { background-position: -30% 0; } }
+    @media (prefers-reduced-motion: reduce) {
+        .browse-skel::after { animation: none; background: #EEF3F7; }
+    }
+
     /* Signup modal — hosts the REAL signup form from the events page in an iframe,
        rather than the portal growing a second copy of it. */
     .ev-modal { position: fixed; inset: 0; z-index: 9000; display: none; }
@@ -200,7 +218,7 @@
         .ev-modal-panel { width: 100%; height: 100%; left: 0; top: 0; transform: none; border-radius: 0; }
     }
     </style>
-    <link rel="stylesheet" href="members-mobile.css?v=7">
+    <link rel="stylesheet" href="members-mobile.css?v=8">
 </head>
 <body>
     <svg style="display:none;"><defs><g id="hawaii-islands" fill="currentColor">
@@ -365,6 +383,16 @@
             var box = id('browseEventsBox');
             if (!box) return;
             var fallback = '<div class="btn-row"><a class="btn btn-outline" href="' + EVENTS_URL + '" target="_blank" rel="noopener">Browse events</a></div>';
+            /* Paint placeholders straight away. The callable takes a moment and the
+               section was simply blank until it resolved, which looks like nothing
+               is happening rather than like something is coming. */
+            box.innerHTML = '<div class="browse-head">More events you might like</div>'
+                + '<div class="browse-grid">'
+                + new Array(4).join('|').split('|').map(function () {
+                    return '<div class="browse-thumb browse-skel" aria-hidden="true"'
+                         + ' style="height:206px;"></div>';
+                  }).join('')
+                + '</div>';
             try {
                 var r = await fns.httpsCallable('getMemberBrowseEvents')({ exclude: excludeIds || [] });
                 var evs = (r.data && r.data.events) || [];
@@ -374,11 +402,19 @@
                         e = e || {};
                         /* Opens the real signup form in place. The href stays as a
                            fallback so a frame that cannot load is never a dead end. */
-                        return '<a class="browse-thumb" href="' + EVENTS_URL + '" data-ev-signup="' + esc(e.eventId || '') + '"'
+                        return '<a class="browse-thumb browse-skel" href="' + EVENTS_URL + '" data-ev-signup="' + esc(e.eventId || '') + '"'
                             + ' data-ev-title="' + esc(e.title || '') + '" title="' + esc(e.title || '') + '">'
                             + '<img src="' + esc(e.flyerUrl) + '" alt="' + esc(e.title || '') + '" loading="lazy">'
                             + '<span class="browse-label">' + esc(shortEventName(e.title)) + '</span></a>';
                     }).join('') + '</div>';
+                /* Drop each placeholder as its own flyer decodes, so the grid fills in
+                   progressively instead of waiting on the slowest image. */
+                box.querySelectorAll('.browse-thumb img').forEach(function (img) {
+                    function done() { img.classList.add('ready'); img.closest('.browse-thumb').classList.remove('browse-skel'); }
+                    if (img.complete && img.naturalWidth) { done(); return; }
+                    img.addEventListener('load', done);
+                    img.addEventListener('error', done);   /* a broken flyer must not shimmer forever */
+                });
             } catch (e) { box.innerHTML = fallback; }
         }
 
@@ -524,12 +560,38 @@
                 if (!doc) return false;
                 return !!(doc.getElementById('signupModal') || doc.getElementById('recurringSignupModal'));
             }
+            /* The member is already signed in, so making them retype the address the
+               portal knows is pointless. Fill it and fire the page's own oninput /
+               onblur handlers, which is exactly what typing it would do.
+
+               Deliberately NOT bypassing the "Pre-fill from email" step: that is an
+               OTP-by-email gate that returns a family's name, phone, address and
+               children, and it protects that data from anyone who can guess an
+               address. Filling the field saves the typing; the member still chooses
+               whether to request the code. Done from the portal by reaching into the
+               same-origin frame, so the public events page needs no change and no
+               crafted URL can trigger it. */
+            function prefillEmail() {
+                var email = (auth.currentUser && auth.currentUser.email) || '';
+                if (!email) return;
+                var doc = null;
+                try { doc = frame.contentDocument; } catch (e) { return; }
+                if (!doc) return;
+                var f = doc.getElementById('signupEmail');
+                if (!f || f.value.trim()) return;          /* never overwrite typing */
+                f.value = email;
+                try {
+                    f.dispatchEvent(new doc.defaultView.Event('input', { bubbles: true }));
+                    f.dispatchEvent(new doc.defaultView.Event('blur', { bubbles: true }));
+                } catch (e) { /* the value is set either way */ }
+            }
+
             function watchForForm() {
                 stopPoll();
                 var waited = 0;
                 pollTimer = setInterval(function () {
                     waited += 500;
-                    if (formIsOpen()) { stopPoll(); load.classList.add('gone'); return; }
+                    if (formIsOpen()) { stopPoll(); load.classList.add('gone'); prefillEmail(); return; }
                     if (waited < 14000) return;          /* the page retries ~10s; allow margin */
                     stopPoll();
                     load.classList.remove('gone');
@@ -585,6 +647,6 @@
         #a11y-panel { left: auto !important; right: 20px !important; }
     </style>
     <script src="https://www.ldahawaii.org/accessibility.js"></script>
-    <script src="members-mobile.js?v=7"></script>
+    <script src="members-mobile.js?v=8"></script>
 </body>
 </html>
