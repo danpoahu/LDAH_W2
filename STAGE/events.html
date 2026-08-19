@@ -2919,6 +2919,45 @@
 
       document.body.insertAdjacentHTML('beforeend', modalHTML);
 
+      /* 🔴 The form opens with #inlineHearAbout REQUIRED, EMPTY and inside
+         #inlineRegBlock, which is display:none. A required field the user cannot
+         see blocks submission and the browser has nowhere to show its message —
+         so Submit appears completely dead. Nothing cleared it except a genuine
+         change event on the role radio, or the email-blur prefill happening to
+         fill howHeard. Families whose contact had no howHeard hit a dead button
+         with no explanation.
+
+         Run the toggle once on open so the initial state is correct instead of
+         depending on a user gesture that may never happen. */
+      if (typeof ldahToggleInlineRegBlock === 'function') {
+        try { ldahToggleInlineRegBlock(); } catch (e) { console.warn('initial reg-block sync failed:', e); }
+      }
+
+      /* And the net: if validation ever fails on a field the user cannot see,
+         say so rather than doing nothing. The browser fires `invalid` on each
+         control before it gives up; a hidden one gets no bubble, which is what
+         made this silent. Any future hidden-required regression now announces
+         itself instead of dead-ending a family. */
+      (function () {
+        var _f = document.querySelector('#signupForm, #registrationForm') ||
+                 document.querySelector('form');
+        if (!_f || _f.__ldahInvalidWired) return;
+        _f.__ldahInvalidWired = true;
+        var _warned = false;
+        _f.addEventListener('invalid', function (ev) {
+          var el = ev.target;
+          if (!el || el.offsetParent !== null) return;   // visible — let the browser report it
+          ev.preventDefault();
+          if (_warned) return;
+          _warned = true;
+          setTimeout(function () { _warned = false; }, 1200);
+          console.warn('Blocked by a hidden required field:', el.id || el.name);
+          alert('Something on the form still needs an answer, but it is not showing on screen.\n\n' +
+                'Please pick your role above (Parent/Guardian, Professional, Student or Community Member) and try again.\n\n' +
+                'If it still will not submit, call us on (808) 536-9684 and we will sign you up.');
+        }, true);
+      })();
+
       // Capacity enforcement (ADDITIVE — only fires when _hasCap is true).
       if (_capFull) {
         // Event at/over cap: replace the form with a "full" notice (no submit).
@@ -4812,6 +4851,45 @@
         </div>
       `;
       document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+      /* 🔴 The form opens with #inlineHearAbout REQUIRED, EMPTY and inside
+         #inlineRegBlock, which is display:none. A required field the user cannot
+         see blocks submission and the browser has nowhere to show its message —
+         so Submit appears completely dead. Nothing cleared it except a genuine
+         change event on the role radio, or the email-blur prefill happening to
+         fill howHeard. Families whose contact had no howHeard hit a dead button
+         with no explanation.
+
+         Run the toggle once on open so the initial state is correct instead of
+         depending on a user gesture that may never happen. */
+      if (typeof ldahToggleInlineRegBlock === 'function') {
+        try { ldahToggleInlineRegBlock(); } catch (e) { console.warn('initial reg-block sync failed:', e); }
+      }
+
+      /* And the net: if validation ever fails on a field the user cannot see,
+         say so rather than doing nothing. The browser fires `invalid` on each
+         control before it gives up; a hidden one gets no bubble, which is what
+         made this silent. Any future hidden-required regression now announces
+         itself instead of dead-ending a family. */
+      (function () {
+        var _f = document.querySelector('#signupForm, #registrationForm') ||
+                 document.querySelector('form');
+        if (!_f || _f.__ldahInvalidWired) return;
+        _f.__ldahInvalidWired = true;
+        var _warned = false;
+        _f.addEventListener('invalid', function (ev) {
+          var el = ev.target;
+          if (!el || el.offsetParent !== null) return;   // visible — let the browser report it
+          ev.preventDefault();
+          if (_warned) return;
+          _warned = true;
+          setTimeout(function () { _warned = false; }, 1200);
+          console.warn('Blocked by a hidden required field:', el.id || el.name);
+          alert('Something on the form still needs an answer, but it is not showing on screen.\n\n' +
+                'Please pick your role above (Parent/Guardian, Professional, Student or Community Member) and try again.\n\n' +
+                'If it still will not submit, call us on (808) 536-9684 and we will sign you up.');
+        }, true);
+      })();
 
       // Per-client soft block: hide Monday occurrences when a specific email is entered.
       // Direct JS toggle on each Monday row's inline display — bypasses CSS specificity issue
