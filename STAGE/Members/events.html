@@ -176,8 +176,31 @@
     .signup-list-past { margin-top: 0.4rem; }
     .signup-list-past .signup-title { color: var(--text-soft); font-weight: 500; }
 
+    /* Signup modal — hosts the REAL signup form from the events page in an iframe,
+       rather than the portal growing a second copy of it. */
+    .ev-modal { position: fixed; inset: 0; z-index: 9000; display: none; }
+    .ev-modal.open { display: block; }
+    .ev-modal-back { position: absolute; inset: 0; background: rgba(15,23,42,.55); }
+    .ev-modal-panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+        width: min(760px, calc(100vw - 24px)); height: min(88vh, calc(100dvh - 24px));
+        background: #fff; border-radius: 16px; overflow: hidden;
+        box-shadow: 0 24px 60px rgba(15,23,42,.35); display: flex; flex-direction: column; }
+    .ev-modal-bar { display: flex; align-items: center; gap: .6rem; padding: .55rem .7rem .55rem 1rem;
+        border-bottom: 1px solid #E6EEF2; background: #fff; flex: 0 0 auto; }
+    .ev-modal-bar b { flex: 1; min-width: 0; font-family: 'Outfit', sans-serif; font-size: 1rem;
+        color: var(--primary-blue, #0891B2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ev-modal-close { width: 44px; height: 44px; flex: 0 0 44px; border: none; background: none;
+        cursor: pointer; font-size: 1.5rem; line-height: 1; color: #64748B; border-radius: 10px; }
+    .ev-modal-close:hover { background: #F1F5F9; color: #1E293B; }
+    .ev-modal iframe { flex: 1; width: 100%; border: 0; display: block; }
+    .ev-modal-load { position: absolute; inset: 56px 0 0; display: flex; align-items: center;
+        justify-content: center; background: #fff; pointer-events: none; }
+    .ev-modal-load.gone { display: none; }
+    @media (max-width: 900px) {
+        .ev-modal-panel { width: 100%; height: 100%; left: 0; top: 0; transform: none; border-radius: 0; }
+    }
     </style>
-    <link rel="stylesheet" href="members-mobile.css?v=5">
+    <link rel="stylesheet" href="members-mobile.css?v=6">
 </head>
 <body>
     <svg style="display:none;"><defs><g id="hawaii-islands" fill="currentColor">
@@ -236,6 +259,18 @@
             </div>
         </div>
     </main>
+
+    <div class="ev-modal" id="evModal" role="dialog" aria-modal="true" aria-label="Event signup">
+        <div class="ev-modal-back" data-ev-close="1"></div>
+        <div class="ev-modal-panel">
+            <div class="ev-modal-bar">
+                <b id="evModalTitle">Sign up</b>
+                <button class="ev-modal-close" type="button" data-ev-close="1" aria-label="Close">&times;</button>
+            </div>
+            <iframe id="evModalFrame" title="Event signup"></iframe>
+            <div class="ev-modal-load" id="evModalLoad"><div class="loading-spinner"></div></div>
+        </div>
+    </div>
 
     <footer>
         <div class="footer-content">
@@ -337,25 +372,10 @@
                 box.innerHTML = '<div class="browse-head">More events you might like</div>'
                     + '<div class="browse-grid">' + evs.map(function (e) {
                         e = e || {};
-                        return '<a class="browse-thumb" href="' + EVENTS_URL + '" target="_blank" rel="noopener" title="' + esc(e.title || '') + '">'
-                            + '<img src="' + esc(e.flyerUrl) + '" alt="' + esc(e.title || '') + '" loading="lazy">'
-                            + '<span class="browse-label">' + esc(shortEventName(e.title)) + '</span></a>';
-                    }).join('') + '</div>';
-            } catch (e) { box.innerHTML = fallback; }
-        }
-
-        async function loadBrowseEvents(excludeIds) {
-            var box = id('browseEventsBox');
-            if (!box) return;
-            var fallback = '<div class="btn-row"><a class="btn btn-outline" href="' + EVENTS_URL + '" target="_blank" rel="noopener">Browse events</a></div>';
-            try {
-                var r = await fns.httpsCallable('getMemberBrowseEvents')({ exclude: excludeIds || [] });
-                var evs = (r.data && r.data.events) || [];
-                if (!evs.length) { box.innerHTML = fallback; return; }
-                box.innerHTML = '<div class="browse-head">More events you might like</div>'
-                    + '<div class="browse-grid">' + evs.map(function (e) {
-                        e = e || {};
-                        return '<a class="browse-thumb" href="' + EVENTS_URL + '" target="_blank" rel="noopener" title="' + esc(e.title || '') + '">'
+                        /* Opens the real signup form in place. The href stays as a
+                           fallback so a frame that cannot load is never a dead end. */
+                        return '<a class="browse-thumb" href="' + EVENTS_URL + '" data-ev-signup="' + esc(e.eventId || '') + '"'
+                            + ' data-ev-title="' + esc(e.title || '') + '" title="' + esc(e.title || '') + '">'
                             + '<img src="' + esc(e.flyerUrl) + '" alt="' + esc(e.title || '') + '" loading="lazy">'
                             + '<span class="browse-label">' + esc(shortEventName(e.title)) + '</span></a>';
                     }).join('') + '</div>';
@@ -452,6 +472,73 @@
                 loadBrowseEvents([]);
             }
         }
+        /* The modal hosts events.html?embed=1 — the SAME form families use on the
+           public site. The portal deliberately does not carry its own copy: that form
+           is ~1,600 lines and writes signups that email families, so one
+           implementation surfaced in two places is the only safe arrangement. */
+        (function () {
+            var modal = id('evModal'), frame = id('evModalFrame'),
+                titleEl = id('evModalTitle'), load = id('evModalLoad');
+            if (!modal || !frame) return;
+            var opened = false;
+
+            function openModal(eventId, title) {
+                opened = true;
+                titleEl.textContent = title || 'Sign up';
+                load.classList.remove('gone');
+                frame.src = '../events.html?eventId=' + encodeURIComponent(eventId) + '&autoOpen=1&embed=1';
+                modal.classList.add('open');
+                document.body.style.overflow = 'hidden';
+            }
+            function closeModal() {
+                modal.classList.remove('open');
+                frame.src = 'about:blank';
+                document.body.style.overflow = '';
+                /* A signup made inside the frame will not appear in the list above until
+                   it is refetched, and a member has every reason to expect it there.
+                   Drop the cache so the reload is real, not the stale copy. */
+                if (opened) {
+                    opened = false;
+                    try { sessionStorage.removeItem(CACHE_KEY); } catch (e) {}
+                    loadEvents();
+                }
+            }
+            /* In embed mode the events page hides all of its own chrome, so if the
+               signup modal never opens — an id that no longer resolves, an event
+               pulled since the browse list was built — the member would be looking
+               at a blank white panel with no idea why. Check, and offer the real
+               page rather than leave them staring at nothing. */
+            function checkOpened() {
+                var doc = null;
+                try { doc = frame.contentDocument; } catch (e) { return; }   /* not same-origin: leave it */
+                if (!doc) return;
+                if (doc.getElementById('signupModal') || doc.getElementById('recurringSignupModal')) return;
+                load.classList.remove('gone');
+                load.innerHTML = '<div style="text-align:center;padding:24px;max-width:340px;">'
+                    + '<p style="margin-bottom:14px;color:#64748B;">This event&rsquo;s signup form could not be opened here.</p>'
+                    + '<a class="btn btn-primary" href="' + EVENTS_URL + '" target="_blank" rel="noopener">Open the events page</a></div>';
+                load.style.pointerEvents = 'auto';
+            }
+            frame.addEventListener('load', function () {
+                load.classList.add('gone');
+                setTimeout(checkOpened, 3500);
+            });
+            document.addEventListener('click', function (e) {
+                var t = e.target.closest('[data-ev-signup]');
+                if (t) {
+                    var eid = t.getAttribute('data-ev-signup');
+                    if (!eid) return;               /* no id — let the href through */
+                    e.preventDefault();
+                    openModal(eid, t.getAttribute('data-ev-title'));
+                    return;
+                }
+                if (e.target.closest('[data-ev-close]')) { e.preventDefault(); closeModal(); }
+            });
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && modal.classList.contains('open')) closeModal();
+            });
+        })();
+
         auth.onAuthStateChanged(function (user) {
             if (!user) { hideSignout(); guardMessage('Please log in', 'You need to be logged in to view your events.'); return; }
             showSignout();
@@ -478,6 +565,6 @@
         #a11y-panel { left: auto !important; right: 20px !important; }
     </style>
     <script src="https://www.ldahawaii.org/accessibility.js"></script>
-    <script src="members-mobile.js?v=5"></script>
+    <script src="members-mobile.js?v=6"></script>
 </body>
 </html>
