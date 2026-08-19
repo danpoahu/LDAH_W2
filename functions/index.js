@@ -785,17 +785,19 @@ const _PERSONA_FALLBACK = {
         '</p>',
     },
     resourceCoordinator: {
-      firstName: 'La\'a', fullName: 'La\'a Salvani',
-      title: 'Administrative Assistant', email: 'LSalvani@ldahawaii.org',
+      // Maria Kashem replaced La'a Salvani (2026-08-19). Replies to resource
+      // partner mail were still going to a departed staffer's inbox.
+      firstName: 'Maria', fullName: 'Maria Kashem',
+      title: 'Administrative Assistant', email: 'Mkashem@ldahawaii.org',
       phone: '(808) 536-9684',
       signatureHtml:
         '<p style="margin:16px 0 2px;font-size:14px;color:#555555;line-height:1.5;">' +
-          '<strong>La\'a Salvani</strong><br>' +
+          '<strong>Maria Kashem</strong><br>' +
           'Administrative Assistant<br>' +
           'Leadership in Disabilities &amp; Achievement of Hawai\'i<br>' +
           '245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>' +
           'Phone: (808) 536-9684<br>' +
-          'Email: <a href="mailto:LSalvani@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LSalvani@ldahawaii.org</a><br>' +
+          'Email: <a href="mailto:Mkashem@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">Mkashem@ldahawaii.org</a><br>' +
           '<a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>' +
         '</p>',
     },
@@ -4991,11 +4993,29 @@ function isInternalOrTestRecord(name, email) {
    ONE date to move the line. */
 const CASE_ADVOCACY_MEMBERSHIP_REQUIRED_FROM = "2026-08-11";
 
+// True when an interaction represents case advocacy.
+//
+// This used to be `interactionType === "Case Advocacy"`. That type is being
+// retired (2026-08-19) because advocacy is already tracked by its own field,
+// and using it as a type meant the interaction could not also record its tier.
+// Every one of those records was backfilled with caseAdvocacy:true first, so
+// the flag is the durable signal; the string is kept as a fallback for anything
+// created before the flag existed.
+//
+// Retention depends on this: a family with an OPEN advocacy interaction keeps
+// their Connect-Gen documents instead of the 24h auto-destroy.
+function _isCaseAdvocacyIx(x) {
+  if (!x) return false;
+  return x.caseAdvocacy === true || !!x.caseAdvocateUid || x.interactionType === "Case Advocacy";
+}
+
 async function buildAdvocacyMembershipGapHtml(db) {
   const cutoffMs = new Date(CASE_ADVOCACY_MEMBERSHIP_REQUIRED_FROM + "T00:00:00-10:00").getTime();
   let ixSnap;
   try {
-    ixSnap = await db.collection("interactions").where("interactionType", "==", "Case Advocacy").get();
+    // Read all and filter in memory: advocacy is now identified by a flag as
+    // well as the legacy type string, which one where() cannot express.
+    ixSnap = await db.collection("interactions").get();
   } catch (e) {
     console.warn("advocacy/membership gap: interactions query failed:", e.message);
     return "";
@@ -5006,6 +5026,7 @@ async function buildAdvocacyMembershipGapHtml(db) {
   const byContact = new Map();
   ixSnap.forEach((d) => {
     const x = d.data() || {};
+    if (!_isCaseAdvocacyIx(x)) return;   // the query used to do this; it no longer can
     const cid = x.contactId;
     if (!cid) return;
     let ms = null;
@@ -16080,7 +16101,7 @@ exports.scheduledConnectGenDocLifecycle = functions
               const advSnap = await db.collection("interactions").where("contactId", "==", cid).get();
               openAdvocacy = advSnap.docs.some((x) => {
                 const a = x.data() || {};
-                return a.interactionType === "Case Advocacy" && a.status === "Open";
+                return _isCaseAdvocacyIx(a) && a.status === "Open";
               });
             } catch (e) { console.warn("advocacy retention check failed for " + sigDoc.ref.path + ":", e.message); }
             if (openAdvocacy) {
@@ -19022,7 +19043,7 @@ exports.scheduledCaseAdvocacyDocLifecycle = functions
         }
 
         const allIx = ixSnap.docs.map((d) => d.data() || {});
-        const advIx = allIx.filter((x) => x.interactionType === "Case Advocacy");
+        const advIx = allIx.filter(_isCaseAdvocacyIx);
 
         // If any Case Advocacy interaction is open → retain.
         const openAdv = advIx.some((x) => x.status === "Open");
