@@ -1684,8 +1684,22 @@
           return;
         }
         
-        // Sign in anonymously to get read access
+        /* 🔴 Do NOT sign in anonymously when embedded.
+
+           Firebase auth persistence is shared across the whole origin, so an
+           anonymous sign-in here REPLACES whatever session the host page holds.
+           Embedded in the member portal that signed the member out mid-signup and
+           left them staring at "Verify your email" — the portal saw an anonymous
+           user with no verified address.
+
+           Embed mode hides the calendar and the event-request UI, which is the
+           only thing this read feeds, so skipping it costs nothing there. */
         const auth = firebase.auth();
+        const _embedded = document.documentElement.classList.contains('ldah-embed');
+        if (_embedded) {
+          console.log('embed mode: skipping anonymous sign-in so the host session survives');
+          return;
+        }
         if (!auth.currentUser) {
           console.log('Signing in anonymously for eventRequests access...');
           await auth.signInAnonymously();
