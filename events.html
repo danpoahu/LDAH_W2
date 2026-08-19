@@ -2821,6 +2821,33 @@
                 </div>
                 ` : ''}
                 
+                <!-- How did you hear about us — ALWAYS ASKED, ALWAYS VISIBLE.
+                     This used to live inside #inlineRegBlock, which is display:none for
+                     Parent/Guardian. Required + hidden = a form that refuses to submit
+                     with no message the browser can show, which is exactly what killed
+                     the button on 2026-08-18. Daniel: ask every time — people change how
+                     they found us. Returning families get it PRE-FILLED by the email
+                     lookup, still visible and still editable. Never hide this while it
+                     carries the required attribute. -->
+                  <!-- How Heard -->
+                  <div style="margin-bottom:14px;">
+                    <label style="display:block; color:#004E7C; font-weight:bold; margin-bottom:8px; font-size:14px;">How did you hear about this training? <span style="color:#DC2626;">*</span></label>
+                    <select id="inlineHearAbout" required onchange="var w=document.getElementById('inlineHearAboutOtherWrap');var o=document.getElementById('inlineHearAboutOther');if(this.value==='Other'){w.style.display='block';o.setAttribute('required','');}else{w.style.display='none';o.removeAttribute('required');o.value='';}" style="width:100%; padding:12px; border:1px solid #D1D5DB; border-radius:8px; font-size:14px; background:white;">
+                      <option value="">-- Select --</option>
+                      <option value="Agency">Agency</option>
+                      <option value="Newspaper">Newspaper</option>
+                      <option value="School">School</option>
+                      <option value="Radio">Radio</option>
+                      <option value="Website">Website</option>
+                      <option value="Facebook">Facebook</option>
+                      <option value="Conference">Conference</option><option value="Doctor or therapist">Doctor or therapist</option><option value="Email">Email</option><option value="Friend or family">Friend or family</option><option value="Other">Other</option>
+                    </select>
+                    <div id="inlineHearAboutOtherWrap" style="display:none; margin-top:10px;">
+                      <label style="display:block; color:#004E7C; font-weight:600; margin-bottom:6px; font-size:13px;">Please specify <span style="color:#DC2626;">*</span></label>
+                      <input type="text" id="inlineHearAboutOther" maxlength="200" placeholder="Tell us how you heard about us" style="width:100%; padding:10px; border:1px solid #D1D5DB; border-radius:8px; font-size:14px;">
+                    </div>
+                  </div>
+
                 <!-- Inline registration block (v62.0.0) — revealed for non-Parent/Guardian roles -->
                 <div id="inlineRegBlock" style="display:none; background:#f0f9ff; border:1px solid #bae6fd; border-radius:10px; padding:18px; margin-bottom:20px;">
                   <h3 style="color:#004E7C; font-size:16px; font-weight:bold; margin-bottom:14px;">Tell us a bit more</h3>
@@ -2865,25 +2892,6 @@
                     <div id="inlinePriorDateWrap" style="display:none; margin-top:10px; padding-left:26px;">
                       <label style="display:block; color:#004E7C; font-weight:bold; margin-bottom:8px; font-size:14px;">Date of last training</label>
                       <input type="date" id="inlinePriorDate" style="width:100%; padding:12px; border:1px solid #D1D5DB; border-radius:8px; font-size:14px;">
-                    </div>
-                  </div>
-
-                  <!-- How Heard -->
-                  <div style="margin-bottom:14px;">
-                    <label style="display:block; color:#004E7C; font-weight:bold; margin-bottom:8px; font-size:14px;">How did you hear about this training? <span style="color:#DC2626;">*</span></label>
-                    <select id="inlineHearAbout" required onchange="var w=document.getElementById('inlineHearAboutOtherWrap');var o=document.getElementById('inlineHearAboutOther');if(this.value==='Other'){w.style.display='block';o.setAttribute('required','');}else{w.style.display='none';o.removeAttribute('required');o.value='';}" style="width:100%; padding:12px; border:1px solid #D1D5DB; border-radius:8px; font-size:14px; background:white;">
-                      <option value="">-- Select --</option>
-                      <option value="Agency">Agency</option>
-                      <option value="Newspaper">Newspaper</option>
-                      <option value="School">School</option>
-                      <option value="Radio">Radio</option>
-                      <option value="Website">Website</option>
-                      <option value="Facebook">Facebook</option>
-                      <option value="Conference">Conference</option><option value="Doctor or therapist">Doctor or therapist</option><option value="Email">Email</option><option value="Friend or family">Friend or family</option><option value="Other">Other</option>
-                    </select>
-                    <div id="inlineHearAboutOtherWrap" style="display:none; margin-top:10px;">
-                      <label style="display:block; color:#004E7C; font-weight:600; margin-bottom:6px; font-size:13px;">Please specify <span style="color:#DC2626;">*</span></label>
-                      <input type="text" id="inlineHearAboutOther" maxlength="200" placeholder="Tell us how you heard about us" style="width:100%; padding:10px; border:1px solid #D1D5DB; border-radius:8px; font-size:14px;">
                     </div>
                   </div>
 
@@ -3168,19 +3176,24 @@
       var zipEl  = document.getElementById('inlineZip');
       var reasonEl = document.getElementById('inlineReason');
       var hearEl = document.getElementById('inlineHearAbout');
+      /* How-heard now lives OUTSIDE this block and is always on screen, so it stays
+         required for everyone — Daniel: ask every time, people change how they found
+         us. It is deliberately NOT managed here any more: this function's job is to
+         match `required` to VISIBILITY, and that question is always visible. */
+      if (hearEl) hearEl.setAttribute('required', '');
       if (show) {
         if (cityEl) cityEl.setAttribute('required', '');
         if (zipEl)  zipEl.setAttribute('required', '');
         if (reasonEl) reasonEl.setAttribute('required', '');
-        if (hearEl) hearEl.setAttribute('required', '');
       } else {
         if (cityEl) cityEl.removeAttribute('required');
         if (zipEl)  zipEl.removeAttribute('required');
         if (reasonEl) reasonEl.removeAttribute('required');
-        if (hearEl) hearEl.removeAttribute('required');
-        // Also clear required on the "Other" textarea if it was set
+        /* The "Other" box is only required while its wrap is showing, which the
+           select's own onchange controls. Do not force it here. */
+        var otherWrap = document.getElementById('inlineHearAboutOtherWrap');
         var otherEl = document.getElementById('inlineHearAboutOther');
-        if (otherEl) otherEl.removeAttribute('required');
+        if (otherEl && otherWrap && otherWrap.style.display === 'none') otherEl.removeAttribute('required');
       }
     }
 
@@ -4760,6 +4773,28 @@
                   <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Any additional comments or special accommodations?</label>
                   <textarea id="special-accommodations" placeholder="Your answer" rows="4" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;"></textarea>
                 </div>
+                  <div style="margin-bottom:14px;">
+                    <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">How did you hear about this training? <span style="color:#DC2626;">*</span></label>
+                    <select id="inlineHearAbout" required onchange="var w=document.getElementById('inlineHearAboutOtherWrap');var o=document.getElementById('inlineHearAboutOther');if(this.value==='Other'){w.style.display='block';o.setAttribute('required','');}else{w.style.display='none';o.removeAttribute('required');o.value='';}" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;background:white;">
+                      <option value="">-- Select --</option>
+                      <option value="Agency">Agency</option>
+                      <option value="Newspaper">Newspaper</option>
+                      <option value="School">School</option>
+                      <option value="Radio">Radio</option>
+                      <option value="Website">Website</option>
+                      <option value="Facebook">Facebook</option>
+                      <option value="Conference">Conference</option><option value="Doctor or therapist">Doctor or therapist</option><option value="Email">Email</option><option value="Friend or family">Friend or family</option><option value="Other">Other</option>
+                    </select>
+                    <div id="inlineHearAboutOtherWrap" style="display:none;margin-top:10px;">
+                      <label style="display:block;color:#004E7C;font-weight:600;margin-bottom:6px;font-size:13px;">Please specify <span style="color:#DC2626;">*</span></label>
+                      <input type="text" id="inlineHearAboutOther" maxlength="200" placeholder="Tell us how you heard about us" style="width:100%;padding:10px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
+                    </div>
+                  </div>
+                  <div style="margin-bottom:0;">
+                    <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Accommodations Needed</label>
+                    <textarea id="inlineAccommodations" placeholder="Please let us know at least 2 weeks prior to the event..." rows="3" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;"></textarea>
+                  </div>
+                </div>
                 <!-- Inline registration block (v62.0.0) — revealed for non-Parent/Guardian roles -->
                 <div id="inlineRegBlock" style="display:none;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:18px;margin-bottom:20px;">
                   <h3 style="color:#004E7C;font-size:16px;font-weight:bold;margin-bottom:14px;">Tell us a bit more</h3>
@@ -4800,28 +4835,6 @@
                       <input type="date" id="inlinePriorDate" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
                     </div>
                   </div>
-                  <div style="margin-bottom:14px;">
-                    <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">How did you hear about this training? <span style="color:#DC2626;">*</span></label>
-                    <select id="inlineHearAbout" required onchange="var w=document.getElementById('inlineHearAboutOtherWrap');var o=document.getElementById('inlineHearAboutOther');if(this.value==='Other'){w.style.display='block';o.setAttribute('required','');}else{w.style.display='none';o.removeAttribute('required');o.value='';}" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;background:white;">
-                      <option value="">-- Select --</option>
-                      <option value="Agency">Agency</option>
-                      <option value="Newspaper">Newspaper</option>
-                      <option value="School">School</option>
-                      <option value="Radio">Radio</option>
-                      <option value="Website">Website</option>
-                      <option value="Facebook">Facebook</option>
-                      <option value="Conference">Conference</option><option value="Doctor or therapist">Doctor or therapist</option><option value="Email">Email</option><option value="Friend or family">Friend or family</option><option value="Other">Other</option>
-                    </select>
-                    <div id="inlineHearAboutOtherWrap" style="display:none;margin-top:10px;">
-                      <label style="display:block;color:#004E7C;font-weight:600;margin-bottom:6px;font-size:13px;">Please specify <span style="color:#DC2626;">*</span></label>
-                      <input type="text" id="inlineHearAboutOther" maxlength="200" placeholder="Tell us how you heard about us" style="width:100%;padding:10px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
-                    </div>
-                  </div>
-                  <div style="margin-bottom:0;">
-                    <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Accommodations Needed</label>
-                    <textarea id="inlineAccommodations" placeholder="Please let us know at least 2 weeks prior to the event..." rows="3" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;"></textarea>
-                  </div>
-                </div>
                 ${program.showGroupField ? `
                 <div style="margin-bottom:20px;">
                   <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Are you attending on your own, or with others? *</label>
