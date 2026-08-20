@@ -1050,135 +1050,9 @@
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
-    /* === Partner Edit Mode === */
-    .edit-island-btn {
-        position: absolute;
-        top: 12px;
-        right: 64px;
-        background: rgba(255,255,255,0.25);
-        border: 2px solid rgba(255,255,255,0.6);
-        color: #fff;
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        cursor: pointer;
-        font-size: 1.1rem;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.2s;
-        z-index: 5;
-    }
-    .edit-island-btn:hover { background: rgba(255,255,255,0.4); transform: scale(1.1); }
-    .edit-island-btn.visible { display: flex; }
-
-    .island-modal-header { position: relative; }
-
-    .edit-toolbar {
-        display: none;
-        background: #f0f7ff;
-        border-bottom: 2px solid #004E7C;
-        padding: 0.75rem 1.5rem;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.75rem;
-        position: relative;
-        z-index: 10;
-    }
-    .edit-toolbar.active { display: flex; }
-    .edit-toolbar-label { font-weight: 600; color: #004E7C; font-size: 0.9rem; }
-    .edit-toolbar-actions { display: flex; gap: 0.5rem; }
-    .edit-btn-save, .edit-btn-cancel {
-        padding: 0.4rem 1rem;
-        border: none;
-        border-radius: 6px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-    .edit-btn-save { background: #004E7C; color: #fff; }
-    .edit-btn-save:hover { background: #003d63; }
-    .edit-btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
-    .edit-btn-cancel { background: #e2e8f0; color: #333; }
-    .edit-btn-cancel:hover { background: #cbd5e1; }
-
-    .editable-section { position: relative; transition: all 0.2s; }
-    .editable-section.editing {
-        outline: 2px dashed #004E7C;
-        outline-offset: 4px;
-        border-radius: 8px;
-        min-height: 40px;
-        padding: 4px;
-    }
-    .editable-section.editing:focus { outline-color: #0088ff; background: #f8fbff; }
-    .editable-section.editing:empty::before {
-        content: 'Click to edit...';
-        color: #94a3b8;
-        font-style: italic;
-    }
-
-    .gallery-photo-wrapper { position: relative; display: inline-block; }
-    .gallery-photo-wrapper .photo-edit-overlay {
-        position: absolute;
-        inset: 0;
-        background: rgba(0,78,124,0.6);
-        border-radius: 12px;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        transition: opacity 0.2s;
-    }
-    .gallery-photo-wrapper .photo-edit-overlay span {
-        color: #fff;
-        font-size: 0.85rem;
-        font-weight: 600;
-        background: rgba(0,0,0,0.4);
-        padding: 0.3rem 0.8rem;
-        border-radius: 20px;
-    }
-    .edit-mode .gallery-photo-wrapper .photo-edit-overlay { display: flex; }
-    .edit-mode .gallery-photo { pointer-events: none; }
-
-    .hero-edit-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 220px;
-        background: rgba(0,78,124,0.5);
-        display: none;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        z-index: 2;
-    }
-    .hero-edit-overlay span {
-        color: #fff;
-        font-size: 1rem;
-        font-weight: 600;
-        background: rgba(0,0,0,0.4);
-        padding: 0.5rem 1.2rem;
-        border-radius: 25px;
-    }
-    .edit-mode .hero-edit-overlay { display: flex; }
-
-    .upload-progress-bar {
-        width: 100%;
-        height: 4px;
-        background: #e2e8f0;
-        border-radius: 2px;
-        margin-top: 0.5rem;
-        display: none;
-    }
-    .upload-progress-bar .bar {
-        height: 100%;
-        background: #004E7C;
-        border-radius: 2px;
-        width: 0%;
-        transition: width 0.3s;
-    }
+    /* Partner edit mode was removed 2026-08-20. Pacific partners edit their
+       island's content in LDAH-Int (CMS > Page Editor), never on the public
+       site. The login below is the Membership Login and is unrelated. */
 
     .save-toast-pacific {
         position: fixed;
@@ -1227,7 +1101,6 @@
     .auth-badge button:hover { background: rgba(255,255,255,0.35); }
 
     /* Hidden file input for photo uploads */
-    .hidden-upload { display: none; }
 
     @media (max-width: 768px) {
         .hero-section h1 { font-size: 2em; }
@@ -1239,7 +1112,6 @@
         .social-links { flex-direction: column; }
         .states-grid { grid-template-columns: 1fr; }
         .support-grid { grid-template-columns: 1fr; }
-        .edit-island-btn { right: 54px; width: 34px; height: 34px; font-size: 0.95rem; }
         .auth-badge { top: auto; bottom: 20px; right: 10px; font-size: 0.7rem; }
     }
     </style>
@@ -1394,23 +1266,12 @@
         <button onclick="handleLogout()">Logout</button>
     </div>
 
-    <!-- Hidden file input for photo uploads -->
-    <input type="file" id="photoUploadInput" class="hidden-upload" accept="image/*">
-
     <!-- Island Detail Modal -->
     <div id="islandModal" class="island-modal" onclick="closeIslandModal(event)">
         <div class="island-modal-content" onclick="event.stopPropagation()">
             <div class="island-modal-header" id="islandModalHeader">
                 <h2><span class="flag-icon" id="islandFlag"></span><span id="islandName"></span></h2>
-                <button type="button" id="editIslandBtn" class="edit-island-btn" onclick="toggleEditMode()" title="Edit this island's content">&#9998;</button>
                 <button class="close-island-modal" onclick="closeIslandModal()">&times;</button>
-            </div>
-            <div id="editToolbar" class="edit-toolbar">
-                <span class="edit-toolbar-label">Editing Mode</span>
-                <div class="edit-toolbar-actions">
-                    <button type="button" class="edit-btn-cancel" onclick="cancelEdit()">Cancel</button>
-                    <button type="button" id="editSaveBtn" class="edit-btn-save" onclick="saveIslandEdits()">Save Changes</button>
-                </div>
             </div>
             <div class="island-modal-body" id="islandModalBody">
                 <!-- Content loaded dynamically -->
@@ -1435,9 +1296,6 @@
         // Current user state
         let currentUser = null;    // Firebase auth user
         let currentRole = null;    // { role, island, displayName }
-        let editingIsland = null;  // which island key is being edited
-        let isEditMode = false;
-        let pendingUploadField = null; // which field the photo upload targets
         
         // Load page content from Firebase
         let cmsData = {};
@@ -1527,21 +1385,6 @@
             name.textContent = island.name;
             body.innerHTML = island.content;
 
-            // Track which island is open
-            editingIsland = islandKey;
-            isEditMode = false;
-            document.getElementById('editToolbar').classList.remove('active');
-            body.classList.remove('edit-mode');
-            document.getElementById('editIslandBtn').innerHTML = '&#9998;';
-
-            // Show/hide edit button based on permissions
-            const editBtn = document.getElementById('editIslandBtn');
-            if (canEditIsland(islandKey)) {
-                editBtn.classList.add('visible');
-            } else {
-                editBtn.classList.remove('visible');
-            }
-
             // Re-apply CMS data to newly created modal elements
             if (Object.keys(cmsData).length) applyCmsToElements(cmsData);
 
@@ -1553,8 +1396,6 @@
             if (event && event.target !== event.currentTarget && !event.target.classList.contains('close-island-modal')) {
                 return;
             }
-            if (isEditMode) cancelEdit();
-            editingIsland = null;
             const modal = document.getElementById('islandModal');
             modal.classList.remove('active');
             document.body.style.overflow = 'auto';
@@ -2082,7 +1923,6 @@
         }
 
         function handleLogout() {
-            if (isEditMode) cancelEdit();
             auth.signOut();
             showToast('Logged out');
         }
@@ -2138,290 +1978,6 @@
                 }
             }
         });
-
-        // === Island Edit Mode ===
-        function canEditIsland(islandKey) {
-            if (!currentUser || !currentRole) return false;
-            const role = currentRole.role;
-            if (role === 'superAdmin' || role === 'webAdmin') return true;
-            if (role === 'partner' && currentRole.island === islandKey) return true;
-            return false;
-        }
-
-        function toggleEditMode() {
-            if (isEditMode) {
-                cancelEdit();
-            } else {
-                enterEditMode();
-            }
-        }
-
-        function enterEditMode() {
-            if (!editingIsland) return;
-            isEditMode = true;
-
-            const body = document.getElementById('islandModalBody');
-            body.classList.add('edit-mode');
-            document.getElementById('editToolbar').classList.add('active');
-            document.getElementById('editIslandBtn').innerHTML = '&#10005;';
-            document.getElementById('editIslandBtn').title = 'Exit edit mode';
-
-            // Make text sections contenteditable
-            const editableFields = getEditableFields(editingIsland);
-            editableFields.text.forEach(fieldId => {
-                const el = document.getElementById(fieldId);
-                if (el) {
-                    el.classList.add('editable-section', 'editing');
-                    el.contentEditable = 'true';
-                }
-            });
-
-            // Wrap gallery photos with edit overlays
-            editableFields.photos.forEach(fieldId => {
-                const img = document.getElementById(fieldId);
-                if (!img) return;
-                // Only wrap visible photos or empty slots
-                if (!img.parentElement.classList.contains('gallery-photo-wrapper')) {
-                    const wrapper = document.createElement('div');
-                    wrapper.className = 'gallery-photo-wrapper';
-                    img.parentNode.insertBefore(wrapper, img);
-                    wrapper.appendChild(img);
-                    const overlay = document.createElement('div');
-                    overlay.className = 'photo-edit-overlay';
-                    overlay.innerHTML = '<span>' + (img.src && img.style.display !== 'none' ? 'Change' : 'Add Photo') + '</span>';
-                    overlay.onclick = () => triggerPhotoUpload(fieldId);
-                    wrapper.appendChild(overlay);
-                }
-                // Show hidden empty slots in edit mode
-                if (img.style.display === 'none') {
-                    img.style.display = '';
-                    img.dataset.wasHidden = 'true';
-                    if (!img.src || img.src === window.location.href) {
-                        img.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="180" fill="%23e2e8f0"><rect width="200" height="180"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%2394a3b8" font-size="14">+ Add Photo</text></svg>');
-                    }
-                }
-            });
-
-            // Add hero image edit overlay
-            const heroId = 'pacific-' + editingIsland + 'Hero';
-            const heroImg = document.getElementById(heroId);
-            if (heroImg && !document.getElementById('heroEditOverlay')) {
-                const overlay = document.createElement('div');
-                overlay.className = 'hero-edit-overlay';
-                overlay.id = 'heroEditOverlay';
-                overlay.innerHTML = '<span>Change Hero Image</span>';
-                overlay.onclick = () => triggerPhotoUpload(heroId);
-                heroImg.parentNode.insertBefore(overlay, heroImg.nextSibling);
-            }
-        }
-
-        function cancelEdit() {
-            isEditMode = false;
-            const body = document.getElementById('islandModalBody');
-            body.classList.remove('edit-mode');
-            document.getElementById('editToolbar').classList.remove('active');
-            document.getElementById('editIslandBtn').innerHTML = '&#9998;';
-            document.getElementById('editIslandBtn').title = 'Edit this island\'s content';
-
-            // Remove contenteditable
-            body.querySelectorAll('.editable-section.editing').forEach(el => {
-                el.contentEditable = 'false';
-                el.classList.remove('editable-section', 'editing');
-            });
-
-            // Remove photo wrappers and overlays
-            body.querySelectorAll('.gallery-photo-wrapper').forEach(wrapper => {
-                const img = wrapper.querySelector('img');
-                wrapper.parentNode.insertBefore(img, wrapper);
-                wrapper.remove();
-            });
-
-            // Re-hide empty photo slots
-            body.querySelectorAll('img[data-was-hidden="true"]').forEach(img => {
-                if (!img.dataset.newSrc) {
-                    img.style.display = 'none';
-                }
-                delete img.dataset.wasHidden;
-            });
-
-            // Remove hero overlay
-            const heroOverlay = document.getElementById('heroEditOverlay');
-            if (heroOverlay) heroOverlay.remove();
-
-            // Reload content to discard unsaved changes
-            if (editingIsland) {
-                const island = islandData[editingIsland];
-                document.getElementById('islandModalBody').innerHTML = island.content;
-                if (Object.keys(cmsData).length) applyCmsToElements(cmsData);
-            }
-        }
-
-        function getEditableFields(islandKey) {
-            const prefix = 'pacific-' + islandKey;
-            const text = [];
-            const photos = [];
-
-            // Text fields — About, Contact, Support (and FSM has fsmContacts instead)
-            ['About', 'Contact', 'Contact2', 'Support'].forEach(suffix => {
-                const id = prefix + suffix;
-                if (document.getElementById(id)) text.push(id);
-            });
-            // FSM has a special contacts grid
-            if (islandKey === 'fsm') {
-                const fsmContacts = document.getElementById(prefix + 'Contacts');
-                if (fsmContacts) text.push(prefix + 'Contacts');
-            }
-
-            // Photo fields — Photo1-Photo9
-            for (let i = 1; i <= 9; i++) {
-                const id = prefix + 'Photo' + i;
-                if (document.getElementById(id)) photos.push(id);
-            }
-            // Contact photo (samoa, palau have these)
-            const contactPhoto = prefix + 'ContactPhoto';
-            if (document.getElementById(contactPhoto)) photos.push(contactPhoto);
-
-            return { text, photos };
-        }
-
-        function triggerPhotoUpload(fieldId) {
-            pendingUploadField = fieldId;
-            document.getElementById('photoUploadInput').click();
-        }
-
-        // Handle photo file selection
-        document.getElementById('photoUploadInput').addEventListener('change', async function(e) {
-            const file = e.target.files[0];
-            if (!file || !pendingUploadField) return;
-
-            if (file.size > 5 * 1024 * 1024) {
-                alert('File too large. Please choose an image under 5MB.');
-                return;
-            }
-
-            const fieldId = pendingUploadField;
-            const img = document.getElementById(fieldId);
-            pendingUploadField = null;
-            this.value = '';
-
-            try {
-                showToast('Uploading image...');
-
-                // Determine target size based on field type
-                let maxW = 800, maxH = 600, quality = 0.85;
-                if (fieldId.includes('Hero')) { maxW = 1200; maxH = 400; }
-                else if (fieldId.includes('ContactPhoto')) { maxW = 300; maxH = 300; }
-
-                const compressedBlob = await compressImage(file, maxW, maxH, quality);
-
-                // Upload to Firebase Storage
-                const path = 'pacific/' + editingIsland + '/' + fieldId.replace('pacific-', '') + '_' + Date.now() + '.jpg';
-                const ref = storage.ref(path);
-                await ref.put(compressedBlob);
-                const downloadUrl = await ref.getDownloadURL();
-
-                // Update the image immediately
-                img.src = downloadUrl;
-                img.style.display = '';
-                img.dataset.newSrc = downloadUrl;
-
-                // Update overlay text
-                const overlay = img.parentElement?.querySelector('.photo-edit-overlay span');
-                if (overlay) overlay.textContent = 'Change';
-
-                showToast('Image uploaded — click Save to keep changes');
-            } catch (err) {
-                console.error('Upload error:', err);
-                alert('Upload failed: ' + err.message);
-            }
-        });
-
-        function compressImage(file, maxWidth, maxHeight, quality) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const img = new Image();
-                    img.onload = function() {
-                        const canvas = document.createElement('canvas');
-                        let w = img.width, h = img.height;
-                        if (w > maxWidth) { h = h * maxWidth / w; w = maxWidth; }
-                        if (h > maxHeight) { w = w * maxHeight / h; h = maxHeight; }
-                        canvas.width = w;
-                        canvas.height = h;
-                        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                        canvas.toBlob(resolve, 'image/jpeg', quality);
-                    };
-                    img.onerror = reject;
-                    img.src = e.target.result;
-                };
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
-            });
-        }
-
-        async function saveIslandEdits() {
-            if (!editingIsland || !currentUser) return;
-
-            const saveBtn = document.getElementById('editSaveBtn');
-            saveBtn.disabled = true;
-            saveBtn.textContent = 'Saving...';
-
-            try {
-                const updates = {};
-                const fields = getEditableFields(editingIsland);
-
-                // Gather text changes
-                fields.text.forEach(fieldId => {
-                    const el = document.getElementById(fieldId);
-                    if (el) {
-                        const key = fieldId.replace('pacific-', '');
-                        updates[key] = el.innerHTML;
-                    }
-                });
-
-                // Gather photo changes (only changed ones)
-                fields.photos.forEach(fieldId => {
-                    const img = document.getElementById(fieldId);
-                    if (img && img.dataset.newSrc) {
-                        const key = fieldId.replace('pacific-', '');
-                        updates[key] = img.dataset.newSrc;
-                        delete img.dataset.newSrc;
-                    }
-                });
-
-                // Check hero image
-                const heroId = 'pacific-' + editingIsland + 'Hero';
-                const heroImg = document.getElementById(heroId);
-                if (heroImg && heroImg.dataset.newSrc) {
-                    updates[editingIsland + 'Hero'] = heroImg.dataset.newSrc;
-                    delete heroImg.dataset.newSrc;
-                }
-
-                if (Object.keys(updates).length === 0) {
-                    showToast('No changes to save');
-                    saveBtn.disabled = false;
-                    saveBtn.textContent = 'Save Changes';
-                    return;
-                }
-
-                updates.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
-                updates.updatedBy = currentUser.email;
-
-                await db.collection('pageContent').doc('pacific').set(updates, { merge: true });
-
-                // Update local cache
-                Object.assign(cmsData, updates);
-
-                cancelEdit();
-                showToast('Changes saved!');
-            } catch (err) {
-                console.error('Save error:', err);
-                alert('Error saving: ' + err.message);
-            } finally {
-                saveBtn.disabled = false;
-                saveBtn.textContent = 'Save Changes';
-            }
-        }
 
         function showToast(msg) {
             const existing = document.querySelector('.save-toast-pacific');
