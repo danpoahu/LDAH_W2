@@ -309,6 +309,15 @@ service cloud.firestore {
       allow write: if request.auth != null;
     }
 
+    // Workshop & Presentation form, one doc per event (2026-08-19). Staff read
+    // and write it; the Cloud Function watches it to move the task from Noe to
+    // the ED to Admin. Signed-in staff only — it carries venue contacts and
+    // travel arrangements, never anything public.
+    match /workshopForms/{eventId} {
+      allow read: if isStaff();
+      allow write: if isStaff();
+    }
+
     match /photoReleases/{docId} {
       allow read: if request.auth != null;
       allow write: if false; // Cloud Functions (Admin SDK) only
