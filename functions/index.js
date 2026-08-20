@@ -3470,6 +3470,7 @@ exports.onVolunteerApplicationCreated = functions
 
       const noteLines = [];
       if (data.email) noteLines.push(data.email);
+      if (data.phone) noteLines.push(data.phone);
       if (data.opportunityId) noteLines.push("Opportunity: " + data.opportunityId);
       if (data.subject) noteLines.push("\nApplicant message:\n" + data.subject);
       if (data.notes) noteLines.push("\nAdditional notes:\n" + data.notes);

@@ -828,6 +828,10 @@
             <input type="email" id="app-email" required>
           </div>
           <div class="form-group">
+            <label>Phone <span style="font-weight:400;color:var(--text-soft);">(optional)</span></label>
+            <input type="tel" id="app-phone" autocomplete="tel" placeholder="(808) 555-1234">
+          </div>
+          <div class="form-group">
             <label>Why are you interested? *</label>
             <textarea id="app-subject" rows="3" required></textarea>
           </div>
@@ -840,6 +844,10 @@
       `;
 
       modal.classList.add('active');
+
+      // Live (808) 555-1234 formatting on the optional phone field.
+      var appPhone = document.getElementById('app-phone');
+      if (appPhone && window.ldahAttachPhoneFormat) window.ldahAttachPhoneFormat(appPhone);
     }
 
     function closeModal() {
@@ -853,6 +861,7 @@
         firstName: document.getElementById('app-firstName').value,
         lastName: document.getElementById('app-lastName').value,
         email: document.getElementById('app-email').value,
+        phone: document.getElementById('app-phone').value.trim(),
         subject: document.getElementById('app-subject').value,
         notes: document.getElementById('app-notes').value || '',
         opportunityId: opportunityId,
