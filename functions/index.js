@@ -18204,7 +18204,7 @@ function _wpPackingHtml(ev, f) {
 
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:620px;margin:0 auto;color:#1d2b32;line-height:1.55;">
     <h2 style="color:#0e5f7a;font-size:1.3rem;margin:0 0 4px;">${esc(ev.title || "Event")}</h2>
-    <p style="margin:0 0 18px;color:#54666e;font-size:15px;">${esc(_wpFmtDate(f.eventDate || ev.startDate || ev.eventDate))}${f.island ? " · " + esc(f.island) : ""}</p>
+    <p style="margin:0 0 18px;color:#54666e;font-size:15px;">${esc(_wpFmtDate(String(ev.eventDate || "").slice(0, 10) || f.eventDate || ev.startDate))}${f.island ? " · " + esc(f.island) : ""}</p>
 
     <p style="margin:0 0 18px;font-size:15px;">You are down for this one. Here is what the Workshop &amp; Presentation form says, so you can pack from it.</p>
 
@@ -18268,12 +18268,27 @@ exports.sendWorkshopPackingLists = functions
       const f = doc.data() || {};
       if (!f.submittedAt) { skipped++; continue; }          // not filled in yet
       if (f.packingEmailSentAt) { skipped++; continue; }     // already gone out
-      if ((f.eventDate || "") !== targetISO) { skipped++; continue; }
 
       const evSnap = await db.collection("events").doc(doc.id).get();
       if (!evSnap.exists) { skipped++; continue; }
       const ev = evSnap.data() || {};
       if (ev.archived === true) { skipped++; continue; }
+
+      /* The EVENT owns its date; the form only carries a copy, and the two
+         drift. Molokai 'Ohana Movie Night sat at form eventDate 2026-07-24
+         against an event on 2026-08-28, so today+3 could never reach it and
+         the packing list would have failed silently, for ever. Match on the
+         event and keep the form's copy only as a fallback for the handful of
+         records that predate an eventDate on the event. */
+      const eventISO = String(ev.eventDate || "").slice(0, 10) || String(f.eventDate || "");
+      if (eventISO !== targetISO) {
+        // Say something when a submitted form is pointing at a date already
+        // gone by — that is the shape the silent failure took.
+        if (f.eventDate && f.eventDate !== eventISO) {
+          console.warn("packing list: form eventDate", f.eventDate, "disagrees with event", eventISO, "on", doc.id);
+        }
+        skipped++; continue;
+      }
 
       // Everyone going: the trainers named on the rows, plus the second person.
       const names = new Set();
@@ -18295,7 +18310,7 @@ exports.sendWorkshopPackingLists = functions
         await sendEmailViaResend({
           from: fromAddress,
           to: to,
-          subject: "What to bring — " + (ev.title || "your event") + " on " + _wpFmtDate(f.eventDate),
+          subject: "What to bring — " + (ev.title || "your event") + " on " + _wpFmtDate(eventISO),
           html: _wpPackingHtml(ev, f),
           type: "workshopPackingList",
           relatedEventId: doc.id,
