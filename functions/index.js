@@ -18126,6 +18126,194 @@ async function _lcRecurringSessionsWithSignups(db, eventId, todayKey) {
 // the authorisation date and raises Admin's booking task in the same write.
 // Without travel the chain simply stops after page 1.
 // ═══════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Workshop packing list — emailed to the presenter and the second staff member
+// a few days before an off-site event (2026-08-20).
+//
+// They are travelling to a venue with equipment and a contact to find, and the
+// form already holds every one of those answers. Rather than have them dig the
+// form out of the dashboard the morning they leave, it comes to them as a
+// checklist.
+//
+// Sent ONCE per event — packingEmailSentAt is the guard. Runs off the same 5 AM
+// schedule as the rest of the lifecycle work.
+// ═══════════════════════════════════════════════════════════════════════════
+const WORKSHOP_PACKING_DAYS_BEFORE = 3;
+
+function _wpFmtDate(iso) {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso + "T12:00:00");
+    return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  } catch (e) { return iso; }
+}
+
+// The form stores staff by NAME (it is filled from presenterStaff, which has no
+// uids), so an address has to be looked up by display name.
+async function _wpEmailForStaffName(db, name) {
+  const want = String(name || "").trim().toLowerCase();
+  if (!want) return null;
+  try {
+    const snap = await db.collection("userRoles").get();
+    let hit = null;
+    snap.forEach((d) => {
+      const x = d.data() || {};
+      if (!hit && String(x.displayName || "").trim().toLowerCase() === want) hit = x.email || null;
+    });
+    return hit;
+  } catch (e) { return null; }
+}
+
+function _wpPackingHtml(ev, f) {
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const row = (label, value) => value
+    ? `<tr><td style="padding:6px 12px 6px 0;color:#54666e;font-size:14px;white-space:nowrap;vertical-align:top;">${esc(label)}</td>
+           <td style="padding:6px 0;font-size:15px;color:#1d2b32;">${esc(value)}</td></tr>`
+    : "";
+
+  const kit = [];
+  if (f.eqLaptop) kit.push("Laptop");
+  if (f.eqProjector) kit.push("Projector");
+  if (f.eqCord) kit.push("Power cord");
+  if (f.eqStrip) kit.push("Power strip");
+  if (f.eqOther) kit.push(String(f.eqOther));
+  const kitHtml = kit.length
+    ? kit.map((k) => `<li style="margin:5px 0;font-size:15px;">${esc(k)}</li>`).join("")
+    : `<li style="margin:5px 0;font-size:15px;color:#8a939a;">Nothing was ticked on the form.</li>`;
+
+  const aud = [];
+  if (f.audParents) aud.push("Parents");
+  if (f.audProfessionals) aud.push("Professionals");
+  if (f.audStudents) aud.push("Students");
+  if (f.audOther) aud.push(String(f.audOther));
+
+  const sessions = (Array.isArray(f.rows) ? f.rows : [])
+    .filter((r) => r && r.workshop)
+    .map((r) => {
+      const bits = [r.day, r.date, [r.start, r.end].filter(Boolean).join("–")].filter(Boolean).join(" · ");
+      return `<li style="margin:5px 0;font-size:15px;"><b>${esc(r.workshop)}</b>${bits ? ` — ${esc(bits)}` : ""}${r.trainer ? ` · ${esc(r.trainer)}` : ""}</li>`;
+    }).join("");
+
+  const travel = [];
+  if (f.airlineTravel === "yes") travel.push("Airline travel — booked by Admin");
+  if (f.groundTransport === "rentacar") travel.push("Rental car — LDAH");
+  if (f.groundTransport === "agency") travel.push("Ground transport — the contact agency is providing it");
+  if (f.airDone) travel.push("Flights confirmed " + _wpFmtDate(f.airDone));
+  if (f.lodgeDone) travel.push("Lodging confirmed " + _wpFmtDate(f.lodgeDone));
+
+  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:620px;margin:0 auto;color:#1d2b32;line-height:1.55;">
+    <h2 style="color:#0e5f7a;font-size:1.3rem;margin:0 0 4px;">${esc(ev.title || "Event")}</h2>
+    <p style="margin:0 0 18px;color:#54666e;font-size:15px;">${esc(_wpFmtDate(f.eventDate || ev.startDate || ev.eventDate))}${f.island ? " · " + esc(f.island) : ""}</p>
+
+    <p style="margin:0 0 18px;font-size:15px;">You are down for this one. Here is what the Workshop &amp; Presentation form says, so you can pack from it.</p>
+
+    <h3 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.06em;color:#1490b4;margin:20px 0 6px;">What to bring</h3>
+    <ul style="margin:0 0 4px 20px;padding:0;">${kitHtml}</ul>
+
+    ${sessions ? `<h3 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.06em;color:#1490b4;margin:20px 0 6px;">Sessions</h3>
+    <ul style="margin:0 0 4px 20px;padding:0;">${sessions}</ul>` : ""}
+
+    <h3 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.06em;color:#1490b4;margin:20px 0 6px;">Where</h3>
+    <table style="border-collapse:collapse;margin:0 0 4px;">
+      ${row("Location", f.location || ev.location)}
+      ${row("Accessible", f.accessible === "yes" ? "Yes" : (f.accessible === "no" ? "No — alternate arrangements needed" : ""))}
+      ${row("Agency", f.agencyName)}
+      ${row("Contact", f.contactPerson)}
+      ${row("Phone", f.agencyPhone)}
+      ${row("Email", f.agencyEmail)}
+    </table>
+
+    <h3 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.06em;color:#1490b4;margin:20px 0 6px;">Who and how many</h3>
+    <table style="border-collapse:collapse;margin:0 0 4px;">
+      ${row("Audience", aud.join(", "))}
+      ${row("Anticipated", f.anticipated)}
+      ${row("Second staff member", f.secondPerson)}
+    </table>
+
+    ${travel.length ? `<h3 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.06em;color:#1490b4;margin:20px 0 6px;">Travel</h3>
+    <ul style="margin:0 0 4px 20px;padding:0;">${travel.map((t) => `<li style="margin:5px 0;font-size:15px;">${esc(t)}</li>`).join("")}</ul>` : ""}
+
+    ${f.comments ? `<h3 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.06em;color:#1490b4;margin:20px 0 6px;">Notes</h3>
+    <p style="margin:0 0 4px;font-size:15px;white-space:pre-wrap;">${esc(f.comments)}</p>` : ""}
+
+    <p style="margin:22px 0 0;font-size:13px;color:#54666e;">
+      Anything wrong or missing, open the event on the dashboard and edit the Workshop &amp; Presentation form.
+    </p>
+    <p style="margin:14px 0 0;font-size:13px;color:#54666e;">
+      Leadership in Disabilities and Achievement of Hawai&#699;i
+    </p>
+  </div>`;
+}
+
+exports.sendWorkshopPackingLists = functions
+  .runWith({ timeoutSeconds: 300, maxInstances: 1, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .pubsub.schedule("0 5 * * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const FieldValue = admin.firestore.FieldValue;
+    const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+
+    // The day we are aiming at, in HST.
+    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
+    const target = new Date(now);
+    target.setDate(target.getDate() + WORKSHOP_PACKING_DAYS_BEFORE);
+    const targetISO = target.toISOString().slice(0, 10);
+
+    let sent = 0, skipped = 0;
+    const forms = await db.collection("workshopForms").get();
+
+    for (const doc of forms.docs) {
+      const f = doc.data() || {};
+      if (!f.submittedAt) { skipped++; continue; }          // not filled in yet
+      if (f.packingEmailSentAt) { skipped++; continue; }     // already gone out
+      if ((f.eventDate || "") !== targetISO) { skipped++; continue; }
+
+      const evSnap = await db.collection("events").doc(doc.id).get();
+      if (!evSnap.exists) { skipped++; continue; }
+      const ev = evSnap.data() || {};
+      if (ev.archived === true) { skipped++; continue; }
+
+      // Everyone going: the trainers named on the rows, plus the second person.
+      const names = new Set();
+      (Array.isArray(f.rows) ? f.rows : []).forEach((r) => { if (r && r.trainer) names.add(String(r.trainer).trim()); });
+      if (f.secondPerson) names.add(String(f.secondPerson).trim());
+
+      const to = [];
+      for (const n of names) {
+        const addr = await _wpEmailForStaffName(db, n);
+        if (addr) to.push(addr);
+        else console.warn("packing list: no email for staff name", JSON.stringify(n), "on event", doc.id);
+      }
+      if (!to.length) {
+        console.warn("packing list: nobody to send to for event", doc.id);
+        skipped++; continue;
+      }
+
+      try {
+        await sendEmailViaResend({
+          from: fromAddress,
+          to: to,
+          subject: "What to bring — " + (ev.title || "your event") + " on " + _wpFmtDate(f.eventDate),
+          html: _wpPackingHtml(ev, f),
+          type: "workshopPackingList",
+          relatedEventId: doc.id,
+        });
+        await doc.ref.update({
+          packingEmailSentAt: FieldValue.serverTimestamp(),
+          packingEmailSentTo: to,
+        });
+        sent++;
+        console.log("packing list sent for", doc.id, "to", to.join(", "));
+      } catch (e) {
+        console.error("packing list failed for", doc.id, e.message);
+      }
+    }
+    console.log("sendWorkshopPackingLists: sent " + sent + ", skipped " + skipped + " (target " + targetISO + ")");
+    return null;
+  });
+
 exports.onWorkshopFormWritten = functions
   .runWith({ timeoutSeconds: 60, maxInstances: 10 })
   .firestore.document("workshopForms/{eventId}")
