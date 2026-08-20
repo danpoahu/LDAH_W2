@@ -17878,8 +17878,38 @@ const LIFECYCLE_CHANNELS = {
   sendAnnouncement: { channel: "Event Setup",   type: "Send Announcements" },
   presenterPrep:    { channel: "Event Prep",    type: "Present Event" },
   takeAttendance:   { channel: "Event Day",     type: "Take Attendance" },
-  eventSummary:     { channel: "Event Wrap-Up", type: "Event Summary" }
+  eventSummary:     { channel: "Event Wrap-Up", type: "Event Summary" },
+  // Workshop & Presentation form (2026-08-19). Replaces the paper form Noe
+  // fills for every off-site event. Three steps because the paper has three
+  // owners: Noe completes it, the ED authorises travel, Admin books it.
+  workshopForm:     { channel: "Event Setup",   type: "Workshop Form" },
+  workshopTravelOk: { channel: "Event Setup",   type: "Approve Travel" },
+  workshopTravel:   { channel: "Event Setup",   type: "Book Travel" }
 };
+
+// Event types where staff leave the office and pack equipment, so the Workshop
+// & Presentation form applies. Virtual and recurring programmes never do.
+const WORKSHOP_FORM_EVENT_TYPES = ["outreach_booth", "screening", "remote_signup"];
+
+// Noe Dela Vega — the form owner. Verified 2026-08-19 against userRoles
+// (displayName "Noelani Dela Vega", ndelavega@ldahawaii.org).
+const WORKSHOP_FORM_OWNER_UID = "lwn8EWt6XEbCg5rhM0f8OSy8nTj2";
+
+// Rosie Rowe — Executive Director, authorises travel on page 2 of the form.
+const WORKSHOP_TRAVEL_APPROVER_UID = "rorJEIUS4sX7jYgzqORK8G7iPdM2";
+
+function _wfEventType(ev) {
+  if (!ev) return "";
+  if (ev.eventType) return ev.eventType;
+  if (ev.specialEvent === true) {
+    return (ev.specialFormConfig && ev.specialFormConfig.screening === true) ? "screening" : "outreach_booth";
+  }
+  if (ev.remoteSignup === true) return "remote_signup";
+  return "";
+}
+function _wfNeedsForm(ev) {
+  return WORKSHOP_FORM_EVENT_TYPES.indexOf(_wfEventType(ev)) >= 0;
+}
 
 async function _lcResolveStaffName(db, uid) {
   if (!uid) return "";
@@ -18083,6 +18113,99 @@ async function _lcRecurringSessionsWithSignups(db, eventId, todayKey) {
   return Array.from(keys);
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Workshop & Presentation form — task hand-offs (2026-08-19)
+//
+// Mirrors the paper form's three owners:
+//   Noe completes page 1  ->  if travel is needed, the ED authorises  ->  Admin
+//   books the flights and lodging on page 2.
+//
+// The ED step is one click: Rosie's task carries an Approve button that stamps
+// the authorisation date and raises Admin's booking task in the same write.
+// Without travel the chain simply stops after page 1.
+// ═══════════════════════════════════════════════════════════════════════════
+exports.onWorkshopFormWritten = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 10 })
+  .firestore.document("workshopForms/{eventId}")
+  .onWrite(async (change, context) => {
+    const db = admin.firestore();
+    const FieldValue = admin.firestore.FieldValue;   // declared per-function in this file
+    const eventId = context.params.eventId;
+    const before = change.before.exists ? (change.before.data() || {}) : {};
+    const after = change.after.exists ? (change.after.data() || {}) : {};
+    if (!change.after.exists) return null;
+
+    const title = after.eventTitle || "(untitled event)";
+    const dueDate = after.eventDate || "";
+
+    // Travel is needed when the ED has to authorise a flight, or when LDAH is
+    // renting the car. "Contact agency to provide" needs no booking from us.
+    const needsTravel = after.airlineTravel === "yes" || after.groundTransport === "rentacar";
+    const wasSubmitted = before.submittedAt ? true : false;
+    const isSubmitted = after.submittedAt ? true : false;
+
+    // ── Noe submitted page 1 ──────────────────────────────────────────────
+    if (isSubmitted && !wasSubmitted) {
+      // close her form task
+      try {
+        const q = await db.collection("interactions")
+          .where("workflowEventId", "==", eventId)
+          .where("workflowStep", "==", "workshopForm")
+          .get();
+        const b = db.batch();
+        q.forEach((d) => {
+          if ((d.data() || {}).status !== "Closed") {
+            b.update(d.ref, {
+              status: "Closed",
+              updatedAt: FieldValue.serverTimestamp(),
+              caseAdvocacyClosedAt: FieldValue.delete()
+            });
+          }
+        });
+        await b.commit();
+      } catch (e) { console.warn("workshopForm: could not close the form task:", e.message); }
+
+      if (needsTravel) {
+        const approver = await _lcResolveStaffName(db, WORKSHOP_TRAVEL_APPROVER_UID);
+        await _lcCreateIfMissing(db, {
+          eventId, eventTitle: title, step: "workshopTravelOk", sessionKey: "",
+          ownerUid: WORKSHOP_TRAVEL_APPROVER_UID,
+          ownerName: approver || "Rosie Rowe",
+          dueDate
+        });
+      }
+      return null;
+    }
+
+    // ── ED approved: raise Admin's booking task ───────────────────────────
+    const justApproved = !before.edAuthorizedAt && after.edAuthorizedAt;
+    if (justApproved && needsTravel) {
+      try {
+        const q = await db.collection("interactions")
+          .where("workflowEventId", "==", eventId)
+          .where("workflowStep", "==", "workshopTravelOk")
+          .get();
+        const b = db.batch();
+        q.forEach((d) => {
+          if ((d.data() || {}).status !== "Closed") {
+            b.update(d.ref, { status: "Closed", updatedAt: FieldValue.serverTimestamp() });
+          }
+        });
+        await b.commit();
+      } catch (e) { console.warn("workshopForm: could not close the approval task:", e.message); }
+
+      const adminName = await _lcResolveStaffName(db, LIFECYCLE_ADMIN_UID);
+      await _lcCreateIfMissing(db, {
+        eventId, eventTitle: title, step: "workshopTravel", sessionKey: "",
+        ownerUid: LIFECYCLE_ADMIN_UID,
+        ownerName: adminName || "Maria Kashem",
+        dueDate
+      });
+    }
+    return null;
+  });
+
 exports.onEventCreatedLifecycle = functions
   .runWith({ timeoutSeconds: 60, maxInstances: 10 })
   .firestore.document("events/{eventId}")
@@ -18118,6 +18241,19 @@ exports.onEventCreatedLifecycle = functions
       eventId, eventTitle: title, step: "verifyDisplay", sessionKey: "",
       ownerUid: creatorUid, ownerName: creatorName, dueDate
     });
+
+    // 1b Workshop & Presentation form — off-site events only. Everything the
+    // flyer already gave us is prefilled when the form opens; this task exists
+    // for the parts only a person knows (venue, agency, equipment, travel).
+    if (_wfNeedsForm(ev)) {
+      const wfOwner = await _lcResolveStaffName(db, WORKSHOP_FORM_OWNER_UID);
+      await _lcCreateIfMissing(db, {
+        eventId, eventTitle: title, step: "workshopForm", sessionKey: "",
+        ownerUid: WORKSHOP_FORM_OWNER_UID,
+        ownerName: wfOwner || "Noelani Dela Vega",
+        dueDate
+      });
+    }
 
     // Seed setup tasks for the FIRST (earliest) date only: Assign Presenter
     // (La'a) + Send Announcements (creator). Later dates are DEFERRED — their
