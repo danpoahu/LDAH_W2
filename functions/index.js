@@ -18506,6 +18506,7 @@ exports.sendVolunteerHelpRequest = functions
     await reqRef.set({
       title: subject, date: String(d.date || ""), time: String(d.time || ""),
       location: String(d.location || ""), details: String(d.details || ""),
+      maxVolunteers: Math.max(0, parseInt(d.maxVolunteers, 10) || 0),
       body, signature: sig, status: "open",
       createdAt: FieldValue.serverTimestamp(),
       createdByUid: context.auth.uid, createdByName: (roleSnap.data() || {}).displayName || "",
@@ -18570,10 +18571,20 @@ exports.getVolunteerRequest = functions
       if (!reqSnap.exists) { res.status(404).json({ error: "This request no longer exists." }); return; }
       const r = reqSnap.data();
       const part = await db.collection("volunteerRequests").doc(reqId).collection("participants").doc(volunteerId).get();
+      const max = Number(r.maxVolunteers || 0);
+      let confirmedCount = 0;
+      if (max > 0) {
+        const conf = await db.collection("volunteerRequests").doc(reqId).collection("participants").where("confirmed", "==", true).get();
+        confirmedCount = conf.size;
+      }
+      const meConfirmed = part.exists ? (part.data().confirmed === true) : false;
       res.status(200).json({
         title: r.title || "", date: r.date || "", time: r.time || "", location: r.location || "", details: r.details || "",
         name: part.exists ? (part.data().name || "") : "",
-        confirmed: part.exists ? (part.data().confirmed === true) : false,
+        confirmed: meConfirmed,
+        waitlisted: part.exists ? (part.data().waitlisted === true) : false,
+        maxVolunteers: max, confirmedCount: confirmedCount,
+        isFull: max > 0 && confirmedCount >= max && !meConfirmed,
       });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
@@ -18593,11 +18604,27 @@ exports.confirmVolunteerHelp = functions
       const tok = await db.collection("volunteerConfirmTokens").doc(token).get();
       if (!tok.exists) { res.status(404).json({ error: "This link is no longer valid." }); return; }
       const { reqId, volunteerId } = tok.data();
-      const partRef = db.collection("volunteerRequests").doc(reqId).collection("participants").doc(volunteerId);
-      await partRef.set({ confirmed: true, confirmedAt: FieldValue.serverTimestamp() }, { merge: true });
-      const reqSnap = await db.collection("volunteerRequests").doc(reqId).get();
+      const reqRef = db.collection("volunteerRequests").doc(reqId);
+      const partRef = reqRef.collection("participants").doc(volunteerId);
+      // Transaction so a cap can't be over-filled by simultaneous clicks.
+      const outcome = await db.runTransaction(async (tx) => {
+        const partDoc = await tx.get(partRef);
+        if (partDoc.exists && partDoc.data().confirmed === true) return { status: "confirmed" };
+        const reqDoc = await tx.get(reqRef);
+        const max = reqDoc.exists ? Number(reqDoc.data().maxVolunteers || 0) : 0;
+        if (max > 0) {
+          const conf = await tx.get(reqRef.collection("participants").where("confirmed", "==", true));
+          if (conf.size >= max) {
+            tx.set(partRef, { waitlisted: true, waitlistedAt: FieldValue.serverTimestamp() }, { merge: true });
+            return { status: "waitlisted" };
+          }
+        }
+        tx.set(partRef, { confirmed: true, confirmedAt: FieldValue.serverTimestamp(), waitlisted: false }, { merge: true });
+        return { status: "confirmed" };
+      });
+      const reqSnap = await reqRef.get();
       const r = reqSnap.exists ? reqSnap.data() : {};
-      res.status(200).json({ ok: true, title: r.title || "", date: r.date || "", time: r.time || "", location: r.location || "" });
+      res.status(200).json({ ok: true, status: outcome.status, title: r.title || "", date: r.date || "", time: r.time || "", location: r.location || "" });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 

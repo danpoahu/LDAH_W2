@@ -62,6 +62,13 @@
       detailRows(r)+
       '<p class="muted">See you there! If anything changes, just reply to the email we sent you.</p>';
   }
+  function renderWaitlisted(r){
+    body.innerHTML = '<div class="ok"><div class="check" style="background:#FEF3C7;color:#B45309;">&#9733;</div>'+
+      '<h2>Mahalo for offering!</h2>'+
+      '<p class="greet">We&rsquo;ve already had enough volunteers for <b>'+esc(r.title||'this one')+'</b> &mdash; but we&rsquo;ve noted your interest and will reach out if a spot opens up.</p></div>'+
+      detailRows(r)+
+      '<p class="muted">You&rsquo;re on our list. No need to do anything else &mdash; we&rsquo;ll be in touch if there&rsquo;s a cancellation.</p>';
+  }
   function fail(msg){ body.innerHTML = '<div class="err">'+esc(msg||'This link is no longer valid.')+'</div>'; }
 
   if(!token){ fail('This link is missing its code. Please use the button in your email.'); }
@@ -72,18 +79,24 @@
         if(!res.ok){ fail(res.j&&res.j.error); return; }
         var r=res.j;
         if(r.confirmed){ renderConfirmed(r); return; }
+        if(r.waitlisted){ renderWaitlisted(r); return; }
+        var full = r.isFull === true;
         body.innerHTML =
           '<h2>'+esc(r.title||'We need your help')+'</h2>'+
-          '<p class="greet">Aloha'+(r.name?' '+esc(r.name.split(' ')[0]):'')+' &mdash; can you help us with this?</p>'+
+          '<p class="greet">Aloha'+(r.name?' '+esc(r.name.split(' ')[0]):'')+(full?' &mdash; thank you for offering to help!':' &mdash; can you help us with this?')+'</p>'+
+          (full?'<div class="details" style="background:#FFFBEB;border-color:#FDE68A;color:#92580a;">We&rsquo;ve already had enough volunteers for this one. Add yourself to the waitlist and we&rsquo;ll reach out if a spot opens up.</div>':'')+
           detailRows(r)+
-          '<button class="btn" id="confirmBtn">Yes, I can help</button>'+
-          '<p class="muted">Clicking confirms you&rsquo;ll be there. You can reply to our email with any questions.</p>';
+          '<button class="btn" id="confirmBtn">'+(full?'Add me to the waitlist':'Yes, I can help')+'</button>'+
+          '<p class="muted">'+(full?'We&rsquo;ll let you know of any cancellations.':'Clicking confirms you&rsquo;ll be there. You can reply to our email with any questions.')+'</p>';
         document.getElementById('confirmBtn').addEventListener('click', function(){
-          var b=this; b.disabled=true; b.textContent='Confirming…';
+          var b=this; b.disabled=true; b.textContent=full?'Adding…':'Confirming…';
           fetch(POST,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:token})})
             .then(function(r){ return r.json().then(function(j){ return {ok:r.ok,j:j}; }); })
-            .then(function(res){ if(res.ok){ renderConfirmed(res.j); } else { b.disabled=false; b.textContent='Yes, I can help'; fail(res.j&&res.j.error); } })
-            .catch(function(){ b.disabled=false; b.textContent='Yes, I can help'; fail('Something went wrong. Please try again.'); });
+            .then(function(res){
+              if(res.ok){ if(res.j.status==='waitlisted'){ renderWaitlisted(res.j); } else { renderConfirmed(res.j); } }
+              else { b.disabled=false; b.textContent=full?'Add me to the waitlist':'Yes, I can help'; fail(res.j&&res.j.error); }
+            })
+            .catch(function(){ b.disabled=false; b.textContent=full?'Add me to the waitlist':'Yes, I can help'; fail('Something went wrong. Please try again.'); });
         });
       })
       .catch(function(){ fail('Could not load this request. Please try again later.'); });
