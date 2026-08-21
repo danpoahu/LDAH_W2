@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Volunteer — Confirm You Can Help | LDAH</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{ --ocean:#0e5f7a; --ocean2:#1490b4; --coral:#F97316; }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#eef6f8,#f7fbfc);font-family:'Source Sans 3',sans-serif;color:#1d2b32;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:22px;}
+  .card{background:#fff;border-radius:18px;box-shadow:0 18px 50px rgba(14,95,122,.18);max-width:520px;width:100%;overflow:hidden;}
+  .head{background:linear-gradient(135deg,var(--ocean),var(--ocean2));color:#fff;padding:26px 26px 22px;text-align:center;}
+  .head img{width:64px;height:64px;background:#fff;border-radius:14px;padding:6px;object-fit:contain;margin-bottom:10px;}
+  .head h1{font-family:'Outfit',sans-serif;font-weight:800;font-size:1.35rem;margin:0;}
+  .body{padding:26px;}
+  h2{font-family:'Outfit',sans-serif;color:var(--ocean);font-size:1.15rem;margin:0 0 6px;}
+  .greet{color:#54666e;margin:0 0 16px;}
+  .details{background:#f6fafb;border:1px solid #d8e6ea;border-radius:12px;padding:14px 16px;margin:0 0 20px;}
+  .details .row{display:flex;gap:10px;padding:5px 0;font-size:.95rem;}
+  .details .row b{font-family:'Outfit',sans-serif;color:#54666e;min-width:78px;}
+  .btn{display:block;width:100%;border:0;border-radius:12px;font-family:'Outfit',sans-serif;font-weight:800;font-size:1.05rem;padding:15px;cursor:pointer;color:#fff;background:linear-gradient(135deg,var(--coral),#FB923C);box-shadow:0 8px 22px rgba(249,115,22,.35);}
+  .btn:disabled{opacity:.6;cursor:default;}
+  .ok{text-align:center;padding:10px 0;}
+  .ok .check{width:64px;height:64px;border-radius:50%;background:#DCFCE7;color:#15803D;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:2rem;}
+  .muted{color:#8a939a;font-size:.85rem;text-align:center;margin-top:16px;}
+  .err{color:#B91C1C;background:#FEE2E2;border-radius:10px;padding:12px 14px;font-size:.92rem;}
+  .spin{width:34px;height:34px;border:4px solid #d8e6ea;border-top-color:var(--ocean2);border-radius:50%;animation:sp 1s linear infinite;margin:30px auto;}
+  @keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="head">
+    <img src="assets/logo_transparent.png" alt="LDAH" onerror="this.style.display='none'">
+    <h1>Volunteer Help Request</h1>
+  </div>
+  <div class="body" id="body">
+    <div class="spin"></div>
+  </div>
+</div>
+<script>
+  var GET = 'https://us-central1-ldah-932d5.cloudfunctions.net/getVolunteerRequest';
+  var POST = 'https://us-central1-ldah-932d5.cloudfunctions.net/confirmVolunteerHelp';
+  var token = new URLSearchParams(location.search).get('token') || '';
+  var body = document.getElementById('body');
+  var esc = function(s){ var d=document.createElement('div'); d.textContent=s==null?'':s; return d.innerHTML; };
+
+  function detailRows(r){
+    var rows='';
+    if(r.date) rows+='<div class="row"><b>Date</b><span>'+esc(r.date)+'</span></div>';
+    if(r.time) rows+='<div class="row"><b>Time</b><span>'+esc(r.time)+'</span></div>';
+    if(r.location) rows+='<div class="row"><b>Location</b><span>'+esc(r.location)+'</span></div>';
+    if(r.details) rows+='<div class="row"><b>Details</b><span>'+esc(r.details)+'</span></div>';
+    return rows ? '<div class="details">'+rows+'</div>' : '';
+  }
+  function renderConfirmed(r){
+    body.innerHTML = '<div class="ok"><div class="check">&#10003;</div>'+
+      '<h2>You&rsquo;re confirmed &mdash; mahalo!</h2>'+
+      '<p class="greet">We&rsquo;ve got you down to help with <b>'+esc(r.title||'this event')+'</b>.</p></div>'+
+      detailRows(r)+
+      '<p class="muted">See you there! If anything changes, just reply to the email we sent you.</p>';
+  }
+  function fail(msg){ body.innerHTML = '<div class="err">'+esc(msg||'This link is no longer valid.')+'</div>'; }
+
+  if(!token){ fail('This link is missing its code. Please use the button in your email.'); }
+  else {
+    fetch(GET,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:token})})
+      .then(function(r){ return r.json().then(function(j){ return {ok:r.ok,j:j}; }); })
+      .then(function(res){
+        if(!res.ok){ fail(res.j&&res.j.error); return; }
+        var r=res.j;
+        if(r.confirmed){ renderConfirmed(r); return; }
+        body.innerHTML =
+          '<h2>'+esc(r.title||'We need your help')+'</h2>'+
+          '<p class="greet">Aloha'+(r.name?' '+esc(r.name.split(' ')[0]):'')+' &mdash; can you help us with this?</p>'+
+          detailRows(r)+
+          '<button class="btn" id="confirmBtn">Yes, I can help</button>'+
+          '<p class="muted">Clicking confirms you&rsquo;ll be there. You can reply to our email with any questions.</p>';
+        document.getElementById('confirmBtn').addEventListener('click', function(){
+          var b=this; b.disabled=true; b.textContent='Confirming…';
+          fetch(POST,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:token})})
+            .then(function(r){ return r.json().then(function(j){ return {ok:r.ok,j:j}; }); })
+            .then(function(res){ if(res.ok){ renderConfirmed(res.j); } else { b.disabled=false; b.textContent='Yes, I can help'; fail(res.j&&res.j.error); } })
+            .catch(function(){ b.disabled=false; b.textContent='Yes, I can help'; fail('Something went wrong. Please try again.'); });
+        });
+      })
+      .catch(function(){ fail('Could not load this request. Please try again later.'); });
+  }
+</script>
+</body>
+</html>

@@ -18155,6 +18155,21 @@ const WORKSHOP_PACKING_DAYS_BEFORE = 3;
 // confirmation when the packing lists reach the presenter and second staff.
 const WORKSHOP_PACKING_CONFIRM_EMAIL = "ndelavega@ldahawaii.org";
 
+// Append-only audit trail on a single Workshop & Presentation form. Never
+// emailed; the Firestore rule forbids editing or deleting an entry. The Admin
+// SDK bypasses rules, so these server writes always land. Best-effort. (2026-08-21)
+async function logWorkshopActivity(db, eventId, what, detail) {
+  if (!eventId) return;
+  try {
+    await db.collection("workshopForms").doc(eventId).collection("activity").add({
+      at: admin.firestore.FieldValue.serverTimestamp(),
+      who: "System",
+      what: String(what || ""),
+      detail: String(detail || ""),
+    });
+  } catch (e) { console.warn("workshop activity log failed for", eventId, e.message); }
+}
+
 function _wpFmtDate(iso) {
   if (!iso) return "";
   try {
@@ -18335,6 +18350,7 @@ exports.sendWorkshopPackingLists = functions
         });
         sent++;
         console.log("packing list sent for", doc.id, "to", to.join(", "));
+        await logWorkshopActivity(db, doc.id, "Email sent", "Packing list to " + [...names].join(", "));
 
         // Confirmation to Noe (she fills the form): the presenter and second
         // staff have their packing lists. Best-effort — never fail the run.
@@ -18362,6 +18378,7 @@ exports.sendWorkshopPackingLists = functions
             relatedEventId: doc.id,
           });
           console.log("packing confirmation sent to Noe for", doc.id);
+          await logWorkshopActivity(db, doc.id, "Email sent", "Confirmation to Noelani Dela Vega");
         } catch (e) { console.warn("packing confirmation to Noe failed for", doc.id, e.message); }
       } catch (e) {
         console.error("packing list failed for", doc.id, e.message);
@@ -18369,6 +18386,219 @@ exports.sendWorkshopPackingLists = functions
     }
     console.log("sendWorkshopPackingLists: sent " + sent + ", skipped " + skipped + " (target " + targetISO + ")");
     return null;
+  });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Email the volunteer roster — staff compose a message + signature, it goes BCC
+// to every ACCEPTED, non-archived volunteer. Sent through sendEmailViaResend so
+// it lands in emailLog like any other message. The client never supplies the
+// recipient list — the server derives it from the volunteers collection, so the
+// endpoint can only ever email the org's own accepted volunteers, never an
+// arbitrary address. (2026-08-21)
+// ═══════════════════════════════════════════════════════════════════════════
+exports.emailVolunteerRoster = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 3, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Please sign in.");
+    const db = admin.firestore();
+    const roleSnap = await db.collection("userRoles").doc(context.auth.uid).get();
+    const role = roleSnap.exists ? (roleSnap.data().role || "") : "";
+    if (["superAdmin", "admin", "webAdmin", "appAdmin"].indexOf(role) === -1) {
+      throw new functions.https.HttpsError("permission-denied", "Only staff who manage volunteers can send this.");
+    }
+
+    const subject = String((data || {}).subject || "").trim();
+    const bodyText = String((data || {}).body || "").trim();
+    const sigText = String((data || {}).signature || "").trim();
+    if (!subject) throw new functions.https.HttpsError("invalid-argument", "A subject is required.");
+    if (!bodyText) throw new functions.https.HttpsError("invalid-argument", "A message is required.");
+
+    // Recipients: accepted, non-archived volunteers with an email. Always
+    // server-derived, so only real accepted volunteers can ever be emailed.
+    // An optional `ids` list narrows it to a selection (e.g. one opportunity),
+    // but any id that is not an accepted volunteer is simply ignored.
+    const wantIds = Array.isArray((data || {}).ids) ? (data.ids).map(String) : null;
+    const snap = await db.collection("volunteers").where("status", "==", "accepted").get();
+    const emails = [];
+    snap.forEach((d) => {
+      const v = d.data() || {};
+      if (v.archived === true) return;
+      if (wantIds && wantIds.indexOf(d.id) === -1) return;
+      const e = String(v.email || "").trim();
+      if (e && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && emails.indexOf(e) === -1) emails.push(e);
+    });
+    if (!emails.length) return { sent: 0, message: "No accepted volunteers have an email on file." };
+
+    const esc = (x) => String(x == null ? "" : x).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const bodyHtml = esc(bodyText).replace(/\n/g, "<br>");
+    const sigHtml = sigText ? '<div style="margin-top:22px;color:#54666e;">' + esc(sigText).replace(/\n/g, "<br>") + "</div>" : "";
+    const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1d2b32;line-height:1.6;max-width:600px;">' + bodyHtml + sigHtml + "</div>";
+
+    const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+    // BCC blast: the visible To is the org's own address; everyone else is BCC,
+    // so volunteers never see each other's addresses.
+    await sendEmailViaResend({
+      from: `LDAH <${fromAddress}>`,
+      to: [fromAddress],
+      bcc: emails,
+      subject,
+      html,
+      type: "volunteerRosterEmail",
+    });
+    console.log("emailVolunteerRoster: sent to", emails.length, "volunteers by", context.auth.uid);
+    return { sent: emails.length };
+  });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VOLUNTEER HELP REQUESTS (2026-08-21)
+// A staff member emails selected accepted volunteers a "we need help" ask. The
+// email SUBJECT is the request title, and it carries the date/time/location/
+// details plus a tokenised "Yes, I can help" link. Multiple requests can run at
+// once; each is its own doc with its own participant list. Confirmations and
+// attendance are tracked per request; attendance later logs to the volunteer's
+// contact (the source of truth) from the -Int client.
+// ═══════════════════════════════════════════════════════════════════════════
+const VOLUNTEER_CONFIRM_BASE_URL = "https://www.ldahawaii.org/volunteer-confirm.html";
+const VOLUNTEER_CONFIRM_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
+
+function _volEventDetailsHtml(r) {
+  const esc = (x) => String(x == null ? "" : x).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const row = (label, val) => val ? '<tr><td style="padding:4px 14px 4px 0;color:#54666e;font-size:14px;white-space:nowrap;vertical-align:top;">' + esc(label) + '</td><td style="padding:4px 0;font-size:15px;color:#1d2b32;">' + esc(val) + "</td></tr>" : "";
+  const rows = row("Date", r.date) + row("Time", r.time) + row("Location", r.location) + row("Details", r.details);
+  if (!rows) return "";
+  return '<table style="border-collapse:collapse;margin:6px 0 4px;background:#f6fafb;border:1px solid #d8e6ea;border-radius:8px;padding:6px;">' + rows + "</table>";
+}
+
+exports.sendVolunteerHelpRequest = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 3, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Please sign in.");
+    const db = admin.firestore();
+    const FieldValue = admin.firestore.FieldValue;
+    const roleSnap = await db.collection("userRoles").doc(context.auth.uid).get();
+    const role = roleSnap.exists ? (roleSnap.data().role || "") : "";
+    if (["superAdmin", "admin", "webAdmin", "appAdmin"].indexOf(role) === -1) {
+      throw new functions.https.HttpsError("permission-denied", "Only staff who manage volunteers can send this.");
+    }
+
+    const d = data || {};
+    const subject = String(d.subject || "").trim();     // = the request title
+    const body = String(d.body || "").trim();
+    const sig = String(d.signature || "").trim();
+    if (!subject) throw new functions.https.HttpsError("invalid-argument", "A subject (the request title) is required.");
+    if (!body) throw new functions.https.HttpsError("invalid-argument", "A message is required.");
+
+    const wantIds = Array.isArray(d.ids) ? d.ids.map(String) : null;
+    const snap = await db.collection("volunteers").where("status", "==", "accepted").get();
+    const targets = [];
+    snap.forEach((doc) => {
+      const v = doc.data() || {};
+      if (v.archived === true) return;
+      if (wantIds && wantIds.indexOf(doc.id) === -1) return;
+      const e = String(v.email || "").trim();
+      if (!e || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return;
+      targets.push({ id: doc.id, name: [v.firstName, v.lastName].filter(Boolean).join(" ") || e, email: e, opportunityId: v.opportunityId || "" });
+    });
+    if (!targets.length) return { sent: 0, requestId: null, message: "No accepted volunteers with an email to send to." };
+
+    // Create the request
+    const reqRef = db.collection("volunteerRequests").doc();
+    await reqRef.set({
+      title: subject, date: String(d.date || ""), time: String(d.time || ""),
+      location: String(d.location || ""), details: String(d.details || ""),
+      body, signature: sig, status: "open",
+      createdAt: FieldValue.serverTimestamp(),
+      createdByUid: context.auth.uid, createdByName: (roleSnap.data() || {}).displayName || "",
+      invitedCount: targets.length,
+    });
+
+    const esc = (x) => String(x == null ? "" : x).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const detailsHtml = _volEventDetailsHtml(d);
+    const bodyHtml = esc(body).replace(/\n/g, "<br>");
+    const sigHtml = sig ? '<div style="margin-top:20px;color:#54666e;">' + esc(sig).replace(/\n/g, "<br>") + "</div>" : "";
+    const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+    let sent = 0;
+
+    for (const t of targets) {
+      const token = crypto.randomBytes(16).toString("hex");
+      const partRef = reqRef.collection("participants").doc(t.id);
+      await partRef.set({
+        volunteerId: t.id, name: t.name, email: t.email, opportunityId: t.opportunityId,
+        invitedAt: FieldValue.serverTimestamp(), confirmed: false, confirmedAt: null,
+        attended: false, attendedAt: null, contactId: null, token,
+      });
+      await db.collection("volunteerConfirmTokens").doc(token).set({
+        reqId: reqRef.id, volunteerId: t.id,
+        expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + VOLUNTEER_CONFIRM_TTL_MS),
+      });
+      const link = VOLUNTEER_CONFIRM_BASE_URL + "?token=" + encodeURIComponent(token);
+      const html =
+        '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1d2b32;line-height:1.6;max-width:600px;">'
+        + bodyHtml + detailsHtml
+        + '<div style="margin:22px 0 6px;"><a href="' + esc(link) + '" style="display:inline-block;background:#0e5f7a;color:#fff;text-decoration:none;font-weight:700;font-size:16px;padding:12px 26px;border-radius:8px;">Yes, I can help</a></div>'
+        + '<p style="margin:6px 0 0;font-size:12px;color:#8a939a;">Or paste this link into your browser: <a href="' + esc(link) + '" style="color:#9ca3af;">' + esc(link) + "</a></p>"
+        + sigHtml + "</div>";
+      try {
+        await sendEmailViaResend({ from: `LDAH <${fromAddress}>`, to: [t.email], subject, html, type: "volunteerHelpRequest" });
+        sent++;
+      } catch (e) { console.error("volunteer help request send failed for", t.email, e.message); }
+    }
+    await reqRef.update({ sentCount: sent });
+    return { sent, requestId: reqRef.id };
+  });
+
+function _volCors(res) {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+}
+
+// Public (token) — details for the confirm page to show what's being asked.
+exports.getVolunteerRequest = functions
+  .runWith({ timeoutSeconds: 20, maxInstances: 5 })
+  .https.onRequest(async (req, res) => {
+    _volCors(res);
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    const token = String((req.body || {}).token || req.query.token || "").trim();
+    if (!token) { res.status(400).json({ error: "Missing token." }); return; }
+    try {
+      const db = admin.firestore();
+      const tok = await db.collection("volunteerConfirmTokens").doc(token).get();
+      if (!tok.exists) { res.status(404).json({ error: "This link is no longer valid." }); return; }
+      const { reqId, volunteerId } = tok.data();
+      const reqSnap = await db.collection("volunteerRequests").doc(reqId).get();
+      if (!reqSnap.exists) { res.status(404).json({ error: "This request no longer exists." }); return; }
+      const r = reqSnap.data();
+      const part = await db.collection("volunteerRequests").doc(reqId).collection("participants").doc(volunteerId).get();
+      res.status(200).json({
+        title: r.title || "", date: r.date || "", time: r.time || "", location: r.location || "", details: r.details || "",
+        name: part.exists ? (part.data().name || "") : "",
+        confirmed: part.exists ? (part.data().confirmed === true) : false,
+      });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+// Public (token) — the volunteer confirms they can help.
+exports.confirmVolunteerHelp = functions
+  .runWith({ timeoutSeconds: 20, maxInstances: 5 })
+  .https.onRequest(async (req, res) => {
+    _volCors(res);
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    const token = String((req.body || {}).token || "").trim();
+    if (!token) { res.status(400).json({ error: "Missing token." }); return; }
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const tok = await db.collection("volunteerConfirmTokens").doc(token).get();
+      if (!tok.exists) { res.status(404).json({ error: "This link is no longer valid." }); return; }
+      const { reqId, volunteerId } = tok.data();
+      const partRef = db.collection("volunteerRequests").doc(reqId).collection("participants").doc(volunteerId);
+      await partRef.set({ confirmed: true, confirmedAt: FieldValue.serverTimestamp() }, { merge: true });
+      const reqSnap = await db.collection("volunteerRequests").doc(reqId).get();
+      const r = reqSnap.exists ? reqSnap.data() : {};
+      res.status(200).json({ ok: true, title: r.title || "", date: r.date || "", time: r.time || "", location: r.location || "" });
+    } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
 exports.onWorkshopFormWritten = functions
@@ -18414,12 +18644,13 @@ exports.onWorkshopFormWritten = functions
 
       if (needsTravel) {
         const approver = await _lcResolveStaffName(db, WORKSHOP_TRAVEL_APPROVER_UID);
-        await _lcCreateIfMissing(db, {
+        const _tOk = await _lcCreateIfMissing(db, {
           eventId, eventTitle: title, step: "workshopTravelOk", sessionKey: "",
           ownerUid: WORKSHOP_TRAVEL_APPROVER_UID,
           ownerName: approver || "Rosie Rowe",
           dueDate
         });
+        if (_tOk) await logWorkshopActivity(db, eventId, "Task sent", "Authorise travel \u2192 " + (approver || "Rosie Rowe"));
       }
       return null;
     }
@@ -18442,12 +18673,13 @@ exports.onWorkshopFormWritten = functions
       } catch (e) { console.warn("workshopForm: could not close the approval task:", e.message); }
 
       const adminName = await _lcResolveStaffName(db, LIFECYCLE_ADMIN_UID);
-      await _lcCreateIfMissing(db, {
+      const _tBook = await _lcCreateIfMissing(db, {
         eventId, eventTitle: title, step: "workshopTravel", sessionKey: "",
         ownerUid: LIFECYCLE_ADMIN_UID,
         ownerName: adminName || "Maria Kashem",
         dueDate
       });
+      if (_tBook) await logWorkshopActivity(db, eventId, "Task sent", "Book travel \u2192 " + (adminName || "Maria Kashem"));
     }
     return null;
   });
@@ -18493,12 +18725,13 @@ exports.onEventCreatedLifecycle = functions
     // for the parts only a person knows (venue, agency, equipment, travel).
     if (_wfNeedsForm(ev)) {
       const wfOwner = await _lcResolveStaffName(db, WORKSHOP_FORM_OWNER_UID);
-      await _lcCreateIfMissing(db, {
+      const _tForm = await _lcCreateIfMissing(db, {
         eventId, eventTitle: title, step: "workshopForm", sessionKey: "",
         ownerUid: WORKSHOP_FORM_OWNER_UID,
         ownerName: wfOwner || "Noelani Dela Vega",
         dueDate
       });
+      if (_tForm) await logWorkshopActivity(db, eventId, "Task sent", "Fill in the Workshop form \u2192 " + (wfOwner || "Noelani Dela Vega"));
     }
 
     // Seed setup tasks for the FIRST (earliest) date only: Assign Presenter
