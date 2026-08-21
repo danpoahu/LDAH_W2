@@ -13404,6 +13404,17 @@ exports.requestPrefillCode = functions
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }
     if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
 
+    /* RETIRED 2026-08-20. The OTP-by-email pre-fill was replaced 2026-06-01 by
+       a silent on-blur lookup (getContactForPrefill) that emails nobody. This
+       endpoint's only remaining callers are STALE CACHED copies of events.html
+       still holding the old button — a stale cache is exactly what fired a
+       "verification code" email months after retirement. Short-circuit before
+       any code is generated or mailed. Returns ok:true to preserve the
+       anti-enumeration contract the old client expected. */
+    res.status(200).json({ ok: true, retired: true });
+    return;
+
+    // eslint-disable-next-line no-unreachable
     const email = String((req.body || {}).email || "").trim().toLowerCase();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       // Bad input — still return ok to avoid leaking format checks.
