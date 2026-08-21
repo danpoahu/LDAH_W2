@@ -18151,6 +18151,9 @@ async function _lcRecurringSessionsWithSignups(db, eventId, todayKey) {
 // schedule as the rest of the lifecycle work.
 // ═══════════════════════════════════════════════════════════════════════════
 const WORKSHOP_PACKING_DAYS_BEFORE = 3;
+// Noelani Dela Vega fills the Workshop & Presentation form, so she gets a
+// confirmation when the packing lists reach the presenter and second staff.
+const WORKSHOP_PACKING_CONFIRM_EMAIL = "ndelavega@ldahawaii.org";
 
 function _wpFmtDate(iso) {
   if (!iso) return "";
@@ -18332,6 +18335,34 @@ exports.sendWorkshopPackingLists = functions
         });
         sent++;
         console.log("packing list sent for", doc.id, "to", to.join(", "));
+
+        // Confirmation to Noe (she fills the form): the presenter and second
+        // staff have their packing lists. Best-effort — never fail the run.
+        try {
+          const escH = (x) => String(x == null ? "" : x).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+          const presenters = [...new Set((Array.isArray(f.rows) ? f.rows : [])
+            .map((r) => (r && r.trainer ? String(r.trainer).trim() : "")).filter(Boolean))];
+          const secondP = f.secondPerson ? String(f.secondPerson).trim() : "";
+          const li = (presenters.length ? "<li><b>Presenter" + (presenters.length > 1 ? "s" : "") + ":</b> " + presenters.map(escH).join(", ") + "</li>" : "")
+                   + (secondP ? "<li><b>Second staff:</b> " + escH(secondP) + "</li>" : "");
+          const noeHtml =
+            '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;color:#1d2b32;line-height:1.55;">'
+            + '<h2 style="color:#0e5f7a;font-size:1.2rem;margin:0 0 4px;">Packing lists sent</h2>'
+            + '<p style="margin:0 0 14px;color:#54666e;font-size:15px;">' + escH(ev.title || "Event") + " \u2014 " + escH(_wpFmtDate(eventISO)) + "</p>"
+            + '<p style="margin:0 0 8px;font-size:15px;">The &ldquo;What to bring&rdquo; checklist has gone out to:</p>'
+            + '<ul style="margin:0 0 12px 20px;padding:0;font-size:15px;">' + li + "</ul>"
+            + '<p style="margin:0;font-size:13px;color:#54666e;">Delivered to: ' + to.map(escH).join(", ") + "</p>"
+            + '<p style="margin:14px 0 0;font-size:13px;color:#54666e;">Leadership in Disabilities and Achievement of Hawai&#699;i</p></div>';
+          await sendEmailViaResend({
+            from: fromAddress,
+            to: [WORKSHOP_PACKING_CONFIRM_EMAIL],
+            subject: "Packing lists sent \u2014 " + (ev.title || "your event"),
+            html: noeHtml,
+            type: "workshopPackingConfirmation",
+            relatedEventId: doc.id,
+          });
+          console.log("packing confirmation sent to Noe for", doc.id);
+        } catch (e) { console.warn("packing confirmation to Noe failed for", doc.id, e.message); }
       } catch (e) {
         console.error("packing list failed for", doc.id, e.message);
       }
