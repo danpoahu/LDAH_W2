@@ -308,19 +308,36 @@
             cb(pool);
         }).catch(function () { cb([]); });
     }
-    // Pinned first, otherwise the first not-yet-dismissed item. Returns null once
-    // the visitor has dismissed every ticked item (no popup rather than nagging).
+    // Show each rotation flyer up to POPUP_VIEW_CAP times per browser, then stop.
+    // Fewest-views-first so ticked flyers ALTERNATE (A, B, A, B) rather than
+    // repeat back-to-back; pinned breaks ties. Counts live in one localStorage
+    // map. Returns null once every flyer has hit its cap. (2026-08-23)
+    var POPUP_VIEW_CAP = 2;
+    var VIEWS_KEY = 'll_popup_views';
+    function _views() { try { return JSON.parse(localStorage.getItem(VIEWS_KEY) || '{}'); } catch (e) { return {}; } }
+    function viewCount(k) { return +(_views()[k] || 0); }
+    function bumpView(k) { try { var v = _views(); v[k] = viewCount(k) + 1; localStorage.setItem(VIEWS_KEY, JSON.stringify(v)); } catch (e) {} }
     function pickRotation(pool) {
-        var unseen = pool.filter(function (c) { return !flagSet(c); });
-        if (!unseen.length) return null;
-        return unseen.filter(function (c) { return c._pinned; })[0] || unseen[0];
+        var avail = pool.filter(function (c) { return viewCount(c.key) < POPUP_VIEW_CAP; });
+        if (!avail.length) return null;
+        avail.sort(function (a, b) {
+            var d = viewCount(a.key) - viewCount(b.key);
+            return d !== 0 ? d : (b._pinned ? 1 : 0) - (a._pinned ? 1 : 0);
+        });
+        return avail[0];
     }
 
     function init() {
         loadRotationCampaigns(function (pool) {
-            var c = (pool && pool.length) ? pickRotation(pool) : pickCampaign();
-            if (!c) return;
-            setTimeout(function () { show(c); }, SHOW_DELAY_MS);
+            if (pool && pool.length) {
+                var c = pickRotation(pool);
+                if (!c) return;
+                bumpView(c.key);                       // count this display
+                setTimeout(function () { show(c); }, SHOW_DELAY_MS);
+            } else {
+                var f = pickCampaign();                // no ticks → hardcoded fallback (membership promo)
+                if (f) setTimeout(function () { show(f); }, SHOW_DELAY_MS);
+            }
         });
     }
 
@@ -334,8 +351,9 @@
                     var k = localStorage.key(i);
                     if (k && k.indexOf(KEY_PREFIX) === 0) localStorage.removeItem(k);
                 }
+                localStorage.removeItem(VIEWS_KEY);
             } catch (e) {}
-            console.log('[LLEventPopup] all popup flags cleared. Reload to retrigger.');
+            console.log('[LLEventPopup] all popup flags + view counts cleared. Reload to retrigger.');
         },
         // Force-show a specific campaign by key, ignoring window + flag (testing only).
         preview: function (key) {
