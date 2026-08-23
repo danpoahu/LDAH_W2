@@ -230,11 +230,20 @@
         root.querySelector('.ll-pop-close').addEventListener('click', close);
         root.querySelector('.ll-pop-later').addEventListener('click', close);
         // Sign Up Now: mark seen, then let the link navigate.
-        root.querySelector('.ll-pop-cta').addEventListener('click', function () {
-            if (activeCampaign) { setFlag(activeCampaign); trackFlyer('click', activeCampaign._flyerKey || activeCampaign.key); }
-        });
+        function _ctaClick(ev) {
+            if (!activeCampaign) return;
+            setFlag(activeCampaign);
+            trackFlyer('click', activeCampaign._flyerKey || activeCampaign.key);
+            if (activeCampaign._poster) {
+                // Flyer-only: show the big poster instead of navigating. Use the
+                // homepage lightbox when present (W2); otherwise let the href open
+                // the full image (app).
+                if (typeof openFlyerView === 'function') { ev.preventDefault(); close(); openFlyerView(activeCampaign._posterUrl, activeCampaign.alt); }
+            }
+        }
+        root.querySelector('.ll-pop-cta').addEventListener('click', _ctaClick);
         var promoLink = root.querySelector('.ll-pop-promo-link');
-        if (promoLink) promoLink.addEventListener('click', function () { if (activeCampaign) { setFlag(activeCampaign); trackFlyer('click', activeCampaign._flyerKey || activeCampaign.key); } });
+        if (promoLink) promoLink.addEventListener('click', _ctaClick);
         root.addEventListener('click', function (ev) { if (ev.target === root) close(); });
         document.addEventListener('keydown', function (ev) {
             if (ev.key === 'Escape' && root && root.classList.contains('active')) close();
@@ -251,15 +260,20 @@
     // CAMPAIGNS (the evergreen membership promo). Events/recurringEvents are
     // public-readable (the homepage already queries them unauthenticated).
     function rotCampaign(c, lbl, pinned) {
+        // Flyer-only events (no sign-up) just show the poster; sign-up events go
+        // to the events page. Membership is a separate hardcoded promo, untouched.
+        var isFlyer = c.infoOnly === true || c.flyerOnly === true || c.isFlyerOnly === true;
         return {
             key: 'rot-' + c.id + (lbl ? '::' + lbl : ''),
             promo: true,
             _pinned: !!pinned,
             _flyerKey: c.id,               // analytics: aggregate per event
+            _poster: isFlyer,              // flyer-only: click shows the poster, not events.html
+            _posterUrl: c.imageUrl,
             image: c.imageUrl,
             alt: c.title || 'LDAH',
-            ctaText: 'See Details',
-            ctaHref: 'events.html'   // just the events page — no auto-opened signup modal (matches the app)
+            ctaText: isFlyer ? 'View Flyer' : 'See Details',
+            ctaHref: isFlyer ? c.imageUrl : 'events.html'
         };
     }
     // Popup analytics — one write per show / per click into the same
