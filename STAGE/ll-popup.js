@@ -208,6 +208,7 @@
     function show(c) {
         if (root) { root.remove(); root = null; }
         activeCampaign = c;
+        trackFlyer('seen', c._flyerKey || c.key);
         root = buildMarkup(c);
         wire();
         root.classList.add('active');
@@ -230,10 +231,10 @@
         root.querySelector('.ll-pop-later').addEventListener('click', close);
         // Sign Up Now: mark seen, then let the link navigate.
         root.querySelector('.ll-pop-cta').addEventListener('click', function () {
-            if (activeCampaign) setFlag(activeCampaign);
+            if (activeCampaign) { setFlag(activeCampaign); trackFlyer('click', activeCampaign._flyerKey || activeCampaign.key); }
         });
         var promoLink = root.querySelector('.ll-pop-promo-link');
-        if (promoLink) promoLink.addEventListener('click', function () { if (activeCampaign) setFlag(activeCampaign); });
+        if (promoLink) promoLink.addEventListener('click', function () { if (activeCampaign) { setFlag(activeCampaign); trackFlyer('click', activeCampaign._flyerKey || activeCampaign.key); } });
         root.addEventListener('click', function (ev) { if (ev.target === root) close(); });
         document.addEventListener('keydown', function (ev) {
             if (ev.key === 'Escape' && root && root.classList.contains('active')) close();
@@ -254,11 +255,31 @@
             key: 'rot-' + c.id + (lbl ? '::' + lbl : ''),
             promo: true,
             _pinned: !!pinned,
+            _flyerKey: c.id,               // analytics: aggregate per event
             image: c.imageUrl,
             alt: c.title || 'LDAH',
             ctaText: 'See Details',
             ctaHref: 'events.html?eventId=' + encodeURIComponent(c.id) + '&autoOpen=1&src=popup'
         };
+    }
+    // Popup analytics — one write per show / per click into the same
+    // siteAnalytics/<date> doc the site tracker uses, so it appears in the CMS
+    // Web Analytics section. set(merge) with increment creates the day doc if
+    // needed and increments it otherwise. (2026-08-23)
+    function trackFlyer(action, key) {
+        try {
+            if (typeof firebase === 'undefined' || !firebase.firestore) return;
+            var db = firebase.firestore();
+            var d = new Date();
+            var dateKey = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+            var inc = firebase.firestore.FieldValue.increment(1);
+            var field = action === 'click' ? 'flyer_click' : 'flyer_seen';
+            var safe = String(key || 'unknown').replace(/[.#$/\[\]]/g, '_');
+            var payload = { events: {} };
+            payload.events[field] = {}; payload.events[field][safe] = inc;
+            payload.events[field + '_total'] = inc;
+            db.collection('siteAnalytics').doc(dateKey).set(payload, { merge: true }).catch(function () {});
+        } catch (e) {}
     }
     // A homeRotation flag left on a PAST event (the CMS doesn't clear it when an
     // event passes) must not resurface in the popup — e.g. an August Parent Talk
