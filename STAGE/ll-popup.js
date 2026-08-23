@@ -259,7 +259,7 @@
             image: c.imageUrl,
             alt: c.title || 'LDAH',
             ctaText: 'See Details',
-            ctaHref: 'events.html?eventId=' + encodeURIComponent(c.id) + '&autoOpen=1&src=popup'
+            ctaHref: 'events.html'   // just the events page — no auto-opened signup modal (matches the app)
         };
     }
     // Popup analytics — one write per show / per click into the same
