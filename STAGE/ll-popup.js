@@ -260,6 +260,20 @@
             ctaHref: 'events.html?eventId=' + encodeURIComponent(c.id) + '&autoOpen=1&src=popup'
         };
     }
+    // A homeRotation flag left on a PAST event (the CMS doesn't clear it when an
+    // event passes) must not resurface in the popup — e.g. an August Parent Talk
+    // Café whose date has gone by. Filter every rotation item by its date. (2026-08-23)
+    function _rotDateFromLabel(lbl) {
+        var m = String(lbl || '').match(/([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})/);
+        if (!m) return null;
+        var d = new Date(m[1] + ' ' + m[2] + ', ' + m[3]);
+        return isNaN(d.getTime()) ? null : d;
+    }
+    function _rotNotPast(d) {
+        if (!d) return true;                          // ongoing / unparseable → keep
+        var n = new Date();
+        return d >= new Date(n.getFullYear(), n.getMonth(), n.getDate());
+    }
     function loadRotationCampaigns(cb) {
         if (typeof firebase === 'undefined' || !firebase.firestore) { cb([]); return; }
         var db;
@@ -278,9 +292,15 @@
                     var picked = Array.isArray(c.homeRotationDates) ? c.homeRotationDates : [];
                     if (picked.length) {
                         picked.forEach(function (lbl) {
+                            if (!_rotNotPast(_rotDateFromLabel(lbl))) return;   // skip a past ticked session
                             pool.push(rotCampaign(c, lbl, String(c.homePinned || '') === lbl));
                         });
                     } else if (c.homeRotation === true) {
+                        // The event moves to Past on its own at moveToPastDate — honour the
+                        // same boundary so a stale homeRotation flag can't resurface it.
+                        var _bound = c.moveToPastDate || c.eventDate;
+                        var _bd = _bound ? new Date(_bound + 'T00:00:00') : null;
+                        if (_bd && !_rotNotPast(_bd)) return;
                         pool.push(rotCampaign(c, '', c.homePinned === true));
                     }
                 });
