@@ -240,20 +240,82 @@
         });
     }
 
+    // ── Home Rotation integration (2026-08-23) ────────────────────────────────
+    // The popup now mirrors what staff tick in LDAH-Int > Home Rotation, reading
+    // the SAME flags the homepage cards use: an event doc with homeRotation:true
+    // (whole event) or homeRotationDates:[...] (per session), plus homePinned.
+    // Each becomes a flyer "promo" popup (the flyer IS the popup). Pinned items
+    // get priority; every item is still dismiss-once-per-browser so a modal never
+    // nags. Only when NOTHING is ticked does it fall back to the hardcoded
+    // CAMPAIGNS (the evergreen membership promo). Events/recurringEvents are
+    // public-readable (the homepage already queries them unauthenticated).
+    function rotCampaign(c, lbl, pinned) {
+        return {
+            key: 'rot-' + c.id + (lbl ? '::' + lbl : ''),
+            promo: true,
+            _pinned: !!pinned,
+            image: c.imageUrl,
+            alt: c.title || 'LDAH',
+            ctaText: 'See Details',
+            ctaHref: 'events.html?eventId=' + encodeURIComponent(c.id) + '&autoOpen=1&src=popup'
+        };
+    }
+    function loadRotationCampaigns(cb) {
+        if (typeof firebase === 'undefined' || !firebase.firestore) { cb([]); return; }
+        var db;
+        try { db = firebase.firestore(); } catch (e) { cb([]); return; }
+        Promise.all([
+            db.collection('events').get(),
+            db.collection('recurringEvents').where('active', '==', true).get()
+        ]).then(function (snaps) {
+            var pool = [];
+            snaps.forEach(function (snap) {
+                snap.forEach(function (doc) {
+                    var c = doc.data(); c.id = doc.id;
+                    if (c.archived === true) return;
+                    if (!c.imageUrl) return;                              // popup is the flyer
+                    if (/\.pdf($|\?)/i.test(c.imageUrl)) return;          // PDF flyers can't render as <img>
+                    var picked = Array.isArray(c.homeRotationDates) ? c.homeRotationDates : [];
+                    if (picked.length) {
+                        picked.forEach(function (lbl) {
+                            pool.push(rotCampaign(c, lbl, String(c.homePinned || '') === lbl));
+                        });
+                    } else if (c.homeRotation === true) {
+                        pool.push(rotCampaign(c, '', c.homePinned === true));
+                    }
+                });
+            });
+            cb(pool);
+        }).catch(function () { cb([]); });
+    }
+    // Pinned first, otherwise the first not-yet-dismissed item. Returns null once
+    // the visitor has dismissed every ticked item (no popup rather than nagging).
+    function pickRotation(pool) {
+        var unseen = pool.filter(function (c) { return !flagSet(c); });
+        if (!unseen.length) return null;
+        return unseen.filter(function (c) { return c._pinned; })[0] || unseen[0];
+    }
+
     function init() {
-        var c = pickCampaign();
-        if (!c) return;
-        setTimeout(function () { show(c); }, SHOW_DELAY_MS);
+        loadRotationCampaigns(function (pool) {
+            var c = (pool && pool.length) ? pickRotation(pool) : pickCampaign();
+            if (!c) return;
+            setTimeout(function () { show(c); }, SHOW_DELAY_MS);
+        });
     }
 
     window.LLEventPopup = {
         close: close,
         // Clear every event's seen-flag (so they can all re-pop).
         reset: function () {
-            CAMPAIGNS.forEach(function (c) {
-                try { localStorage.removeItem(flagKey(c)); } catch (e) {}
-            });
-            console.log('[LLEventPopup] all event flags cleared. Reload to retrigger.');
+            // Clear every popup seen-flag (hardcoded campaigns AND rotation items).
+            try {
+                for (var i = localStorage.length - 1; i >= 0; i--) {
+                    var k = localStorage.key(i);
+                    if (k && k.indexOf(KEY_PREFIX) === 0) localStorage.removeItem(k);
+                }
+            } catch (e) {}
+            console.log('[LLEventPopup] all popup flags cleared. Reload to retrigger.');
         },
         // Force-show a specific campaign by key, ignoring window + flag (testing only).
         preview: function (key) {
