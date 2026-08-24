@@ -25,7 +25,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- nh-survey-modal.css removed from auto-load 2026-05-31 per Rosie's request — survey disabled -->
-    <link rel="stylesheet" href="ll-popup.css"><!-- Learning Labs June first-launch popup -->
+    <link rel="stylesheet" href="ll-popup.css?v=member"><!-- Learning Labs June first-launch popup -->
 
     <style>
     :root {
@@ -473,7 +473,7 @@
             const headerContainer = document.getElementById('header-container');
             const footerContainer = document.getElementById('footer-container');
             try {
-                const [headerResponse, footerResponse] = await Promise.all([fetch('header.html'), fetch('footer.html')]);
+                const [headerResponse, footerResponse] = await Promise.all([fetch('header.html?v=62.8.0'), fetch('footer.html?v=62.8.0')]);
                 if (headerResponse.ok && footerResponse.ok) {
                     headerContainer.innerHTML = await headerResponse.text();
                     footerContainer.innerHTML = await footerResponse.text();
