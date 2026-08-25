@@ -15843,7 +15843,7 @@ function _buildConnectGenDestructAlertHtml({ ownerFirstName, familyName, session
     'will be <strong>automatically destroyed in approximately 3 hours</strong> because no disposition has been marked yet.',
     '</p>',
     '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">',
-    'Per the consent terms the family signed, documents are destroyed within 24 hours of attendance unless we are providing additional support such as case advocacy.',
+    'Per the family\'s consent, documents are destroyed within 4 days of attendance unless we are providing additional support such as case advocacy.',
     '</p>',
     '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">',
     'If LDAH will be providing case advocacy for this family, please open their record in the Staff Portal and mark <strong>Case Advocacy</strong> now to retain the documents.',
@@ -16099,8 +16099,9 @@ exports.scheduledConnectGenDocLifecycle = functions
 
         const hoursSince = (nowMs - mostRecentPastEnd.getTime()) / (1000 * 60 * 60);
 
-        // ── Destroy branch ── (>= 24h)
-        if (hoursSince >= 24) {
+        // ── Destroy branch ── (>= 96h = 4 days) — extended from 24h to cover
+        // long weekends (Daniel + Noe, 2026-08-24).
+        if (hoursSince >= 96) {
           // v144 — case-advocacy retention safety-net. If this family has an
           // OPEN "Case Advocacy" interaction, retain the documents instead of
           // destroying, and stamp the disposition so the flag sticks (and the
@@ -16127,7 +16128,7 @@ exports.scheduledConnectGenDocLifecycle = functions
                 await db.collection("auditLog").add({
                   action: "Connect-Gen documents retained (open case advocacy)",
                   details: (signup.name || signup.firstName || "(unknown)") +
-                    " -- signup " + sigDoc.id + " -- retained instead of 24h auto-destruct " +
+                    " -- signup " + sigDoc.id + " -- retained instead of 4-day auto-destruct " +
                     "(open Case Advocacy interaction on the contact)",
                   performedBy: "system (auto)",
                   performedByRole: "system",
@@ -16142,13 +16143,13 @@ exports.scheduledConnectGenDocLifecycle = functions
             await sigDoc.ref.update({
               connectGenDocuments: FieldValue.delete(),
               connectGenDocumentsDestroyedAt: FieldValue.serverTimestamp(),
-              connectGenDocumentsDestroyedBy: "system (24h auto-destruct)",
-              connectGenDocumentsDestroyedReason: "No disposition marked within 24 hours of session attendance",
+              connectGenDocumentsDestroyedBy: "system (4-day auto-destruct)",
+              connectGenDocumentsDestroyedReason: "No disposition marked within 4 days of session attendance",
             });
             destroyed++;
             try {
               await db.collection("auditLog").add({
-                action: "Connect-Gen documents auto-destroyed (24h, no disposition)",
+                action: "Connect-Gen documents auto-destroyed (4 days, no disposition)",
                 details: (signup.name || signup.firstName || "(unknown)") +
                   " -- signup " + sigDoc.id + " -- session " + mostRecentPastRaw +
                   " -- files deleted: " + (result.deleted.length || 0) +
@@ -16166,13 +16167,26 @@ exports.scheduledConnectGenDocLifecycle = functions
           continue;
         }
 
-        // ── Alert branch ── (21 <= hoursSince < 24) — ~3 hours notice before
-        // the 24h destruction (Daniel 2026-07-08; was 23h / ~1 hour). Gated by
+        // ── Alert branch ── (93 <= hoursSince < 96) — ~3 hours notice before the
+        // 4-day (96h) destruction. Retention extended from 24h to 4 days for long
+        // weekends (Daniel + Noe, 2026-08-24). Gated by
         // connectGenDocDestructAlertSentAt so it still sends only once.
-        if (hoursSince >= 21 && hoursSince < 24) {
+        if (hoursSince >= 93 && hoursSince < 96) {
           if (signup.connectGenDocDestructAlertSentAt) { skipped++; continue; }
           try {
             const owner = await _resolveConnectGenRecordOwner(db, signup);
+            // Session presenter — Daniel + Noe (2026-08-24) want the destruction
+            // notice on the presenter too. sessionSummaries is keyed by the raw
+            // session string (mostRecentPastRaw); use presenterUid, not the name.
+            let presenter = null;
+            try {
+              const ss = (parent.data && parent.data.sessionSummaries) || {};
+              const puid = ss[mostRecentPastRaw] && ss[mostRecentPastRaw].presenterUid;
+              if (puid) {
+                const prs = await db.collection("userRoles").doc(puid).get();
+                if (prs.exists) { const pr = prs.data() || {}; const pe = String(pr.email || "").trim(); if (pe) presenter = { uid: puid, email: pe, name: String(pr.name || "").trim() }; }
+              }
+            } catch (e) { console.warn("presenter resolve failed:", e.message); }
             const familyName = String(signup.name || signup.firstName || "(unknown family)").trim();
             const sessionDateLabel = _formatSessionDateLabel(mostRecentPastRaw);
             const html = _buildConnectGenDestructAlertHtml({
@@ -16183,10 +16197,13 @@ exports.scheduledConnectGenDocLifecycle = functions
             });
             const subject = "Action needed: Connect-Gen documents auto-destroy in 3 hours -- " + familyName;
 
-            // Always loop Noelani in (CC), unless she's already the primary
-            // recipient (support-task owner), to avoid a duplicate.
-            const ccList = (owner.email && owner.email.toLowerCase() === CONNECT_GEN_ALERT_CC_EMAIL.toLowerCase())
-              ? undefined : [CONNECT_GEN_ALERT_CC_EMAIL];
+            // CC everyone who should know EXCEPT the primary recipient (owner):
+            // Noelani/Noe (always) + the session presenter. De-duped, case-insensitive.
+            const ownerEmailLc = String(owner.email || "").toLowerCase();
+            const ccSet = new Set();
+            if (CONNECT_GEN_ALERT_CC_EMAIL.toLowerCase() !== ownerEmailLc) ccSet.add(CONNECT_GEN_ALERT_CC_EMAIL);
+            if (presenter && presenter.email.toLowerCase() !== ownerEmailLc) ccSet.add(presenter.email);
+            const ccList = ccSet.size ? Array.from(ccSet) : undefined;
 
             await sendEmailViaResend({
               from: fromAddress,
@@ -16236,6 +16253,22 @@ exports.scheduledConnectGenDocLifecycle = functions
                 });
               } catch (e) { console.warn("Noelani notification write failed:", e.message); }
             }
+            // Session presenter in-app notification too, unless they're the owner or Noe.
+            if (presenter && presenter.uid && presenter.uid !== owner.uid && presenter.uid !== CONNECT_GEN_ALERT_CC_UID) {
+              try {
+                await db.collection("notifications").add({
+                  recipientUid: presenter.uid,
+                  recipientName: presenter.name || "",
+                  type: "connect-gen-destruct-alert",
+                  title: notifTitle,
+                  message: notifMessage,
+                  interactionId: "",
+                  signupPath: sigDoc.ref.path,
+                  read: false,
+                  createdAt: FieldValue.serverTimestamp(),
+                });
+              } catch (e) { console.warn("presenter notification write failed:", e.message); }
+            }
 
             await sigDoc.ref.update({
               connectGenDocDestructAlertSentAt: FieldValue.serverTimestamp(),
@@ -16244,9 +16277,10 @@ exports.scheduledConnectGenDocLifecycle = functions
 
             try {
               await db.collection("auditLog").add({
-                action: "Connect-Gen 21h destruction alert sent (no disposition marked)",
+                action: "Connect-Gen 93h destruction alert sent (no disposition marked)",
                 details: familyName + " -- signup " + sigDoc.id + " -- session " + mostRecentPastRaw +
                   " -- notified " + owner.email + (owner.uid ? " (uid " + owner.uid + ")" : " (fallback persona)") +
+                  (presenter ? " -- presenter " + presenter.email : "") +
                   (ccList ? " -- cc " + ccList.join(", ") : ""),
                 performedBy: "system (auto)",
                 performedByRole: "system",
