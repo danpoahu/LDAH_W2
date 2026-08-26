@@ -196,7 +196,7 @@ exports.extractEventFromFlyer = functions
       const _nowHst = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
       const _todayStr = _nowHst.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
       const system = [
-        "You extract structured event details from a Learning & Disabilities Association of Hawaii (LDAH) event flyer.",
+        "You extract structured event details from a Leadership in Disabilities and Achievement of Hawaiʻi (LDAH) event flyer.",
         "TODAY'S DATE is " + _todayStr + " (Hawaii time) — use it to resolve any year the flyer leaves out.",
         "LDAH flyers are consistent: a title band, a weekday + time range, and one or more dated sessions each with a topic and a short description.",
         "Return ONLY via the provided tool. Rules:",
