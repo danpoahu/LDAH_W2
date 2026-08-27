@@ -13914,8 +13914,12 @@ async function _raiseCaseAdvocacyAssignmentTask(db, FieldValue, signup, signupId
       "is not linked to a contact card — link it by hand.";
   }
 
+  // CHANNEL is how we communicated, not a category of work. This task is
+  // raised off a Connect-Gen session the family attended in person, so the
+  // channel is Office. interactionType stays "Case Advocacy" — that is what
+  // _isCaseAdvocacyIx() and the dashboard identify advocacy records by.
   const ref = await db.collection("interactions").add({
-    channel: "Case Advocacy",
+    channel: "Office",
     interactionType: "Case Advocacy",
     workflowStep: "caseAdvocacy",
     contactId: contactId,
