@@ -218,6 +218,18 @@
       height: 54px;
     }
 
+    /* Google's official badge ships as a 646x250 PNG with a uniform 41px
+       transparent border baked in -- the artwork is only 67.2% of the canvas
+       height. At the shared 54px that renders a ~36px badge, visibly smaller
+       than Apple's. Scale to 54 / 0.672 = 80px so the ARTWORK lands at 54px,
+       then pull the padding back off with a negative margin (41/250 * 80 =
+       13.1px on every side) so it still sits flush with the Apple badge.
+       (2026-08-29) */
+    .store-badge.play img {
+      height: 80px;
+      margin: -13px;
+    }
+
     .beta-badge {
       display: inline-block;
       background: linear-gradient(135deg, var(--sunset-coral), var(--sunset-warm));
@@ -624,7 +636,7 @@
       <div class="store-card">
         <h3>Android</h3>
         <p>Download the LDAH app from Google Play. Requires Android 8.0 or later.</p>
-        <a href="https://play.google.com/store/apps/details?id=org.ldahawaii.app" target="_blank" rel="noopener noreferrer" class="store-badge">
+        <a href="https://play.google.com/store/apps/details?id=org.ldahawaii.app" target="_blank" rel="noopener noreferrer" class="store-badge play">
           <img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play">
         </a>
       </div>
