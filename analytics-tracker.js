@@ -122,6 +122,11 @@
       }
     });
 
+    // Stamp date on EVERY write, not just on create. The create path below
+    // sets it, but if something else created today's doc first (the flyer
+    // popup does, with a merge:true set) this update path ran instead and
+    // the field was never written -- and the analytics report filters on it.
+    update['date'] = dateKey;
     update['visitorIds'] = arrayUnion(visitorId);
 
     // Try update() first — dot-notation keys become nested paths with update()

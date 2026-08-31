@@ -289,7 +289,12 @@
             var inc = firebase.firestore.FieldValue.increment(1);
             var field = action === 'click' ? 'flyer_click' : 'flyer_seen';
             var safe = String(key || 'unknown').replace(/[.#$/\[\]]/g, '_');
-            var payload = { events: {} };
+            // MUST include date. The Web/App Analytics report queries
+            // where('date','>=',start), and a Firestore where() silently
+            // EXCLUDES docs missing the field -- so a day whose siteAnalytics
+            // doc was created by this popup rather than by the site tracker
+            // vanished from the report entirely. (2026-08-31)
+            var payload = { date: dateKey, events: {} };
             payload.events[field] = {}; payload.events[field][safe] = inc;
             payload.events[field + '_total'] = inc;
             db.collection('siteAnalytics').doc(dateKey).set(payload, { merge: true }).catch(function () {});
