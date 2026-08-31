@@ -4631,7 +4631,14 @@ exports.resendLoggedEmail = functions
         to,
         subject: log.subject || "(resend)",
         html: log.html,
-        type: (log.type || "resend") + "-resend",
+        // Idempotent: strip any existing -resend chain before adding one.
+        // This used to be a bare append, so a resend of a resend produced
+        // "x-resend-resend" and a fourth produced
+        // "daily-session-sheet-resend-resend-resend-resend" -- a new,
+        // useless type in the log and in the Email Log filter every time.
+        // One row per send already records how many there were.
+        // (2026-08-31)
+        type: String(log.type || "resend").replace(/(-resend)+$/i, "") + "-resend",
         relatedEventId: log.relatedEventId,
         relatedSignupId: log.relatedSignupId,
         recipientName: log.recipientName,
@@ -10501,7 +10508,8 @@ exports.resendEventRecordingEmail = functions
 
       await logEmailSend({
         from: fromAddress, to, bcc: "", subject: log.subject || "", html: log.html,
-        type: (log.type || "event-recording") + "-resend",
+        // Idempotent -- see resendLoggedEmail. (2026-08-31)
+        type: String(log.type || "event-recording").replace(/(-resend)+$/i, "") + "-resend",
         relatedEventId: log.relatedEventId || "", relatedSignupId: log.relatedSignupId || "",
         recipientName: log.recipientName || "",
         success: true, resendId: (result && result.id) || null,
