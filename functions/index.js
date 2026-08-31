@@ -17993,6 +17993,73 @@ function _wfNeedsForm(ev) {
   return WORKSHOP_FORM_EVENT_TYPES.indexOf(_wfEventType(ev)) >= 0;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Event-type capabilities (2026-08-31, Daniel).
+//
+// Until now the lifecycle consulted event type in exactly ONE place
+// (WORKSHOP_FORM_EVENT_TYPES). Every other spawn point inferred behaviour from
+// side-effects — a zoomMode string, a collection name, or merely the fact that
+// an event had a date — so an Outreach Booth was told to assign a presenter,
+// prepare to present, and take attendance, and a Flyer (which cannot hold a
+// signup at all) ran the entire workflow end to end.
+//
+// This table is the single declared answer. Read it; never re-derive.
+//   presenter  — is there a person who presents? (Assign Presenter, Present Event)
+//   attendance — is attendance marked in Int? (Take Attendance)
+//                Booths capture attendance at the QR form as each family signs,
+//                so there is nothing left to mark afterwards.
+//   summary    — does this event get an Event Summary? Booths DO: it is how they
+//                get counted. Flyers do not — LDAH never ran an event.
+//   announce   — does a public announcement go out? Both booth types are a table
+//                at somebody else's event, so there is no audience of ours to
+//                mail. A Flyer needs no announcement task either: it publishes
+//                itself, appearing in the Information section of the W2 home
+//                page and on the public events calendar as soon as its Start
+//                Showing date arrives. Nothing here announces as of 2026-08-31;
+//                the flag stays because Daniel expects this may change.
+//   slides     — is there a Zoom link / slide deck to send afterwards?
+//
+// UNKNOWN TYPES FAIL OPEN. _lcCan() returns true for a type that is not listed,
+// so a new event type never silently loses its tasks — it behaves exactly as it
+// does today until someone adds a row here deliberately.
+// ═══════════════════════════════════════════════════════════════════════════
+const EVENT_TYPE_CAPABILITIES = {
+  learning_labs:    { presenter: true,  attendance: true,  summary: true,  announce: true,  slides: true  },
+  parent_talk_cafe: { presenter: true,  attendance: true,  summary: true,  announce: true,  slides: false },
+  connect_gen:      { presenter: true,  attendance: true,  summary: true,  announce: true,  slides: false },
+  remote_signup:    { presenter: true,  attendance: true,  summary: true,  announce: true,  slides: false },
+  screening:        { presenter: false, attendance: false, summary: true,  announce: false, slides: false },
+  outreach_booth:   { presenter: false, attendance: false, summary: true,  announce: false, slides: false },
+  flyer:            { presenter: false, attendance: false, summary: false, announce: false, slides: false }
+};
+
+// Full event-type derivation — the backend twin of LDAH-Int's
+// _cmsDeriveEventType(). _wfEventType() above deliberately returns "" for the
+// virtual types because it only ever had to answer the workshop-form question;
+// this one has to name every type, so it cannot be reused.
+function _lcEventType(ev, collection) {
+  if (!ev) return "learning_labs";
+  if (ev.eventType) return ev.eventType;                       // already stamped — trust it
+  if (collection === "recurringEvents") return ev.flyerOnly === true ? "flyer" : "connect_gen";
+  if (ev.specialEvent === true) {
+    return (ev.specialFormConfig && ev.specialFormConfig.screening === true) ? "screening" : "outreach_booth";
+  }
+  if (ev.infoOnly === true) return "flyer";
+  if (ev.remoteSignup === true) return "remote_signup";
+  if (ev.zoomMode === "parent_talk_cafe") return "parent_talk_cafe";
+  const t = String(ev.title || "").toLowerCase();
+  if (t.indexOf("parent talk cafe") !== -1) return "parent_talk_cafe";
+  if (t.indexOf("connect-gen") !== -1 || t.indexOf("connect gen") !== -1) return "connect_gen";
+  return "learning_labs";
+}
+
+// Does this event do `capability`? Fails OPEN for an unrecognised type.
+function _lcCan(ev, capability, collection) {
+  const caps = EVENT_TYPE_CAPABILITIES[_lcEventType(ev, collection)];
+  if (!caps) return true;
+  return caps[capability] !== false;
+}
+
 async function _lcResolveStaffName(db, uid) {
   if (!uid) return "";
   try {
@@ -18840,14 +18907,22 @@ exports.onEventCreatedLifecycle = functions
     )[0];
     const firstKey = _lcSessionKey(firstSession);
     if (firstKey) {
-      await _lcCreateIfMissing(db, {
-        eventId, eventTitle: title, step: "assignPresenter", sessionKey: firstKey,
-        ownerUid: LIFECYCLE_ADMIN_UID, ownerName: laaName, dueDate
-      });
+      // Only types that actually have someone presenting. A booth has staff at
+      // a table, not a presenter, and a flyer has nobody at all — asking for one
+      // produced a task that could not even be closed honestly, because the
+      // chain engine re-opens an Assign Presenter closed with no name. (2026-08-31)
+      if (_lcCan(ev, "presenter")) {
+        await _lcCreateIfMissing(db, {
+          eventId, eventTitle: title, step: "assignPresenter", sessionKey: firstKey,
+          ownerUid: LIFECYCLE_ADMIN_UID, ownerName: laaName, dueDate
+        });
+      }
       // One-off gatherings (hand-keyed into the Event Attendance Report after
       // the fact) are past events — no public announcement should go out, so
-      // skip the Send Announcements task for them.
-      if (!ev.isOneOff) {
+      // skip the Send Announcements task for them. The two booth types are
+      // skipped for a different reason: they are a table at somebody else's
+      // event, so there is no audience of ours to announce it to. (2026-08-31)
+      if (!ev.isOneOff && _lcCan(ev, "announce")) {
         await _lcCreateIfMissing(db, {
           eventId, eventTitle: title, step: "sendAnnouncement", sessionKey: firstKey,
           ownerUid: creatorUid, ownerName: creatorName, dueDate
@@ -18981,6 +19056,12 @@ exports.onInteractionUpdatedLifecycle = functions
       const evSnap = await db.collection(collection).doc(eventId).get();
       if (!evSnap.exists) return null;
       const ev = evSnap.data() || {};
+
+      // A flyer gets no Event Summary — LDAH never ran an event to summarise.
+      // It can no longer reach here (Take Attendance is not raised for flyers as
+      // of 2026-08-31), but an already-open Take Attendance on an existing flyer
+      // would still chain, so the gate stays.
+      if (!_lcCan(ev, "summary", collection)) return null;
 
       // Resolve the session's presenter + a human label + the date the +5-day
       // follow-up is measured from. Recurring keys sessionSummaries by the
@@ -19153,20 +19234,55 @@ exports.createDayOfAttendanceTasks = functions
         const baseMs = new Date(todayKey + "T12:00:00-10:00").getTime();
         const tomorrowKey = new Date(baseMs + 1 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
         const plus5Key    = new Date(baseMs + 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-        await _lcCreateIfMissing(db, {
-          eventId: doc.id, eventTitle: ev.title || "", step: "sendAnnouncement",
-          sessionKey: nextKey, ownerUid: creatorUid, ownerName: creatorName,
-          dueDate: tomorrowKey,
-          extra: { notes: "Send the announcement first thing tomorrow (" + tomorrowKey + ")." }
-        });
-        await _lcCreateIfMissing(db, {
-          eventId: doc.id, eventTitle: ev.title || "", step: "assignPresenter",
-          sessionKey: nextKey, ownerUid: creatorUid, ownerName: creatorName,
-          dueDate: plus5Key
-        });
+        // Same capability gates as the create-time seeding, or the deferred
+        // 2nd/3rd date would quietly re-introduce the tasks we just suppressed
+        // on date one. (2026-08-31)
+        if (_lcCan(ev, "announce")) {
+          await _lcCreateIfMissing(db, {
+            eventId: doc.id, eventTitle: ev.title || "", step: "sendAnnouncement",
+            sessionKey: nextKey, ownerUid: creatorUid, ownerName: creatorName,
+            dueDate: tomorrowKey,
+            extra: { notes: "Send the announcement first thing tomorrow (" + tomorrowKey + ")." }
+          });
+        }
+        if (_lcCan(ev, "presenter")) {
+          await _lcCreateIfMissing(db, {
+            eventId: doc.id, eventTitle: ev.title || "", step: "assignPresenter",
+            sessionKey: nextKey, ownerUid: creatorUid, ownerName: creatorName,
+            dueDate: plus5Key
+          });
+        }
       }
 
       const sessionKey = todayKey; // workflowSessionKey on the interaction = normalized dateKey
+
+      // Booths and screening tables mark attendance at the QR form itself — the
+      // capture is written already status:'confirmed', attendanceStatus:'attended'
+      // — so there is nothing left for anyone to tick afterwards, and a flyer has
+      // no signups to tick at all. Take Attendance is skipped for all three.
+      //
+      // But a booth still needs its Event Summary: that is how it gets counted.
+      // Event Summary normally chains off the Take Attendance CLOSE, so with no
+      // Take Attendance to close it has to be raised here instead, on the day,
+      // due five days out — the same due date the chain would have given it.
+      // Owner is the event creator; these types have no presenter to fall back
+      // on. Flyers get neither, and their workflow ends after Verify Display and
+      // Send Announcements. (2026-08-31)
+      if (!_lcCan(ev, "attendance")) {
+        if (_lcCan(ev, "summary")) {
+          const _sumOwnerUid  = ev.createdByUid || LIFECYCLE_ADMIN_UID;
+          const _sumOwnerName = ev.createdByName || (await _lcResolveStaffName(db, _sumOwnerUid));
+          const _sumDue = new Date(
+            new Date(todayKey + "T12:00:00-10:00").getTime() + 5 * 24 * 60 * 60 * 1000
+          ).toISOString().slice(0, 10);
+          const _r = await _lcCreateIfMissing(db, {
+            eventId: doc.id, eventTitle: ev.title || "", step: "eventSummary",
+            sessionKey, ownerUid: _sumOwnerUid, ownerName: _sumOwnerName, dueDate: _sumDue
+          });
+          if (_r) created++;
+        }
+        continue;
+      }
 
       // Idempotency
       const existing = await db.collection("interactions")
@@ -19244,6 +19360,10 @@ exports.createPresenterPrepTasks = functions
     for (const doc of snap.docs) {
       const ev = doc.data() || {};
       if (ev.archived === true) continue;
+      // Nobody presents at a booth, a screening table or a flyer. This cron
+      // filtered only on lifecycleStatus + a session dated today+3, so it was
+      // raising "Present Event" for all three. (2026-08-31)
+      if (!_lcCan(ev, "presenter")) continue;
       const sessions = getEventSessions(ev) || [];
       const targetSession = sessions.find(s => _lcSessionKey(s) === targetKey);
       if (!targetSession) continue;
@@ -23614,6 +23734,9 @@ exports.getScreeningConsentDownloadUrl = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  EVENT_TYPE_CAPABILITIES,
+  _lcEventType,
+  _lcCan,
   buildMembershipNudgeEmail,
   _membershipArchiveDecision,
   _membershipContactRefCounts,
