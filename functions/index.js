@@ -901,13 +901,37 @@ async function getOrgFooterHtml() {
 
 // buildDonateBlock('universal' | 'feedback') — returns body copy + a
 // donate button. Embed above the signature in any email.
-async function buildDonateBlock(flavor) {
+async function buildDonateBlock(flavor, source) {
   const doc = await _loadDonateDoc();
   const f = (flavor === 'feedback') ? doc.feedback : doc.universal;
   const url = doc.donateUrl || _DONATE_FALLBACK.donateUrl;
   const label = doc.buttonLabel || _DONATE_FALLBACK.buttonLabel;
   return (f && f.bodyHtml ? f.bodyHtml : '')
-    + _emailBtn(url, label, { bg: '#0E7C4D', align: 'center' });
+    + _emailBtn(_donateUrlWithSource(url, source || flavor || 'email'), label,
+                { bg: '#0E7C4D', align: 'center' });
+}
+
+/* Route the email donate button through the site so the click is attributable.
+   It used to point straight at PayPal, which made every email donation
+   invisible: the analytics tracker only runs on the website, so a click inside
+   an email never touched it. Daniel, 2026-08-31: "almost every system email we
+   send also has a donate button on it, are those being counted ... We should
+   count them."
+
+   ldahawaii.org/donate.html records the click with its ?src= and hops to
+   PayPal. It carries a meta-refresh fallback, so a client that blocks
+   JavaScript still reaches PayPal -- the donation never depends on the
+   tracking.
+
+   A donateUrl that has been pointed somewhere else in the CMS is left ALONE.
+   Staff changing that URL means they want that exact destination, and silently
+   wrapping it would break it. */
+function _donateUrlWithSource(url, source) {
+  try {
+    if (!/paypal\.com\/donate/i.test(String(url || ''))) return url;
+    const src = String(source || 'email').replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 40);
+    return 'https://www.ldahawaii.org/donate.html?src=email-' + src;
+  } catch (e) { return url; }
 }
 
 // HTTPS endpoint to flush the in-memory cache from the Admin → List

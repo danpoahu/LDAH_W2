@@ -94,6 +94,14 @@
           break;
         case 'donation_click':
           update['events.donation_click'] = increment(1);
+          /* Breakdown by WHERE the click happened. Kept in a SEPARATE field:
+             events.donation_click is already a plain number on 160+ existing
+             day-docs, and writing events.donation_click.<key> onto a number
+             fails outright. So the scalar stays exactly as the report reads it
+             and the detail lives alongside. Source is the page name, or
+             whatever ?src= the link carried (that is how an email click
+             identifies itself). (2026-08-31) */
+          update['events.donation_click_src.' + _donationSourceKey(evt.details)] = increment(1);
           break;
         case 'phone_call':
           update['events.phone_call'] = increment(1);
@@ -140,7 +148,12 @@
         pendingEvents.forEach(function(evt) {
           switch (evt.type) {
             case 'pageview': pageviews[pageName] = (pageviews[pageName] || 0) + 1; totalPV++; break;
-            case 'donation_click': events['donation_click'] = (events['donation_click'] || 0) + 1; break;
+            case 'donation_click':
+              events['donation_click'] = (events['donation_click'] || 0) + 1;
+              if (!events['donation_click_src']) events['donation_click_src'] = {};
+              var _dk = _donationSourceKey(evt.details);
+              events['donation_click_src'][_dk] = (events['donation_click_src'][_dk] || 0) + 1;
+              break;
             case 'phone_call': events['phone_call'] = (events['phone_call'] || 0) + 1; break;
             case 'email_click': events['email_click'] = (events['email_click'] || 0) + 1; break;
             case 'outbound_click': events['outbound_click'] = (events['outbound_click'] || 0) + 1; break;
@@ -208,6 +221,22 @@
   }
 
   // --- Event tracking functions ---
+  /* Where did this donate click come from? A ?src= on the link wins -- that is
+     how a click arriving from an email names itself -- otherwise it is the page
+     the visitor was on. Sanitised for use as a Firestore field name. */
+  function _donationSourceKey(details) {
+    details = details || {};
+    var src = details.src || '';
+    if (!src) {
+      try {
+        var q = new URLSearchParams(window.location.search);
+        src = q.get('src') || q.get('utm_source') || '';
+      } catch (e) { src = ''; }
+    }
+    var key = src ? ('src_' + src) : ('page_' + getPageName());
+    return key.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase().slice(0, 60) || 'unknown';
+  }
+
   function trackDonationClick(url) {
     queueEvent('donation_click', { url: url });
     fireGA4Event('donation_click', { link_url: url });

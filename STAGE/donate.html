@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Redirecting to PayPal — LDAH</title>
+
+<!-- LAST-RESORT REDIRECT. Fires even if JavaScript is blocked, which some
+     email clients and corporate proxies do. The donation must never depend on
+     the tracking working: 2.5s is long enough for the beacon below to land and
+     short enough that nobody gives up. (2026-08-31) -->
+<meta http-equiv="refresh" content="2.5;url=https://www.paypal.com/donate?hosted_button_id=F6F2DPC4D6RSA">
+
+<style>
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+       background:#F5F8FA;color:#1c2733;
+       font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;}
+  .box{text-align:center;padding:28px 24px;max-width:420px}
+  .sp{width:34px;height:34px;margin:0 auto 16px;border:3px solid #cfe0eb;border-top-color:#004E7C;
+      border-radius:50%;animation:s .8s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+  h1{font-size:1.1rem;margin:0 0 6px;color:#004E7C}
+  p{margin:0;font-size:.9rem;color:#5b6b7a}
+  a{color:#004E7C;font-weight:700}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="sp"></div>
+  <h1>Taking you to PayPal…</h1>
+  <p>If nothing happens,
+     <a id="go" href="https://www.paypal.com/donate?hosted_button_id=F6F2DPC4D6RSA">continue to PayPal</a>.</p>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script>
+/* Donate redirect + attribution.
+
+   The donate button in our system emails used to link straight at PayPal, so
+   those clicks were invisible: the analytics tracker only runs on the website,
+   and an email click never touches it. Every donate click now comes through
+   here carrying ?src=, which is recorded before the hop.
+
+   Structure matters: events.donation_click stays the plain counter the Web/App
+   Analytics report already reads, and the breakdown goes in the separate
+   events.donation_click_src map -- the scalar is a number on 160+ existing
+   day-docs and writing a sub-field onto a number fails. Same shape the site
+   tracker writes, so email and website clicks land in one place.
+
+   The redirect NEVER waits on the write: it goes as soon as Firestore
+   acknowledges, or after 900ms, or via the meta refresh above, whichever comes
+   first. Losing a donation to save a statistic would be a bad trade. */
+(function () {
+  var PAYPAL = 'https://www.paypal.com/donate?hosted_button_id=F6F2DPC4D6RSA';
+  var params = new URLSearchParams(window.location.search);
+  var src = params.get('src') || params.get('utm_source') || 'link';
+  var key = ('src_' + src).replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase().slice(0, 60);
+
+  var jumped = false;
+  function go() { if (jumped) return; jumped = true; window.location.replace(PAYPAL); }
+  setTimeout(go, 900);
+
+  try {
+    firebase.initializeApp({
+      apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk",
+      authDomain: "ldah-932d5.firebaseapp.com",
+      projectId: "ldah-932d5",
+      storageBucket: "ldah-932d5.firebasestorage.app",
+      messagingSenderId: "662130454003",
+      appId: "1:662130454003:web:437576d5a5811ecd8df686"
+    });
+    var db = firebase.firestore();
+    var d = new Date();
+    var dateKey = d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0');
+    var inc = firebase.firestore.FieldValue.increment(1);
+    var payload = { date: dateKey, events: {} };
+    payload.events['donation_click'] = inc;
+    payload.events['donation_click_src'] = {};
+    payload.events['donation_click_src'][key] = inc;
+    db.collection('siteAnalytics').doc(dateKey)
+      .set(payload, { merge: true })
+      .then(go).catch(go);
+  } catch (e) { go(); }
+})();
+</script>
+</body>
+</html>
