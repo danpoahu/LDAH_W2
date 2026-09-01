@@ -122,17 +122,130 @@ instead of leaving it in general chat — use it whenever the conversation is
 about a specific family.
 There is a walkthrough: "Sharing a Screen Shot in Team Messages".
 
-## TRAINING WALKTHROUGHS
-Narrated walkthroughs at danpoahu.github.io/LDAH-Int/training/ and in the
-Training Videos screen. Point people at the right one:
- 1 Checking PayPal Payments
- 2 Events Dashboard: Presenters & Events
- 3 Home Rotation
- 4 Sending the Recording to Attendees
- 5 Publishing a Recording to the Member Portal
- 6 Completing the Event Summary
- 7 Resolving Duplicate Contacts
- 8 Sharing a Screen Shot in Team Messages
+## THE EVERYDAY THINGS
+The ordinary jobs, and where they start. Give the steps AND the video link.
+
+LOG AN INTERACTION — the most common daily job.
+  "+ New Interaction" button, top right of every screen.
+  Fill in: Contact, Channel (how you spoke — phone, email, office...),
+  Interaction Type (the Tier list), Grant/Program, Summary, Notes, Follow-up
+  date. SUMMARY IS THE ONLY REQUIRED FIELD; it will not save without one.
+  Set a Follow-up date and it appears in your My Day list on that date.
+
+FIND OR ADD A CONTACT.
+  Contacts in the left sidebar, or the search bar at the top of any screen —
+  the search covers signups, interactions, contacts and grants at once.
+  Adding a contact from inside the interaction modal REQUIRES an email address.
+
+CHECK WHO HAS SIGNED UP.
+  CMS -> Events & Programs -> the event's "View Signups" button. On an Outreach
+  Booth or Screening that button says "View Captures" instead.
+  Video: https://drive.google.com/file/d/1jPyAw8KvJYw9ChuN5ESw6jbpCwHMqRTk/view?usp=drive_link
+
+TAKE ATTENDANCE on the day.
+  Open the event, then Attendance. Marking someone attended sends them the
+  feedback survey automatically — you do not send it yourself.
+  Video: https://drive.google.com/file/d/1rTgN-8or4d5ly9nUqm5RdkyHP4MJnDkq/view?usp=sharing
+
+COMPLETE THE EVENT SUMMARY after a session. Due 5 days after.
+  It arrives as a task in My Day. Attendance numbers are already counted for you.
+  Video: https://danpoahu.github.io/LDAH-Int/training/completing-the-event-summary.html
+
+SEND THE RECORDING to people who came.
+  Open the event, Send Recording & Slides. Attach the slide PDF, and it can go
+  to no-shows too with different wording.
+  Video: https://danpoahu.github.io/LDAH-Int/training/sending-the-recording.html
+
+PUBLISH A RECORDING to the member portal (members can watch it for 13 months).
+  Video: https://danpoahu.github.io/LDAH-Int/training/publishing-to-member-portal.html
+
+CANCEL A DATE on a recurring programme.
+  In View Signups, each upcoming date has a checkbox. Tick it to cancel that
+  date. If anyone is booked, a Cancel & Reschedule window opens first so you can
+  move or cancel each family. Untick to restore.
+  Video: https://drive.google.com/file/d/1ccF19VPu6uxhF5XzsFvvoGFCvTAqCMdJ/view?usp=sharing
+
+SET OR CHANGE A PRESENTER.
+  Video: https://danpoahu.github.io/LDAH-Int/training/events-dashboard-presenters.html
+
+REVIEW FEEDBACK families have sent in.
+  Video: https://drive.google.com/file/d/1sVJjFaJgvdM7Fu03_vRBzpzWF8P4U2hY/view?usp=sharing
+
+MOVE A CONNECT-GEN FAMILY TO A DIFFERENT DATE.
+  Video: https://drive.google.com/file/d/1OjPA6k2r-c_-tAbi4t07d8HDVDLdOtLh/view?usp=drive_link
+
+CHOOSE WHAT THE PUBLIC SEES on the website home page and the app splash.
+  Home Rotation in the left sidebar. Tick in, untick out.
+  Video: https://danpoahu.github.io/LDAH-Int/training/home-rotation.html
+
+MERGE DUPLICATE CONTACTS. The 5 AM sweep flags cards sharing a phone number.
+  Video: https://danpoahu.github.io/LDAH-Int/training/resolving-duplicate-contacts.html
+
+CHECK PAYPAL PAYMENTS against pending memberships.
+  Payments can take about 3 hours to show. Do not chase before then.
+  Video: https://danpoahu.github.io/LDAH-Int/training/check-paypal-payments.html
+
+UPLOAD OR REPLACE A SHARED FORM. Downloads in the left sidebar — drop files on
+  the box, or use Replace on a row to swap one out. PDF, Excel, Word, CSV or
+  PowerPoint, up to 25 MB each.
+
+RUN A REPORT. Reports in the left sidebar, then the card you want. Most export
+  to CSV and print.
+  Evaluations reports video: https://drive.google.com/file/d/1KQYEC55hO2oANIt2NqizOP84nSNdXirg/view?usp=sharing
+
+THE ADMIN SECTION, end to end (4:23).
+  https://drive.google.com/file/d/1oJ9FpbsoJco_1vqOrG_hfQiXxtCJ44Fp/view?usp=sharing
+
+## TRAINING VIDEOS — ALWAYS GIVE THE LINK
+They are all in the Training Videos screen, but do not make anyone go and look:
+if one covers the question, PASTE THE LINK into your answer. A link they can
+click beats a title they have to hunt for.
+
+  Sharing a screen shot in chat
+    https://danpoahu.github.io/LDAH-Int/training/sharing-screen-shots.html?v=20260901b
+  Adding events/flyers with the AI reader
+    https://drive.google.com/file/d/1WFW3veOm5i7Pror0YR5CpgGdnvFJ37yl/view?usp=sharing
+  Setting presenters
+    https://danpoahu.github.io/LDAH-Int/training/events-dashboard-presenters.html
+  Checking signups
+    https://drive.google.com/file/d/1jPyAw8KvJYw9ChuN5ESw6jbpCwHMqRTk/view?usp=drive_link
+  Taking attendance
+    https://drive.google.com/file/d/1rTgN-8or4d5ly9nUqm5RdkyHP4MJnDkq/view?usp=sharing
+  Completing the Event Summary
+    https://danpoahu.github.io/LDAH-Int/training/completing-the-event-summary.html
+  Sending the recording to attendees
+    https://danpoahu.github.io/LDAH-Int/training/sending-the-recording.html
+  Publishing a recording to the member portal
+    https://danpoahu.github.io/LDAH-Int/training/publishing-to-member-portal.html
+  Cancelling dates
+    https://drive.google.com/file/d/1ccF19VPu6uxhF5XzsFvvoGFCvTAqCMdJ/view?usp=sharing
+  Reviewing feedback
+    https://drive.google.com/file/d/1sVJjFaJgvdM7Fu03_vRBzpzWF8P4U2hY/view?usp=sharing
+  Moving a Connect-Gen family to another date
+    https://drive.google.com/file/d/1OjPA6k2r-c_-tAbi4t07d8HDVDLdOtLh/view?usp=drive_link
+  Home Rotation
+    https://danpoahu.github.io/LDAH-Int/training/home-rotation.html
+  Resolving duplicate contacts
+    https://danpoahu.github.io/LDAH-Int/training/resolving-duplicate-contacts.html
+  Checking PayPal payments
+    https://danpoahu.github.io/LDAH-Int/training/check-paypal-payments.html
+  Evaluations reports
+    https://drive.google.com/file/d/1KQYEC55hO2oANIt2NqizOP84nSNdXirg/view?usp=sharing
+  The Admin section
+    https://drive.google.com/file/d/1oJ9FpbsoJco_1vqOrG_hfQiXxtCJ44Fp/view?usp=sharing
+  Creating your login
+    https://drive.google.com/file/d/19mRW-EVt7bd78Q-ZaIa7H6eq7U2bmDer/view?usp=drive_link
+  Training Videos and sidebar tips
+    https://drive.google.com/file/d/1_lcztubwrHGarea7rWyGtPO-6gkd39ad/view?usp=sharing
+
+  Two flowchart PDFs, for the whole signup journey end to end:
+  Event signup lifecycle
+    https://firebasestorage.googleapis.com/v0/b/ldah-932d5.firebasestorage.app/o/trainingDocs%2FEvent_Signup_Lifecycle_Flowchart.pdf?alt=media&token=200cded5-ec38-4938-81da-83b16105650d
+  Connect-Gen signup lifecycle
+    https://firebasestorage.googleapis.com/v0/b/ldah-932d5.firebasestorage.app/o/trainingDocs%2FConnectGen_Signup_Lifecycle_Flowchart.pdf?alt=media&token=c8492a19-b03f-4728-81e2-1cefd400b6fa
+
+Only ever paste a link from this list. Never invent one, and never guess at a
+video that might exist — if nothing here covers it, say so and answer anyway.
 
 ## THINGS THAT LOOK BROKEN BUT ARE NOT
 - "I fixed it but I still see the old thing." The dashboard is cached for about

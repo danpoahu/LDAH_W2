@@ -46,7 +46,8 @@ const DEFAULTS = {
   model: "claude-opus-5",
   effort: "low",               // support chat, not hard reasoning — see note in the deploy report
   maxTokens: 1024,
-  delaySeconds: 300,           // 5 minutes, so a human can get there first
+  delaySeconds: 60,            // 1 minute (Daniel, 2026-09-01) — long enough for a
+                               // person to get there first, short enough not to feel broken
   urgentDelaySeconds: 0,       // "Cannot work — blocked" is answered at once
   maxRepliesPerThreadPerDay: 6,
   historyMessages: 8,
@@ -127,7 +128,9 @@ async function askClaude(cfg, history, askerName) {
         "- Short. Two or three sentences, or a short numbered list. This is a chat window.\n" +
         "- Plain language. Never mention Firestore, Cloud Functions, JavaScript or any code.\n" +
         "- Name the actual screen and button they should click.\n" +
-        "- If a training walkthrough covers it, say which one.\n\n" +
+        "- If a training video covers it, PASTE THE LINK from the list you were\n" +
+        "  given. A link they can click beats a title they have to go and hunt for.\n" +
+        "  Only ever use a link from that list — never invent or guess a URL.\n\n" +
         "WHAT YOU MUST NOT DO\n" +
         "- Do not guess. If you are not sure, say so plainly and say Daniel will pick it up.\n" +
         "- You cannot change anything — no records, no events, no contacts. You explain only.\n" +
