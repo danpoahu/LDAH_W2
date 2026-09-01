@@ -1944,7 +1944,7 @@ async function detectAndFlagReturningCG(snap, signupData, signupId) {
     ownerName = p && p.fullName ? p.fullName : "";
   } catch (_) {}
   if (!ownerUid) ownerUid = LIFECYCLE_ADMIN_UID;
-  if (!ownerName) ownerName = "Maria Kashem";
+  if (!ownerName) ownerName = LIFECYCLE_ADMIN_NAME;
 
   const followUpDate = addDaysHst(toHstDateKey(new Date()), 2);
 
@@ -3033,7 +3033,7 @@ exports.onEventFeedbackCreated = functions
       let ownerName = await _lcResolveStaffName(db, ownerUid);
       if (!ownerName) {
         ownerName = presenterNameFromEvent
-          || (ownerUid === LIFECYCLE_ADMIN_UID ? "Maria Kashem" : "");
+          || (ownerUid === LIFECYCLE_ADMIN_UID ? LIFECYCLE_ADMIN_NAME : "");
       }
 
       await db.collection("interactions").add({
@@ -3112,7 +3112,7 @@ exports.onProviderRequestCreated = functions
       }
       let ownerName = await _lcResolveStaffName(db, ownerUid);
       if (!ownerName) {
-        ownerName = ownerUid === LIFECYCLE_ADMIN_UID ? "Maria Kashem" : "Chassidy Kruse";
+        ownerName = ownerUid === LIFECYCLE_ADMIN_UID ? LIFECYCLE_ADMIN_NAME : "Chassidy Kruse";
       }
 
       const orgName = (data.organizationName || "").trim() || "Unknown organization";
@@ -3190,7 +3190,7 @@ exports.onCalendarRequestCreated = functions
       // only a fallback if that read fails.
       const ownerUid = LIFECYCLE_ADMIN_UID;
       let ownerName = await _lcResolveStaffName(db, ownerUid);
-      if (!ownerName) ownerName = "Maria Kashem";
+      if (!ownerName) ownerName = LIFECYCLE_ADMIN_NAME;
 
       const requesterName = (data.name || "").trim() || "Unknown requester";
       const preferredDate = (data.preferredDate || "").trim();
@@ -3313,7 +3313,7 @@ exports.onResourceApplicationCreated = functions
       // Owner: the lifecycle admin (resource partner intake).
       const ownerUid = LIFECYCLE_ADMIN_UID;
       let ownerName = await _lcResolveStaffName(db, ownerUid);
-      if (!ownerName) ownerName = "Maria Kashem";
+      if (!ownerName) ownerName = LIFECYCLE_ADMIN_NAME;
 
       const orgName = (data.name || "").trim() || "Unknown organization";
       const contactName = (data.contactName || "").trim();
@@ -3485,7 +3485,7 @@ exports.onVolunteerApplicationCreated = functions
       }
       let ownerName = await _lcResolveStaffName(db, ownerUid);
       if (!ownerName) {
-        ownerName = ownerUid === LIFECYCLE_ADMIN_UID ? "Maria Kashem" : "Chassidy Kruse";
+        ownerName = ownerUid === LIFECYCLE_ADMIN_UID ? LIFECYCLE_ADMIN_NAME : "Chassidy Kruse";
       }
 
       const applicantName = [data.firstName, data.lastName]
@@ -6628,7 +6628,7 @@ exports.flagDayOfPendingSignups = functions
       return (!s.status || s.status === "pending" || s.status === "new") && s.archived !== true;
     }
 
-    let laaName = "Maria Kashem";
+    let laaName = LIFECYCLE_ADMIN_NAME;
     try {
       const resolved = await _lcResolveStaffName(db, LIFECYCLE_ADMIN_UID);
       if (resolved) laaName = resolved;
@@ -11069,7 +11069,7 @@ exports.submitResourceUpdate = functions
             summary: "Review pending resource update — " + _orgName,
             notes: _orgName + " submitted updates to their community resource listing. Open the resource to review and Approve or Reject.",
             followUpDate: addDaysHst(toHstDateKey(new Date()), 3), status: "Open", isDraft: false,
-            owner: "Maria Kashem", ownerUid: LIFECYCLE_ADMIN_UID,
+            owner: LIFECYCLE_ADMIN_NAME, ownerUid: LIFECYCLE_ADMIN_UID,
             createdAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
             createdBy: "System", createdByUid: "system",
@@ -17952,7 +17952,38 @@ exports._nhBuildAndSendReport = _nhBuildAndSendReport;
 // him, so every task routed here now goes to her. Display names are resolved
 // from userRoles at run time via _lcResolveStaffName(); the string fallbacks
 // below apply only if that read fails.
-const LIFECYCLE_ADMIN_UID = "WFyi6IVyHiXsVP2ADaikE9begOC3";
+const MARIA_KASHEM_UID = "WFyi6IVyHiXsVP2ADaikE9begOC3";
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEMPORARY COVER — Maria's tasks (2026-08-31, Daniel: "for a little while")
+//
+//   travel booking   -> Noelani Dela Vega
+//   everything else  -> Dan Pellegrini
+//
+// TO HAND IT BACK: set LIFECYCLE_COVER_ACTIVE to false and redeploy. That is
+// the whole revert — every owner, every fallback name and the travel route all
+// follow this one switch. Nothing else to remember.
+//
+// Only NEW tasks are affected. Tasks already sitting in someone's list keep the
+// owner they were created with; move those by hand if they need to move.
+//
+// Verified against live userRoles 2026-08-31:
+//   YmGV2TlBGqR01dVdxZ0rtFLEFCG3  Dan Pellegrini     danpellegrini63@gmail.com
+//   lwn8EWt6XEbCg5rhM0f8OSy8nTj2  Noelani Dela Vega  ndelavega@ldahawaii.org
+// ═══════════════════════════════════════════════════════════════════════════
+const LIFECYCLE_COVER_ACTIVE = true;
+const DAN_PELLEGRINI_UID  = "YmGV2TlBGqR01dVdxZ0rtFLEFCG3";
+const NOELANI_DELAVEGA_UID = "lwn8EWt6XEbCg5rhM0f8OSy8nTj2";
+
+// Everything that used to go to Maria.
+const LIFECYCLE_ADMIN_UID = LIFECYCLE_COVER_ACTIVE ? DAN_PELLEGRINI_UID : MARIA_KASHEM_UID;
+// Travel booking only — split out because it goes somewhere different.
+const LIFECYCLE_TRAVEL_UID = LIFECYCLE_COVER_ACTIVE ? NOELANI_DELAVEGA_UID : MARIA_KASHEM_UID;
+
+// Fallback display names, used ONLY when the userRoles read fails. They have to
+// follow the switch too, or a failed read would put the wrong name on the card.
+const LIFECYCLE_ADMIN_NAME  = LIFECYCLE_COVER_ACTIVE ? "Dan Pellegrini" : "Maria Kashem";
+const LIFECYCLE_TRAVEL_NAME = LIFECYCLE_COVER_ACTIVE ? "Noelani Dela Vega" : "Maria Kashem";
 
 const LIFECYCLE_CHANNELS = {
   assignPresenter:  { channel: "Event Setup",   type: "Assign Presenter" },
@@ -18836,14 +18867,16 @@ exports.onWorkshopFormWritten = functions
         await b.commit();
       } catch (e) { console.warn("workshopForm: could not close the approval task:", e.message); }
 
-      const adminName = await _lcResolveStaffName(db, LIFECYCLE_ADMIN_UID);
+      // Travel booking follows LIFECYCLE_TRAVEL_UID, not the general admin —
+      // see the TEMPORARY COVER block. Normally both are the same person.
+      const adminName = await _lcResolveStaffName(db, LIFECYCLE_TRAVEL_UID);
       const _tBook = await _lcCreateIfMissing(db, {
         eventId, eventTitle: title, step: "workshopTravel", sessionKey: "",
-        ownerUid: LIFECYCLE_ADMIN_UID,
-        ownerName: adminName || "Maria Kashem",
+        ownerUid: LIFECYCLE_TRAVEL_UID,
+        ownerName: adminName || LIFECYCLE_TRAVEL_NAME,
         dueDate
       });
-      if (_tBook) await logWorkshopActivity(db, eventId, "Task sent", "Book travel \u2192 " + (adminName || "Maria Kashem"));
+      if (_tBook) await logWorkshopActivity(db, eventId, "Task sent", "Book travel \u2192 " + (adminName || LIFECYCLE_TRAVEL_NAME));
     }
     return null;
   });
@@ -20011,6 +20044,11 @@ exports.scheduledCaseAdvocacyDocLifecycle = functions
   });
 
 // ── Photo Release ─────────────────────────────────────────────────
+// IT_Help auto-answer (2026-09-01). Its own file — it is a self-contained
+// feature with one trigger, and keeping it out of this 23k-line file means it
+// can be read, reviewed and deployed on its own.
+exports.itHelpAutoAnswer = require("./itHelpAssistant").itHelpAutoAnswer;
+
 exports.createPhotoReleaseRequest = require("./photoRelease").createPhotoReleaseRequest;
 exports.getPhotoRelease = require("./photoRelease").getPhotoRelease;
 exports.submitPhotoRelease = require("./photoRelease").submitPhotoRelease;
