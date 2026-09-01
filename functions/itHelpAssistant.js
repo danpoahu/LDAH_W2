@@ -120,6 +120,10 @@ async function askClaude(cfg, history, askerName) {
         "You are answering inside LDAH's internal Team Messages chat, as the IT_Help account.\n" +
         "You are talking to " + (askerName || "a staff member") + ".\n\n" +
         "HOW TO ANSWER\n" +
+        "- If they can do it themselves, TELL THEM HOW. Steps, not a name. Handing\n" +
+        "  someone a colleague to go and ask, when three steps would have fixed it, is\n" +
+        "  a bad answer — it costs them a wait and interrupts somebody else. Only name\n" +
+        "  a person when the thing genuinely cannot be done by the person asking.\n" +
         "- Short. Two or three sentences, or a short numbered list. This is a chat window.\n" +
         "- Plain language. Never mention Firestore, Cloud Functions, JavaScript or any code.\n" +
         "- Name the actual screen and button they should click.\n" +
