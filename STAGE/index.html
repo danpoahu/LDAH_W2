@@ -815,10 +815,22 @@
             }
 
             // Information section = one-time infoOnly events (within their date
-            // window) + ongoing flyer-only programs. Hidden when empty.
+            // window) + ongoing flyer-only programs + Screening / Outreach Booth.
+            // Hidden when empty.
+            //
+            // Booths were calendar-only since 2026-08-11: excluded from the main
+            // cards above (they take no signup from this page) and shown nowhere
+            // else, so a booth with a good flyer was invisible unless somebody
+            // opened the calendar and found the right day. They belong here for
+            // the same reason a flyer does — there is nothing to sign up for,
+            // the flyer IS the message, and this card opens the flyer rather
+            // than a dead-end detail page. (2026-08-31, Daniel)
+            //
+            // No risk of double-listing: the currentEvents filter above already
+            // drops both infoOnly and specialEvent.
             const infoEvents = eventsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(event => {
                 if (event.archived === true) return false;
-                if (event.infoOnly !== true) return false;
+                if (event.infoOnly !== true && event.specialEvent !== true) return false;
                 if (!event.imageUrl) return false;
                 if (!event.startDate || !event.moveToPastDate) return false;
                 const startDate = new Date(event.startDate + 'T00:00:00');
