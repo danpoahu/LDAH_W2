@@ -3082,7 +3082,7 @@
           <div class="upload-progress" id="eventUploadProgress" style="display: none;">
             <div class="upload-progress-bar" id="eventUploadProgressBar"></div>
           </div>
-          <p style="font-size: 0.8rem; color: var(--text-light); margin-top: 0.5rem;">Max 10MB. PNG, JPG, WebP, or PDF.</p>
+          <p style="font-size: 0.8rem; color: var(--text-light); margin-top: 0.5rem;">Max 10 MB. PNG, JPG, WebP, or PDF. Large images are compressed automatically.</p>
         </div>
         
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
@@ -3195,7 +3195,7 @@
           <div class="upload-progress" id="recurringUploadProgress" style="display:none;">
             <div class="upload-progress-bar" id="recurringUploadProgressBar"></div>
           </div>
-          <p style="font-size:0.8rem;color:var(--text-light);margin-top:0.5rem;">Max 10MB. PNG, JPG, WebP, or PDF.</p>
+          <p style="font-size:0.8rem;color:var(--text-light);margin-top:0.5rem;">Max 10 MB. PNG, JPG, WebP, or PDF. Large images are compressed automatically.</p>
         </div>
 
         <div class="form-group" style="display:flex;align-items:center;gap:0.75rem;">
@@ -5974,8 +5974,46 @@
       document.getElementById('eventImagePreview').innerHTML = '';
     }
     
+    /* ── Flyer downscale + compress (2026-08-31, Daniel) ──────────────────
+       This page uploaded whatever it was handed, at full resolution, while
+       LDAH-Int had capped and re-encoded flyers for months. Both write to the
+       same event-images/ bucket and the same public cards, so a flyer added
+       here cost every visitor the full file. Ported from LDAH-Int so the "large
+       images are compressed automatically" note under the picker is true on
+       both pages. PDFs are left alone here — Int converts them via pdf.js,
+       which this page does not load. */
+    function _w2ImageToCanvas(file) {
+      return new Promise(function(resolve, reject) {
+        var img = new Image();
+        img.onload = function() {
+          var w = img.width, h = img.height, maxDim = 1600;
+          if (Math.max(w, h) > maxDim) { var s = maxDim / Math.max(w, h); w = Math.round(w * s); h = Math.round(h * s); }
+          var c = document.createElement('canvas');
+          c.width = w; c.height = h;
+          var ctx = c.getContext('2d');
+          ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          URL.revokeObjectURL(img.src);
+          resolve(c);
+        };
+        img.onerror = function() { reject(new Error('image decode failed')); };
+        img.src = URL.createObjectURL(file);
+      });
+    }
+    async function _w2CompressFlyer(file) {
+      try {
+        if (!file || !file.type || !/^image\//.test(file.type)) return file;   // PDFs pass through
+        var canvas = await _w2ImageToCanvas(file);
+        var blob = await new Promise(function(res) { canvas.toBlob(res, 'image/jpeg', 0.9); });
+        if (!blob) return file;
+        if (file.type === 'image/jpeg' && blob.size >= file.size) return file;  // never make it worse
+        var base = (file.name || 'flyer').replace(/\.[^.]+$/, '');
+        return new File([blob], base + '.jpg', { type: 'image/jpeg' });
+      } catch (err) { console.warn('_w2CompressFlyer failed, using original:', err && err.message); return file; }
+    }
+
     async function handleEventImageUpload(e) {
-      const file = e.target.files[0];
+      let file = e.target.files[0];   // let, not const — reassigned by _w2CompressFlyer below
       if (!file) return;
 
       const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
@@ -5994,6 +6032,7 @@
       progress.style.display = 'block';
 
       try {
+        file = await _w2CompressFlyer(file);
         const filename = `event-images/${Date.now()}_${file.name}`;
         const ref = storage.ref(filename);
         const metadata = { contentType: file.type };
@@ -6657,7 +6696,7 @@
     }
 
     async function handleRecurringImageUpload(e) {
-      const file = e.target.files[0]; if (!file) return;
+      let file = e.target.files[0]; if (!file) return;   // let, not const — reassigned by _w2CompressFlyer below
       const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
       if (!allowed.includes(file.type)) { alert('Please upload a PNG, JPG, WebP, or PDF file.'); return; }
       if (file.size > 10 * 1024 * 1024) { alert('File must be less than 10MB'); return; }
@@ -6665,6 +6704,7 @@
       const bar = document.getElementById('recurringUploadProgressBar');
       progress.style.display = 'block';
       try {
+        file = await _w2CompressFlyer(file);
         const ref = storage.ref(`event-images/${Date.now()}_${file.name}`);
         const metadata = { contentType: file.type };
         const task = ref.put(file, metadata);
