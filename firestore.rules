@@ -15,6 +15,20 @@ service cloud.firestore {
       return isStaff()
         && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role == 'superAdmin';
     }
+
+    /* Pacific partner scoping (2026-08-20, LDAH-Int v148.32).
+       The `partner` role is the six Pacific Basin partner organizations.
+       Their island lives in userRoles.location as the WEATHER_LOCATIONS label
+       ('American Samoa', 'Guam', 'CNMI', 'Micronesia', 'Marshall Islands',
+       'Palau'); LDAH-Int stamps the same label onto records they create as
+       `partnerIsland`. Staff locations are Hawaiian island labels, so they
+       never collide with a partnerIsland value. */
+    function myRole() {
+      return get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role;
+    }
+    function myPartnerIsland() {
+      return get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.location;
+    }
     match /categories/{document=**} {
       allow read: if true;
       allow write: if request.auth != null;
@@ -247,9 +261,38 @@ service cloud.firestore {
       allow write: if request.auth != null;
     }
 
+    /* Contacts.
+       READ is unchanged: any signed-in user. The three partner-visible reports
+       filter to `partnerIsland` records in the client — that is a scoping
+       convenience, not a confidentiality boundary, and always was.
+
+       WRITE was superAdmin/admin only, which blocked the One-Off Event
+       attendee quick-add for partners. Partners may now create a contact
+       stamped to their OWN island and edit only those; they cannot re-stamp a
+       record onto another island, and a Hawai'i family's record stays
+       untouchable to them (no partnerIsland, so no comparison succeeds).
+       A partner whose location does not resolve gets no stamp and therefore
+       no write — it fails closed. */
     match /contacts/{docId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin','admin'];
+      allow create: if isStaff() && (
+           myRole() in ['superAdmin','admin']
+        || (myRole() == 'partner'
+            && request.resource.data.partnerIsland == myPartnerIsland())
+      );
+      /* On update, request.resource.data is the MERGED result, so partnerIsland
+         survives a partial update() and the equality below still holds. */
+      allow update: if isStaff() && (
+           myRole() in ['superAdmin','admin']
+        || (myRole() == 'partner'
+            && resource.data.partnerIsland == myPartnerIsland()
+            && request.resource.data.partnerIsland == resource.data.partnerIsland)
+      );
+      allow delete: if isStaff() && (
+           myRole() in ['superAdmin','admin']
+        || (myRole() == 'partner'
+            && resource.data.partnerIsland == myPartnerIsland())
+      );
     }
 
     /* ══════════════════════════════════════════════════════════════════
@@ -318,6 +361,29 @@ service cloud.firestore {
       allow write: if isStaff();
     }
 
+    /* Append-only audit trail on a workshop form (2026-08-20). Staff read and
+       ADD entries; nobody edits or deletes one, so the record of who touched
+       the form cannot be altered. The parent match above is single-segment and
+       does not reach this subcollection. */
+    match /workshopForms/{eventId}/activity/{entryId} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+      allow update, delete: if false;
+    }
+
+    /* Volunteer help requests + their participants (2026-08-21). Staff manage
+       them in -Int; the public confirm flow goes through Cloud Functions (Admin
+       SDK, which bypasses rules), so the confirm tokens are never client-read. */
+    match /volunteerRequests/{reqId} {
+      allow read, write: if isStaff();
+      match /participants/{pid} {
+        allow read, write: if isStaff();
+      }
+    }
+    match /volunteerConfirmTokens/{token} {
+      allow read, write: if false;   // Admin SDK only
+    }
+
     match /photoReleases/{docId} {
       allow read: if request.auth != null;
       allow write: if false; // Cloud Functions (Admin SDK) only
@@ -332,9 +398,47 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin','admin'];
     }
 
+    /* Channels and Interaction Types are locked to Daniel (2026-08-20).
+
+       These two drive every interaction record in the system, and a value
+       removed from them has twice come back on its own: an Int tab loaded
+       before 2026-08-19 22:30 UTC still runs a loadLookupLists() that
+       re-adds retired values, silently, stamped `auto-migrate`. Code cannot
+       reach a browser that is already open — only this rule can, so the guard
+       lives here.
+
+       Two clauses, and both matter:
+         - uid, not role. Five people hold superAdmin and any of their stale
+           tabs would otherwise be able to write these lists.
+         - `updatedBy != 'auto-migrate'`, which stops even DANIEL'S own stale
+           tab from restoring a value automatically. A deliberate edit stamps
+           a uid; only the auto-migrate path stamps that literal.
+
+       NOTE ON SHAPE: Firestore ORs every matching rule, so a more specific
+       match cannot narrow a broader one. The generic rule below therefore has
+       to exclude these two docs by name — deleting that exclusion silently
+       unlocks them again. */
+    function isListOwner() {
+      return request.auth != null && request.auth.uid in [
+        'YmGV2TlBGqR01dVdxZ0rtFLEFCG3',   // danpellegrini63@gmail.com
+        'Lwz0SNVIRAcC68tVQdzE2BBCapt1'    // dan@oahuappdesign.com — .IT_Help break-glass
+      ];
+    }
+    match /lookupLists/channels {
+      allow read: if request.auth != null;
+      allow write: if isListOwner()
+        && request.resource.data.updatedBy != 'auto-migrate';
+    }
+    match /lookupLists/interactionTypes {
+      allow read: if request.auth != null;
+      allow write: if isListOwner()
+        && request.resource.data.updatedBy != 'auto-migrate';
+    }
+
     match /lookupLists/{docId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null
+        && !(docId in ['channels', 'interactionTypes'])
         && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role == 'superAdmin';
     }
 
@@ -502,6 +606,21 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /* IT_Help auto-answer log (2026-09-01). One document per attempted reply,
+       written ONLY by the itHelpAutoAnswer Cloud Function via the Admin SDK,
+       which bypasses rules — so no client ever needs to write here, and a
+       client that tries is a bug or worse.
+
+       READ is superAdmin only, and deliberately narrower than the rest of the
+       Reports screen: these documents carry the verbatim question a colleague
+       typed and the answer they were given. That is a record of who asked for
+       help and what they did not know, which is not something the whole staff
+       should be able to browse. */
+    match /itHelpLog/{entryId} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+
     /* Certificate serial counters, one doc per tier per year, bumped inside
        the transaction that mints a certificate number. Only issueCertificate
        (Admin SDK) ever touches these — a client must never be able to read
@@ -511,3 +630,7 @@ service cloud.firestore {
     }
   }
 }
+
+
+
+
