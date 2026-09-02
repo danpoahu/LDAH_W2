@@ -782,13 +782,35 @@
             // August Learning Labs can put IDEA/Chapter 60 in front of one visitor
             // and Understanding Evaluations in front of the next.
             const _rotPool = [];
+
+                    /* Home Rotation windows (2026-09-02). Staff set a "show from"
+                       and "show to" per item in LDAH-Int; an item outside its
+                       window is simply not in the pool. Sessions carry only a
+                       start — they end on the day they happen, which the
+                       existing past-session check already handles. Keys are
+                       sanitised because a dot in a Firestore map key is a path. */
+            var _hrToday = new Date().toISOString().slice(0, 10);
+            function _hrKey(l) { return String(l || '').replace(/[^A-Za-z0-9]+/g, '_'); }
+            function _hrOpen(c, lbl) {
+              if (lbl) {
+                var f = (c.homeRotationSessionFrom || {})[_hrKey(lbl)] || '';
+                return !f || String(f) <= _hrToday;
+              }
+              if (c.homeRotationFrom && String(c.homeRotationFrom) > _hrToday) return false;
+              if (c.homeRotationTo && String(c.homeRotationTo) < _hrToday) return false;
+              return true;
+            }
             [...currentEvents, ...recurringCards].forEach(c => {
               if (!c.imageUrl) return;
               const picked = Array.isArray(c.homeRotationDates) ? c.homeRotationDates : [];
               if (picked.length) {
-                picked.forEach(lbl => _rotPool.push({ ...c, id: c.id + '::' + lbl, _rotSession: lbl,
-                  _pinned: String(c.homePinned || '') === lbl }));
+                picked.forEach(lbl => {
+                  if (!_hrOpen(c, lbl)) return;
+                  _rotPool.push({ ...c, id: c.id + '::' + lbl, _rotSession: lbl,
+                    _pinned: String(c.homePinned || '') === lbl });
+                });
               } else if (c.homeRotation === true) {
+                if (!_hrOpen(c, '')) return;
                 _rotPool.push({ ...c, _pinned: c.homePinned === true });
               }
             });

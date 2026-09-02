@@ -323,7 +323,26 @@
             db.collection('recurringEvents').where('active', '==', true).get()
         ]).then(function (snaps) {
             var pool = [];
+
+                    /* Home Rotation windows (2026-09-02). Staff set a "show from"
+                       and "show to" per item in LDAH-Int; an item outside its
+                       window is simply not in the pool. Sessions carry only a
+                       start — they end on the day they happen, which the
+                       existing past-session check already handles. Keys are
+                       sanitised because a dot in a Firestore map key is a path. */
+            var _hrToday = new Date().toISOString().slice(0, 10);
+            function _hrKey(l) { return String(l || '').replace(/[^A-Za-z0-9]+/g, '_'); }
+            function _hrOpen(c, lbl) {
+              if (lbl) {
+                var f = (c.homeRotationSessionFrom || {})[_hrKey(lbl)] || '';
+                return !f || String(f) <= _hrToday;
+              }
+              if (c.homeRotationFrom && String(c.homeRotationFrom) > _hrToday) return false;
+              if (c.homeRotationTo && String(c.homeRotationTo) < _hrToday) return false;
+              return true;
+            }
             snaps.forEach(function (snap) {
+
                 snap.forEach(function (doc) {
                     var c = doc.data(); c.id = doc.id;
                     if (c.archived === true) return;
@@ -333,11 +352,13 @@
                     if (picked.length) {
                         picked.forEach(function (lbl) {
                             if (!_rotNotPast(_rotDateFromLabel(lbl))) return;   // skip a past ticked session
+                            if (!_hrOpen(c, lbl)) return;                      // not inside its show-from window
                             pool.push(rotCampaign(c, lbl, String(c.homePinned || '') === lbl));
                         });
                     } else if (c.homeRotation === true) {
                         // The event moves to Past on its own at moveToPastDate — honour the
                         // same boundary so a stale homeRotation flag can't resurface it.
+                        if (!_hrOpen(c, '')) return;                       // outside its rotation window
                         var _bound = c.moveToPastDate || c.eventDate;
                         var _bd = _bound ? new Date(_bound + 'T00:00:00') : null;
                         if (_bd && !_rotNotPast(_bd)) return;
