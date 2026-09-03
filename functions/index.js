@@ -3963,7 +3963,11 @@ async function handleSignupUpdated(change, context) {
 }
 
 exports.onEventSignupUpdated = functions
-  .runWith({ timeoutSeconds: 60, maxInstances: 10, secrets: EMAIL_SECRETS })
+  // ANTHROPIC_API_KEY + room to work: this trigger now generates the Case
+  // Review when a family flips to confirmed, which means downloading their
+  // documents and waiting on a model call.
+  .runWith({ memory: "1GB", timeoutSeconds: 540, maxInstances: 10,
+             secrets: EMAIL_SECRETS.concat(["ANTHROPIC_API_KEY"]) })
   .firestore.document("events/{eventId}/signups/{signupId}")
   .onUpdate(async (change, context) => {
     // Backfills a prep token onto signups that pre-date the worksheet, and
@@ -3976,12 +3980,17 @@ exports.onEventSignupUpdated = functions
       maybeSendRegistrationConfirmation(change, context, "events"),
       maybeSendFeedbackEmailOnAttendance(change, context, "events"),
       handleSignupLifecycleEmails(change, context, "events"),
+      _cgOnConfirmedGenerateCaseReview(change, context, "events"),
     ]);
     return null;
   });
 
 exports.onRecurringEventSignupUpdated = functions
-  .runWith({ timeoutSeconds: 60, maxInstances: 10, secrets: EMAIL_SECRETS })
+  // ANTHROPIC_API_KEY + room to work: this trigger now generates the Case
+  // Review when a family flips to confirmed, which means downloading their
+  // documents and waiting on a model call.
+  .runWith({ memory: "1GB", timeoutSeconds: 540, maxInstances: 10,
+             secrets: EMAIL_SECRETS.concat(["ANTHROPIC_API_KEY"]) })
   .firestore.document("recurringEvents/{eventId}/signups/{signupId}")
   .onUpdate(async (change, context) => {
     // Backfills a prep token onto signups that pre-date the worksheet, and
@@ -3994,6 +4003,7 @@ exports.onRecurringEventSignupUpdated = functions
       maybeSendRegistrationConfirmation(change, context, "recurringEvents"),
       maybeSendFeedbackEmailOnAttendance(change, context, "recurringEvents"),
       handleSignupLifecycleEmails(change, context, "recurringEvents"),
+      _cgOnConfirmedGenerateCaseReview(change, context, "recurringEvents"),
     ]);
     return null;
   });
@@ -12652,20 +12662,14 @@ async function _cgMaybeConfirm(ref, signupData, event) {
       console.log("_cgMaybeConfirm: all requirements met, status -> confirmed for", ref.path);
     }
 
-    // The family is ready, so their documents and worksheet are all in — the
-    // moment there is something worth reading. Awaited so a same-tick failure
-    // is logged, but non-fatal by contract inside.
-    try {
-      const _crRef = ref;
-      const _crParts = String(ref.path || "").split("/");
-      await _cgMaybeGenerateCaseReview({
-        db: admin.firestore(),
-        collection: _crParts[0], eventId: _crParts[1],
-        signupRef: _crRef, signup, event: ev, reason: "confirmed",
-      });
-    } catch (_crErr) {
-      console.error("Case Review generation failed (non-fatal):", _crErr.message);
-    }
+    // The Case Review is NOT generated here. _cgMaybeConfirm runs inside the
+    // family's own HTTPS request — the consent submit, the worksheet save, the
+    // upload confirm — and several of those are 30-second functions. Reading a
+    // stack of PDFs and waiting on a model would time out the family's save,
+    // which is the one thing that must never fail.
+    //
+    // The status flip above fires the signup onUpdate trigger, and generation
+    // hangs off THAT instead: same moment, same meaning, background timing.
     return reqs;
   } catch (e) {
     console.error("_cgMaybeConfirm failed (non-fatal):", e.message);
@@ -17041,6 +17045,37 @@ async function _cgGenerateCaseReview({ db, collection, eventId, signupRef, signu
   return true;
 }
 
+// Generation hangs off the signup UPDATE trigger rather than the confirm gate.
+//
+// _cgMaybeConfirm runs inside the family's own HTTPS request — the consent
+// submit, the worksheet save, the upload confirm — and three of those are
+// 30-second functions. Reading a stack of PDFs and waiting on a model there
+// would time out the family's save, which is the one thing that must never
+// fail. The status flip fires this trigger instead: the same moment, the same
+// meaning, but on background timing with room to work.
+async function _cgOnConfirmedGenerateCaseReview(change, context, collection) {
+  try {
+    const before = change.before.data() || {};
+    const after = change.after.data() || {};
+    // Only the transition INTO confirmed. Any later update to a confirmed
+    // signup is left to the nightly sweep, which handles a changed fingerprint.
+    if (before.status === "confirmed" || after.status !== "confirmed") return;
+
+    const db = admin.firestore();
+    const eventId = context.params.eventId;
+    const evSnap = await db.collection(collection).doc(eventId).get();
+    const event = evSnap.exists ? (evSnap.data() || {}) : null;
+    if (!event || event.zoomMode !== "program") return;
+
+    await _cgMaybeGenerateCaseReview({
+      db, collection, eventId,
+      signupRef: change.after.ref, signup: after, event, reason: "confirmed",
+    });
+  } catch (e) {
+    console.error("_cgOnConfirmedGenerateCaseReview failed (non-fatal):", e.message);
+  }
+}
+
 // Should this family get a Case Review, and has anything changed since the last
 // one? Wrapped so a failure is invisible to the caller.
 async function _cgMaybeGenerateCaseReview({ db, collection, eventId, signupRef, signup, event, reason }) {
@@ -17068,9 +17103,9 @@ async function _cgMaybeGenerateCaseReview({ db, collection, eventId, signupRef, 
     });
     if (!wrote) return false;
 
-    await _cgSendCaseReviewNotice({
+    await _cgCreateCaseReviewTask({
       db, collection, eventId, signupRef, signup, presenterUid: pres.presenterUid,
-      sessionDateKey: first.dateKey,
+      sessionDateKey: first.dateKey, sessionLabel: first.rawString || "",
     });
     return true;
   } catch (e) {
@@ -17081,51 +17116,76 @@ async function _cgMaybeGenerateCaseReview({ db, collection, eventId, signupRef, 
   }
 }
 
-// Tell the presenter — and only the presenter — that a review is waiting.
-// Deliberately does NOT contain any of the child's information: it is a nudge
-// with a link into the dashboard, which is staff-authenticated. The summary
-// itself never travels by email.
-async function _cgSendCaseReviewNotice({ db, collection, eventId, signupRef, signup, presenterUid, sessionDateKey }) {
+// Tell the presenter a review is waiting — as a TASK, not an email.
+//
+// Daniel, 2026-09-03: "case summary needs no emails sent, if you want to fire a
+// task to the person who's presenting that's fine." Which is the better shape
+// anyway: it lands in the dashboard they already work from, it can be closed,
+// and nothing about the child leaves the system. The summary itself is never
+// emailed and never will be.
+//
+// Idempotent on the signup + session: a regeneration after the family uploads
+// another evaluation must not stack up a second identical task.
+async function _cgCreateCaseReviewTask({ db, collection, eventId, signupRef, signup, presenterUid, sessionDateKey, sessionLabel }) {
   try {
-    const staff = (await db.collection("userRoles").doc(presenterUid).get()).data() || {};
-    const to = String(staff.email || "").trim();
-    if (!to) {
-      console.warn("_cgSendCaseReviewNotice: presenter " + presenterUid + " has no email on file");
+    const existing = await db.collection("interactions")
+      .where("cgCaseReviewSignupPath", "==", signupRef.path)
+      .where("cgCaseReviewSessionKey", "==", sessionDateKey || "")
+      .limit(1).get();
+    if (!existing.empty) {
+      console.log("_cgCreateCaseReviewTask: task already open for " + signupRef.path);
       return;
     }
-    const deepLink = "https://danpoahu.github.io/LDAH-Int/?caseSummary=" +
-      encodeURIComponent(collection) + "__" + encodeURIComponent(eventId) + "__" +
-      encodeURIComponent(signupRef.id);
-    const family = lifecycleEsc(signup.name || signup.firstName || "a family");
-    const when = lifecycleEsc(_formatSessionLongLabel(sessionDateKey) || "an upcoming session");
-    const html = [
-      '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f7;">',
-      '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f4f4f7;padding:24px 0;"><tr><td align="center">',
-      '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="background:#fff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">',
-      '<tr><td style="background:#0e5f7a;padding:18px 24px;"><p style="margin:0;font-size:18px;color:#fff;font-weight:700;">Case Review ready</p></td></tr>',
-      '<tr><td style="padding:24px;">',
-      '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">A Case Review has been prepared for <strong>' + family + '</strong>, whose session is ' + when + '.</p>',
-      '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">It is an AI-prepared draft built from the documents the family uploaded and their Parent Report Worksheet. <strong>Check it against the originals before you rely on it</strong> &mdash; it is a starting snapshot, not the work.</p>',
-      '<p style="margin:18px 0;">' + _emailBtn(deepLink, "Open the Case Review", { bg: "#0e5f7a", align: "left" }) + '</p>',
-      '<p style="margin:14px 0 0;font-size:13px;color:#5f7178;line-height:1.5;">Nothing about the child is in this email. The review opens in the dashboard, where you are signed in.</p>',
-      '</td></tr></table></td></tr></table></body></html>',
-    ].join("");
 
-    await sendEmailViaResend({
-      from: lifecycleFromAddress(),
-      to: [to],
-      subject: "Case Review ready — " + (signup.name || signup.firstName || "Connect-Gen family"),
-      html,
-      type: "connect-gen-case-review-ready",
-      relatedEventId: eventId,
-      relatedSignupId: signupRef.id,
-      recipientName: staff.displayName || "",
+    const staff = presenterUid
+      ? ((await db.collection("userRoles").doc(presenterUid).get()).data() || {})
+      : {};
+    const who = signup.name || signup.firstName || "a Connect-Gen family";
+    const when = sessionLabel || _formatSessionLongLabel(sessionDateKey) || "their session";
+
+    await db.collection("interactions").add({
+      channel: "Internal",
+      interactionType: "Connect-Gen",
+      contactId: signup.linkedContactId || "",
+      contactName: who,
+      contactType: "Parent/Guardian",
+      grantProgram: "",
+      summary: "Case Review ready to check — " + who + ", " + when,
+      // Due today: the value of this is entirely in reading it BEFORE the
+      // session, and the sweep only builds reviews for sessions within a
+      // fortnight.
+      followUpDate: toHstDateKey(new Date()),
+      status: "Open",
+      notes:
+        "A Case Review has been prepared for " + who + " ahead of " + when + ".\n\n" +
+        "It is built from the documents the family uploaded and their Parent Report Worksheet, " +
+        "and it is an AI-PREPARED DRAFT. Check it against the original documents before you rely " +
+        "on it — it is a starting snapshot, not the work. The right-hand column is the gap check: " +
+        "what the parent raised and the evaluations found, against what the IEP actually covers.\n\n" +
+        "Open it from the purple Case Summary button on the family's signup, or from their " +
+        "contact card.\n\n" +
+        "It is not shown to the family as it stands.",
+      isDraft: false,
+      owner: staff.displayName || "",
+      ownerUid: presenterUid || "",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdBy: "System",
+      createdByUid: "system",
+      // Own fields rather than the workflowEventId/step trio, which belongs to
+      // the event lifecycle registry and would need a channel entry there.
+      cgCaseReviewSignupPath: signupRef.path,
+      cgCaseReviewSessionKey: sessionDateKey || "",
+      cgCaseReviewCollection: collection,
+      cgCaseReviewEventId: eventId,
     });
+
     await signupRef.set({
-      "caseSummary.presenterNotifiedAt": admin.firestore.FieldValue.serverTimestamp(),
+      "caseSummary.presenterTaskedAt": admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
+    console.log("_cgCreateCaseReviewTask: task raised for " + signupRef.path + " -> " + (presenterUid || "unassigned"));
   } catch (e) {
-    console.error("_cgSendCaseReviewNotice failed (non-fatal):", e.message);
+    console.error("_cgCreateCaseReviewTask failed (non-fatal):", e.message);
   }
 }
 
