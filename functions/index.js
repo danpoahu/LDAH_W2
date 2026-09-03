@@ -12253,6 +12253,21 @@ const CONNECT_GEN_MAX_DOCS_PER_TYPE = 7;
 // up rather than one that is more secure. 120 days.
 const CONNECT_GEN_PREP_TOKEN_TTL_MS = 120 * 24 * 60 * 60 * 1000;
 const CONNECT_GEN_WORKSHEET_BASE_URL = "https://www.ldahawaii.org/connect-gen-worksheet.html";
+const CONNECT_GEN_CONSENT_BASE_URL = "https://www.ldahawaii.org/connect-gen-consent.html";
+
+// The consent page needs four parameters, not just the token: it looks the
+// signup up by token but needs event, signup and collection to render. Two
+// other places build this inline (the consent-required email and the staff
+// resend); they still do, and could adopt this helper later.
+function _cgConsentUrl(signup, collection, eventId, signupId) {
+  const t = signup && signup.consentToken;
+  if (!t) return "";
+  return CONNECT_GEN_CONSENT_BASE_URL +
+    "?token=" + encodeURIComponent(t) +
+    "&e=" + encodeURIComponent(eventId || "") +
+    "&s=" + encodeURIComponent(signupId || "") +
+    "&c=" + encodeURIComponent(collection || "");
+}
 
 // A concern is the paper form's five columns (A–E). All five must be answered,
 // but "n/a" is a valid answer — many parents genuinely will not know what
@@ -16812,52 +16827,87 @@ function _findUpcomingMondaysForEvent(event, signup, opts) {
  * mode: "offer" | "reminder"
  */
 function _buildCgRescheduleEmailHtml({
-  mode, firstName, sessionDateLabel,
-  uploadUrl, mondayOptions, signatureHtml,
+  mode, firstName, sessionDateLabel, sessionLocation, sessionModality,
+  outstanding, actionUrls, options, signatureHtml,
 }) {
   const safeFirst = lifecycleEsc(firstName || "there");
-  const safeDate = lifecycleEsc(sessionDateLabel || "your Monday session");
-  const uploadBtn = _emailBtn(uploadUrl, "Upload Documents Now", { bg: "#1a3c6e", align: "left" });
+  const safeDate = lifecycleEsc(sessionDateLabel || "your Connect-Gen session");
+  const isVirtual = sessionModality === "virtual";
+  const locBit = sessionLocation ? " at " + lifecycleEsc(sessionLocation) : "";
+  const owed = outstanding && outstanding.length ? outstanding : ["documents"];
+  const phrase = lifecycleEsc(_cgOutstandingPhrase(owed));
+  const urls = actionUrls || {};
 
-  const mondayBtns = (mondayOptions || []).map((opt) => {
-    const label = "Monday, " + opt.label;
+  // One button per outstanding requirement, and ONLY for what is outstanding.
+  // The old email always showed an upload button, which was wrong for a family
+  // whose documents were in and whose worksheet was not.
+  const btnFor = {
+    consent: () => urls.consent ? _emailBtn(urls.consent, "Read & Sign the Consent Form", { bg: "#1a3c6e", align: "left" }) : "",
+    documents: () => urls.upload ? _emailBtn(urls.upload, "Upload the Documents", { bg: "#1a3c6e", align: "left" }) : "",
+    worksheet: () => urls.worksheet ? _emailBtn(urls.worksheet, "Complete the Worksheet", { bg: "#1a3c6e", align: "left" }) : "",
+  };
+  const actionBtns = owed.map((k) => (btnFor[k] ? btnFor[k]() : "")).join("");
+
+  // Each option button names its own date AND location. A date alone cannot
+  // identify a session — Connect-Gen runs two on some dates.
+  const optionBtns = (options || []).map((opt) => {
+    const label = (opt.label || "") + (opt.location ? " \u2014 " + opt.location : "");
     return _emailBtn(opt.url, label, { bg: "#0891B2", align: "left" });
   }).join("");
 
-  const intro = (mode === "reminder")
-    ? '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">' +
-        'This is a friendly reminder that we still haven\'t received the IEP and evaluation documents for your Connect-Gen session on Monday, ' + safeDate + '. ' +
-        'Without these documents, our advocates can\'t fully prepare, and we won\'t be able to send you the Zoom meeting link for that session.' +
-      '</p>'
-    : '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">' +
-        'I\'m reaching out about your Connect-Gen registration for Monday, ' + safeDate + '. ' +
-        'We haven\'t received your child\'s IEP and evaluation documents yet, and we need those one week before the session so our advocates can prepare to best support your family.' +
-      '</p>';
+  const p = (t, top) => '<p style="margin:' + (top || "0") + ' 0 8px;font-size:15px;color:#222;line-height:1.55;">' + t + '</p>';
 
-  const uploadLead = (mode === "reminder")
-    ? '<p style="margin:0 0 8px;font-size:15px;color:#222;line-height:1.55;">' +
-        'To stay on this Monday, please upload your documents as soon as possible:' +
-      '</p>'
-    : '<p style="margin:0 0 8px;font-size:15px;color:#222;line-height:1.55;">' +
-        'If you can upload the documents in the next few days:' +
-      '</p>';
+  // The Zoom clause is true only for a virtual session. Telling a family driving
+  // to Kona that we cannot send them a Zoom link is simply false.
+  const zoomClause = isVirtual
+    ? " Without them we also cannot send you the Zoom link for that session."
+    : "";
 
-  const mondayLead = (mode === "reminder")
-    ? '<p style="margin:18px 0 8px;font-size:15px;color:#222;line-height:1.55;">' +
-        'Or if this Monday no longer works, you can still move to one of these upcoming Mondays:' +
-      '</p>'
-    : '<p style="margin:18px 0 8px;font-size:15px;color:#222;line-height:1.55;">' +
-        'If you need more time, you\'re welcome to move to one of these upcoming Mondays instead:' +
-      '</p>';
+  let intro;
+  if (mode === "final") {
+    intro = p("Your Connect-Gen session is tomorrow &mdash; " + safeDate + locBit +
+      ". We still do not have " + phrase + ".");
+  } else if (mode === "reminder") {
+    intro = p("This is a friendly reminder that we still have not received " + phrase +
+      " for your Connect-Gen session on " + safeDate + locBit +
+      ". Without it our advocates cannot fully prepare for your family." + zoomClause);
+  } else {
+    intro = p("I am reaching out about your Connect-Gen registration for " + safeDate + locBit +
+      ". We have not received " + phrase + " yet, and we need it about a week before the " +
+      "session so our advocates can prepare to best support your family.");
+  }
 
-  const closing = (mode === "reminder")
-    ? ''
-    : '<p style="margin:18px 0 8px;font-size:15px;color:#222;line-height:1.55;">' +
-        'Once you pick a new Monday, we\'ll send a fresh upload link for the documents.' +
-      '</p>';
+  const actionLead = mode === "final"
+    ? p("If you can still send it today, please use the button below and bring anything " +
+        "you have with you:", "18px")
+    : (mode === "reminder"
+        ? p("To stay on this date, please send it as soon as you can:")
+        : p("If you can send it in the next few days:"));
 
-  const linkFooter = _emailLinkFooter([{ label: "Upload documents", href: uploadUrl }]);
-  const headerLabel = (mode === "reminder") ? "Connect-Gen Documents Reminder" : "Connect-Gen Monday";
+  // Only invite them to pick another date when there is one to pick.
+  const optionLead = !optionBtns ? "" : (mode === "final"
+    ? p("If tomorrow is too soon, you are welcome to move to one of these instead:", "18px")
+    : (mode === "reminder"
+        ? p("Or if this date no longer works, you can move to one of these:", "18px")
+        : p("If you need more time, you are welcome to move to one of these instead:", "18px")));
+
+  // The T-1 email must never read as a cancellation. A family turning up
+  // unprepared is still a family we see.
+  const closing = mode === "final"
+    ? p("You are still welcome to come tomorrow either way. We will simply get less " +
+        "far without it, so bring whatever you have.", "18px")
+    : (mode === "reminder" ? "" : p("Once you pick a new date we will send you fresh links.", "18px"));
+
+  const footerLinks = [];
+  if (owed.indexOf("consent") > -1 && urls.consent) footerLinks.push({ label: "Sign the consent form", href: urls.consent });
+  if (owed.indexOf("documents") > -1 && urls.upload) footerLinks.push({ label: "Upload documents", href: urls.upload });
+  if (owed.indexOf("worksheet") > -1 && urls.worksheet) footerLinks.push({ label: "Complete the worksheet", href: urls.worksheet });
+  const linkFooter = footerLinks.length ? _emailLinkFooter(footerLinks) : "";
+
+  const headerLabel = mode === "final"
+    ? "Connect-Gen \u2014 Tomorrow"
+    : (mode === "reminder" ? "Connect-Gen Reminder" : "Connect-Gen \u2014 Before Your Session");
+
   return [
     '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f7;">',
     '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f4f4f7;padding:24px 0;">',
@@ -16869,11 +16919,12 @@ function _buildCgRescheduleEmailHtml({
     '<tr><td style="padding:24px;">',
     '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">Aloha ' + safeFirst + ',</p>',
     intro,
-    uploadLead,
-    uploadBtn,
-    (mondayBtns ? (mondayLead + mondayBtns) : ''),
+    actionLead,
+    actionBtns,
+    optionLead,
+    optionBtns,
     closing,
-    '<p style="margin:18px 0 14px;font-size:15px;color:#222;line-height:1.55;">If you have any questions or need help, please reply to this email — we\'re here to support you.</p>',
+    '<p style="margin:18px 0 14px;font-size:15px;color:#222;line-height:1.55;">If you have any questions or need help, please reply to this email &mdash; we are here to support you.</p>',
     '<p style="margin:18px 0 4px;font-size:15px;color:#333;line-height:1.55;">Mahalo,</p>',
     (signatureHtml || ''),
     linkFooter,
@@ -17118,7 +17169,7 @@ exports.enforceConnectGenDocDeadline = functions
   });
 
 async function _sendCgRescheduleEmail({
-  db, mode, collection, eventId, signupRef, signupData, sessionKey, upcoming,
+  db, mode, collection, eventId, signupRef, signupData, sessionKey, upcoming, event, requirements,
 }) {
   const recipientEmail = String(
     (signupData && signupData.email) ||
@@ -17130,39 +17181,66 @@ async function _sendCgRescheduleEmail({
   const familyName = String((signupData && signupData.name) || (signupData && signupData.firstName) || "").trim();
   const firstName = lifecycleFirstName(familyName || recipientEmail);
 
-  const uploadAuthToken = signupData && signupData.uploadAuthToken;
-  if (!uploadAuthToken) throw new Error("Signup is missing uploadAuthToken (expected from consent flow)");
-  const uploadUrl = CONNECT_GEN_UPLOAD_BASE_URL + "?upload=" + encodeURIComponent(uploadAuthToken);
+  // Build only the links we can. This used to THROW when uploadAuthToken was
+  // absent, which was every in-person family — so widening the ladder to them
+  // would have turned every send into an exception. A family missing a token
+  // simply gets the buttons we can honour, and the email is still worth sending.
+  const actionUrls = {
+    consent: _cgConsentUrl(signupData || {}, collection, eventId, signupRef.id),
+    upload: _cgUploadUrl(signupData || {}),
+    worksheet: _cgWorksheetUrl(signupData || {}),
+  };
 
-  // Build Monday options — sign one token per option, 14d expiry from now.
+  // One signed token per option, 14-day expiry. v2 carries the destination
+  // LOCATION as well as the date, because a date alone does not identify a
+  // session on the days that run two.
   const exp = Math.floor(Date.now() / 1000) + 14 * 24 * 60 * 60;
-  const mondayOptions = (upcoming || []).map((opt) => {
+  const options = (upcoming || []).map((opt) => {
     const token = _signRescheduleToken({
       signupId: signupRef.id,
       eventId,
       collection,
       newSessionDateKey: opt.dateKey,
+      newSessionLocation: opt.location || "",
       expSeconds: exp,
     });
-    const url = CONNECT_GEN_RESCHEDULE_BASE_URL + "?token=" + encodeURIComponent(token);
-    return { dateKey: opt.dateKey, label: _formatMondayLabel(opt.dateKey).replace(/^Monday,\s*/, ""), url };
+    return {
+      dateKey: opt.dateKey,
+      location: opt.location || "",
+      modality: opt.modality || "",
+      // Keep the weekday. _formatMondayLabel already renders the right one for
+      // any day; the old code stripped it and pasted "Monday, " back on.
+      label: _formatMondayLabel(opt.dateKey),
+      url: CONNECT_GEN_RESCHEDULE_BASE_URL + "?token=" + encodeURIComponent(token),
+    };
   });
 
-  const sessionDateLabel = (function () {
-    const long = _formatSessionLongLabel(sessionKey);
-    // strip leading "Monday, " so the body says "Monday, May 19, 2026"
-    return long.replace(/^Monday,\s*/, "");
-  })();
+  const outstanding = (requirements && requirements.outstanding && requirements.outstanding.length)
+    ? requirements.outstanding
+    : ["documents"];
+
+  const sessionLocation = _cgSignupLocation(signupData || {});
+  const sessionModality = (event && sessionKey && isSessionVirtual(event, sessionKey, signupData))
+    ? "virtual" : "in-person";
 
   const signatureHtml = await buildSignatureBlock("eventCoordinator");
   const html = _buildCgRescheduleEmailHtml({
-    mode, firstName, sessionDateLabel,
-    uploadUrl, mondayOptions, signatureHtml,
+    mode, firstName,
+    sessionDateLabel: _formatSessionLongLabel(sessionKey),
+    sessionLocation, sessionModality,
+    outstanding, actionUrls, options, signatureHtml,
   });
 
-  const subject = (mode === "reminder")
-    ? "Connect-Gen Documents Reminder"
-    : "Connect-Gen Monday -- IEP + Evaluation Needed";
+  const phrase = _cgOutstandingPhrase(outstanding);
+  const subject = mode === "final"
+    ? "Your Connect-Gen session is tomorrow"
+    : (mode === "reminder"
+        ? "Connect-Gen reminder \u2014 we still need " + phrase
+        : "Before your Connect-Gen session \u2014 we still need " + phrase);
+
+  const typeTag = mode === "final"
+    ? "connect-gen-final-reminder"
+    : (mode === "reminder" ? "connect-gen-firm-reminder" : "connect-gen-reschedule-offer");
 
   const fromAddress = lifecycleFromAddress();
   await sendEmailViaResend({
@@ -17170,7 +17248,7 @@ async function _sendCgRescheduleEmail({
     to: familyEmails({ email: recipientEmail, secondParent: signupData.secondParent, registration: signupData.registration }),
     subject,
     html,
-    type: mode === "reminder" ? "connect-gen-firm-reminder" : "connect-gen-reschedule-offer",
+    type: typeTag,
     relatedEventId: eventId,
     relatedSignupId: signupRef.id,
     recipientName: familyName || "",
@@ -17178,10 +17256,11 @@ async function _sendCgRescheduleEmail({
 
   try {
     await db.collection("auditLog").add({
-      action: mode === "reminder"
-        ? "Connect-Gen firm reminder sent"
-        : "Connect-Gen reschedule offer sent",
-      details: "email=" + recipientEmail + ", signupPath=" + signupRef.path + ", session=" + sessionKey,
+      action: mode === "final"
+        ? "Connect-Gen final reminder sent"
+        : (mode === "reminder" ? "Connect-Gen firm reminder sent" : "Connect-Gen reschedule offer sent"),
+      details: "email=" + recipientEmail + ", signupPath=" + signupRef.path +
+               ", session=" + sessionKey + ", outstanding=" + outstanding.join("+"),
       performedBy: "system",
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
       signupPath: signupRef.path,
@@ -24056,6 +24135,9 @@ exports.getScreeningConsentDownloadUrl = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  _cgConsentUrl,
+  _buildCgRescheduleEmailHtml,
+  _cgOutstandingPhrase,
   _cgFindRescheduleOptions,
   _cgNormLoc,
   _cgSignupLocation,
