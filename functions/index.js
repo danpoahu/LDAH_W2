@@ -16696,8 +16696,110 @@ function _formatSessionLongLabel(dateKey) {
  * current session if it happens to match (avoids "move to the date you're
  * already on" buttons).
  */
+// ── The registration cut-off (2026-09-02) ───────────────────────────────────
+// A session stops accepting new registrations, and stops being a legitimate
+// reschedule destination, this many hours before it starts. Rosie agreed 24.
+//
+// Returns the instant the cut-off bites, in epoch ms, or null when the session
+// has no usable start time. Callers treat null as "no cut-off" and fail OPEN —
+// a session missing a startTime in the CMS must not silently lock families out
+// of a whole programme.
+//
+// The instant is built with an explicit -10:00 offset rather than any local-time
+// arithmetic. Hawaii has no DST, so the offset is constant; without it, the same
+// session would close at a different moment for a family browsing from the
+// mainland. Do not "simplify" this to local time.
+const CG_SIGNUP_CUTOFF_HOURS_DEFAULT = 24;
+
+function _cgSessionCutoffMillis(session, dateKey, cutoffHours) {
+  try {
+    const key = dateKey || (session && session.dateKey) || "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return null;
+    const start = (session && session.startTime) || "";
+    if (!/^\d{2}:\d{2}$/.test(start)) return null;
+    const startMs = Date.parse(key + "T" + start + ":00-10:00");
+    if (!Number.isFinite(startMs)) return null;
+    const hours = Number.isFinite(cutoffHours) ? cutoffHours : CG_SIGNUP_CUTOFF_HOURS_DEFAULT;
+    return startMs - hours * 60 * 60 * 1000;
+  } catch (e) {
+    console.warn("_cgSessionCutoffMillis failed:", e.message);
+    return null;
+  }
+}
+
+// ── Which rung of the chase ladder is due today? (2026-09-02) ───────────────
+// T-7 offer, T-4 firm reminder, T-1 last call. Extracted as a pure rule because
+// the guards matter more than the sends, and two of them are subtle:
+//
+//   * MINIMUM SIGNUP AGE. The rungs are exact-day matches. Today that is
+//     accidentally safe — with no T-1 rung, a family registering 25 hours out
+//     matches nothing. Adding T-1 removes that accident: the same family would
+//     match on the very next 08:00 run, minutes after registering, and be told
+//     they cannot make it. Nothing is chased until the signup is 48 hours old.
+//
+//   * THE T-4 RUNG NEEDS A PRIOR OFFER, OR AGE. The old code proceeded when
+//     rescheduleOfferSentAt was absent, so a family registering four days out
+//     received "we still haven't received..." as their first ever contact.
+//     The reminder now requires either an offer at least 3 days old, or a
+//     signup at least 3 days old when no offer was ever possible.
+const CG_LADDER_MIN_SIGNUP_AGE_MS = 48 * 60 * 60 * 1000;
+const CG_LADDER_OFFER_DAYS = 7;
+const CG_LADDER_REMINDER_DAYS = 4;
+const CG_LADDER_FINAL_DAYS = 1;
+const CG_LADDER_OFFER_AGE_MS = 3 * 24 * 60 * 60 * 1000;
+
+function _cgLadderDecision({ signup, requirements, sessionKey, todayKey, nowMs }) {
+  const none = (reason) => ({ rung: null, reason });
+  try {
+    if (!signup || !requirements) return none("no signup or requirements");
+    if (!requirements.isConnectGen) return none("not connect-gen");
+    if (requirements.ready) return none("ready");
+    if (!sessionKey || !/^\d{4}-\d{2}-\d{2}$/.test(sessionKey)) return none("no session date");
+    if (!todayKey) return none("no today key");
+    const now = Number.isFinite(nowMs) ? nowMs : Date.now();
+
+    // Age gate first: it applies to every rung, and a signup with no creation
+    // stamp is left alone rather than guessed at.
+    const created = signup.timestamp && signup.timestamp.toMillis ? signup.timestamp.toMillis() : 0;
+    if (!created) return none("no creation stamp");
+    const age = now - created;
+    if (age < CG_LADDER_MIN_SIGNUP_AGE_MS) return none("signup too new");
+
+    const dayOf = (n) => addDaysHst(todayKey, n);
+    const ms = (t) => (t && t.toMillis ? t.toMillis() : 0);
+
+    if (sessionKey === dayOf(CG_LADDER_OFFER_DAYS)) {
+      if (signup.rescheduleOfferSentAt) return none("offer already sent");
+      return { rung: "offer", reason: "T-" + CG_LADDER_OFFER_DAYS };
+    }
+
+    if (sessionKey === dayOf(CG_LADDER_REMINDER_DAYS)) {
+      if (signup.firmReminderSentAt) return none("reminder already sent");
+      const offerAt = ms(signup.rescheduleOfferSentAt);
+      if (offerAt) {
+        if (now - offerAt < CG_LADDER_OFFER_AGE_MS) return none("offer too recent");
+      } else if (age < CG_LADDER_OFFER_AGE_MS) {
+        // Never offered AND only just registered — this would be their first
+        // contact, and it would open with a complaint.
+        return none("no offer on file and signup too new");
+      }
+      return { rung: "reminder", reason: "T-" + CG_LADDER_REMINDER_DAYS };
+    }
+
+    if (sessionKey === dayOf(CG_LADDER_FINAL_DAYS)) {
+      if (signup.finalReminderSentAt) return none("final already sent");
+      return { rung: "final", reason: "T-" + CG_LADDER_FINAL_DAYS };
+    }
+
+    return none("not a rung day");
+  } catch (e) {
+    console.warn("_cgLadderDecision failed:", e.message);
+    return none("error");
+  }
+}
+
 // ── Which alternative sessions do we offer? (2026-09-02) ────────────────────
-// Replaces the Monday-and-virtual-only _findUpcomingMondaysForEvent below.
+// Replaces the Monday-and-virtual-only _findUpcomingMondaysForEvent, now deleted.
 //
 // Two facts about the real Connect-Gen schedule drive this:
 //   * Hilo and Kona run MONTHLY. A same-location offer to a Kona family is four
@@ -16783,44 +16885,6 @@ function _cgFindRescheduleOptions(event, signup, opts) {
   return own.concat(virtual).slice(0, max);
 }
 
-function _findUpcomingMondaysForEvent(event, signup, opts) {
-  const minDaysOut = (opts && Number.isFinite(opts.minDaysOut)) ? opts.minDaysOut : 14;
-  const max = (opts && Number.isFinite(opts.max)) ? opts.max : 4;
-  const currentKey = (opts && opts.currentKey) || "";
-
-  const todayKey = toHstDateKey(new Date());
-  const cutoffKey = addDaysHst(todayKey, minDaysOut);
-  const seen = new Set();
-  const out = [];
-
-  let sessions = [];
-  try { sessions = getEventSessions(event) || []; } catch (_) { sessions = []; }
-
-  // Sort by dateKey ascending for deterministic "next 4" output.
-  sessions.sort((a, b) => String(a.dateKey || "").localeCompare(String(b.dateKey || "")));
-
-  for (const sess of sessions) {
-    if (!sess || !sess.dateKey) continue;
-    if (seen.has(sess.dateKey)) continue;
-    if (sess.dateKey === currentKey) continue;
-    if (sess.dateKey < cutoffKey) continue;
-    // Monday check (HST weekday)
-    const d = new Date(sess.dateKey + "T00:00:00-10:00");
-    if (isNaN(d.getTime())) continue;
-    const dayName = d.toLocaleDateString("en-US", { weekday: "long", timeZone: "Pacific/Honolulu" });
-    if (dayName !== "Monday") continue;
-    // Virtual check — pass through isSessionVirtual with the signup so
-    // per-signup overrides apply.
-    if (!isSessionVirtual(event, sess.dateKey, signup)) continue;
-    seen.add(sess.dateKey);
-    out.push({
-      dateKey: sess.dateKey,
-      session: sess,
-    });
-    if (out.length >= max) break;
-  }
-  return out;
-}
 
 /**
  * Build the reschedule-offer or firm-reminder email HTML.
@@ -17034,10 +17098,8 @@ exports.enforceConnectGenDocDeadline = functions
     }
 
     const todayKey = toHstDateKey(new Date());
-    const offerKey = addDaysHst(todayKey, 7);
-    const reminderKey = addDaysHst(todayKey, 4);
-
-    let scanned = 0, offersSent = 0, remindersSent = 0, skipped = 0, errors = 0;
+    // The rung days themselves now live in _cgLadderDecision.
+    let scanned = 0, offersSent = 0, remindersSent = 0, finalsSent = 0, skipped = 0, errors = 0;
 
     async function processCollection(collection) {
       const evsSnap = await db.collection(collection)
@@ -17069,82 +17131,62 @@ exports.enforceConnectGenDocDeadline = functions
             }
             if (signup.archived === true) { skipped++; continue; }
             if (!signup.email) { skipped++; continue; }
-            if (!signup.consentSignedAt) { skipped++; continue; }
 
-            // Docs already received → skip. "Received" means at least one of each
-            // type; a family sending 7 IEP pages is no less complete than one
-            // sending a single PDF.
-            const docs = signup.connectGenDocuments;
-            if (_cgDocList(docs, "iep").length > 0 && _cgDocList(docs, "evaluation").length > 0) {
-              skipped++; continue;
-            }
+            // What does this family still owe? _cgRequirements is the single
+            // definition; the ladder no longer has its own idea of "ready".
+            // Previously this checked documents alone, which meant a family
+            // whose documents were in but whose worksheet was not looked done.
+            let reqs;
+            try { reqs = _cgRequirements(signup, event); } catch (_) { skipped++; continue; }
+            if (!reqs.isConnectGen || reqs.ready) { skipped++; continue; }
 
-            // Single-date: pick the session
             const sSessions = getSignupSessions(signup, event) || [];
             const sessionKey = (sSessions[0] && sSessions[0].dateKey) || "";
             if (!sessionKey) { skipped++; continue; }
-            // Monday + virtual gate
-            const dObj = new Date(sessionKey + "T00:00:00-10:00");
-            if (isNaN(dObj.getTime())) { skipped++; continue; }
-            const dayName = dObj.toLocaleDateString("en-US", { weekday: "long", timeZone: "Pacific/Honolulu" });
-            if (dayName !== "Monday") { skipped++; continue; }
-            if (!isSessionVirtual(event, sessionKey, signup)) { skipped++; continue; }
 
-            // Determine branch
-            const isOfferDay = (sessionKey === offerKey);
-            const isReminderDay = (sessionKey === reminderKey);
-            if (!isOfferDay && !isReminderDay) { skipped++; continue; }
+            // No Monday gate and no virtual gate. Every Connect-Gen family is
+            // chased for whatever they owe, in person or not.
+            const decision = _cgLadderDecision({
+              signup, requirements: reqs, sessionKey, todayKey, nowMs: Date.now(),
+            });
+            if (!decision.rung) { skipped++; continue; }
 
-            // Compute the next 4 Mondays once — reused for both branches.
-            const upcoming = _findUpcomingMondaysForEvent(event, signup, {
-              currentKey: sessionKey, minDaysOut: 14, max: 4,
+            // Their own location first, virtual only as a top-up. Computed once
+            // and reused for whichever rung fired.
+            const upcoming = _cgFindRescheduleOptions(event, signup, {
+              currentKey: sessionKey, minDaysOut: 14, max: 4, todayKey,
             });
 
-            // Branch: T-7 reschedule offer
-            if (isOfferDay) {
-              if (signup.rescheduleOfferSentAt) { skipped++; continue; }
-              // If fewer than 2 future Mondays, brief says skip the offer
-              // entirely and let the firm reminder handle this signup.
-              if (upcoming.length < 2) {
-                console.log("enforceConnectGenDocDeadline: skipping offer for " + sigDoc.ref.path + " — fewer than 2 future Mondays available");
-                skipped++; continue;
-              }
-              await _sendCgRescheduleEmail({
-                db, mode: "offer", collection, eventId,
-                signupRef: sigDoc.ref, signupData: signup,
-                sessionKey, upcoming,
-              });
-              await sigDoc.ref.set({
-                rescheduleOfferSentAt: FieldValue.serverTimestamp(),
-              }, { merge: true });
-              offersSent++;
-              continue;
+            // One send per rung. The idempotence stamps and the cadence rules
+            // all live in _cgLadderDecision — this just does what it says.
+            const STAMP = {
+              offer: "rescheduleOfferSentAt",
+              reminder: "firmReminderSentAt",
+              final: "finalReminderSentAt",
+            };
+
+            // The T-7 offer is the only rung that needs dates to be worth
+            // sending; its whole purpose is "here are other options". The
+            // reminder and last call still say what is outstanding even when
+            // there is nowhere to move to.
+            if (decision.rung === "offer" && upcoming.length < 2) {
+              console.log("enforceConnectGenDocDeadline: skipping offer for " +
+                sigDoc.ref.path + " — fewer than 2 alternative sessions available");
+              skipped++; continue;
             }
 
-            // Branch: T-4 firm reminder
-            if (isReminderDay) {
-              if (signup.firmReminderSentAt) { skipped++; continue; }
-              // The brief requires the offer to be ≥3 days old. Compute on
-              // rescheduleOfferSentAt if present; if missing, still allow
-              // the firm reminder (edge case from <2 Mondays available).
-              const offerStamp = signup.rescheduleOfferSentAt;
-              if (offerStamp && typeof offerStamp.toDate === "function") {
-                const ageMs = Date.now() - offerStamp.toDate().getTime();
-                if (ageMs < 3 * 24 * 60 * 60 * 1000) {
-                  skipped++; continue;
-                }
-              }
-              await _sendCgRescheduleEmail({
-                db, mode: "reminder", collection, eventId,
-                signupRef: sigDoc.ref, signupData: signup,
-                sessionKey, upcoming,
-              });
-              await sigDoc.ref.set({
-                firmReminderSentAt: FieldValue.serverTimestamp(),
-              }, { merge: true });
-              remindersSent++;
-              continue;
-            }
+            await _sendCgRescheduleEmail({
+              db, mode: decision.rung, collection, eventId,
+              signupRef: sigDoc.ref, signupData: signup,
+              sessionKey, upcoming, event, requirements: reqs,
+            });
+            await sigDoc.ref.set({
+              [STAMP[decision.rung]]: FieldValue.serverTimestamp(),
+            }, { merge: true });
+            if (decision.rung === "offer") offersSent++;
+            else if (decision.rung === "reminder") remindersSent++;
+            else finalsSent++;
+            continue;
 
             skipped++;
           } catch (e) {
@@ -17164,6 +17206,7 @@ exports.enforceConnectGenDocDeadline = functions
 
     console.log("enforceConnectGenDocDeadline: scanned=" + scanned +
       ", offersSent=" + offersSent + ", remindersSent=" + remindersSent +
+      ", finalsSent=" + finalsSent +
       ", skipped=" + skipped + ", errors=" + errors);
     return null;
   });
@@ -17349,10 +17392,13 @@ exports.acceptConnectGenReschedule = functions
         res.status(400).json({ success: false, error: "This link is not valid for this event." });
         return;
       }
-      const existingDocs = signup.connectGenDocuments;
-      if (_cgDocList(existingDocs, "iep").length > 0
-        && _cgDocList(existingDocs, "evaluation").length > 0) {
-        res.status(400).json({ success: false, error: "Your documents are already on file. No need to reschedule." });
+      // Nothing outstanding at all? Then there is nothing to reschedule for.
+      // This used to test documents alone, so a family whose documents were in
+      // but whose worksheet was not got turned away from their own link.
+      let acceptReqs = null;
+      try { acceptReqs = _cgRequirements(signup, event); } catch (_) { acceptReqs = null; }
+      if (acceptReqs && acceptReqs.isConnectGen && acceptReqs.ready) {
+        res.status(400).json({ success: false, error: "You are all set for your session \u2014 there is nothing left for us to wait on." });
         return;
       }
 
@@ -17373,24 +17419,33 @@ exports.acceptConnectGenReschedule = functions
       // Look up the new session on the event so we can build a canonical
       // pipe-delimited selectedSessions[] entry (matches Connect-Gen shape).
       const evSessions = getEventSessions(event) || [];
-      const newSession = evSessions.find((s) => s && s.dateKey === newKey);
+      // A date does not identify a session: Connect-Gen runs two on some days
+      // (2026-09-10 is Hilo 09:00 and Oahu 11:00). A v2 token carries the
+      // location, so match on both. A v1 token has no location and falls back
+      // to date-only, which is what it always did.
+      const wantLoc = _cgNormLoc(payload.nloc || "");
+      const newSession = evSessions.find((x) => x && x.dateKey === newKey &&
+        (!wantLoc || _cgNormLoc(x.location) === wantLoc));
       if (!newSession) {
-        res.status(400).json({ success: false, error: "The selected Monday is no longer available. Please reply to our email and we'll help you pick another date." });
+        res.status(400).json({ success: false, error: "That session is no longer available. Please reply to our email and we'll help you pick another date." });
         return;
       }
-      // Verify Monday + virtual on the chosen session
       const dObj = new Date(newKey + "T00:00:00-10:00");
       if (isNaN(dObj.getTime())) {
         res.status(400).json({ success: false, error: "Invalid session date." });
         return;
       }
-      const dayName = dObj.toLocaleDateString("en-US", { weekday: "long", timeZone: "Pacific/Honolulu" });
-      if (dayName !== "Monday") {
-        res.status(400).json({ success: false, error: "Only Monday sessions can be selected here." });
-        return;
-      }
-      if (!isSessionVirtual(event, newKey, signup)) {
-        res.status(400).json({ success: false, error: "The selected session is no longer virtual. Please reply to our email." });
+
+      // No Monday check and no virtual check: any Connect-Gen session is a
+      // legitimate destination now.
+      //
+      // A proximity check, though, is new and necessary. Nothing stopped a
+      // family moving themselves onto a session starting in two hours, which
+      // defeats the point of collecting documents ahead of time and matches
+      // nothing about the 24-hour registration cut-off.
+      const cutoffMs = _cgSessionCutoffMillis(newSession, newKey);
+      if (cutoffMs !== null && Date.now() >= cutoffMs) {
+        res.status(400).json({ success: false, error: "That session starts too soon to move onto. Please reply to our email and we'll help you pick another date." });
         return;
       }
 
@@ -24135,6 +24190,11 @@ exports.getScreeningConsentDownloadUrl = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  _cgSessionCutoffMillis,
+  CG_SIGNUP_CUTOFF_HOURS_DEFAULT,
+  _cgLadderDecision,
+  CG_LADDER_MIN_SIGNUP_AGE_MS,
+  CG_LADDER_OFFER_AGE_MS,
   _cgConsentUrl,
   _buildCgRescheduleEmailHtml,
   _cgOutstandingPhrase,
