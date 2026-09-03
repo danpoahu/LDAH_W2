@@ -16864,7 +16864,11 @@ const CG_CASE_REVIEW_MAX_DOCS = 12;
 const CG_CASE_REVIEW_MAX_BYTES = 28 * 1024 * 1024;   // request limit is 32MB
 
 async function _cgFetchDocumentBlocks(signup) {
-  const bucket = admin.storage().bucket();
+  // Name the bucket explicitly, as every other Connect-Gen document function
+  // does. A bare admin.storage().bucket() resolves to the PROJECT DEFAULT,
+  // which is a different bucket — the read would find nothing and the review
+  // would silently come out empty.
+  const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
   const blocks = [];
   const manifest = [];
   let total = 0;
@@ -16999,10 +17003,20 @@ async function _cgGenerateCaseReview({ db, collection, eventId, signupRef, signu
         "must be drawn from the documents and clearly marked as such.",
   ].join("\n");
 
+  // STREAMED, deliberately. Reading several PDFs and producing a full Case
+  // Review is a minutes-long request, and a non-streaming call sat silent long
+  // enough for the connection to be dropped underneath it (ETIMEDOUT) on the
+  // first live run. Streaming keeps the socket active; .finalMessage() gives
+  // back the same assembled message a create() would have returned.
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const response = await client.messages.create({
+  const stream = client.messages.stream({
     model: CG_CASE_REVIEW_MODEL,
-    max_tokens: 16000,
+    // The first live run stopped at exactly 16000 output tokens, which silently
+    // cost the whole second half of the document — the form renders from the
+    // fields that come first, so a truncated response still produced a
+    // plausible-looking page with no summary, no flags and no family-words
+    // block. Opus 5 allows far more; streaming is what makes it safe to ask for.
+    max_tokens: 64000,
     system: CG_CASE_REVIEW_SYSTEM,
     tools: [{
       name: "record_case_review",
@@ -17012,6 +17026,17 @@ async function _cgGenerateCaseReview({ db, collection, eventId, signupRef, signu
     tool_choice: { type: "tool", name: "record_case_review" },
     messages: [{ role: "user", content: docs.blocks.concat([{ type: "text", text: brief }]) }],
   });
+  const response = await stream.finalMessage();
+
+  // A truncated response is the dangerous failure here: the required fields come
+  // first, so the form still renders and looks finished while the document
+  // summary beneath it is simply absent. Refuse it rather than store a review
+  // that quietly lost half its content.
+  if (response.stop_reason === "max_tokens") {
+    console.error("_cgGenerateCaseReview: TRUNCATED at max_tokens for " + signupRef.path +
+      " — refusing to store a partial review");
+    return false;
+  }
 
   const toolUse = (response.content || []).find((b) => b.type === "tool_use");
   if (!toolUse || !toolUse.input) {
@@ -25244,6 +25269,8 @@ exports.getScreeningConsentDownloadUrl = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  _cgGenerateCaseReview,
+  _cgFetchDocumentBlocks,
   _cgCaseReviewFingerprint,
   _cgCaseReviewPresenterAllowed,
   _cgWorksheetText,
