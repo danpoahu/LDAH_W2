@@ -12651,6 +12651,21 @@ async function _cgMaybeConfirm(ref, signupData, event) {
       });
       console.log("_cgMaybeConfirm: all requirements met, status -> confirmed for", ref.path);
     }
+
+    // The family is ready, so their documents and worksheet are all in — the
+    // moment there is something worth reading. Awaited so a same-tick failure
+    // is logged, but non-fatal by contract inside.
+    try {
+      const _crRef = ref;
+      const _crParts = String(ref.path || "").split("/");
+      await _cgMaybeGenerateCaseReview({
+        db: admin.firestore(),
+        collection: _crParts[0], eventId: _crParts[1],
+        signupRef: _crRef, signup, event: ev, reason: "confirmed",
+      });
+    } catch (_crErr) {
+      console.error("Case Review generation failed (non-fatal):", _crErr.message);
+    }
     return reqs;
   } catch (e) {
     console.error("_cgMaybeConfirm failed (non-fatal):", e.message);
@@ -16420,12 +16435,36 @@ exports.scheduledConnectGenDocLifecycle = functions
           }
           try {
             const result = await _destroyConnectGenStorageFiles(signup.connectGenDocuments);
-            await sigDoc.ref.update({
+            const destroyUpdate = {
               connectGenDocuments: FieldValue.delete(),
               connectGenDocumentsDestroyedAt: FieldValue.serverTimestamp(),
               connectGenDocumentsDestroyedBy: "system (4-day auto-destruct)",
               connectGenDocumentsDestroyedReason: "No disposition marked within 4 days of session attendance",
-            });
+            };
+
+            // The Case Review is derived from those documents and holds the
+            // same content — scores, diagnoses, dates of birth. Destroying the
+            // originals while leaving a full copy of their contents on the
+            // signup would keep the letter of the promise and break its point.
+            // Strip it back to LDAH's own work product: the concerns and the
+            // follow-up list. Not deleted outright, per Daniel — the advocate's
+            // gap analysis survives the documents that produced it.
+            try {
+              const cs = signup.caseSummary || {};
+              if (cs.data && !cs.redactedAt) {
+                const tpl = require("./caseReviewTemplate");
+                const redacted = tpl.redactCaseReviewData(cs.data);
+                destroyUpdate["caseSummary.data"] = redacted;
+                destroyUpdate["caseSummary.html"] = tpl.renderCaseReviewHtml(redacted, { redacted: true });
+                destroyUpdate["caseSummary.redactedAt"] = FieldValue.serverTimestamp();
+              }
+            } catch (redErr) {
+              // A failed redaction must not stop the documents being destroyed —
+              // that promise is the one with a date on it.
+              console.error("Case Review redaction failed for " + sigDoc.ref.path + ":", redErr.message);
+            }
+
+            await sigDoc.ref.update(destroyUpdate);
             destroyed++;
             try {
               await db.collection("auditLog").add({
@@ -16752,12 +16791,12 @@ function _formatSessionLongLabel(dateKey) {
  * already on" buttons).
  */
 // ══ AI Case Review (2026-09-03) ═════════════════════════════════════════════
-// Turns a family's uploaded IEP + Evaluation and their Parent Report Worksheet
+// Turns a family's uploaded IEP + evaluations and their Parent Report Worksheet
 // into Rosie's Case Review form, filled in, plus a document summary beneath it.
 //
-// The model returns STRUCTURED JSON and this file renders the HTML. It is
-// tempting to let the model write the HTML — the two hand-made pilots did — but
-// the first pilot came back as a free-form narrative instead of the form, and
+// The model returns STRUCTURED DATA and ./caseReviewTemplate renders the HTML.
+// It is tempting to let the model write the HTML — the two hand-made pilots did
+// — but the first came back as a free-form narrative instead of the form, and
 // nothing structural stops that recurring. A fixed template guarantees the grid
 // every time, can be corrected without re-running the model, makes the fields
 // queryable later, and turns redaction into a render mode rather than a rebuild.
@@ -16766,100 +16805,13 @@ function _formatSessionLongLabel(dateKey) {
 // not free notes. Left and middle are inputs; the right side is the cross-check
 // that the IEP actually covers every parent concern and every evaluation
 // finding — "so nothing is left behind that the child needs". The deliverable
-// is GAP DETECTION, not narration. The schema models that relationship
-// explicitly rather than leaving it to prose.
+// is GAP DETECTION, not narration.
+//
+// Structured output uses the TOOL-USE pattern, matching extractEventFromFlyer.
+// The pinned SDK is 0.39, which predates output_config.format; forcing a tool
+// is the shape this codebase already proves works.
 
 const CG_CASE_REVIEW_MODEL = "claude-opus-5";
-
-// Fields stripped when the source documents are destroyed. Everything here is
-// clinical detail the family consented to have destroyed with the documents;
-// what survives is the follow-up list, which is LDAH's own work product.
-const CG_CASE_REVIEW_REDACTED_FIELDS = [
-  "dobAgeGrade", "eligibilityCategory", "diagnosis", "gradeScores",
-  "evaluations", "fsIq", "documentsReviewed",
-];
-
-const CG_CASE_REVIEW_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["header", "parentConcerns", "evaluations", "followUp"],
-  properties: {
-    header: {
-      type: "object",
-      additionalProperties: false,
-      required: ["parentName", "childName", "sessionDate"],
-      properties: {
-        parentName: { type: "string" },
-        childName: { type: "string" },
-        sessionDate: { type: "string" },
-        school: { type: "string" },
-        dobAgeGrade: { type: "string" },
-        eligibilityCategory: { type: "string" },
-        diagnosis: { type: "string" },
-        iepDates: { type: "string" },
-        gradeScores: { type: "string" },
-      },
-    },
-    // LEFT column. Sourced from the worksheet wherever possible — those are the
-    // family's own words and must not be paraphrased into clinical language.
-    parentConcerns: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["concern"],
-        properties: {
-          concern: { type: "string" },
-          detail: { type: "string" },
-          inFamilyWords: { type: "boolean" },
-        },
-      },
-    },
-    // MIDDLE column, by domain, mirroring the paper form's sub-rows.
-    evaluations: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        cognitive: { type: "array", items: { type: "string" } },
-        academic: { type: "array", items: { type: "string" } },
-        ptOt: { type: "array", items: { type: "string" } },
-        speechOther: { type: "array", items: { type: "string" } },
-      },
-    },
-    fsIq: { type: "string" },
-    // RIGHT column. severity orders the advocate's attention; coveredByIep is
-    // the gap check itself.
-    followUp: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["title", "severity", "coveredByIep"],
-        properties: {
-          title: { type: "string" },
-          detail: { type: "string" },
-          severity: { type: "string", enum: ["high", "medium", "low"] },
-          coveredByIep: { type: "boolean" },
-          relatesTo: { type: "string" },
-        },
-      },
-    },
-    documentsReviewed: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["label"],
-        properties: {
-          label: { type: "string" },
-          date: { type: "string" },
-          author: { type: "string" },
-        },
-      },
-    },
-    additionalComments: { type: "string" },
-  },
-};
 
 // A change in the documents or the worksheet should produce a fresh review.
 // Cheap content hash rather than a timestamp comparison, so a re-upload of the
@@ -16896,24 +16848,285 @@ function _cgCaseReviewPresenterAllowed(allowedUids, presenterUid) {
   return list.indexOf(presenterUid) > -1;
 }
 
-// Drop the clinical detail, keep LDAH's own work product. Called on the same
-// run that destroys the source documents.
-function _cgRedactCaseReviewData(data) {
-  const out = {};
-  for (const k of Object.keys(data || {})) {
-    if (CG_CASE_REVIEW_REDACTED_FIELDS.indexOf(k) > -1) continue;
-    out[k] = data[k];
+// Pull a family's uploaded documents out of Storage as Anthropic content blocks.
+// PDFs go as native `document` blocks; phone photos as `image` blocks — most of
+// what families send is a photo of a page, not a scan.
+//
+// Deliberately capped. A family can upload an evaluation per area of need, and
+// an unbounded set would blow both the request limit and the bill; the cap is
+// generous enough that hitting it means something unusual is going on, and it
+// is logged rather than silently truncated.
+const CG_CASE_REVIEW_MAX_DOCS = 12;
+const CG_CASE_REVIEW_MAX_BYTES = 28 * 1024 * 1024;   // request limit is 32MB
+
+async function _cgFetchDocumentBlocks(signup) {
+  const bucket = admin.storage().bucket();
+  const blocks = [];
+  const manifest = [];
+  let total = 0;
+  const docs = signup.connectGenDocuments || {};
+  const ordered = [];
+  for (const type of ["iep", "evaluation"]) {
+    for (const d of (_cgDocList(docs, type) || [])) ordered.push({ type, d });
   }
-  if (out.header) {
-    const h = {};
-    for (const k of Object.keys(out.header)) {
-      if (CG_CASE_REVIEW_REDACTED_FIELDS.indexOf(k) > -1) continue;
-      h[k] = out.header[k];
+  for (const item of ordered) {
+    if (blocks.length >= CG_CASE_REVIEW_MAX_DOCS) {
+      console.warn("_cgFetchDocumentBlocks: capped at " + CG_CASE_REVIEW_MAX_DOCS + " documents");
+      break;
     }
-    out.header = h;
+    const path = item.d && item.d.storagePath;
+    if (!path) continue;
+    let buf;
+    try {
+      const [contents] = await bucket.file(path).download();
+      buf = contents;
+    } catch (e) {
+      // One unreadable file must not lose the whole review.
+      console.warn("_cgFetchDocumentBlocks: could not read " + path + ":", e.message);
+      continue;
+    }
+    if (total + buf.length > CG_CASE_REVIEW_MAX_BYTES) {
+      console.warn("_cgFetchDocumentBlocks: size cap reached, skipping " + path);
+      continue;
+    }
+    total += buf.length;
+    const mime = String((item.d && item.d.mimeType) || "").toLowerCase();
+    const b64 = buf.toString("base64");
+    if (mime === "application/pdf") {
+      blocks.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: b64 } });
+    } else if (mime === "image/jpeg" || mime === "image/png" || mime === "image/webp" || mime === "image/gif") {
+      blocks.push({ type: "image", source: { type: "base64", media_type: mime, data: b64 } });
+    } else {
+      console.warn("_cgFetchDocumentBlocks: unsupported type " + mime + " for " + path);
+      continue;
+    }
+    manifest.push({
+      label: (item.type === "iep" ? "IEP" : "Evaluation") +
+             (item.d.originalFilename ? " — " + item.d.originalFilename : ""),
+      type: item.type,
+    });
   }
-  out.redacted = true;
-  return out;
+  return { blocks, manifest, bytes: total };
+}
+
+// The parent's own words. These go in verbatim and the prompt is explicit that
+// they must not be paraphrased into clinical language — the left-hand column of
+// Rosie's form is the family speaking, not us summarising them.
+function _cgWorksheetText(signup) {
+  const ws = (signup && signup.parentWorksheet) || {};
+  const concerns = Array.isArray(ws.concerns) ? ws.concerns : [];
+  if (!concerns.length) return "";
+  const labels = {
+    a: "Concern", b: "Evidence", c: "Contributing factors",
+    d: "Assessment", e: "Interventions tried",
+  };
+  return concerns.map((c, i) => {
+    const lines = ["Concern " + (i + 1) + ":"];
+    for (const k of CONNECT_GEN_WORKSHEET_FIELDS) {
+      const v = String((c && c[k]) || "").trim();
+      if (v) lines.push("  " + labels[k] + ": " + v);
+    }
+    return lines.join("\n");
+  }).join("\n\n");
+}
+
+const CG_CASE_REVIEW_SYSTEM = [
+  "You are preparing a Case Review for a parent consultant at LDAH, Hawaii's Parent Training",
+  "and Information center, ahead of a Connect-Gen session with a family.",
+  "",
+  "WHAT THIS DOCUMENT IS FOR. The consultant's job is to make sure the child's IEP actually",
+  "covers every concern the parent raised and every finding in the evaluations — so that",
+  "nothing the child needs is left behind. Your output is a GAP CHECK, not a narrative and not",
+  "a summary for its own sake. The most valuable thing you can produce is a specific, checkable",
+  "discrepancy: a service named in the evaluations but absent from the IEP, a goal with no",
+  "progress data, a score that contradicts what the family was told.",
+  "",
+  "RULES.",
+  "1. Quote the documents. Every finding must be traceable to something in the file. If a date,",
+  "   score or service minute is not legible, say so rather than estimating it.",
+  "2. Never infer a diagnosis, an eligibility category or a score that is not written down.",
+  "3. The parent's concerns are the family's own words. Reproduce their meaning and their",
+  "   phrasing; do not translate them into clinical language, and do not soften them.",
+  "4. Rank follow-up items by what would most change the child's day, highest first.",
+  "5. Where the IEP does cover a concern, say so — a consultant needs to know what is already",
+  "   handled as much as what is missing.",
+  "6. Write for a person reading in a hurry before a meeting. Short, concrete, specific.",
+  "",
+  "This is a draft that a parent consultant will check against the originals. It is never shown",
+  "to the family as it stands. Do not pad it, and do not claim more certainty than the documents",
+  "support.",
+].join("\n");
+
+// Generate and attach a Case Review. Returns true when one was written.
+//
+// Non-fatal by contract: a failure here must never stop a family being confirmed
+// or block whatever called it. Everything is wrapped, and the worst case is that
+// no summary appears and the presenter prepares the way they always have.
+async function _cgGenerateCaseReview({ db, collection, eventId, signupRef, signup, event, reason }) {
+  const tpl = require("./caseReviewTemplate");
+  const docs = await _cgFetchDocumentBlocks(signup);
+  if (!docs.blocks.length) {
+    console.log("_cgGenerateCaseReview: no readable documents for " + signupRef.path + " — skipping");
+    return false;
+  }
+
+  const worksheet = _cgWorksheetText(signup);
+  const sessions = getSignupSessions(signup, event) || [];
+  const sessionLabel = (sessions[0] && sessions[0].dateKey) ? _formatSessionLongLabel(sessions[0].dateKey) : "";
+
+  const brief = [
+    "Prepare the Case Review for this family.",
+    "",
+    "Parent on the signup: " + (signup.name || signup.firstName || "(not recorded)"),
+    "Session date: " + (sessionLabel || "(not recorded)"),
+    "Documents attached: " + docs.manifest.map((m) => m.label).join("; "),
+    "",
+    worksheet
+      ? "The family completed the Parent Report Worksheet. These are THEIR OWN WORDS:\n\n" + worksheet
+      : "The family did not complete the Parent Report Worksheet, so the Parent Concerns column " +
+        "must be drawn from the documents and clearly marked as such.",
+  ].join("\n");
+
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const response = await client.messages.create({
+    model: CG_CASE_REVIEW_MODEL,
+    max_tokens: 16000,
+    system: CG_CASE_REVIEW_SYSTEM,
+    tools: [{
+      name: "record_case_review",
+      description: "Record the completed Case Review and document summary.",
+      input_schema: tpl.CASE_REVIEW_SCHEMA,
+    }],
+    tool_choice: { type: "tool", name: "record_case_review" },
+    messages: [{ role: "user", content: docs.blocks.concat([{ type: "text", text: brief }]) }],
+  });
+
+  const toolUse = (response.content || []).find((b) => b.type === "tool_use");
+  if (!toolUse || !toolUse.input) {
+    console.error("_cgGenerateCaseReview: no structured data returned for " + signupRef.path);
+    return false;
+  }
+
+  const data = toolUse.input;
+  const html = tpl.renderCaseReviewHtml(data, { redacted: false });
+
+  await signupRef.set({
+    caseSummary: {
+      html,
+      data,
+      generatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      model: CG_CASE_REVIEW_MODEL,
+      docsFingerprint: _cgCaseReviewFingerprint(signup),
+      documentCount: docs.blocks.length,
+      generatedBy: "system",
+      reason: reason || "confirmed",
+    },
+  }, { merge: true });
+
+  try {
+    await db.collection("auditLog").add({
+      action: "Connect-Gen Case Review generated",
+      details: "signupPath=" + signupRef.path + ", documents=" + docs.blocks.length +
+               ", bytes=" + docs.bytes + ", model=" + CG_CASE_REVIEW_MODEL +
+               ", inputTokens=" + ((response.usage && response.usage.input_tokens) || "?") +
+               ", outputTokens=" + ((response.usage && response.usage.output_tokens) || "?"),
+      performedBy: "system",
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      signupPath: signupRef.path,
+    });
+  } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+  console.log("_cgGenerateCaseReview: wrote review for " + signupRef.path +
+    " (" + docs.blocks.length + " docs, " + html.length + " bytes)");
+  return true;
+}
+
+// Should this family get a Case Review, and has anything changed since the last
+// one? Wrapped so a failure is invisible to the caller.
+async function _cgMaybeGenerateCaseReview({ db, collection, eventId, signupRef, signup, event, reason }) {
+  try {
+    const flags = (await db.doc("settings/featureFlags").get()).data() || {};
+    if (flags.cgCaseReviewEnabled !== true) return false;
+
+    // Presenter gate. Resolved per SESSION, because Connect-Gen presenters
+    // rotate weekly and are not a property of the location — the same island
+    // is run by different consultants on different dates.
+    const sessions = getSignupSessions(signup, event) || [];
+    const first = sessions[0];
+    if (!first || !first.dateKey) return false;
+    const pres = _lcResolveSessionPresenter(event, sessions, first.dateKey, first.rawString) || {};
+    if (!_cgCaseReviewPresenterAllowed(flags.cgCaseReviewPresenterUids, pres.presenterUid)) return false;
+
+    // Nothing new to read? Then nothing to regenerate. The fingerprint covers
+    // both the documents and the worksheet's last edit.
+    const existing = signup.caseSummary || {};
+    const fp = _cgCaseReviewFingerprint(signup);
+    if (existing.html && existing.docsFingerprint && fp && existing.docsFingerprint === fp) return false;
+
+    const wrote = await _cgGenerateCaseReview({
+      db, collection, eventId, signupRef, signup, event, reason,
+    });
+    if (!wrote) return false;
+
+    await _cgSendCaseReviewNotice({
+      db, collection, eventId, signupRef, signup, presenterUid: pres.presenterUid,
+      sessionDateKey: first.dateKey,
+    });
+    return true;
+  } catch (e) {
+    // Never let this affect the family's status or anything else in the caller.
+    console.error("_cgMaybeGenerateCaseReview failed (non-fatal) for " +
+      (signupRef && signupRef.path) + ":", e.message);
+    return false;
+  }
+}
+
+// Tell the presenter — and only the presenter — that a review is waiting.
+// Deliberately does NOT contain any of the child's information: it is a nudge
+// with a link into the dashboard, which is staff-authenticated. The summary
+// itself never travels by email.
+async function _cgSendCaseReviewNotice({ db, collection, eventId, signupRef, signup, presenterUid, sessionDateKey }) {
+  try {
+    const staff = (await db.collection("userRoles").doc(presenterUid).get()).data() || {};
+    const to = String(staff.email || "").trim();
+    if (!to) {
+      console.warn("_cgSendCaseReviewNotice: presenter " + presenterUid + " has no email on file");
+      return;
+    }
+    const deepLink = "https://danpoahu.github.io/LDAH-Int/?caseSummary=" +
+      encodeURIComponent(collection) + "__" + encodeURIComponent(eventId) + "__" +
+      encodeURIComponent(signupRef.id);
+    const family = lifecycleEsc(signup.name || signup.firstName || "a family");
+    const when = lifecycleEsc(_formatSessionLongLabel(sessionDateKey) || "an upcoming session");
+    const html = [
+      '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f7;">',
+      '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f4f4f7;padding:24px 0;"><tr><td align="center">',
+      '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="background:#fff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">',
+      '<tr><td style="background:#0e5f7a;padding:18px 24px;"><p style="margin:0;font-size:18px;color:#fff;font-weight:700;">Case Review ready</p></td></tr>',
+      '<tr><td style="padding:24px;">',
+      '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">A Case Review has been prepared for <strong>' + family + '</strong>, whose session is ' + when + '.</p>',
+      '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">It is an AI-prepared draft built from the documents the family uploaded and their Parent Report Worksheet. <strong>Check it against the originals before you rely on it</strong> &mdash; it is a starting snapshot, not the work.</p>',
+      '<p style="margin:18px 0;">' + _emailBtn(deepLink, "Open the Case Review", { bg: "#0e5f7a", align: "left" }) + '</p>',
+      '<p style="margin:14px 0 0;font-size:13px;color:#5f7178;line-height:1.5;">Nothing about the child is in this email. The review opens in the dashboard, where you are signed in.</p>',
+      '</td></tr></table></td></tr></table></body></html>',
+    ].join("");
+
+    await sendEmailViaResend({
+      from: lifecycleFromAddress(),
+      to: [to],
+      subject: "Case Review ready — " + (signup.name || signup.firstName || "Connect-Gen family"),
+      html,
+      type: "connect-gen-case-review-ready",
+      relatedEventId: eventId,
+      relatedSignupId: signupRef.id,
+      recipientName: staff.displayName || "",
+    });
+    await signupRef.set({
+      "caseSummary.presenterNotifiedAt": admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+  } catch (e) {
+    console.error("_cgSendCaseReviewNotice failed (non-fatal):", e.message);
+  }
 }
 
 // "Wednesday, September 16 at 11:00 AM" — the moment a family's preparation has
@@ -17788,6 +18001,86 @@ async function _cgSoftCancel({ db, collection, eventId, signupRef, signupData, e
     console.error("_cgSoftCancel: notice failed for " + signupRef.path + ":", e.message);
   }
 }
+
+// Daily sweep for Case Reviews the confirm-time trigger could not produce.
+//
+// Three cases it exists for, all of them real:
+//   * The presenter was assigned AFTER the family confirmed. Presenters are
+//     picked per session on the Events Dashboard, often well after families
+//     have registered, so at confirm time there was nobody to gate on.
+//   * The presenter was SWAPPED to one of the three mid-week.
+//   * The family uploaded another evaluation after confirming — the fingerprint
+//     changes and the review is rebuilt.
+//
+// Scoped to sessions in the next 14 days so it is not re-reading the whole
+// programme every night, and so a review lands while it is still useful.
+exports.sweepConnectGenCaseReviews = functions
+  .runWith({
+    timeoutSeconds: 540,
+    memory: "1GB",
+    maxInstances: 1,
+    secrets: ["RESEND_API_KEY", "SMTP_FROM", "ANTHROPIC_API_KEY"],
+  })
+  .pubsub.schedule("30 5 * * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    let flags = {};
+    try { flags = (await db.doc("settings/featureFlags").get()).data() || {}; } catch (_) { flags = {}; }
+    if (flags.cgCaseReviewEnabled !== true) {
+      console.log("[sweepConnectGenCaseReviews] disabled via flag — skipping");
+      return null;
+    }
+
+    const todayKey = toHstDateKey(new Date());
+    const horizonKey = addDaysHst(todayKey, 14);
+    let scanned = 0, generated = 0, skipped = 0, errors = 0;
+
+    for (const collection of ["events", "recurringEvents"]) {
+      let evsSnap;
+      try {
+        evsSnap = await db.collection(collection).where("zoomMode", "==", "program").get();
+      } catch (e) { errors++; continue; }
+
+      for (const evDoc of evsSnap.docs) {
+        const event = evDoc.data() || {};
+        if (event.archived === true) continue;
+        let sigsSnap;
+        try {
+          sigsSnap = await db.collection(collection).doc(evDoc.id).collection("signups")
+            .where("status", "==", "confirmed").get();
+        } catch (e) { errors++; continue; }
+
+        for (const sigDoc of sigsSnap.docs) {
+          scanned++;
+          try {
+            const signup = sigDoc.data() || {};
+            if (signup.archived === true) { skipped++; continue; }
+            // Documents already destroyed? Then there is nothing left to read,
+            // and regenerating would defeat the retention promise.
+            if (signup.connectGenDocumentsDestroyedAt) { skipped++; continue; }
+
+            const sessions = getSignupSessions(signup, event) || [];
+            const key = (sessions[0] && sessions[0].dateKey) || "";
+            if (!key || key < todayKey || key > horizonKey) { skipped++; continue; }
+
+            const wrote = await _cgMaybeGenerateCaseReview({
+              db, collection, eventId: evDoc.id,
+              signupRef: sigDoc.ref, signup, event, reason: "sweep",
+            });
+            if (wrote) generated++; else skipped++;
+          } catch (e) {
+            errors++;
+            console.error("sweepConnectGenCaseReviews error for " + sigDoc.ref.path + ":", e.message);
+          }
+        }
+      }
+    }
+
+    console.log("sweepConnectGenCaseReviews: scanned=" + scanned + ", generated=" + generated +
+      ", skipped=" + skipped + ", errors=" + errors);
+    return null;
+  });
 
 // ══ Auto-move an unprepared family (2026-09-03) ═════════════════════════════
 // Daniel: give a family every opportunity to move themselves, and if their
@@ -24883,14 +25176,15 @@ exports.getScreeningConsentDownloadUrl = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  _cgCaseReviewFingerprint,
+  _cgCaseReviewPresenterAllowed,
+  _cgWorksheetText,
+  CG_CASE_REVIEW_SYSTEM,
   _cgAutoMoveDestination,
   _cgPrepDeadlineLabel,
   buildConsentRequiredEmailHtml,
   _cgCaseReviewFingerprint,
   _cgCaseReviewPresenterAllowed,
-  _cgRedactCaseReviewData,
-  CG_CASE_REVIEW_SCHEMA,
-  CG_CASE_REVIEW_REDACTED_FIELDS,
   CG_CASE_REVIEW_MODEL,
   _cgRequirements,
   _cgIsMondayVirtual,
