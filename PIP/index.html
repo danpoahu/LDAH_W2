@@ -701,15 +701,19 @@ var TRAINING = {
   sessionTitle: 'Getting Started (Pacific Partners)',
   sessionDate:  '2026-09-02',        /* the column date shown on the Staff Training report */
   isPartner:    true,                /* these rows appear when "Include partners" is ticked */
-  resumeUrl:    'https://ldahawaii.org/SS/Training',
+  resumeUrl:    'https://ldahawaii.org/PIP/',
 
   FIRESTORE: {
-    projectId:  '',                  /* leave blank to skip remote logging entirely */
-    apiKey:     '',                  /* the same web apiKey the portal already uses */
-    collection: 'staffTraining'      /* whatever Reports -> Staff Training reads from */
+    projectId:  'ldah-932d5',
+    apiKey:     'AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk',   /* the public web key W2 already ships */
+    /* NOT userRoles.trainingProgress. That one is keyed by Firebase uid and
+       this deck has no login -- it identifies people by the email typed on
+       the first slide. Own collection, merged into the Staff Training
+       report at read time. (2026-09-02) */
+    collection: 'partnerTrainingProgress'
   },
 
-  RESUME_ENDPOINT: ''                /* Cloud Function that sends the "carry on" email */
+  RESUME_ENDPOINT: 'https://us-central1-ldah-932d5.cloudfunctions.net/partnerTrainingResume'
 };
 
 (function(){

@@ -94,6 +94,96 @@ TIPS:
 - The Page Editor saves to the live website — changes are visible to visitors immediately after saving
 - To edit Pacific island details, click the island name in the sidebar (Am. Samoa, CNMI, FSM, etc.)`;
 
+/* ── Pacific Partners training: "carry on where you left off" ─────────────────
+   The Getting Started deck at ldahawaii.org/PIP/ posts here when someone closes
+   the tab part way through. It has no login, so the person is identified by the
+   email they typed on the first slide.
+
+   Guards, because this endpoint is open to the internet:
+   - one email per person per session per DAY, held in the same progress
+     document the deck already writes, so a flaky connection or a person
+     opening and closing the tab four times cannot mail them four times;
+   - nothing sent to somebody who finished, or who never got past slide one;
+   - the address must already exist in partnerTrainingProgress, so the endpoint
+     cannot be used to mail an arbitrary stranger.
+
+   Sent through sendEmailViaResend so it lands in emailLog like every other
+   system email. (2026-09-02) */
+exports.partnerTrainingResume = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 3, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).send("POST only"); return; }
+
+    try {
+      let b = req.body;
+      if (typeof b === "string") { try { b = JSON.parse(b); } catch (e) { b = {}; } }
+      if (Buffer.isBuffer(b)) { try { b = JSON.parse(b.toString("utf8")); } catch (e) { b = {}; } }
+      b = b || {};
+
+      const email = String(b.personEmail || "").trim().toLowerCase();
+      const name = String(b.personName || "").trim();
+      const sessionId = String(b.sessionId || "").trim();
+      const furthest = parseInt(b.furthest, 10) || 0;
+      const total = parseInt(b.total, 10) || 0;
+      const pct = parseInt(b.percent, 10) || 0;
+
+      if (!email || !email.includes("@") || !sessionId) { res.status(200).send("ignored"); return; }
+      if (String(b.status) === "completed" || furthest < 2) { res.status(200).send("not needed"); return; }
+
+      const slug = email.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      const ref = admin.firestore().collection("partnerTrainingProgress").doc(sessionId + "__" + slug);
+      const snap = await ref.get();
+      /* The deck writes this document before it ever posts here. No document
+         means the address did not come from a real run of the deck. */
+      if (!snap.exists) { res.status(200).send("unknown"); return; }
+
+      const today = new Date().toISOString().slice(0, 10);
+      if (String((snap.data() || {}).resumeEmailDate || "") === today) {
+        res.status(200).send("already sent today"); return;
+      }
+
+      const resumeUrl = String(b.resumeUrl || "https://ldahawaii.org/PIP/");
+      const safeUrl = /^https:\/\/ldahawaii\.org\/PIP\//.test(resumeUrl)
+        ? resumeUrl : "https://ldahawaii.org/PIP/";
+      const first = (name.split(/\s+/)[0] || "there");
+      const html =
+        '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;color:#16242b;line-height:1.6;">' +
+        "<p>Aloha " + first + ",</p>" +
+        "<p>You were part way through <b>Getting Started</b> &mdash; you reached slide <b>" +
+        furthest + "</b> of " + total + " (" + pct + "%). Your place is saved.</p>" +
+        '<p><a href="' + safeUrl + '" style="display:inline-block;background:#0891B2;color:#fff;' +
+        'text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:600;">Pick up where you left off</a></p>' +
+        '<p style="font-size:13px;color:#64748B;">Or paste this into your browser:<br>' + safeUrl + "</p>" +
+        "<p>No rush, and there is nothing to send back &mdash; it just picks up at the slide you stopped on.</p>" +
+        "<p>Leadership in Disabilities and Achievement of Hawai&#699;i</p></div>";
+
+      await sendEmailViaResend({
+        from: `LDAH <${process.env.SMTP_FROM || "onboarding@resend.dev"}>`,
+        to: email,
+        subject: "Your Getting Started walkthrough — pick up where you left off",
+        html,
+        type: "partnerTrainingResume",
+        recipientName: name,
+      });
+
+      await ref.update({
+        resumeEmailDate: today,
+        resumeEmailCount: admin.firestore.FieldValue.increment(1),
+        resumeEmailLastAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      res.status(200).send("sent");
+    } catch (err) {
+      console.error("partnerTrainingResume:", err && err.message);
+      /* 200 on purpose: the deck fires this from pagehide via sendBeacon and
+         cannot act on a failure. Errors belong in the log, not in a retry. */
+      res.status(200).send("error logged");
+    }
+  });
+
 exports.ldahCmsHelp = functions
   .runWith({ timeoutSeconds: 30, maxInstances: 5, secrets: ["ANTHROPIC_API_KEY"] })
   .https.onRequest(async (req, res) => {

@@ -160,6 +160,23 @@ service cloud.firestore {
       allow create: if true;
       allow update, delete: if request.auth != null;
     }
+    /* Pacific Partners "Getting Started" deck at ldahawaii.org/PIP/.
+       The deck has no login -- people type their name and email on the first
+       slide -- so it writes unauthenticated, the same way the public signup and
+       feedback forms already do.
+
+       update is allowed as well as create because the deck upserts ONE document
+       per person as they move through the slides (doc id = session__email-slug)
+       rather than appending a row per slide. Trade-off: someone who guessed a
+       doc id could overwrite a progress record. The data is low value and holds
+       nothing beyond the name and email the person typed about themselves.
+       Deleting still needs a super admin. (2026-09-02) */
+    match /partnerTrainingProgress/{docId} {
+      allow read: if isStaff();
+      allow create, update: if true;
+      allow delete: if isSuperAdmin();
+    }
+
     match /contactSubmissions/{document=**} {
       allow read: if request.auth != null;
       allow create: if true;
