@@ -94,5 +94,43 @@ check('a signup with no session at all still owes all three',
   check('the revision marker was bumped', __test.CONSENT_TEXT_VERSION, '09/2026; RR');
 }
 
+// ── the first email a family receives ───────────────────────────────────────
+// It used to mention consent alone, so a family signed, then discovered
+// documents, then discovered a worksheet — three surprises with the clock
+// running. It must now set out all three and carry the real deadline.
+//
+// The tone assertion that matters most is the negative one: NOTHING moves a
+// family automatically. The ladder emails alternative dates and they pick one.
+// Promising an automatic transfer would be a false statement to a family.
+{
+  const build = __test.buildConsentRequiredEmailHtml;
+  const html = build({
+    name: 'Parent', eventTitle: 'Connect-Gen', datesPhrase: ' on Thursday, September 17',
+    consentUrl: 'https://example.org/consent?token=x',
+    worksheetUrl: 'https://example.org/worksheet?token=y',
+    deadlineLabel: 'Wednesday, September 16 at 11:00 AM',
+    signatureHtml: '', donateHtml: '',
+  });
+  checkTrue('all three steps are named — consent', html.indexOf('consent form') > -1);
+  checkTrue('...documents', html.indexOf('IEP') > -1 && html.indexOf('Evaluation') > -1);
+  checkTrue('...and the worksheet', html.indexOf('Parent Report Worksheet') > -1);
+  checkTrue('the deadline is stated', html.indexOf('Wednesday, September 16 at 11:00 AM') > -1);
+  checkTrue('the worksheet can be started immediately', html.indexOf('example.org/worksheet') > -1);
+  checkTrue('consent is the single call to action', html.indexOf('example.org/consent') > -1);
+  checkTrue('it never promises an automatic transfer',
+    html.toLowerCase().indexOf('transfer') === -1);
+  checkTrue('it says WE will help them move',
+    html.indexOf('move you across') > -1);
+  checkTrue('it invites a reply when something is hard',
+    html.indexOf('reply to this email') > -1);
+  checkTrue('no British spelling', html.indexOf('programme') === -1);
+
+  // With no session on file the deadline sentence must degrade, not print blank.
+  const noDate = build({ name: 'Parent', consentUrl: '#', signatureHtml: '', donateHtml: '' });
+  checkTrue('a family with no session still gets a coherent deadline line',
+    noDate.indexOf('a day before your session') > -1);
+  checkTrue('and no empty placeholder', noDate.indexOf('by <strong></strong>') === -1);
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -1547,6 +1547,8 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
         eventTitle,
         datesPhrase,
         consentUrl,
+        worksheetUrl: _cgWorksheetUrl(after),
+        deadlineLabel: _cgPrepDeadlineLabel(after, event),
         signatureHtml,
         donateHtml,
       });
@@ -6648,6 +6650,8 @@ exports.resendCgConsentRequest = functions
         eventTitle,
         datesPhrase: formatDatesPhrase(sessions.map((x) => x && x.dateKey).filter(Boolean)),
         consentUrl,
+        worksheetUrl: _cgWorksheetUrl(s),
+        deadlineLabel: _cgPrepDeadlineLabel(s, event),
         signatureHtml,
         donateHtml,
       });
@@ -11182,26 +11186,91 @@ exports.submitResourceUpdate = functions
 const CONSENT_TEXT_VERSION = "09/2026; RR";
 const CONSENT_TEXT = "In order for me, [PARENT NAME], to participate in LDAH's Connect Gen Session (CG), on [SESSION DATE], I grant my permission for LDAH to receive, view and discuss my child's confidential documents with me. I am sending the most current Individualized Education Program (IEP) and most current Evaluation(s)/Assessment(s) to LDAH using the secure upload link LDAH provides to me. If I am unable to upload them, LDAH will arrange another way to receive them. By receiving my documents, it does not obligate LDAH employees to provide additional services to me. LDAH will determine through CG, my need for additional support or services within 48 hours from the date of my CG session. My child's confidential documents will be held until a determination is made about receiving additional support with LDAH, such as case advocacy. If I do not require additional supports, my child's confidential documents will be destroyed within 4 days of attendance date. I agree to send LDAH my child's confidential documents as described above.";
 
-function buildConsentRequiredEmailHtml({ name, eventTitle, datesPhrase, consentUrl, signatureHtml, donateHtml }) {
+// The FIRST email a Connect-Gen family receives, and now the only place they are
+// told the whole shape of what is being asked. It used to mention consent alone,
+// so a family signed, then discovered documents, then discovered a worksheet —
+// three surprises, each with the clock running.
+//
+// It carries a real deadline. Warm and unhurried does not serve a family who
+// then loses their session; the tone is friendly but the date is plain.
+//
+// It must also be TRUTHFUL about what happens if they run out of time. Nothing
+// moves a family automatically: the ladder emails them alternative dates and
+// they pick one. Do not write "you will be transferred" — say we will help them
+// move, because that is what the code does.
+function buildConsentRequiredEmailHtml({
+  name, eventTitle, datesPhrase, consentUrl, worksheetUrl, deadlineLabel,
+  signatureHtml, donateHtml,
+}) {
   const safeName = lifecycleEsc(name || "there");
   const safeTitle = lifecycleEsc(eventTitle || "Connect-Gen");
   const safeDates = lifecycleEsc(datesPhrase || "");
+  const safeDeadline = lifecycleEsc(deadlineLabel || "");
+
+  const step = (n, title, body) =>
+    '<tr>' +
+      '<td width="34" valign="top" style="padding:0 0 16px;">' +
+        '<div style="width:26px;height:26px;border-radius:50%;background:#0891B2;color:#fff;' +
+        'font-size:14px;font-weight:700;text-align:center;line-height:26px;">' + n + '</div>' +
+      '</td>' +
+      '<td valign="top" style="padding:0 0 16px;font-size:15px;color:#334155;line-height:1.55;">' +
+        '<strong style="color:#0f172a;">' + title + '</strong><br>' + body +
+      '</td>' +
+    '</tr>';
+
+  const steps =
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" ' +
+    'style="margin:4px 0 8px;">' +
+    step(1, "Sign the consent form",
+      "This gives us permission to look at your child&rsquo;s records with you. It takes a " +
+      "minute, and it unlocks the next step.") +
+    step(2, "Send us two documents",
+      "Your child&rsquo;s most current <strong>IEP</strong> and the <strong>Evaluation " +
+      "that created it</strong>. As soon as your consent is in we will email you a secure " +
+      "upload link &mdash; a photo of each page is fine.") +
+    step(3, "Fill in the Parent Report Worksheet",
+      "Your concerns, in your own words. This is the part that shapes the whole session, and " +
+      "it is the one you can start right now" +
+      (worksheetUrl
+        ? ' &mdash; <a href="' + worksheetUrl + '" style="color:#0891B2;font-weight:600;">open your worksheet</a>.'
+        : ".")) +
+    '</table>';
+
+  const deadlineBlock = safeDeadline
+    ? '<div style="background:#FEF6E7;border:1px solid #f3d9a8;border-left:4px solid #B45309;' +
+      'border-radius:8px;padding:14px 16px;margin:22px 0;font-size:15px;color:#7a4d09;line-height:1.55;">' +
+      'All three need to be with us by <strong>' + safeDeadline + '</strong> &mdash; a day before ' +
+      'your session. That is not us being strict: your parent consultant reads everything ' +
+      'beforehand so your time together is spent on your child, not on paperwork.' +
+      '<br><br>If anything is still outstanding by then, we will email you a few later dates to ' +
+      'choose from and move you across, so you keep your place in the program.' +
+      '</div>'
+    : '<div style="background:#FEF6E7;border:1px solid #f3d9a8;border-left:4px solid #B45309;' +
+      'border-radius:8px;padding:14px 16px;margin:22px 0;font-size:15px;color:#7a4d09;line-height:1.55;">' +
+      'All three need to be with us <strong>a day before your session</strong>. Your parent ' +
+      'consultant reads everything beforehand, so your time together is spent on your child ' +
+      'rather than on paperwork. If anything is still outstanding by then, we will email you a ' +
+      'few later dates to choose from and move you across.' +
+      '</div>';
+
   return '<!DOCTYPE html><html><head><meta charset="utf-8"></head>' +
     '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
     '<div style="max-width:600px;margin:0 auto;background:#fff">' +
     '<div style="background-color:#1e40af;background:linear-gradient(135deg,#1e40af,#0891B2);padding:18px 24px 22px;text-align:center;color:#fff">' +
     '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;">' +
-    '<h1 style="margin:0;font-size:22px;font-weight:700">Action Required</h1></div>' +
+    '<h1 style="margin:0;font-size:22px;font-weight:700">Three things before your session</h1></div>' +
     '<div style="padding:32px 24px">' +
     '<p style="margin:0 0 16px;font-size:16px">Aloha ' + safeName + ',</p>' +
-    '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Mahalo for signing up for <strong>' + safeTitle + '</strong>' + (safeDates ? '<strong>' + safeDates + '</strong>' : '') + '. Before we can confirm your appointment, we need a signed consent form on file.</p>' +
-    '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">The consent gives LDAH permission to view and discuss your child\'s confidential documents (IEP and Evaluation/Assessment) during the session. Please read it carefully and sign by clicking the button below.</p>' +
-    '<p style="text-align:center;margin:32px 0">' +
+    '<p style="margin:0 0 18px;font-size:16px;color:#334155;line-height:1.6">Mahalo for signing up for <strong>' + safeTitle + '</strong>' + (safeDates ? '<strong>' + safeDates + '</strong>' : '') + '. We are looking forward to sitting down with you.</p>' +
+    '<p style="margin:0 0 6px;font-size:16px;color:#334155;line-height:1.6">So that we can make the most of your time, there are <strong>three things</strong> we need from you before we meet:</p>' +
+    steps +
+    deadlineBlock +
+    '<p style="margin:0 0 10px;font-size:16px;color:#334155;line-height:1.6">The first step is the consent form. Everything else follows from it:</p>' +
+    '<p style="text-align:center;margin:22px 0 26px">' +
     _emailBtn(consentUrl, "Read & Sign the Consent Form", { bg: "#0891B2" }) +
     '</p>' +
-    '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6"><strong>Until we receive your signed consent, this appointment is not yet confirmed.</strong> Once signed, we will send you a confirmation along with the prep documents you should review before the meeting.</p>' +
-    '<p style="margin:24px 0 4px;font-size:15px;color:#333;line-height:1.5;">Questions? Reach out anytime.</p>' +
-    '<p style="margin:0 0 4px;font-size:15px;color:#333;line-height:1.5;">With gratitude,</p>' +
+    '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6">If any of this is difficult &mdash; you cannot find a document, you are not sure what the Evaluation is, the upload will not work &mdash; please just reply to this email. We would far rather hear from you early than have you miss your session.</p>' +
+    '<p style="margin:24px 0 4px;font-size:15px;color:#333;line-height:1.5;">With gratitude,</p>' +
     (donateHtml || '') +
     (signatureHtml || '') +
     '</div></div></body></html>';
@@ -16680,6 +16749,196 @@ function _formatSessionLongLabel(dateKey) {
  * current session if it happens to match (avoids "move to the date you're
  * already on" buttons).
  */
+// ══ AI Case Review (2026-09-03) ═════════════════════════════════════════════
+// Turns a family's uploaded IEP + Evaluation and their Parent Report Worksheet
+// into Rosie's Case Review form, filled in, plus a document summary beneath it.
+//
+// The model returns STRUCTURED JSON and this file renders the HTML. It is
+// tempting to let the model write the HTML — the two hand-made pilots did — but
+// the first pilot came back as a free-form narrative instead of the form, and
+// nothing structural stops that recurring. A fixed template guarantees the grid
+// every time, can be corrected without re-running the model, makes the fields
+// queryable later, and turns redaction into a render mode rather than a rebuild.
+//
+// WHAT THE FORM IS FOR (Rosie, via Daniel): the right-hand Follow Up column is
+// not free notes. Left and middle are inputs; the right side is the cross-check
+// that the IEP actually covers every parent concern and every evaluation
+// finding — "so nothing is left behind that the child needs". The deliverable
+// is GAP DETECTION, not narration. The schema models that relationship
+// explicitly rather than leaving it to prose.
+
+const CG_CASE_REVIEW_MODEL = "claude-opus-5";
+
+// Fields stripped when the source documents are destroyed. Everything here is
+// clinical detail the family consented to have destroyed with the documents;
+// what survives is the follow-up list, which is LDAH's own work product.
+const CG_CASE_REVIEW_REDACTED_FIELDS = [
+  "dobAgeGrade", "eligibilityCategory", "diagnosis", "gradeScores",
+  "evaluations", "fsIq", "documentsReviewed",
+];
+
+const CG_CASE_REVIEW_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["header", "parentConcerns", "evaluations", "followUp"],
+  properties: {
+    header: {
+      type: "object",
+      additionalProperties: false,
+      required: ["parentName", "childName", "sessionDate"],
+      properties: {
+        parentName: { type: "string" },
+        childName: { type: "string" },
+        sessionDate: { type: "string" },
+        school: { type: "string" },
+        dobAgeGrade: { type: "string" },
+        eligibilityCategory: { type: "string" },
+        diagnosis: { type: "string" },
+        iepDates: { type: "string" },
+        gradeScores: { type: "string" },
+      },
+    },
+    // LEFT column. Sourced from the worksheet wherever possible — those are the
+    // family's own words and must not be paraphrased into clinical language.
+    parentConcerns: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["concern"],
+        properties: {
+          concern: { type: "string" },
+          detail: { type: "string" },
+          inFamilyWords: { type: "boolean" },
+        },
+      },
+    },
+    // MIDDLE column, by domain, mirroring the paper form's sub-rows.
+    evaluations: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        cognitive: { type: "array", items: { type: "string" } },
+        academic: { type: "array", items: { type: "string" } },
+        ptOt: { type: "array", items: { type: "string" } },
+        speechOther: { type: "array", items: { type: "string" } },
+      },
+    },
+    fsIq: { type: "string" },
+    // RIGHT column. severity orders the advocate's attention; coveredByIep is
+    // the gap check itself.
+    followUp: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["title", "severity", "coveredByIep"],
+        properties: {
+          title: { type: "string" },
+          detail: { type: "string" },
+          severity: { type: "string", enum: ["high", "medium", "low"] },
+          coveredByIep: { type: "boolean" },
+          relatesTo: { type: "string" },
+        },
+      },
+    },
+    documentsReviewed: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["label"],
+        properties: {
+          label: { type: "string" },
+          date: { type: "string" },
+          author: { type: "string" },
+        },
+      },
+    },
+    additionalComments: { type: "string" },
+  },
+};
+
+// A change in the documents or the worksheet should produce a fresh review.
+// Cheap content hash rather than a timestamp comparison, so a re-upload of the
+// same file does not trigger a regeneration.
+function _cgCaseReviewFingerprint(signup) {
+  try {
+    const s = signup || {};
+    const docs = s.connectGenDocuments || {};
+    const parts = [];
+    for (const type of ["iep", "evaluation"]) {
+      for (const d of (_cgDocList(docs, type) || [])) {
+        parts.push(type + ":" + (d.storagePath || d.originalFilename || "") + ":" + (d.sizeBytes || ""));
+      }
+    }
+    parts.sort();
+    const ws = s.parentWorksheet || {};
+    const wsStamp = (ws.lastEditedAt && ws.lastEditedAt.toMillis && ws.lastEditedAt.toMillis())
+      || (ws.completedAt && ws.completedAt.toMillis && ws.completedAt.toMillis()) || 0;
+    parts.push("ws:" + wsStamp + ":" + ((ws.concerns || []).length));
+    return crypto.createHash("sha256").update(parts.join("|")).digest("hex").slice(0, 32);
+  } catch (e) {
+    console.warn("_cgCaseReviewFingerprint failed:", e.message);
+    return "";
+  }
+}
+
+// Is this session's presenter one of the consultants trialling the review?
+// The uids live in settings/featureFlags.cgCaseReviewPresenterUids, NOT in
+// source: the repository is public, and the trial roster is Daniel's to change
+// without a deploy.
+function _cgCaseReviewPresenterAllowed(allowedUids, presenterUid) {
+  if (!presenterUid) return false;
+  const list = Array.isArray(allowedUids) ? allowedUids : [];
+  return list.indexOf(presenterUid) > -1;
+}
+
+// Drop the clinical detail, keep LDAH's own work product. Called on the same
+// run that destroys the source documents.
+function _cgRedactCaseReviewData(data) {
+  const out = {};
+  for (const k of Object.keys(data || {})) {
+    if (CG_CASE_REVIEW_REDACTED_FIELDS.indexOf(k) > -1) continue;
+    out[k] = data[k];
+  }
+  if (out.header) {
+    const h = {};
+    for (const k of Object.keys(out.header)) {
+      if (CG_CASE_REVIEW_REDACTED_FIELDS.indexOf(k) > -1) continue;
+      h[k] = out.header[k];
+    }
+    out.header = h;
+  }
+  out.redacted = true;
+  return out;
+}
+
+// "Wednesday, September 16 at 11:00 AM" — the moment a family's preparation has
+// to be complete, being the registration cut-off before their session start.
+// Returns "" when the session or its start time is unknown, so callers can drop
+// the sentence rather than print a half-empty one.
+function _cgPrepDeadlineLabel(signup, event, cutoffHours) {
+  try {
+    const sessions = getSignupSessions(signup, event) || [];
+    const first = sessions[0];
+    if (!first || !first.dateKey) return "";
+    const ms = _cgSessionCutoffMillis(first, first.dateKey, cutoffHours);
+    if (ms === null) return "";
+    const d = new Date(ms);
+    const day = d.toLocaleDateString("en-US", {
+      weekday: "long", month: "long", day: "numeric", timeZone: "Pacific/Honolulu",
+    });
+    const time = d.toLocaleTimeString("en-US", {
+      hour: "numeric", minute: "2-digit", timeZone: "Pacific/Honolulu",
+    });
+    return day + " at " + time;
+  } catch (e) {
+    console.warn("_cgPrepDeadlineLabel failed:", e.message);
+    return "";
+  }
+}
+
 // ── The registration cut-off (2026-09-02) ───────────────────────────────────
 // A session stops accepting new registrations, and stops being a legitimate
 // reschedule destination, this many hours before it starts. Rosie agreed 24.
@@ -24238,6 +24497,14 @@ exports.getScreeningConsentDownloadUrl = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  _cgPrepDeadlineLabel,
+  buildConsentRequiredEmailHtml,
+  _cgCaseReviewFingerprint,
+  _cgCaseReviewPresenterAllowed,
+  _cgRedactCaseReviewData,
+  CG_CASE_REVIEW_SCHEMA,
+  CG_CASE_REVIEW_REDACTED_FIELDS,
+  CG_CASE_REVIEW_MODEL,
   _cgRequirements,
   _cgIsMondayVirtual,
   CONSENT_TEXT,
