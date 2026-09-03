@@ -95,7 +95,7 @@ TIPS:
 - To edit Pacific island details, click the island name in the sidebar (Am. Samoa, CNMI, FSM, etc.)`;
 
 /* ── Pacific Partners training: "carry on where you left off" ─────────────────
-   The Getting Started deck at ldahawaii.org/PIP/ posts here when someone closes
+   A training deck posts here when someone closes
    the tab part way through. It has no login, so the person is identified by the
    email they typed on the first slide.
 
@@ -127,6 +127,7 @@ exports.partnerTrainingResume = functions
       const email = String(b.personEmail || "").trim().toLowerCase();
       const name = String(b.personName || "").trim();
       const sessionId = String(b.sessionId || "").trim();
+      const sessionTitle = String(b.sessionTitle || "").trim();
       const furthest = parseInt(b.furthest, 10) || 0;
       const total = parseInt(b.total, 10) || 0;
       const pct = parseInt(b.percent, 10) || 0;
@@ -146,14 +147,25 @@ exports.partnerTrainingResume = functions
         res.status(200).send("already sent today"); return;
       }
 
+      // Open-redirect guard: the link in this email is built from a value the
+      // browser posted, so only these two origins are honoured. The second is
+      // the dashboard's own, added 2026-09-03 when a deck moved there to read
+      // the signed-in user instead of asking them to type their name.
+      const RESUME_ALLOWED = [
+        /^https:\/\/ldahawaii\.org\/PIP\//,
+        /^https:\/\/danpoahu\.github\.io\/LDAH-Int\/training\//,
+      ];
       const resumeUrl = String(b.resumeUrl || "https://ldahawaii.org/PIP/");
-      const safeUrl = /^https:\/\/ldahawaii\.org\/PIP\//.test(resumeUrl)
+      const safeUrl = RESUME_ALLOWED.some((re) => re.test(resumeUrl))
         ? resumeUrl : "https://ldahawaii.org/PIP/";
       const first = (name.split(/\s+/)[0] || "there");
       const html =
         '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;color:#16242b;line-height:1.6;">' +
         "<p>Aloha " + first + ",</p>" +
-        "<p>You were part way through <b>Getting Started</b> &mdash; you reached slide <b>" +
+        // Name the deck they were actually in. This said "Getting Started"
+        // outright, which was true while there was only one.
+        "<p>You were part way through <b>" + lifecycleEsc(sessionTitle || "your training") +
+        "</b> &mdash; you reached slide <b>" +
         furthest + "</b> of " + total + " (" + pct + "%). Your place is saved.</p>" +
         '<p><a href="' + safeUrl + '" style="display:inline-block;background:#0891B2;color:#fff;' +
         'text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:600;">Pick up where you left off</a></p>' +
@@ -164,7 +176,7 @@ exports.partnerTrainingResume = functions
       await sendEmailViaResend({
         from: `LDAH <${process.env.SMTP_FROM || "onboarding@resend.dev"}>`,
         to: email,
-        subject: "Your Getting Started walkthrough — pick up where you left off",
+        subject: "Your " + (sessionTitle || "LDAH") + " walkthrough — pick up where you left off",
         html,
         type: "partnerTrainingResume",
         recipientName: name,
