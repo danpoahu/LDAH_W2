@@ -696,6 +696,27 @@
     
     // Recurring event helpers for homepage
     function _fmt12home(t) { if(!t)return''; const [h,m]=t.split(':').map(Number); return `${h%12||12}:${String(m).padStart(2,'0')} ${h>=12?'PM':'AM'}`; }
+    /* Sign-ups close 24 hours before a session starts (see
+       isRecurringSessionClosed in events.html — keep the two in step). The
+       home page must not advertise a session the signup form will refuse, so
+       a closed date is skipped here rather than shown as "Next:".
+
+       The -10:00 is deliberate and must not be "simplified" to a local-time
+       parse: the rest of this page does its date maths in the visitor's own
+       timezone, which is fine for a label but wrong for a deadline — a family
+       on the mainland would otherwise get a different cut-off from an island
+       family for the same session. Hawaii has no DST, so -10:00 holds all year.
+
+       Fail open when a schedule carries no startTime, so a CMS omission never
+       hides a whole programme. */
+    const RECURRING_SIGNUP_CUTOFF_HOURS_HOME = 24;
+    function _sessionClosedHome(date, sch) {
+        if (!date || !sch || !sch.startTime) return false;
+        const dateKey = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+        const start = new Date(`${dateKey}T${sch.startTime}:00-10:00`);
+        if (isNaN(start.getTime())) return false;
+        return (start.getTime() - Date.now()) < RECURRING_SIGNUP_CUTOFF_HOURS_HOME*60*60*1000;
+    }
     function _nextOccurrence(schedules) {
         const today = new Date(); today.setHours(0,0,0,0);
         const end = new Date(today); end.setDate(end.getDate()+30);
@@ -703,12 +724,14 @@
         (schedules||[]).forEach(s => {
             if (s.frequency==='weekly') {
                 const d = new Date(today); d.setDate(d.getDate()+(s.dayOfWeek-d.getDay()+7)%7);
+                // Roll on a week at a time past any session already inside the cut-off.
+                while (d<=end && _sessionClosedHome(d,s)) d.setDate(d.getDate()+7);
                 if (d<=end && (!earliest||d<earliest)) earliest=d;
             } else {
                 for(let mo=0;mo<=1;mo++){
                     const ref=new Date(today.getFullYear(),today.getMonth()+mo,1);
                     const nth=new Date(ref.getFullYear(),ref.getMonth(),1+(s.dayOfWeek-ref.getDay()+7)%7+(s.weekOfMonth-1)*7);
-                    if(nth.getMonth()===ref.getMonth()&&nth>=today&&nth<=end&&(!earliest||nth<earliest)) earliest=nth;
+                    if(nth.getMonth()===ref.getMonth()&&nth>=today&&nth<=end&&!_sessionClosedHome(nth,s)&&(!earliest||nth<earliest)) earliest=nth;
                 }
             }
         });

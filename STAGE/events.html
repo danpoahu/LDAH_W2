@@ -1034,7 +1034,7 @@
             try {
                 const [headerResponse, footerResponse] = await Promise.all([
                     fetch('header.html?v=62.8.0'),
-                    fetch('footer.html?v=62.8.0')
+                    fetch('footer.html?v=62.9.0')
                 ]);
                 
                 if (headerResponse.ok && footerResponse.ok) {
@@ -4334,6 +4334,44 @@
       return `${hour}:${String(m).padStart(2,'0')} ${ampm}`;
     }
 
+    /* 24-hour registration cut-off ----------------------------------------
+       A family must not be able to join a session that starts in less than a
+       day: signing up the day before is fine, the morning of is not. Sessions
+       inside the window still render (disabled, with a "Closed" badge) the
+       same way a full session does — a family who can see why is better
+       served than one whose date silently disappeared. */
+    const RECURRING_SIGNUP_CUTOFF_HOURS = 24;
+
+    // The instant a session actually starts, anchored to Hawaii.
+    //
+    // Do NOT "simplify" the -10:00 back to a local-time parse. Everything else
+    // on this page does its date maths in the visitor's own timezone, which is
+    // harmless for a label but wrong for a deadline: a family on the mainland
+    // would get a cut-off hours away from the one an island family gets for
+    // the very same session. Hawaii does not observe DST, so the fixed -10:00
+    // offset is correct all year round.
+    //
+    // occ.date is pinned to local midnight, so the date parts are read locally
+    // (getFullYear/getMonth/getDate) to match the label the family is shown —
+    // toISOString() would slide to the previous day for visitors east of UTC.
+    function recurringSessionStart(occ) {
+      const sch = (occ && occ.schedule) || {};
+      if (!occ || !occ.date || !sch.startTime) return null;
+      const d = occ.date;
+      const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const start = new Date(`${dateKey}T${sch.startTime}:00-10:00`);
+      return isNaN(start.getTime()) ? null : start;
+    }
+
+    // Fail open: a schedule with no (or an unparseable) startTime keeps its
+    // sessions selectable rather than locking a family out of the whole
+    // programme over a CMS omission.
+    function isRecurringSessionClosed(occ) {
+      const start = recurringSessionStart(occ);
+      if (!start) return false;
+      return (start.getTime() - Date.now()) < RECURRING_SIGNUP_CUTOFF_HOURS * 60 * 60 * 1000;
+    }
+
     function getOccurrencesInNext30Days(schedules, cancelledDates) {
       const today = new Date(); today.setHours(0,0,0,0);
       const end   = new Date(today); end.setDate(end.getDate() + 30);
@@ -4373,7 +4411,7 @@
       const timeRange = `${fmt12(occ.schedule.startTime)} \u2013 ${fmt12(occ.schedule.endTime)}`;
       const key = `${d.toISOString().slice(0,10)}|${occ.schedule.location}${venue}|${timeRange}`;
       const display = `${label} \u00b7 ${occ.schedule.location}${venue} \u00b7 ${timeRange}`;
-      return { key, display };
+      return { key, display, closed: isRecurringSessionClosed(occ) };
     }
 
     async function loadRecurringEvents() {
@@ -4524,6 +4562,16 @@
                   <div id="recurringDateList" style="display:flex;flex-direction:column;gap:8px;">
                     ${occFormatted.length > 0 ? occFormatted.map(occ => {
                       const isFull = (sessionConfirmedCounts[occ.key] || 0) >= RECURRING_SESSION_CAPACITY;
+                      // Inside the 24-hour cut-off (see isRecurringSessionClosed).
+                      // FULL wins the badge when a session is both.
+                      const isClosed = !isFull && occ.closed === true;
+                      const isBlocked = isFull || isClosed;
+                      const rowBg     = isFull ? '#fee2e2' : (isClosed ? '#f3f4f6' : '#f0f9ff');
+                      const rowBorder = isFull ? '#fecaca' : (isClosed ? '#e5e7eb' : '#e0f2fe');
+                      const rowColor  = isFull ? '#991b1b' : (isClosed ? '#6B7280' : '#374151');
+                      const rowBadge  = isFull
+                        ? ' <span style="background:#DC2626;color:white;padding:1px 8px;border-radius:50px;font-size:11px;font-weight:700;margin-left:6px;">FULL</span>'
+                        : (isClosed ? ' <span style="background:#6B7280;color:white;padding:1px 8px;border-radius:50px;font-size:11px;font-weight:700;margin-left:6px;">Closed</span>' : '');
                       // Compute weekday via date-parts constructor (NEVER new Date(string) — UTC bugs).
                       // occ.key starts with YYYY-MM-DD (pipe-delimited).
                       let weekdayAttr = '';
@@ -4539,9 +4587,9 @@
                       const inputType = isCG ? 'radio' : 'checkbox';
                       const inputNameAttr = isCG ? ` name="cg-session-${programId}"` : '';
                       return `
-                      <label${weekdayAttr} style="display:flex;align-items:flex-start;gap:8px;${isFull ? 'cursor:not-allowed;opacity:0.6;' : 'cursor:pointer;'}padding:10px 12px;background:${isFull ? '#fee2e2' : '#f0f9ff'};border-radius:8px;border:1px solid ${isFull ? '#fecaca' : '#e0f2fe'};">
-                        <input type="${inputType}"${inputNameAttr} class="signup-date-checkbox" value="${occ.key}" ${isFull ? 'disabled' : ''} onchange="updateMultiSessionPanel()" style="width:18px;height:18px;${isFull ? 'cursor:not-allowed;' : 'cursor:pointer;'}flex-shrink:0;margin-top:2px;">
-                        <span style="font-size:14px;color:${isFull ? '#991b1b' : '#374151'};line-height:1.5;">${occ.display}${isFull ? ' <span style="background:#DC2626;color:white;padding:1px 8px;border-radius:50px;font-size:11px;font-weight:700;margin-left:6px;">FULL</span>' : ''}</span>
+                      <label${weekdayAttr} style="display:flex;align-items:flex-start;gap:8px;${isBlocked ? 'cursor:not-allowed;opacity:0.6;' : 'cursor:pointer;'}padding:10px 12px;background:${rowBg};border-radius:8px;border:1px solid ${rowBorder};">
+                        <input type="${inputType}"${inputNameAttr} class="signup-date-checkbox" value="${occ.key}" ${isBlocked ? 'disabled' : ''} onchange="updateMultiSessionPanel()" style="width:18px;height:18px;${isBlocked ? 'cursor:not-allowed;' : 'cursor:pointer;'}flex-shrink:0;margin-top:2px;">
+                        <span style="font-size:14px;color:${rowColor};line-height:1.5;">${occ.display}${rowBadge}</span>
                       </label>`;
                     }).join('') :
                       '<p style="color:#666;font-size:14px;">No sessions available in the next 30 days.</p>'
@@ -4866,6 +4914,21 @@
       if (formData.selectedSessions.length === 0) {
         alert('Please pick the session you will attend.');
         return;
+      }
+      // Re-check the 24-hour cut-off here: a modal left open overnight still
+      // holds rows that were selectable when it was drawn. Recomputed through
+      // formatOccurrence so the keys match the checkbox values exactly.
+      //
+      // Deliberately an allow-list, not a "reject the closed ones" list: a
+      // session that has slid into the past is no longer produced by the
+      // expander at all, so it would never appear in a closed list and would
+      // sail through. Anything not currently open is refused.
+      const _openKeys = getOccurrencesInNext30Days(program.schedules, program.cancelledDates)
+        .filter(occ => !isRecurringSessionClosed(occ))
+        .map(occ => formatOccurrence(occ).key);
+      if (formData.selectedSessions.some(k => _openKeys.indexOf(k) === -1)) {
+        alert('Sign-ups close 24 hours before a session starts, and that session is no longer open. Please close and reopen this form, then pick a later date.');
+        return;   // the enclosing try/finally releases the submit lock
       }
       // Multi-session reason gate — same content each week, anything beyond
       // one session needs a written reason (e.g. signing up multiple kids).
