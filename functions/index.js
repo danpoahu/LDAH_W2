@@ -17276,7 +17276,11 @@ function _buildCgRescheduleEmailHtml({
   const safeNewDeadline = lifecycleEsc(newDeadlineLabel || "");
 
   let intro;
-  if (mode === "moved") {
+  if (mode === "softcancel") {
+    intro = p("We have tried a few times now to get your Connect-Gen session ready, and we " +
+      "still do not have " + phrase + ". Rather than keep moving your date, we have released " +
+      "your place for now.");
+  } else if (mode === "moved") {
     intro = p("Your Connect-Gen session was today, and we still did not have " + phrase +
       ". So that you do not lose your place, we have moved you to " +
       (safeDest ? "<strong>" + safeDest + "</strong>" : "the next session at your location") + ".");
@@ -17293,7 +17297,11 @@ function _buildCgRescheduleEmailHtml({
       "session so our advocates can prepare to best support your family.");
   }
 
-  const actionLead = mode === "moved"
+  const actionLead = mode === "softcancel"
+    ? p("Nothing here is lost, and nothing is held against you. When you have everything " +
+        "together, please sign up again and we will be glad to see you \u2014 there is no limit " +
+        "on how many times you can register.", "18px")
+    : mode === "moved"
     ? p("Here is what we are still waiting on:", "18px")
     : mode === "final"
     // Deliberately NOT "and bring anything you have with you" — their place
@@ -17322,7 +17330,12 @@ function _buildCgRescheduleEmailHtml({
   // the exact date their place moves to — which is also where the urgency comes
   // from.
   let closing;
-  if (mode === "final") {
+  if (mode === "softcancel") {
+    closing = p("And if something is standing in the way \u2014 you cannot find a document, you " +
+      "are not sure what we are asking for, the upload will not work \u2014 please call us on " +
+      "<strong>(808) 536-9684</strong>. We would much rather help you through it than have you " +
+      "give up on the session.", "18px");
+  } else if (mode === "final") {
     closing = p("If we do not have " + phrase + " by the time we start, your place will move to " +
       (safeDest ? "<strong>" + safeDest + "</strong>" : "the next session at your location") +
       " and we will email you to confirm. You can move it yourself before then using the " +
@@ -17347,7 +17360,9 @@ function _buildCgRescheduleEmailHtml({
   if (owed.indexOf("worksheet") > -1 && urls.worksheet) footerLinks.push({ label: "Complete the worksheet", href: urls.worksheet });
   const linkFooter = footerLinks.length ? _emailLinkFooter(footerLinks) : "";
 
-  const headerLabel = mode === "moved"
+  const headerLabel = mode === "softcancel"
+    ? "Connect-Gen \u2014 Your Place, When You Are Ready"
+    : mode === "moved"
     ? "Connect-Gen \u2014 Your New Date"
     : (mode === "final"
         ? "Connect-Gen \u2014 Tomorrow"
@@ -17680,7 +17695,9 @@ async function _sendCgRescheduleEmail({
   });
 
   const phrase = _cgOutstandingPhrase(outstanding);
-  const subject = mode === "moved"
+  const subject = mode === "softcancel"
+    ? "Your Connect-Gen place \u2014 come back when you are ready"
+    : mode === "moved"
     ? "We have moved your Connect-Gen session"
     : mode === "final"
     ? "Your Connect-Gen session is tomorrow"
@@ -17688,7 +17705,9 @@ async function _sendCgRescheduleEmail({
         ? "Connect-Gen reminder \u2014 we still need " + phrase
         : "Before your Connect-Gen session \u2014 we still need " + phrase);
 
-  const typeTag = mode === "moved"
+  const typeTag = mode === "softcancel"
+    ? "connect-gen-soft-cancelled"
+    : mode === "moved"
     ? "connect-gen-auto-moved"
     : mode === "final"
     ? "connect-gen-final-reminder"
@@ -17708,7 +17727,9 @@ async function _sendCgRescheduleEmail({
 
   try {
     await db.collection("auditLog").add({
-      action: mode === "moved"
+      action: mode === "softcancel"
+        ? "Connect-Gen soft-cancel notice sent"
+        : mode === "moved"
         ? "Connect-Gen auto-move notice sent"
         : mode === "final"
         ? "Connect-Gen final reminder sent"
@@ -17720,6 +17741,52 @@ async function _sendCgRescheduleEmail({
       signupPath: signupRef.path,
     });
   } catch (e) { console.warn("auditLog write failed:", e.message); }
+}
+
+// Soft cancel: the family has had four dates and is still not ready.
+//
+// "Soft" because nothing is deleted. The signup row stays with its whole
+// history, the seat is released, and the family is told plainly that they are
+// welcome to come back once they have everything together. The tone matters
+// here more than anywhere else in this flow: a parent who could not lay hands
+// on an evaluation for six weeks is not a problem to be closed off, and the
+// email must not read like one.
+async function _cgSoftCancel({ db, collection, eventId, signupRef, signupData, event, requirements, sessionKey }) {
+  const FieldValue = admin.firestore.FieldValue;
+  const existing = Array.isArray(signupData.selectedSessions)
+    ? signupData.selectedSessions.filter(Boolean) : [];
+
+  await signupRef.set({
+    status: "cancelled",
+    cgSoftCancelledAt: FieldValue.serverTimestamp(),
+    cgSoftCancelledReason: "prep incomplete after " + CG_MAX_MOVES + " moves",
+    cgSoftCancelledOutstanding: (requirements && requirements.outstanding) || [],
+    // Suppress the generic "Your signup was cancelled" notice — it is blunt
+    // where this needs to be warm, and the family would receive both.
+    lifecycleEmail_cancellation_lastKey: JSON.stringify(existing.slice().sort()),
+  }, { merge: true });
+
+  try {
+    await db.collection("auditLog").add({
+      action: "Connect-Gen signup soft-cancelled (prep incomplete after " + CG_MAX_MOVES + " moves)",
+      details: "signupPath=" + signupRef.path + ", lastSession=" + sessionKey +
+               ", outstanding=" + (((requirements && requirements.outstanding) || []).join("+")),
+      performedBy: "system",
+      timestamp: FieldValue.serverTimestamp(),
+      signupPath: signupRef.path,
+    });
+  } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+  try {
+    await _sendCgRescheduleEmail({
+      db, mode: "softcancel", collection, eventId,
+      signupRef, signupData, sessionKey, upcoming: [], event, requirements,
+    });
+  } catch (e) {
+    // Non-fatal: the cancel itself has already happened, and a failed email
+    // must not leave the signup half-cancelled on the next run.
+    console.error("_cgSoftCancel: notice failed for " + signupRef.path + ":", e.message);
+  }
 }
 
 // ══ Auto-move an unprepared family (2026-09-03) ═════════════════════════════
@@ -17741,6 +17808,14 @@ async function _sendCgRescheduleEmail({
 // cgAutoMoveCount, so a family drifting forward month after month is at least
 // discoverable rather than invisible.
 const CG_AUTO_MOVE_LOOKBACK_HOURS = 6;
+
+// A family gets FOUR dates in total: the one they chose, plus three moves.
+// After that, still unprepared, the signup is soft-cancelled — the record stays,
+// the seat is released, and they are told warmly that they are welcome to sign
+// up again once they have everything, with a number to call. Daniel, 2026-09-03.
+// The counter is shared with the self-serve reschedule, so a family who moves
+// itself three times has used its three.
+const CG_MAX_MOVES = 3;
 
 exports.autoMoveUnpreparedConnectGen = functions
   .runWith({
@@ -17771,7 +17846,7 @@ exports.autoMoveUnpreparedConnectGen = functions
 
     const nowMs = Date.now();
     const todayKey = toHstDateKey(new Date());
-    let scanned = 0, moved = 0, skipped = 0, noDest = 0, errors = 0;
+    let scanned = 0, moved = 0, cancelled = 0, skipped = 0, noDest = 0, errors = 0;
 
     async function processCollection(collection) {
       const evsSnap = await db.collection(collection).where("zoomMode", "==", "program").get();
@@ -17820,6 +17895,18 @@ exports.autoMoveUnpreparedConnectGen = functions
               skipped++; continue;
             }
 
+            // Four dates in total. Past that, a soft cancel rather than an
+            // endless roll forward — a family bouncing month after month with
+            // nobody noticing serves nobody.
+            if ((signup.cgMoveCount || 0) >= CG_MAX_MOVES) {
+              await _cgSoftCancel({
+                db, collection, eventId, signupRef: sigDoc.ref, signupData: signup,
+                event, requirements: reqs, sessionKey,
+              });
+              cancelled++;
+              continue;
+            }
+
             const dest = _cgAutoMoveDestination(event, signup, sessionKey, todayKey);
             if (!dest) {
               // No future session at their location. Leave them where they are
@@ -17838,6 +17925,13 @@ exports.autoMoveUnpreparedConnectGen = functions
             await sigDoc.ref.set({
               selectedSessions: [pipeEntry],
               selectedDates: [dest.dateKey],
+              // Suppress the generic signup-reschedule notice for this write.
+              // Without it the family gets our move email AND a lifecycle email
+              // reading "No action needed on your end — we just wanted to keep
+              // you in the loop", which flatly contradicts it. This is the
+              // documented marker mechanism, set to the post-write value.
+              lifecycleEmail_reschedule_lastKey: JSON.stringify([pipeEntry]),
+              cgMoveCount: (signup.cgMoveCount || 0) + 1,
               cgAutoMovedAt: FieldValue.serverTimestamp(),
               cgAutoMovedFrom: sessionKey,
               cgAutoMovedTo: dest.dateKey,
@@ -17894,7 +17988,8 @@ exports.autoMoveUnpreparedConnectGen = functions
     }
 
     console.log("autoMoveUnpreparedConnectGen: scanned=" + scanned + ", moved=" + moved +
-      ", noDestination=" + noDest + ", skipped=" + skipped + ", errors=" + errors);
+      ", softCancelled=" + cancelled + ", noDestination=" + noDest +
+      ", skipped=" + skipped + ", errors=" + errors);
     return null;
   });
 
@@ -18065,11 +18160,22 @@ exports.acceptConnectGenReschedule = functions
         selectedDates: [newKey],
         rescheduleOfferSentAt: FieldValue.delete(),
         firmReminderSentAt: FieldValue.delete(),
+        // The T-1 rung has its own stamp and must reset with the others, or a
+        // family who moves itself gets no last call on the new date.
+        finalReminderSentAt: FieldValue.delete(),
         // sessionReminders cleared so the new T-7/T-1 reminders fire fresh.
         sessionReminders: FieldValue.delete(),
         rescheduledAt: FieldValue.serverTimestamp(),
         rescheduledTo: newKey,
         rescheduledFrom: currentKeys[0] || null,
+        // Four dates in total whether they move themselves or we move them, so
+        // this shares the counter with the auto-move.
+        cgMoveCount: (signup.cgMoveCount || 0) + 1,
+        // Suppress the generic signup-reschedule notice. It hardcodes "No action
+        // needed on your end — we just wanted to keep you in the loop", which is
+        // the opposite of true for a family who moved precisely because they
+        // still owe us documents. They get the upload-later email below instead.
+        lifecycleEmail_reschedule_lastKey: JSON.stringify([pipeEntry]),
       });
 
       // Fresh upload-later email — use the existing uploadAuthToken (still

@@ -161,5 +161,28 @@ const OPTS_MIXED = [
   else { fail++; console.error('FAIL empty input still returns an email'); }
 }
 
+// ── the soft cancel ────────────────────────────────────────────────────────
+// After four dates the place is released. This is the email most likely to be
+// read as a rejection, so the assertions are mostly about what it must NOT do:
+// no blame, no dead end, and a phone number rather than only a form.
+{
+  const html = build({
+    mode: 'softcancel', firstName: 'Parent', sessionDateLabel: 'Thursday, October 15',
+    sessionLocation: 'Kona', sessionModality: 'in-person',
+    outstanding: ['documents'], actionUrls: URLS, options: [], signatureHtml: '',
+  });
+  has('it says the place was released', html, 'released');
+  has('it invites them back explicitly', html, 'sign up again');
+  has('it makes clear there is no limit on re-registering', html, 'no limit');
+  has('it says nothing is held against them', html, 'held against you');
+  has('it gives a phone number, not just a form', html, '(808) 536-9684');
+  has('it offers help rather than closing the door', html, 'rather help you through it');
+  has('the header is about coming back, not about ending', html, 'When You Are Ready');
+  lacks('it never uses the word cancelled at the family', html, 'cancelled');
+  lacks('and never blames them for a deadline', html, 'failed');
+  // With no dates left to offer there must be no dangling invitation to pick one.
+  lacks('no empty date invitation', html, 'pick one of these');
+}
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
