@@ -44,7 +44,9 @@ And one new capability:
 |---|---|---|
 | Scope of the unified flow | All in-person sessions, no per-location switch | Daniel, 2026-09-02 |
 | Not-ready at T-24h | Email alternative dates; family moves themselves | Daniel, 2026-09-02 |
-| AI disclosure vs. consent | Cleared with Rosie | Daniel, 2026-09-02 |
+| AI disclosure vs. consent | Practice cleared with Rosie | Daniel, 2026-09-02 |
+| Third-party wording on the form | **Deliberately NOT added** while this is a limited experiment | Daniel, 2026-09-03 |
+| Document retention | Stays at **4 days**; 5 was offered on 1 Sept but never agreed | verified 2026-09-03 |
 | Case Review trigger | Automatic, the moment the family is confirmed | Daniel, 2026-09-02 |
 | Signup cut-off | Exactly 24 hours | Daniel, 2026-09-02 |
 | Reschedule dates offered | Own location first, virtual as fallback | Daniel, 2026-09-02 |
@@ -317,6 +319,14 @@ address each explicitly.
 ---
 
 ## 5. Open items — blocking go-live
+
+0. **The AI clause is deliberately absent.** Rosie cleared the *practice* of using an
+   automated tool to prepare; Daniel's decision of 2026-09-03 is that the consent form does
+   **not** yet carry third-party wording, because this is a limited experiment. Do not add
+   it back without asking. The retention promise on the form ("4 days") matches the code
+   (`scheduledConnectGenDocLifecycle`, destroy at `hoursSince >= 96`); the "3 days" and
+   "36 hours" figures in the 1 September meeting notes are stale, describing the state
+   before the 24 August change.
 
 1. **The consent text says "virtual".** `CONSENT_TEXT` (`functions/index.js:11191`) reads
    *"…within 48 hours from the date of the CG virtual attendance"* and *"I am sending the
