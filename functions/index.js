@@ -16549,7 +16549,13 @@ exports.scheduledConnectGenDocLifecycle = functions
 // the HTTPS accept CF can validate independently — no Firestore round trip
 // needed for token verification. Token payload is base64url-encoded JSON
 // with a separate base64url signature.
-const _CG_RESCHEDULE_TOKEN_VERSION = "v1";
+// v1 named a destination by date alone. Connect-Gen runs two sessions on one
+// date (2026-09-10 is Hilo 09:00 AND Oahu 11:00), so as soon as an offer mixes
+// locations the date stops identifying a session. v2 carries the location.
+// v1 is still ACCEPTED on verify — links already in a family's inbox must not
+// start reporting themselves as invalid — but nothing mints one any more.
+const _CG_RESCHEDULE_TOKEN_VERSION = "v2";
+const _CG_RESCHEDULE_TOKEN_VERSIONS_ACCEPTED = ["v2", "v1"];
 
 function _cgRescheduleHmacSecret() {
   // The deploy command attaches this as a secret. If unset (local emulator
@@ -16580,9 +16586,28 @@ function _b64urlDecode(str) {
  *   ndk = new session dateKey (YYYY-MM-DD), exp = unix epoch seconds.
  * Returns a single base64url string "<payload>.<sig>".
  */
-function _signRescheduleToken({ signupId, eventId, collection, newSessionDateKey, expSeconds }) {
+function _signRescheduleToken({ signupId, eventId, collection, newSessionDateKey, newSessionLocation, expSeconds }) {
   const payload = {
     v: _CG_RESCHEDULE_TOKEN_VERSION,
+    sid: String(signupId || ""),
+    eid: String(eventId || ""),
+    col: String(collection || ""),
+    ndk: String(newSessionDateKey || ""),
+    nloc: String(newSessionLocation || ""),
+    exp: Number(expSeconds || 0),
+  };
+  const payloadStr = _b64urlEncode(Buffer.from(JSON.stringify(payload)));
+  const sig = crypto.createHmac("sha256", _cgRescheduleHmacSecret())
+    .update(payloadStr)
+    .digest();
+  return payloadStr + "." + _b64urlEncode(sig);
+}
+
+// Mints a v1 token. Production never calls this — it exists so the test suite
+// can prove that a link already sitting in a family's inbox still verifies.
+function _signRescheduleTokenV1({ signupId, eventId, collection, newSessionDateKey, expSeconds }) {
+  const payload = {
+    v: "v1",
     sid: String(signupId || ""),
     eid: String(eventId || ""),
     col: String(collection || ""),
@@ -16590,9 +16615,7 @@ function _signRescheduleToken({ signupId, eventId, collection, newSessionDateKey
     exp: Number(expSeconds || 0),
   };
   const payloadStr = _b64urlEncode(Buffer.from(JSON.stringify(payload)));
-  const sig = crypto.createHmac("sha256", _cgRescheduleHmacSecret())
-    .update(payloadStr)
-    .digest();
+  const sig = crypto.createHmac("sha256", _cgRescheduleHmacSecret()).update(payloadStr).digest();
   return payloadStr + "." + _b64urlEncode(sig);
 }
 
@@ -16613,7 +16636,7 @@ function _verifyRescheduleToken(token) {
     if (provided.length !== expected.length) return null;
     if (!crypto.timingSafeEqual(provided, expected)) return null;
     const payload = JSON.parse(_b64urlDecode(payloadStr).toString("utf8"));
-    if (!payload || payload.v !== _CG_RESCHEDULE_TOKEN_VERSION) return null;
+    if (!payload || _CG_RESCHEDULE_TOKEN_VERSIONS_ACCEPTED.indexOf(payload.v) === -1) return null;
     if (!payload.sid || !payload.eid || !payload.ndk) return null;
     const nowSec = Math.floor(Date.now() / 1000);
     if (typeof payload.exp !== "number" || payload.exp < nowSec) return null;
@@ -16658,6 +16681,93 @@ function _formatSessionLongLabel(dateKey) {
  * current session if it happens to match (avoids "move to the date you're
  * already on" buttons).
  */
+// ── Which alternative sessions do we offer? (2026-09-02) ────────────────────
+// Replaces the Monday-and-virtual-only _findUpcomingMondaysForEvent below.
+//
+// Two facts about the real Connect-Gen schedule drive this:
+//   * Hilo and Kona run MONTHLY. A same-location offer to a Kona family is four
+//     weeks out, so on its own it produces an email with no usable buttons.
+//     Own location first, then virtual Mondays to top the list up.
+//   * 2026-09-10 carries BOTH Hilo 09:00 and Oahu 11:00. The old code
+//     de-duplicated on dateKey and would silently drop one of them, so options
+//     are keyed on dateKey + location throughout.
+//
+// A family is never offered a DIFFERENT in-person island — only their own, or
+// virtual. Sending a Kona parent to Oahu is not a reschedule, it is a flight.
+
+// The signup stores "Kona – Neighborhood Place of Kona"; the session object says
+// "Kona". Compare the first segment before the dash, case-insensitively, or the
+// two never match and every family looks like they have no home location.
+function _cgNormLoc(loc) {
+  if (!loc) return "";
+  return String(loc).split(/\s*[–—-]\s*/)[0].trim().toLowerCase();
+}
+
+// The location the signup currently holds, taken from its own session string.
+function _cgSignupLocation(signup) {
+  const entries = (signup && Array.isArray(signup.selectedSessions)) ? signup.selectedSessions : [];
+  for (const raw of entries) {
+    const parts = String(raw || "").split("|");
+    if (parts.length >= 2 && parts[1].trim()) return parts[1].trim();
+  }
+  return "";
+}
+
+function _cgFindRescheduleOptions(event, signup, opts) {
+  const o = opts || {};
+  const minDaysOut = Number.isFinite(o.minDaysOut) ? o.minDaysOut : 14;
+  const max = Number.isFinite(o.max) ? o.max : 4;
+  const currentKey = o.currentKey || "";
+  // todayKey is injectable so the rule can be tested without freezing the clock.
+  const todayKey = o.todayKey || toHstDateKey(new Date());
+  const cutoffKey = addDaysHst(todayKey, minDaysOut);
+  const home = _cgNormLoc(o.currentLocation || _cgSignupLocation(signup));
+
+  if (!event || !signup) return [];
+
+  let sessions = [];
+  try { sessions = getEventSessions(event) || []; } catch (_) { sessions = []; }
+
+  // Deterministic order: by date, then by start time so the earlier of two
+  // same-day sessions comes first.
+  sessions = sessions.slice().sort((a, b) =>
+    String(a.dateKey || "").localeCompare(String(b.dateKey || "")) ||
+    String(a.startTime || "").localeCompare(String(b.startTime || "")));
+
+  const seen = new Set();
+  const own = [];
+  const virtual = [];
+
+  for (const sess of sessions) {
+    if (!sess || !sess.dateKey) continue;
+    if (sess.dateKey < cutoffKey) continue;
+    const loc = _cgNormLoc(sess.location);
+    const id = sess.dateKey + "|" + loc;            // NOT dateKey alone
+    if (seen.has(id)) continue;
+    // Skip the session the family already holds. When we know their location,
+    // match on both — otherwise a Hilo family loses the Oahu session that
+    // happens to share their date.
+    if (sess.dateKey === currentKey && (!home || loc === home)) continue;
+    seen.add(id);
+    const opt = {
+      dateKey: sess.dateKey,
+      location: sess.location || "",
+      modality: sess.modality || "",
+      startTime: sess.startTime || "",
+      endTime: sess.endTime || "",
+      rawString: sess.rawString || "",
+      session: sess,
+    };
+    if (home && loc === home) own.push(opt);
+    else if (sess.modality === "virtual") virtual.push(opt);
+  }
+
+  // Enough of their own dates? Offer only those. The brief's "fewer than two"
+  // threshold is what makes the monthly islands work.
+  if (own.length >= 2) return own.slice(0, max);
+  return own.concat(virtual).slice(0, max);
+}
+
 function _findUpcomingMondaysForEvent(event, signup, opts) {
   const minDaysOut = (opts && Number.isFinite(opts.minDaysOut)) ? opts.minDaysOut : 14;
   const max = (opts && Number.isFinite(opts.max)) ? opts.max : 4;
@@ -23946,6 +24056,14 @@ exports.getScreeningConsentDownloadUrl = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  _cgFindRescheduleOptions,
+  _cgNormLoc,
+  _cgSignupLocation,
+  _signRescheduleToken,
+  _signRescheduleTokenV1,
+  _verifyRescheduleToken,
+  getEventSessions,
+  extractSignupSessionKeys,
   _cgWorksheetLastContact,
   _cgWorksheetAsked,
   _cgUploadExpiryMillis,
