@@ -11224,10 +11224,12 @@ function buildConsentRequiredEmailHtml({
     step(1, "Sign the consent form",
       "This gives us permission to look at your child&rsquo;s records with you. It takes a " +
       "minute, and it unlocks the next step.") +
-    step(2, "Send us two documents",
-      "Your child&rsquo;s most current <strong>IEP</strong> and the <strong>Evaluation " +
-      "that created it</strong>. As soon as your consent is in we will email you a secure " +
-      "upload link &mdash; a photo of each page is fine.") +
+    step(2, "Send us these documents",
+      "Your child&rsquo;s most current <strong>IEP</strong>, and <strong>every evaluation that " +
+      "was used to create it</strong>. There is usually one for each area of need &mdash; " +
+      "hearing, speech, physical, and so on &mdash; so please send them all, however many that " +
+      "comes to. As soon as your consent is in we will email you a secure upload link, and a " +
+      "photo of each page is fine.") +
     step(3, "Fill in the Parent Report Worksheet",
       "Your concerns, in your own words. This is the part that shapes the whole session, and " +
       "it is the one you can start right now" +
@@ -11269,7 +11271,7 @@ function buildConsentRequiredEmailHtml({
     '<p style="text-align:center;margin:22px 0 26px">' +
     _emailBtn(consentUrl, "Read & Sign the Consent Form", { bg: "#0891B2" }) +
     '</p>' +
-    '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6">If any of this is difficult &mdash; you cannot find a document, you are not sure what the Evaluation is, the upload will not work &mdash; please just reply to this email. We would far rather hear from you early than have you miss your session.</p>' +
+    '<p style="margin:0 0 16px;font-size:15px;color:#475569;line-height:1.6">If any of this is difficult &mdash; you cannot find a document, you are not sure which evaluations we mean, the upload will not work &mdash; please just reply to this email. We would far rather hear from you early than have you miss your session.</p>' +
     '<p style="margin:24px 0 4px;font-size:15px;color:#333;line-height:1.5;">With gratitude,</p>' +
     (donateHtml || '') +
     (signatureHtml || '') +
@@ -11322,7 +11324,7 @@ function buildConnectGenPrepEmailHtml({ name, eventTitle, datesPhrase, prepDocs,
     '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Mahalo &mdash; your registration for <strong>' + safeTitle + '</strong>' + (safeDates ? ' <strong>' + safeDates + '</strong>' : '') + ' is complete and your session is confirmed. Here is everything you need to be ready.</p>' +
     '<div style="background:#FFFBEB;border:2px solid #F59E0B;border-radius:10px;padding:14px 18px;margin:18px 0;">' +
       '<div style="font-weight:700;color:#92400E;font-size:1rem;margin-bottom:4px;">Important — please have these ready for your session</div>' +
-      '<div style="font-size:.95rem;color:#78350F;line-height:1.5;">Your child\'s most current <strong>IEP</strong> and the <strong>Evaluation that created the IEP</strong>. We won\'t be able to do a meaningful review without both of these on hand.</div>' +
+      '<div style="font-size:.95rem;color:#78350F;line-height:1.5;">Your child\'s most current <strong>IEP</strong> and <strong>every evaluation used to create it</strong> \u2014 there is usually one per area of need. We won\'t be able to do a meaningful review without them.</div>' +
       '<div style="font-size:.95rem;color:#78350F;line-height:1.5;margin-top:8px;">If you haven\'t already, please complete the <strong>Parent Report Worksheet — Concerns Affecting Education</strong> before your session. If you\'ve already submitted it, you\'re all set — mahalo!</div>' +
     '</div>' +
     zoomNoteBlock +
@@ -12441,7 +12443,7 @@ function _cgRequirements(signup, event) {
 function _cgOutstandingPhrase(outstanding) {
   const labels = {
     consent: "your signed consent form",
-    documents: "your child's IEP and Evaluation",
+    documents: "your child's IEP and evaluations",
     worksheet: "your Parent Report Worksheet",
   };
   const parts = (outstanding || []).map((k) => labels[k] || k);
@@ -12685,15 +12687,15 @@ function buildConnectGenConsentReceivedEmailHtml({
     checklist += '<li style="margin:0 0 8px">Complete the <strong>Parent Report Worksheet</strong> — the concerns you want us to look at. It takes a few minutes and it is what makes the session useful.</li>';
   }
   if (docsLeft) {
-    checklist += '<li style="margin:0 0 8px">Upload your child’s most current <strong>IEP</strong> and <strong>Evaluation</strong>' + (uploadUrl ? ' using the button below' : ' — just reply to this email with them attached') + '. If you already uploaded them right after signing, you are all set.</li>';
+    checklist += '<li style="margin:0 0 8px">Upload your child’s most current <strong>IEP</strong> and <strong>evaluations</strong>' + (uploadUrl ? ' using the button below' : ' — just reply to this email with them attached') + '. If you already uploaded them right after signing, you are all set.</li>';
   } else {
-    checklist += '<li style="margin:0 0 8px">Your child’s <strong>IEP</strong> and <strong>Evaluation</strong> are on file — mahalo!</li>';
+    checklist += '<li style="margin:0 0 8px">Your child’s <strong>IEP</strong> and <strong>evaluations</strong> are on file — mahalo!</li>';
   }
   checklist += '</ul>';
 
   let buttons = '';
   if (docsLeft && uploadUrl) {
-    buttons += _emailBtn(uploadUrl, "Upload IEP &amp; Evaluation", { bg: "#0891B2", align: "center" });
+    buttons += _emailBtn(uploadUrl, "Upload IEP &amp; Evaluations", { bg: "#0891B2", align: "center" });
   }
   if (worksheetLeft && worksheetUrl) {
     buttons += _emailBtn(worksheetUrl, "Complete the Worksheet", { bg: "#0E7490", align: "center" });
@@ -12770,7 +12772,7 @@ function buildConnectGenWorksheetRequestEmailHtml({
     '</div>' +
     '<div style="background:#FFFBEB;border:2px solid #F59E0B;border-radius:10px;padding:14px 18px;margin:18px 0;">' +
       '<div style="font-weight:700;color:#92400E;font-size:1rem;margin-bottom:4px;">Please bring to the session</div>' +
-      '<div style="font-size:.95rem;color:#78350F;line-height:1.5;">Your child’s most current <strong>IEP</strong> and the <strong>Evaluation that created the IEP</strong>. We will not be able to do a meaningful review without both of these on hand.</div>' +
+      '<div style="font-size:.95rem;color:#78350F;line-height:1.5;">Your child’s most current <strong>IEP</strong> and <strong>every evaluation used to create it</strong> — there is usually one per area of need. We will not be able to do a meaningful review without them.</div>' +
     '</div>' +
     (safeLocation
       ? '<div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:14px 18px;margin:16px 0;font-size:.92rem;color:#14532D;line-height:1.5;">' +
@@ -13090,7 +13092,7 @@ function _buildConnectGenUploadLaterEmailHtml({ firstName, uploadUrl, expiresFor
     '<tr><td style="padding:24px;">',
     '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">Aloha ' + safeFirst + ',</p>',
     '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">',
-    'Mahalo for signing your Connect-Gen consent. When you\'re ready, please upload your child\'s most recent IEP and Evaluation using the secure link below:',
+    'Mahalo for signing your Connect-Gen consent. When you\'re ready, please upload your child\'s most recent IEP and all of the evaluations used to create it, using the secure link below:',
     '</p>',
     btn,
     '<div style="background:#FFFBEB;border:1.5px solid #F59E0B;border-left:4px solid #D97706;border-radius:8px;padding:12px 16px;margin:18px 0;color:#78350F;font-size:14px;line-height:1.55;">',
@@ -16939,6 +16941,35 @@ function _cgPrepDeadlineLabel(signup, event, cutoffHours) {
   }
 }
 
+// Where does an unprepared family get moved to? (2026-09-03)
+//
+// The next session at their OWN location, after the one they are on. For Oahu
+// Thursdays and virtual Mondays that is a week later, which is how Daniel
+// described it. Hilo and Kona run MONTHLY, so for them the next one at their
+// location is about a month out — deliberately, per his decision: they keep
+// their island, and the move email still offers sooner alternatives (including
+// virtual) that they can choose for themselves.
+//
+// Returns null when there is no future session at their location, in which case
+// the caller must leave the family where they are rather than invent a
+// destination.
+function _cgAutoMoveDestination(event, signup, currentKey, todayKey) {
+  try {
+    const opts = {
+      currentKey: currentKey,
+      minDaysOut: 1,               // never onto a session starting today
+      max: 1,
+      ownLocationOnly: true,
+      todayKey: todayKey,
+    };
+    const found = _cgFindRescheduleOptions(event, signup, opts) || [];
+    return found.length ? found[0] : null;
+  } catch (e) {
+    console.warn("_cgAutoMoveDestination failed:", e.message);
+    return null;
+  }
+}
+
 // ── The registration cut-off (2026-09-02) ───────────────────────────────────
 // A session stops accepting new registrations, and stops being a legitimate
 // reschedule destination, this many hours before it starts. Rosie agreed 24.
@@ -17186,6 +17217,12 @@ function _cgFindRescheduleOptions(event, signup, opts) {
     else if (sess.modality === "virtual") virtual.push(opt);
   }
 
+  // The auto-move needs the family's OWN location and nothing else — a Kona
+  // family rolled onto a Zoom session has not been rescheduled, they have been
+  // moved to a different programme. Callers offering choices still get the
+  // virtual top-up below.
+  if (o.ownLocationOnly) return own.slice(0, max);
+
   // Enough of their own dates? Offer only those. The brief's "fewer than two"
   // threshold is what makes the monthly islands work.
   if (own.length >= 2) return own.slice(0, max);
@@ -17200,6 +17237,7 @@ function _cgFindRescheduleOptions(event, signup, opts) {
 function _buildCgRescheduleEmailHtml({
   mode, firstName, sessionDateLabel, sessionLocation, sessionModality,
   outstanding, actionUrls, options, signatureHtml,
+  moveDestinationLabel, newDeadlineLabel,
 }) {
   const safeFirst = lifecycleEsc(firstName || "there");
   const safeDate = lifecycleEsc(sessionDateLabel || "your Connect-Gen session");
@@ -17234,8 +17272,15 @@ function _buildCgRescheduleEmailHtml({
     ? " Without them we also cannot send you the Zoom link for that session."
     : "";
 
+  const safeDest = lifecycleEsc(moveDestinationLabel || "");
+  const safeNewDeadline = lifecycleEsc(newDeadlineLabel || "");
+
   let intro;
-  if (mode === "final") {
+  if (mode === "moved") {
+    intro = p("Your Connect-Gen session was today, and we still did not have " + phrase +
+      ". So that you do not lose your place, we have moved you to " +
+      (safeDest ? "<strong>" + safeDest + "</strong>" : "the next session at your location") + ".");
+  } else if (mode === "final") {
     intro = p("Your Connect-Gen session is tomorrow &mdash; " + safeDate + locBit +
       ". We still do not have " + phrase + ".");
   } else if (mode === "reminder") {
@@ -17248,15 +17293,22 @@ function _buildCgRescheduleEmailHtml({
       "session so our advocates can prepare to best support your family.");
   }
 
-  const actionLead = mode === "final"
-    ? p("If you can still send it today, please use the button below and bring anything " +
-        "you have with you:", "18px")
+  const actionLead = mode === "moved"
+    ? p("Here is what we are still waiting on:", "18px")
+    : mode === "final"
+    // Deliberately NOT "and bring anything you have with you" — their place
+    // moves if this is still outstanding at the start, so telling them to turn
+    // up would contradict the closing two paragraphs below. And "that" rather
+    // than "it"/"them", because the outstanding phrase can be either.
+    ? p("If you can still get that to us today, please use the button below:", "18px")
     : (mode === "reminder"
         ? p("To stay on this date, please send it as soon as you can:")
         : p("If you can send it in the next few days:"));
 
   // Only invite them to pick another date when there is one to pick.
-  const optionLead = !optionBtns ? "" : (mode === "final"
+  const optionLead = !optionBtns ? "" : (mode === "moved"
+    ? p("If that date does not suit, you are welcome to pick one of these instead:", "18px")
+    : mode === "final"
     ? p("If tomorrow is too soon, you are welcome to move to one of these instead:", "18px")
     : (mode === "reminder"
         ? p("Or if this date no longer works, you can move to one of these:", "18px")
@@ -17264,10 +17316,30 @@ function _buildCgRescheduleEmailHtml({
 
   // The T-1 email must never read as a cancellation. A family turning up
   // unprepared is still a family we see.
-  const closing = mode === "final"
-    ? p("You are still welcome to come tomorrow either way. We will simply get less " +
-        "far without it, so bring whatever you have.", "18px")
-    : (mode === "reminder" ? "" : p("Once you pick a new date we will send you fresh links.", "18px"));
+  // The T-1 email used to end "you are still welcome to come either way". Once an
+  // unprepared family is moved at the session start that is no longer true, and
+  // telling a parent otherwise would be the worst kind of wrong. It now names
+  // the exact date their place moves to — which is also where the urgency comes
+  // from.
+  let closing;
+  if (mode === "final") {
+    closing = p("If we do not have " + phrase + " by the time we start, your place will move to " +
+      (safeDest ? "<strong>" + safeDest + "</strong>" : "the next session at your location") +
+      " and we will email you to confirm. You can move it yourself before then using the " +
+      "buttons above.", "18px");
+  } else if (mode === "moved") {
+    closing = safeNewDeadline
+      ? p("Please have everything with us by <strong>" + safeNewDeadline + "</strong>. If it is " +
+          "still outstanding when that session starts, we will move you forward again \u2014 but " +
+          "we would much rather see you than keep moving you.", "18px")
+      : p("Please send it through as soon as you can. If it is still outstanding when that " +
+          "session starts we will move you forward again \u2014 but we would much rather see " +
+          "you than keep moving you.", "18px");
+  } else if (mode === "reminder") {
+    closing = "";
+  } else {
+    closing = p("Once you pick a new date we will send you fresh links.", "18px");
+  }
 
   const footerLinks = [];
   if (owed.indexOf("consent") > -1 && urls.consent) footerLinks.push({ label: "Sign the consent form", href: urls.consent });
@@ -17275,9 +17347,11 @@ function _buildCgRescheduleEmailHtml({
   if (owed.indexOf("worksheet") > -1 && urls.worksheet) footerLinks.push({ label: "Complete the worksheet", href: urls.worksheet });
   const linkFooter = footerLinks.length ? _emailLinkFooter(footerLinks) : "";
 
-  const headerLabel = mode === "final"
-    ? "Connect-Gen \u2014 Tomorrow"
-    : (mode === "reminder" ? "Connect-Gen Reminder" : "Connect-Gen \u2014 Before Your Session");
+  const headerLabel = mode === "moved"
+    ? "Connect-Gen \u2014 Your New Date"
+    : (mode === "final"
+        ? "Connect-Gen \u2014 Tomorrow"
+        : (mode === "reminder" ? "Connect-Gen Reminder" : "Connect-Gen \u2014 Before Your Session"));
 
   return [
     '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f7;">',
@@ -17520,6 +17594,7 @@ exports.enforceConnectGenDocDeadline = functions
 
 async function _sendCgRescheduleEmail({
   db, mode, collection, eventId, signupRef, signupData, sessionKey, upcoming, event, requirements,
+  opts,
 }) {
   const recipientEmail = String(
     (signupData && signupData.email) ||
@@ -17573,22 +17648,49 @@ async function _sendCgRescheduleEmail({
   const sessionModality = (event && sessionKey && isSessionVirtual(event, sessionKey, signupData))
     ? "virtual" : "in-person";
 
+  // The T-1 email and the move notice both name the destination, so the family
+  // is told the specific date rather than "a later session".
+  let moveDestinationLabel = "", newDeadlineLabel = "";
+  if (mode === "final" || mode === "moved") {
+    const dest = (mode === "moved" && opts && opts.destination)
+      ? opts.destination
+      : _cgAutoMoveDestination(event, signupData, sessionKey, toHstDateKey(new Date()));
+    if (dest) {
+      moveDestinationLabel = _formatMondayLabel(dest.dateKey) +
+        (dest.location ? " at " + dest.location : "");
+      const cut = _cgSessionCutoffMillis(dest.session || dest, dest.dateKey);
+      if (cut !== null) {
+        const d = new Date(cut);
+        newDeadlineLabel = d.toLocaleDateString("en-US", {
+          weekday: "long", month: "long", day: "numeric", timeZone: "Pacific/Honolulu",
+        }) + " at " + d.toLocaleTimeString("en-US", {
+          hour: "numeric", minute: "2-digit", timeZone: "Pacific/Honolulu",
+        });
+      }
+    }
+  }
+
   const signatureHtml = await buildSignatureBlock("eventCoordinator");
   const html = _buildCgRescheduleEmailHtml({
     mode, firstName,
     sessionDateLabel: _formatSessionLongLabel(sessionKey),
     sessionLocation, sessionModality,
     outstanding, actionUrls, options, signatureHtml,
+    moveDestinationLabel, newDeadlineLabel,
   });
 
   const phrase = _cgOutstandingPhrase(outstanding);
-  const subject = mode === "final"
+  const subject = mode === "moved"
+    ? "We have moved your Connect-Gen session"
+    : mode === "final"
     ? "Your Connect-Gen session is tomorrow"
     : (mode === "reminder"
         ? "Connect-Gen reminder \u2014 we still need " + phrase
         : "Before your Connect-Gen session \u2014 we still need " + phrase);
 
-  const typeTag = mode === "final"
+  const typeTag = mode === "moved"
+    ? "connect-gen-auto-moved"
+    : mode === "final"
     ? "connect-gen-final-reminder"
     : (mode === "reminder" ? "connect-gen-firm-reminder" : "connect-gen-reschedule-offer");
 
@@ -17606,7 +17708,9 @@ async function _sendCgRescheduleEmail({
 
   try {
     await db.collection("auditLog").add({
-      action: mode === "final"
+      action: mode === "moved"
+        ? "Connect-Gen auto-move notice sent"
+        : mode === "final"
         ? "Connect-Gen final reminder sent"
         : (mode === "reminder" ? "Connect-Gen firm reminder sent" : "Connect-Gen reschedule offer sent"),
       details: "email=" + recipientEmail + ", signupPath=" + signupRef.path +
@@ -17617,6 +17721,182 @@ async function _sendCgRescheduleEmail({
     });
   } catch (e) { console.warn("auditLog write failed:", e.message); }
 }
+
+// ══ Auto-move an unprepared family (2026-09-03) ═════════════════════════════
+// Daniel: give a family every opportunity to move themselves, and if their
+// session starts with anything still outstanding, move them forward to the next
+// session at their own location, tell them, and put a clock on the new date.
+//
+// The ladder (T-7 / T-4 / T-1) has already offered them four dates twice over
+// by this point, and the T-1 email named this exact destination. This is the
+// backstop, not the first they hear of it.
+//
+// Runs hourly because sessions start at 09:00, 11:00 and 15:00 HST and "at the
+// start of the session" means what it says. The window looks back a few hours
+// so a missed run still catches the family on the next pass, and forward-only
+// stamps make a repeat run a no-op.
+//
+// There is deliberately NO cap on how many times a family can be moved
+// (Daniel's decision). Every move is audit-logged and increments
+// cgAutoMoveCount, so a family drifting forward month after month is at least
+// discoverable rather than invisible.
+const CG_AUTO_MOVE_LOOKBACK_HOURS = 6;
+
+exports.autoMoveUnpreparedConnectGen = functions
+  .runWith({
+    timeoutSeconds: 540,
+    maxInstances: 1,
+    secrets: ["RESEND_API_KEY", "SMTP_FROM", "CG_RESCHEDULE_HMAC_SECRET"],
+  })
+  .pubsub.schedule("15 * * * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const FieldValue = admin.firestore.FieldValue;
+
+    // Same grandfather gate the document deadline uses: never act on a signup
+    // that predates enforcement, so switching this on cannot reach backwards.
+    let cutoff = null;
+    try {
+      const flags = (await db.doc("settings/featureFlags").get()).data() || {};
+      if (flags.cgAutoMoveEnabled !== true) {
+        console.log("[autoMoveUnpreparedConnectGen] disabled via flag — skipping");
+        return null;
+      }
+      cutoff = flags.cgDeadlineEnforcementCutoff || null;
+    } catch (e) {
+      console.warn("[autoMoveUnpreparedConnectGen] flag read failed, treating as disabled:", e.message);
+      return null;
+    }
+
+    const nowMs = Date.now();
+    const todayKey = toHstDateKey(new Date());
+    let scanned = 0, moved = 0, skipped = 0, noDest = 0, errors = 0;
+
+    async function processCollection(collection) {
+      const evsSnap = await db.collection(collection).where("zoomMode", "==", "program").get();
+      for (const evDoc of evsSnap.docs) {
+        const event = evDoc.data() || {};
+        const eventId = evDoc.id;
+        if (event.archived === true) continue;
+
+        let sigsSnap;
+        try {
+          sigsSnap = await db.collection(collection).doc(eventId).collection("signups")
+            .where("status", "==", "pending").get();
+        } catch (e) {
+          errors++;
+          console.error("autoMoveUnpreparedConnectGen: signups query failed for " + eventId, e.message);
+          continue;
+        }
+
+        for (const sigDoc of sigsSnap.docs) {
+          scanned++;
+          try {
+            const signup = sigDoc.data() || {};
+            if (signup.archived === true) { skipped++; continue; }
+            if (!signup.email) { skipped++; continue; }
+            if (cutoff && (!signup.timestamp || signup.timestamp.toMillis() < cutoff.toMillis())) {
+              skipped++; continue;
+            }
+
+            // Ready families are never moved, whatever the clock says.
+            let reqs;
+            try { reqs = _cgRequirements(signup, event); } catch (_) { skipped++; continue; }
+            if (!reqs.isConnectGen || reqs.ready) { skipped++; continue; }
+
+            const sessions = getSignupSessions(signup, event) || [];
+            const first = sessions[0];
+            const sessionKey = (first && first.dateKey) || "";
+            if (!sessionKey) { skipped++; continue; }
+
+            // Has their session started, and recently enough to be this run's?
+            const startMs = (first && first.startTime && /^\d{2}:\d{2}$/.test(first.startTime))
+              ? Date.parse(sessionKey + "T" + first.startTime + ":00-10:00")
+              : Date.parse(sessionKey + "T23:59:00-10:00");   // no time: end of day
+            if (!Number.isFinite(startMs)) { skipped++; continue; }
+            if (nowMs < startMs) { skipped++; continue; }                       // not started
+            if (nowMs - startMs > CG_AUTO_MOVE_LOOKBACK_HOURS * 3600000) {      // long past
+              skipped++; continue;
+            }
+
+            const dest = _cgAutoMoveDestination(event, signup, sessionKey, todayKey);
+            if (!dest) {
+              // No future session at their location. Leave them where they are
+              // rather than invent a destination — a Kona family does not want
+              // to discover they are now on Zoom.
+              noDest++;
+              console.log("autoMoveUnpreparedConnectGen: no destination at own location for " + sigDoc.ref.path);
+              continue;
+            }
+
+            const pipeEntry = (dest.rawString && dest.rawString.indexOf("|") !== -1)
+              ? dest.rawString
+              : (dest.dateKey + "|" + (dest.location || "") +
+                 (dest.startTime ? ("|" + dest.startTime + "-" + (dest.endTime || "")) : ""));
+
+            await sigDoc.ref.set({
+              selectedSessions: [pipeEntry],
+              selectedDates: [dest.dateKey],
+              cgAutoMovedAt: FieldValue.serverTimestamp(),
+              cgAutoMovedFrom: sessionKey,
+              cgAutoMovedTo: dest.dateKey,
+              cgAutoMoveCount: (signup.cgAutoMoveCount || 0) + 1,
+              // The new date gets a fresh ladder; the old date's stamps would
+              // otherwise suppress every rung on it.
+              rescheduleOfferSentAt: FieldValue.delete(),
+              firmReminderSentAt: FieldValue.delete(),
+              finalReminderSentAt: FieldValue.delete(),
+              sessionReminders: FieldValue.delete(),
+            }, { merge: true });
+
+            try {
+              await db.collection("auditLog").add({
+                action: "Connect-Gen family auto-moved (unprepared at session start)",
+                details: "signupPath=" + sigDoc.ref.path + ", from=" + sessionKey +
+                         ", to=" + dest.dateKey + " " + (dest.location || "") +
+                         ", outstanding=" + (reqs.outstanding || []).join("+") +
+                         ", moveNumber=" + ((signup.cgAutoMoveCount || 0) + 1),
+                performedBy: "system",
+                timestamp: FieldValue.serverTimestamp(),
+                signupPath: sigDoc.ref.path,
+              });
+            } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+            // Re-read so the email's links reflect the new date.
+            let fresh = signup;
+            try { fresh = (await sigDoc.ref.get()).data() || signup; } catch (_) { /* use what we have */ }
+
+            const upcoming = _cgFindRescheduleOptions(event, fresh, {
+              currentKey: dest.dateKey, minDaysOut: 1, max: 4, todayKey,
+            });
+
+            await _sendCgRescheduleEmail({
+              db, mode: "moved", collection, eventId,
+              signupRef: sigDoc.ref, signupData: fresh,
+              sessionKey: sessionKey, upcoming, event, requirements: reqs,
+              opts: { destination: dest },
+            });
+            moved++;
+          } catch (e) {
+            errors++;
+            console.error("autoMoveUnpreparedConnectGen per-signup error for " + sigDoc.ref.path + ":", e.message);
+          }
+        }
+      }
+    }
+
+    try {
+      await processCollection("events");
+      await processCollection("recurringEvents");
+    } catch (err) {
+      console.error("autoMoveUnpreparedConnectGen: scan failed:", err.message);
+    }
+
+    console.log("autoMoveUnpreparedConnectGen: scanned=" + scanned + ", moved=" + moved +
+      ", noDestination=" + noDest + ", skipped=" + skipped + ", errors=" + errors);
+    return null;
+  });
 
 // ─── Part 3: acceptConnectGenReschedule (HTTPS) ──────────────────────
 // Parent clicks a "Monday, May 19" button in the reschedule offer or firm
@@ -24497,6 +24777,7 @@ exports.getScreeningConsentDownloadUrl = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  _cgAutoMoveDestination,
   _cgPrepDeadlineLabel,
   buildConsentRequiredEmailHtml,
   _cgCaseReviewFingerprint,

@@ -70,7 +70,7 @@ const OPTS_MIXED = [
     options: OPTS_MIXED, signatureHtml: '',
   });
   has('a family owing everything is told all three', all, 'signed consent form');
-  has('...documents too', all, 'IEP and Evaluation');
+  has('...documents too', all, 'IEP and evaluations');   // plural: one per area of need
   has('...and the worksheet', all, 'Parent Report Worksheet');
   has('all three links appear', all, URLS.worksheet);
 }
@@ -85,16 +85,51 @@ const OPTS_MIXED = [
   has('virtual reminder may reference the Zoom link', html, 'Zoom');
 }
 
-// ── the T-1 rung must not read as a cancellation ────────────────────────────
+// ── the T-1 rung warns of the move, and names the date ──────────────────────
+// It used to end "you are still welcome to come either way". Once an unprepared
+// family is moved at the session start that is false, and reassuring a parent
+// with something untrue is the worst version of this email.
 {
   const html = build({
     mode: 'final', firstName: 'Parent', sessionDateLabel: 'Thursday, September 17',
     sessionLocation: 'Kona', sessionModality: 'in-person',
     outstanding: ['worksheet'], actionUrls: URLS, options: OPTS_INPERSON, signatureHtml: '',
+    moveDestinationLabel: 'Thursday, October 15 at Kona',
   });
-  has('the last-call email says they are still welcome to attend', html, 'still welcome');
-  lacks('the last-call email never says cancelled', html, 'cancel');
-  has('the last-call email still offers other dates', html, 'https://example.org/r?token=1');
+  lacks('the last-call email no longer promises they can just turn up', html, 'still welcome');
+  has('it names where their place will move to', html, 'Thursday, October 15 at Kona');
+  has('and says they can still move it themselves', html, 'move it yourself');
+  lacks('it never says cancelled', html, 'cancel');
+  has('it still offers other dates', html, 'https://example.org/r?token=1');
+
+  // With no destination resolvable the sentence must still read.
+  const noDest = build({
+    mode: 'final', firstName: 'Parent', sessionDateLabel: 'Thursday, September 17',
+    sessionLocation: 'Hilo', sessionModality: 'in-person',
+    outstanding: ['documents'], actionUrls: URLS, options: [], signatureHtml: '',
+  });
+  has('a missing destination degrades to a phrase, not a blank',
+    noDest, 'the next session at your location');
+  lacks('and never leaves an empty bold tag', noDest, '<strong></strong>');
+}
+
+// ── the move notice ─────────────────────────────────────────────────────────
+{
+  const html = build({
+    mode: 'moved', firstName: 'Parent', sessionDateLabel: 'Thursday, September 17',
+    sessionLocation: 'Kona', sessionModality: 'in-person',
+    outstanding: ['documents'], actionUrls: URLS, options: OPTS_INPERSON, signatureHtml: '',
+    moveDestinationLabel: 'Thursday, October 15 at Kona',
+    newDeadlineLabel: 'Wednesday, October 14 at 9:00 AM',
+  });
+  has('it says their place was moved, not cancelled', html, 'moved you to');
+  lacks('the word cancelled never appears', html, 'cancel');
+  has('it names the new date', html, 'Thursday, October 15 at Kona');
+  has('it puts a clock on the new date', html, 'Wednesday, October 14 at 9:00 AM');
+  has('it explains what is still outstanding', html, 'IEP and evaluations');
+  has('it lets them pick a different date', html, 'https://example.org/r?token=1');
+  has('it is warm about wanting to see them', html, 'rather see you');
+  has('the header says it is a new date', html, 'Your New Date');
 }
 
 // ── option buttons carry the location, because a date alone is ambiguous ────

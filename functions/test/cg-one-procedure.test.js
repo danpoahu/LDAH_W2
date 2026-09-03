@@ -112,7 +112,15 @@ check('a signup with no session at all still owes all three',
     signatureHtml: '', donateHtml: '',
   });
   checkTrue('all three steps are named — consent', html.indexOf('consent form') > -1);
-  checkTrue('...documents', html.indexOf('IEP') > -1 && html.indexOf('Evaluation') > -1);
+  checkTrue('...documents', html.indexOf('IEP') > -1);
+  // There is an evaluation per area of need — hearing, speech, physical — so the
+  // count varies by child. "two documents" was wrong and set a false expectation.
+  checkTrue('the documents step never says "two documents"',
+    html.indexOf('two documents') === -1);
+  checkTrue('it asks for EVERY evaluation, not one',
+    html.indexOf('every evaluation that') > -1);
+  checkTrue('and explains why there may be several',
+    html.indexOf('one for each area of need') > -1);
   checkTrue('...and the worksheet', html.indexOf('Parent Report Worksheet') > -1);
   checkTrue('the deadline is stated', html.indexOf('Wednesday, September 16 at 11:00 AM') > -1);
   checkTrue('the worksheet can be started immediately', html.indexOf('example.org/worksheet') > -1);
