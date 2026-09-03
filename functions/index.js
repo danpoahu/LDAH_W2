@@ -1519,39 +1519,16 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
       return;
     }
 
-    // Narrow Connect-Gen consent flow to Monday-virtual signups only.
-    // Single-date enforcement (in place since 2026-05-12) means each CG signup
-    // has exactly one session, so we inspect the first session deterministically.
-    // Non-Monday OR in-person CG signups skip the consent gate entirely and
-    // confirm like a standard signup — no IEP/Eval needed for those sessions.
-    let _cgMondayVirtual = false;
-    if (isConnectGen) {
-      try {
-        const _sSessions = (getSignupSessions(after, event) || []);
-        const _firstKey = (_sSessions[0] && _sSessions[0].dateKey)
-          || (sessionKeys && sessionKeys[0]) || "";
-        let _firstIsMonday = false;
-        if (_firstKey && /^\d{4}-\d{2}-\d{2}$/.test(_firstKey)) {
-          const _d = new Date(_firstKey + "T00:00:00-10:00");
-          if (!isNaN(_d.getTime())) {
-            const _dayName = _d.toLocaleDateString("en-US", { weekday: "long", timeZone: "Pacific/Honolulu" });
-            _firstIsMonday = (_dayName === "Monday");
-          }
-        }
-        const _firstIsVirtual = _firstKey ? isSessionVirtual(event, _firstKey, after) : false;
-        _cgMondayVirtual = _firstIsMonday && _firstIsVirtual;
-        if (!_cgMondayVirtual) {
-          console.log(`Connect-Gen consent narrowing: ${collection}/${eventId}/${signupId} skipped consent gate (key=${_firstKey || "?"}, monday=${_firstIsMonday}, virtual=${_firstIsVirtual})`);
-        }
-      } catch (_narrowErr) {
-        console.warn(`Connect-Gen narrowing failed (${collection}/${eventId}/${signupId}):`, _narrowErr.message);
-        // Conservative fallback: original behavior — keep consent flow on
-        // so a parsing glitch never silently drops a real Connect-Gen parent.
-        _cgMondayVirtual = true;
-      }
-    }
+    // Connect-Gen: ONE procedure for every family (2026-09-03).
+    //
+    // This used to compute a local _cgMondayVirtual and narrow the consent gate
+    // to Monday-virtual signups, so in-person families at Oahu, Hilo and Kona
+    // skipped consent and documents entirely and owed only the worksheet. That
+    // distinction is gone: every Connect-Gen family signs consent, uploads the
+    // IEP and Evaluation, and completes the worksheet. _cgRequirements is the
+    // single definition; nothing here keeps its own copy of the rule any more.
 
-    if (isConnectGen && _cgMondayVirtual && !after.consentSignedAt) {
+    if (isConnectGen && !after.consentSignedAt) {
       // Only send once.
       if (after.consentRequiredEmailSentAt) return;
       const consentToken = crypto.randomBytes(16).toString("hex");
@@ -1597,7 +1574,7 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
     // (in case status flipped from pending to confirmed AFTER consent was
     // already on file from a prior run). Only relevant for Monday-virtual
     // CG signups — non-Monday-virtual CG skips the consent flow entirely.
-    if (isConnectGen && _cgMondayVirtual && after.consentSignedAt) {
+    if (isConnectGen && after.consentSignedAt) {
       // submitConnectGenConsent already sent the prep email when the form
       // was submitted. Don't double-send. Just stamp confirmationEmailSentAt
       // so this branch doesn't keep re-firing.
@@ -1617,43 +1594,12 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
     // audience has never received a Connect-Gen prep email of any kind. The
     // status flips to 'confirmed' only once the worksheet is saved, in
     // _cgMaybeConfirm.
-    if (isConnectGen && !_cgMondayVirtual) {
-      if (after.cgWorksheetRequestEmailSentAt) return;   // send once
-      // The worksheet button is dead without a prepToken. The token is minted
-      // by ensureConnectGenPrepToken (wired to the create AND update triggers),
-      // so a miss here self-heals on the next update — bail rather than mail a
-      // broken link.
-      if (!after.prepToken) {
-        console.warn(`Connect-Gen worksheet-request deferred (no prepToken yet) for ${collection}/${eventId}/${signupId}`);
-        return;
-      }
-      const signatureHtml = await buildSignatureBlock('eventCoordinator');
-      const donateHtml = await buildDonateBlock('universal');
-      const html = buildConnectGenWorksheetRequestEmailHtml({
-        name: recipientName,
-        eventTitle,
-        datesPhrase,
-        locationLine: _cgLocationLine(_sessions),
-        worksheetUrl: _cgWorksheetUrl(after),
-        signatureHtml,
-        donateHtml,
-      });
-      await sendEmailViaResend({
-        from: lifecycleFromAddress(),
-        to: familyEmails(after),
-        subject: `Complete your Parent Report Worksheet -- ${eventTitle}`,
-        html,
-        type: "connect-gen-worksheet-request",
-        relatedEventId: eventId,
-        relatedSignupId: signupId,
-        recipientName,
-      });
-      await change.after.ref.set({
-        cgWorksheetRequestEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
-      }, { merge: true });
-      console.log(`Connect-Gen worksheet-request email sent to ${after.email} for ${collection}/${eventId}/${signupId}`);
-      return; // status stays 'pending'; the gate confirms once the worksheet lands
-    }
+    // The in-person branch that used to sit here sent a worksheet-request email
+    // and left the status pending, because the worksheet was an in-person
+    // family's only requirement. They now fall into the consent branch above
+    // like everyone else: consent mints their upload token, the token unlocks
+    // documents, and the worksheet follows. Their worksheet chasing is picked up
+    // by _cgWorksheetAsked, which accepts the consent-received stamp.
 
     // For non-Connect-Gen events: skip the standard confirmation if any
     // session is within the 3-day catch-up window — the catch-up reminder
@@ -1702,19 +1648,18 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
       relatedSignupId: signupId,
       recipientName,
     });
-    // Stamp the idempotency marker AND, for non-Monday-virtual Connect-Gen
-    // (Thursday in-person sessions that bypass the consent flow), promote
-    // status from "pending" to "confirmed" in the same write. Without the
-    // status flip, the sendDeferredRegistrationEmails cron would treat
-    // these signups as still-incomplete 10 minutes later and email
-    // "Complete Your Registration" — a redundant nudge after we just
-    // emailed "Confirmed" (2026-05-15 Villalobos case).
+    // Stamp the idempotency marker only.
+    //
+    // This used to also promote a Connect-Gen signup from pending to confirmed,
+    // because in-person families bypassed the consent flow and would otherwise
+    // have been chased by the sendDeferredRegistrationEmails cron ten minutes
+    // later. That branch is unreachable now — every Connect-Gen signup returns
+    // from the consent gate above — and if it were ever reached it would confirm
+    // a family who still owes consent and documents. Only _cgMaybeConfirm may
+    // set status to confirmed.
     const _stamp = {
       confirmationEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
     };
-    if (isConnectGen && after.status !== "confirmed") {
-      _stamp.status = "confirmed";
-    }
     await change.after.ref.set(_stamp, { merge: true });
     console.log(`Confirmation email sent to ${after.email} for ${collection}/${eventId}/${signupId}${_stamp.status ? ' (status -> confirmed)' : ''}`);
     console.log(`maybeSendRegistrationConfirmation: scanned=1, sent=1, skipped=0, errors=0, viaAccessor=${viaAccessor}, viaLegacy=${viaLegacy}`);
@@ -2998,10 +2943,9 @@ exports.findSiblingPendingSignups = functions
 // ── Prep token (2026-07-14) ──────────────────────────────────────────────────
 // Minted for EVERY Connect-Gen signup, whatever the session type.
 //
-// The Parent Report Worksheet is required of all families, but only Monday
-// virtual families sign a consent — and the consent is what mints
-// uploadAuthToken. In-person families therefore have no token at all, and
-// nothing could authenticate a worksheet link for them. This is that key.
+// The Parent Report Worksheet is required of all families and needs its own
+// credential: the consent token is deleted once consent is signed, and the
+// upload token is scoped to documents. This is that key.
 //
 // Deliberately its own function, called from the create AND update triggers,
 // rather than living inside maybeSendRegistrationConfirmation: that function
@@ -7123,10 +7067,18 @@ function sessionIsVirtual(event, sessionDateKey, signup) {
 }
 
 /**
- * Connect-Gen requires a signed consent form before reminders go out — but
- * ONLY for virtual sessions (the Monday "All Islands Virtual" program).
- * In-person attendees (Thursday Oahu / Hilo / Kona) sign the consent form
- * on arrival, so their reminders are never gated on consentSignedAt.
+ * Should this session's reminder emails wait for a signed consent form?
+ * VIRTUAL sessions only — and deliberately still only virtual, even though
+ * every Connect-Gen family now signs consent (2026-09-03).
+ *
+ * The reason is the Zoom link: a virtual session's reminder carries it, and it
+ * should not go to a family whose consent is not on file. An in-person session's
+ * reminder carries a street address, so there is nothing to withhold.
+ *
+ * Do NOT "widen this for consistency". Its three callers — maybeSendCatchupReminder,
+ * sendEventReminders and sendDayOfReminders — SUPPRESS the reminder when this
+ * returns true and consent is unsigned. Widening it would silence the 3-day and
+ * day-of reminders for exactly the in-person families most in need of a nudge.
  */
 function sessionRequiresConsent(event, sessionDateKey, signup) {
   return !!(event && event.zoomMode === "program"
@@ -11227,8 +11179,8 @@ exports.submitResourceUpdate = functions
      skips Connect-Gen signups where consentSignedAt is null.
    ──────────────────────────────────────────────────────────────────────── */
 
-const CONSENT_TEXT_VERSION = "02/2021; RR";
-const CONSENT_TEXT = "In order for me, [PARENT NAME], to participate in LDAH's Connect Gen Session (CG), on [SESSION DATE], I grant my permission for LDAH to receive, view and discuss my child's confidential documents with me. I am sending the most current Individualized Education Program (IEP) and most current Evaluation(s)/Assessment(s) via fax, email, or postal service. By receiving my documents, it does not obligate LDAH employees to provide additional services to me. LDAH will determine through CG, my need for additional support or services within 48 hours from the date of the CG virtual attendance. My child's confidential documents will be held until a determination is made about receiving additional support with LDAH, such as case advocacy. If I do not require additional supports, my child's confidential documents will be destroyed within 4 days of attendance date. I agree to send LDAH my child's confidential documents as described above.";
+const CONSENT_TEXT_VERSION = "09/2026; RR";
+const CONSENT_TEXT = "In order for me, [PARENT NAME], to participate in LDAH's Connect Gen Session (CG), on [SESSION DATE], I grant my permission for LDAH to receive, view and discuss my child's confidential documents with me. I am sending the most current Individualized Education Program (IEP) and most current Evaluation(s)/Assessment(s) to LDAH using the secure upload link LDAH provides to me. If I am unable to upload them, LDAH will arrange another way to receive them. By receiving my documents, it does not obligate LDAH employees to provide additional services to me. LDAH will determine through CG, my need for additional support or services within 48 hours from the date of my CG session. My child's confidential documents will be held until a determination is made about receiving additional support with LDAH, such as case advocacy. If I do not require additional supports, my child's confidential documents will be destroyed within 4 days of attendance date. I agree to send LDAH my child's confidential documents as described above.";
 
 function buildConsentRequiredEmailHtml({ name, eventTitle, datesPhrase, consentUrl, signatureHtml, donateHtml }) {
   const safeName = lifecycleEsc(name || "there");
@@ -11401,7 +11353,13 @@ exports.submitConnectGenConsent = functions
       // link for anyone who signed promptly and then took a fortnight to find
       // the IEP — see _cgUploadExpiryMillis, which now runs it to the day after
       // the family's session, floored at the old 7 days so it never shortens.
-      const uploadAuthToken = crypto.randomBytes(24).toString("hex");
+      // Reuse the token minted at signup rather than replacing it. Since
+      // 2026-09-03 ensureConnectGenPrepToken mints one for every Connect-Gen
+      // signup, and a ladder email sent before consent already carries an upload
+      // button built from it. Minting a fresh token here would silently kill
+      // that button in an email the family still has open. Only the expiry is
+      // refreshed.
+      const uploadAuthToken = s.uploadAuthToken || crypto.randomBytes(24).toString("hex");
       const uploadExpiryDate = new Date(_cgUploadExpiryMillis(s));
       const uploadAuthExpiresAt = admin.firestore.Timestamp.fromDate(uploadExpiryDate);
 
@@ -12340,14 +12298,13 @@ function _isWorksheetComplete(concerns) {
   return list.some((c) => CONNECT_GEN_WORKSHEET_FIELDS.every((f) => c && String(c[f] || "").trim()));
 }
 
-// Is this a Monday VIRTUAL Connect-Gen session? Consent and document upload
-// apply only to those; in-person families (Thursday Oahu, Hilo, Kona) bring
-// their IEP with them and sign nothing in advance.
+// Is this a Monday VIRTUAL Connect-Gen session?
 //
-// Extracted from maybeSendRegistrationConfirmation, which computed it inline.
-// Both the status gate and the reminder cron need the same answer, and two
-// copies of this rule would eventually disagree — at which point the emails and
-// the dashboard would tell staff different things about the same family.
+// DISPLAY ONLY as of 2026-09-03. This used to decide what a family owed —
+// consent and documents for Monday-virtual, worksheet alone for in person. It
+// no longer decides anything: _cgRequirements returns the same three
+// requirements whatever this says. Keep it for labelling a session virtual,
+// and do not reintroduce it as a requirement input.
 function _cgIsMondayVirtual(signup, event) {
   try {
     const sessions = getSignupSessions(signup, event) || [];
@@ -12369,8 +12326,10 @@ function _cgIsMondayVirtual(signup, event) {
 // the staff dashboard. Anything that needs to know what a family still owes
 // asks THIS — never its own copy of the rules.
 //
-//   Monday virtual : consent + documents uploaded + worksheet
-//   In person      : worksheet only (they bring the IEP; they sign nothing)
+//   Every family : consent + documents uploaded + worksheet
+//
+// Until 2026-09-03 in-person families (Oahu Thursday, Hilo, Kona) owed only the
+// worksheet and signed consent on arrival. One procedure now covers everyone.
 //
 // Returns what is required, what is done, and what is still outstanding.
 function _cgRequirements(signup, event) {
@@ -12379,10 +12338,12 @@ function _cgRequirements(signup, event) {
     return { isConnectGen: false, required: [], done: [], outstanding: [], ready: true };
   }
 
+  // ONE procedure for every family (2026-09-03). In person or virtual, everyone
+  // signs consent, uploads the IEP and Evaluation, and completes the worksheet.
+  // mondayVirtual is still reported for display — the dashboard labels a session
+  // virtual — but it no longer decides anything.
   const mondayVirtual = _cgIsMondayVirtual(signup, event);
-
-  const required = ["worksheet"];                       // every family
-  if (mondayVirtual) required.unshift("consent", "documents");
+  const required = ["consent", "documents", "worksheet"];
 
   const hasConsent = !!signup.consentSignedAt;
   const hasDocs = _cgDocList(signup.connectGenDocuments, "iep").length > 0
@@ -16567,7 +16528,7 @@ exports.scheduledConnectGenDocLifecycle = functions
 // Pipeline:
 //   1. Parent signs up for a Monday-virtual Connect-Gen session
 //   2. maybeSendRegistrationConfirmation sends the consent invite (narrowed
-//      to Monday-virtual only — see _cgMondayVirtual gate above)
+//      every Connect-Gen family since 2026-09-03)
 //   3. Parent signs consent → submitConnectGenConsent emails an upload link
 //   4. T-7 days: if docs still missing, enforceConnectGenDocDeadline sends
 //      the reschedule-offer email with 4 future Monday buttons
@@ -24277,6 +24238,10 @@ exports.getScreeningConsentDownloadUrl = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  _cgRequirements,
+  _cgIsMondayVirtual,
+  CONSENT_TEXT,
+  CONSENT_TEXT_VERSION,
   _cgSessionCutoffMillis,
   CG_SIGNUP_CUTOFF_HOURS_DEFAULT,
   _cgLadderDecision,
