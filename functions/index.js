@@ -6375,7 +6375,7 @@ exports.sendCgWorksheetReminders = functions
 
           if (s.archived === true) continue;
           if (s.status === "cancelled" || s.status === "confirmed") continue;
-          if (!s.cgWorksheetRequestEmailSentAt) continue;          // never asked yet
+          if (!_cgWorksheetAsked(s)) continue;                     // never asked yet
           if (!s.email) continue;
 
           if (!s.prepToken) { skippedNoToken++; continue; }
@@ -6423,7 +6423,7 @@ exports.sendCgWorksheetReminders = functions
                     : await _lcResolveStaffName(db, LIFECYCLE_ADMIN_UID));
               const _who = s.name || s.firstName || "This family";
               const _datesPhrase = formatDatesPhrase(_sessions.map(x => x && x.dateKey).filter(Boolean));
-              const _lastTs = s.cgWorksheetReminderLastSentAt || s.cgWorksheetRequestEmailSentAt;
+              const _lastTs = _cgWorksheetLastContact(s);
               const _lastWhen = _lastTs && _lastTs.toDate
                 ? _lastTs.toDate().toLocaleDateString("en-US", { timeZone: "Pacific/Honolulu", month: "short", day: "numeric" })
                 : "recently";
@@ -6483,7 +6483,7 @@ exports.sendCgWorksheetReminders = functions
               if (daysOut <= CG_WS_URGENT_DAYS) minDays = CG_WS_URGENT_MIN_DAYS;
             }
           }
-          const lastMs = toMillis(s.cgWorksheetReminderLastSentAt) || toMillis(s.cgWorksheetRequestEmailSentAt);
+          const lastMs = toMillis(_cgWorksheetLastContact(s));
           if (nowMs - lastMs < minDays * 86400000) { skippedCadence++; continue; }
 
           try {
@@ -12392,6 +12392,34 @@ function _cgWorksheetUrl(signup) {
 function _cgUploadUrl(signup) {
   const t = signup && signup.uploadAuthToken;
   return t ? CONNECT_GEN_UPLOAD_BASE_URL + "?upload=" + encodeURIComponent(t) : "";
+}
+
+// ── Has this family been asked for their worksheet? (2026-09-02) ────────────
+// sendCgWorksheetReminders used to guard on cgWorksheetRequestEmailSentAt alone.
+// That stamp is written on exactly one path — the in-person branch of
+// maybeSendRegistrationConfirmation — so a virtual family was asked for the
+// worksheet by the "consent received, here's what's left" email and then never
+// chased again. Either stamp now counts as having been asked.
+//
+// Presence must mean a real value: a half-written doc or a migration can leave
+// the key present and null, and treating that as "asked" would start chasing
+// families nobody ever wrote to.
+function _cgWorksheetAsked(signup) {
+  if (!signup) return false;
+  return !!(signup.cgWorksheetRequestEmailSentAt || signup.cgConsentReceivedEmailSentAt);
+}
+
+// The last thing we said to this family about their worksheet. The cadence in
+// sendCgWorksheetReminders counts from here, so it must cover BOTH ways a family
+// gets asked — otherwise a virtual family, who only ever has the consent-received
+// stamp, reads as "last contacted at epoch 0" and is chased on the very next run.
+// Returns a Firestore Timestamp-like or null; callers use toMillis().
+function _cgWorksheetLastContact(signup) {
+  if (!signup) return null;
+  return signup.cgWorksheetReminderLastSentAt
+      || signup.cgWorksheetRequestEmailSentAt
+      || signup.cgConsentReceivedEmailSentAt
+      || null;
 }
 
 // ── How long the document-upload link lives (2026-09-02) ────────────────────
@@ -23918,6 +23946,8 @@ exports.getScreeningConsentDownloadUrl = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  _cgWorksheetLastContact,
+  _cgWorksheetAsked,
   _cgUploadExpiryMillis,
   CONNECT_GEN_UPLOAD_FLOOR_MS,
   EVENT_TYPE_CAPABILITIES,
