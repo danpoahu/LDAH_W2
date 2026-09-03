@@ -1376,7 +1376,10 @@
 
             const occurrences = getOccurrencesInNext30Days(data.schedules, data.cancelledDates);
             if (occurrences.length === 0) return;
-            const nextOcc = occurrences[0];
+            // Skip sessions inside the 24-hour cut-off — the card must not advertise a
+            // session nobody can join. Falls back to [0] so an all-closed programme
+            // keeps its card rather than vanishing from the list.
+            const nextOcc = occurrences.find(o => !isRecurringSessionClosed(o)) || occurrences[0];
             const nextDateLabel = nextOcc.date.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
             const locations = [...new Set((data.schedules || []).map(s => s.location))].join(', ');
             syntheticEvents.push({
@@ -4430,7 +4433,10 @@
           window._recurringPrograms[doc.id] = data;
           const occurrences = getOccurrencesInNext30Days(data.schedules, data.cancelledDates);
           if (occurrences.length === 0) return;
-          const nextOcc = occurrences[0];
+          // Skip sessions inside the 24-hour cut-off — the card must not advertise a
+          // session nobody can join. Falls back to [0] so an all-closed programme keeps
+          // its card rather than vanishing from the list.
+          const nextOcc = occurrences.find(o => !isRecurringSessionClosed(o)) || occurrences[0];
           const nextDateLabel = nextOcc.date.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
           const locations = [...new Set((data.schedules || []).map(s => s.location))].join(', ');
           syntheticEvents.push({
