@@ -1904,6 +1904,23 @@ async function handleSignupCreated(snap, context, collectionName) {
     console.error(`returning-CG detection failed for signup ${signupId}:`, cgErr.message);
   }
 
+  // ── Late Connect-Gen signup ─────────────────────────────────────
+  // The page stops offering a session 24 hours out, but registration is a
+  // direct unauthenticated Firestore write (firestore.rules allows create),
+  // so a stale tab, a cached page or a wrong device clock still gets one in.
+  // The page guard is advisory; this is the enforcement.
+  //
+  // Deliberately not a rejection. The family has already been told "Mahalo!
+  // You're all set", so silently killing the row would leave them expecting a
+  // session nobody is expecting them at. Instead we flag it and immediately
+  // offer them the next available dates — the same self-service reschedule the
+  // ladder uses, so a dead end becomes a booking.
+  try {
+    await _cgHandleLateSignup({ snap, signupData, signupId, collectionName, eventId });
+  } catch (lateErr) {
+    console.error(`late Connect-Gen signup check failed for ${signupId}:`, lateErr.message);
+  }
+
   // ── No immediate "Complete Your Registration" email ──
   // The previous behavior fired this email the instant a signup doc was
   // created with status:"pending". Two-stage flow: signup modal creates
@@ -2648,6 +2665,12 @@ exports.resendRegistrationEmail = functions
   });
 
 const EMAIL_SECRETS = ["RESEND_API_KEY", "SMTP_FROM"];
+// The signup-create triggers send the late-signup reschedule offer, whose
+// buttons carry HMAC-signed tokens. Without this secret declared they would be
+// signed with _cgRescheduleHmacSecret()'s fallback value while
+// acceptConnectGenReschedule verifies with the real one — every link dead, and
+// nothing in the logs to say so.
+const SIGNUP_TRIGGER_SECRETS = EMAIL_SECRETS.concat(["CG_RESCHEDULE_HMAC_SECRET"]);
 // The reminder jobs also register attendees with Zoom to get each person their
 // own join link, so they need the Zoom credentials on top of the email ones.
 // Spelled out rather than referencing ZOOM_SECRETS: that const is declared far
@@ -3030,7 +3053,7 @@ async function ensureConnectGenPrepToken(ref, signup, collection, eventId) {
 }
 
 exports.onEventSignupCreated = functions
-  .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: EMAIL_SECRETS })
+  .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: SIGNUP_TRIGGER_SECRETS })
   .firestore.document("events/{eventId}/signups/{signupId}")
   .onCreate(async (snap, context) => {
     await ensureConnectGenPrepToken(snap.ref, snap.data() || {}, "events", context.params.eventId);
@@ -3038,7 +3061,7 @@ exports.onEventSignupCreated = functions
   });
 
 exports.onRecurringEventSignupCreated = functions
-  .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: EMAIL_SECRETS })
+  .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: SIGNUP_TRIGGER_SECRETS })
   .firestore.document("recurringEvents/{eventId}/signups/{signupId}")
   .onCreate(async (snap, context) => {
     await ensureConnectGenPrepToken(snap.ref, snap.data() || {}, "recurringEvents", context.params.eventId);
@@ -16725,6 +16748,70 @@ function _cgSessionCutoffMillis(session, dateKey, cutoffHours) {
     console.warn("_cgSessionCutoffMillis failed:", e.message);
     return null;
   }
+}
+
+// Flag a Connect-Gen signup that landed inside the registration cut-off, and
+// offer the family other dates straight away. See the call site in
+// handleSignupCreated for why this flags rather than rejects.
+async function _cgHandleLateSignup({ snap, signupData, signupId, collectionName, eventId }) {
+  const db = admin.firestore();
+  const evSnap = await db.collection(collectionName).doc(eventId).get();
+  const event = evSnap.exists ? (evSnap.data() || {}) : null;
+  if (!event || event.zoomMode !== "program") return;      // Connect-Gen only
+
+  let cutoffHours = CG_SIGNUP_CUTOFF_HOURS_DEFAULT;
+  try {
+    const flags = (await db.doc("settings/featureFlags").get()).data() || {};
+    if (Number.isFinite(flags.cgSignupCutoffHours)) cutoffHours = flags.cgSignupCutoffHours;
+  } catch (_) { /* default stands */ }
+
+  const sessions = getSignupSessions(signupData, event) || [];
+  const first = sessions[0];
+  const sessionKey = (first && first.dateKey) || "";
+  if (!sessionKey) return;
+
+  const cutoffMs = _cgSessionCutoffMillis(first, sessionKey, cutoffHours);
+  if (cutoffMs === null || Date.now() < cutoffMs) return;   // in good time, or no start time
+
+  await snap.ref.set({
+    lateSignupFlaggedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  try {
+    await db.collection("auditLog").add({
+      action: "Connect-Gen late signup flagged",
+      details: "signupPath=" + snap.ref.path + ", session=" + sessionKey +
+               ", cutoffHours=" + cutoffHours,
+      performedBy: "system",
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      signupPath: snap.ref.path,
+    });
+  } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+  // Re-read: ensureConnectGenPrepToken runs on the same create and mints the
+  // tokens the offer email's buttons depend on.
+  let fresh = signupData;
+  try { fresh = (await snap.ref.get()).data() || signupData; } catch (_) { /* use what we have */ }
+
+  let reqs = null;
+  try { reqs = _cgRequirements(fresh, event); } catch (_) { reqs = null; }
+
+  const upcoming = _cgFindRescheduleOptions(event, fresh, {
+    currentKey: sessionKey, minDaysOut: 2, max: 4,
+  });
+  if (!upcoming.length) {
+    console.log("_cgHandleLateSignup: flagged " + snap.ref.path + " but no alternative dates to offer");
+    return;
+  }
+
+  await _sendCgRescheduleEmail({
+    db, mode: "offer", collection: collectionName, eventId,
+    signupRef: snap.ref, signupData: fresh,
+    sessionKey, upcoming, event, requirements: reqs,
+  });
+  await snap.ref.set({
+    rescheduleOfferSentAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
 }
 
 // ── Which rung of the chase ladder is due today? (2026-09-02) ───────────────
