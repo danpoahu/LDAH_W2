@@ -2986,23 +2986,40 @@ exports.findSiblingPendingSignups = functions
 // transition), so a token minted in there would never appear for most signups.
 // Caught by an end-to-end test against a real signup, which produced no token.
 //
-// uploadAuthToken is untouched; document upload is unchanged.
+// 2026-09-02: uploadAuthToken is now minted here too. It used to be minted ONLY
+// by submitConnectGenConsent, so a family who had not signed had no token — and
+// the entire parent upload surface is keyed on it. Under one procedure for every
+// family, documents are owed before consent comes back, so the token has to
+// exist because the family registered, not because they signed. The two tokens
+// are minted independently: a signup may already hold a prepToken and still need
+// an uploadAuthToken, so neither early-returns on the other.
 async function ensureConnectGenPrepToken(ref, signup, collection, eventId) {
   try {
     if (!signup || signup.archived === true) return null;
-    if (signup.prepToken) return signup.prepToken;
+    const needsPrep = !signup.prepToken;
+    const needsUpload = !signup.uploadAuthToken;
+    if (!needsPrep && !needsUpload) return signup.prepToken;
 
     const evSnap = await admin.firestore().collection(collection).doc(eventId).get();
     const event = evSnap.exists ? (evSnap.data() || {}) : null;
     if (!event || event.zoomMode !== "program") return null;   // Connect-Gen only
 
-    const prepToken = crypto.randomBytes(24).toString("hex");
-    await ref.update({
-      prepToken,
-      prepTokenExpiresAt: admin.firestore.Timestamp.fromMillis(
-        Date.now() + CONNECT_GEN_PREP_TOKEN_TTL_MS),
-    });
-    console.log("prepToken minted for signup", ref.path);
+    const update = {};
+    let prepToken = signup.prepToken || null;
+    if (needsPrep) {
+      prepToken = crypto.randomBytes(24).toString("hex");
+      update.prepToken = prepToken;
+      update.prepTokenExpiresAt = admin.firestore.Timestamp.fromMillis(
+        Date.now() + CONNECT_GEN_PREP_TOKEN_TTL_MS);
+    }
+    if (needsUpload) {
+      update.uploadAuthToken = crypto.randomBytes(24).toString("hex");
+      update.uploadAuthExpiresAt = admin.firestore.Timestamp.fromMillis(
+        _cgUploadExpiryMillis(signup));
+    }
+    await ref.update(update);
+    console.log("Connect-Gen tokens minted for signup", ref.path,
+      Object.keys(update).join(","));
     return prepToken;
   } catch (e) {
     // Never let this break a signup. A missing token is recoverable; a failed
@@ -11353,13 +11370,16 @@ exports.submitConnectGenConsent = functions
       // that was exactly the bug this phase fixes.
 
       // Phase B: mint an uploadAuthToken so the upload step (which runs after
-      // we've deleted the original consentToken) has its own short-lived
-      // credential. 7-day window — long enough for a parent who picks
-      // "I'll upload later" but short enough to avoid stale credentials
-      // sitting around forever. 24 random bytes vs. 16 for consentToken so
-      // the two are visibly distinct in logs/Firestore.
+      // we've deleted the original consentToken) has its own credential.
+      // 24 random bytes vs. 16 for consentToken so the two are visibly
+      // distinct in logs/Firestore.
+      //
+      // The window used to be a flat 7 days from this moment. That killed the
+      // link for anyone who signed promptly and then took a fortnight to find
+      // the IEP — see _cgUploadExpiryMillis, which now runs it to the day after
+      // the family's session, floored at the old 7 days so it never shortens.
       const uploadAuthToken = crypto.randomBytes(24).toString("hex");
-      const uploadExpiryDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      const uploadExpiryDate = new Date(_cgUploadExpiryMillis(s));
       const uploadAuthExpiresAt = admin.firestore.Timestamp.fromDate(uploadExpiryDate);
 
       await doc.ref.update({
@@ -12372,6 +12392,42 @@ function _cgWorksheetUrl(signup) {
 function _cgUploadUrl(signup) {
   const t = signup && signup.uploadAuthToken;
   return t ? CONNECT_GEN_UPLOAD_BASE_URL + "?upload=" + encodeURIComponent(t) : "";
+}
+
+// ── How long the document-upload link lives (2026-09-02) ────────────────────
+// It used to be a flat 7 days from the signature. A family who signed promptly
+// and then took a fortnight to find the IEP could not upload at all, and nothing
+// told them why — the likeliest single cause of the near-empty upload funnel.
+//
+// The link now lives until the day after their session, floored at the old 7
+// days so it can never come out SHORTER than it is today. An imminent session,
+// a signup with no session on file, and an unparseable date all land on the
+// floor rather than producing NaN or a dead link.
+const CONNECT_GEN_UPLOAD_FLOOR_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Reads the dates off the SIGNUP (extractSignupSessionKeys), deliberately not
+// getSignupSessions: the latter intersects with dates regenerated from the
+// event's schedules[], so a family holding a rescheduled, cancelled-and-moved
+// or otherwise one-off date would silently collapse back to the 7-day link.
+// The signup is authoritative about which dates the family actually holds.
+function _cgUploadExpiryMillis(signup, nowMs) {
+  const now = Number.isFinite(nowMs) ? nowMs : Date.now();
+  const floor = now + CONNECT_GEN_UPLOAD_FLOOR_MS;
+  try {
+    const keys = extractSignupSessionKeys(signup) || [];
+    let latest = 0;
+    for (const key of keys) {
+      if (!key || !/^\d{4}-\d{2}-\d{2}$/.test(key)) continue;
+      const ms = Date.parse(key + "T00:00:00-10:00");   // midnight HST, no DST here
+      if (!Number.isFinite(ms)) continue;
+      if (ms > latest) latest = ms;                     // a multi-session family
+    }                                                   // outlives them all
+    if (!latest) return floor;
+    return Math.max(latest + 24 * 60 * 60 * 1000, floor);
+  } catch (e) {
+    console.warn("_cgUploadExpiryMillis failed, using floor:", e.message);
+    return floor;
+  }
 }
 
 // Every distinct in-person location on the signup's sessions, as one phrase.
@@ -23862,6 +23918,8 @@ exports.getScreeningConsentDownloadUrl = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  _cgUploadExpiryMillis,
+  CONNECT_GEN_UPLOAD_FLOOR_MS,
   EVENT_TYPE_CAPABILITIES,
   _lcEventType,
   _lcCan,
