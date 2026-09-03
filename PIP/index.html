@@ -807,13 +807,23 @@ var TRAINING = {
     resumeSent = true;
     var r = record();
     r.resumeUrl = TRAINING.resumeUrl + '#s=' + (furthest + 1);
+    /* text/plain, NOT application/json, and this matters.
+
+       A beacon carrying application/json is not a CORS-simple request, so the
+       browser must send an OPTIONS preflight first. During page unload there is
+       no time for a second round trip and the POST is dropped — the function
+       logged the 204 preflight and nothing after it, which is exactly what
+       happened on the first live run. text/plain is CORS-safelisted, so the
+       beacon goes in one shot with no preflight. The endpoint parses the body
+       as JSON either way. (2026-09-02) */
+    var payload = JSON.stringify(r);
     try {
-      var blob = new Blob([JSON.stringify(r)], { type: 'application/json' });
-      if (navigator.sendBeacon) { navigator.sendBeacon(TRAINING.RESUME_ENDPOINT, blob); return; }
+      var blob = new Blob([payload], { type: 'text/plain;charset=UTF-8' });
+      if (navigator.sendBeacon && navigator.sendBeacon(TRAINING.RESUME_ENDPOINT, blob)) return;
     } catch(e){}
     try {
-      fetch(TRAINING.RESUME_ENDPOINT, { method:'POST', keepalive:true,
-        headers:{'Content-Type':'application/json'}, body: JSON.stringify(r) });
+      fetch(TRAINING.RESUME_ENDPOINT, { method:'POST', keepalive:true, mode:'cors',
+        headers:{'Content-Type':'text/plain;charset=UTF-8'}, body: payload });
     } catch(e){}
   }
   window.addEventListener('pagehide', function(){ markSkip(); sendProgress(true); requestResumeEmail(); });
