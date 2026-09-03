@@ -16468,6 +16468,34 @@ exports.scheduledConnectGenDocLifecycle = functions
               console.error("Case Review redaction failed for " + sigDoc.ref.path + ":", redErr.message);
             }
 
+            // A Case Review can also be MIRRORED onto the contact card. The
+            // pipeline no longer creates those, but one family has one, and a
+            // mirror that survives redaction is a full copy of the child's
+            // records sitting a click away from the one we just stripped.
+            // Follow the mirror wherever it points at this signup.
+            try {
+              const cid = signup.linkedContactId || "";
+              if (cid) {
+                const cRef = db.collection("contacts").doc(cid);
+                const cData = (await cRef.get()).data() || {};
+                const cCs = cData.caseSummary || {};
+                if (cCs.html && cCs.sourceSignupPath === sigDoc.ref.path && !cCs.redactedAt) {
+                  const tpl = require("./caseReviewTemplate");
+                  const cRed = cCs.data ? tpl.redactCaseReviewData(cCs.data) : null;
+                  await cRef.set({
+                    caseSummary: Object.assign({}, cCs, {
+                      data: cRed,
+                      html: cRed ? tpl.renderCaseReviewHtml(cRed, { redacted: true }) : "",
+                      redactedAt: FieldValue.serverTimestamp(),
+                    }),
+                  }, { merge: true });
+                  console.log("Case Review mirror redacted on contact " + cid);
+                }
+              }
+            } catch (mirrorErr) {
+              console.error("Case Review mirror redaction failed for " + sigDoc.ref.path + ":", mirrorErr.message);
+            }
+
             await sigDoc.ref.update(destroyUpdate);
             destroyed++;
             try {
