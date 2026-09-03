@@ -722,6 +722,24 @@ var TRAINING = {
   var i = 0, playing = false, started = false, voiceOn = true, timer = null;
   var voices = [], chosen = null, learner = '', learnerMail = '', furthest = 0, completed = false;
   var skips = 0, completedAt = '';
+  /* Per-slide timing. slideSec accumulates dwell seconds per slide index and
+     slideHits counts visits, so a slide revisited three times reads as one slide
+     with three visits rather than three separate events. sceneEnteredAt is the
+     clock for the slide currently on screen. */
+  var slideSec = {}, slideHits = {}, sceneEnteredAt = 0;
+  function _closeSlideTimer(){
+    if (!sceneEnteredAt) return;
+    var secs = Math.round((Date.now() - sceneEnteredAt) / 1000);
+    sceneEnteredAt = 0;
+    /* A slide left inside a second is a pass-through, not reading. Anything
+       over 20 minutes is a tab left open over lunch, not attention — capping it
+       stops one abandoned tab dragging every average into nonsense. */
+    if (secs < 1) secs = 1;
+    if (secs > 1200) secs = 1200;
+    var k = String(i + 1);
+    slideSec[k] = (slideSec[k] || 0) + secs;
+    slideHits[k] = (slideHits[k] || 0) + 1;
+  }
   var fill = document.getElementById('fill'), dots = document.getElementById('dots');
   var playBtn = document.getElementById('playBtn'), voiceBtn = document.getElementById('voiceBtn');
   var voiceSel = document.getElementById('voiceSel'), gate = document.getElementById('gate');
@@ -755,7 +773,21 @@ var TRAINING = {
       furthest:     furthest + 1,
       total:        TOTAL,
       percent:      Math.round((furthest + 1) / TOTAL * 100),
-      updatedAt:    new Date().toISOString()
+      updatedAt:    new Date().toISOString(),
+      /* Snapshot the live timer too, so a record written while a slide is still
+         open reflects the time already spent on it rather than reporting zero. */
+      slideSeconds: (function(){
+        var out = {}, k;
+        for (k in slideSec) out[k] = slideSec[k];
+        if (sceneEnteredAt) {
+          var live = Math.round((Date.now() - sceneEnteredAt) / 1000);
+          if (live > 1200) live = 1200;
+          var ck = String(i + 1);
+          out[ck] = (out[ck] || 0) + (live < 1 ? 1 : live);
+        }
+        return out;
+      })(),
+      slideVisits: (function(){ var o = {}, k; for (k in slideHits) o[k] = slideHits[k]; return o; })()
     };
   }
 
@@ -764,6 +796,12 @@ var TRAINING = {
   function fsValue(v){
     if (typeof v === 'boolean') return { booleanValue: v };
     if (typeof v === 'number')  return { integerValue: String(v) };
+    /* Firestore's REST shape needs maps declared explicitly; without this the
+       per-slide timings would be stored as the string "[object Object]". */
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      var f = {}; Object.keys(v).forEach(function(k){ f[k] = fsValue(v[k]); });
+      return { mapValue: { fields: f } };
+    }
     return { stringValue: String(v) };
   }
   function sendProgress(force){
@@ -806,7 +844,15 @@ var TRAINING = {
     if (furthest < 1) return;                      /* barely started; not worth an email */
     resumeSent = true;
     var r = record();
-    r.resumeUrl = TRAINING.resumeUrl + '#s=' + (furthest + 1);
+    /* Identity travels in the FRAGMENT, never the query string. A fragment is
+       not sent to the server, so it stays out of access logs and Referer
+       headers — and the link only ever goes to the person's own address, which
+       already contains it. Without this, opening the link on a different device
+       or browser lands on the right slide with an empty name and email box,
+       because localStorage does not travel. (2026-09-02) */
+    r.resumeUrl = TRAINING.resumeUrl + '#s=' + (furthest + 1)
+      + '&n=' + encodeURIComponent(learner || '')
+      + '&e=' + encodeURIComponent(learnerMail || '');
     /* text/plain, NOT application/json, and this matters.
 
        A beacon carrying application/json is not a CORS-simple request, so the
@@ -826,9 +872,9 @@ var TRAINING = {
         headers:{'Content-Type':'text/plain;charset=UTF-8'}, body: payload });
     } catch(e){}
   }
-  window.addEventListener('pagehide', function(){ markSkip(); sendProgress(true); requestResumeEmail(); });
+  window.addEventListener('pagehide', function(){ _closeSlideTimer(); markSkip(); sendProgress(true); requestResumeEmail(); });
   document.addEventListener('visibilitychange', function(){
-    if (document.visibilityState === 'hidden'){ markSkip(); sendProgress(true); requestResumeEmail(); }
+    if (document.visibilityState === 'hidden'){ _closeSlideTimer(); markSkip(); sendProgress(true); requestResumeEmail(); }
   });
 
   /* ---------- player ---------- */
@@ -900,7 +946,9 @@ var TRAINING = {
 
   function go(n){
     clearTimer(); stopSpeech();
+    _closeSlideTimer();                     /* bank the time spent on the slide being left */
     i = Math.max(0, Math.min(TOTAL - 1, n));
+    sceneEnteredAt = Date.now();
     if (i > furthest) furthest = i;
     scenes.forEach(function(s, k){ if (k !== i) s.classList.remove('on'); });
     var cur = scenes[i];
@@ -961,6 +1009,16 @@ var TRAINING = {
     if (saved.personEmail) mailIn.value = saved.personEmail;
     if (typeof saved.skips === 'number') skips = saved.skips;
   }
+  /* A resume link wins over localStorage: it is the more recent statement of
+     who this is, and it is the only source that survives a different browser. */
+  (function(){
+    var h = window.location.hash || '';
+    var mn = /(?:^|[#&])n=([^&]*)/.exec(h), me = /(?:^|[#&])e=([^&]*)/.exec(h);
+    try {
+      if (mn && mn[1]) nameIn.value = decodeURIComponent(mn[1]);
+      if (me && me[1]) mailIn.value = decodeURIComponent(me[1]);
+    } catch(e){}
+  })();
   if (resumeAt !== null){
     document.getElementById('resumebar').style.display = 'block';
     document.getElementById('resumeTxt').textContent =
