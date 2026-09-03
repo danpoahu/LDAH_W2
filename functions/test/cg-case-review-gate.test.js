@@ -61,8 +61,23 @@ checkTrue('a REPLACED document of different size changes it', fingerprint(sig({
   },
 })) !== base);
 
-checkTrue('an EDITED worksheet changes it', fingerprint(sig({
-  parentWorksheet: { concerns: [{ a: 'x', b: 'y', c: 'z', d: 'n/a', e: 'n/a' }], lastEditedAt: ts(6000) },
+// Content, not timestamp. A staff member opening a family's worksheet and
+// pressing Save without changing a word used to produce a new fingerprint, and
+// the nightly sweep then paid to re-read the same documents and reach the same
+// conclusions. That is money spent for nothing.
+checkTrue('a NO-OP save does not change it', fingerprint(sig({
+  parentWorksheet: { concerns: [{ a: 'x', b: 'y', c: 'z', d: 'n/a', e: 'n/a' }], lastEditedAt: ts(999999) },
+})) === base);
+
+checkTrue('a REAL edit to the worksheet changes it', fingerprint(sig({
+  parentWorksheet: { concerns: [{ a: 'x', b: 'y CHANGED', c: 'z', d: 'n/a', e: 'n/a' }], lastEditedAt: ts(5000) },
+})) !== base);
+
+checkTrue('an ADDED concern changes it', fingerprint(sig({
+  parentWorksheet: { concerns: [
+    { a: 'x', b: 'y', c: 'z', d: 'n/a', e: 'n/a' },
+    { a: 'second', b: 'concern', c: 'z', d: 'n/a', e: 'n/a' },
+  ], lastEditedAt: ts(5000) },
 })) !== base);
 
 // Upload order must not matter, or every sweep would look like a change and

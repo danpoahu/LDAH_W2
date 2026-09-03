@@ -16859,10 +16859,20 @@ function _cgCaseReviewFingerprint(signup) {
       }
     }
     parts.sort();
+
+    // Hash the worksheet's CONTENT, never its lastEditedAt. Keying off the
+    // timestamp meant a staff member opening a family's worksheet and pressing
+    // Save without changing a word produced a new fingerprint, and the nightly
+    // sweep then paid to re-read the same documents and reach the same
+    // conclusions. Content means a regeneration happens when, and only when,
+    // there is something new to read.
     const ws = s.parentWorksheet || {};
-    const wsStamp = (ws.lastEditedAt && ws.lastEditedAt.toMillis && ws.lastEditedAt.toMillis())
-      || (ws.completedAt && ws.completedAt.toMillis && ws.completedAt.toMillis()) || 0;
-    parts.push("ws:" + wsStamp + ":" + ((ws.concerns || []).length));
+    const concerns = Array.isArray(ws.concerns) ? ws.concerns : [];
+    for (const c of concerns) {
+      for (const f of CONNECT_GEN_WORKSHEET_FIELDS) {
+        parts.push("ws:" + f + ":" + String((c && c[f]) || "").trim());
+      }
+    }
     return crypto.createHash("sha256").update(parts.join("|")).digest("hex").slice(0, 32);
   } catch (e) {
     console.warn("_cgCaseReviewFingerprint failed:", e.message);
