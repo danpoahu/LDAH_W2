@@ -13340,6 +13340,11 @@ exports.submitResourceApplication = functions
         const resCoord = await getPersona('resourceCoordinator');
         const resourceCoordinatorEmail = resCoord.email;
         const safeResEmail = resourceUpdateEsc(resourceCoordinatorEmail);
+        /* Sign with the resource coordinator, not a generic "LDAH Team"
+           (2026-09-04). An applicant is told to email a named person two
+           paragraphs up, so signing as nobody made the reply feel unaddressed.
+           Falls back to the old wording if the persona carries no signature. */
+        const resSignatureHtml = await buildSignatureBlock('resourceCoordinator');
         const html = '<!DOCTYPE html><html><head><meta charset="utf-8"></head>' +
           '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
           '<div style="max-width:600px;margin:0 auto;background:#fff">' +
@@ -13352,7 +13357,8 @@ exports.submitResourceApplication = functions
           '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">If approved, your listing will go live on <a href="https://www.ldahawaii.org/resources.html" style="color:#1a73e8;text-decoration:none;">ldahawaii.org</a>. If we have questions about your application, we will reach out at the email you provided.</p>' +
           '<p style="margin:24px 0 4px;font-size:15px;color:#333;line-height:1.5;">Questions in the meantime? Email <a href="mailto:' + safeResEmail + '" style="color:#1a73e8;text-decoration:none;">' + safeResEmail + '</a>.</p>' +
           '<p style="margin:16px 0 4px;font-size:15px;color:#333;line-height:1.5;">With gratitude,</p>' +
-          '<p style="margin:0 0 16px;font-size:15px;color:#333;line-height:1.5;"><strong>LDAH Team</strong></p>' +
+          (resSignatureHtml
+            || '<p style="margin:0 0 16px;font-size:15px;color:#333;line-height:1.5;"><strong>LDAH Team</strong></p>') +
           '</div>' +
           '<div style="padding:16px 24px;border-top:1px solid #e5e7eb;background:#f9fafb;font-size:12px;color:#94a3b8;text-align:center">' +
           '<p style="margin:0">Leadership in Disabilities and Achievement of Hawai\'i</p>' +
