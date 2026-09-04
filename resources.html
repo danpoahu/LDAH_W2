@@ -849,6 +849,31 @@
     </div>
 
     <script>
+      /* A resource can serve more than one island (2026-09-04). An agency with
+         an Oʻahu office and a Kauaʻi one used to have to be filed "Statewide",
+         which reads to a family as "everywhere" rather than "these two".
+         `islands` is the truth; the legacy singular `island` stays the
+         fallback — the same shape `types`/`type` already uses here. */
+      function ldahResourceIslandList(r) {
+        if (!r) return [];
+        return (Array.isArray(r.islands) && r.islands.length)
+          ? r.islands
+          : (r.island ? [r.island] : []);
+      }
+      function ldahResourceIslands(r) {
+        return ldahResourceIslandList(r).map(function (i) {
+          return String(i).trim().toLowerCase();
+        }).filter(Boolean);
+      }
+      /* Statewide anywhere in the list wins outright: it already means every
+         island, so printing it beside two of them would contradict itself. */
+      function ldahIslandLabel(r) {
+        var list = ldahResourceIslandList(r);
+        if (!list.length) return 'Statewide';
+        if (list.some(function (i) { return String(i).toLowerCase() === 'statewide'; })) return 'Statewide';
+        return list.join(' & ');
+      }
+
 
         // Strip emoji from text content loaded from Firebase
         function stripEmoji(text) {
@@ -979,6 +1004,7 @@
                         website: doc.data().website || '',
                         services: doc.data().services || '',
                         notes: doc.data().notes || '',
+                        islands: Array.isArray(doc.data().islands) ? doc.data().islands : [],
                         island: doc.data().island || '',
                         logo: doc.data().logo || ''
                         });
@@ -1014,10 +1040,10 @@
             const typeSet = new Set();
             resourcesData.forEach(resource => {
                 if (resource.archived) return;
-                const resourceIsland = (resource.island || '').toLowerCase();
-                const isStatewide = !resource.island || resourceIsland === 'statewide';
+                const resourceIslands = ldahResourceIslands(resource);
+                const isStatewide = !resourceIslands.length || resourceIslands.includes('statewide');
                 const matchesIsland = currentIslandFilter === 'all' ||
-                    resourceIsland === currentIslandFilter.toLowerCase() ||
+                    resourceIslands.includes(currentIslandFilter.toLowerCase()) ||
                     (currentIslandFilter !== 'all' && isStatewide);
                 if (!matchesIsland) return;
                 const arr = (Array.isArray(resource.types) && resource.types.length)
@@ -1049,14 +1075,14 @@
                 ? `<img src="${resource.logo}" alt="${resource.name}" class="resource-card-logo" onerror="this.outerHTML='<div class=&quot;resource-card-logo-placeholder&quot;>${(resource.name || '?').charAt(0).toUpperCase()}</div>';">`
                 : `<div class="resource-card-logo-placeholder">${(resource.name || '?').charAt(0).toUpperCase()}</div>`;
 
-            const displayIsland = resource.island || 'Statewide';
+            const displayIsland = ldahIslandLabel(resource);
             const cityIsland = [resource.city, displayIsland].filter(Boolean).join(' • ');
 
             // Plain-text snippet for the card body (strip HTML, trim).
             const rawDesc = String(resource.services || '').replace(/<[^>]*>/g, '').trim();
 
             return `
-                <button type="button" class="resource-card" data-id="${resource.id}" data-island="${resource.island}" data-type="${resource.type}" onclick="openResourceModal('${String(resource.id).replace(/'/g, "\\'")}')">
+                <button type="button" class="resource-card" data-id="${resource.id}" data-island="${ldahIslandLabel(resource)}" data-type="${resource.type}" onclick="openResourceModal('${String(resource.id).replace(/'/g, "\\'")}')">
                     <div class="resource-card-head">
                         ${logoHtml}
                         <div class="resource-card-id">
@@ -1142,12 +1168,12 @@
             if (isLoading) return;
 
             const filteredResources = resourcesData.filter(resource => {
-                const resourceIsland = (resource.island || '').toLowerCase();
+                const resourceIslands = ldahResourceIslands(resource);
                 // Statewide resources (no island, or island literally "Statewide")
                 // show under EVERY island filter. (2026-06-05)
-                const isStatewide = !resource.island || resourceIsland === 'statewide';
+                const isStatewide = !resourceIslands.length || resourceIslands.includes('statewide');
                 const matchesIsland = currentIslandFilter === 'all' ||
-                    resourceIsland === currentIslandFilter.toLowerCase() ||
+                    resourceIslands.includes(currentIslandFilter.toLowerCase()) ||
                     (currentIslandFilter !== 'all' && isStatewide);
                 
                 const matchesType = currentTypeFilter === 'all' ||
