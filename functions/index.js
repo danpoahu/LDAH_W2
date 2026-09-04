@@ -1412,6 +1412,58 @@ function formatDatesPhrase(sessionKeys) {
   return `, on ${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
 }
 
+// ── One-off event email suppression ────────────────────────────────
+//
+// A "one-off" event (`isOneOff: true`) is an activity that ALREADY HAPPENED,
+// hand-logged into the Event Attendance Report after the fact. It is a report
+// row, not a live event: it is written `archived: true` so it never reaches the
+// public calendar, and `signupDates: []`. Its attendees, however, are written as
+// real signup docs carrying real email addresses — which is how, on 2026-09-04,
+// a Pacific Island partner logging a Zoom meeting that had already finished
+// mailed "Confirmed -- <event>" to three attendees who were not her, promising
+// each of them a reminder "3 days before" a session that was already over.
+//
+// The rule, from Daniel: a one-off event generates NO automated email of any
+// kind. Confirmations, registration chasers, 3-day and day-of reminders,
+// announcements, cancellation/reschedule notices, no-show re-invites — all
+// suppressed, regardless of date.
+//
+// ONE exception: the feedback / evaluation request. That is genuinely useful
+// for an activity that just happened, so it may still go out — but only for a
+// one-off dated strictly AFTER the cutoff below. Partners are backfilling
+// months of historical events and nobody should be emailed about something
+// from August.
+//
+// DELIBERATE FLOOR, NOT A BUG: this date is hard-coded on purpose. It is the
+// line between "events being backfilled from the past" and "events logged as
+// they happen". Do not replace it with a rolling window without asking Daniel.
+const ONEOFF_EMAIL_FEEDBACK_CUTOFF_DATE = "2026-09-01";
+
+/**
+ * Should this email be suppressed because the event is a one-off?
+ *
+ * @param {object|null} eventDoc  the event document (events/{id} data)
+ * @param {string} kind           "feedback" for the feedback/evaluation
+ *                                request; anything else for every other
+ *                                email kind (confirmation, reminder,
+ *                                announcement, lifecycle, ...)
+ * @returns {boolean} true => do NOT send.
+ *
+ * Non-one-off events ALWAYS return false: normal event email is untouched by
+ * this helper. Fails CLOSED for a one-off whose date cannot be parsed.
+ */
+function _oneOffEmailSuppressed(eventDoc, kind) {
+  const ev = (eventDoc && typeof eventDoc === "object") ? eventDoc : {};
+  // Normal events are never affected — this is the only exit that sends.
+  if (ev.isOneOff !== true) return false;
+  // Every kind except the feedback request is suppressed outright.
+  if (kind !== "feedback") return true;
+  // Feedback carve-out: only for one-offs dated strictly after the cutoff.
+  const key = toHstDateKey(ev.eventDate || ev.date);
+  if (!key || !/^\d{4}-\d{2}-\d{2}$/.test(key)) return true; // fail closed
+  return !(key > ONEOFF_EMAIL_FEEDBACK_CUTOFF_DATE);
+}
+
 /**
  * After a signup transitions to "confirmed", send a registration-confirmed
  * email recapping what they signed up for and announcing the upcoming
@@ -1451,6 +1503,14 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
     const eventSnap = await db.collection(collection).doc(eventId).get();
     if (!eventSnap.exists) return;
     const event = eventSnap.data() || {};
+
+    // A one-off is a past activity being logged, not a signup — see
+    // _oneOffEmailSuppressed. This is the exact send that mailed "Confirmed"
+    // to attendees of a finished meeting on 2026-09-04.
+    if (_oneOffEmailSuppressed(event, "confirmation")) {
+      console.log(`Confirmation skipped (one-off event) for ${collection}/${eventId}/${signupId}`);
+      return;
+    }
 
     // Stage 3b-2 step 4 (2026-05-11): primary session-derivation now flows
     // through getSignupSessions(signup, event) — the canonical accessor added
@@ -2226,6 +2286,9 @@ exports.sendDeferredRegistrationEmails = functions
       for (const ev of evs.docs) {
         const eventId = ev.id;
         const event = ev.data() || {};
+        // One-off events are logged after the fact; never chase their
+        // attendees for a registration. See _oneOffEmailSuppressed.
+        if (_oneOffEmailSuppressed(event, "registration")) continue;
         const sigs = await db.collection(collection).doc(eventId).collection("signups")
           .where("status", "==", "pending")
           .get();
@@ -2456,6 +2519,10 @@ exports.processPendingParentRegistrations = functions
     for (const ev of evs.docs) {
       const event = ev.data() || {};
       if (event.archived === true) continue;
+      // Belt-and-braces: a one-off is written archived:true so the line above
+      // already covers it, but the rule is "one-offs never email" and it
+      // should not depend on the archived flag staying set.
+      if (_oneOffEmailSuppressed(event, "registration")) continue;
       const eventId = ev.id;
       const sigs = await db.collection("events").doc(eventId).collection("signups").where("status", "==", "pending").get();
       for (const s of sigs.docs) {
@@ -2580,15 +2647,23 @@ exports.resendRegistrationEmail = functions
       // Fetch event title
       let eventTitle = "an LDAH Event";
       let eventDate = "";
+      let _evForGuard = null;
       try {
         const eventDoc = await admin.firestore().collection(collection).doc(eventId).get();
         if (eventDoc.exists) {
           const eventData = eventDoc.data();
+          _evForGuard = eventData;
           eventTitle = eventData.title || eventTitle;
           const picked = Array.isArray(signupData.selectedDates) && signupData.selectedDates[0];
           eventDate = picked || formatEventDate(eventData.eventDate || eventData.date);
         }
       } catch (_) { /* use defaults */ }
+
+      // One-off events never email — see _oneOffEmailSuppressed.
+      if (_oneOffEmailSuppressed(_evForGuard, "registration")) {
+        res.status(400).json({ error: "This is a one-off event logged after the fact. LDAH does not email its attendees." });
+        return;
+      }
 
       const type = collection === "recurringEvents" ? "recurring" : "event";
       const signupName = signupData.name || signupData.firstName || "there";
@@ -4414,6 +4489,12 @@ exports.sendNoShowReInvites = functions
         eventTitle = eventDoc.data().title || eventTitle;
       }
 
+      // One-off events never email — see _oneOffEmailSuppressed.
+      if (_oneOffEmailSuppressed(eventDoc.exists ? eventDoc.data() : null, "no-show-reinvite")) {
+        res.status(400).json({ error: "This is a one-off event logged after the fact. LDAH does not email its attendees." });
+        return;
+      }
+
       // Get all signups for this event
       const signupsSnap = await db.collection(collection).doc(eventId).collection("signups").get();
 
@@ -4591,12 +4672,22 @@ exports.sendFeedbackEmails = functions
 
       // Fetch event title
       let eventTitle = "an LDAH Event";
+      let _evForGuard = null;
       try {
         const eventDoc = await dbAdmin.collection(collection).doc(eventId).get();
         if (eventDoc.exists) {
-          eventTitle = eventDoc.data().title || eventTitle;
+          _evForGuard = eventDoc.data() || null;
+          eventTitle = (_evForGuard && _evForGuard.title) || eventTitle;
         }
       } catch (_) { /* use default */ }
+
+      // Feedback is the one email a one-off may still send — but only when it
+      // is dated after ONEOFF_EMAIL_FEEDBACK_CUTOFF_DATE. Backfilled history
+      // must never generate mail. See _oneOffEmailSuppressed.
+      if (_oneOffEmailSuppressed(_evForGuard, "feedback")) {
+        res.status(400).json({ error: "This one-off event predates the feedback cutoff (" + ONEOFF_EMAIL_FEEDBACK_CUTOFF_DATE + "). Nothing was sent." });
+        return;
+      }
 
       // Query all signups
       const signupsSnap = await dbAdmin
@@ -4817,6 +4908,15 @@ async function maybeSendFeedbackEmailOnAttendance(change, context, collection) {
     if (!eventSnap.exists) return;
     const event = eventSnap.data() || {};
 
+    // The feedback request is the ONE email a one-off may still send, and only
+    // for one-offs dated after ONEOFF_EMAIL_FEEDBACK_CUTOFF_DATE. Note the
+    // deliberate absence of an `event.archived` test here: every one-off is
+    // archived by design, so checking it would kill the carve-out outright.
+    if (_oneOffEmailSuppressed(event, "feedback")) {
+      console.log(`feedback (on-attendance) skipped (one-off before cutoff) ${collection}/${eventId}/${signupId}`);
+      return;
+    }
+
     // Per-session sends
     for (const sessionDate of newlyAttendedSessions) {
       if (after.feedbackEmailsSent && after.feedbackEmailsSent[sessionDate]) continue;
@@ -4889,6 +4989,9 @@ exports.sendFeedbackFollowups = functions
     async function processEvent(collection, evDoc) {
       const event = evDoc.data();
       const eventId = evDoc.id;
+      // Same carve-out as the initial feedback request: a one-off may be
+      // chased for feedback only when it is dated after the cutoff.
+      if (_oneOffEmailSuppressed(event, "feedback")) return;
       const [signupsSnap, feedbackSnap] = await Promise.all([
         db.collection(collection).doc(eventId).collection("signups").get(),
         db.collection("eventFeedback").where("eventId", "==", eventId).get(),
@@ -7957,6 +8060,13 @@ async function maybeSendCatchupReminder(change, context, collection) {
     const zoomDoc = zoomSnap.exists ? (zoomSnap.data() || null) : null;
     const zoomDefault = pickZoomForEvent(zoomDoc, event, collection);
 
+    // One-off events are logged after the fact — never remind anyone about a
+    // session that has already happened. See _oneOffEmailSuppressed.
+    if (_oneOffEmailSuppressed(event, "reminder-3day")) {
+      console.log(`catch-up reminder skipped (one-off event) ${collection}/${eventId}/${signupId}`);
+      return;
+    }
+
     // Parent Talk Cafe — Zoom reminders never apply; the PTC confirmation
     // email is the only touchpoint.
     if (event.zoomMode === "parent_talk_cafe") {
@@ -8072,6 +8182,10 @@ exports.sendEventReminders = functions
       if (signup.status !== "confirmed") { skipped++; return; }
       if (signup.archived === true) { skipped++; return; }
       if (!signup.email) { skipped++; return; }
+
+      // One-off events are hand-logged after they happen — there is nothing
+      // to remind anyone about. See _oneOffEmailSuppressed.
+      if (_oneOffEmailSuppressed(event, "reminder-3day")) { skipped++; return; }
 
       // (Connect-Gen consent gate is applied per-session in the loop below —
       // only virtual sessions require a signed consent.)
@@ -8536,6 +8650,10 @@ exports.sendDayOfReminders = functions
       if (signup.status !== "confirmed") { skipped++; return; }
       if (signup.archived === true) { skipped++; return; }
       if (!signup.email) { skipped++; return; }
+
+      // One-off events are hand-logged after they happen — a "see you soon"
+      // for a finished activity is exactly the bug. See _oneOffEmailSuppressed.
+      if (_oneOffEmailSuppressed(event, "reminder-dayof")) { skipped++; return; }
 
       // (Connect-Gen consent gate is applied per-session in the loop below.)
       // Parent Talk Cafe — no Zoom reminders.
@@ -9038,6 +9156,13 @@ exports.sendEventAnnouncement = functions
       const eventSnap = await eventRef.get();
       if (!eventSnap.exists) { res.status(404).json({ error: 'Event not found' }); return; }
       const event = eventSnap.data();
+
+      // One-off events are past activities logged for the attendance report.
+      // There is nothing to announce. See _oneOffEmailSuppressed.
+      if (_oneOffEmailSuppressed(event, 'announcement')) {
+        res.status(400).json({ error: 'This is a one-off event logged after the fact. It cannot be announced.' });
+        return;
+      }
 
       let recipients;
       if (testMode) {
@@ -9598,10 +9723,20 @@ async function handleSignupLifecycleEmails(change, context, collectionName) {
 
     // Fetch event title for subject/body
     let eventTitle = "LDAH Event";
+    let _evForGuard = null;
     try {
       const evSnap = await db.collection(collectionName).doc(eventId).get();
-      if (evSnap.exists) eventTitle = (evSnap.data() && evSnap.data().title) || eventTitle;
+      if (evSnap.exists) {
+        _evForGuard = evSnap.data() || null;
+        eventTitle = (_evForGuard && _evForGuard.title) || eventTitle;
+      }
     } catch (_) { /* ignore */ }
+
+    // One-off events never email — see _oneOffEmailSuppressed.
+    if (_oneOffEmailSuppressed(_evForGuard, "signup-lifecycle")) {
+      console.log(`signup lifecycle email skipped (one-off event) ${collectionName}/${eventId}/${signupId}`);
+      return;
+    }
 
     // Idempotency: store the post-update afterKey on the signup so retries of
     // the same Firestore trigger don't double-send, but a *new* reschedule
@@ -9764,6 +9899,15 @@ async function handleEventLifecycleEmails(change, context, collectionName) {
       }
       // Indeterminate — don't filter out (safety).
       return true;
+    }
+
+    // One-off events never email. They are BORN archived:true, so the
+    // justCancelled test below cannot fire for them — but editing one (a typo
+    // in the date, say) would otherwise read as a reschedule and mail every
+    // attendee. See _oneOffEmailSuppressed.
+    if (_oneOffEmailSuppressed(after, "event-lifecycle")
+        || _oneOffEmailSuppressed(before, "event-lifecycle")) {
+      return;
     }
 
     // Safeguard: don't spam right after an announcement blast.
@@ -25804,6 +25948,9 @@ exports.sweepPendingSignupNudges = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  _oneOffEmailSuppressed,
+  ONEOFF_EMAIL_FEEDBACK_CUTOFF_DATE,
+  toHstDateKey,
   _cgGenerateCaseReview,
   _cgFetchDocumentBlocks,
   _cgCaseReviewFingerprint,
