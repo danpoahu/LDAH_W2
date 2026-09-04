@@ -25322,6 +25322,485 @@ exports.getScreeningConsentDownloadUrl = functions
     }
   });
 
+// ── Pending-signup phone nudge (2026-09-04) ─────────────────────────────────
+// A family signs up, the signup sits at "pending", and nobody rings them. This
+// sweep raises ONE task — phone this family and offer assistance — 24 hours
+// after the signup, and re-raises it every 48 hours while the family is still
+// pending, up to a cap.
+//
+// Four things it deliberately does NOT do:
+//   * It sends NO EMAIL. It creates a task for staff and nothing else. No call
+//     to sendEmailViaResend or any other send path lives in this block.
+//   * It never trusts pendingCount on the parent event doc. That denormalised
+//     field is stale — one event's doc claims 27 pending against 1 real signup.
+//     Every count here comes from reading the signups subcollection and testing
+//     each doc's own status field.
+//   * It never reads the root `signups` collection, which is empty. Signups
+//     live at events/{id}/signups and recurringEvents/{id}/signups only.
+//   * It never chases per signup. One family with three pending signups is one
+//     phone call, so it is one task.
+//
+// DISARMED. The scheduled wrapper returns immediately while the flag below is
+// false, and nothing here has been deployed.
+const PENDING_SIGNUP_NUDGE_ARMED = true;    // ARMED 2026-09-04 by Daniel — creates real tasks for Leilani
+
+// The task owner. ONE-LINE CHANGE when this moves to the "Admin" role holder:
+// swap the uid and the display name below. Nothing else in this block names a
+// person, and the name is only a fallback — the live displayName from
+// userRoles wins whenever it can be read.
+const PENDING_SIGNUP_NUDGE_OWNER_UID = "ovtl869s8pbsKzVkxkoVnNYFFs42";
+const PENDING_SIGNUP_NUDGE_OWNER_NAME = "Leilani Kailiawa";
+
+// ── The thresholds are ROUNDED DOWN ON PURPOSE. Do not "correct" them. ──────
+// This sweep runs ONCE a day, at 5am HST. Against a single daily run a strict
+// 24-hour test does not mean "a day later", it means "the second morning": a
+// family who signs up at 11am is still only 18 hours old at the next 5am, fails
+// a 24-hour test, and waits until the morning after that — 42 hours. The same
+// arithmetic pushes a strict 48-hour repeat onto the third morning instead of
+// the second.
+//
+// So the hours are rounded down to the largest value that still clears a
+// daily run: 18 for the first call, 39 for each repeat. The first call then
+// lands on the first morning that is roughly a day out, and repeats land every
+// two mornings exactly.
+//
+// Daniel, deciding this: "round down on the hours. so if it's been 18 hours
+// send the 24 hour task, if it's been 39 hours send the 48hr task ... lot less
+// in and outs."
+//
+// 18 and 39 are SCHEDULING MECHANICS and never appear in anything staff read —
+// the task notes say "Call N of 4". The _ROUNDED_DOWN suffixes are there so
+// nobody later reads 18 as a typo for 24 and quietly puts the slip back.
+const PENDING_SIGNUP_FIRST_NUDGE_HOURS_ROUNDED_DOWN = 18;   // the "24 hour" call
+const PENDING_SIGNUP_REPEAT_NUDGE_HOURS_ROUNDED_DOWN = 39;  // the "48 hour" repeat
+
+// Four calls per family, then it goes quiet. DECIDED by Daniel: four matches
+// the dead-lead nudge ladder already running elsewhere in this file, and it
+// stops a family who never answers from generating a task forever.
+const PENDING_SIGNUP_MAX_NUDGES = 4;
+
+// Upcoming events only. DECIDED by Daniel, permanently — this is the behaviour,
+// not a toggle to revisit. Phoning a family to offer help with a session that
+// already ran is a visible embarrassment, and most stale "pending" records are
+// exactly that: an event that came and went with the status never updated. The
+// constant stays named so the rule is findable, not because it is undecided.
+const PENDING_SIGNUP_NUDGE_INCLUDE_PAST_EVENTS = false;
+
+// Statuses that count as still pending. "new" is the older synonym for
+// "pending" — runDailyReport's isPendingOrNew and flagDayOfPendingSignups both
+// already treat the two as one thing, so this does too.
+//
+// A MISSING status is deliberately NOT treated as pending here, which is a
+// considered divergence from those two readers. They only count rows for a
+// report or a same-day list; this one telephones a family. A signup whose
+// status we cannot read is left for a human rather than guessed at.
+const PENDING_SIGNUP_ACTIVE_STATUSES = new Set(["pending", "new"]);
+
+// Marker fields written back on every pending signup in a family the moment a
+// task is raised. Same idea as the Connect-Gen ladder's rescheduleOfferSentAt /
+// firmReminderSentAt: the stamp is what makes a second run in the same hour a
+// no-op, independent of the open-task check.
+const PENDING_SIGNUP_NUDGE_SENT_FIELD = "pendingSignupNudgeSentAt";
+const PENDING_SIGNUP_NUDGE_COUNT_FIELD = "pendingSignupNudgeCount";
+const PENDING_SIGNUP_NUDGE_TASK_FIELD = "pendingSignupNudgeTaskId";
+// The single field every task in this workflow carries, and the only field the
+// dedupe query filters on — two equality filters would need a composite index,
+// so this follows _raiseCaseAdvocacyAssignmentTask and filters status in code.
+const PENDING_SIGNUP_NUDGE_WORKFLOW_STEP = "pendingSignupNudge";
+
+// Millis out of whatever shape a stamp arrived in — a Firestore Timestamp, a
+// {seconds} literal, a Date, or a plain number from a test. Never throws.
+function _pendingNudgeMillis(v) {
+  if (!v) return 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  if (v instanceof Date) return v.getTime() || 0;
+  if (typeof v === "object") {
+    if (typeof v.toMillis === "function") {
+      try { return v.toMillis() || 0; } catch (_) { return 0; }
+    }
+    if (typeof v.seconds === "number") return v.seconds * 1000;
+  }
+  return 0;
+}
+
+// What counts as "a family".
+//
+// linkedContactId first: onSignupCreated already resolves a signup to a contact
+// by email and then by phone, creating one if it has to, so where it exists it
+// is the system's own answer to this question and it is the answer LDAH-Int
+// shows on the contact card. Falling back to a re-derived key would silently
+// overrule that link.
+//
+// Where it is absent — the field is written asynchronously and is null for a
+// signup with neither email nor phone — the fallbacks mirror the same order
+// onSignupCreated uses: email, then phone, then name. Name is last and weakest;
+// it merges two unrelated people who share a name, which for this feature costs
+// one missed phone call rather than a wrong one.
+//
+// The key is prefixed so an email can never collide with a contact id.
+function _pendingNudgeFamilyKey(signup) {
+  if (!signup || typeof signup !== "object") return "";
+  const contactId = String(signup.linkedContactId || "").trim();
+  if (contactId) return "contact:" + contactId;
+  let email = "";
+  try { email = String(familyEmails(signup)[0] || "").trim().toLowerCase(); } catch (_) { email = ""; }
+  if (email) return "email:" + email;
+  const phone = String(signup.phone || "").replace(/\D/g, "");
+  if (phone.length >= 7) return "phone:" + phone;
+  const name = String(
+    signup.name || [signup.firstName, signup.lastName].filter(Boolean).join(" ") || "",
+  ).trim().toLowerCase();
+  if (name) return "name:" + name;
+  return "";
+}
+
+// The LAST date this signup is actually expected at, so a multi-session event
+// stays "upcoming" while any of its sessions remain. Signup-level keys win over
+// event-level ones: a family attending one date of a five-date Learning Lab
+// should be judged on the date they chose.
+function _pendingSignupNudgeEventDateKey(event, signup) {
+  let keys = [];
+  try { keys = extractSignupSessionKeys(signup) || []; } catch (_) { keys = []; }
+  if (!keys.length) {
+    try { keys = extractEventCandidateDateKeys(event) || []; } catch (_) { keys = []; }
+  }
+  const valid = keys.filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(String(k || ""))).sort();
+  return valid.length ? valid[valid.length - 1] : "";
+}
+
+// ── The rule ────────────────────────────────────────────────────────────────
+// Pure: no Firestore, no clock of its own, no writes. Everything it needs is
+// passed in, which is what lets functions/test/pending-signup-nudge.test.js
+// exercise every branch without touching live data or creating a real task.
+//
+//   signup       one signup doc's data
+//   eventDateKey YYYY-MM-DD, the last date this signup is expected at
+//   family       { openTasks[] | openTaskCount, nudgeCount, lastNudgeAtMs }
+//                aggregated across EVERY signup this family holds — that
+//                aggregation is what makes three pending signups one task
+//   todayKey     YYYY-MM-DD in HST
+//   nowMs        epoch millis
+//
+// Returns { nudge, reason, nudgeNumber }. reason is always populated: on a skip
+// it names the guard that stopped it, which is what makes a dry run readable.
+function _pendingSignupNudgeDecision({ signup, eventDateKey, family, todayKey, nowMs }) {
+  const no = (reason) => ({ nudge: false, reason: reason, nudgeNumber: 0 });
+  try {
+    if (!signup || typeof signup !== "object") return no("noSignup");
+    if (signup.archived === true) return no("archived");
+
+    const status = typeof signup.status === "string" ? signup.status.trim().toLowerCase() : "";
+    if (!status) return no("noStatus");
+    if (!PENDING_SIGNUP_ACTIVE_STATUSES.has(status)) return no("notPending:" + status);
+
+    const now = Number.isFinite(nowMs) ? nowMs : Date.now();
+
+    // No creation stamp means no way to know whether 24 hours have passed. Left
+    // alone rather than guessed at — the same call _cgLadderDecision makes.
+    const created = _pendingNudgeMillis(signup.timestamp) || _pendingNudgeMillis(signup.createdAt);
+    if (!created) return no("noCreationStamp");
+
+    // The past-event guard. Note it fails CLOSED: an event we cannot date is
+    // not chased, because "we could not tell" must not become "phone them".
+    if (!PENDING_SIGNUP_NUDGE_INCLUDE_PAST_EVENTS) {
+      const today = String(todayKey || "");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(today)) return no("noTodayKey");
+      const evKey = String(eventDateKey || "");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(evKey)) return no("noEventDate");
+      if (evKey < today) return no("eventAlreadyHappened");
+    }
+
+    if (now - created < PENDING_SIGNUP_FIRST_NUDGE_HOURS_ROUNDED_DOWN * 3600 * 1000) return no("signupTooNew");
+
+    const f = family || {};
+
+    // Never a second task while an earlier one is still open. This is the guard
+    // that survives a task nobody has actioned for a week.
+    const openTasks = Array.isArray(f.openTasks)
+      ? f.openTasks.length
+      : (Number(f.openTaskCount) || 0);
+    if (openTasks > 0) return no("taskAlreadyOpen");
+
+    const sent = Number(f.nudgeCount) || 0;
+    if (sent >= PENDING_SIGNUP_MAX_NUDGES) return no("nudgeCapReached");
+
+    // The repeat interval, measured from the last nudge actually raised rather
+    // than from a computed due date, so a delayed run still gets its full gap.
+    const lastAt = _pendingNudgeMillis(f.lastNudgeAt)
+      || (Number.isFinite(f.lastNudgeAtMs) ? f.lastNudgeAtMs : 0);
+    if (lastAt && now - lastAt < PENDING_SIGNUP_REPEAT_NUDGE_HOURS_ROUNDED_DOWN * 3600 * 1000) {
+      return no("repeatIntervalNotElapsed");
+    }
+
+    return {
+      nudge: true,
+      reason: sent === 0 ? "firstNudge" : "repeatNudge",
+      nudgeNumber: sent + 1,
+    };
+  } catch (e) {
+    console.warn("_pendingSignupNudgeDecision failed:", e.message);
+    return no("error");
+  }
+}
+
+// ── The sweep ───────────────────────────────────────────────────────────────
+// Thin wrapper: read, group, ask the rule, write. dryRun writes nothing and is
+// how this should be proved before it is ever armed.
+async function _runPendingSignupNudges(opts) {
+  const dryRun = !!(opts && opts.dryRun);
+  const db = admin.firestore();
+  const FieldValue = admin.firestore.FieldValue;
+  const todayKey = toHstDateKey(new Date());
+  const nowMs = Date.now();
+
+  const skipReasons = {};
+  const bump = (r) => { skipReasons[r] = (skipReasons[r] || 0) + 1; };
+
+  // Every open task in this workflow, keyed by family. One query, status
+  // filtered in code: a second equality filter would need a composite index.
+  const openByFamily = new Map();
+  try {
+    const snap = await db.collection("interactions")
+      .where("workflowStep", "==", PENDING_SIGNUP_NUDGE_WORKFLOW_STEP).get();
+    snap.forEach((doc) => {
+      const x = doc.data() || {};
+      if (x.status !== "Open") return;
+      const key = x.pendingNudgeFamilyKey || "";
+      if (!key) return;
+      if (!openByFamily.has(key)) openByFamily.set(key, []);
+      openByFamily.get(key).push(doc.id);
+    });
+  } catch (e) {
+    // Fail CLOSED. Without the open-task picture this sweep would raise a
+    // duplicate task for every family it has ever chased.
+    console.error("pendingSignupNudge: could not read existing tasks, aborting:", e.message);
+    return { created: [], skipReasons: { openTaskLookupFailed: 1 } };
+  }
+
+  // Group every signup in the system by family. Aggregates are taken across ALL
+  // of a family's signups regardless of current status, because a signup that
+  // has since been confirmed still carries the stamps of the nudges it earned —
+  // dropping it would silently reset the family's count back to zero.
+  const families = new Map();
+  const ensure = (key) => {
+    if (!families.has(key)) {
+      families.set(key, { key: key, candidates: [], nudgeCount: 0, lastNudgeAtMs: 0 });
+    }
+    return families.get(key);
+  };
+
+  for (const collection of ["events", "recurringEvents"]) {
+    let evSnap;
+    try {
+      evSnap = await db.collection(collection).get();
+    } catch (e) {
+      console.error("pendingSignupNudge: could not read " + collection + ":", e.message);
+      continue;
+    }
+    for (const evDoc of evSnap.docs) {
+      const ev = evDoc.data() || {};
+      if (ev.archived === true) continue;
+
+      let sSnap;
+      try {
+        sSnap = await evDoc.ref.collection("signups").get();
+      } catch (e) {
+        console.error("pendingSignupNudge: signups unreadable for " +
+          collection + "/" + evDoc.id + ":", e.message);
+        continue;
+      }
+
+      const eventTitle = ev.title || "LDAH Event";
+      sSnap.forEach((sDoc) => {
+        const sd = sDoc.data() || {};
+        const key = _pendingNudgeFamilyKey(sd);
+        if (!key) { bump("noFamilyKey"); return; }
+
+        const fam = ensure(key);
+        const n = Number(sd[PENDING_SIGNUP_NUDGE_COUNT_FIELD]) || 0;
+        if (n > fam.nudgeCount) fam.nudgeCount = n;
+        const last = _pendingNudgeMillis(sd[PENDING_SIGNUP_NUDGE_SENT_FIELD]);
+        if (last > fam.lastNudgeAtMs) fam.lastNudgeAtMs = last;
+
+        const status = typeof sd.status === "string" ? sd.status.trim().toLowerCase() : "";
+        if (sd.archived === true || !PENDING_SIGNUP_ACTIVE_STATUSES.has(status)) return;
+
+        fam.candidates.push({
+          ref: sDoc.ref,
+          data: sd,
+          collection: collection,
+          eventId: evDoc.id,
+          eventTitle: eventTitle,
+          eventDateKey: _pendingSignupNudgeEventDateKey(ev, sd),
+          createdMs: _pendingNudgeMillis(sd.timestamp) || _pendingNudgeMillis(sd.createdAt),
+        });
+      });
+    }
+  }
+
+  // The owner's live display name, so a rename in userRoles does not leave a
+  // stale name on new tasks. The constant above is only the fallback.
+  let ownerName = PENDING_SIGNUP_NUDGE_OWNER_NAME;
+  try {
+    const resolved = await _lcResolveStaffName(db, PENDING_SIGNUP_NUDGE_OWNER_UID);
+    if (resolved) ownerName = resolved;
+  } catch (_) { /* keep the fallback */ }
+
+  const created = [];
+
+  for (const fam of families.values()) {
+    if (!fam.candidates.length) continue;
+
+    // Oldest first: the signup that has been waiting longest is the one the
+    // task is named for, and the first to clear the 24-hour gate.
+    fam.candidates.sort((a, b) => (a.createdMs || 0) - (b.createdMs || 0));
+
+    const familyCtx = {
+      openTaskCount: (openByFamily.get(fam.key) || []).length,
+      nudgeCount: fam.nudgeCount,
+      lastNudgeAtMs: fam.lastNudgeAtMs,
+    };
+
+    let chosen = null;
+    let decision = null;
+    let lastReason = "noCandidate";
+    for (const c of fam.candidates) {
+      const d = _pendingSignupNudgeDecision({
+        signup: c.data, eventDateKey: c.eventDateKey,
+        family: familyCtx, todayKey: todayKey, nowMs: nowMs,
+      });
+      if (d.nudge) { chosen = c; decision = d; break; }
+      lastReason = d.reason;
+    }
+    if (!chosen) { bump(lastReason); continue; }
+
+    // Only the signups that are still pending AND still upcoming go in the
+    // note — the whole point of one task per family is that the call covers
+    // everything they are waiting on.
+    const inScope = fam.candidates.filter((c) =>
+      PENDING_SIGNUP_NUDGE_INCLUDE_PAST_EVENTS ||
+      (c.eventDateKey && c.eventDateKey >= todayKey));
+    const listed = inScope.length ? inScope : [chosen];
+
+    const familyName = chosen.data.name
+      || [chosen.data.firstName, chosen.data.lastName].filter(Boolean).join(" ").trim()
+      || "Unknown";
+
+    const lines = listed.map((c) =>
+      "- " + c.eventTitle + (c.eventDateKey ? " (" + c.eventDateKey + ")" : "") +
+      " — pending since " + (c.createdMs ? toHstDateKey(new Date(c.createdMs)) : "unknown"));
+
+    const notes =
+      "Signed up but never confirmed. Phone this family, find out what is holding " +
+      "them up and offer assistance.\n\n" +
+      "Still pending (" + listed.length + "):\n" + lines.join("\n") + "\n\n" +
+      "Call " + decision.nudgeNumber + " of " + PENDING_SIGNUP_MAX_NUDGES + ". " +
+      (decision.nudgeNumber >= PENDING_SIGNUP_MAX_NUDGES
+        ? "This is the last automatic reminder — after this the system stops chasing."
+        : "If they are still pending, another reminder is raised in two days.");
+
+    if (dryRun) {
+      created.push({ familyKey: fam.key, dryRun: true, nudgeNumber: decision.nudgeNumber });
+      continue;
+    }
+
+    // Shape copied from flagDayOfPendingSignups and _raiseCaseAdvocacyAssignmentTask.
+    // `owner` is the field LDAH-Int reads for the display name; `ownerName` is
+    // written alongside it to match the lifecycle task vocabulary.
+    let taskId = "";
+    try {
+      const ref = await db.collection("interactions").add({
+        channel: "Registration",
+        interactionType: "Pending Signup",
+        contactId: chosen.data.linkedContactId || "",
+        contactName: familyName,
+        contactType: "",
+        grantProgram: "",
+        summary: "Phone " + familyName + " — signed up and still pending. Offer assistance.",
+        notes: notes,
+        followUpDate: todayKey,
+        status: "Open",
+        isDraft: false,
+        owner: ownerName,
+        ownerName: ownerName,
+        ownerUid: PENDING_SIGNUP_NUDGE_OWNER_UID,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        createdBy: "System",
+        createdByUid: "system",
+        relatedSignupId: chosen.ref.id,
+        workflowStep: PENDING_SIGNUP_NUDGE_WORKFLOW_STEP,
+        workflowEventId: chosen.eventId,
+        workflowEventCollection: chosen.collection,
+        workflowEventTitle: chosen.eventTitle,
+        workflowSessionKey: chosen.eventDateKey || "",
+        pendingNudgeFamilyKey: fam.key,
+        pendingNudgeNumber: decision.nudgeNumber,
+        pendingNudgeSignupCount: listed.length,
+      });
+      taskId = ref.id;
+    } catch (e) {
+      console.error("pendingSignupNudge: task write failed for " + fam.key + ":", e.message);
+      bump("taskWriteFailed");
+      continue;
+    }
+
+    // Stamp EVERY pending signup in the family, not just the one named on the
+    // task, so the family's aggregate count and last-nudge time stay the same
+    // whichever signup is read first on the next run. This is the marker that
+    // makes a second run in the same hour a no-op even if the task is closed
+    // immediately.
+    for (const c of listed) {
+      try {
+        await c.ref.set({
+          [PENDING_SIGNUP_NUDGE_SENT_FIELD]: FieldValue.serverTimestamp(),
+          [PENDING_SIGNUP_NUDGE_COUNT_FIELD]: decision.nudgeNumber,
+          [PENDING_SIGNUP_NUDGE_TASK_FIELD]: taskId,
+        }, { merge: true });
+      } catch (e) {
+        console.warn("pendingSignupNudge: marker write failed on " + c.ref.path + ":", e.message);
+      }
+    }
+
+    // Audit line so the daily-report changelog picks it up the next morning.
+    try {
+      await db.collection("auditLog").add({
+        action: "Pending signup phone nudge raised",
+        details: familyName + " — " + listed.length + " pending, call " +
+          decision.nudgeNumber + " of " + PENDING_SIGNUP_MAX_NUDGES,
+        performedBy: "System (auto)",
+        timestamp: FieldValue.serverTimestamp(),
+      });
+    } catch (e) { console.warn("pendingSignupNudge: auditLog write failed:", e.message); }
+
+    created.push({ familyKey: fam.key, taskId: taskId, nudgeNumber: decision.nudgeNumber });
+  }
+
+  console.log("pendingSignupNudge:", JSON.stringify({
+    dryRun: dryRun, families: families.size, created: created.length, skipReasons: skipReasons,
+  }));
+  return { created: created, skipReasons: skipReasons };
+}
+
+// Once a day at 5am HST, alongside the other morning sweeps in this file. The
+// thresholds above are rounded down to suit exactly this: a daily run cannot
+// hit a 24-hour anniversary at the hour it falls, so the test is loosened to
+// meet the run rather than the run tightened to meet the test.
+//
+// DISARMED: the guard below returns before any read while
+// PENDING_SIGNUP_NUDGE_ARMED is false, and this function has not been deployed.
+exports.sweepPendingSignupNudges = functions
+  .runWith({ timeoutSeconds: 300, maxInstances: 1 })
+  .pubsub.schedule("0 5 * * *").timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    if (!PENDING_SIGNUP_NUDGE_ARMED) {
+      console.log("pendingSignupNudge: disarmed, skipping");
+      return null;
+    }
+    await _runPendingSignupNudges({ dryRun: false });
+    return null;
+  });
+
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
@@ -25382,4 +25861,18 @@ exports.__test = {
   MEMBERSHIP_INTERNAL_EMAILS,
   MEMBERSHIP_MIN_NUDGE_GAP_HOURS,
   MEMBERSHIP_MAX_SENDS_PER_RUN,
+  _pendingSignupNudgeDecision,
+  _pendingNudgeFamilyKey,
+  _pendingNudgeMillis,
+  _pendingSignupNudgeEventDateKey,
+  _runPendingSignupNudges,
+  PENDING_SIGNUP_NUDGE_ARMED,
+  PENDING_SIGNUP_NUDGE_OWNER_UID,
+  PENDING_SIGNUP_NUDGE_OWNER_NAME,
+  PENDING_SIGNUP_FIRST_NUDGE_HOURS_ROUNDED_DOWN,
+  PENDING_SIGNUP_REPEAT_NUDGE_HOURS_ROUNDED_DOWN,
+  PENDING_SIGNUP_MAX_NUDGES,
+  PENDING_SIGNUP_NUDGE_INCLUDE_PAST_EVENTS,
+  PENDING_SIGNUP_ACTIVE_STATUSES,
+  PENDING_SIGNUP_NUDGE_WORKFLOW_STEP,
 };
