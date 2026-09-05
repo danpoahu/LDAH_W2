@@ -25945,6 +25945,620 @@ exports.sweepPendingSignupNudges = functions
     return null;
   });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ISSUE REPORTS FROM THE IT_HELP CHAT FORM (2026-09-04)
+//
+// The chat help form has always written a `helpRequest` object onto the chat
+// message it sends. Nothing read it. No task was raised, so the report scrolled
+// away with the conversation and that was the end of it. This closes that loop:
+// every helpRequest that lands becomes a task in Daniel's My Day.
+//
+// THE ONE RULE: a report is never dropped. Every gate below fails OPEN — an
+// unrecognised payload shape, a dedupe query that throws, a detail document
+// that fails to write, all still produce a task. A duplicate task costs a
+// minute; a lost report costs a staff member their whole afternoon.
+//
+// WHAT THIS DELIBERATELY DOES NOT DO:
+//   • No email of any kind.
+//   • No `notifications` write. The bell only renders change-request types, so
+//     a row there would be invisible — a silent no-op that looks like delivery.
+//   • Nothing scheduled. This is a create trigger and only ever a create
+//     trigger.
+//
+// LOOKUP LISTS ARE NOT TOUCHED. `lookupLists/interactionTypes` holds the four
+// OSEP grant Tiers, not free-form types, and `lookupLists/channels` are real
+// communication channels. Putting a Tier on an IT issue would corrupt the
+// funder reporting, and inventing a new channel or type would write a value
+// into a list that is locked by uid in the security rules. So the task carries
+// channel "Other", an EMPTY interactionType, and identifies itself by
+// workflowStep instead. Do not "tidy" these into a nicer-looking type.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// The single field the dedupe query filters on, and the marker My Day and any
+// future report can identify these by.
+const ISSUE_REPORT_WORKFLOW_STEP = "issueReport";
+const ISSUE_REPORT_COLLECTION = "issueReports";
+
+// "Other" is a real, existing channel. It is NOT "Internal Chat" — that value
+// is filtered out of My Day and out of the Interactions list, so a task written
+// with it would exist and be invisible, which is the same as not existing.
+const ISSUE_REPORT_CHANNEL = "Other";
+
+// Reuse the uid constant this file already has for Daniel rather than adding a
+// second copy of the same string.
+const ISSUE_REPORT_OWNER_UID = DAN_PELLEGRINI_UID;
+const ISSUE_REPORT_OWNER_NAME = "Dan Pellegrini";
+
+// Severities that mean someone is stopped right now. Everything else gets two
+// days, which keeps a "just so you know" out of today's list without letting it
+// drift past the 14-day horizon My Day hides things beyond.
+const ISSUE_REPORT_URGENT_SEVERITIES = ["incident", "blocked"];
+const ISSUE_REPORT_DEFER_DAYS = 2;
+const ISSUE_REPORT_SEVERITIES = ["incident", "blocked", "slowing", "watching"];
+const ISSUE_REPORT_DEFAULT_SEVERITY = "slowing";
+
+// Card-legibility caps. The full, uncut payload always goes to issueReports/{id};
+// these only govern what is readable on a small task card.
+const ISSUE_REPORT_MAX_SUMMARY = 150;
+const ISSUE_REPORT_MAX_NOTE = 400;
+const ISSUE_REPORT_MAX_NOTES_DOC = 8000;
+const ISSUE_REPORT_MAX_LIST_ITEMS = 20;
+const ISSUE_REPORT_MAX_LIST_ITEM = 300;
+const ISSUE_REPORT_MAX_RAW_JSON = 20000;
+
+// The pop-out chat page. It takes no query parameter today, so no fake deep
+// link is fabricated here — the reporter is named in the notes and the thread
+// ids are stored on the task (chatConvId / chatMessageId), which is everything
+// a deep link would need the day chat.html learns to accept one.
+const ISSUE_REPORT_CHAT_URL = "https://danpoahu.github.io/LDAH-Int/chat.html";
+
+// v1 urgency chips, verbatim from the older four-field form, mapped onto the
+// v2 severity vocabulary so one code path serves both. The em dash is what the
+// form actually writes; the hyphen variant is here because a chip label is one
+// careless edit away from changing and this must not start dropping severities
+// when it does.
+const ISSUE_REPORT_V1_URGENCY = {
+  "cannot work — blocked": "blocked",
+  "cannot work - blocked": "blocked",
+  "slowing me down": "slowing",
+  "curious — no rush": "watching",
+  "curious - no rush": "watching",
+};
+
+/** Trimmed, whitespace-collapsed string, capped. Never throws, never undefined. */
+function _irText(value, max) {
+  let s;
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") s = value;
+  else if (typeof value === "number" || typeof value === "boolean") s = String(value);
+  else {
+    try { s = JSON.stringify(value); } catch (_) { s = String(value); }
+  }
+  s = String(s).replace(/\s+/g, " ").trim();
+  const cap = Number.isFinite(max) && max > 0 ? max : 0;
+  if (cap && s.length > cap) s = s.slice(0, cap - 1) + "…";
+  return s;
+}
+
+/** A stable, index-safe key fragment. Empty in, empty out. */
+function _irSlug(value) {
+  const s = _irText(value, 0).toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return s.slice(0, 40);
+}
+
+/** A genuine HST date key, or "". Shape AND validity — "2026-13-99" is neither. */
+function _irDateKey(value) {
+  const s = String(value === null || value === undefined ? "" : value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "";
+  try { return toHstDateKey(s) === s ? s : ""; } catch (_) { return ""; }
+}
+
+/** Truthiness that survives a checkbox arriving as the string "true". */
+function _irBool(value) {
+  return value === true || value === 1 || value === "true" || value === "yes";
+}
+
+/** Arbitrary array to a short list of readable strings. */
+function _irList(value) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, ISSUE_REPORT_MAX_LIST_ITEMS)
+    .map((item) => _irText(item, ISSUE_REPORT_MAX_LIST_ITEM))
+    .filter(Boolean);
+}
+
+/** Any severity-ish input to one of the four known values, or "". */
+function _irSeverity(value) {
+  const raw = _irText(value, 0).toLowerCase();
+  if (!raw) return "";
+  if (ISSUE_REPORT_SEVERITIES.indexOf(raw) !== -1) return raw;
+  if (ISSUE_REPORT_V1_URGENCY[raw]) return ISSUE_REPORT_V1_URGENCY[raw];
+  // Keyword fallback, so a reworded chip degrades to the right severity rather
+  // than to the default.
+  if (/blocked|cannot work|can'?t work|down|outage/.test(raw)) return "blocked";
+  if (/incident|urgent|emergency/.test(raw)) return "incident";
+  if (/slow|annoying|awkward/.test(raw)) return "slowing";
+  if (/curious|no rush|watch|minor|question/.test(raw)) return "watching";
+  return "";
+}
+
+function _irIsUrgent(severity) {
+  return ISSUE_REPORT_URGENT_SEVERITIES.indexOf(severity) !== -1;
+}
+
+/**
+ * One flat, plain-data view of a helpRequest, whatever shape it arrived in.
+ *
+ * v2 is the button tree. v1 is the older four-field intake form, which is live
+ * and in use — both must produce a task. Anything else is "unknown", which is
+ * NOT an error case: it produces a task too, labelled as unrecognised, with the
+ * whole payload preserved on the detail document.
+ */
+function _issueReportNormalize(helpRequest, message) {
+  const hr = (helpRequest && typeof helpRequest === "object" && !Array.isArray(helpRequest))
+    ? helpRequest : {};
+  const ctx = (hr.context && typeof hr.context === "object" && !Array.isArray(hr.context))
+    ? hr.context : {};
+  const msg = (message && typeof message === "object") ? message : {};
+
+  const declaredV = Number(hr.v);
+  const looksV2 = declaredV === 2 || !!(hr.branch || hr.branchLabel || hr.severity ||
+    hr.source === "button-tree");
+  const looksV1 = !looksV2 && !!(hr.doing || hr.happened || hr.where || hr.urgency ||
+    hr.source === "intake-form");
+  const shape = looksV2 ? "v2" : (looksV1 ? "v1" : "unknown");
+
+  let branchLabel = "";
+  let branchKey = "";
+  let detailLabel = "";
+  let note = "";
+  let severity = "";
+  let section = "";
+  let blocked = false;
+  let wantsCall = false;
+
+  if (shape === "v2") {
+    branchLabel = _irText(hr.branchLabel || hr.branch, 90);
+    branchKey = _irSlug(hr.branch || hr.branchLabel);
+    detailLabel = _irText(hr.detailLabel || hr.detail, 120);
+    note = _irText(hr.note, ISSUE_REPORT_MAX_NOTE);
+    blocked = _irBool(hr.blocked);
+    wantsCall = _irBool(hr.wantsCall);
+    severity = _irSeverity(hr.severity);
+    section = _irText(ctx.section, 60);
+  } else if (shape === "v1") {
+    // The v1 form asked what they were TRYING to do, where, what happened
+    // instead, and how urgent. "Trying to" is the line that reads best as a
+    // title, so it becomes the label; "where" is both the section and the
+    // dedupe branch, because it is the only structured field the old form had.
+    branchLabel = _irText(hr.doing, 90) || _irText(hr.where, 90);
+    branchKey = _irSlug(hr.where) || "legacy";
+    detailLabel = _irText(hr.happened, 120);
+    blocked = false;
+    wantsCall = false;
+    severity = _irSeverity(hr.urgency);
+    blocked = severity === "blocked";
+    section = _irText(hr.where, 60);
+  } else {
+    branchLabel = "Unrecognised help request";
+    branchKey = "unknown";
+    detailLabel = "";
+    // Nothing is thrown away: whatever did arrive is put in front of Daniel as
+    // a note so the card is still actionable on its own.
+    let dump = "";
+    try { dump = JSON.stringify(hr); } catch (_) { dump = ""; }
+    note = _irText(dump === "{}" ? "" : dump, ISSUE_REPORT_MAX_NOTE);
+    severity = _irSeverity(hr.severity);
+    section = _irText(ctx.section, 60);
+  }
+
+  if (!branchLabel) branchLabel = "Help request";
+  if (!branchKey) branchKey = "unknown";
+  // A severity we could not read is not allowed to become "watching" by
+  // accident, and it is not allowed to become "incident" either. It lands in
+  // the middle: a task, dated two days out, that a human then judges.
+  if (!severity) severity = blocked ? "blocked" : ISSUE_REPORT_DEFAULT_SEVERITY;
+  if (blocked && severity === ISSUE_REPORT_DEFAULT_SEVERITY) severity = "blocked";
+
+  // The chat message is the authority on who sent it — the form's own context
+  // block is self-reported and can be stale or absent.
+  const reporterUid = _irText(msg.senderId || ctx.uid, 128);
+  const reporterName = _irText(msg.senderName || ctx.displayName, 80) || "a staff member";
+
+  return {
+    shape,
+    version: shape === "v2" ? 2 : (shape === "v1" ? 1 : 0),
+    branch: branchKey,
+    branchLabel,
+    detail: _irText(hr.detail, 60),
+    detailLabel,
+    note,
+    blocked,
+    wantsCall,
+    severity,
+    urgent: _irIsUrgent(severity),
+    section,
+    sectionKey: _irSlug(section),
+    island: _irText(ctx.partnerIsland, 40),
+    role: _irText(ctx.role, 40),
+    appVersion: _irText(ctx.version, 40),
+    stale: _irBool(ctx.stale),
+    online: ctx.online === undefined ? null : _irBool(ctx.online),
+    isAnonymous: _irBool(ctx.isAnonymous),
+    viewingAs: _irText(ctx.viewingAs, 80),
+    ua: _irText(ctx.ua, 300),
+    screenW: Number(ctx.screenW) || 0,
+    screenH: Number(ctx.screenH) || 0,
+    tz: _irText(ctx.tz, 60),
+    localTime: _irText(ctx.localTime, 60),
+    hstTime: _irText(ctx.hstTime, 60),
+    errors: _irList(ctx.errors),
+    breadcrumbs: _irList(ctx.breadcrumbs),
+    source: _irText(hr.source, 40),
+    reporterUid,
+    reporterName,
+    messageText: _irText(msg.text, 500),
+  };
+}
+
+/**
+ * The whole decision, as pure data in and pure data out. No Firestore, no
+ * clock, no admin SDK — the caller supplies `todayKey` and whatever open task
+ * it found, and gets back exactly what to write.
+ *
+ *   input.helpRequest  the raw object off the chat message
+ *   input.message      the chat message doc (sender, text)
+ *   input.convId       chat conversation id, stored for the reply-back link
+ *   input.msgId        chat message id
+ *   input.todayKey     HST YYYY-MM-DD
+ *   input.reportId     id of the issueReports doc, if it was written first
+ *   input.existing     null, or { id, notes, summary, count, followUpDate,
+ *                                 severity } for an already-open task on the
+ *                                 same (branch, section, day)
+ *
+ * Returns { mode: "create" | "attach", ... }. Timestamps are the caller's job;
+ * nothing here can produce a serverTimestamp.
+ */
+function _issueReportDecision(input) {
+  const inp = (input && typeof input === "object") ? input : {};
+  const n = _issueReportNormalize(inp.helpRequest, inp.message);
+
+  // A todayKey we cannot trust yields an EMPTY followUpDate rather than a
+  // guessed one. My Day shows open tasks with no follow-up date, so the task is
+  // still visible — it just carries no false due date.
+  // Shape alone is not enough: "2026-13-99" matches the pattern and is not a
+  // date. Round-tripping through toHstDateKey rejects it, and an unusable key
+  // yields an EMPTY followUpDate rather than a guessed one.
+  const todayKey = _irDateKey(inp.todayKey);
+  let followUpDate = "";
+  if (todayKey) {
+    if (n.urgent) {
+      followUpDate = todayKey;
+    } else {
+      try {
+        followUpDate = addDaysHst(todayKey, ISSUE_REPORT_DEFER_DAYS) || todayKey;
+      } catch (_) {
+        followUpDate = todayKey;
+      }
+    }
+  }
+
+  const convId = _irText(inp.convId, 128);
+  const msgId = _irText(inp.msgId, 128);
+  const reportId = _irText(inp.reportId, 128);
+
+  // Dedupe key: (day, branch, section). The day is IN the key so the key is a
+  // single equality filter that needs no composite index and whose result set
+  // stays tiny for ever, instead of a workflowStep query that grows without
+  // bound.
+  const dedupeKey = [todayKey || "nodate", n.branch, n.sectionKey || "nosection"].join("|");
+
+  const islandLabel = n.island || "LDAH";
+  const sectionLabel = n.section || "unknown area";
+  const baseSummary = _irText(
+    "Issue: " + n.branchLabel + " — " + sectionLabel +
+    " (" + islandLabel + ", " + n.severity + ")", ISSUE_REPORT_MAX_SUMMARY);
+
+  const facts = [];
+  facts.push("Severity: " + n.severity + (n.blocked ? " (blocked right now)" : ""));
+  if (n.wantsCall) facts.push("Asked for a call back");
+  facts.push("Island: " + islandLabel);
+  if (n.role) facts.push("Role: " + n.role);
+  if (n.appVersion) facts.push("Build: " + n.appVersion + (n.stale ? " (STALE — they may not be running current code)" : ""));
+  if (n.viewingAs) facts.push("Viewing as: " + n.viewingAs);
+  if (n.isAnonymous) facts.push("Anonymous session — no role, so pages would look empty to them");
+  if (n.screenW && n.screenH) facts.push("Screen: " + n.screenW + "x" + n.screenH);
+  if (n.tz) facts.push("Timezone: " + n.tz);
+  if (n.online === false) facts.push("Offline at the time");
+
+  const when = n.hstTime || todayKey || "an unknown time";
+
+  const lines = [];
+  lines.push(n.branchLabel);
+  if (n.detailLabel) lines.push("What happened: " + n.detailLabel);
+  if (n.note) lines.push("Their note: " + n.note);
+  if (!n.detailLabel && !n.note && n.messageText) lines.push("They wrote: " + n.messageText);
+  lines.push("");
+  lines.push("Reported by " + n.reporterName + " at " + when + " HST" +
+    (n.localTime && n.localTime !== n.hstTime ? " (" + n.localTime + " their time)" : "") + ".");
+  lines.push(facts.join(" · "));
+  if (n.errors.length) {
+    lines.push("Errors (" + n.errors.length + "): " + n.errors.slice(0, 3).join(" | "));
+  }
+  if (n.breadcrumbs.length) {
+    lines.push("Last steps: " + n.breadcrumbs.slice(-5).join(" → "));
+  }
+  lines.push("");
+  lines.push("Reply in Team Messages so the answer lands where they are looking: " +
+    ISSUE_REPORT_CHAT_URL);
+  if (reportId) {
+    lines.push("Full detail: " + ISSUE_REPORT_COLLECTION + "/" + reportId);
+  }
+  if (n.shape === "unknown") {
+    lines.push("This report arrived in a shape the trigger does not recognise, so " +
+      "it was kept whole rather than dropped — the detail document has everything.");
+  }
+  const notes = lines.join("\n").slice(0, ISSUE_REPORT_MAX_NOTES_DOC);
+
+  // The detail document. Everything, uncut by card legibility.
+  const report = {
+    shape: n.shape,
+    payloadVersion: n.version,
+    branch: n.branch,
+    branchLabel: n.branchLabel,
+    detail: n.detail,
+    detailLabel: n.detailLabel,
+    note: n.note,
+    blocked: n.blocked,
+    wantsCall: n.wantsCall,
+    severity: n.severity,
+    section: n.section,
+    island: n.island,
+    role: n.role,
+    appVersion: n.appVersion,
+    stale: n.stale,
+    online: n.online,
+    isAnonymous: n.isAnonymous,
+    viewingAs: n.viewingAs,
+    ua: n.ua,
+    screenW: n.screenW,
+    screenH: n.screenH,
+    tz: n.tz,
+    localTime: n.localTime,
+    hstTime: n.hstTime,
+    errors: n.errors,
+    breadcrumbs: n.breadcrumbs,
+    source: n.source,
+    reporterUid: n.reporterUid,
+    reporterName: n.reporterName,
+    messageText: n.messageText,
+    chatConvId: convId,
+    chatMessageId: msgId,
+    dayKey: todayKey,
+    dedupeKey,
+  };
+
+  const existing = (inp.existing && typeof inp.existing === "object") ? inp.existing : null;
+
+  if (existing && _irText(existing.id, 128)) {
+    // Someone already reported this today. Attach rather than raise a second
+    // task — five people hitting one outage is one job, not five.
+    const prevCount = Number(existing.count) || 1;
+    const count = prevCount + 1;
+    const prevSeverity = _irSeverity(existing.severity) || ISSUE_REPORT_DEFAULT_SEVERITY;
+    // Severity only ever ratchets UP. A "just curious" arriving after a
+    // "blocked" must not calm the task down.
+    const severity = _irIsUrgent(n.severity) || !_irIsUrgent(prevSeverity)
+      ? (ISSUE_REPORT_SEVERITIES.indexOf(n.severity) < ISSUE_REPORT_SEVERITIES.indexOf(prevSeverity)
+        ? n.severity : prevSeverity)
+      : prevSeverity;
+    // …and the follow-up date only ever moves EARLIER.
+    let nextFollowUp = _irText(existing.followUpDate, 10);
+    if (!nextFollowUp) nextFollowUp = followUpDate;
+    else if (followUpDate && followUpDate < nextFollowUp) nextFollowUp = followUpDate;
+
+    const baseExisting = _irText(existing.summary, ISSUE_REPORT_MAX_SUMMARY) || baseSummary;
+    const stripped = baseExisting.replace(/\s+—\s+\d+\s+reports?$/, "");
+    const summary = _irText(stripped + " — " + count + " reports", ISSUE_REPORT_MAX_SUMMARY);
+
+    const append = [
+      "",
+      "--- Report " + count + " ---",
+      "Also reported by " + n.reporterName + " at " + when + " HST. Severity: " + n.severity + ".",
+    ];
+    if (n.detailLabel) append.push("What happened: " + n.detailLabel);
+    if (n.note) append.push("Their note: " + n.note);
+    if (reportId) append.push("Detail: " + ISSUE_REPORT_COLLECTION + "/" + reportId);
+    const mergedNotes = (_irText(existing.notes, 0) ? String(existing.notes) : "")
+      .concat("\n", append.join("\n")).slice(0, ISSUE_REPORT_MAX_NOTES_DOC);
+
+    return {
+      mode: "attach",
+      normalized: n,
+      dedupeKey,
+      taskId: _irText(existing.id, 128),
+      severity,
+      followUpDate: nextFollowUp,
+      summary,
+      notes: mergedNotes,
+      reportCount: count,
+      taskUpdate: {
+        summary,
+        notes: mergedNotes,
+        followUpDate: nextFollowUp,
+        status: "Open",
+        issueReportSeverity: severity,
+        issueReportCount: count,
+      },
+      report,
+    };
+  }
+
+  return {
+    mode: "create",
+    normalized: n,
+    dedupeKey,
+    severity: n.severity,
+    followUpDate,
+    summary: baseSummary,
+    notes,
+    reportCount: 1,
+    // The interactions document, minus the timestamps only the caller can make.
+    task: {
+      channel: ISSUE_REPORT_CHANNEL,
+      interactionType: "",
+      workflowStep: ISSUE_REPORT_WORKFLOW_STEP,
+      contactId: "",
+      contactName: "",
+      contactType: "",
+      grantProgram: "",
+      summary: baseSummary,
+      notes,
+      followUpDate,
+      status: "Open",
+      isDraft: false,
+      owner: ISSUE_REPORT_OWNER_NAME,
+      ownerName: ISSUE_REPORT_OWNER_NAME,
+      ownerUid: ISSUE_REPORT_OWNER_UID,
+      createdBy: "System",
+      createdByUid: "system",
+      workflowEventId: reportId,
+      workflowEventCollection: ISSUE_REPORT_COLLECTION,
+      issueReportKey: dedupeKey,
+      issueReportBranch: n.branch,
+      issueReportSection: n.sectionKey,
+      issueReportDay: todayKey,
+      issueReportSeverity: n.severity,
+      issueReportCount: 1,
+      issueReportShape: n.shape,
+      chatConvId: convId,
+      chatMessageId: msgId,
+      chatSenderUid: n.reporterUid,
+    },
+    report,
+  };
+}
+
+/**
+ * The already-open task for this key, or null. Single-field equality, filtered
+ * in code — two equality filters would need a composite index and this must
+ * never fail for want of one.
+ *
+ * The caller treats a THROW as "no existing task", so a broken query produces a
+ * duplicate rather than a silence.
+ */
+async function _issueReportFindOpenTask(db, dedupeKey) {
+  if (!db || !dedupeKey) return null;
+  const snap = await db.collection("interactions")
+    .where("issueReportKey", "==", dedupeKey).limit(20).get();
+  let found = null;
+  snap.forEach((doc) => {
+    if (found) return;
+    const d = doc.data() || {};
+    if (d.status !== "Open") return;
+    found = {
+      id: doc.id,
+      notes: d.notes || "",
+      summary: d.summary || "",
+      count: Number(d.issueReportCount) || 1,
+      followUpDate: d.followUpDate || "",
+      severity: d.issueReportSeverity || "",
+    };
+  });
+  return found;
+}
+
+/** JSON-safe copy of the raw payload, so nothing is lost to a shape change. */
+function _issueReportRaw(helpRequest) {
+  try {
+    const json = JSON.stringify(helpRequest);
+    if (!json) return { rawJson: "" };
+    if (json.length <= ISSUE_REPORT_MAX_RAW_JSON) return { raw: JSON.parse(json) };
+    return { rawJson: json.slice(0, ISSUE_REPORT_MAX_RAW_JSON) };
+  } catch (e) {
+    return { rawJson: "unserialisable: " + (e && e.message ? e.message : "unknown") };
+  }
+}
+
+// Fires on every chat message and returns immediately for the overwhelming
+// majority that carry no helpRequest, so the cost is one field read.
+exports.onChatHelpRequest = functions
+  .runWith({ timeoutSeconds: 120, memory: "256MB", maxInstances: 10 })
+  .firestore.document("chatConversations/{convId}/messages/{msgId}")
+  .onCreate(async (snap, context) => {
+    const msg = (snap && typeof snap.data === "function" ? snap.data() : null) || {};
+    const hr = msg.helpRequest;
+    if (!hr || typeof hr !== "object" || Array.isArray(hr)) return null;
+
+    const db = admin.firestore();
+    const FieldValue = admin.firestore.FieldValue;
+    const convId = (context && context.params && context.params.convId) || "";
+    const msgId = (context && context.params && context.params.msgId) || "";
+    const todayKey = toHstDateKey(new Date());
+
+    // First pass with no existing task, purely to learn the dedupe key.
+    const probe = _issueReportDecision({ helpRequest: hr, message: msg, convId, msgId, todayKey });
+
+    // FAIL CLOSED: a dedupe lookup that throws is treated as "nothing found".
+    // A second task about the same outage is a minor annoyance; a swallowed
+    // report is the failure this whole function exists to prevent.
+    let existing = null;
+    try {
+      existing = await _issueReportFindOpenTask(db, probe.dedupeKey);
+    } catch (e) {
+      console.warn("issueReport: dedupe lookup failed, creating anyway:", e.message);
+      existing = null;
+    }
+
+    // The detail document is written first so the task can point at it. If it
+    // fails, the task is still written — it just carries no detail reference.
+    let reportId = "";
+    try {
+      const ref = await db.collection(ISSUE_REPORT_COLLECTION).add(Object.assign(
+        {}, probe.report, _issueReportRaw(hr),
+        { createdAt: FieldValue.serverTimestamp() },
+      ));
+      reportId = ref.id;
+    } catch (e) {
+      console.error("issueReport: detail write failed, task will carry no detail ref:", e.message);
+    }
+
+    const decision = _issueReportDecision({
+      helpRequest: hr, message: msg, convId, msgId, todayKey, reportId, existing,
+    });
+
+    try {
+      if (decision.mode === "attach") {
+        await db.collection("interactions").doc(decision.taskId).set(Object.assign(
+          {}, decision.taskUpdate, { updatedAt: FieldValue.serverTimestamp() },
+        ), { merge: true });
+        if (reportId) {
+          await db.collection(ISSUE_REPORT_COLLECTION).doc(reportId)
+            .set({ taskId: decision.taskId, attachedToExisting: true }, { merge: true });
+        }
+        console.log("issueReport: attached report", decision.reportCount,
+          "to task", decision.taskId, "key", decision.dedupeKey);
+        return null;
+      }
+
+      const ref = await db.collection("interactions").add(Object.assign(
+        {}, decision.task,
+        { createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() },
+      ));
+      if (reportId) {
+        await db.collection(ISSUE_REPORT_COLLECTION).doc(reportId)
+          .set({ taskId: ref.id, attachedToExisting: false }, { merge: true });
+      }
+      console.log("issueReport: raised task", ref.id, "key", decision.dedupeKey,
+        "severity", decision.severity, "due", decision.followUpDate);
+    } catch (e) {
+      // Last resort. The detail document is already on disk, so the report
+      // itself is not lost even when the task write fails.
+      console.error("issueReport: task write FAILED for report", reportId, ":", e.message);
+    }
+    return null;
+  });
+
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
@@ -26022,4 +26636,19 @@ exports.__test = {
   PENDING_SIGNUP_NUDGE_INCLUDE_PAST_EVENTS,
   PENDING_SIGNUP_ACTIVE_STATUSES,
   PENDING_SIGNUP_NUDGE_WORKFLOW_STEP,
+  _issueReportDecision,
+  _issueReportNormalize,
+  _issueReportFindOpenTask,
+  _issueReportRaw,
+  _irSeverity,
+  _irSlug,
+  _irText,
+  ISSUE_REPORT_WORKFLOW_STEP,
+  ISSUE_REPORT_COLLECTION,
+  ISSUE_REPORT_CHANNEL,
+  ISSUE_REPORT_OWNER_UID,
+  ISSUE_REPORT_OWNER_NAME,
+  ISSUE_REPORT_URGENT_SEVERITIES,
+  ISSUE_REPORT_DEFER_DAYS,
+  ISSUE_REPORT_SEVERITIES,
 };
