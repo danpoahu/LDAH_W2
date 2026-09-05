@@ -29,6 +29,9 @@
 //   • Killable instantly: system/itHelpAssistant.enabled = false.
 //   • Waits before answering unless the person said they are blocked, so a
 //     human gets first refusal; skips entirely if a human answered meanwhile.
+//   • Every reply ends by saying Daniel has been notified too.
+//   • Never leaves the person with silence: if no answer can be produced, it
+//     says so in the thread rather than failing quietly.
 // ═══════════════════════════════════════════════════════════════════════════
 
 const functions = require("firebase-functions");
@@ -64,6 +67,50 @@ const PRICING = {
 };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Every automatic answer ends with this line (Daniel, 2026-09-04): "have the form
+// live in the chat, but if you attempt to answer yourself just let the user know
+// that i have also been notified." No time promise — only that a person knows.
+const NOTIFIED_LINE = "Daniel has also been notified about this and will follow up with you.";
+
+// Posted into the thread when no automatic answer could be produced. Before this,
+// a failure was silent: a Pacific partner asked for help and got nothing back at
+// all, with nothing to tell her anything had gone wrong.
+const FALLBACK_MESSAGE =
+  "I was not able to put an answer together for this one. " + NOTIFIED_LINE;
+
+// Adds the "a person knows too" line to an answer, once.
+function withNotifiedLine(text) {
+  const body = String(text || "").trim();
+  if (!body) return body;
+  if (body.indexOf(NOTIFIED_LINE) !== -1) return body;
+  return body + "\n\n" + NOTIFIED_LINE;
+}
+
+/* Turn the stored thread into a messages array the API will accept.
+
+   The conversation must END on a user turn. An assistant message last reads as a
+   prefill, and current models reject it outright with a 400. That is not
+   theoretical: it happened three times in the first eighteen live attempts. The
+   function waits a minute before answering so a person gets first refusal, and if
+   a second automatic reply landed during that wait — which is what happens when
+   somebody asks two questions in quick succession — the reversed history ended on
+   an assistant turn and the entire answer was lost.
+
+   So: drop trailing assistant turns (they are our own replies; there is nothing
+   in them to answer), then drop leading assistant turns (the first message has to
+   be a user one). What is left is the question, or nothing at all. */
+function buildApiMessages(history) {
+  const messages = (history || [])
+    .filter((m) => m && String(m.text || "").trim())
+    .map((m) => ({
+      role: m.fromHelpdesk ? "assistant" : "user",
+      content: String(m.text || "").slice(0, 2000),
+    }));
+  while (messages.length && messages[messages.length - 1].role === "assistant") messages.pop();
+  while (messages.length && messages[0].role === "assistant") messages.shift();
+  return messages;
+}
 
 async function loadConfig(db) {
   try {
@@ -105,9 +152,17 @@ async function repliesTodayForThread(db, convId) {
 
    The SDK pinned here is old (0.39.0), so `output_config` may not be understood
    by the installed client. If the API rejects it we retry once without it rather
-   than failing the reply — the answer matters more than the effort setting. */
-async function askClaude(cfg, history, askerName) {
-  const client = new Anthropic();
+   than failing the reply — the answer matters more than the effort setting.
+
+   Returns { skipped, reason } when the thread holds no question to answer, so the
+   caller can log it and stop WITHOUT spending a call. `client` is injectable so
+   the tests can prove no call is made in that case. */
+async function answerFromHistory(cfg, history, askerName, client) {
+  const messages = buildApiMessages(history);
+  if (!messages.length) {
+    return { skipped: true, reason: "nothing left to answer — the thread ends on an automatic reply" };
+  }
+  client = client || new Anthropic();
 
   const system = [
     {
@@ -140,14 +195,6 @@ async function askClaude(cfg, history, askerName) {
     },
   ];
 
-  const messages = history.map((m) => ({
-    role: m.fromHelpdesk ? "assistant" : "user",
-    content: String(m.text || "").slice(0, 2000),
-  }));
-  if (!messages.length || messages[0].role !== "user") {
-    messages.unshift({ role: "user", content: "(no message text)" });
-  }
-
   const base = {
     model: cfg.model,
     max_tokens: cfg.maxTokens,
@@ -169,7 +216,11 @@ async function askClaude(cfg, history, askerName) {
 
   const text = (response.content || [])
     .filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
-  return { text, usage: response.usage || {}, stopReason: response.stop_reason };
+  return {
+    text: withNotifiedLine(text),
+    usage: response.usage || {},
+    stopReason: response.stop_reason,
+  };
 }
 
 exports.itHelpAutoAnswer = functions
@@ -240,42 +291,74 @@ exports.itHelpAutoAnswer = functions
     history.reverse();
 
     // ── ask, then post ───────────────────────────────────────────────────
-    let answer, usage = {}, failed = null;
+    const FieldValue = admin.firestore.FieldValue;
+
+    // Posting into the thread, used for both the answer and the "could not
+    // answer" notice, so a failure can never leave the person with silence.
+    const postToThread = async (text, extra) => {
+      await convRef.collection("messages").add(Object.assign({
+        senderId: IT_HELP_UID,
+        senderName: "IT_Help",
+        text,
+        isAutoReply: true,               // the UI badges on this
+        createdAt: FieldValue.serverTimestamp(),
+        readBy: [IT_HELP_UID],
+      }, extra || {}));
+      await convRef.update({
+        lastMessage: text.length > 80 ? text.slice(0, 80) + "…" : text,
+        lastMessageAt: FieldValue.serverTimestamp(),
+        lastSenderId: IT_HELP_UID,
+        lastReadBy: [IT_HELP_UID],
+      });
+    };
+
+    let answer, usage = {}, failed = null, skippedReason = null;
     try {
-      const r = await askClaude(cfg, history, askerName);
-      answer = r.text; usage = r.usage;
-      if (r.stopReason === "refusal") failed = "declined";
+      const r = await answerFromHistory(cfg, history, askerName);
+      if (r.skipped) {
+        skippedReason = r.reason;
+      } else {
+        answer = r.text; usage = r.usage;
+        if (r.stopReason === "refusal") failed = "declined";
+      }
     } catch (e) {
       failed = e.message;
       console.error("itHelp: Claude call failed:", e.message);
     }
 
+    // Nothing was actually asked — our own reply is the last word in the thread.
+    // Log it and stop; posting a notice here would be noise, not help.
+    if (skippedReason) {
+      await db.collection(LOG_COLLECTION).add({
+        convId, askerUid, askerName, dayKey,
+        question: String(msg.text || "").slice(0, 400),
+        suppressed: true, suppressedReason: skippedReason,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      console.log("itHelp:", skippedReason, "in", convId, "— staying quiet");
+      return null;
+    }
+
     if (failed || !answer) {
+      // The person asked and is waiting. Say so plainly rather than say nothing.
+      let noticePosted = false;
+      try {
+        await postToThread(FALLBACK_MESSAGE, { isFallbackNotice: true });
+        noticePosted = true;
+      } catch (e) {
+        console.error("itHelp: could not post the fallback notice:", e.message);
+      }
       await db.collection(LOG_COLLECTION).add({
         convId, askerUid, askerName, dayKey,
         question: String(msg.text || "").slice(0, 400),
         suppressed: true, suppressedReason: "no answer produced: " + (failed || "empty"),
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        noticePosted,
+        createdAt: FieldValue.serverTimestamp(),
       });
       return null;
     }
 
-    const FieldValue = admin.firestore.FieldValue;
-    await convRef.collection("messages").add({
-      senderId: IT_HELP_UID,
-      senderName: "IT_Help",
-      text: answer,
-      isAutoReply: true,                 // the UI badges on this
-      autoReplyModel: cfg.model,
-      createdAt: FieldValue.serverTimestamp(),
-      readBy: [IT_HELP_UID],
-    });
-    await convRef.update({
-      lastMessage: answer.length > 80 ? answer.slice(0, 80) + "…" : answer,
-      lastMessageAt: FieldValue.serverTimestamp(),
-      lastSenderId: IT_HELP_UID,
-      lastReadBy: [IT_HELP_UID],
-    });
+    await postToThread(answer, { autoReplyModel: cfg.model });
 
     await db.collection(LOG_COLLECTION).add({
       convId, askerUid, askerName, dayKey,
@@ -298,4 +381,8 @@ exports.itHelpAutoAnswer = functions
     return null;
   });
 
-exports.__itHelpTest = { estimateCostUsd, PRICING, DEFAULTS, IT_HELP_UID };
+exports.__itHelpTest = {
+  estimateCostUsd, PRICING, DEFAULTS, IT_HELP_UID,
+  buildApiMessages, withNotifiedLine, answerFromHistory,
+  NOTIFIED_LINE, FALLBACK_MESSAGE,
+};
