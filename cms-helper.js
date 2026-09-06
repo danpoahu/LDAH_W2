@@ -1,17 +1,20 @@
 /* ============================================================
-   CMS AI Helper — Chat Widget for LDAH Page Editor
-   Provides context-aware help via local Q&A cache + Cloud API
+   CMS Help — Lookup Widget for the LDAH CMS and Page Editor
+
+   This helper answers from the written list of questions and
+   answers below. It makes no network call. The small AI service
+   that used to sit behind it has been retired, so the helper now
+   shows only answers that are written out in this file, and says
+   plainly when it does not have one.
    ============================================================ */
 
 (function () {
   "use strict";
 
-  /* ---- Configuration ---- */
-  var CLOUD_FUNCTION_URL = "https://us-central1-ldah-932d5.cloudfunctions.net/ldahCmsHelp";
-  var MAX_HISTORY = 10;
-  var MAX_HISTORY_CHARS = 1000;
-
-  /* ---- Local Q&A Cache ---- */
+  /* ---- Saved questions and answers ----
+     KEEP — retained deliberately. The matching list in the internal
+     repo is being folded into the IT_Help assistant knowledge base.
+     Do not delete this copy until that migration is confirmed. */
   var qaCache = [
     {
       patterns: ["edit", "text", "change text", "modify text", "update text"],
@@ -81,7 +84,7 @@
     {
       patterns: ["help", "support", "contact help", "who to call", "daniel", "dp consulting"],
       answer:
-        "For additional help, contact Daniel at DP Consulting. He can assist with anything beyond what this helper covers."
+        "For anything this helper does not cover, contact DP Consulting."
     },
     {
       patterns: ["undo", "revert", "go back", "undo changes", "mistake"],
@@ -136,7 +139,7 @@
   function createHelpButton() {
     var btn = document.createElement("button");
     btn.className = "cms-help-btn";
-    btn.setAttribute("aria-label", "Open help chat");
+    btn.setAttribute("aria-label", "Open help topics");
     btn.innerHTML =
       '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
       '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92' +
@@ -163,7 +166,7 @@
 
     var closeBtn = document.createElement("button");
     closeBtn.className = "cms-chat-close";
-    closeBtn.setAttribute("aria-label", "Close help chat");
+    closeBtn.setAttribute("aria-label", "Close help topics");
     closeBtn.innerHTML = "&times;";
     closeBtn.addEventListener("click", togglePanel);
 
@@ -248,8 +251,8 @@
       // Show greeting if first open
       if (chatHistory.length === 0) {
         appendBotMessage(isCmsPage
-          ? "Hi! I'm your CMS helper. Ask me about managing team, board, gallery, FAQ, events, volunteers, resources, or data."
-          : "Hi! I'm your Page Editor helper. What would you like to know?");
+          ? "Aloha! This helper looks up saved answers about the CMS. Ask about team, board, gallery, resources, FAQ, events and signups, volunteers, form submissions, exporting to CSV, or reordering items."
+          : "Aloha! This helper looks up saved answers about the Page Editor. Ask about editing text, changing photos, the hero banner, formatting, saving and cancelling, island pages, contact details, or file size limits.");
       }
       // Focus the input
       var input = document.getElementById("cmsChatInput");
@@ -281,8 +284,18 @@
       return;
     }
 
-    // Otherwise call the API
-    callAPI(trimmed);
+    // Nothing saved matches. Say so plainly instead of guessing, and never
+    // suggest a connection problem — there is nothing left to connect to.
+    appendBotMessage(noMatchMessage());
+  }
+
+  /** Honest reply when nothing in the saved list matches */
+  function noMatchMessage() {
+    var topics = isCmsPage
+      ? "team and board, gallery photos, resources, FAQ, events and signups, volunteers, form submissions, exporting to CSV, and reordering items"
+      : "editing text, changing photos, the hero banner, formatting, saving and cancelling, island pages, contact details, and file size limits";
+    return "I do not have a saved answer for that one. I can help with " + topics +
+           " — try asking about one of those. For anything else, contact DP Consulting.";
   }
 
   /** Try to match user input against the local Q&A cache */
@@ -327,81 +340,6 @@
     return null;
   }
 
-  /** Detect the current page/tab context */
-  function getCurrentPageContext() {
-    if (isCmsPage) {
-      var activeTab = document.querySelector(".tab.active, .tab[style*='background']");
-      if (activeTab) return "CMS > " + activeTab.textContent.trim();
-      return "CMS dashboard";
-    }
-    var activeBtn = document.querySelector(".side-btn.active");
-    if (activeBtn) {
-      return activeBtn.textContent.trim();
-    }
-    return "unknown page";
-  }
-
-  /** Build truncated history for API request */
-  function buildHistoryPayload() {
-    var recent = chatHistory.slice(-MAX_HISTORY);
-    var result = [];
-    for (var i = 0; i < recent.length; i++) {
-      result.push({
-        role: recent[i].role === "bot" ? "assistant" : "user",
-        content: String(recent[i].text).slice(0, MAX_HISTORY_CHARS)
-      });
-    }
-    return result;
-  }
-
-  /** Call the Cloud Function API */
-  function callAPI(userMessage) {
-    showTypingIndicator();
-
-    var payload = {
-      message: userMessage,
-      pageContext: getCurrentPageContext(),
-      history: buildHistoryPayload()
-    };
-
-    var xhr = new XMLHttpRequest();
-    xhr.open("POST", CLOUD_FUNCTION_URL, true);
-    xhr.setRequestHeader("Content-Type", "application/json");
-    xhr.timeout = 15000;
-
-    xhr.onload = function () {
-      hideTypingIndicator();
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          var data = JSON.parse(xhr.responseText);
-          var reply = data.reply || data.message || data.response || "I received your question but got an empty response. Please try again.";
-          appendBotMessage(reply);
-        } catch (e) {
-          appendBotMessage("Sorry, I got an unexpected response. Try again or contact Daniel at DP Consulting.");
-        }
-      } else {
-        appendBotMessage("Sorry, I couldn't connect. Try again or contact Daniel at DP Consulting.");
-      }
-    };
-
-    xhr.onerror = function () {
-      hideTypingIndicator();
-      appendBotMessage("Sorry, I couldn't connect. Try again or contact Daniel at DP Consulting.");
-    };
-
-    xhr.ontimeout = function () {
-      hideTypingIndicator();
-      appendBotMessage("The request timed out. Please try again or contact Daniel at DP Consulting.");
-    };
-
-    try {
-      xhr.send(JSON.stringify(payload));
-    } catch (e) {
-      hideTypingIndicator();
-      appendBotMessage("Sorry, I couldn't connect. Try again or contact Daniel at DP Consulting.");
-    }
-  }
-
   /* ===========================================================
      Message Rendering
      =========================================================== */
@@ -430,36 +368,6 @@
     msg.textContent = text;
     container.appendChild(msg);
     scrollToBottom(container);
-  }
-
-  /** Show the typing indicator (3 bouncing dots) */
-  function showTypingIndicator() {
-    var container = document.getElementById("cmsChatMessages");
-    if (!container) return;
-
-    // Remove existing indicator if any
-    hideTypingIndicator();
-
-    var typing = document.createElement("div");
-    typing.className = "cms-typing";
-    typing.id = "cmsTypingIndicator";
-
-    for (var d = 0; d < 3; d++) {
-      var dot = document.createElement("span");
-      dot.className = "cms-typing-dot";
-      typing.appendChild(dot);
-    }
-
-    container.appendChild(typing);
-    scrollToBottom(container);
-  }
-
-  /** Remove the typing indicator */
-  function hideTypingIndicator() {
-    var indicator = document.getElementById("cmsTypingIndicator");
-    if (indicator && indicator.parentNode) {
-      indicator.parentNode.removeChild(indicator);
-    }
   }
 
   /** Scroll messages container to the bottom */
@@ -521,7 +429,7 @@
 
     var link = document.createElement("a");
     link.className = "cms-info-popover-link";
-    link.textContent = "Still need help? Ask our assistant";
+    link.textContent = "Still need help? Search the help topics";
     link.href = "#";
     link.addEventListener("click", function (e) {
       e.preventDefault();
