@@ -1224,6 +1224,34 @@
   
   <!-- Events Page Logic -->
   <script>
+    // ── Public listing gate ───────────────────────────────────────────────
+    // Single place that decides whether an event may appear on ANY public
+    // surface of this page: the Current/Past card carousels, their count
+    // badges, and the calendar grid. Every clause only ever HIDES, and every
+    // test is strict, so an event missing the field is always still listed.
+    //
+    //   archived      Staff archived it in LDAH-Int. Archiving has to hide an
+    //                 event everywhere, not just on the report it was archived
+    //                 from.
+    //   isOneOff      One-off entries are retrospective attendance records
+    //                 logged AFTER the activity already happened (IEP meetings,
+    //                 outreach, screenings). They exist to credit participation,
+    //                 never to advertise anything, so they must never reach a
+    //                 public calendar or card list. They do carry startDate /
+    //                 moveToPastDate, so the date window alone will not stop
+    //                 them.
+    //   partnerIsland A Pacific Basin partner's own event, scoped to their
+    //                 island. It is their work, not LDAH's public programme.
+    function isPubliclyListable(ev) {
+      if (!ev) return false;
+      if (ev.archived === true) return false;
+      if (ev.isOneOff === true) return false;
+      var pi = ev.partnerIsland;
+      if (typeof pi === 'string' && pi.trim() !== '') return false;
+      if (Array.isArray(pi) && pi.length > 0) return false;
+      return true;
+    }
+
     (function() {
       'use strict';
 
@@ -1331,7 +1359,7 @@
           // Filter current events (between startDate and moveToPastDate)
           const upcomingEvents = allEvents.filter(event => {
             try {
-              if (event.archived === true) return false;
+              if (!isPubliclyListable(event)) return false;
               if (!event.startDate || !event.moveToPastDate) return false;
               const startDate = new Date(event.startDate + 'T00:00:00');
               const moveToPastDate = new Date(event.moveToPastDate + 'T00:00:00');
@@ -1343,7 +1371,7 @@
           // Filter past events (between moveToPastDate and removeDate)
           const pastEvents = allEvents.filter(event => {
             try {
-              if (event.archived === true) return false;
+              if (!isPubliclyListable(event)) return false;
               if (!event.moveToPastDate || !event.removeDate) return false;
               const moveToPastDate = new Date(event.moveToPastDate + 'T00:00:00');
               const removeDate = new Date(event.removeDate + 'T00:00:00');
@@ -1746,9 +1774,10 @@
     
     // Get all calendar items (events + approved requests)
     function getAllCalendarItems() {
-      // Exclude archived events — archiving must hide an event everywhere,
-      // including the calendar (the card lists already filter archived).
-      const regularEvents = (window.allEventsData || []).filter(e => e.archived !== true);
+      // Archived, one-off and partner events are excluded here for exactly the
+      // reasons in isPubliclyListable — the calendar is a public surface like
+      // the card lists, and a one-off is a record of something already over.
+      const regularEvents = (window.allEventsData || []).filter(isPubliclyListable);
       const approvedRequests = window.approvedEventRequests || [];
       return [...regularEvents, ...approvedRequests];
     }

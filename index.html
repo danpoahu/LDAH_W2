@@ -673,7 +673,34 @@
     <script>
     firebase.initializeApp({ apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk", authDomain: "ldah-932d5.firebaseapp.com", projectId: "ldah-932d5", storageBucket: "ldah-932d5.firebasestorage.app", messagingSenderId: "662130454003", appId: "1:662130454003:web:437576d5a5811ecd8df686" });
     const db = firebase.firestore();
-    
+
+    // ── Public listing gate ───────────────────────────────────────────────
+    // Single place that decides whether an event may appear on ANY public
+    // surface of the home page: the Upcoming Events cards and the Information
+    // section. Every clause only ever HIDES, and every test is strict, so an
+    // event missing the field is always still listed.
+    //
+    //   archived      Staff archived it in LDAH-Int. Archiving has to hide an
+    //                 event everywhere, not just on the report it was archived
+    //                 from.
+    //   isOneOff      One-off entries are retrospective attendance records
+    //                 logged AFTER the activity already happened (IEP meetings,
+    //                 outreach, screenings). They exist to credit participation,
+    //                 never to advertise anything. They do carry startDate /
+    //                 moveToPastDate, so the date window alone will not stop
+    //                 them.
+    //   partnerIsland A Pacific Basin partner's own event, scoped to their
+    //                 island. It is their work, not LDAH's public programme.
+    function isPubliclyListable(ev) {
+      if (!ev) return false;
+      if (ev.archived === true) return false;
+      if (ev.isOneOff === true) return false;
+      var pi = ev.partnerIsland;
+      if (typeof pi === 'string' && pi.trim() !== '') return false;
+      if (Array.isArray(pi) && pi.length > 0) return false;
+      return true;
+    }
+
     async function loadPageContent() {
         try {
             const doc = await db.collection('pageContent').doc('home').get();
@@ -750,7 +777,7 @@
             // Regular upcoming events (up to 2). Information-only flyers are
             // pulled out into their own section below, never shown here.
             const currentEvents = eventsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(event => {
-                if (event.archived === true) return false;
+                if (!isPubliclyListable(event)) return false;
                 if (event.infoOnly === true) return false;
                 // Screening / Outreach Booth are calendar-only — never a home-page
                 // card, flyer or not. Remote Signup is not specialEvent and still
@@ -874,7 +901,7 @@
             // No risk of double-listing: the currentEvents filter above already
             // drops both infoOnly and specialEvent.
             const infoEvents = eventsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(event => {
-                if (event.archived === true) return false;
+                if (!isPubliclyListable(event)) return false;
                 if (event.infoOnly !== true && event.specialEvent !== true) return false;
                 if (!event.imageUrl) return false;
                 if (!event.startDate || !event.moveToPastDate) return false;
