@@ -124,7 +124,7 @@ check('a shared LAST name is not a match',
 check('an identical name merges with no corroboration at all',
   matches({ name: 'Mason Quillan' }, { name: 'Mason Quillan' }), true);
 check('an exact name match ignores case and extra spacing',
-  matches({ name: '  mason   paras ' }, { name: 'MASON PARAS' }), true);
+  matches({ name: '  mason   quillan ' }, { name: 'MASON QUILLAN' }), true);
 check('an exact name match holds even when age bands differ',
   matches({ name: 'Mason Quillan', ageRange: '3-5', gender: 'Male' },
           { name: 'Mason Quillan', ageRange: '13-17', gender: 'Male' }), true);
