@@ -3609,6 +3609,179 @@ exports.onVolunteerApplicationUpdated = functions
 // object and a linkedContactId, enrich the contact record with
 // location and type from the registration demographics.
 
+// ── Child record matching (pure; exported via __test) ───────────────────────
+// A returning family re-registers the SAME child under a new signup, and the
+// name typed the second time is not always the name typed the first: one boy
+// arrived as "<first> <last>" in May and as just "<first>" in September, so
+// exact-string matching filed him twice. 210 child rows, 27 contacts affected.
+//
+// MERGING TWO REAL SIBLINGS IS FAR WORSE THAN LEAVING A DUPLICATE — it destroys
+// one child's record and under-reports the family, and it is not reversible
+// from the data left behind. So every rule below fails toward keeping rows
+// apart:
+//
+//   * exact name (case-insensitive, whitespace-collapsed) merges, as it always
+//     has — no corroboration required, that is today's behaviour;
+//   * otherwise the FIRST NAME must match, AND ageRange must agree, AND gender
+//     must agree. All three. A bare first name is never enough: brothers share
+//     nicknames, and age band + gender is the cheapest corroboration we hold;
+//   * a missing ageRange or gender on EITHER side counts as NOT corroborated,
+//     never as "agrees";
+//   * and one name's tokens must be a PREFIX of the other's, so "Mason" merges
+//     into "Mason Quillan" while "Mason Quillan" and "Mason Bramwell" — two fully
+//     named children — stay apart even when age band and gender line up. This
+//     is stricter than first-name-plus-corroboration alone; the cost of being
+//     wrong here is a duplicate, which staff can merge by hand, and the cost of
+//     being wrong the other way is a lost child;
+//   * nameless rows never match anything, including each other.
+const _childNorm = (v) => String(v == null ? "" : v).trim().replace(/\s+/g, " ");
+const _childNameTokens = (v) => {
+  const s = _childNorm(v).toLowerCase();
+  return s ? s.split(" ") : [];
+};
+// Read canonical key first, tolerate the legacy child-prefixed key still in old
+// rows. Age bands are canonicalised on both sides so a legacy "6-11 yrs" row
+// compares equal to a freshly written "6-12".
+const _childAgeOf = (c) => _canonAgeRange(_childNorm(c && (c.ageRange || c.childAgeRange))).toLowerCase();
+const _childGenderOf = (c) => _childNorm(c && (c.gender || c.childGender)).toLowerCase();
+const _childTokensArePrefix = (a, b) => {
+  const short = a.length <= b.length ? a : b;
+  const long = a.length <= b.length ? b : a;
+  return short.every((t, i) => t === long[i]);
+};
+
+function _childMatches(a, b) {
+  if (!a || !b || typeof a !== "object" || typeof b !== "object") return false;
+  const at = _childNameTokens(a.name);
+  const bt = _childNameTokens(b.name);
+  if (!at.length || !bt.length) return false;          // nameless never matches
+  if (at.join(" ") === bt.join(" ")) return true;      // exact name — as today
+  if (at[0] !== bt[0]) return false;                   // different first names
+  if (!_childTokensArePrefix(at, bt)) return false;    // two fully named children
+  const aAge = _childAgeOf(a); const bAge = _childAgeOf(b);
+  if (!aAge || !bAge || aAge !== bAge) return false;   // missing == not corroborated
+  const aGen = _childGenderOf(a); const bGen = _childGenderOf(b);
+  if (!aGen || !bGen || aGen !== bGen) return false;
+  return true;
+}
+
+function _findChildMatchIndex(list, entry) {
+  if (!Array.isArray(list)) return -1;
+  return list.findIndex((c) => _childMatches(c, entry));
+}
+
+// Every signup key a row now stands for. sourceSignupId is the per-child
+// idempotency key; once rows are merged — by the rule above, or by a human
+// collapsing several rows in Int — one scalar cannot hold every key the row
+// represents, so the keys live in sourceSignupIds[] and the scalar is kept for
+// readers that still expect it. A hand-merged row therefore has a populated
+// array and a scalar that no longer covers all of it; both are consulted.
+function _childSourceKeys(c) {
+  if (!c || typeof c !== "object") return [];
+  const out = [];
+  const push = (v) => { const s = _childNorm(v); if (s && out.indexOf(s) === -1) out.push(s); };
+  if (Array.isArray(c.sourceSignupIds)) c.sourceSignupIds.forEach(push);
+  push(c.sourceSignupId);
+  return out;
+}
+
+function _childHasSourceKey(list, key) {
+  const k = _childNorm(key);
+  if (!k || !Array.isArray(list)) return false;
+  return list.some((c) => _childSourceKeys(c).indexOf(k) !== -1);
+}
+
+// addedAt may be a Firestore Timestamp, a Date, epoch millis or an ISO string
+// depending on how old the row is. Unparseable = unknown, never 0.
+function _childAddedMillis(v) {
+  if (v == null) return null;
+  if (typeof v.toMillis === "function") { try { return v.toMillis(); } catch (e) { return null; } }
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v.getTime();
+  if (typeof v === "number") return isFinite(v) ? v : null;
+  if (typeof v === "string") { const t = Date.parse(v); return isNaN(t) ? null : t; }
+  if (typeof v.seconds === "number") return v.seconds * 1000;
+  return null;
+}
+
+// Merge the incoming (newer) entry INTO the existing one. Nothing is
+// overwritten blind:
+//   name        — the longer spelling wins ("Mason Quillan" over "Mason")
+//   ageRange, gender, grade, school, notes — fill blanks only; staff-entered
+//                 values on the existing row are never replaced
+//   ethnicity   — the newer non-empty answer wins, but an existing answer is
+//                 never blanked, and a genuine disagreement is preserved in
+//                 ethnicityPrevious[] so the conflict stays visible instead of
+//                 being quietly resolved
+//   disabilityCategories — unioned, never replaced
+//   addedAt     — the EARLIEST survives (when the child first reached us)
+//   sourceSignupIds — union of every contributing key
+function _mergeChildEntries(existing, incoming) {
+  const cur = Object.assign({}, (existing && typeof existing === "object") ? existing : {});
+  const inc = (incoming && typeof incoming === "object") ? incoming : {};
+
+  const curName = _childNorm(cur.name);
+  const incName = _childNorm(inc.name);
+  if (incName.length > curName.length) cur.name = inc.name;
+
+  ["ageRange", "gender", "grade", "school", "notes"].forEach((f) => {
+    if (!_childNorm(cur[f]) && _childNorm(inc[f])) cur[f] = inc[f];
+  });
+
+  const curEth = _childNorm(cur.ethnicity);
+  const incEth = _childNorm(inc.ethnicity);
+  if (incEth && !curEth) {
+    cur.ethnicity = inc.ethnicity;
+  } else if (incEth && curEth && incEth.toLowerCase() !== curEth.toLowerCase()) {
+    const prior = Array.isArray(cur.ethnicityPrevious) ? cur.ethnicityPrevious.slice() : [];
+    if (prior.indexOf(cur.ethnicity) === -1) prior.push(cur.ethnicity);
+    cur.ethnicityPrevious = prior;
+    cur.ethnicity = inc.ethnicity;
+  }
+
+  const seen = {}; const dis = [];
+  (Array.isArray(cur.disabilityCategories) ? cur.disabilityCategories : [])
+    .concat(Array.isArray(inc.disabilityCategories) ? inc.disabilityCategories : [])
+    .forEach((d) => {
+      const s = _childNorm(d);
+      if (s && !seen[s]) { seen[s] = true; dis.push(s); }
+    });
+  if (dis.length) cur.disabilityCategories = dis;
+
+  const curMs = _childAddedMillis(cur.addedAt);
+  const incMs = _childAddedMillis(inc.addedAt);
+  if (cur.addedAt == null && inc.addedAt != null) cur.addedAt = inc.addedAt;
+  else if (curMs == null && incMs != null) cur.addedAt = inc.addedAt;
+  else if (curMs != null && incMs != null && incMs < curMs) cur.addedAt = inc.addedAt;
+
+  const keys = _childSourceKeys(cur);
+  _childSourceKeys(inc).forEach((k) => { if (keys.indexOf(k) === -1) keys.push(k); });
+  if (keys.length) {
+    cur.sourceSignupIds = keys;
+    // Scalar stays populated for readers that predate the array. It names the
+    // newest contributor; idempotency never depends on it alone.
+    const incScalar = _childNorm(inc.sourceSignupId);
+    if (incScalar) cur.sourceSignupId = inc.sourceSignupId;
+    else if (!_childNorm(cur.sourceSignupId)) cur.sourceSignupId = keys[0];
+  }
+  return cur;
+}
+
+// Strip legacy "yrs"/"H.S." suffixes so age bands compare against the canonical
+// option set: '0-2'|'3-5'|'6-12'|'13-17'|'High School'|'Adult'.
+function _canonAgeRange(v) {
+  if (!v) return "";
+  const s = String(v).trim();
+  const map = {
+    "Birth-2 yrs": "0-2", "Birth-2": "0-2", "0-2": "0-2",
+    "3-5 yrs": "3-5", "3-5": "3-5",
+    "6-11 yrs": "6-12", "6-11": "6-12", "6-12": "6-12",
+    "12-14 yrs": "13-17", "12-14": "13-17", "15-18 yrs": "13-17", "15-18": "13-17", "13-17": "13-17",
+    "Beyond H.S.": "Adult", "Beyond HS": "Adult", "Adult": "Adult",
+    "High School": "High School",
+  };
+  return map[s] || s; // unknown — pass through
+}
+
 async function applyRegistrationToContact(linkedContactId, registration, signupId) {
     const db = admin.firestore();
     const contactRef = db.collection("contacts").doc(linkedContactId);
@@ -3706,20 +3879,8 @@ async function applyRegistrationToContact(linkedContactId, registration, signupI
     //  and are tolerated by readers via _childAgeRange/_childGender helpers).
     // Strip legacy "yrs"/"H.S." suffix on age range so canonical values match
     // the canonical option set: '0-2'|'3-5'|'6-12'|'13-17'|'High School'|'Adult'.
-    const _canonAgeRange = (v) => {
-      if (!v) return "";
-      const s = String(v).trim();
-      // Map legacy form labels → canonical
-      const map = {
-        "Birth-2 yrs": "0-2", "Birth-2": "0-2", "0-2": "0-2",
-        "3-5 yrs": "3-5", "3-5": "3-5",
-        "6-11 yrs": "6-12", "6-11": "6-12", "6-12": "6-12",
-        "12-14 yrs": "13-17", "12-14": "13-17", "15-18 yrs": "13-17", "15-18": "13-17", "13-17": "13-17",
-        "Beyond H.S.": "Adult", "Beyond HS": "Adult", "Adult": "Adult",
-        "High School": "High School",
-      };
-      return map[s] || s; // unknown — pass through
-    };
+    // Age bands are canonicalised by the module-level _canonAgeRange() above,
+    // which the matcher uses too, so a legacy row and a fresh one compare equal.
     try {
       // Child sources: the registrant's own child, plus any siblings added via
       // "Register Another Child". Siblings live on the SAME signup as
@@ -3779,39 +3940,36 @@ async function applyRegistrationToContact(linkedContactId, registration, signupI
         // demographics despite a complete registration submit.
         childEntry.addedAt = admin.firestore.Timestamp.now();
         childEntry.sourceSignupId = _cs.key;
+        childEntry.sourceSignupIds = [_cs.key];
 
-        // Don't re-add if this exact source already contributed a child.
-        if (existingChildren.some(c => c.sourceSignupId === _cs.key)) continue;
+        // Don't re-add if this source already contributed a child. Consults the
+        // sourceSignupIds[] array as well as the scalar: once rows are merged
+        // (here, or by hand in Int) one row stands for several signups, and a
+        // scalar-only guard would let every key but the last re-append and
+        // rebuild the duplicate that was just cleaned up.
+        if (_childHasSourceKey(existingChildren, _cs.key)) continue;
 
-        // Dedup-at-source (2026-06-09): a returning family re-registers the
-        // SAME child under a new signup. Match an existing child by NAME
-        // (case-insensitive) and MERGE into it rather than appending a
-        // duplicate. NAME-ONLY on purpose — the "Register Another Child" flow
-        // means real siblings exist, so we never merge two children on
-        // demographics alone (siblings can share age/gender/ethnicity/
-        // disability). Nameless entries are always kept distinct (appended);
-        // the rare nameless cross-event dupe is left for manual cleanup rather
-        // than risk collapsing two real kids.
-        const _norm = v => String(v == null ? "" : v).trim();
-        const _matches = (a, b) => {
-          const an = _norm(a.name).toLowerCase(); const bn = _norm(b.name).toLowerCase();
-          return !!an && an === bn;   // merge only when both share a name
-        };
-        const idx = existingChildren.findIndex(c => _matches(c, childEntry));
+        // Dedup-at-source (2026-06-09, widened 2026-09-08): a returning family
+        // re-registers the SAME child under a new signup, and does not always
+        // type the name the same way ("Mason" in September for May's
+        // "Mason Quillan"). See _childMatches() above for the rule and for why it
+        // stays deliberately hard to satisfy — collapsing two real siblings is
+        // the one mistake that cannot be undone from what is left behind.
+        const idx = _findChildMatchIndex(existingChildren, childEntry);
         if (idx === -1) {
           existingChildren.push(childEntry);
         } else {
-          // Merge into the existing child: fill blanks from the new entry,
-          // union disability categories. Never overwrite existing
-          // grade/school/notes (those come from staff-entered child records).
-          const cur = existingChildren[idx];
-          ["name", "ageRange", "gender", "ethnicity", "grade", "school", "notes"].forEach(f => {
-            if (!_norm(cur[f]) && _norm(childEntry[f])) cur[f] = childEntry[f];
-          });
-          const disU = {};
-          (cur.disabilityCategories || []).concat(childEntry.disabilityCategories || []).forEach(d => { if (_norm(d)) disU[_norm(d)] = true; });
-          if (Object.keys(disU).length) cur.disabilityCategories = Object.keys(disU);
-          existingChildren[idx] = cur;
+          const before = existingChildren[idx];
+          const priorEthCount = Array.isArray(before.ethnicityPrevious) ? before.ethnicityPrevious.length : 0;
+          const merged = _mergeChildEntries(before, childEntry);
+          existingChildren[idx] = merged;
+          if (Array.isArray(merged.ethnicityPrevious) && merged.ethnicityPrevious.length > priorEthCount) {
+            // Two registrations for one child disagree on ethnicity. The newer
+            // answer is kept, the older one is retained on the row, and the
+            // disagreement is said out loud rather than resolved in silence.
+            console.log("Child ethnicity differs across signups (contact " + linkedContactId +
+              ", signup " + signupId + "): kept the newer answer, prior value retained in ethnicityPrevious");
+          }
         }
         _childrenTouched = true;
       }
@@ -26410,6 +26568,13 @@ exports.onChatHelpRequest = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  _childMatches,
+  _findChildMatchIndex,
+  _mergeChildEntries,
+  _childSourceKeys,
+  _childHasSourceKey,
+  _childAddedMillis,
+  _canonAgeRange,
   _oneOffEmailSuppressed,
   ONEOFF_EMAIL_FEEDBACK_CUTOFF_DATE,
   toHstDateKey,
