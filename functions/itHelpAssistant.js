@@ -162,7 +162,9 @@ async function answerFromHistory(cfg, history, askerName, client) {
   if (!messages.length) {
     return { skipped: true, reason: "nothing left to answer — the thread ends on an automatic reply" };
   }
-  client = client || new Anthropic();
+  // Same trailing-newline hazard as the Case Review key — trim explicitly
+  // rather than relying on the SDK picking the raw env var up.
+  client = client || new Anthropic({ apiKey: String(process.env.ANTHROPIC_API_KEY || "").trim() });
 
   const system = [
     {

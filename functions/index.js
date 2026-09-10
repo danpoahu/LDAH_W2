@@ -165,7 +165,7 @@ exports.extractEventFromFlyer = functions
         "  Match on the flyer's own wording/branding first (e.g. 'Parent Talk Cafe', 'Connect-Gen', 'screening'); use null when none clearly fits.",
       ].join("\n");
 
-      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY_FLYER });
+      const client = new Anthropic({ apiKey: _anthropicKey("ANTHROPIC_API_KEY_FLYER") });
       const response = await client.messages.create({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 1200,
@@ -2114,12 +2114,19 @@ async function createAccommodationsTask(snap, signupData, signupId, eventId, col
 }
 
 // ── Deferred Registration-Completion Email ─────────────────────────
-// Runs every minute. For any signup still status:"pending" 10+ minutes
+// Runs every minute. For any signup still status:"pending" 5+ minutes
 // after creation that hasn't been emailed yet, send the "Complete Your
 // Registration" email. This replaces the immediate on-create send,
 // which fired before inline-completers had a chance to finish their
 // registration form on the same page.
-const REGISTRATION_GRACE_MIN = 10;
+//
+// 10 -> 5 minutes (Daniel, 2026-09-10). The window exists so somebody still
+// filling the form in front of us is not emailed mid-flow. But ten minutes is
+// long enough to close the tab and walk away, and the ask on the other side is
+// not small: consent, an IEP, evaluations and a worksheet. A family signing up
+// four days before their session needs that email while they are still sitting
+// there thinking about it, not after they have moved on.
+const REGISTRATION_GRACE_MIN = 5;
 
 exports.sendDeferredRegistrationEmails = functions
   .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
@@ -4260,6 +4267,38 @@ const LDAH_ISLAND_TEXT = [
 ];
 const LDAH_OFF_ISLAND = /\b(majuro|pago pago|hagatna|guam|saipan|tinian|rota|palau|koror|chuuk|pohnpei|kosrae|yap|marshall|micronesia|american samoa|cnmi)\b/i;
 
+// ── Pacific Island Partner jurisdictions (2026-09-10) ───────────────────────
+// Daniel: "fix the island bug so all of our partners never get missed."
+//
+// The bug was not that partners resolved to "Unknown" — it was worse. Every
+// name below already matched LDAH_OFF_ISLAND, which collapsed the lot to
+// "Other", so a Guam family and an American Samoa family became the same
+// island and neither could be reported on. They were not missing; they were
+// indistinguishable.
+//
+// These are all US ZIP codes, so a partner contact with an address now resolves
+// on geography like any Hawai'i contact. Strings match the partnerIsland values
+// used in -Int exactly, or the grouping would not line up.
+const LDAH_PARTNER_ZIPS = {
+  "American Samoa":   ["96799"],
+  "Guam":             ["96910","96912","96913","96915","96916","96917","96919",
+                       "96921","96923","96928","96929","96931","96932"],
+  "CNMI":             ["96950","96951","96952"],
+  "Palau":            ["96939","96940"],
+  // "Micronesia", not "FSM" — this must match PARTNER_ISLANDS in -Int exactly
+  // or a resolved contact never matches the PIP filter that looks for it.
+  "Micronesia":       ["96941","96942","96943","96944"],
+  "Marshall Islands": ["96960","96970"],
+};
+const LDAH_PARTNER_TEXT = [
+  ["American Samoa",   /\b(pago pago|tafuna|leone|fagatogo|utulei|nu.?uuli|american samoa)\b/i],
+  ["CNMI",             /\b(saipan|tinian|rota|garapan|susupe|cnmi|northern mariana)\b/i],
+  ["Guam",             /\b(hagatna|agana|dededo|tamuning|mangilao|barrigada|yigo|guam)\b/i],
+  ["Palau",            /\b(koror|melekeok|ngerulmud|palau)\b/i],
+  ["Micronesia",       /\b(chuuk|weno|truk|pohnpei|kolonia|kosrae|lelu|yap|colonia|micronesia|fsm)\b/i],
+  ["Marshall Islands", /\b(majuro|ebeye|kwajalein|marshall|rmi)\b/i],
+];
+
 /** Island from a zip code. '' when it cannot be determined. */
 function ldahIslandFromZip(zip) {
   const z = String(zip == null ? "" : zip).trim().slice(0, 5);
@@ -4267,7 +4306,11 @@ function ldahIslandFromZip(zip) {
   for (const isl of Object.keys(LDAH_ISLAND_ZIPS)) {
     if (LDAH_ISLAND_ZIPS[isl].includes(z)) return isl;
   }
-  return "Other";   // a valid zip that is not a Hawaii zip is genuinely elsewhere
+  // Partner jurisdictions before the catch-all, or Guam reads as "Other".
+  for (const j of Object.keys(LDAH_PARTNER_ZIPS)) {
+    if (LDAH_PARTNER_ZIPS[j].includes(z)) return j;
+  }
+  return "Other";   // a valid zip that is neither Hawaii nor a partner is genuinely elsewhere
 }
 
 /**
@@ -4281,11 +4324,24 @@ function ldahResolveIsland(c) {
   for (const field of ["city", "location", "streetAddress"]) {
     const v = String(c[field] || "").trim();
     if (!v) continue;
+    // Name the jurisdiction BEFORE falling back to the off-island catch-all.
+    for (const [j, re] of LDAH_PARTNER_TEXT) {
+      if (re.test(v)) return { island: j, islandSource: field };
+    }
     if (LDAH_OFF_ISLAND.test(v)) return { island: "Other", islandSource: field };
     for (const [isl, re] of LDAH_ISLAND_TEXT) {
       if (re.test(v)) return { island: isl, islandSource: field };
     }
   }
+  // Last resort, and the only thing that reaches a partner's own contacts: they
+  // are entered with a name and nothing else — no city, no zip, no address.
+  // partnerIsland is staff-set and authoritative, so it answers when geography
+  // cannot. Deliberately AFTER the address checks: the stamp is ownership, and
+  // a real address always outranks it (a Samoan family living in Honolulu is
+  // on Oahu, whoever owns the record).
+  const pj = String(c.partnerIsland || "").trim();
+  if (pj) return { island: pj, islandSource: "partner" };
+
   return { island: "Unknown", islandSource: "nothing on file" };
 }
 
@@ -8987,6 +9043,82 @@ exports.handleUnsubscribe = functions
     }
   });
 
+// ══ COMBINED ANNOUNCEMENT (2026-09-10) ══════════════════════════════════════
+// Daniel: "combine those two so one email sends both flyers ... the 21 that are
+// signed up for LL, if you can don't send them that one again."
+//
+// ONE email carrying both flyers, and a recipient already signed up for one of
+// them simply does not see that block. Signed up for everything in the send?
+// Then no email at all, rather than an empty one.
+//
+// Deliberately Pub/Sub triggered, not HTTP. sendEventAnnouncement is a public
+// endpoint; a second unauthenticated URL that can email a thousand families is
+// not something to add casually. The payload lives in Firestore and the job is
+// fired by Cloud Scheduler.
+function buildCombinedAnnouncementEmailHtml({ blocks, contact, unsubscribeUrl }) {
+  const esc = (x) => String(x || '').replace(/[&<>"']/g,
+    c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
+  const displayName = (contact.displayName || '').trim();
+  const firstName = displayName ? displayName.split(/\s+/)[0] : 'Friend';
+
+  const linkRows = [];
+  const sections = blocks.map((b, i) => {
+    const ev = b.event || {};
+    const title = ev.title || 'Upcoming LDAH Event';
+    const dateStr = b.sessionDate ||
+      (Array.isArray(ev.signupDates) && ev.signupDates[0]) ||
+      (ev.eventDate ? formatEventDate(ev.eventDate) : '');
+    const location = ev.location || '';
+    const raw = ev.description || ev.details || '';
+    const desc = raw.slice(0, 400) + (raw.length > 400 ? '...' : '');
+    const flyerUrl = ev.flyerUrl || ev.imageUrl || ev.flyer || '';
+    const signupUrl = 'https://www.ldahawaii.org/events.html' +
+      '?eventId=' + encodeURIComponent(b.eventId || '') +
+      '&prefill=' + encodeURIComponent(contact.unsubscribeToken || '') +
+      '&autoOpen=1';
+    linkRows.push({ label: 'Sign Up for ' + title, href: signupUrl });
+    return (i > 0 ? '<div style="height:1px;background:#e5e7eb;margin:8px 24px"></div>' : '') +
+      (flyerUrl ? '<img src="' + esc(flyerUrl) + '" alt="' + esc(title) +
+                  '" style="width:100%;display:block">' : '') +
+      '<div style="padding:28px 24px 8px">' +
+      '<h2 style="margin:0 0 12px;color:#004E7C;font-size:22px">' + esc(title) + '</h2>' +
+      (dateStr ? '<p style="margin:0 0 8px;color:#475569"><strong>When:</strong> ' +
+                 esc(dateStr) + '</p>' : '') +
+      (location ? '<p style="margin:0 0 16px;color:#475569"><strong>Where:</strong> ' +
+                  esc(location) + '</p>' : '') +
+      (desc ? '<p style="margin:0 0 20px;color:#334155;line-height:1.6">' + esc(desc) + '</p>' : '') +
+      '<p style="text-align:center;margin:24px 0 8px">' +
+      '<a href="' + signupUrl + '" style="background-color:#0891B2;' +
+      'background:linear-gradient(135deg,#0891B2,#0E7490);color:#fff;padding:14px 32px;' +
+      'border-radius:8px;text-decoration:none;font-weight:700;font-size:16px">Sign Up</a></p>' +
+      '</div>';
+  }).join('');
+
+  const heading = blocks.length > 1 ? 'Two Upcoming LDAH Events' : 'New LDAH Event';
+  const lead = blocks.length > 1
+    ? 'We have two sessions coming up that we would love to see you at.'
+    : 'We have a session coming up that we would love to see you at.';
+
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(heading) + '</title></head>' +
+    '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
+    '<div style="max-width:600px;margin:0 auto;background:#fff">' +
+    '<div style="background-color:#004E7C;background:linear-gradient(135deg,#004E7C,#0891B2);' +
+    'padding:24px;text-align:center;color:#fff">' +
+    '<h1 style="margin:0;font-size:22px;font-weight:700">' + esc(heading) + '</h1></div>' +
+    '<div style="padding:28px 24px 0">' +
+    '<p style="margin:0 0 6px;font-size:16px">Aloha ' + esc(firstName) + ',</p>' +
+    '<p style="margin:0 0 4px;font-size:15px;color:#334155">' + esc(lead) + '</p></div>' +
+    sections +
+    '<div style="padding:0 24px 24px">' + _emailLinkFooter(linkRows) + '</div>' +
+    '<div style="padding:16px 24px;border-top:1px solid #e5e7eb;background:#f9fafb;' +
+    'font-size:12px;color:#94a3b8;text-align:center">' +
+    '<p style="margin:0 0 8px">Leadership in Disabilities and Achievement of Hawai\'i</p>' +
+    '<p style="margin:0">You received this because you are in our contact list. ' +
+    '<a href="' + unsubscribeUrl + '" style="color:#0891B2">Unsubscribe</a> ' +
+    'from future announcements.</p>' +
+    '</div></div></body></html>';
+}
+
 function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl, eventId, sessionDate }) {
   const displayName = (contact.displayName || '').trim();
   const firstName = displayName ? displayName.split(/\s+/)[0] : 'Friend';
@@ -9033,6 +9165,168 @@ function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl, eventId, s
     '<p style="margin:0">You received this because you are in our contact list. <a href="' + unsubscribeUrl + '" style="color:#0891B2">Unsubscribe</a> from future announcements.</p>' +
     '</div></div></body></html>';
 }
+
+// Run the combined announcement described by system/pendingCombinedAnnouncement.
+// Idempotent: the job doc's status is flipped to "sending" before the first
+// email goes out, so a repeated Pub/Sub delivery cannot send the batch twice.
+async function _runCombinedAnnouncement({ db, dryRun }) {
+  const jobRef = db.doc("system/pendingCombinedAnnouncement");
+  const jobSnap = await jobRef.get();
+  if (!jobSnap.exists) return { ok: false, reason: "no job doc" };
+  const job = jobSnap.data() || {};
+  if (job.status !== "pending") return { ok: false, reason: "status is " + job.status };
+  const specs = Array.isArray(job.events) ? job.events : [];
+  if (!specs.length) return { ok: false, reason: "no events on job" };
+
+  const blocks = [];
+  for (const sp of specs) {
+    const coll = sp.collection || "events";
+    const snap = await db.collection(coll).doc(sp.eventId).get();
+    if (!snap.exists) continue;
+    blocks.push({
+      eventId: sp.eventId, collection: coll, ref: snap.ref,
+      sessionDate: sp.sessionDate || "", event: snap.data() || {},
+    });
+  }
+  if (!blocks.length) return { ok: false, reason: "none of the events exist" };
+
+  // Who is already signed up for each block, and who already had this exact
+  // announcement. Both are per-block, which is the whole point of the design.
+  for (const b of blocks) {
+    const signedEmails = new Set(), signedIds = new Set();
+    const sigs = await b.ref.collection("signups").get();
+    sigs.forEach((d) => {
+      const sg = d.data() || {};
+      if (sg.status === "cancelled" || sg.archived === true) return;
+      if (b.sessionDate) {
+        const sel = Array.isArray(sg.selectedDates) ? sg.selectedDates : [];
+        if (sel.indexOf(b.sessionDate) === -1) return;   // signed up, but not for THIS date
+      }
+      const e = String(sg.email || "").trim().toLowerCase();
+      if (e) signedEmails.add(e);
+      if (sg.linkedContactId) signedIds.add(sg.linkedContactId);
+    });
+    b.signedEmails = signedEmails;
+    b.signedIds = signedIds;
+
+    const alreadySent = new Set();
+    const prior = await b.ref.collection("announcementRecipients").get();
+    prior.forEach((d) => {
+      const rd = d.data() || {};
+      if ((rd.sessionDate || null) === (b.sessionDate || null)) alreadySent.add(rd.recipientId || d.id);
+    });
+    b.alreadySent = alreadySent;
+  }
+
+  const contactsSnap = await db.collection("contacts").where("marketingOptOut", "==", false).get();
+  const recipients = [];
+  contactsSnap.forEach((d) => {
+    const c = d.data() || {};
+    const email = String(c.email || "").trim();
+    if (!email || !c.unsubscribeToken) return;
+    recipients.push({
+      id: d.id, email,
+      displayName: (c.displayName || [c.firstName, c.lastName].filter(Boolean).join(" ")).trim() || "Friend",
+      unsubscribeToken: c.unsubscribeToken, secondParent: c.secondParent,
+    });
+  });
+
+  const forRecipient = (r) => {
+    const lower = r.email.toLowerCase();
+    return blocks.filter((b) =>
+      !b.signedEmails.has(lower) && !b.signedIds.has(r.id) && !b.alreadySent.has(r.id));
+  };
+
+  if (dryRun) {
+    const tally = { total: recipients.length, none: 0 };
+    blocks.forEach((b) => { tally[b.eventId] = 0; });
+    let both = 0;
+    for (const r of recipients) {
+      const mine = forRecipient(r);
+      if (!mine.length) { tally.none++; continue; }
+      if (mine.length === blocks.length && blocks.length > 1) both++;
+      mine.forEach((b) => { tally[b.eventId]++; });
+    }
+    return { ok: true, dryRun: true, willSend: recipients.length - tally.none,
+             getBoth: both, perEvent: tally,
+             titles: blocks.map((b) => b.event.title || b.eventId) };
+  }
+
+  await jobRef.set({ status: "sending", startedAt: admin.firestore.FieldValue.serverTimestamp() },
+                   { merge: true });
+
+  const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+  const unsubBase = "https://us-central1-ldah-932d5.cloudfunctions.net/handleUnsubscribe";
+  let sent = 0, skipped = 0, failed = 0;
+  const perEventSent = {};
+
+  for (const r of recipients) {
+    const mine = forRecipient(r);
+    if (!mine.length) { skipped++; continue; }
+    try {
+      const unsubscribeUrl = unsubBase + "?token=" + encodeURIComponent(r.unsubscribeToken);
+      const html = buildCombinedAnnouncementEmailHtml({ blocks: mine, contact: r, unsubscribeUrl });
+      const subject = mine.length > 1
+        ? "Two upcoming LDAH events"
+        : "New Event: " + (mine[0].event.title || "Upcoming LDAH Event");
+      await sendEmailViaResend({
+        from: "LDAH <" + fromAddress + ">",
+        to: familyEmails(r),
+        subject, html,
+        type: "event-announcement-combined",
+        relatedEventId: mine[0].eventId,
+        recipientName: r.displayName,
+      });
+      sent++;
+      for (const b of mine) {
+        perEventSent[b.eventId] = (perEventSent[b.eventId] || 0) + 1;
+        try {
+          await b.ref.collection("announcementRecipients").add({
+            recipientId: r.id, email: r.email, sessionDate: b.sessionDate || null,
+            sentAt: admin.firestore.FieldValue.serverTimestamp(), via: "combined",
+          });
+        } catch (e) { /* the email went; the receipt is best effort */ }
+      }
+    } catch (e) {
+      failed++;
+      console.error("combined announcement failed for " + r.email + ":", e.message);
+    }
+  }
+
+  for (const b of blocks) {
+    const n = perEventSent[b.eventId] || 0;
+    if (!n) continue;
+    const updates = { announcementRecipientCount: admin.firestore.FieldValue.increment(n) };
+    if (b.sessionDate) {
+      const cur = Object.assign({}, b.event.announcementSentDates || {});
+      cur[b.sessionDate] = admin.firestore.FieldValue.serverTimestamp();
+      updates.announcementSentDates = cur;
+    }
+    try { await b.ref.set(updates, { merge: true }); } catch (e) { /* non-fatal */ }
+  }
+
+  await jobRef.set({
+    status: "sent", finishedAt: admin.firestore.FieldValue.serverTimestamp(),
+    result: { sent, skipped, failed, perEvent: perEventSent },
+  }, { merge: true });
+
+  console.log("combined announcement: sent=" + sent + ", skipped=" + skipped +
+              ", failed=" + failed + ", perEvent=" + JSON.stringify(perEventSent));
+  return { ok: true, sent, skipped, failed, perEvent: perEventSent };
+}
+
+exports.runCombinedAnnouncement = functions
+  .runWith({ timeoutSeconds: 540, memory: "512MB", maxInstances: 1, secrets: EMAIL_SECRETS })
+  .pubsub.topic("ldah-combined-announcement")
+  .onPublish(async () => {
+    try {
+      const out = await _runCombinedAnnouncement({ db: admin.firestore(), dryRun: false });
+      console.log("runCombinedAnnouncement:", JSON.stringify(out));
+    } catch (e) {
+      console.error("runCombinedAnnouncement failed:", e.message);
+    }
+    return null;
+  });
 
 // Returns minimal contact identity (name + email + phone) for a contact
 // matched by their unsubscribeToken. Used by events.html to pre-fill the
@@ -17011,6 +17305,16 @@ function _formatSessionLongLabel(dateKey) {
 // The pinned SDK is 0.39, which predates output_config.format; forcing a tool
 // is the shape this codebase already proves works.
 
+// Secrets arrive from Secret Manager exactly as they were stored, and this one
+// was saved with a trailing newline. A newline inside an HTTP header value makes
+// the request unsendable, so it never leaves the container and the SDK reports
+// the bare string "Connection error." — which looks like a network fault and is
+// undiagnosable from the outside. Trim at every construction site so the shape of
+// the stored secret can never take the feature down again.
+function _anthropicKey(name) {
+  return String(process.env[name] || "").trim();
+}
+
 const CG_CASE_REVIEW_MODEL = "claude-opus-5";
 
 // A change in the documents or the worksheet should produce a fresh review.
@@ -17052,6 +17356,33 @@ function _cgCaseReviewFingerprint(signup) {
 // The uids live in settings/featureFlags.cgCaseReviewPresenterUids, NOT in
 // source: the repository is public, and the trial roster is Daniel's to change
 // without a deploy.
+// Connect-Gen presenters live per SESSION in event.sessionSummaries; the
+// recurring programme has no top-level `summary` at all. The shared resolver
+// (_lcResolveSessionPresenter) short-circuits to ev.summary whenever a family
+// picked exactly ONE session — which is nearly every Connect-Gen family, 58 of
+// 62 — so it returned {}, presenterUid came back undefined, the gate below
+// rejected it, and this feature silently never ran for anyone.
+//
+// Resolve from sessionSummaries here FIRST, and only then defer to the shared
+// resolver, so the fix cannot change which presenter the lifecycle emails name.
+// The exact-key lookup usually misses too (a signup's session string is
+// "2026-09-14|All Islands Virtual|15:00-17:00" while the summary key is
+// "2026-09-14|All Islands Virtual – Zoom Meeting|3:00 PM – 5:00 PM"), so the
+// date-key match is the path that actually carries this.
+function _cgResolveCaseReviewPresenter(event, sessions, first) {
+  const ss = (event && event.sessionSummaries) || {};
+  const raw = first && first.rawString;
+  if (raw && ss[raw] && ss[raw].presenterUid) return ss[raw];
+  const dateKey = first && first.dateKey;
+  if (dateKey) {
+    for (const k of Object.keys(ss)) {
+      if (_lcSummaryDateKey(k) !== dateKey) continue;
+      if ((ss[k] || {}).presenterUid) return ss[k];
+    }
+  }
+  return _lcResolveSessionPresenter(event, sessions, dateKey, raw) || {};
+}
+
 function _cgCaseReviewPresenterAllowed(allowedUids, presenterUid) {
   if (!presenterUid) return false;
   const list = Array.isArray(allowedUids) ? allowedUids : [];
@@ -17214,7 +17545,7 @@ async function _cgGenerateCaseReview({ db, collection, eventId, signupRef, signu
   // enough for the connection to be dropped underneath it (ETIMEDOUT) on the
   // first live run. Streaming keeps the socket active; .finalMessage() gives
   // back the same assembled message a create() would have returned.
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const client = new Anthropic({ apiKey: _anthropicKey("ANTHROPIC_API_KEY") });
   const stream = client.messages.stream({
     model: CG_CASE_REVIEW_MODEL,
     // The first live run stopped at exactly 16000 output tokens, which silently
@@ -17328,8 +17659,15 @@ async function _cgMaybeGenerateCaseReview({ db, collection, eventId, signupRef, 
     const sessions = getSignupSessions(signup, event) || [];
     const first = sessions[0];
     if (!first || !first.dateKey) return false;
-    const pres = _lcResolveSessionPresenter(event, sessions, first.dateKey, first.rawString) || {};
-    if (!_cgCaseReviewPresenterAllowed(flags.cgCaseReviewPresenterUids, pres.presenterUid)) return false;
+    const pres = _cgResolveCaseReviewPresenter(event, sessions, first);
+    // Logged, not silent: this gate rejecting everything is exactly how the
+    // feature sat dead for a week without anyone being able to see why.
+    if (!_cgCaseReviewPresenterAllowed(flags.cgCaseReviewPresenterUids, pres.presenterUid)) {
+      console.log("_cgMaybeGenerateCaseReview: presenter not enrolled for " +
+        signupRef.path + " (session " + first.dateKey + ", presenterUid=" +
+        (pres.presenterUid || "none") + ") — skipping");
+      return false;
+    }
 
     // Nothing new to read? Then nothing to regenerate. The fingerprint covers
     // both the documents and the worksheet's last edit.
@@ -17349,8 +17687,17 @@ async function _cgMaybeGenerateCaseReview({ db, collection, eventId, signupRef, 
     return true;
   } catch (e) {
     // Never let this affect the family's status or anything else in the caller.
+    // Log the CAUSE too: the Anthropic SDK reports every network failure as the
+    // bare string "Connection error.", which on its own is undiagnosable.
+    const cause = (e && e.cause) || {};
     console.error("_cgMaybeGenerateCaseReview failed (non-fatal) for " +
-      (signupRef && signupRef.path) + ":", e.message);
+      (signupRef && signupRef.path) + ":", e.message,
+      "| name=" + (e && e.name) +
+      " status=" + (e && e.status) +
+      " causeCode=" + (cause.code || "none") +
+      " causeErrno=" + (cause.errno || "none"));
+    // Deliberately NOT logging cause.message: when a bad header value is the
+    // cause, the runtime puts the offending value — the API key — in it.
     return false;
   }
 }
@@ -17793,9 +18140,12 @@ function _buildCgRescheduleEmailHtml({
       "still do not have " + phrase + ". Rather than keep moving your date, we have released " +
       "your place for now.");
   } else if (mode === "moved") {
-    intro = p("Your Connect-Gen session was today, and we still did not have " + phrase +
-      ". So that you do not lose your place, we have moved you to " +
-      (safeDest ? "<strong>" + safeDest + "</strong>" : "the next session at your location") + ".");
+    intro = p("Your Connect-Gen session was booked for today, and we still do not have " +
+      phrase + ". We need a full day with your child's documents before a session so that " +
+      "your consultant can read them properly and come prepared &mdash; so we are not able to " +
+      "go ahead today. So that you do not lose your place, we have moved you to " +
+      (safeDest ? "<strong>" + safeDest + "</strong>" : "the next session at your location") +
+      ".");
   } else if (mode === "final") {
     intro = p("Your Connect-Gen session is tomorrow &mdash; " + safeDate + locBit +
       ". We still do not have " + phrase + ".");
@@ -17848,18 +18198,18 @@ function _buildCgRescheduleEmailHtml({
       "<strong>(808) 536-9684</strong>. We would much rather help you through it than have you " +
       "give up on the session.", "18px");
   } else if (mode === "final") {
-    closing = p("If we do not have " + phrase + " by the time we start, your place will move to " +
+    closing = p("If we do not have " + phrase + " by 8am on the morning of your session, your place will move to " +
       (safeDest ? "<strong>" + safeDest + "</strong>" : "the next session at your location") +
       " and we will email you to confirm. You can move it yourself before then using the " +
       "buttons above.", "18px");
   } else if (mode === "moved") {
     closing = safeNewDeadline
       ? p("Please have everything with us by <strong>" + safeNewDeadline + "</strong>. If it is " +
-          "still outstanding when that session starts, we will move you forward again \u2014 but " +
+          "still outstanding on the morning of that session, we will move you forward again \u2014 but " +
           "we would much rather see you than keep moving you.", "18px")
-      : p("Please send it through as soon as you can. If it is still outstanding when that " +
-          "session starts we will move you forward again \u2014 but we would much rather see " +
-          "you than keep moving you.", "18px");
+      : p("Please send it through as soon as you can. If it is still outstanding on the " +
+          "morning of that session we will move you forward again \u2014 but we would much " +
+          "rather see you than keep moving you.", "18px");
   } else if (mode === "reminder") {
     closing = "";
   } else {
@@ -18210,7 +18560,9 @@ async function _sendCgRescheduleEmail({
   const subject = mode === "softcancel"
     ? "Your Connect-Gen place \u2014 come back when you are ready"
     : mode === "moved"
-    ? "We have moved your Connect-Gen session"
+    ? (moveDestinationLabel
+        ? "Today's Connect-Gen session \u2014 moved to " + moveDestinationLabel
+        : "We have moved your Connect-Gen session")
     : mode === "final"
     ? "Your Connect-Gen session is tomorrow"
     : (mode === "reminder"
@@ -18313,6 +18665,89 @@ async function _cgSoftCancel({ db, collection, eventId, signupRef, signupData, e
 //
 // Scoped to sessions in the next 14 days so it is not re-reading the whole
 // programme every night, and so a review lands while it is still useful.
+// ── Upcoming (QR table) events: wrap up the day after ───────────────────────
+// Daniel, 2026-09-10: an upcoming event "does not archive until the day after
+// the event happens", and the people captured at the table should get the
+// feedback email.
+//
+// Both belong in one place. Sending feedback the moment someone scans the QR
+// would ask them what they thought of an event they are standing in; and the
+// event has to stay live until it is over, or the flyer's own QR would point at
+// an archived record. So the wrap-up runs once, the morning after.
+exports.sweepQrTableEvents = functions
+  .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: EMAIL_SECRETS })
+  .pubsub.schedule("15 6 * * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const FieldValue = admin.firestore.FieldValue;
+    const todayKey = toHstDateKey(new Date());
+    let due = 0, archived = 0, mailed = 0, errors = 0;
+
+    let snap;
+    try {
+      snap = await db.collection("events").where("qrTableEvent", "==", true).get();
+    } catch (e) {
+      console.error("sweepQrTableEvents: query failed:", e.message);
+      return null;
+    }
+
+    for (const doc of snap.docs) {
+      const ev = doc.data() || {};
+      if (ev.archived === true) continue;
+      const key = String(ev.eventDate || "").slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) continue;
+      if (key >= todayKey) continue;            // today or later — not over yet
+      due++;
+
+      // Feedback to everyone captured at the table. Deliberately BEFORE the
+      // archive write: _oneOffEmailSuppressed reads the event, and an archived
+      // one-off is exactly the shape it is built to silence.
+      if (!_oneOffEmailSuppressed(ev, "feedback")) {
+        try {
+          const sigs = await doc.ref.collection("signups").get();
+          for (const sd of sigs.docs) {
+            const sg = sd.data() || {};
+            if (!sg.email) continue;
+            if (sg.archived === true) continue;
+            if (sg.attendanceStatus !== "attended") continue;
+            if (sg.feedbackEmailSentAt) continue;   // never twice
+            try {
+              await sendOneFeedbackEmail({
+                collection: "events", eventId: doc.id, signupId: sd.id,
+                signup: sg, sessionDate: null, mode: "initial", event: ev,
+              });
+              await sd.ref.update({ feedbackEmailSentAt: FieldValue.serverTimestamp() });
+              mailed++;
+            } catch (e) {
+              errors++;
+              console.error("sweepQrTableEvents: feedback failed for " + sd.ref.path + ":", e.message);
+            }
+          }
+        } catch (e) {
+          errors++;
+          console.error("sweepQrTableEvents: signups read failed for " + doc.id + ":", e.message);
+        }
+      }
+
+      try {
+        await doc.ref.set({
+          archived: true,
+          qrTableWrappedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+        archived++;
+      } catch (e) {
+        errors++;
+        console.error("sweepQrTableEvents: archive failed for " + doc.id + ":", e.message);
+      }
+    }
+
+    console.log("sweepQrTableEvents: due=" + due + ", archived=" + archived +
+                ", feedbackSent=" + mailed + ", errors=" + errors);
+    return null;
+  });
+
 exports.sweepConnectGenCaseReviews = functions
   .runWith({
     timeoutSeconds: 540,
@@ -18400,6 +18835,10 @@ exports.sweepConnectGenCaseReviews = functions
 // cgAutoMoveCount, so a family drifting forward month after month is at least
 // discoverable rather than invisible.
 const CG_AUTO_MOVE_LOOKBACK_HOURS = 6;
+// The hour on the session day when an unprepared family is moved and told.
+// The job runs hourly at :15, so in practice the first run that can act is
+// 08:15 HST.
+const CG_AUTO_MOVE_DECIDE_AT = "08:00";
 
 // A family gets FOUR dates in total: the one they chose, plus three moves.
 // After that, still unprepared, the signup is soft-cancelled — the record stays,
@@ -18463,6 +18902,14 @@ exports.autoMoveUnpreparedConnectGen = functions
             const signup = sigDoc.data() || {};
             if (signup.archived === true) { skipped++; continue; }
             if (!signup.email) { skipped++; continue; }
+            // Staff escape hatch. Set when someone has spoken to the family and
+            // knows they are coming with their documents in hand — the move
+            // would be wrong and the email would contradict what they were told.
+            // Cleared automatically once the session is behind them.
+            if (signup.cgAutoMoveExempt === true) {
+              console.log("autoMoveUnpreparedConnectGen: exempt, leaving in place — " + sigDoc.ref.path);
+              skipped++; continue;
+            }
             if (cutoff && (!signup.timestamp || signup.timestamp.toMillis() < cutoff.toMillis())) {
               skipped++; continue;
             }
@@ -18482,7 +18929,17 @@ exports.autoMoveUnpreparedConnectGen = functions
               ? Date.parse(sessionKey + "T" + first.startTime + ":00-10:00")
               : Date.parse(sessionKey + "T23:59:00-10:00");   // no time: end of day
             if (!Number.isFinite(startMs)) { skipped++; continue; }
-            if (nowMs < startMs) { skipped++; continue; }                       // not started
+
+            // Daniel, 2026-09-10: decide in the MORNING, not at the session
+            // start. A family cannot usefully upload an IEP an hour before —
+            // the consultant needs a full day with it, which is the whole point
+            // of the 24-hour rule. Waiting until the session began also meant
+            // the family learned their session was off at the moment it should
+            // have begun. The call is now made at 08:00 on the day, so they
+            // still have the morning to make other arrangements.
+            const decideMs = Date.parse(sessionKey + "T" + CG_AUTO_MOVE_DECIDE_AT + ":00-10:00");
+            if (!Number.isFinite(decideMs)) { skipped++; continue; }
+            if (nowMs < decideMs) { skipped++; continue; }                      // too early in the day
             if (nowMs - startMs > CG_AUTO_MOVE_LOOKBACK_HOURS * 3600000) {      // long past
               skipped++; continue;
             }
@@ -20541,10 +20998,15 @@ exports.onWorkshopFormWritten = functions
       } catch (e) { console.warn("workshopForm: could not close the form task:", e.message); }
 
       if (needsTravel) {
-        const approver = await _lcResolveStaffName(db, WORKSHOP_TRAVEL_APPROVER_UID);
+        // The form now names its own approver (Daniel, 2026-09-10). The standing
+        // default is only a fallback for forms submitted before that picker
+        // existed — a form saved today always carries a uid.
+        const approverUid = after.travelApproverUid || WORKSHOP_TRAVEL_APPROVER_UID;
+        const approver = (await _lcResolveStaffName(db, approverUid)) ||
+                         after.travelApproverName || "";
         const _tOk = await _lcCreateIfMissing(db, {
           eventId, eventTitle: title, step: "workshopTravelOk", sessionKey: "",
-          ownerUid: WORKSHOP_TRAVEL_APPROVER_UID,
+          ownerUid: approverUid,
           ownerName: approver || "Rosie Rowe",
           dueDate
         });
