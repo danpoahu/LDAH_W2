@@ -17867,7 +17867,7 @@ async function _cgCreateCaseReviewTask({ db, collection, eventId, signupRef, sig
         "and it is an AI-PREPARED DRAFT. Check it against the original documents before you rely " +
         "on it — it is a starting snapshot, not the work. The right-hand column is the gap check: " +
         "what the parent raised and the evaluations found, against what the IEP actually covers.\n\n" +
-        "Open it from the purple Case Summary button on the family's signup, or from their " +
+        "Open it with the purple Open Case Review button on this task, or from the family's " +
         "contact card.\n\n" +
         "It is not shown to the family as it stands.",
       isDraft: false,
