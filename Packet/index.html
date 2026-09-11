@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Aloha Packet — Leadership in Disabilities and Achievement of Hawai‘i</title>
+<style>
+  /* Palette sampled directly from the flyers themselves, not invented:
+     cream #FAF3DD (21% of page 2), teal #6EB3C6, heading teal #2C7B8D,
+     gold #E7BE02, ink #0D121C. */
+  :root{
+    --cream:#FAF3DD; --cream-deep:#F2E9CC;
+    --teal:#6EB3C6; --teal-deep:#2C7B8D; --teal-ink:#1F5D6C;
+    --gold:#E7BE02; --gold-soft:#F6E08A; --olive:#C9B840;
+    --ink:#0D121C; --soft:#6b7280; --line:#E6DCC2;
+    --hib:#B4315C; --orc:#7C6BB0; --palm:#4E9E8C;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--cream-deep);color:var(--ink);
+       font:16px/1.65 "Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif}
+  .wrap{max-width:1240px;margin:0 auto;background:var(--cream);
+        box-shadow:0 0 60px rgba(44,123,141,.16)}
+
+  /* ── Masthead: the flyer's own cream + teal, with a gold rule ── */
+  header.mast{background:var(--teal);color:#fff;padding:0;position:relative}
+  .mastinner{padding:54px 56px 42px;position:relative;overflow:hidden;
+             background:linear-gradient(135deg,#6EB3C6 0%,#4E9BB0 58%,#2C7B8D 100%)}
+  .mastinner::after{content:"";position:absolute;right:-100px;bottom:-140px;
+    width:380px;height:380px;border-radius:50%;
+    background:radial-gradient(circle,rgba(250,243,221,.22),transparent 68%)}
+  .goldrule{height:9px;background:linear-gradient(90deg,var(--gold) 0%,var(--olive) 50%,var(--gold) 100%)}
+  .kicker{font:800 .72rem/1 system-ui,sans-serif;letter-spacing:.2em;
+          text-transform:uppercase;color:var(--cream);opacity:.95;margin:0 0 14px}
+  header.mast h1{margin:0 0 8px;font-size:3.2rem;line-height:1.03;letter-spacing:-.015em;
+                 color:#fff;text-shadow:0 2px 14px rgba(31,93,108,.35)}
+  header.mast .sub{margin:0;font-size:1.14rem;color:var(--cream);max-width:640px}
+  .org{margin:22px 0 0;font:600 .95rem/1.5 system-ui,sans-serif;color:var(--cream);
+       opacity:.94;border-top:1px solid rgba(250,243,221,.35);padding-top:16px;max-width:640px}
+
+  /* ── Contents: cream cards on deep teal ── */
+  nav.toc{background:var(--teal-deep);color:#fff;padding:32px 56px 36px}
+  nav.toc h2{margin:0 0 4px;font:800 .74rem/1 system-ui,sans-serif;
+             letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
+  nav.toc p.tochint{margin:0 0 18px;font:.86rem/1.5 system-ui,sans-serif;
+                    color:rgba(250,243,221,.72)}
+  .tocgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:11px 26px}
+  nav.toc a{display:flex;align-items:baseline;gap:11px;text-decoration:none;
+    color:var(--cream);padding:11px 14px;border-radius:9px;
+    border:1px solid rgba(250,243,221,.22);background:rgba(250,243,221,.07);
+    font:600 .98rem/1.35 system-ui,sans-serif;
+    transition:background .15s,border-color .15s,transform .15s,color .15s}
+  nav.toc a:hover{background:var(--cream);color:var(--teal-ink);
+                  border-color:var(--gold);transform:translateX(3px)}
+  nav.toc a .n{font:800 .72rem/1 system-ui,sans-serif;color:var(--gold);min-width:20px}
+  nav.toc a:hover .n{color:var(--teal-deep)}
+
+  section{padding:44px 56px 10px;scroll-margin-top:10px}
+  section + section{border-top:1px solid var(--line)}
+  .sechead{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:4px}
+  .sechead h2{margin:0;font-size:1.9rem;line-height:1.15;color:var(--teal-deep)}
+  .tag{display:inline-block;font:800 .66rem/1 system-ui,sans-serif;letter-spacing:.14em;
+       text-transform:uppercase;color:#fff;background:var(--teal-deep);
+       padding:6px 11px;border-radius:999px}
+  .tag.teal{background:var(--teal-deep)} .tag.palm{background:var(--palm)}
+  .tag.gold{background:var(--olive);color:#2b2400} .tag.hib{background:var(--hib)}
+  .tag.orc{background:var(--orc)}
+  .lede{margin:10px 0 24px;font-size:1.04rem;color:#34424c;max-width:80ch}
+
+  /* ── The flyers, shown as designed ── */
+  .sheets{margin:0 0 8px}
+  /* Pages 7-14 are a SINGLE trifold panel (264 x 612 pt) — a third the width of
+     the others. Full-width stretched them 2.3x and they went soft. Two across,
+     capped, so they render near their native size and stay sharp. */
+  /* Two panels, spanning the FULL content width, so the pair forms a band the
+     same width as the three-panel spreads above it. Capped at 820px they sat
+     small with dead space beside them and read as a different kind of object. */
+  /* Two columns keeps the front and reverse of one card together. Centred and
+     set on its own cream panel so the pair reads as a single object rather than
+     two loose images, with room to breathe on either side. */
+  .sheets.narrow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+                 gap:40px;align-items:start;justify-items:center;
+                 max-width:1000px;margin:4px auto 18px;
+                 padding:30px 34px;background:#fff;
+                 border:1px solid var(--line);border-radius:18px;
+                 box-shadow:0 4px 20px rgba(44,123,141,.10)}
+  .sheets.narrow figure.sheet{width:100%;max-width:430px}
+  .sheets.narrow figure.sheet img{border-radius:10px;
+                 box-shadow:0 3px 14px rgba(44,123,141,.16)}
+  .sheets.narrow figure.sheet figcaption{text-align:center}
+  figure.sheet{margin:0 0 26px}
+  .sheets.narrow figure.sheet{margin:0}
+  figure.sheet img{display:block;width:100%;height:auto;border:1px solid var(--line);
+    border-radius:12px;box-shadow:0 6px 22px rgba(44,123,141,.16);background:#fff}
+  figure.sheet figcaption{margin-top:9px;font:600 .78rem/1.4 system-ui,sans-serif;
+    color:var(--soft);letter-spacing:.03em}
+
+  .panels{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin:0 0 30px;
+          border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff}
+  .panel{padding:24px 22px;border-right:1px dashed var(--line)}
+  .panel:last-child{border-right:none}
+  .panel h3{margin:0 0 9px;font:800 .74rem/1.3 system-ui,sans-serif;letter-spacing:.12em;
+            text-transform:uppercase;color:var(--teal-deep)}
+  .panel.p2 h3{color:var(--palm)} .panel.p3 h3{color:#9a7b00}
+  .panel p{margin:0 0 11px;font-size:.95rem}
+  .panel ul{margin:0 0 11px;padding-left:18px;font-size:.94rem}
+  .panel li{margin:5px 0}
+  .panel p:last-child,.panel ul:last-child{margin-bottom:0}
+  .callout{background:#fff;border:1px solid var(--line);border-left:5px solid var(--gold);
+           border-radius:0 10px 10px 0;padding:15px 19px;margin:0 0 26px;font-size:.95rem}
+  .totop{display:inline-block;margin:0 0 28px;font:700 .78rem/1 system-ui,sans-serif;
+         color:var(--soft);text-decoration:none;letter-spacing:.04em}
+  .totop:hover{color:var(--teal-deep)}
+
+  footer{background:var(--teal-deep);color:#fff;padding:42px 56px 46px;margin-top:36px}
+  footer h2{margin:0 0 18px;font-size:1.45rem;color:var(--gold)}
+  .fgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:26px}
+  footer p{margin:0 0 7px;font:.93rem/1.6 system-ui,sans-serif;color:rgba(250,243,221,.9)}
+  footer .lbl{font:800 .68rem/1 system-ui,sans-serif;letter-spacing:.14em;
+              text-transform:uppercase;color:var(--gold);margin-bottom:9px}
+  footer a{color:var(--cream)}
+  .fineprint{margin-top:28px;padding-top:16px;border-top:1px solid rgba(250,243,221,.25);
+             font:.78rem/1.6 system-ui,sans-serif;color:rgba(250,243,221,.6)}
+
+  @media (max-width:900px){
+    .mastinner,nav.toc,section,footer{padding-left:24px;padding-right:24px}
+    header.mast h1{font-size:2.15rem}
+    .tocgrid{grid-template-columns:1fr}
+    .panels{grid-template-columns:1fr}
+    .panel{border-right:none;border-bottom:1px dashed var(--line)}
+    .panel:last-child{border-bottom:none}
+    .fgrid{grid-template-columns:1fr}
+  }
+  @media (max-width:560px){ .sheets.narrow{grid-template-columns:1fr} }
+  @media print{
+    body{background:#fff}.wrap{box-shadow:none;max-width:none}
+    section{break-inside:avoid;padding:20px 0}
+    figure.sheet{break-inside:avoid}
+    figure.sheet img{box-shadow:none}
+    .totop{display:none}
+    .mastinner,nav.toc,footer,.goldrule{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  }
+</style>
+</head>
+<body>
+<div class="wrap" id="top">
+
+<header class="mast">
+  <div class="mastinner">
+    <p class="kicker">Hawai‘i &amp; Pacific Island Parent Training &amp; Information Center</p>
+    <h1>The Aloha Packet</h1>
+    <p class="sub">Everything a family needs to begin — gathered in one place, and free.</p>
+    <p class="org">Leadership in Disabilities and Achievement of Hawai‘i · Supporting families since 1968</p>
+  </div>
+  <div class="goldrule"></div>
+</header>
+
+<nav class="toc">
+  <h2>Contents</h2>
+  <p class="tochint">Select any section to jump straight to it.</p>
+  <div class="tocgrid">
+    <a href="#aloha"><span class="n">01</span> What the Aloha Packet Is</a>
+    <a href="#about"><span class="n">02</span> About LDAH &amp; Membership</a>
+    <a href="#srp"><span class="n">03</span> School Readiness Project</a>
+    <a href="#workshops"><span class="n">04</span> Workshops &amp; Training</a>
+    <a href="#adhd"><span class="n">05</span> AD/HD</a>
+    <a href="#autism"><span class="n">06</span> Autism Spectrum Disorder</a>
+    <a href="#dyslexia"><span class="n">07</span> Dyslexia</a>
+    <a href="#ld"><span class="n">08</span> Learning Disabilities</a>
+  </div>
+</nav>
+
+<section id="aloha">
+  <div class="sechead"><span class="tag">01 · Start here</span><h2>What the Aloha Packet Is</h2></div>
+  <p class="lede">
+    Most families reach us on a hard day. A teacher has raised a concern, a letter has arrived
+    that nobody can decipher, or a word has been said out loud for the first time and it has not
+    stopped echoing since. The Aloha Packet exists for that day. It is what our Parent Consultants
+    send every first-time caller: a gathered set of plain-language resources chosen for your child,
+    your island, and the step actually in front of you. Everything that follows in this booklet is
+    part of it.
+  </p>
+  <div class="panels">
+    <div class="panel p1">
+      <h3>A person, not a portal</h3>
+      <p>The Packet begins with a conversation. You ring, and a Parent Consultant listens before
+         sending anything — because a family sorting out an evaluation needs different pages from
+         a family facing a disciplinary meeting next Tuesday.</p>
+      <p>Nothing is automated. What arrives has been chosen for the child you described.</p>
+    </div>
+    <div class="panel p2">
+      <h3>What it holds</h3>
+      <ul>
+        <li>Plain-language guides to the disability or concern you raised</li>
+        <li>Your rights under <strong>IDEA 2004</strong>, <strong>Section 504</strong> and
+            <strong>Hawai‘i Administrative Rules, Chapter 60</strong></li>
+        <li>What to expect from an evaluation, and how to read the report</li>
+        <li>Who to contact on your island, by name</li>
+        <li>The workshop calendar, and how to book onto it</li>
+      </ul>
+    </div>
+    <div class="panel p3">
+      <h3>What it costs</h3>
+      <p><strong>Nothing.</strong> Not the Packet, not the consultation that follows, not the
+         workshops, not the advocacy support.</p>
+      <p>We are a 501(c)(3) nonprofit and Hawai‘i’s federally designated Parent Training &amp;
+         Information Center. Families are never billed.</p>
+      <p style="font-size:.88rem;color:var(--soft)">Membership exists to fund the work — it never
+         gates it.</p>
+    </div>
+  </div>
+  <div class="callout">
+    <strong>To request one:</strong> call <strong>(808) 536-9684</strong>, or
+    <strong>1-800-533-9684</strong> from the neighbor islands, Monday to Friday, 8 AM – 5 PM.
+    Tell whoever answers that you would like the Aloha Packet. That sentence is enough — you do
+    not need a diagnosis, a referral, or the right vocabulary to begin.
+  </div>
+  <a class="totop" href="#top">↑ Back to contents</a>
+</section>
+
+<section id="about">
+  <div class="sechead"><span class="tag teal">02 &middot; The Center</span><h2>About LDAH &amp; Membership</h2></div>
+  <p class="lede">Who we are, our mission and values, the services we provide &mdash; and the membership form that helps keep them free.</p>
+    <div class="sheets">
+      <figure class="sheet">
+        <img src="img/page-01.jpg" alt="About LDAH and Membership, Outside - cover and membership form" loading="lazy">
+        <figcaption>Outside &mdash; cover &amp; membership form</figcaption>
+      </figure>
+      <figure class="sheet">
+        <img src="img/page-02.jpg" alt="About LDAH and Membership, Inside - the PTI, the School Readiness Project, and our services" loading="lazy">
+        <figcaption>Inside &mdash; the PTI, the School Readiness Project, and our services</figcaption>
+      </figure>
+    </div>
+  <a class="totop" href="#top">&uarr; Back to contents</a>
+</section>
+
+<section id="srp">
+  <div class="sechead"><span class="tag palm">03 &middot; Ages 0&ndash;5</span><h2>School Readiness Project</h2></div>
+  <p class="lede">M&#257;lama N&#257; Keiki. Developmental, social-emotional, hearing and vision screenings for keiki ages 0&ndash;5, with case management for anything the screening finds.</p>
+    <div class="sheets">
+      <figure class="sheet">
+        <img src="img/page-03.jpg" alt="School Readiness Project, Outside - serving the islands, how to help, how to reach us" loading="lazy">
+        <figcaption>Outside &mdash; serving the islands, how to help, how to reach us</figcaption>
+      </figure>
+      <figure class="sheet">
+        <img src="img/page-04.jpg" alt="School Readiness Project, Inside - early childhood screenings" loading="lazy">
+        <figcaption>Inside &mdash; early childhood screenings</figcaption>
+      </figure>
+    </div>
+  <a class="totop" href="#top">&uarr; Back to contents</a>
+</section>
+
+<section id="workshops">
+  <div class="sechead"><span class="tag gold">04 &middot; Training</span><h2>Workshops &amp; Training</h2></div>
+  <p class="lede">The full workshop catalogue &mdash; special education law, the evaluation process, building an IEP &mdash; free, statewide, online or face to face.</p>
+    <div class="sheets">
+      <figure class="sheet">
+        <img src="img/page-05.jpg" alt="Workshops and Training, Outside - parent voices and new workshops" loading="lazy">
+        <figcaption>Outside &mdash; parent voices &amp; new workshops</figcaption>
+      </figure>
+      <figure class="sheet">
+        <img src="img/page-06.jpg" alt="Workshops and Training, Inside - the special education workshop series" loading="lazy">
+        <figcaption>Inside &mdash; the special education workshop series</figcaption>
+      </figure>
+    </div>
+  <a class="totop" href="#top">&uarr; Back to contents</a>
+</section>
+
+<section id="adhd">
+  <div class="sechead"><span class="tag hib">05 &middot; Understanding</span><h2>AD/HD</h2></div>
+  <p class="lede">What AD/HD is, the three subtypes and their symptoms, and how a diagnosis is actually made.</p>
+    <div class="sheets narrow">
+      <figure class="sheet">
+        <img src="img/page-07.jpg" alt="AD/HD, Front panel" loading="lazy">
+        <figcaption>Front panel</figcaption>
+      </figure>
+      <figure class="sheet">
+        <img src="img/page-08.jpg" alt="AD/HD, Reverse - symptoms and diagnosis" loading="lazy">
+        <figcaption>Reverse &mdash; symptoms &amp; diagnosis</figcaption>
+      </figure>
+    </div>
+  <a class="totop" href="#top">&uarr; Back to contents</a>
+</section>
+
+<section id="autism">
+  <div class="sechead"><span class="tag orc">06 &middot; Understanding</span><h2>Autism Spectrum Disorder</h2></div>
+  <p class="lede">What ASD is, the risk factors, what to watch for, and who to talk to first depending on your child&rsquo;s age.</p>
+    <div class="sheets narrow">
+      <figure class="sheet">
+        <img src="img/page-09.jpg" alt="Autism Spectrum Disorder, Front panel" loading="lazy">
+        <figcaption>Front panel</figcaption>
+      </figure>
+      <figure class="sheet">
+        <img src="img/page-10.jpg" alt="Autism Spectrum Disorder, Reverse - causes, symptoms, diagnosis and treatment" loading="lazy">
+        <figcaption>Reverse &mdash; causes, symptoms, diagnosis &amp; treatment</figcaption>
+      </figure>
+    </div>
+  <a class="totop" href="#top">&uarr; Back to contents</a>
+</section>
+
+<section id="dyslexia">
+  <div class="sechead"><span class="tag hib">07 &middot; Understanding</span><h2>Dyslexia</h2></div>
+  <p class="lede">A language-based learning disability &mdash; the common signs, and the rights that follow a diagnosis.</p>
+    <div class="sheets narrow">
+      <figure class="sheet">
+        <img src="img/page-11.jpg" alt="Dyslexia, Front panel" loading="lazy">
+        <figcaption>Front panel</figcaption>
+      </figure>
+      <figure class="sheet">
+        <img src="img/page-12.jpg" alt="Dyslexia, Reverse - common signs and legal rights" loading="lazy">
+        <figcaption>Reverse &mdash; common signs &amp; legal rights</figcaption>
+      </figure>
+    </div>
+  <a class="totop" href="#top">&uarr; Back to contents</a>
+</section>
+
+<section id="ld">
+  <div class="sechead"><span class="tag orc">08 &middot; Understanding</span><h2>Learning Disabilities</h2></div>
+  <p class="lede">How a learning disability affects receiving, processing, storing and responding to information &mdash; and the strategies that help.</p>
+    <div class="sheets narrow">
+      <figure class="sheet">
+        <img src="img/page-13.jpg" alt="Learning Disabilities, Front panel" loading="lazy">
+        <figcaption>Front panel</figcaption>
+      </figure>
+      <figure class="sheet">
+        <img src="img/page-14.jpg" alt="Learning Disabilities, Reverse - common signs and strategies" loading="lazy">
+        <figcaption>Reverse &mdash; common signs &amp; strategies</figcaption>
+      </figure>
+    </div>
+  <a class="totop" href="#top">&uarr; Back to contents</a>
+</section>
+<footer>
+  <h2>Request your Aloha Packet</h2>
+  <div class="fgrid">
+    <div><p class="lbl">Call</p><p>(808) 536-9684<br>1-800-533-9684 (neighbor islands)<br>Fax: (808) 537-6780</p></div>
+    <div><p class="lbl">Visit</p><p>245 N. Kukui Street, Suite 205<br>Honolulu, HI 96817<br>Monday – Friday, 8 AM – 5 PM</p></div>
+    <div><p class="lbl">Online</p><p><a href="https://www.ldahawaii.org">www.LDAHawaii.org</a><br>@LDAHAWAII.PTI</p></div>
+  </div>
+  <p class="fineprint">
+    Leadership in Disabilities and Achievement of Hawai‘i · Hawai‘i &amp; Pacific Island Parent
+    Training &amp; Information Center · A 501(c)(3) nonprofit supporting families since 1968.
+    Flyers reproduced as designed. LDAH does not provide legal advice or legal representation.
+  </p>
+</footer>
+
+</div>
+</body>
+</html>
