@@ -26415,7 +26415,7 @@ function _buildScreeningReferralIntroHtml(o) {
         'parent center. We work with the Department of Health to make sure families are not left on their own ' +
         'after a screening, and there is no charge for anything we do.</p>' +
 
-      '<p style="' + p + '"><strong>One of our parent consultants will contact you within the next two business ' +
+      '<p style="' + p + '"><strong>One of our parent consultants will contact you within the next few business ' +
         'days.</strong> They will ask whether you have already received the results, answer any questions, and ' +
         'help you work out the next step if you would like help with one. If everything is already in hand, ' +
         'that is good news and the call will be a short one.</p>' +
