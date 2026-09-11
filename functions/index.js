@@ -2,6 +2,7 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const Anthropic = require("@anthropic-ai/sdk");
 const { FLYER_TOOL_SCHEMA, sessionsToSignupDates } = require("./flyerExtraction");
+const screeningReferral = require("./screeningReferralExtraction");
 const crypto = require("crypto");
 const heicConvert = require("heic-convert");
 // nodemailer removed — Firebase 1st Gen blocks outbound SMTP (port 465/587).
@@ -10,6 +11,17 @@ const heicConvert = require("heic-convert");
 admin.initializeApp();
 
 const ALLOWED_ORIGIN = "https://danpoahu.github.io";
+
+/* ── Lions Club screening referrals ──────────────────────────────────────────
+   Initial contact is owed within 21 days OF THE SCREENING, not of our receiving
+   the form. A batch that reaches us three weeks after the screening is already
+   out of time on arrival, which is why the dashboard shows days remaining and
+   lets it go negative rather than quietly computing a date in the past. */
+const SCREENING_REFERRAL_CONTACT_DUE_DAYS = 21;
+
+/* Handwriting on a form that becomes a family record. See the note at the call
+   site in extractScreeningReferral for why this is not the cheap model. */
+const SCREENING_REFERRAL_MODEL = "claude-opus-5";
 
 /* ── Pacific Partners training: "carry on where you left off" ─────────────────
    A training deck posts here when someone closes
@@ -191,6 +203,113 @@ exports.extractEventFromFlyer = functions
     } catch (err) {
       console.error("extractEventFromFlyer error:", err && err.message);
       res.status(500).json({ ok: false, error: "Could not read the flyer. Please fill the form in manually." });
+    }
+  });
+
+// ── Lions screening referral form → structured intake (STAGE "Screening Referrals") ──
+/* Rosie receives referred children's forms from the schools and drops the scans
+   into the dashboard. This reads one page and hands back structured fields for a
+   human to confirm; it writes NOTHING. Creating the family, the screening record
+   and the case is submitScreeningReferral's job, after a person has checked the
+   reading.
+   Split that way deliberately: this endpoint is reachable from the browser, so it
+   runs on the separately-capped ANTHROPIC_API_KEY_FLYER and is incapable of
+   touching Firestore. Compare extractEventFromFlyer above — same shape, same
+   reasoning. (2026-09-10) */
+exports.extractScreeningReferral = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 3, secrets: ["ANTHROPIC_API_KEY_FLYER"] })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Access-Control-Max-Age", "3600");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ ok: false, error: "Method not allowed" }); return; }
+
+    try {
+      const { fileBase64, mediaType } = req.body || {};
+      const okTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+      if (!fileBase64 || typeof fileBase64 !== "string" || okTypes.indexOf(mediaType) === -1) {
+        res.status(400).json({ ok: false, error: "Missing fileBase64 or unsupported mediaType" });
+        return;
+      }
+      if (fileBase64.length > 9000000) { // ~6.7 MB binary
+        res.status(413).json({ ok: false, error: "That scan is too large — please use a file under about 6 MB." });
+        return;
+      }
+
+      const isPdf = mediaType === "application/pdf";
+      const mediaBlock = isPdf
+        ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: fileBase64 } }
+        : { type: "image",    source: { type: "base64", media_type: mediaType,        data: fileBase64 } };
+
+      const _nowHst = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
+      const _todayStr = _nowHst.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+
+      /* Opus, not the Haiku the flyer extractor uses. These pages are HANDWRITTEN
+         and the child's name becomes a family record; a misread there is unpicked
+         by hand later. One page is a couple of cents. */
+      const client = new Anthropic({ apiKey: _anthropicKey("ANTHROPIC_API_KEY_FLYER") });
+      const response = await client.messages.create({
+        model: SCREENING_REFERRAL_MODEL,
+        max_tokens: 2000,
+        system: screeningReferral.buildSystemPrompt(_todayStr),
+        tools: [{
+          name: "record_screening_referral",
+          description: "Record the contents of this Lions screening form.",
+          input_schema: screeningReferral.SCREENING_REFERRAL_TOOL_SCHEMA,
+        }],
+        tool_choice: { type: "tool", name: "record_screening_referral" },
+        messages: [{ role: "user", content: [mediaBlock, { type: "text", text: "Read this Lions screening form." }] }],
+      });
+
+      if (response.stop_reason === "max_tokens") {
+        console.error("extractScreeningReferral: truncated at max_tokens");
+        res.status(502).json({ ok: false, error: "The reading came back incomplete. Please try that page again." });
+        return;
+      }
+
+      const toolUse = (response.content || []).find((b) => b.type === "tool_use");
+      if (!toolUse || !toolUse.input) {
+        res.status(502).json({ ok: false, error: "Nothing could be read from that page." });
+        return;
+      }
+
+      /* Coerce the closed sets against a JS allowlist rather than trusting the
+         model to have honoured its own enum — same guard the flyer extractor
+         applies to suggestedType. */
+      const d = toolUse.input;
+      if (screeningReferral.SCREENING_REFERRAL_FORM_TYPES.indexOf(d.formType) === -1) {
+        res.status(422).json({ ok: false, error: "That does not look like a Lions vision or hearing form." });
+        return;
+      }
+      if (screeningReferral.SCREENING_REFERRAL_OUTCOMES.indexOf(d.outcome) === -1) d.outcome = "unclear";
+      if (screeningReferral.SCREENING_REFERRAL_HEARING_RECS.indexOf(d.hearingRecommendation) === -1) {
+        d.hearingRecommendation = null;
+      }
+      if (!Array.isArray(d.uncertainFields)) d.uncertainFields = [];
+      if (["high", "medium", "low"].indexOf(d.confidence) === -1) d.confidence = "low";
+
+      /* Derived server-side so the browser cannot disagree with the rule. */
+      d.isReferral = screeningReferral.isReferral(d);
+      d.contactability = screeningReferral.contactability(d);
+      d.initialContactDueDate = d.screeningDate
+        ? addDaysHst(d.screeningDate, SCREENING_REFERRAL_CONTACT_DUE_DAYS)
+        : null;
+
+      const usage = response.usage || {};
+      console.log("extractScreeningReferral:", d.formType, "referral=" + d.isReferral,
+        "confidence=" + d.confidence, "inputTokens=" + (usage.input_tokens || "?"),
+        "outputTokens=" + (usage.output_tokens || "?"));
+
+      res.status(200).json({ ok: true, referral: d });
+    } catch (err) {
+      /* Deliberately not logging err.cause.message: the SDK puts the malformed
+         request there, API key included. That leaked a key to Cloud Logging once
+         already. */
+      console.error("extractScreeningReferral error:", err && err.name, err && err.message,
+        err && err.cause && err.cause.code, err && err.cause && err.errno);
+      res.status(500).json({ ok: false, error: "Could not read that page. Please enter it by hand." });
     }
   });
 
@@ -25933,6 +26052,394 @@ exports.getScreeningConsentDownloadUrl = functions
       res.status(500).json({ error: err.message });
     }
   });
+
+/* ── Lions screening referral → contact + screening record + case ────────────
+   The write half of the Screening Referrals intake. extractScreeningReferral
+   reads the page; a human confirms the reading on screen; this records it.
+
+   Three things it deliberately does NOT do:
+
+   1. It does not send the Case Opening Letter. That letter's consent text is
+      the Connect-Gen one — it references a Connect-Gen session, IEP uploads and
+      document destruction, none of which a screening family has agreed to or
+      would recognise. Referral families get a short introduction instead, and
+      the real letter still goes out later, unchanged, if a case escalates into
+      document-handling advocacy through the normal dashboard flow.
+   2. It does not open a second case for a family that already has one. A child
+      referred for vision in October and hearing in December is one family with
+      one open case, not two.
+   3. It does not contact a hearing-only family. The hearing form collects no
+      parent contact and its consent does not name LDAH, so those park in a
+      queue instead. See screeningReferralExtraction.js.               (2026-09-10) */
+exports.submitScreeningReferral = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 5, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    let staff;
+    try { staff = await _verifyStaffIdToken(body.idToken); }
+    catch (err) { res.status(err.statusCode || 401).json({ error: err.message }); return; }
+
+    const r = body.referral || {};
+    const formType = String(r.formType || "").trim();
+    if (screeningReferral.SCREENING_REFERRAL_FORM_TYPES.indexOf(formType) === -1) {
+      res.status(400).json({ error: "Missing or unknown formType" }); return;
+    }
+
+    const childName = String(r.childName || "").trim();
+    if (!childName) { res.status(400).json({ error: "A child's name is required." }); return; }
+
+    const screeningDate = String(r.screeningDate || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(screeningDate)) {
+      res.status(400).json({ error: "A screening date (YYYY-MM-DD) is required." }); return;
+    }
+
+    /* Only referred children come to LDAH. A pass in the batch is a filing
+       mistake at the school, and opening a case for a child who passed is worse
+       than refusing the page — so refuse it and say why. */
+    if (!screeningReferral.isReferral(r)) {
+      res.status(422).json({
+        error: "This form records a PASS, not a referral. Nothing was saved — " +
+               "check the page, or set the outcome to refer if the reading was wrong.",
+      });
+      return;
+    }
+
+    const db = admin.firestore();
+    const FieldValue = admin.firestore.FieldValue;
+    const emailLc = String(r.parentEmail || "").trim().toLowerCase();
+    const phoneDigits = String(r.parentPhone || "").replace(/\D/g, "");
+    const parentName = String(r.parentName || "").trim();
+
+    try {
+      /* ── 1. Find or create the family ───────────────────────────────────
+         Explicit contactId wins (staff picked a family on the confirm card),
+         then email, then phone, then create. Never by name: matching a
+         no-email walk-up by name eventually fuses two different families.
+         Same order as submitReadinessConsent. */
+      let contactId = String(body.contactId || "").trim();
+      let created = false;
+
+      if (!contactId && emailLc) {
+        const q = await db.collection("contacts").where("email", "==", emailLc).limit(2).get();
+        if (!q.empty) {
+          contactId = q.docs[0].id;
+          if (q.size > 1) console.warn("submitScreeningReferral: multiple contacts for", emailLc);
+        }
+      }
+      if (!contactId && phoneDigits.length >= 7) {
+        const q = await db.collection("contacts").where("phone", "==", phoneDigits).limit(2).get();
+        if (!q.empty) contactId = q.docs[0].id;
+      }
+      if (!contactId) {
+        const doc = {
+          name: parentName || childName,
+          firstName: "",
+          lastName: "",
+          email: emailLc,
+          phone: phoneDigits,
+          contactType: "Parent/Guardian",
+          source: "lions-screening",
+          createdAt: FieldValue.serverTimestamp(),
+        };
+        const ref = await db.collection("contacts").add(doc);
+        contactId = ref.id;
+        created = true;
+      } else {
+        /* Fill a blank, never overwrite. Staff hand-corrections outrank a
+           handwritten form read by a model. */
+        const cur = (await db.collection("contacts").doc(contactId).get()).data() || {};
+        const patch = {};
+        if (!String(cur.email || "").trim() && emailLc) patch.email = emailLc;
+        if (!String(cur.phone || "").trim() && phoneDigits) patch.phone = phoneDigits;
+        if (Object.keys(patch).length) {
+          await db.collection("contacts").doc(contactId).update(patch);
+        }
+      }
+
+      /* ── 2. Record the screening on the contact ─────────────────────────
+         Appended to the same screenings[] array the SRP and kiosk flows use,
+         so the contact card shows every screening a child has had in one list
+         regardless of which programme ran it. */
+      const screening = {
+        id: crypto.randomBytes(8).toString("hex"),
+        source: "lions-screening",
+        program: "D50 Hawaii Lions",
+        screeningType: formType,
+        screeningDate: screeningDate,
+        childName: childName,
+        grade: String(r.grade || ""),
+        room: String(r.room || ""),
+        school: String(r.schoolName || ""),
+        teacher: String(r.teacherName || ""),
+        outcome: "refer",
+        hearingRecommendation: r.hearingRecommendation || "",
+        resultNotes: String(r.resultNotes || ""),
+        paperConsent: true,
+        consentSigned: r.consentSigned === true,
+        consentDate: String(r.consentDate || ""),
+        consentNote: formType === "vision"
+          ? "Lions Vision Screening Protocol #3 parent consent — names LDAH as DOH vendor for referral and follow-up (HRS §321-101)."
+          : "Lions Hearing Screening consent — names the child's doctor, audiologist, school and Lions Club. Does NOT name LDAH.",
+        recordedBy: staff.email || staff.uid,
+        recordedAt: admin.firestore.Timestamp.now(),
+      };
+      if (body.storagePath) screening.storagePath = String(body.storagePath);
+      await db.collection("contacts").doc(contactId).update({
+        screenings: FieldValue.arrayUnion(screening),
+      });
+
+      /* ── 3. One open case per family ────────────────────────────────────
+         Single-field query plus an in-code filter — the same shape the
+         dashboard and the Connect-Gen path both use, and it needs no
+         composite index. */
+      let caseId = "";
+      let caseReused = false;
+      try {
+        const ex = await db.collection("interactions").where("contactId", "==", contactId).get();
+        ex.forEach((doc) => {
+          if (caseId) return;
+          const x = doc.data() || {};
+          if (x.workflowStep === "caseAdvocacy" && x.status === "Open") caseId = doc.id;
+        });
+      } catch (e) {
+        console.warn("submitScreeningReferral: case dedup lookup failed:", e.message);
+      }
+
+      const todayHst = new Date().toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
+      const contactDueDate = addDaysHst(screeningDate, SCREENING_REFERRAL_CONTACT_DUE_DAYS);
+      const label = formType === "vision" ? "vision" : "hearing";
+      const provenance = "Lions " + label + " screening referral for " + childName +
+        (r.schoolName ? " at " + r.schoolName : "") + ", screened " + screeningDate + "." +
+        "\nInitial contact is due by " + contactDueDate + " (21 days from the screening)." +
+        "\nEntered from the scanned form by " + (staff.name || staff.email || staff.uid) + " on " + todayHst + ".";
+
+      if (caseId) {
+        /* Attach to the open case rather than opening a second. The existing
+           followUpDate is left alone — whatever the advocate set for their own
+           next step outranks a new referral's arithmetic. */
+        caseReused = true;
+        const curSnap = await db.collection("interactions").doc(caseId).get();
+        const cur = curSnap.data() || {};
+        await db.collection("interactions").doc(caseId).update({
+          notes: String(cur.notes || "") + "\n\n" + provenance,
+          screeningReferrals: FieldValue.arrayUnion({
+            screeningId: screening.id, type: formType, screeningDate: screeningDate,
+            contactDueDate: contactDueDate,
+          }),
+          lastEditedAt: FieldValue.serverTimestamp(),
+          lastEditedBy: staff.email || staff.uid,
+        });
+      } else {
+        // Resolve the coordinator by EMAIL. Her display name matches two
+        // accounts in userRoles (ndelavega@ vs mdelavega@ are different people).
+        let uid = "";
+        try {
+          const uSnap = await db.collection("userRoles").get();
+          const target = String(CONNECT_GEN_ALERT_CC_EMAIL).trim().toLowerCase();
+          uSnap.forEach((doc) => {
+            if (uid) return;
+            const d = doc.data() || {};
+            if (d.isArchived === true) return;
+            if (String(d.email || "").trim().toLowerCase() === target) uid = doc.id;
+          });
+        } catch (e) {
+          console.warn("submitScreeningReferral: coordinator lookup failed:", e.message);
+        }
+        if (!uid) uid = CONNECT_GEN_ALERT_CC_UID;
+
+        /* followUpDate stays TODAY so the case surfaces in the coordinator's
+           allocation queue like every other unassigned case. The 21-day
+           deadline is its own field — conflating the two would either bury the
+           allocation prompt for three weeks or lose the real deadline. */
+        const ref = await db.collection("interactions").add({
+          channel: "Mail",
+          interactionType: "Case Advocacy",
+          workflowStep: "caseAdvocacy",
+          contactId: contactId,
+          contactName: parentName || childName,
+          contactType: "Parent/Guardian",
+          summary: "Case advocacy — assign a parent consultant for " + (parentName || childName) +
+                   " (Lions " + label + " referral)",
+          notes: provenance,
+          followUpDate: todayHst,
+          status: "Open",
+          owner: CASE_ADVOCACY_COORDINATOR_NAME,
+          ownerUid: uid,
+          needsAdvocateAssignment: true,
+          source: "lions-screening",
+          caseAdvocacySource: "lions-screening",
+          caseAdvocacyScreeningDate: screeningDate,
+          caseAdvocacyContactDueDate: contactDueDate,
+          screeningReferrals: [{
+            screeningId: screening.id, type: formType, screeningDate: screeningDate,
+            contactDueDate: contactDueDate,
+          }],
+          createdBy: staff.name || staff.email || staff.uid,
+          createdByUid: staff.uid,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        caseId = ref.id;
+
+        if (uid) {
+          try {
+            await db.collection("notifications").add({
+              recipientUid: uid,
+              recipientName: CASE_ADVOCACY_COORDINATOR_NAME,
+              type: "case-advocacy-needs-advocate",
+              title: "Assign a parent consultant — Lions " + label + " referral",
+              message: childName + " was referred from a Lions " + label + " screening on " +
+                screeningDate + ". Initial contact is due by " + contactDueDate + ".",
+              interactionId: caseId,
+              read: false,
+              createdAt: FieldValue.serverTimestamp(),
+            });
+          } catch (e) {
+            console.warn("submitScreeningReferral: notification write failed:", e.message);
+          }
+        }
+      }
+
+      /* ── 4. The introduction email ──────────────────────────────────────
+         Only where we have an address AND the family's consent names LDAH —
+         which today means vision only. Everything else is returned as
+         needsParentContact and shown in the queue. */
+      const reach = screeningReferral.contactability(r);
+      let emailed = false;
+      let emailSkipped = "";
+
+      if (!reach.namesLdah) {
+        emailSkipped = "consent-does-not-name-ldah";
+      } else if (!emailLc) {
+        emailSkipped = "no-email-address";
+      } else if (body.suppressEmail === true) {
+        emailSkipped = "suppressed-by-staff";
+      } else {
+        try {
+          await sendEmailViaResend({
+            from: `LDAH <${process.env.SMTP_FROM || "onboarding@resend.dev"}>`,
+            to: emailLc,
+            recipientName: parentName || "",
+            subject: SCREENING_REFERRAL_INTRO_SUBJECT,
+            html: _buildScreeningReferralIntroHtml({
+              parentName: parentName,
+              childName: childName,
+              screeningType: label,
+              screeningDate: screeningDate,
+              schoolName: String(r.schoolName || ""),
+            }),
+            type: "lions-screening-intro",
+            relatedContactId: contactId,
+          });
+          emailed = true;
+          await db.collection("contacts").doc(contactId).update({
+            lionsScreeningIntroSentAt: FieldValue.serverTimestamp(),
+            lionsScreeningIntroSentTo: emailLc,
+          });
+        } catch (e) {
+          console.error("submitScreeningReferral: intro email failed:", e.message);
+          emailSkipped = "send-failed";
+        }
+      }
+
+      try {
+        await db.collection("auditLog").add({
+          action: "Lions screening referral recorded",
+          details: "type=" + formType + ", child=" + childName + ", screened=" + screeningDate +
+            ", contactDue=" + contactDueDate + ", contactId=" + contactId +
+            ", contactCreated=" + created + ", caseId=" + caseId + ", caseReused=" + caseReused +
+            ", introEmail=" + (emailed ? "sent" : "skipped:" + emailSkipped),
+          performedBy: staff.email || staff.uid,
+          role: staff.role || "",
+          timestamp: FieldValue.serverTimestamp(),
+        });
+      } catch (e) { console.warn("audit write failed:", e.message); }
+
+      res.status(200).json({
+        ok: true,
+        contactId: contactId,
+        contactCreated: created,
+        caseId: caseId,
+        caseReused: caseReused,
+        screeningId: screening.id,
+        contactDueDate: contactDueDate,
+        introEmailSent: emailed,
+        introEmailSkipped: emailSkipped,
+        needsParentContact: !reach.reachable,
+      });
+    } catch (err) {
+      console.error("submitScreeningReferral error:", err && err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+const SCREENING_REFERRAL_INTRO_SUBJECT = "About your child's recent vision or hearing screening";
+
+/* The short introduction the family gets, agreed on the 2026-09-02 call:
+   "we just received your results for Johnny... we will be making contact with
+   you within the next 2 days." Deliberately NOT the Case Opening Letter — this
+   family has signed a Lions screening consent, not an LDAH advocacy consent,
+   and has never heard of us. Says who we are, why we have their child's result,
+   and what happens next. Nothing to sign, nothing to upload. */
+function _buildScreeningReferralIntroHtml(o) {
+  const esc = _emailEsc;
+  const p = "margin:0 0 14px;font-size:16px;color:#334155;line-height:1.6";
+  const greeting = o.parentName ? "Dear " + esc(o.parentName) + "," : "Aloha,";
+  const whereLine = o.schoolName
+    ? " at " + esc(o.schoolName)
+    : "";
+
+  return '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1.0"></head>' +
+    '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
+    '<div style="max-width:600px;margin:0 auto;background:#fff">' +
+
+    '<div style="background-color:#1e40af;background:linear-gradient(135deg,#1e40af,#0891B2);padding:18px 24px 22px;text-align:center;color:#fff">' +
+      '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;">' +
+      '<h1 style="margin:0;font-size:22px;font-weight:700">We received your child&rsquo;s screening results</h1>' +
+    '</div>' +
+
+    '<div style="padding:32px 24px">' +
+      '<p style="margin:0 0 18px;font-size:16px">' + greeting + '</p>' +
+
+      '<p style="' + p + '">We have received the results of the free Lions Club ' + esc(o.screeningType) +
+        ' screening that ' + esc(o.childName) + ' took part in' + whereLine + '. The screening suggested that ' +
+        esc(o.childName) + ' would benefit from a closer look by a doctor.</p>' +
+
+      '<p style="' + p + '">Leadership in Disabilities &amp; Achievement of Hawai&#699;i (LDAH) is the Hawai&#699;i ' +
+        'parent center. We work with the Department of Health to make sure families are not left on their own ' +
+        'after a screening, and there is no charge for anything we do.</p>' +
+
+      '<p style="' + p + '"><strong>One of our parent consultants will contact you within the next two business ' +
+        'days.</strong> They will ask whether you have already received the results, answer any questions, and ' +
+        'help you work out the next step if you would like help with one. If everything is already in hand, ' +
+        'that is good news and the call will be a short one.</p>' +
+
+      '<p style="' + p + '">There is nothing you need to do before then, and nothing to sign. If you would ' +
+        'rather not hear from us, just reply to this email and we will close the referral.</p>' +
+
+      '<p style="margin:26px 0 4px;font-size:15px;color:#333;line-height:1.5;">With Aloha,</p>' +
+      '<p style="margin:16px 0 2px;font-size:14px;color:#555555;line-height:1.5;">' +
+        '<strong>Leadership in Disabilities &amp; Achievement of Hawai&#699;i</strong><br>' +
+        '245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>' +
+        'Phone: (808) 536-9684<br>' +
+        '<a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>' +
+      '</p>' +
+    '</div>' +
+
+    '<div style="background-color:#f0f0f0;padding:24px 32px;text-align:center;border-top:1px solid #dddddd;">' +
+      '<p style="margin:0 0 4px;font-size:13px;color:#777777;font-weight:bold;">Leadership in Disabilities &amp; Achievement of Hawai&#699;i</p>' +
+      '<p style="margin:0 0 4px;font-size:12px;color:#999999;">245 N. Kukui St., Suite 205, Honolulu, HI 96817</p>' +
+      '<p style="margin:0;font-size:12px;color:#999999;">Phone: (808) 536-9684</p>' +
+    '</div>' +
+
+    '</div></body></html>';
+}
 
 // ── Pending-signup phone nudge (2026-09-04) ─────────────────────────────────
 // A family signs up, the signup sits at "pending", and nobody rings them. This
