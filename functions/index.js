@@ -20227,11 +20227,13 @@ exports._nhBuildAndSendReport = _nhBuildAndSendReport;
 // userRoles document id — verified 2026-08-19 against live userRoles
 // (displayName "Maria Kashem", Mkashem@ldahawaii.org, superAdmin).
 //
-// This was La'a Salvani until 2026-08-19. He has left LDAH and Maria replaced
-// him, so every task routed here now goes to her. Display names are resolved
-// from userRoles at run time via _lcResolveStaffName(); the string fallbacks
-// below apply only if that read fails.
-const MARIA_KASHEM_UID = "WFyi6IVyHiXsVP2ADaikE9begOC3";
+// The admin seat. La'a Salvani until 2026-08-19, then Maria Kashem, and from
+// 2026-09-14 Justin Banaga — Daniel: "make all tasks that we moved to others
+// back to this admin person". Justin replaces Maria outright; her uid is no
+// longer routed to anywhere. Display names resolve from userRoles at run time
+// via _lcResolveStaffName(); the string fallbacks below apply only if that
+// read fails.
+const LIFECYCLE_SEAT_UID = "xxApwGPzZafLhmfrGll6gwylknJ3";  // Justin Banaga, JBanaga@ldahawaii.org
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEMPORARY COVER — Maria's tasks (2026-08-31, Daniel: "for a little while")
@@ -20250,19 +20252,19 @@ const MARIA_KASHEM_UID = "WFyi6IVyHiXsVP2ADaikE9begOC3";
 //   YmGV2TlBGqR01dVdxZ0rtFLEFCG3  Dan Pellegrini     danpellegrini63@gmail.com
 //   lwn8EWt6XEbCg5rhM0f8OSy8nTj2  Noelani Dela Vega  ndelavega@ldahawaii.org
 // ═══════════════════════════════════════════════════════════════════════════
-const LIFECYCLE_COVER_ACTIVE = true;
+const LIFECYCLE_COVER_ACTIVE = false;   // cover ENDED 2026-09-14 — Justin has the seat
 const DAN_PELLEGRINI_UID  = "YmGV2TlBGqR01dVdxZ0rtFLEFCG3";
 const NOELANI_DELAVEGA_UID = "lwn8EWt6XEbCg5rhM0f8OSy8nTj2";
 
 // Everything that used to go to Maria.
-const LIFECYCLE_ADMIN_UID = LIFECYCLE_COVER_ACTIVE ? DAN_PELLEGRINI_UID : MARIA_KASHEM_UID;
+const LIFECYCLE_ADMIN_UID = LIFECYCLE_COVER_ACTIVE ? DAN_PELLEGRINI_UID : LIFECYCLE_SEAT_UID;
 // Travel booking only — split out because it goes somewhere different.
-const LIFECYCLE_TRAVEL_UID = LIFECYCLE_COVER_ACTIVE ? NOELANI_DELAVEGA_UID : MARIA_KASHEM_UID;
+const LIFECYCLE_TRAVEL_UID = LIFECYCLE_COVER_ACTIVE ? NOELANI_DELAVEGA_UID : LIFECYCLE_SEAT_UID;
 
 // Fallback display names, used ONLY when the userRoles read fails. They have to
 // follow the switch too, or a failed read would put the wrong name on the card.
-const LIFECYCLE_ADMIN_NAME  = LIFECYCLE_COVER_ACTIVE ? "Dan Pellegrini" : "Maria Kashem";
-const LIFECYCLE_TRAVEL_NAME = LIFECYCLE_COVER_ACTIVE ? "Noelani Dela Vega" : "Maria Kashem";
+const LIFECYCLE_ADMIN_NAME  = LIFECYCLE_COVER_ACTIVE ? "Dan Pellegrini" : "Justin Banaga";
+const LIFECYCLE_TRAVEL_NAME = LIFECYCLE_COVER_ACTIVE ? "Noelani Dela Vega" : "Justin Banaga";
 
 const LIFECYCLE_CHANNELS = {
   assignPresenter:  { channel: "Event Setup",   type: "Assign Presenter" },
