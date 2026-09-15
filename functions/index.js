@@ -9174,7 +9174,8 @@ exports.handleUnsubscribe = functions
 // endpoint; a second unauthenticated URL that can email a thousand families is
 // not something to add casually. The payload lives in Firestore and the job is
 // fired by Cloud Scheduler.
-function buildCombinedAnnouncementEmailHtml({ blocks, contact, unsubscribeUrl }) {
+function buildCombinedAnnouncementEmailHtml({ blocks, contact, unsubscribeUrl,
+                                              heading, lead, extraLinks, extraHtml }) {
   const esc = (x) => String(x || '').replace(/[&<>"']/g,
     c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
   const displayName = (contact.displayName || '').trim();
@@ -9184,18 +9185,32 @@ function buildCombinedAnnouncementEmailHtml({ blocks, contact, unsubscribeUrl })
   const sections = blocks.map((b, i) => {
     const ev = b.event || {};
     const title = ev.title || 'Upcoming LDAH Event';
-    const dateStr = b.sessionDate ||
-      (Array.isArray(ev.signupDates) && ev.signupDates[0]) ||
-      (ev.eventDate ? formatEventDate(ev.eventDate) : '');
-    const location = ev.location || '';
+    /* A flyer has nothing to sign up for, and its eventDate is the day it was
+       put up, not a day anything happens. Printing "When: August 31, 2026" under
+       a membership invitation tells the reader they have missed it, and
+       "Where: 245 North Kukui Street" tells them to drive somewhere to join.
+       So for a flyer both lines are suppressed unless the job supplies real
+       words for them. (2026-09-15) */
+    const isFlyer = (ev.infoOnly === true || ev.flyerOnly === true ||
+                     String(ev.eventType || '') === 'flyer');
+    const dateStr = (typeof b.whenText === 'string') ? b.whenText
+      : (isFlyer ? '' : (b.sessionDate ||
+        (Array.isArray(ev.signupDates) && ev.signupDates[0]) ||
+        (ev.eventDate ? formatEventDate(ev.eventDate) : '')));
+    const location = (typeof b.whereText === 'string') ? b.whereText
+      : (isFlyer ? '' : (ev.location || ''));
     const raw = ev.description || ev.details || '';
     const desc = raw.slice(0, 400) + (raw.length > 400 ? '...' : '');
     const flyerUrl = ev.flyerUrl || ev.imageUrl || ev.flyer || '';
+    /* Same reasoning for the Sign Up button: it would land on an events page
+       with no session on it, which reads as a broken email. A spec can still
+       force it either way. */
+    const showSignup = (typeof b.noSignup === 'boolean') ? !b.noSignup : !isFlyer;
     const signupUrl = 'https://www.ldahawaii.org/events.html' +
       '?eventId=' + encodeURIComponent(b.eventId || '') +
       '&prefill=' + encodeURIComponent(contact.unsubscribeToken || '') +
       '&autoOpen=1';
-    linkRows.push({ label: 'Sign Up for ' + title, href: signupUrl });
+    if (showSignup) linkRows.push({ label: 'Sign Up for ' + title, href: signupUrl });
     return (i > 0 ? '<div style="height:1px;background:#e5e7eb;margin:8px 24px"></div>' : '') +
       (flyerUrl ? '<img src="' + esc(flyerUrl) + '" alt="' + esc(title) +
                   '" style="width:100%;display:block">' : '') +
@@ -9206,28 +9221,37 @@ function buildCombinedAnnouncementEmailHtml({ blocks, contact, unsubscribeUrl })
       (location ? '<p style="margin:0 0 16px;color:#475569"><strong>Where:</strong> ' +
                   esc(location) + '</p>' : '') +
       (desc ? '<p style="margin:0 0 20px;color:#334155;line-height:1.6">' + esc(desc) + '</p>' : '') +
-      '<p style="text-align:center;margin:24px 0 8px">' +
-      '<a href="' + signupUrl + '" style="background-color:#0891B2;' +
-      'background:linear-gradient(135deg,#0891B2,#0E7490);color:#fff;padding:14px 32px;' +
-      'border-radius:8px;text-decoration:none;font-weight:700;font-size:16px">Sign Up</a></p>' +
+      (showSignup
+        ? '<p style="text-align:center;margin:24px 0 8px">' +
+          '<a href="' + signupUrl + '" style="background-color:#0891B2;' +
+          'background:linear-gradient(135deg,#0891B2,#0E7490);color:#fff;padding:14px 32px;' +
+          'border-radius:8px;text-decoration:none;font-weight:700;font-size:16px">Sign Up</a></p>'
+        : '') +
       '</div>';
   }).join('');
 
-  const heading = blocks.length > 1 ? 'Two Upcoming LDAH Events' : 'New LDAH Event';
-  const lead = blocks.length > 1
+  /* Heading and lead are overridable. They were written for "two events you can
+     attend", which is wrong copy for a donation campaign and a membership
+     invitation — neither is a session, and neither has a date to turn up at. */
+  const _heading = heading || (blocks.length > 1 ? 'Two Upcoming LDAH Events' : 'New LDAH Event');
+  const _lead = lead || (blocks.length > 1
     ? 'We have two sessions coming up that we would love to see you at.'
-    : 'We have a session coming up that we would love to see you at.';
+    : 'We have a session coming up that we would love to see you at.');
+  (Array.isArray(extraLinks) ? extraLinks : []).forEach((x) => {
+    if (x && x.href && x.label) linkRows.push({ label: x.label, href: x.href });
+  });
 
-  return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(heading) + '</title></head>' +
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(_heading) + '</title></head>' +
     '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
     '<div style="max-width:600px;margin:0 auto;background:#fff">' +
     '<div style="background-color:#004E7C;background:linear-gradient(135deg,#004E7C,#0891B2);' +
     'padding:24px;text-align:center;color:#fff">' +
-    '<h1 style="margin:0;font-size:22px;font-weight:700">' + esc(heading) + '</h1></div>' +
+    '<h1 style="margin:0;font-size:22px;font-weight:700">' + esc(_heading) + '</h1></div>' +
     '<div style="padding:28px 24px 0">' +
     '<p style="margin:0 0 6px;font-size:16px">Aloha ' + esc(firstName) + ',</p>' +
-    '<p style="margin:0 0 4px;font-size:15px;color:#334155">' + esc(lead) + '</p></div>' +
+    '<p style="margin:0 0 4px;font-size:15px;color:#334155">' + esc(_lead) + '</p></div>' +
     sections +
+    (extraHtml || '') +
     '<div style="padding:0 24px 24px">' + _emailLinkFooter(linkRows) + '</div>' +
     '<div style="padding:16px 24px;border-top:1px solid #e5e7eb;background:#f9fafb;' +
     'font-size:12px;color:#94a3b8;text-align:center">' +
@@ -9288,12 +9312,24 @@ function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl, eventId, s
 // Run the combined announcement described by system/pendingCombinedAnnouncement.
 // Idempotent: the job doc's status is flipped to "sending" before the first
 // email goes out, so a repeated Pub/Sub delivery cannot send the batch twice.
-async function _runCombinedAnnouncement({ db, dryRun }) {
+async function _runCombinedAnnouncement({ db, dryRun, testEmail }) {
   const jobRef = db.doc("system/pendingCombinedAnnouncement");
   const jobSnap = await jobRef.get();
   if (!jobSnap.exists) return { ok: false, reason: "no job doc" };
   const job = jobSnap.data() || {};
-  if (job.status !== "pending") return { ok: false, reason: "status is " + job.status };
+  /* A test send is a preview of the composed email and nothing else. It reads
+     the job to learn which flyers and what copy, then mails ONE address. It
+     never flips status, never writes a receipt, never counts against an event
+     and never touches the contact list -- so it also works on a job that has
+     already gone out, which is exactly when somebody wants to look at one
+     again. (2026-09-15) */
+  const test = String(testEmail || job.testEmail || "").trim();
+  /* A dry run writes nothing either, so it is allowed on a draft job too --
+     otherwise the only way to learn how many people a mailing would reach is to
+     arm it first, which is the wrong order. */
+  if (!test && !dryRun && job.status !== "pending") {
+    return { ok: false, reason: "status is " + job.status };
+  }
   const specs = Array.isArray(job.events) ? job.events : [];
   if (!specs.length) return { ok: false, reason: "no events on job" };
 
@@ -9305,13 +9341,22 @@ async function _runCombinedAnnouncement({ db, dryRun }) {
     blocks.push({
       eventId: sp.eventId, collection: coll, ref: snap.ref,
       sessionDate: sp.sessionDate || "", event: snap.data() || {},
+      /* Optional per-flyer override of the Sign Up button; left undefined the
+         template decides from the event itself. */
+      noSignup: (typeof sp.noSignup === "boolean") ? sp.noSignup : undefined,
+      /* Real words for When/Where when the event's own fields would mislead --
+         a month-long campaign, or a flyer whose address is the office. */
+      whenText: (typeof sp.whenText === "string") ? sp.whenText : undefined,
+      whereText: (typeof sp.whereText === "string") ? sp.whereText : undefined,
+      signedEmails: new Set(), signedIds: new Set(), alreadySent: new Set(),
     });
   }
   if (!blocks.length) return { ok: false, reason: "none of the events exist" };
 
   // Who is already signed up for each block, and who already had this exact
   // announcement. Both are per-block, which is the whole point of the design.
-  for (const b of blocks) {
+  // Skipped entirely for a test send: a sample shows every block by design.
+  for (const b of (test ? [] : blocks)) {
     const signedEmails = new Set(), signedIds = new Set();
     const sigs = await b.ref.collection("signups").get();
     sigs.forEach((d) => {
@@ -9337,12 +9382,42 @@ async function _runCombinedAnnouncement({ db, dryRun }) {
     b.alreadySent = alreadySent;
   }
 
+  /* Optional exclusions, all off unless the job asks for them, so an ordinary
+     event announcement behaves exactly as it did before.
+
+     excludeStaff matters for a fundraising mailing in a way it does not for an
+     event invitation: asking your own staff to donate reads badly. Partners are
+     NOT staff -- the six Pacific Basin organisations are the audience, not the
+     office -- so they stay in. (2026-09-15) */
+  const staffEmails = new Set();
+  if (job.excludeStaff === true) {
+    const rolesSnap = await db.collection("userRoles").get();
+    rolesSnap.forEach((d) => {
+      const u = d.data() || {};
+      if (u.role === "partner" || u.previousRole === "partner") return;
+      const e = String(u.email || "").trim().toLowerCase();
+      if (e) staffEmails.add(e);
+    });
+  }
+  const excludeEmails = new Set((Array.isArray(job.excludeEmails) ? job.excludeEmails : [])
+    .map((e) => String(e || "").trim().toLowerCase()).filter(Boolean));
+
+  /* Two addresses in one field, or a bare fragment. Resend rejects these and
+     they land in the failed tally looking like an outage. */
+  const _sane = (e) => /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]{2,}$/.test(e);
+
   const contactsSnap = await db.collection("contacts").where("marketingOptOut", "==", false).get();
   const recipients = [];
+  const dropped = { staff: 0, archived: 0, excluded: 0, malformed: 0 };
   contactsSnap.forEach((d) => {
     const c = d.data() || {};
     const email = String(c.email || "").trim();
     if (!email || !c.unsubscribeToken) return;
+    const lower = email.toLowerCase();
+    if (!_sane(email)) { dropped.malformed++; return; }
+    if (job.excludeArchived === true && c.archived === true) { dropped.archived++; return; }
+    if (staffEmails.has(lower)) { dropped.staff++; return; }
+    if (excludeEmails.has(lower)) { dropped.excluded++; return; }
     recipients.push({
       id: d.id, email,
       displayName: (c.displayName || [c.firstName, c.lastName].filter(Boolean).join(" ")).trim() || "Friend",
@@ -9357,7 +9432,7 @@ async function _runCombinedAnnouncement({ db, dryRun }) {
   };
 
   if (dryRun) {
-    const tally = { total: recipients.length, none: 0 };
+    const tally = { total: recipients.length, none: 0, dropped };
     blocks.forEach((b) => { tally[b.eventId] = 0; });
     let both = 0;
     for (const r of recipients) {
@@ -9371,11 +9446,58 @@ async function _runCombinedAnnouncement({ db, dryRun }) {
              titles: blocks.map((b) => b.event.title || b.eventId) };
   }
 
+  const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+  const unsubBase = "https://us-central1-ldah-932d5.cloudfunctions.net/handleUnsubscribe";
+
+  /* Composed once -- identical for every recipient. This template was the only
+     family-facing one in the file with no donate block on it. */
+  const extraLinks = [];
+  let extraHtml = "";
+  const howToHelp = String(job.howToHelpUrl || "").trim();
+  if (howToHelp) {
+    extraLinks.push({ label: "How to Help", href: howToHelp });
+    extraHtml += '<div style="padding:8px 24px 0">' +
+      '<p style="margin:0 0 4px;font-size:15px;color:#334155;text-align:center">' +
+      'There is more than one way to stand behind Hawai&#8216;i families &mdash; giving, ' +
+      'volunteering, or simply telling someone that we are here.</p>' +
+      _emailBtn(howToHelp, "See How to Help", { bg: "#004E7C", align: "center" }) +
+      '</div>';
+  }
+  if (job.donate !== false) {
+    extraHtml += '<div style="padding:0 24px 8px">' +
+      (await buildDonateBlock("universal", "combined-announcement")) + '</div>';
+  }
+  const subjectOverride = String(job.subject || "").trim();
+  const headingOverride = String(job.heading || "").trim();
+  const leadOverride = String(job.lead || "").trim();
+  const defaultSubject = (n, first) => (n > 1
+    ? "Two upcoming LDAH events"
+    : "New Event: " + (first || "Upcoming LDAH Event"));
+
+  if (test) {
+    const fake = { id: "__test__", email: test, unsubscribeToken: "test-token-noop",
+                   displayName: String(job.testName || "Friend") };
+    const html = buildCombinedAnnouncementEmailHtml({
+      blocks, contact: fake, unsubscribeUrl: unsubBase + "?token=test-token-noop",
+      heading: headingOverride, lead: leadOverride, extraLinks, extraHtml });
+    await sendEmailViaResend({
+      from: "LDAH <" + fromAddress + ">",
+      to: [test],
+      subject: "[SAMPLE] " + (subjectOverride ||
+        defaultSubject(blocks.length, blocks[0] && blocks[0].event.title)),
+      html,
+      type: "event-announcement-combined-test",
+      relatedEventId: blocks[0].eventId,
+      recipientName: fake.displayName,
+    });
+    console.log("combined announcement SAMPLE sent to " + test);
+    return { ok: true, test: true, to: test,
+             blocks: blocks.map((b) => b.event.title || b.eventId) };
+  }
+
   await jobRef.set({ status: "sending", startedAt: admin.firestore.FieldValue.serverTimestamp() },
                    { merge: true });
 
-  const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
-  const unsubBase = "https://us-central1-ldah-932d5.cloudfunctions.net/handleUnsubscribe";
   let sent = 0, skipped = 0, failed = 0;
   const perEventSent = {};
 
@@ -9384,10 +9506,14 @@ async function _runCombinedAnnouncement({ db, dryRun }) {
     if (!mine.length) { skipped++; continue; }
     try {
       const unsubscribeUrl = unsubBase + "?token=" + encodeURIComponent(r.unsubscribeToken);
-      const html = buildCombinedAnnouncementEmailHtml({ blocks: mine, contact: r, unsubscribeUrl });
-      const subject = mine.length > 1
-        ? "Two upcoming LDAH events"
-        : "New Event: " + (mine[0].event.title || "Upcoming LDAH Event");
+      const html = buildCombinedAnnouncementEmailHtml({
+        blocks: mine, contact: r, unsubscribeUrl,
+        heading: headingOverride, lead: leadOverride, extraLinks, extraHtml });
+      /* One subject for the whole mailing when the job names one. Without it the
+         line silently changed for anyone suppressed from a block, so two people
+         on the same send got different subjects. */
+      const subject = subjectOverride ||
+        defaultSubject(mine.length, mine[0].event.title);
       await sendEmailViaResend({
         from: "LDAH <" + fromAddress + ">",
         to: familyEmails(r),
@@ -9426,20 +9552,29 @@ async function _runCombinedAnnouncement({ db, dryRun }) {
 
   await jobRef.set({
     status: "sent", finishedAt: admin.firestore.FieldValue.serverTimestamp(),
-    result: { sent, skipped, failed, perEvent: perEventSent },
+    result: { sent, skipped, failed, dropped, perEvent: perEventSent },
   }, { merge: true });
 
   console.log("combined announcement: sent=" + sent + ", skipped=" + skipped +
-              ", failed=" + failed + ", perEvent=" + JSON.stringify(perEventSent));
-  return { ok: true, sent, skipped, failed, perEvent: perEventSent };
+              ", failed=" + failed + ", dropped=" + JSON.stringify(dropped) +
+              ", perEvent=" + JSON.stringify(perEventSent));
+  return { ok: true, sent, skipped, failed, dropped, perEvent: perEventSent };
 }
 
 exports.runCombinedAnnouncement = functions
   .runWith({ timeoutSeconds: 540, memory: "512MB", maxInstances: 1, secrets: EMAIL_SECRETS })
   .pubsub.topic("ldah-combined-announcement")
-  .onPublish(async () => {
+  .onPublish(async (message) => {
+    /* The message may carry {testEmail} or {dryRun} so a sample or a count can
+       be taken without a second deploy and without a public HTTP endpoint. */
+    let msg = {};
+    try { msg = (message && message.json) || {}; } catch (e) { msg = {}; }
     try {
-      const out = await _runCombinedAnnouncement({ db: admin.firestore(), dryRun: false });
+      const out = await _runCombinedAnnouncement({
+        db: admin.firestore(),
+        dryRun: msg.dryRun === true,
+        testEmail: msg.testEmail || "",
+      });
       console.log("runCombinedAnnouncement:", JSON.stringify(out));
     } catch (e) {
       console.error("runCombinedAnnouncement failed:", e.message);
