@@ -4815,7 +4815,10 @@
                     <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Accommodations Needed</label>
                     <textarea id="inlineAccommodations" placeholder="Please let us know at least 2 weeks prior to the event..." rows="3" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;"></textarea>
                   </div>
-                </div>
+                <!-- A stray </div> stood here with no matching open. The parser popped past
+                     the open <form> looking for one, closing the form here — so the group
+                     fields and the Submit button became siblings of the form and the button
+                     left the form entirely. Removed 2026-09-14. -->
                 <!-- Inline registration block (v62.0.0) — revealed for non-Parent/Guardian roles -->
                 <div id="inlineRegBlock" style="display:none;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:18px;margin-bottom:20px;">
                   <h3 style="color:#004E7C;font-size:16px;font-weight:bold;margin-bottom:14px;">Tell us a bit more</h3>
