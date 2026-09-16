@@ -4877,6 +4877,34 @@ exports.sendFeedbackEmails = functions
         return;
       }
 
+      /* Not before the event has happened (2026-09-16).
+         On 16 Sep the September Parent Talk Cafe had all nine attendees marked
+         present and their feedback emails sent at 12:39pm, for a session
+         starting at 5:00pm. Nothing questioned it: the attendance screen opens
+         for a future session, offers "Mark All Present", and the send follows.
+         Asking a family what they thought of a talk they have not been to yet
+         is not a small thing to get wrong. */
+      const _startMs = eventStartMs(_evForGuard, sessionDate);
+      if (_startMs !== null) {
+        const _openAt = _startMs + FEEDBACK_MIN_MINUTES_AFTER_START * 60000;
+        if (Date.now() < _openAt) {
+          const when = new Date(_openAt).toLocaleString("en-US", {
+            timeZone: "Pacific/Honolulu", month: "short", day: "numeric",
+            hour: "numeric", minute: "2-digit",
+          });
+          res.status(409).json({
+            error: "This session has not finished yet. Feedback can be sent from " +
+                   when + " HST — an hour after it starts. Nothing was sent.",
+            tooEarly: true, opensAt: new Date(_openAt).toISOString(),
+          });
+          return;
+        }
+      } else {
+        console.warn("sendFeedbackEmails: could not determine a start time for " +
+          collection + "/" + eventId + " (sessionDate=\"" + String(sessionDate || "") +
+          "\") — allowing the send rather than blocking it.");
+      }
+
       // Query all signups
       const signupsSnap = await dbAdmin
         .collection(collection).doc(eventId).collection("signups")
@@ -7465,6 +7493,52 @@ function extractEventCandidateDateKeys(event) {
  * string like "Wednesday, April 22, 2026", or any Date-parsable string.
  * Returns "" if parsing fails.
  */
+/* When does this session actually start, in ms? (2026-09-16)
+   Used to stop feedback going out before an event has happened. Reads, in
+   order: the session string the caller passed (recurring keys carry
+   "…|venue|11:00 AM – 1:00 PM"; one-off signupDates carry
+   "September 16, 2026, 5:00 PM - Title"), then the event's own eventDate+time.
+   Returns null when it cannot tell, and the caller then allows the send —
+   blocking a legitimate email because a date string was in an unfamiliar shape
+   would be the worse failure. HST is UTC-10 and Hawai'i has no DST. */
+function eventStartMs(event, sessionDate) {
+  const ymd = (s) => {
+    let m = String(s || "").match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return m[1] + "-" + m[2] + "-" + m[3];
+    m = String(s || "").match(/([A-Z][a-z]+)\s+(\d{1,2}),\s*(\d{4})/);
+    if (!m) return "";
+    const MON = { january:1, february:2, march:3, april:4, may:5, june:6, july:7,
+                  august:8, september:9, october:10, november:11, december:12 };
+    const mo = MON[m[1].toLowerCase()];
+    if (!mo) return "";
+    return m[3] + "-" + String(mo).padStart(2, "0") + "-" + String(m[2]).padStart(2, "0");
+  };
+  const hhmm = (s) => {
+    const m = String(s || "").match(/(\d{1,2}):(\d{2})\s*([AaPp])[Mm]?/);
+    if (!m) return null;
+    let h = parseInt(m[1], 10) % 12;
+    if (m[3].toLowerCase() === "p") h += 12;
+    return { h, m: parseInt(m[2], 10) };
+  };
+
+  const src1 = String(sessionDate || "");
+  const day = ymd(src1) || ymd(event && event.eventDate);
+  if (!day) return null;
+  /* Take the FIRST clock time in the session string — "11:00 AM – 1:00 PM" is a
+     range and the start is what matters. */
+  const t = hhmm(src1) || hhmm(event && event.time);
+  if (!t) return null;
+  const iso = day + "T" + String(t.h).padStart(2, "0") + ":" +
+              String(t.m).padStart(2, "0") + ":00-10:00";
+  const ms = Date.parse(iso);
+  return isNaN(ms) ? null : ms;
+}
+
+// Feedback must not go out before an event has happened. An hour after the
+// advertised start is Daniel's line: "should not send until the event is over
+// or 1 hour after start time will be fine."
+const FEEDBACK_MIN_MINUTES_AFTER_START = 60;
+
 function toHstDateKey(value) {
   if (!value) return "";
   let d;
