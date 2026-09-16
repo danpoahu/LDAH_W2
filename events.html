@@ -4229,13 +4229,18 @@
           });
           const _dup = _dr.ok ? await _dr.json() : { overlappingDates: [] };
           if (_dup.overlappingDates && _dup.overlappingDates.length) {
+            /* Blocks now, rather than warning and letting a second click
+               through (2026-09-15). "Click Submit again if you still want to"
+               is an invitation to double-book, and it is useless to anyone
+               whose page keeps reloading. */
             const _w = document.getElementById('dupWarn');
             if (_w) {
-              _w.textContent = "It looks like you're already signed up for " + _dup.overlappingDates.join(', ') + ". Click “Submit Signup” again if you still want to register.";
+              _w.textContent = "You are already signed up for " + _dup.overlappingDates.join(', ') +
+                ". We have you down \u2014 there is nothing more to do. If you need to change the date, " +
+                "add another child, or you are not sure it went through, call us on (808) 536-9684.";
               _w.style.display = 'block';
               _w.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
-            window._ldahDupAck = true;
             return;
           }
         } catch (e) { /* fail open — proceed with signup */ }
@@ -5072,6 +5077,43 @@
         if (reasonEl) reasonEl.focus();
         return;
       }
+
+      /* Already signed up for this session? Stop, and say so kindly.
+         (2026-09-15)
+
+         There was no duplicate check on this path at all. A family with a
+         dropping connection retried four times in four minutes, each attempt
+         wrote a row, and four rows against a three-family session showed the
+         session as FULL — so she gave up on the day she wanted and booked
+         another. She filled it with herself.
+
+         Blocking, not warning: the events path warns and lets a second click
+         through, which is no use to someone whose page is reloading. The check
+         fails OPEN — if it errors we let the signup proceed, because turning
+         somebody away from a session that has room is the worse mistake. */
+      try {
+        const _dupRes = await fetch('https://us-central1-ldah-932d5.cloudfunctions.net/checkDuplicateEventSignups', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            collection: 'recurringEvents', eventId: programId,
+            email: formData.email, dates: formData.selectedSessions
+          })
+        });
+        const _dup = _dupRes.ok ? await _dupRes.json() : { overlappingDates: [] };
+        if (_dup.overlappingDates && _dup.overlappingDates.length) {
+          const _when = _dup.overlappingDates
+            .map(function (k) { return String(k).split('|')[0]; })
+            .join(', ');
+          alert(
+            "You are already signed up for this session" + (_when ? " on " + _when : "") + ".\n\n" +
+            "We have you down \u2014 there is nothing more to do. Your confirmation email has the details, " +
+            "and it may take a few minutes to arrive.\n\n" +
+            "If you need to change the date, add another child, or you are not sure it went through, " +
+            "call us on (808) 536-9684 and we will sort it out."
+          );
+          return;   // the enclosing try/finally releases the submit lock
+        }
+      } catch (e) { /* fail open — never block a signup because the check broke */ }
       formData.multipleSessionsReason = reason;
 
       const customAnswerEls = document.querySelectorAll('.custom-answer');

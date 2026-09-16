@@ -2898,8 +2898,15 @@ exports.checkDuplicateEventSignups = functions
         const s = doc.data() || {};
         if (String(s.email || "").trim().toLowerCase() !== email) return;
         if (s.status === "cancelled" || s.archived === true || s.displaced === true) return;
-        const sd = Array.isArray(s.selectedDates) ? s.selectedDates
-                 : (s.signupDates != null ? [].concat(s.signupDates) : []);
+        /* selectedSessions FIRST (2026-09-15). Recurring programmes — Connect-Gen
+           — store their pick there, not in selectedDates, so this checker looked
+           at an empty array for every one of them and reported no clash. That is
+           how one family put four signups on the same Connect-Gen session in
+           four minutes and filled a three-family session with herself. */
+        const sd = (Array.isArray(s.selectedSessions) && s.selectedSessions.length)
+                 ? s.selectedSessions
+                 : (Array.isArray(s.selectedDates) ? s.selectedDates
+                 : (s.signupDates != null ? [].concat(s.signupDates) : []));
         const ov = (s.dateStatusOverrides && typeof s.dateStatusOverrides === "object") ? s.dateStatusOverrides : {};
         const cancelledKeys = Object.keys(ov).filter((k) => ov[k] === "cancelled");
         sd.forEach((d) => {
@@ -26274,13 +26281,26 @@ exports.submitScreeningReferral = functions
         if (!q.empty) contactId = q.docs[0].id;
       }
       if (!contactId) {
+        /* Field names matter here: the contact card reads `displayName` and
+           `type`. This wrote `name` and `contactType`, so a referral family
+           showed up on the card with a blank Type and no name in the places
+           that read the canonical field. (2026-09-15)
+
+           And never name the contact after the child. `parentName || childName`
+           meant a hearing form — which carries no parent name at all — created a
+           "family" called after the seven-year-old. A parent whose name we do not
+           have is "Parent of <child>": honest, searchable, and obviously
+           incomplete to whoever picks it up. */
+        const _pn = String(parentName || "").trim();
+        const _bits = _pn ? _pn.split(/\s+/) : [];
         const doc = {
-          name: parentName || childName,
-          firstName: "",
-          lastName: "",
+          displayName: _pn || ("Parent of " + childName),
+          firstName: _bits.length ? _bits[0] : "",
+          lastName: _bits.length > 1 ? _bits.slice(1).join(" ") : "",
           email: emailLc,
           phone: phoneDigits,
-          contactType: "Parent/Guardian",
+          type: "Parent/Guardian",
+          parentNameKnown: !!_pn,
           source: "lions-screening",
           createdAt: FieldValue.serverTimestamp(),
         };
@@ -26294,6 +26314,14 @@ exports.submitScreeningReferral = functions
         const patch = {};
         if (!String(cur.email || "").trim() && emailLc) patch.email = emailLc;
         if (!String(cur.phone || "").trim() && phoneDigits) patch.phone = phoneDigits;
+        /* Repair a contact this feature created before the field names were
+           fixed, without touching one a human has filled in. */
+        if (!String(cur.displayName || "").trim() && String(cur.name || "").trim()) {
+          patch.displayName = cur.name;
+        }
+        if (!String(cur.type || "").trim() && String(cur.contactType || "").trim()) {
+          patch.type = cur.contactType;
+        }
         if (Object.keys(patch).length) {
           await db.collection("contacts").doc(contactId).update(patch);
         }
@@ -26330,6 +26358,43 @@ exports.submitScreeningReferral = functions
       await db.collection("contacts").doc(contactId).update({
         screenings: FieldValue.arrayUnion(screening),
       });
+
+      /* ── 2b. The child, on the contact where the card looks for them ─────
+         The referral named a child and filed it inside screenings[], so the
+         contact card's Child panel read "No child on file for this contact" —
+         the one fact the case is about was the one fact not on display.
+
+         Matched on a normalised name before appending, NOT blind arrayUnion.
+         Appending on every referral is exactly how signups ended up duplicating
+         a child on each visit; a vision referral in September and a hearing one
+         in December are the same child. A child a human has already entered
+         wins: we add nothing rather than a second, emptier copy. */
+      try {
+        const cSnap = await db.collection("contacts").doc(contactId).get();
+        const cData = cSnap.data() || {};
+        const kids = Array.isArray(cData.children) ? cData.children.slice() : [];
+        const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z]+/g, "");
+        const wanted = norm(childName);
+        const already = wanted && kids.some((k) => norm(k && k.name) === wanted);
+        if (wanted && !already) {
+          kids.push({
+            name: childName,
+            ageRange: "",
+            gender: "",
+            ethnicity: "",
+            disabilityCategories: [],
+            grade: String(r.grade || ""),
+            school: String(r.schoolName || ""),
+            addedAt: new Date().toISOString(),
+            source: "lions-screening",
+          });
+          await db.collection("contacts").doc(contactId).update({ children: kids });
+        }
+      } catch (e) {
+        /* The referral itself is saved; a missing child row is a display fault,
+           not a reason to fail the request. */
+        console.warn("submitScreeningReferral: could not merge children[]:", e.message);
+      }
 
       /* ── 3. One open case per family ────────────────────────────────────
          Single-field query plus an in-code filter — the same shape the
