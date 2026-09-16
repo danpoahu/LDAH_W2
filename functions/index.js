@@ -17724,9 +17724,46 @@ function _cgResolveCaseReviewPresenter(event, sessions, first) {
   if (raw && ss[raw] && ss[raw].presenterUid) return ss[raw];
   const dateKey = first && first.dateKey;
   if (dateKey) {
-    for (const k of Object.keys(ss)) {
-      if (_lcSummaryDateKey(k) !== dateKey) continue;
-      if ((ss[k] || {}).presenterUid) return ss[k];
+    const sameDay = Object.keys(ss).filter((k) =>
+      _lcSummaryDateKey(k) === dateKey && (ss[k] || {}).presenterUid);
+
+    /* More than one session on the same DATE is normal for Connect-Gen — Kona
+       at 9am and O'ahu at 11am both run on a Thursday — and taking the first
+       key that matched the date picked whichever happened to sort first.
+       On 2026-09-17 that was Kona, so the O'ahu families were tested against
+       Kona's presenter, found "not enrolled", and silently skipped. Nobody was
+       told; the sweep logged skipped=40 and looked healthy. (2026-09-16)
+
+       So when the date is ambiguous, use the rest of the signup's own session
+       string — its venue and its time — before falling back. */
+    if (sameDay.length === 1) return ss[sameDay[0]];
+    if (sameDay.length > 1) {
+      const parts = String(raw || "").split("|");
+      const wantVenue = String(parts[1] || "").toLowerCase().replace(/[^a-z]+/g, "");
+      const wantTime  = String(parts[2] || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+      if (wantVenue || wantTime) {
+        const hit = sameDay.find((k) => {
+          const kp = String(k).split("|");
+          const kVenue = String(kp[1] || "").toLowerCase().replace(/[^a-z]+/g, "");
+          const kTime  = String(kp[2] || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+          /* startsWith either way: the signup says "Oahu" where the summary key
+             says "Oahu – 245 N. Kukui Street, Suite 205". */
+          const venueOk = wantVenue && kVenue &&
+            (kVenue.indexOf(wantVenue) === 0 || wantVenue.indexOf(kVenue) === 0);
+          /* START times, anchored at position 0. A bare "contains" matched the
+             wrong session: "1100" appears in Kona's 9:00 AM – 11:00 AM as its
+             END time, so an O'ahu 11am signup matched the Kona morning. */
+          const timeOk = wantTime && kTime && kTime.indexOf(wantTime.slice(0, 4)) === 0;
+          return venueOk || timeOk;
+        });
+        if (hit) return ss[hit];
+      }
+      /* Still ambiguous: say so rather than guessing a presenter, because
+         guessing wrong silently withholds a case review from a family. */
+      console.warn("_cgResolveCaseReviewPresenter: " + sameDay.length +
+        " sessions on " + dateKey + " and none matched raw=\"" + String(raw || "") +
+        "\" — not guessing.");
+      return {};
     }
   }
   return _lcResolveSessionPresenter(event, sessions, dateKey, raw) || {};
