@@ -16293,91 +16293,12 @@ function _caMembershipPanelHtml() {
   '</table>';
 }
 
-/* Case Management welcome (2026-09-16).
-   Daniel: "we for real need to re-write this letter for case Managment. It's
-   not quite as serious as advocacy."
-
-   A screening referral family has signed a Lions consent, not an LDAH advocacy
-   release. Nobody is representing them; the work is a question answered and a
-   check-in. So this drops what the advocacy letter demands and cannot justify
-   here: the participation requirements, the three mandatory trainings inside
-   three months, the gather-every-record instruction, and the six-week closure
-   warning. It keeps what matters regardless of how light the service is —
-   confidentiality, the plain statement that LDAH does not give legal advice, a
-   named person with a direct line, and an explicit door through to advocacy.
-
-   No consent link, by decision: we may never need to contact the school, so it
-   becomes a promise to ask first rather than a form to chase. Signed by
-   CASE_MANAGEMENT_SIGNER rather than the assigned owner — Daniel's call. */
+/* Case management sends NO welcome letter of its own (decided 2026-09-16).
+   A drafted template was removed rather than left dormant: an unused email
+   builder is a thing somebody wires up later without knowing it was ruled out.
+   The screening introduction, signed by CASE_MANAGEMENT_SIGNER_EMAIL, is the
+   only letter these families get. */
 const CASE_MANAGEMENT_SIGNER_EMAIL = "ckruse@ldahawaii.org";   // Chassidy Kruse
-const CASE_MANAGEMENT_SUBJECT = "LDAH \u2014 how we can help, and who to ask";
-
-function _buildCaseManagementOpeningEmailHtml(o) {
-  const esc = (x) => String(x || "").replace(/[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-  const h2 = "font-size:16px;color:#0E5F7A;margin:22px 0 8px;";
-  const p = "margin:0 0 14px;font-size:15px;color:#334155;line-height:1.62";
-  const li = "margin:5px 0;";
-  const who = (o.signer && o.signer.name) || "your LDAH contact";
-  const sessionLine = o.sessionDateLabel
-    ? "Mahalo for talking with us at your Connect-Gen session on " + esc(o.sessionDateLabel) + "."
-    : "Mahalo for talking with us recently.";
-
-  return '<!DOCTYPE html><html><head><meta charset="utf-8"></head>' +
-    '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
-    '<div style="max-width:600px;margin:0 auto;background:#fff">' +
-    '<div style="background-color:#0E7C4D;background:linear-gradient(135deg,#0E7C4D,#2C7B8D);padding:22px;text-align:center;color:#fff">' +
-      '<h1 style="margin:0;font-size:20px;font-weight:700">Case Management</h1></div>' +
-    '<div style="padding:26px 24px 8px">' +
-      '<p style="' + p + '">Dear ' + esc(o.parentName) + ',</p>' +
-      '<p style="' + p + '">' + sessionLine +
-        (o.childName ? " You shared some concerns about " + esc(o.childName) + "&rsquo;s education, and we would like to help you work through them."
-                     : " You shared some concerns about your child&rsquo;s education, and we would like to help you work through them.") + '</p>' +
-      '<p style="' + p + '">I am ' + esc(who) + ', and I will be your point of contact at LDAH. If you have a question, ' +
-        'or something changes at school, write to me or ring me directly &mdash; you do not need to go through anyone else.</p>' +
-
-      '<h2 style="' + h2 + '">How this works</h2>' +
-      '<p style="' + p + '">We are here to help you understand the process and decide what to do next &mdash; not to take it over. ' +
-        'Depending on what you need, that might look like:</p>' +
-      '<ul style="margin:8px 0 14px;padding-left:22px;font-size:15px;color:#334155;line-height:1.6">' +
-        '<li style="' + li + '">Talking through a letter or a report and what it actually means.</li>' +
-        '<li style="' + li + '">Helping you prepare for a meeting &mdash; what to ask, what to bring.</li>' +
-        '<li style="' + li + '">Explaining your rights, in plain language.</li>' +
-        '<li style="' + li + '">Pointing you to a training, a resource, or another agency that fits.</li>' +
-        '<li style="' + li + '">Checking in as things move along.</li>' +
-      '</ul>' +
-
-      '<h2 style="' + h2 + '">What we need from you</h2>' +
-      '<p style="' + p + '">Very little. Keep us posted when something happens at school, and tell us if your address, ' +
-        'phone or email changes. That is genuinely it.</p>' +
-      '<p style="' + p + '">If it would help to have your child&rsquo;s paperwork handy &mdash; the current IEP, a recent ' +
-        'evaluation, report cards &mdash; keep them somewhere you can find them. You do not need to send them to us unless we ask.</p>' +
-
-      '<h2 style="' + h2 + '">If we need to speak to the school</h2>' +
-      '<p style="' + p + '">We will not contact your child&rsquo;s school, or anyone else, without your permission. ' +
-        'If a point comes where that would help, we will ask you first.</p>' +
-
-      '<h2 style="' + h2 + '">A few things worth knowing</h2>' +
-      '<ul style="margin:8px 0 14px;padding-left:22px;font-size:15px;color:#334155;line-height:1.6">' +
-        '<li style="' + li + '">What you tell us stays confidential and is held according to our agency policies.</li>' +
-        '<li style="' + li + '">LDAH does not give legal advice or act as your lawyer.</li>' +
-        '<li style="' + li + '">Every LDAH service is free.</li>' +
-        '<li style="' + li + '">If your situation becomes more involved &mdash; a dispute, or a meeting you would like ' +
-          'someone beside you for &mdash; tell me. We can look at whether Case Advocacy is the right step, and I will ' +
-          'explain what that involves before anything changes.</li>' +
-      '</ul>' +
-
-      '<p style="' + p + '">There is nothing you need to do right now. I will be in touch, and you can reach me ' +
-        'any time in the meantime.</p>' +
-      '<p style="' + p + '">With aloha,<br><strong>' + esc(who) + '</strong><br>' +
-        'Leadership in Disabilities and Achievement of Hawai&#699;i<br>' +
-        '245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>Phone: (808) 536-9684' +
-        ((o.signer && o.signer.email) ? '<br>' + esc(o.signer.email) : '') + '</p>' +
-    '</div>' +
-    '<div style="padding:14px 24px;border-top:1px solid #e5e7eb;background:#f9fafb;font-size:12px;color:#94a3b8">' +
-      'Leadership in Disabilities and Achievement of Hawai&#699;i</div>' +
-    '</div></body></html>';
-}
 
 function _buildCaseAdvocacyOpeningEmailHtml(o) {
   const esc = _emailEsc;
@@ -16551,6 +16472,30 @@ exports.sendCaseAdvocacyAuthorizationLink = functions
       } catch (e) { console.warn("serviceLevel lookup failed:", e.message); }
       const _isManagement = _svcLevel === "management";
 
+      /* Case management gets ONE letter, and it has already gone (2026-09-16).
+         Daniel: "We don't need to send this second letter. The first one ...
+         will be all that is needed ... we don't need another one ever."
+
+         The screening intro — "We received your child's screening results",
+         sent when the referral is saved and now signed by Chassidy — already
+         says who we are, that a consultant will ring, that there is nothing to
+         sign and nothing to pay. A second welcome would repeat all of it at a
+         family who has done nothing since.
+
+         Escalation is not affected: the button flips serviceLevel to
+         "advocacy" BEFORE calling this, so an escalating family still receives
+         the advocacy letter, which is a different service with real
+         obligations. */
+      if (_isManagement) {
+        res.status(200).json({
+          ok: true, skipped: "case-management-needs-no-letter",
+          message: "Case management families receive the screening introduction only — " +
+                   "it was sent when the referral was recorded. Escalate to Case Advocacy " +
+                   "if this family now needs representation.",
+        });
+        return;
+      }
+
       /* Separate already-sent stamps per letter, so a family who gets the
          management welcome now and escalates in November still receives the
          advocacy letter then. One shared flag would have silently swallowed it. */
@@ -16625,19 +16570,12 @@ exports.sendCaseAdvocacyAuthorizationLink = functions
         authUrl: authUrl,
         advocate: advocate,
       });
-      if (_isManagement) {
-        html = _buildCaseManagementOpeningEmailHtml({
-          parentName: parentName,
-          childName: childName,
-          sessionDateLabel: sessionDateLabel,
-          signer: advocate,
-        });
-      }
+
 
       if (previewOnly) {
         res.status(200).json({
           ok: true, previewOnly: true, to: contact.email,
-          subject: _isManagement ? CASE_MANAGEMENT_SUBJECT : CASE_ADVOCACY_OPENING_SUBJECT,
+          subject: CASE_ADVOCACY_OPENING_SUBJECT,
           serviceLevel: _svcLevel,
           advocate: advocate, childName: childName,
           sessionDateLabel: sessionDateLabel, html: html,
@@ -16648,18 +16586,14 @@ exports.sendCaseAdvocacyAuthorizationLink = functions
       await sendEmailViaResend({
         from: lifecycleFromAddress(),
         to: contact.email,
-        subject: _isManagement ? CASE_MANAGEMENT_SUBJECT : CASE_ADVOCACY_OPENING_SUBJECT,
+        subject: CASE_ADVOCACY_OPENING_SUBJECT,
         html,
-        type: _isManagement ? "case-management-opening-letter" : "case-advocacy-opening-letter",
+        type: "case-advocacy-opening-letter",
         relatedContactId: contactId,
         recipientName: parentName,
       });
 
-      await contactRef.update(_isManagement ? {
-        caseManagementOpeningEmailSentAt: FieldValue.serverTimestamp(),
-        caseManagementOpeningEmailTo: contact.email,
-        caseManagementOpeningEmailSigner: advocate.name,
-      } : {
+      await contactRef.update({
         caseAdvocacyOpeningEmailSentAt: FieldValue.serverTimestamp(),
         caseAdvocacyOpeningEmailTo: contact.email,
         caseAdvocacyOpeningEmailAdvocate: advocate.name,
@@ -26726,6 +26660,9 @@ exports.submitScreeningReferral = functions
               screeningType: label,
               screeningDate: screeningDate,
               schoolName: String(r.schoolName || ""),
+              signerName: _introSigner.name,
+              signerTitle: _introSigner.title,
+              signerEmail: _introSigner.email,
             }),
             type: "lions-screening-intro",
             relatedContactId: contactId,
@@ -26817,11 +26754,20 @@ function _buildScreeningReferralIntroHtml(o) {
       '<p style="' + p + '">There is nothing you need to do before then, and nothing to sign. If you would ' +
         'rather not hear from us, just reply to this email and we will close the referral.</p>' +
 
+      /* Signed by a person (2026-09-16). This is the ONLY letter a screening
+         family receives — Daniel: "The first one ... will be all that is needed
+         ... we don't need another one ever." A letter that promises "one of our
+         parent consultants will contact you" and is then signed by the
+         organisation gives the family nobody to reply to. */
       '<p style="margin:26px 0 4px;font-size:15px;color:#333;line-height:1.5;">With Aloha,</p>' +
       '<p style="margin:16px 0 2px;font-size:14px;color:#555555;line-height:1.5;">' +
-        '<strong>Leadership in Disabilities &amp; Achievement of Hawai&#699;i</strong><br>' +
+        (o.signerName ? '<strong>' + esc(o.signerName) + '</strong><br>' : '') +
+        (o.signerTitle ? esc(o.signerTitle) + '<br>' : '') +
+        'Leadership in Disabilities &amp; Achievement of Hawai&#699;i<br>' +
         '245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>' +
         'Phone: (808) 536-9684<br>' +
+        (o.signerEmail ? '<a href="mailto:' + esc(o.signerEmail) + '" style="color:#1a73e8;text-decoration:none;">' +
+          esc(o.signerEmail) + '</a><br>' : '') +
         '<a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>' +
       '</p>' +
     '</div>' +
