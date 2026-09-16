@@ -26355,6 +26355,37 @@ exports.submitScreeningReferral = functions
         recordedAt: admin.firestore.Timestamp.now(),
       };
       if (body.storagePath) screening.storagePath = String(body.storagePath);
+
+      /* ── 2a. Refuse a screening we already hold ──────────────────────────
+         The same page processed twice appended twice, silently doubling a
+         child's screening history — and with it the referral count this
+         programme reports. arrayUnion does not help: each entry carries its own
+         random id and a fresh recordedAt, so no two are ever equal.
+
+         Identity is the child, the form type and the screening date. A vision
+         referral in September and a hearing one in December differ by type; two
+         readings of one page do not differ at all. Refused outright rather than
+         skipped quietly, so whoever pressed Confirm learns it was already
+         recorded instead of believing they filed something new. (2026-09-16) */
+      const _cSnapDup = await db.collection("contacts").doc(contactId).get();
+      const _existingScreenings = (_cSnapDup.data() || {}).screenings;
+      const _normName = (s) => String(s || "").toLowerCase().replace(/[^a-z]+/g, "");
+      const _dupe = Array.isArray(_existingScreenings) && _existingScreenings.find((s) =>
+        s && s.source === "lions-screening" &&
+        String(s.screeningType || "") === formType &&
+        String(s.screeningDate || "") === screeningDate &&
+        _normName(s.childName) === _normName(childName));
+      if (_dupe) {
+        res.status(409).json({
+          error: "This screening is already on file — " + formType + " for " +
+                 childName + " on " + screeningDate +
+                 ", recorded by " + (_dupe.recordedBy || "a member of staff") +
+                 ". Nothing has been added.",
+          alreadyRecorded: true, contactId,
+        });
+        return;
+      }
+
       await db.collection("contacts").doc(contactId).update({
         screenings: FieldValue.arrayUnion(screening),
       });
