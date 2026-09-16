@@ -26640,6 +26640,11 @@ exports.submitScreeningReferral = functions
       const reach = screeningReferral.contactability(r);
       let emailed = false;
       let emailSkipped = "";
+      /* Read fresh: this family may have been created moments ago by this very
+         request, or may have been introduced weeks back on their other form. */
+      let contactBefore = null;
+      try { contactBefore = (await db.collection("contacts").doc(contactId).get()).data() || null; }
+      catch (e) { console.warn("intro guard read failed:", e.message); }
 
       if (!reach.namesLdah) {
         emailSkipped = "consent-does-not-name-ldah";
@@ -26647,6 +26652,14 @@ exports.submitScreeningReferral = functions
         emailSkipped = "no-email-address";
       } else if (body.suppressEmail === true) {
         emailSkipped = "suppressed-by-staff";
+      } else if (contactBefore && contactBefore.lionsScreeningIntroSentAt) {
+        /* One welcome per FAMILY, not one per form (2026-09-16). A child
+           screened for both vision and hearing arrives as two pages, and both
+           are saved against the same family — without this the second save sent
+           a second identical "we received your child's screening results" to a
+           parent who had done nothing in between. The stamp already existed;
+           nothing was reading it. */
+        emailSkipped = "already-introduced";
       } else {
         try {
           await sendEmailViaResend({
