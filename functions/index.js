@@ -26507,6 +26507,13 @@ exports.submitScreeningReferral = functions
           needsAdvocateAssignment: true,
           source: "lions-screening",
           caseAdvocacySource: "lions-screening",
+          /* A screening referral is CASE MANAGEMENT, not advocacy (2026-09-16).
+             Stored as a fact rather than derived from "has this family signed a
+             release yet", so the reports can count the two services apart —
+             until now every Lions referral counted as a case advocacy from the
+             moment it was created. Escalation flips this to "advocacy" and is
+             one-way; nothing downgrades it. */
+          serviceLevel: "management",
           caseAdvocacyScreeningDate: screeningDate,
           caseAdvocacyContactDueDate: contactDueDate,
           screeningReferrals: [{
