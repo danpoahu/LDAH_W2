@@ -13769,7 +13769,24 @@ exports.confirmConnectGenUpload = functions
           uploadedAt: admin.firestore.Timestamp.now(),
         }]),
       });
-      await doc.ref.update({ connectGenDocuments: updatedDocs });
+      /* A new upload lifts the destroyed tombstone (2026-09-16).
+         connectGenDocumentsDestroyedAt is a "there is nothing left to read"
+         marker, and the case-review sweep and the doc lifecycle both skip on it.
+         When staff destroy a wrong file and the family then re-uploads the right
+         one, the marker has to go or the family is permanently invisible to
+         both. The STAFF upload path already cleared it (see
+         confirmStaffConnectGenUpload); this one, which is the path families
+         actually use, did not.
+
+         Lance Kahiamoe-Terukina: documents destroyed 15 Sep 22:27 ("uploaded old
+         IEP"), re-consented and re-uploaded eight files an hour later, and his
+         case review was skipped silently every night after. */
+      await doc.ref.update({
+        connectGenDocuments: updatedDocs,
+        connectGenDocumentsDestroyedAt: admin.firestore.FieldValue.delete(),
+        connectGenDocumentsDestroyedBy: admin.firestore.FieldValue.delete(),
+        connectGenDocumentsDestroyedReason: admin.firestore.FieldValue.delete(),
+      });
 
       // Audit log — matches the existing pattern (auditLog.add with action +
       // details + performedBy + timestamp), so the daily-report changelog
