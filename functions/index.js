@@ -26818,6 +26818,25 @@ exports.submitScreeningReferral = functions
       try { contactBefore = (await db.collection("contacts").doc(contactId).get()).data() || null; }
       catch (e) { console.warn("intro guard read failed:", e.message); }
 
+      /* The signer of the one welcome letter a screening family ever gets.
+         _introSigner was USED three lines below but never declared (7688a09):
+         a ReferenceError inside the try around sendEmailViaResend, swallowed,
+         so every real referral would have saved fine and silently sent nothing
+         ("send-failed"). Caught 2026-09-19, before the first real form.
+         Fixed here rather than at the call site so the letter keeps its name
+         and title. Falls back to the address alone if the lookup fails. */
+      const _introSigner = { name: "", title: "", email: CASE_MANAGEMENT_SIGNER_EMAIL };
+      try {
+        const _signerRoles = await db.collection("userRoles").get();
+        _signerRoles.forEach((d) => {
+          const x = d.data() || {};
+          if (x.isArchived === true) return;
+          if (String(x.email || "").trim().toLowerCase() !== CASE_MANAGEMENT_SIGNER_EMAIL) return;
+          _introSigner.name = String(x.displayName || "").trim();
+          _introSigner.title = String(x.title || "").trim();
+        });
+      } catch (e) { console.warn("intro signer lookup failed:", e.message); }
+
       if (!reach.namesLdah) {
         emailSkipped = "consent-does-not-name-ldah";
       } else if (!emailLc) {
@@ -28062,6 +28081,7 @@ exports.onChatHelpRequest = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  _buildScreeningReferralIntroHtml,
   handleSignupCreated,
   _cgMaybeGenerateCaseReview,
   _childMatches,
