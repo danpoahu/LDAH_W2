@@ -18182,7 +18182,19 @@ async function _cgMaybeGenerateCaseReview({ db, collection, eventId, signupRef, 
     // both the documents and the worksheet's last edit.
     const existing = signup.caseSummary || {};
     const fp = _cgCaseReviewFingerprint(signup);
-    if (existing.html && existing.docsFingerprint && fp && existing.docsFingerprint === fp) return false;
+    if (existing.html && existing.docsFingerprint && fp && existing.docsFingerprint === fp) {
+      /* Same documents, so the review still stands -- but the family may have
+         MOVED to a session with a different presenter. Returning here meant the
+         new presenter was never told: Rodlyn Muro and Sierra Rehrer moved from
+         9-14 (Noelani) to 9-21 (Chassidy) and only Noelani ever had a task.
+         The task is idempotent per signup + session, so this raises one only
+         for a session that has none -- no regeneration, no API cost. */
+      await _cgCreateCaseReviewTask({
+        db, collection, eventId, signupRef, signup, presenterUid: pres.presenterUid,
+        sessionDateKey: first.dateKey, sessionLabel: first.rawString || "",
+      });
+      return false;
+    }
 
     const wrote = await _cgGenerateCaseReview({
       db, collection, eventId, signupRef, signup, event, reason,
@@ -28051,6 +28063,7 @@ exports.onChatHelpRequest = functions
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
   handleSignupCreated,
+  _cgMaybeGenerateCaseReview,
   _childMatches,
   _findChildMatchIndex,
   _mergeChildEntries,
