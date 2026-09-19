@@ -1735,7 +1735,26 @@ async function handleSignupCreated(snap, context, collectionName) {
 
     let linkedContactId = null;
 
-    if (signupEmail) {
+    /* Staff already chose the contact (the one-off attendee picker writes
+       linkedContactId on the .add()). Keep it. Re-matching by email/phone
+       overwrote that choice: no email/phone wiped the link to null (43 one-off
+       attendees unlinked), and a shared email linked to whoever held it first
+       (Sandy Scanlan's attendance filed under Jasmine Scanlan, 13 times).
+       Found 2026-09-19. Only an existing contact is honoured, so a stale id
+       still falls through to the normal matching. */
+    const preLinked = typeof signupData.linkedContactId === 'string' ? signupData.linkedContactId.trim() : '';
+    if (preLinked) {
+      try {
+        const pre = await db.collection('contacts').doc(preLinked).get();
+        if (pre.exists) linkedContactId = preLinked;
+      } catch (preErr) {
+        console.warn(`pre-linked contact check failed for signup ${signupId}:`, preErr.message);
+      }
+    }
+
+    if (linkedContactId) {
+      console.log(`Signup ${signupId} keeps the contact staff picked: ${linkedContactId}`);
+    } else if (signupEmail) {
       // Query contacts by normalized email
       const emailSnap = await db.collection('contacts').where('email', '==', signupEmail).get();
 
@@ -28018,6 +28037,7 @@ exports.onChatHelpRequest = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  handleSignupCreated,
   _childMatches,
   _findChildMatchIndex,
   _mergeChildEntries,
