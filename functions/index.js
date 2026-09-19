@@ -9790,6 +9790,19 @@ exports.sendEventAnnouncement = functions
     if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
     if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
+    /* Signed-in Super Admin only (2026-09-19). This endpoint had NO auth: anyone
+       who found the URL could mass-email every contact. The dashboard's Announce
+       button is already Super Admin only (Int v150.13 sends the ID token as a
+       Bearer header and body.idToken), so this enforces the same rule server-side. */
+    try {
+      const _bearer = String(req.get('Authorization') || '').replace(/^Bearer\s+/i, '');
+      const _who = await _verifyStaffIdToken((req.body && req.body.idToken) || _bearer);
+      if (_who.role !== 'superAdmin') { res.status(403).json({ error: 'Super Admin only' }); return; }
+    } catch (authErr) {
+      res.status(authErr.statusCode || 401).json({ error: authErr.message || 'Not signed in' });
+      return;
+    }
+
     const { eventId, collection, testMode, testEmail, dryRun, audienceFilter, recipientIds, sessionDate } = req.body || {};
     // Date-targeted announcement (multi-date events): when present, skip only
     // people signed up FOR this date, show this date in the email, and track
