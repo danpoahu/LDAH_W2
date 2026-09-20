@@ -26871,14 +26871,29 @@ exports.submitScreeningReferral = functions
          Only where we have an address AND the family's consent names LDAH —
          which today means vision only. Everything else is returned as
          needsParentContact and shown in the queue. */
-      const reach = screeningReferral.contactability(r);
-      let emailed = false;
-      let emailSkipped = "";
       /* Read fresh: this family may have been created moments ago by this very
          request, or may have been introduced weeks back on their other form. */
       let contactBefore = null;
       try { contactBefore = (await db.collection("contacts").doc(contactId).get()).data() || null; }
       catch (e) { console.warn("intro guard read failed:", e.message); }
+
+      /* The pair. Lions send vision + hearing for the same student, and the
+         signed consent sits on the vision page but covers the child. If this
+         family already has a vision screening for this child, a hearing form
+         is covered by it and can be contacted. (Daniel, 2026-09-19.) */
+      const _normPairName = (v) => String(v || "").trim().toLowerCase().replace(/\s+/g, " ");
+      const _priorScreenings = Array.isArray(contactBefore && contactBefore.screenings)
+        ? contactBefore.screenings : [];
+      const _visionOnFile = _priorScreenings.some((s2) =>
+        s2 && s2.screeningType === "vision" &&
+        _normPairName(s2.childName) === _normPairName(childName));
+      const reach = screeningReferral.contactability(r, {
+        visionConsentOnFile: _visionOnFile,
+        email: (contactBefore && contactBefore.email) || "",
+        phone: (contactBefore && contactBefore.phone) || "",
+      });
+      let emailed = false;
+      let emailSkipped = "";
 
       /* The signer of the one welcome letter a screening family ever gets.
          _introSigner was USED three lines below but never declared (7688a09):
@@ -26901,7 +26916,7 @@ exports.submitScreeningReferral = functions
 
       if (!reach.namesLdah) {
         emailSkipped = "consent-does-not-name-ldah";
-      } else if (!emailLc) {
+      } else if (!emailLc && !reach.email) {
         emailSkipped = "no-email-address";
       } else if (body.suppressEmail === true) {
         emailSkipped = "suppressed-by-staff";
@@ -26917,7 +26932,7 @@ exports.submitScreeningReferral = functions
         try {
           await sendEmailViaResend({
             from: `LDAH <${process.env.SMTP_FROM || "onboarding@resend.dev"}>`,
-            to: emailLc,
+            to: emailLc || reach.email,
             recipientName: parentName || "",
             subject: SCREENING_REFERRAL_INTRO_SUBJECT,
             html: _buildScreeningReferralIntroHtml({

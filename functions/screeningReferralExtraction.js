@@ -191,14 +191,27 @@ function isReferral(data) {
 /* A hearing form carries no parent contact at all, and its consent does not name
  * LDAH. Vision carries both. The caller uses this to decide between opening a
  * case and parking the referral in the "needs parent contact" queue. */
-function contactability(data) {
-  const email = String((data && data.parentEmail) || "").trim();
-  const phone = String((data && data.parentPhone) || "").replace(/\D/g, "");
+function contactability(data, paired) {
+  const email = String((data && data.parentEmail) || "").trim() ||
+    String((paired && paired.email) || "").trim();
+  const phone = (String((data && data.parentPhone) || "") ||
+    String((paired && paired.phone) || "")).replace(/\D/g, "");
+  /* Lions screen a child for BOTH and send the pair together; the parent signs
+     the consent on the VISION page and it covers the student, not one test.
+     So a hearing form for a child whose vision consent is already on file is
+     contactable, and borrows that page's email and phone when its own are
+     blank. Hearing on its own still names nobody and still waits.
+     (Daniel, 2026-09-19.) */
+  const visionConsent = !!data && data.formType === "vision";
+  const pairedVision = !!(paired && paired.visionConsentOnFile);
   return {
     hasEmail: !!email,
     hasPhone: phone.length >= 7,
     reachable: !!email || phone.length >= 7,
-    namesLdah: !!data && data.formType === "vision",
+    namesLdah: visionConsent || (!!data && data.formType === "hearing" && pairedVision),
+    viaPairedVision: !visionConsent && pairedVision,
+    email: email,
+    phone: phone,
   };
 }
 
