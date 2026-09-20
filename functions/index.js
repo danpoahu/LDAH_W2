@@ -20704,6 +20704,45 @@ function _komTagged(d) {
   return list.some((g) => String(g || "").trim().toLowerCase() === "ke ola mamo");
 }
 
+// ── The monthly report itself ───────────────────────────────────────────────
+// Payment is gated on it: LDAH invoices KOM only after filing the month's program
+// report. A month's figures are final only once the month has closed, so the task
+// lands on the 1st of the FOLLOWING month and names the month it covers.
+//
+// KOM's actual deadline is NOT in the Scope of Work -- §7 defers to "the reporting
+// deadline established by KOM", and §9 defers the payment schedule to the MOU, which
+// LDAH does not have on file. So the escalation day is one constant to change once
+// somebody asks KOM. Until then the 5th gives buffer ahead of a typical 10th/15th.
+//
+// Pure, because the interesting case is a calendar edge: the LAST reporting month is
+// July 2027 and its report is filed in AUGUST 2027, after the term has ended. A guard
+// written as "is today inside the term" would silently drop the final report.
+// Tests: functions/test/kom-report-task.test.js
+const KOM_REPORT_URGENT_DAY = 5;
+// Deep link straight into Reports -> Ke Ola Mamo Monthly (LDAH-Int v150.21).
+const KOM_REPORT_URL = "https://danpoahu.github.io/LDAH-Int/#kom-report";
+
+function _komMonthLabel(monthKey) {
+  const MONTHS = ["January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"];
+  const p = String(monthKey || "").split("-");
+  const i = Number(p[1]) - 1;
+  return (MONTHS[i] || monthKey) + " " + p[0];
+}
+function _komReportTaskState(todayKey) {
+  const off = { due: false, month: null, urgent: false };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(todayKey || ""))) return off;
+  const year = Number(todayKey.slice(0, 4));
+  const mon = Number(todayKey.slice(5, 7));
+  const day = Number(todayKey.slice(8, 10));
+  // The month being reported is the one that just closed.
+  let ry = year, rm = mon - 1;
+  if (rm < 1) { rm = 12; ry -= 1; }
+  const reported = ry + "-" + String(rm).padStart(2, "0");
+  if (reported < KOM_TERM_START || reported > KOM_TERM_END) return off;
+  return { due: true, month: reported, urgent: day >= KOM_REPORT_URGENT_DAY };
+}
+
 exports.sweepKomMonthlyEvent = functions
   .runWith({ timeoutSeconds: 120, memory: "256MB", maxInstances: 1 })
   .pubsub.schedule("20 6 * * *")
@@ -20765,6 +20804,61 @@ exports.sweepKomMonthlyEvent = functions
       }
     } catch (e) {
       console.error("sweepKomMonthlyEvent failed:", e.message);
+    }
+
+    // ── The monthly report task ──────────────────────────────────────────────
+    // Separate obligation, same daily run. The event floor is about the month in
+    // progress; this is about the month that just closed, and the invoice cannot
+    // go out until it is filed.
+    try {
+      const rep = _komReportTaskState(today);
+      if (rep.due) {
+        const repId = "kom-report-" + rep.month;
+        const repRef = db.collection("interactions").doc(repId);
+        const existing = await repRef.get();
+        if (existing.exists && (existing.data() || {}).status === "Closed") {
+          console.log("sweepKomMonthlyEvent: report task for " + rep.month +
+            " already closed, leaving it");
+        } else {
+          const label = _komMonthLabel(rep.month);
+          const body = {
+            summary: "File the Ke Ola Mamo report for " + label,
+            notes:
+              "The Ke Ola Mamo monthly program report for " + label + " is due.\n\n" +
+              "Open it here: " + KOM_REPORT_URL + "\n\n" +
+              "Six of the nine measures fill themselves in. Three need typing, because " +
+              "nothing in the system records them: KOM CHWs trained, outreach contacts " +
+              "completed, and referrals made. Add the program-specific outcomes note, " +
+              "press Save, then use Export CSV or Print for what goes to Ke Ola Mamo.\n\n" +
+              "LDAH cannot invoice for " + label + " until this report has been submitted.",
+            status: "Open",
+            followUpDate: today,
+            ownerUid: KOM_TASK_OWNER_UID,
+            owner: KOM_TASK_OWNER_NAME,
+            interactionType: "Tier 4: Outreach: Screenings",
+            channel: "Other",
+            grantProgram: "Ke Ola Mamo",
+            grantPrograms: ["Ke Ola Mamo"],
+            komReportMonth: rep.month,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          };
+          if (rep.urgent) body.urgent = true;
+          if (!existing.exists) {
+            body.createdAt = admin.firestore.FieldValue.serverTimestamp();
+            body.createdBy = "system";
+            body.createdByName = "LDAH Database";
+            await repRef.set(body);
+            console.log("sweepKomMonthlyEvent: raised report task " + repId +
+              (rep.urgent ? " (urgent)" : ""));
+          } else {
+            await repRef.set(body, { merge: true });
+            console.log("sweepKomMonthlyEvent: refreshed report task " + repId +
+              (rep.urgent ? " (urgent)" : ""));
+          }
+        }
+      }
+    } catch (e) {
+      console.error("sweepKomMonthlyEvent report task failed:", e.message);
     }
     return null;
   });
@@ -30709,6 +30803,7 @@ exports.__test = {
   _screeningUrgency,
   _komMonthState,
   _komTagged,
+  _komReportTaskState,
   _buildScreeningReferralIntroHtml,
   _familyEmailFormatProblem,
   _formatFamilyPhone,
