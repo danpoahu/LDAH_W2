@@ -20772,12 +20772,14 @@ exports.sweepKomMonthlyEvent = functions
         console.log("sweepKomMonthlyEvent: task already closed by staff, leaving it");
         return null;
       }
+      const monthLabel = _komMonthLabel(month);
       const base = {
-        summary: "Ke Ola Mamo - no community event tagged for " + month,
+        summary: "Ke Ola Mamo - no community event tagged for " + monthLabel,
         notes: "The Ke Ola Mamo agreement requires at least one collaborative community " +
-          "event each month, and the monthly report gates the invoice. No event dated in " +
-          month + " carries the Ke Ola Mamo grant.\n\nEither tag the event in the event " +
-          "editor (Grant / Program), or arrange one with KOM before the month closes.",
+          "event every month, and the monthly report gates the invoice. No event dated in " +
+          monthLabel + " carries the Ke Ola Mamo grant.\n\nEither tag the event in the event " +
+          "editor (Grant / Program), or arrange one with KOM before the month closes.\n\n" +
+          "The month-by-month view is at the top of the report: " + KOM_REPORT_URL,
         status: "Open",
         followUpDate: today,
         ownerUid: KOM_TASK_OWNER_UID,
