@@ -20657,6 +20657,118 @@ function _screeningUrgency(daysLeft) {
   return { touch: true, urgent: daysLeft <= 3 };
 }
 
+// ══ Ke Ola Mamo monthly event floor (2026-09-19) ════════════════════════════
+// The KOM agreement (1 Sep 2026 - 31 Jul 2027, $100k) requires at least one
+// collaborative community event with Ke Ola Mamo EVERY month, and LDAH invoices
+// only after filing that month's program report. A missed month cannot be
+// repaired once it closes, so the warning has to arrive while an event can still
+// be arranged with the partner.
+//
+// Quiet until two-thirds through the month, then a task; in the last six days it
+// goes urgent (red, pinned) because after that there is no fixing it. Thresholds
+// are proportional to the month's length so February is not warned later in
+// relative terms than a 31-day month.
+//
+// Pure so it can be tested against real month lengths: functions/test/kom-monthly-event.test.js
+// Chassidy Kruse runs the screenings, so the monthly community-event obligation
+// is hers to act on. An interaction with no ownerUid never appears in anybody's
+// My Day, which would make this sweep silently pointless.
+const KOM_TASK_OWNER_UID = "B9iq7O46KJabCE3Skke4HXy8RV43";
+const KOM_TASK_OWNER_NAME = "Chassidy Kruse";
+const KOM_TERM_START = "2026-09";
+const KOM_TERM_END = "2027-07";
+function _komMonthState(todayKey, eventCount) {
+  const off = { warn: false, urgent: false };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(todayKey || ""))) return off;
+  const month = String(todayKey).slice(0, 7);
+  if (month < KOM_TERM_START || month > KOM_TERM_END) return off;
+  if (Number(eventCount) > 0) return off;
+  const year = Number(todayKey.slice(0, 4));
+  const mon = Number(todayKey.slice(5, 7));
+  const day = Number(todayKey.slice(8, 10));
+  const daysInMonth = new Date(year, mon, 0).getDate();
+  if (!(day >= 1 && day <= daysInMonth)) return off;
+  const warnFrom = Math.floor((daysInMonth * 2) / 3);
+  const urgentFrom = daysInMonth - 5;
+  if (day < warnFrom) return off;
+  return { warn: true, urgent: day >= urgentFrom };
+}
+
+// Does this event doc carry the Ke Ola Mamo grant? grantPrograms[] is the truth
+// and grantProgram mirrors its first value, so read both - a doc written either
+// way has to answer the same.
+function _komTagged(d) {
+  const list = Array.isArray(d && d.grantPrograms) && d.grantPrograms.length
+    ? d.grantPrograms
+    : (d && d.grantProgram ? [d.grantProgram] : []);
+  return list.some((g) => String(g || "").trim().toLowerCase() === "ke ola mamo");
+}
+
+exports.sweepKomMonthlyEvent = functions
+  .runWith({ timeoutSeconds: 120, memory: "256MB", maxInstances: 1 })
+  .pubsub.schedule("20 6 * * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const today = toHstDateKey(new Date());
+    const month = today.slice(0, 7);
+    try {
+      const snap = await db.collection("events")
+        .where("eventDate", ">=", month + "-01")
+        .where("eventDate", "<=", month + "-31").get();
+      let count = 0;
+      snap.forEach((doc) => { if (_komTagged(doc.data() || {})) count++; });
+
+      const state = _komMonthState(today, count);
+      console.log("sweepKomMonthlyEvent: " + month + " tagged=" + count +
+        " -> " + JSON.stringify(state));
+      if (!state.warn) return null;
+
+      // One task per month, updated rather than duplicated. A deterministic id
+      // is what keeps a daily sweep from producing a daily pile of tasks.
+      const taskId = "kom-month-" + month;
+      const ref = db.collection("interactions").doc(taskId);
+      const existing = await ref.get();
+      if (existing.exists && (existing.data() || {}).status === "Closed") {
+        console.log("sweepKomMonthlyEvent: task already closed by staff, leaving it");
+        return null;
+      }
+      const base = {
+        summary: "Ke Ola Mamo - no community event tagged for " + month,
+        notes: "The Ke Ola Mamo agreement requires at least one collaborative community " +
+          "event each month, and the monthly report gates the invoice. No event dated in " +
+          month + " carries the Ke Ola Mamo grant.\n\nEither tag the event in the event " +
+          "editor (Grant / Program), or arrange one with KOM before the month closes.",
+        status: "Open",
+        followUpDate: today,
+        ownerUid: KOM_TASK_OWNER_UID,
+        owner: KOM_TASK_OWNER_NAME,
+        interactionType: "Tier 4: Outreach: Screenings",
+        channel: "Other",
+        grantProgram: "Ke Ola Mamo",
+        grantPrograms: ["Ke Ola Mamo"],
+        komMonth: month,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      };
+      if (state.urgent) base.urgent = true;
+      if (!existing.exists) {
+        base.createdAt = admin.firestore.FieldValue.serverTimestamp();
+        base.createdBy = "system";
+        base.createdByName = "LDAH Database";
+        await ref.set(base);
+        console.log("sweepKomMonthlyEvent: raised task " + taskId +
+          (state.urgent ? " (urgent)" : ""));
+      } else {
+        await ref.set(base, { merge: true });
+        console.log("sweepKomMonthlyEvent: refreshed task " + taskId +
+          (state.urgent ? " (urgent)" : ""));
+      }
+    } catch (e) {
+      console.error("sweepKomMonthlyEvent failed:", e.message);
+    }
+    return null;
+  });
+
 exports.sweepScreeningDeadlines = functions
   .runWith({ timeoutSeconds: 300, memory: "256MB", maxInstances: 1 })
   .pubsub.schedule("10 6 * * *")
@@ -30595,6 +30707,8 @@ exports.__test = {
   pledgeInviteSkipReason,
   buildPledgeVolunteerInviteHtml,
   _screeningUrgency,
+  _komMonthState,
+  _komTagged,
   _buildScreeningReferralIntroHtml,
   _familyEmailFormatProblem,
   _formatFamilyPhone,
