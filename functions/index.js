@@ -19337,6 +19337,68 @@ exports.sweepConnectGenCaseReviews = functions
     return null;
   });
 
+/* ── Screening deadline urgency (2026-09-19) ─────────────────────────────────
+   A screening family must be contacted within 21 days of the screening. The
+   deadline sat on the case and nothing chased it: if no consultant was ever
+   assigned, no one was prompted. Daniel asked for a nightly sweep that makes
+   the task louder as the date approaches.
+
+   Escalation, by days left until caseAdvocacyContactDueDate (HST):
+     8 or more  : left alone
+     7 to 4     : follow-up pulled to today, so it sits in My Day every morning
+     3 or fewer : also urgent:true -- red, pinned to the top, counts as overdue
+     past due   : urgent:true and the follow-up stays today
+   Idempotent: writes only what changed, so a task already urgent is untouched. */
+function _screeningUrgency(daysLeft) {
+  if (!Number.isFinite(daysLeft)) return { touch: false, urgent: false };
+  if (daysLeft >= 8) return { touch: false, urgent: false };
+  return { touch: true, urgent: daysLeft <= 3 };
+}
+
+exports.sweepScreeningDeadlines = functions
+  .runWith({ timeoutSeconds: 300, memory: "256MB", maxInstances: 1 })
+  .pubsub.schedule("10 6 * * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const today = toHstDateKey(new Date());
+    let scanned = 0, raised = 0, madeUrgent = 0, skipped = 0, errors = 0;
+    try {
+      const snap = await db.collection("interactions")
+        .where("status", "==", "Open")
+        .where("caseAdvocacySource", "==", "lions-screening").get();
+      for (const doc of snap.docs) {
+        scanned++;
+        try {
+          const d = doc.data() || {};
+          const due = String(d.caseAdvocacyContactDueDate || "").trim();
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) { skipped++; continue; }
+          const daysLeft = Math.round(
+            (Date.parse(due + "T00:00:00-10:00") - Date.parse(today + "T00:00:00-10:00")) / 86400000);
+          const want = _screeningUrgency(daysLeft);
+          if (!want.touch) { skipped++; continue; }
+          const upd = {};
+          if (d.followUpDate !== today) upd.followUpDate = today;
+          if (want.urgent && d.urgent !== true) upd.urgent = true;
+          if (!Object.keys(upd).length) { skipped++; continue; }
+          upd.screeningUrgencyAt = admin.firestore.FieldValue.serverTimestamp();
+          upd.screeningDaysLeft = daysLeft;
+          await doc.ref.update(upd);
+          raised++;
+          if (upd.urgent) madeUrgent++;
+          console.log("sweepScreeningDeadlines: " + doc.id + " due " + due +
+            " (" + daysLeft + "d) -> " + JSON.stringify(Object.keys(upd)));
+        } catch (e) { errors++; console.error("sweepScreeningDeadlines row failed:", e.message); }
+      }
+    } catch (e) {
+      console.error("sweepScreeningDeadlines query failed:", e.message);
+      return null;
+    }
+    console.log("sweepScreeningDeadlines: scanned=" + scanned + ", updated=" + raised +
+      ", madeUrgent=" + madeUrgent + ", skipped=" + skipped + ", errors=" + errors);
+    return null;
+  });
+
 // ══ Auto-move an unprepared family (2026-09-03) ═════════════════════════════
 // Daniel: give a family every opportunity to move themselves, and if their
 // session starts with anything still outstanding, move them forward to the next
@@ -28081,6 +28143,7 @@ exports.onChatHelpRequest = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  _screeningUrgency,
   _buildScreeningReferralIntroHtml,
   handleSignupCreated,
   _cgMaybeGenerateCaseReview,
