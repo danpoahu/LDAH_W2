@@ -20743,6 +20743,165 @@ function _komReportTaskState(todayKey) {
   return { due: true, month: reported, urgent: day >= KOM_REPORT_URGENT_DAY };
 }
 
+// ══ Lost work sweep (2026-09-22) ═══════════════════════════════════════════
+// Daniel: "can you make orphaned or odd files that quietly disappear go into my
+// day tasks?" — after a partner-raised advocacy case for a family on Guam sat
+// invisible because its task was written with an empty ownerUid.
+//
+// A record is LOST when it is still open, somebody meant to act on it, and it
+// no longer appears in anybody's My Day. Four ways that happens:
+//
+//   no-owner      open, but no ownerUid — My Day queries by uid, so nobody has it
+//   owner-gone    the uid is not on the roster, or belongs to an archived account
+//   no-date       owned, but no followUpDate — My Day filters on the date
+//   contact-gone  points at a family record that no longer exists
+//
+// The hard part is NOT finding these; it is not crying wolf. Ten of the twelve
+// ownerless records on the live database are readiness-kiosk consent logs, which
+// are ownerless BY DESIGN because an unauthenticated kiosk wrote them. Report
+// those nightly and the digest becomes noise and stops being read — the exact
+// failure it exists to prevent. So anything carrying a `source` stamp, or created
+// by the system rather than a person, is treated as a log and left alone.
+//
+// Pure, and covered by functions/test/lost-work.test.js.
+function _lostWorkReason(ix, env) {
+  if (!ix || typeof ix !== "object") return null;
+  if (String(ix.status || "") !== "Open") return null;   // closed is history
+
+  const owner = String(ix.ownerUid || "").trim();
+  const source = String(ix.source || "").trim();
+  const createdBy = String(ix.createdBy || "").trim().toLowerCase();
+
+  if (!owner) {
+    // Written by a machine, not a person: ownerless is correct, not lost.
+    if (source || createdBy === "system") return null;
+    return "no-owner";
+  }
+  if (!env.validUids.has(owner) || env.archivedUids.has(owner)) return "owner-gone";
+
+  if (!String(ix.followUpDate || "").trim()) return "no-date";
+
+  const cid = String(ix.contactId || "").trim();
+  if (cid && !env.knownContactIds.has(cid)) return "contact-gone";
+
+  return null;
+}
+
+const LOST_WORK_TASK_ID = "lost-work-digest";
+const LOST_WORK_OWNER_UID = "YmGV2TlBGqR01dVdxZ0rtFLEFCG3";   // Dan Pellegrini
+const LOST_WORK_OWNER_NAME = "Dan Pellegrini";
+const LOST_WORK_LABEL = {
+  "no-owner": "no owner — invisible in every My Day",
+  "owner-gone": "owner is off the roster or archived",
+  "no-date": "no follow-up date — never shows as due",
+  "contact-gone": "the family record it points at is gone",
+};
+
+exports.sweepLostWork = functions
+  .runWith({ timeoutSeconds: 300, memory: "512MB", maxInstances: 1 })
+  .pubsub.schedule("30 6 * * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const today = toHstDateKey(new Date());
+    try {
+      const [ixSnap, urSnap] = await Promise.all([
+        db.collection("interactions").where("status", "==", "Open").get(),
+        db.collection("userRoles").get(),
+      ]);
+      const validUids = new Set(), archivedUids = new Set();
+      urSnap.forEach((d) => {
+        validUids.add(d.id);
+        if ((d.data() || {}).isArchived === true) archivedUids.add(d.id);
+      });
+
+      // Only resolve the contacts these records actually reference, rather than
+      // streaming the whole collection every night.
+      const wanted = new Set();
+      ixSnap.forEach((d) => {
+        const c = String((d.data() || {}).contactId || "").trim();
+        if (c) wanted.add(c);
+      });
+      const knownContactIds = new Set();
+      const ids = [...wanted];
+      for (let i = 0; i < ids.length; i += 300) {
+        const refs = ids.slice(i, i + 300).map((id) => db.collection("contacts").doc(id));
+        const got = await db.getAll(...refs);
+        got.forEach((g) => { if (g.exists) knownContactIds.add(g.id); });
+      }
+
+      const env = { validUids, archivedUids, knownContactIds };
+      const found = [];
+      ixSnap.forEach((d) => {
+        const x = d.data() || {};
+        const why = _lostWorkReason(x, env);
+        if (why) {
+          found.push({ id: d.id, why,
+            summary: String(x.summary || "(no summary)").slice(0, 70),
+            who: String(x.owner || "").trim() });
+        }
+      });
+
+      const ref = db.collection("interactions").doc(LOST_WORK_TASK_ID);
+      const existing = await ref.get();
+
+      if (!found.length) {
+        // Clean. Close the digest rather than leaving a stale count on screen.
+        if (existing.exists && (existing.data() || {}).status === "Open") {
+          await ref.update({
+            status: "Closed",
+            notes: "Nothing lost as of " + today + ". Closed automatically.",
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          console.log("sweepLostWork: clean — digest closed");
+        } else {
+          console.log("sweepLostWork: clean");
+        }
+        return null;
+      }
+
+      const byReason = {};
+      found.forEach((f) => { (byReason[f.why] = byReason[f.why] || []).push(f); });
+      let notes = found.length + " record" + (found.length === 1 ? "" : "s") +
+        " are open but no longer reachable from anybody's My Day.\n";
+      Object.keys(byReason).forEach((why) => {
+        const rows = byReason[why];
+        notes += "\n" + rows.length + " \u00d7 " + (LOST_WORK_LABEL[why] || why) + "\n";
+        rows.slice(0, 12).forEach((r) => {
+          notes += "  \u2022 " + r.summary + (r.who ? "  (" + r.who + ")" : "") + "\n";
+        });
+        if (rows.length > 12) notes += "  \u2026 and " + (rows.length - 12) + " more\n";
+      });
+      notes += "\nThis task rewrites itself every morning and closes when the list is empty.";
+
+      const body = {
+        summary: "Lost work — " + found.length + " record" + (found.length === 1 ? "" : "s") +
+          " nobody can see",
+        notes: notes,
+        status: "Open",
+        followUpDate: today,
+        ownerUid: LOST_WORK_OWNER_UID,
+        owner: LOST_WORK_OWNER_NAME,
+        interactionType: "Tier 4: Outreach: Screenings",
+        channel: "Other",
+        lostWorkCount: found.length,
+        lostWorkIds: found.slice(0, 50).map((f) => f.id),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      if (!existing.exists) {
+        body.createdAt = admin.firestore.FieldValue.serverTimestamp();
+        body.createdBy = "system";
+        body.createdByName = "LDAH Database";
+      }
+      await ref.set(body, { merge: true });
+      console.log("sweepLostWork: " + found.length + " lost — " +
+        JSON.stringify(Object.keys(byReason).reduce((a, k) => (a[k] = byReason[k].length, a), {})));
+    } catch (e) {
+      console.error("sweepLostWork failed:", e.message);
+    }
+    return null;
+  });
+
 exports.sweepKomMonthlyEvent = functions
   .runWith({ timeoutSeconds: 120, memory: "256MB", maxInstances: 1 })
   .pubsub.schedule("20 6 * * *")
@@ -30803,6 +30962,7 @@ exports.__test = {
   pledgeInviteSkipReason,
   buildPledgeVolunteerInviteHtml,
   _screeningUrgency,
+  _lostWorkReason,
   _komMonthState,
   _komTagged,
   _komReportTaskState,
