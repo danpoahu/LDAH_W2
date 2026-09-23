@@ -20797,109 +20797,160 @@ const LOST_WORK_LABEL = {
   "contact-gone": "the family record it points at is gone",
 };
 
+/* One implementation, two triggers: the 6:30 schedule and the "Re-check now"
+   button under the digest's list. Returns what it found so a caller can say
+   so out loud. Throws on failure; the scheduled wrapper swallows it. */
+async function _runLostWorkSweep() {
+  const db = admin.firestore();
+  const today = toHstDateKey(new Date());
+  try {
+    const [ixSnap, urSnap] = await Promise.all([
+      db.collection("interactions").where("status", "==", "Open").get(),
+      db.collection("userRoles").get(),
+    ]);
+    const validUids = new Set(), archivedUids = new Set();
+    urSnap.forEach((d) => {
+      validUids.add(d.id);
+      if ((d.data() || {}).isArchived === true) archivedUids.add(d.id);
+    });
+
+    // Only resolve the contacts these records actually reference, rather than
+    // streaming the whole collection every night.
+    const wanted = new Set();
+    ixSnap.forEach((d) => {
+      const c = String((d.data() || {}).contactId || "").trim();
+      if (c) wanted.add(c);
+    });
+    const knownContactIds = new Set();
+    const ids = [...wanted];
+    for (let i = 0; i < ids.length; i += 300) {
+      const refs = ids.slice(i, i + 300).map((id) => db.collection("contacts").doc(id));
+      const got = await db.getAll(...refs);
+      got.forEach((g) => { if (g.exists) knownContactIds.add(g.id); });
+    }
+
+    const env = { validUids, archivedUids, knownContactIds };
+    const found = [];
+    ixSnap.forEach((d) => {
+      const x = d.data() || {};
+      const why = _lostWorkReason(x, env);
+      if (why) {
+        found.push({ id: d.id, why,
+          summary: String(x.summary || "(no summary)").slice(0, 70),
+          who: String(x.owner || "").trim() });
+      }
+    });
+
+    const ref = db.collection("interactions").doc(LOST_WORK_TASK_ID);
+    const existing = await ref.get();
+
+    if (!found.length) {
+      // Clean. Close the digest rather than leaving a stale count on screen.
+      if (existing.exists && (existing.data() || {}).status === "Open") {
+        await ref.update({
+          status: "Closed",
+          /* Clear the list as well as closing it. The dashboard renders
+             lostWorkRows as buttons, so rows left behind here are five links
+             to records that were already fixed, sitting under a note saying
+             nothing is lost. The summary has to go too: it is what shows in
+             the Interactions list. */
+          summary: "Lost work — nothing lost as of " + today,
+          notes: "Nothing lost as of " + today + ". Closed automatically.",
+          lostWorkCount: 0,
+          lostWorkIds: [],
+          lostWorkRows: [],
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        console.log("sweepLostWork: clean — digest closed");
+      } else {
+        console.log("sweepLostWork: clean");
+      }
+      return { count: 0, closed: true };
+    }
+
+    const byReason = {};
+    found.forEach((f) => { (byReason[f.why] = byReason[f.why] || []).push(f); });
+    let notes = found.length + " record" + (found.length === 1 ? "" : "s") +
+      " are open but no longer reachable from anybody's My Day.\n";
+    Object.keys(byReason).forEach((why) => {
+      const rows = byReason[why];
+      notes += "\n" + rows.length + " \u00d7 " + (LOST_WORK_LABEL[why] || why) + "\n";
+      rows.slice(0, 12).forEach((r) => {
+        notes += "  \u2022 " + r.summary + (r.who ? "  (" + r.who + ")" : "") + "\n";
+      });
+      if (rows.length > 12) notes += "  \u2026 and " + (rows.length - 12) + " more\n";
+    });
+    notes += "\nThis task rewrites itself every morning and closes when the list is empty.";
+
+    const body = {
+      summary: "Lost work — " + found.length + " record" + (found.length === 1 ? "" : "s") +
+        " nobody can see",
+      notes: notes,
+      status: "Open",
+      followUpDate: today,
+      ownerUid: LOST_WORK_OWNER_UID,
+      owner: LOST_WORK_OWNER_NAME,
+      interactionType: "Tier 4: Outreach: Screenings",
+      channel: "Other",
+      lostWorkCount: found.length,
+      lostWorkIds: found.slice(0, 50).map((f) => f.id),
+      /* The dashboard renders these as buttons that open each record in edit
+         mode, so the digest is something you can act on rather than read. The
+         label travels with the row: the wording is defined once, here. */
+      lostWorkRows: found.slice(0, 50).map((f) => ({
+        id: f.id,
+        why: f.why,
+        whyLabel: LOST_WORK_LABEL[f.why] || f.why,
+        summary: f.summary,
+        who: f.who,
+      })),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    if (!existing.exists) {
+      body.createdAt = admin.firestore.FieldValue.serverTimestamp();
+      body.createdBy = "system";
+      body.createdByName = "LDAH Database";
+    }
+    await ref.set(body, { merge: true });
+    console.log("sweepLostWork: " + found.length + " lost — " +
+      JSON.stringify(Object.keys(byReason).reduce((a, k) => (a[k] = byReason[k].length, a), {})));
+    return { count: found.length, closed: false };
+  } catch (e) {
+    console.error("sweepLostWork failed:", e.message);
+    throw e;
+  }
+}
+
 exports.sweepLostWork = functions
   .runWith({ timeoutSeconds: 300, memory: "512MB", maxInstances: 1 })
   .pubsub.schedule("30 6 * * *")
   .timeZone("Pacific/Honolulu")
   .onRun(async () => {
-    const db = admin.firestore();
-    const today = toHstDateKey(new Date());
-    try {
-      const [ixSnap, urSnap] = await Promise.all([
-        db.collection("interactions").where("status", "==", "Open").get(),
-        db.collection("userRoles").get(),
-      ]);
-      const validUids = new Set(), archivedUids = new Set();
-      urSnap.forEach((d) => {
-        validUids.add(d.id);
-        if ((d.data() || {}).isArchived === true) archivedUids.add(d.id);
-      });
-
-      // Only resolve the contacts these records actually reference, rather than
-      // streaming the whole collection every night.
-      const wanted = new Set();
-      ixSnap.forEach((d) => {
-        const c = String((d.data() || {}).contactId || "").trim();
-        if (c) wanted.add(c);
-      });
-      const knownContactIds = new Set();
-      const ids = [...wanted];
-      for (let i = 0; i < ids.length; i += 300) {
-        const refs = ids.slice(i, i + 300).map((id) => db.collection("contacts").doc(id));
-        const got = await db.getAll(...refs);
-        got.forEach((g) => { if (g.exists) knownContactIds.add(g.id); });
-      }
-
-      const env = { validUids, archivedUids, knownContactIds };
-      const found = [];
-      ixSnap.forEach((d) => {
-        const x = d.data() || {};
-        const why = _lostWorkReason(x, env);
-        if (why) {
-          found.push({ id: d.id, why,
-            summary: String(x.summary || "(no summary)").slice(0, 70),
-            who: String(x.owner || "").trim() });
-        }
-      });
-
-      const ref = db.collection("interactions").doc(LOST_WORK_TASK_ID);
-      const existing = await ref.get();
-
-      if (!found.length) {
-        // Clean. Close the digest rather than leaving a stale count on screen.
-        if (existing.exists && (existing.data() || {}).status === "Open") {
-          await ref.update({
-            status: "Closed",
-            notes: "Nothing lost as of " + today + ". Closed automatically.",
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
-          console.log("sweepLostWork: clean — digest closed");
-        } else {
-          console.log("sweepLostWork: clean");
-        }
-        return null;
-      }
-
-      const byReason = {};
-      found.forEach((f) => { (byReason[f.why] = byReason[f.why] || []).push(f); });
-      let notes = found.length + " record" + (found.length === 1 ? "" : "s") +
-        " are open but no longer reachable from anybody's My Day.\n";
-      Object.keys(byReason).forEach((why) => {
-        const rows = byReason[why];
-        notes += "\n" + rows.length + " \u00d7 " + (LOST_WORK_LABEL[why] || why) + "\n";
-        rows.slice(0, 12).forEach((r) => {
-          notes += "  \u2022 " + r.summary + (r.who ? "  (" + r.who + ")" : "") + "\n";
-        });
-        if (rows.length > 12) notes += "  \u2026 and " + (rows.length - 12) + " more\n";
-      });
-      notes += "\nThis task rewrites itself every morning and closes when the list is empty.";
-
-      const body = {
-        summary: "Lost work — " + found.length + " record" + (found.length === 1 ? "" : "s") +
-          " nobody can see",
-        notes: notes,
-        status: "Open",
-        followUpDate: today,
-        ownerUid: LOST_WORK_OWNER_UID,
-        owner: LOST_WORK_OWNER_NAME,
-        interactionType: "Tier 4: Outreach: Screenings",
-        channel: "Other",
-        lostWorkCount: found.length,
-        lostWorkIds: found.slice(0, 50).map((f) => f.id),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      };
-      if (!existing.exists) {
-        body.createdAt = admin.firestore.FieldValue.serverTimestamp();
-        body.createdBy = "system";
-        body.createdByName = "LDAH Database";
-      }
-      await ref.set(body, { merge: true });
-      console.log("sweepLostWork: " + found.length + " lost — " +
-        JSON.stringify(Object.keys(byReason).reduce((a, k) => (a[k] = byReason[k].length, a), {})));
-    } catch (e) {
-      console.error("sweepLostWork failed:", e.message);
-    }
+    try { await _runLostWorkSweep(); } catch (_) { /* already logged */ }
     return null;
+  });
+
+/* The digest is a snapshot. Fix a record at 9am and the list still names it
+   until 6:30 tomorrow, which is exactly how it feels like nothing happened.
+   This runs the same sweep on demand, so the button under the list clears
+   what was just fixed. Owner or admin only — it reads every open record. */
+exports.recheckLostWork = functions
+  .runWith({ timeoutSeconds: 120, memory: "512MB", maxInstances: 2 })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "Must be signed in.");
+    }
+    const uid = context.auth.uid;
+    const snap = await admin.firestore().collection("userRoles").doc(uid).get();
+    const role = snap.exists ? (snap.data().role || "") : "";
+    if (role !== "superAdmin" && role !== "admin" && uid !== LOST_WORK_OWNER_UID) {
+      throw new functions.https.HttpsError("permission-denied", "Admin only.");
+    }
+    try {
+      return await _runLostWorkSweep();
+    } catch (e) {
+      throw new functions.https.HttpsError("internal", e.message);
+    }
   });
 
 exports.sweepKomMonthlyEvent = functions
