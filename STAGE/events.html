@@ -4122,6 +4122,28 @@
                email:em };
     }
 
+    /* Every signup needs a name, an email and a phone. (2026-09-24)
+       The inputs carry `required`, but that only runs when a person presses the
+       button in a normal browser. At 9:43 AM HST on 24 Sep something drove the
+       Connect-Gen form's submit handler directly, eleven times in about a
+       minute, and wrote eleven signups with no name, email or phone onto the
+       1 Oct Oahu session. Checking here too means a submit that skips the
+       browser's own validation is still refused. */
+    function _ldahSignupContactOK(fd) {
+      var nm = String(fd.name || '').trim();
+      var em = String(fd.email || '').trim();
+      var phDigits = String(fd.phone || '').replace(/\D/g, '');
+      var bad = null;
+      if (nm.length < 2) bad = ['signupName', 'Please enter your name.'];
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) bad = ['signupEmail', 'Please enter a valid email address.'];
+      else if (phDigits.length < 7) bad = ['signupPhone', 'Please enter a phone number we can reach you on.'];
+      if (!bad) return true;
+      alert(bad[1]);
+      var el = document.getElementById(bad[0]);
+      if (el) { try { el.focus(); if (el.reportValidity) el.reportValidity(); } catch (e) {} }
+      return false;
+    }
+
     async function submitSignup(event, eventId) {
       if (!_ldahHowHeardGuard('inlineHearAbout', 'inlineHearAboutOther')) { if (event && event.preventDefault) event.preventDefault(); return false; }
       event.preventDefault();
@@ -4203,6 +4225,8 @@
           return;
         }
       }
+
+      if (!_ldahSignupContactOK(formData)) return;   // the enclosing try/finally releases the submit lock
 
       // Get selected dates
       const dateCheckboxes = document.querySelectorAll('.signup-date-checkbox:checked');
@@ -5032,6 +5056,8 @@
       } else {
         formData.groupSize = 1;
       }
+
+      if (!_ldahSignupContactOK(formData)) return;   // the enclosing try/finally releases the submit lock
 
       const checked = document.querySelectorAll('.signup-date-checkbox:checked');
       formData.selectedSessions = Array.from(checked).map(cb => cb.value);
