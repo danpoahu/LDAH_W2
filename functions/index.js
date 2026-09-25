@@ -19200,6 +19200,43 @@ async function _cgSoftCancel({ db, collection, eventId, signupRef, signupData, e
 // would ask them what they thought of an event they are standing in; and the
 // event has to stay live until it is over, or the flyer's own QR would point at
 // an archived record. So the wrap-up runs once, the morning after.
+/* ── Programs go dark on their remove date (2026-09-25) ─────────────────────
+   "Program is active, show on events page" stayed ticked after a program's
+   remove date, so an expired Extended School Year flyer stayed on the public
+   site for a week. Every night, untick `active` on any program whose removeDate
+   has arrived (Hawaii time). Deliberately does NOT set archived: an archived
+   flip is what fires cancellation emails (handleEventLifecycleEmails), and a
+   program simply reaching its end date must never email anyone. */
+exports.sweepExpiredPrograms = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 1 })
+  .pubsub.schedule("10 0 * * *").timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Pacific/Honolulu", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    const snap = await db.collection("recurringEvents").where("active", "==", true).get();
+    let turnedOff = 0;
+    for (const doc of snap.docs) {
+      const d = doc.data() || {};
+      const rd = String(d.removeDate || "");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(rd) || rd > today) continue;
+      await doc.ref.update({
+        active: false,
+        deactivatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        deactivatedReason: "remove date " + rd + " reached",
+      });
+      await db.collection("auditLog").add({
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        action: "Program went dark",
+        details: (d.title || doc.id) + " -- remove date " + rd + " reached; 'Program is active' unticked",
+        performedBy: "sweepExpiredPrograms",
+        performedByRole: "system",
+      });
+      turnedOff++;
+    }
+    console.log("sweepExpiredPrograms: today=" + today + " active=" + snap.size + " turnedOff=" + turnedOff);
+    return null;
+  });
+
 exports.sweepQrTableEvents = functions
   .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: EMAIL_SECRETS })
   .pubsub.schedule("15 6 * * *")
