@@ -24476,13 +24476,24 @@ exports.listZoomRecordings = functions
     await _requireStaff(context);
     const { token, ownerUid } = await _zoomAuth();
     if (!ownerUid) throw new functions.https.HttpsError("internal", "Could not resolve Zoom account owner.");
-    const to = new Date();
-    const from = new Date(to.getTime() - 120 * 24 * 3600 * 1000);
     const fmt = d => d.toISOString().slice(0, 10);
-    const r = await fetch("https://api.zoom.us/v2/users/" + ownerUid + "/recordings?from=" + fmt(from) + "&to=" + fmt(to) + "&page_size=100",
-      { headers: { Authorization: "Bearer " + token } });
-    const j = await r.json();
-    if (j.code) throw new functions.https.HttpsError("internal", "Zoom list failed: " + j.message);
+    /* Zoom answers a recordings query for at most about one month, so a single
+       120-day request quietly returned only the latest month (the Aug 17 PTC
+       and the June-August Learning Labs never appeared). Ask one 30-day window
+       at a time, four windows back, and drop duplicates on the window edges.
+       (2026-09-24) */
+    const j = { meetings: [] };
+    const _seen = {};
+    const _now = Date.now();
+    for (let w = 0; w < 4; w++) {
+      const to = new Date(_now - w * 30 * 24 * 3600 * 1000);
+      const from = new Date(to.getTime() - 30 * 24 * 3600 * 1000);
+      const r = await fetch("https://api.zoom.us/v2/users/" + ownerUid + "/recordings?from=" + fmt(from) + "&to=" + fmt(to) + "&page_size=100",
+        { headers: { Authorization: "Bearer " + token } });
+      const jw = await r.json();
+      if (jw.code) throw new functions.https.HttpsError("internal", "Zoom list failed: " + jw.message);
+      (jw.meetings || []).forEach(m => { if (m && m.uuid && !_seen[m.uuid]) { _seen[m.uuid] = true; j.meetings.push(m); } });
+    }
     const pubSnap = await admin.firestore().collection("eventRecordings").where("source", "in", ["zoom", "zoom-live-test"]).get();
     const publishedByUuid = {};
     pubSnap.forEach(d => { const u = (d.data() || {}).zoomMeetingUuid; if (u) publishedByUuid[u] = d.id; });
@@ -24549,11 +24560,14 @@ exports.listZoomRecordings = functions
       // so the card showed nothing. When that happens, use a summary written from
       // the session's caption file and stored in zoomSummaryOverrides, keyed by
       // the encoded meeting UUID. Zoom's own summary always wins when it has text.
-      if (!summary && m.uuid) {
+      if (m.uuid) {
         try {
           const ov = await admin.firestore().collection("zoomSummaryOverrides")
             .doc(encodeURIComponent(m.uuid)).get();
-          const s = ov.exists ? (ov.data() || {}).summary : null;
+          const ovd = ov.exists ? (ov.data() || {}) : {};
+          // Zoom's own summary wins unless the stored one is marked preferOverride
+          // (used when Zoom's is thin, e.g. 8/26 had 1 key point).
+          const s = (!summary || ovd.preferOverride === true) ? ovd.summary : null;
           if (s && (s.overview || (s.details || []).length || (s.nextSteps || []).length)) {
             summary = {
               title: String(s.title || ""),
