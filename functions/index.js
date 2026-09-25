@@ -24544,6 +24544,27 @@ exports.listZoomRecordings = functions
           }
         } catch (e) { summaryStatus = "throw:" + (e && e.message ? e.message : "err"); }
       }
+      // Stand-in summary (2026-09-24). Zoom's AI Companion sometimes creates a
+      // summary record with a title and no text (Sep 10 and Sep 23 Learning Labs),
+      // so the card showed nothing. When that happens, use a summary written from
+      // the session's caption file and stored in zoomSummaryOverrides, keyed by
+      // the encoded meeting UUID. Zoom's own summary always wins when it has text.
+      if (!summary && m.uuid) {
+        try {
+          const ov = await admin.firestore().collection("zoomSummaryOverrides")
+            .doc(encodeURIComponent(m.uuid)).get();
+          const s = ov.exists ? (ov.data() || {}).summary : null;
+          if (s && (s.overview || (s.details || []).length || (s.nextSteps || []).length)) {
+            summary = {
+              title: String(s.title || ""),
+              overview: String(s.overview || ""),
+              details: (s.details || []).map(d => ({ label: String((d && d.label) || ""), text: String((d && d.text) || "") })).filter(d => d.text),
+              nextSteps: (s.nextSteps || []).map(x => String(x || "")).filter(Boolean),
+            };
+            summaryStatus = "override";
+          }
+        } catch (e) { /* no override — leave the card without a summary */ }
+      }
       // Flatten to plain text for the "Use as description" / copy actions.
       let summaryText = "";
       if (summary) {
