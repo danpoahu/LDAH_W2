@@ -25050,6 +25050,11 @@ exports.flagDuplicateContacts = functions
           workflowStep: "contactDuplicate",
           dupKeeperId: a.id,
           dupLoserId: b.id,
+          /* Carry the pair's Pacific partner island when both records share
+             it, so the task shows up for the PIP team (2026-09-25: eight
+             American Samoa pairs were invisible to them unstamped). */
+          ...(a.v.partnerIsland && a.v.partnerIsland === b.v.partnerIsland
+            ? { partnerIsland: a.v.partnerIsland } : {}),
         });
         created++;
       }
