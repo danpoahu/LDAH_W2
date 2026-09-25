@@ -346,6 +346,12 @@
                 snap.forEach(function (doc) {
                     var c = doc.data(); c.id = doc.id;
                     if (c.archived === true) return;
+                    // Same rule as isPubliclyListable on events.html / index.html:
+                    // one-off records and Pacific partner (PIP) events/programs
+                    // are never public (Daniel, 2026-09-25).
+                    if (c.isOneOff === true) return;
+                    if (typeof c.partnerIsland === 'string' && c.partnerIsland.trim() !== '') return;
+                    if (Array.isArray(c.partnerIsland) && c.partnerIsland.length > 0) return;
                     if (!c.imageUrl) return;                              // popup is the flyer
                     if (/\.pdf($|\?)/i.test(c.imageUrl)) return;          // PDF flyers can't render as <img>
                     var picked = Array.isArray(c.homeRotationDates) ? c.homeRotationDates : [];

@@ -692,6 +692,12 @@
             const now = new Date();
             const snapshot = await db.collection('events').get();
             const currentEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(event => {
+                // Orphaned old home page, but still served: same public rule as
+                // isPubliclyListable -- no archived, one-off or Pacific partner
+                // (PIP) events (Daniel, 2026-09-25).
+                if (event.archived === true || event.isOneOff === true) return false;
+                if (typeof event.partnerIsland === 'string' && event.partnerIsland.trim() !== '') return false;
+                if (Array.isArray(event.partnerIsland) && event.partnerIsland.length > 0) return false;
                 if (!event.startDate || !event.moveToPastDate) return false;
                 const startDate = new Date(event.startDate + 'T00:00:00');
                 const moveToPastDate = new Date(event.moveToPastDate + 'T00:00:00');

@@ -1432,6 +1432,11 @@
           const syntheticEvents = [];
           recurringSnapshot.docs.forEach(doc => {
             const data = { id: doc.id, ...doc.data() };
+            /* Pacific partner (PIP) programs are never public (Daniel,
+               2026-09-25). Checked before the program is registered, so it
+               stays off the cards, the flyer-only branch AND the calendar
+               (which reads window._recurringPrograms). */
+            if (!isPubliclyListable(data)) return;
             window._recurringPrograms[doc.id] = data;
 
             /* Archived, or past its remove date: not public any more. The -Int
@@ -4571,6 +4576,7 @@
         const syntheticEvents = [];
         snapshot.docs.forEach(doc => {
           const data = { id: doc.id, ...doc.data() };
+          if (!isPubliclyListable(data)) return;   // PIP / archived: never public (2026-09-25)
           window._recurringPrograms[doc.id] = data;
           const occurrences = getOccurrencesInNext30Days(data.schedules, data.cancelledDates);
           if (occurrences.length === 0) return;
