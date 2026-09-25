@@ -1434,6 +1434,15 @@
             const data = { id: doc.id, ...doc.data() };
             window._recurringPrograms[doc.id] = data;
 
+            /* Archived, or past its remove date: not public any more. The -Int
+               Events & Programs list already hides these; this page only checked
+               'active', so an expired ESY flyer stayed up for a week. (2026-09-25) */
+            if (data.archived === true) return;
+            if (data.removeDate) {
+              const _rd = new Date(data.removeDate + 'T00:00:00');
+              if (!isNaN(_rd.getTime()) && new Date() >= _rd) return;
+            }
+
             // Flyer-only programs: show without dates or signup
             if (data.flyerOnly) {
               syntheticEvents.push({
