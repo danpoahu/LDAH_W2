@@ -9498,7 +9498,8 @@ async function _runCombinedAnnouncement({ db, dryRun, testEmail }) {
     const rolesSnap = await db.collection("userRoles").get();
     rolesSnap.forEach((d) => {
       const u = d.data() || {};
-      if (u.role === "partner" || u.previousRole === "partner") return;
+      // superPartner (2026-09-25) is a Pacific partner too, not office staff.
+      if (["partner", "superPartner"].includes(u.role) || ["partner", "superPartner"].includes(u.previousRole)) return;
       const e = String(u.email || "").trim().toLowerCase();
       if (e) staffEmails.add(e);
     });
