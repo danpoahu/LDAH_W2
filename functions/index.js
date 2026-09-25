@@ -5719,7 +5719,8 @@ async function runDailyReport(overrideRecipients, opts) {
         const signups = [];
         try {
           const sSnap = await db.collection("events").doc(doc.id).collection("signups").get();
-          sSnap.forEach((s) => { signups.push({ id: s.id, ...s.data() }); });
+          // Archived signups are hidden everywhere else; the report must skip them too (2026-09-25).
+          sSnap.forEach((s) => { const _sd = s.data() || {}; if (_sd.archived === true) return; signups.push({ id: s.id, ..._sd }); });
         } catch (_) {}
         // Skip events with no signups
         if (signups.length === 0) continue;
@@ -5825,7 +5826,8 @@ async function runDailyReport(overrideRecipients, opts) {
         const allSignups = [];
         try {
           const sSnap = await db.collection("recurringEvents").doc(doc.id).collection("signups").get();
-          sSnap.forEach((s) => { allSignups.push({ id: s.id, ...s.data() }); });
+          // Archived signups are hidden everywhere else; the report must skip them too (2026-09-25).
+          sSnap.forEach((s) => { const _sd = s.data() || {}; if (_sd.archived === true) return; allSignups.push({ id: s.id, ..._sd }); });
         } catch (_) {}
         if (allSignups.length === 0) continue;
 
