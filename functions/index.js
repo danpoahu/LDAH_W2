@@ -28341,3 +28341,75 @@ exports.__test = {
   ISSUE_REPORT_DEFER_DAYS,
   ISSUE_REPORT_SEVERITIES,
 };
+
+// ══════════════════════════════════════════════════════════════════════
+// Partner contact-card Email Log (2026-09-25)
+// The emailLog rules are admin-only, and an email record carries no island,
+// so no rule can say "only PIP families". A partner's contact card asks here
+// instead. The caller must be a partner / superPartner, and the contact must
+// be one of THEIR Pacific partner families: any of the six islands for a
+// Super Partner (or an all-islands partner), their own island otherwise.
+// The addresses and name are read from the contact record itself, never
+// trusted from the browser.
+// ══════════════════════════════════════════════════════════════════════
+const _PIP_ISLANDS = ["American Samoa", "Guam", "CNMI", "Micronesia", "Marshall Islands", "Palau"];
+exports.partnerContactEmails = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    const body = req.body || {};
+    const contactId = String(body.contactId || "").trim();
+    if (!contactId) { res.status(400).json({ error: "Missing contactId" }); return; }
+    let decoded;
+    try { decoded = await admin.auth().verifyIdToken(String(body.idToken || "")); }
+    catch (e) { res.status(401).json({ error: "Invalid or expired sign-in" }); return; }
+    try {
+      const db = admin.firestore();
+      const roleSnap = await db.collection("userRoles").doc(decoded.uid).get();
+      const ur = roleSnap.exists ? (roleSnap.data() || {}) : {};
+      const role = String(ur.role || "");
+      if (role !== "partner" && role !== "superPartner") { res.status(403).json({ error: "Partner accounts only" }); return; }
+      const cSnap = await db.collection("contacts").doc(contactId).get();
+      if (!cSnap.exists) { res.status(404).json({ error: "Contact not found" }); return; }
+      const c = cSnap.data() || {};
+      const isl = String(c.partnerIsland || "");
+      const loc = String(ur.location || "").trim().toLowerCase();
+      const inScope = _PIP_ISLANDS.includes(isl) && (
+        role === "superPartner" || ur.partnerAllIslands === true || isl.toLowerCase() === loc);
+      if (!inScope) { res.status(403).json({ error: "Not one of your partner families" }); return; }
+
+      const emails = new Set();
+      String(c.email || "").split(/[,;\s]+/).forEach((e) => { e = e.trim().toLowerCase(); if (e.includes("@")) emails.add(e); });
+      const sp = c.secondParent || {};
+      if (sp.email) emails.add(String(sp.email).trim().toLowerCase());
+      const list = Array.from(emails).slice(0, 10);
+      const name = String(c.displayName || [c.firstName, c.lastName].filter(Boolean).join(" ")).trim();
+      const rows = {};
+      if (list.length) {
+        const s1 = await db.collection("emailLog").where("to", "in", list).orderBy("sentAt", "desc").limit(50).get();
+        s1.forEach((d) => { rows[d.id] = d.data() || {}; });
+        if (name) {
+          const s2 = await db.collection("emailLog").where("recipientName", "==", name).limit(50).get();
+          s2.forEach((d) => {
+            if (rows[d.id]) return;
+            const v = d.data() || {};
+            const addrs = Array.isArray(v.to) ? v.to : [v.to];
+            if (addrs.some((a) => typeof a === "string" && emails.has(a.toLowerCase()))) rows[d.id] = v;
+          });
+        }
+      }
+      const out = Object.keys(rows).map((id) => {
+        const v = rows[id];
+        return { _id: id, subject: v.subject || "", type: v.type || "", success: v.success === true,
+                 html: v.html || "", sentAtMs: (v.sentAt && v.sentAt.toMillis) ? v.sentAt.toMillis() : 0 };
+      }).sort((a, b) => b.sentAtMs - a.sentAtMs).slice(0, 50);
+      res.json({ emails: list, rows: out });
+    } catch (e) {
+      console.error("partnerContactEmails:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
