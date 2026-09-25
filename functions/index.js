@@ -6132,6 +6132,7 @@ async function runDailyReport(overrideRecipients, opts) {
       const nsSnap = await db.collectionGroup("signups").where("timestamp", ">=", cutoffTimestamp).get();
       for (const doc of nsSnap.docs) {
         const nd = doc.data();
+        if (nd.archived === true) continue;   // archived signups stay out of the report (2026-09-25)
         const parentRef = doc.ref.parent.parent;
         const parentDoc = await parentRef.get();
         const evTitle = (parentDoc.data() || {}).title || "Unknown Event";
@@ -6144,6 +6145,7 @@ async function runDailyReport(overrideRecipients, opts) {
       const crSnap = await db.collectionGroup("signups").where("registrationCompletedAt", ">=", cutoffTimestamp).get();
       for (const doc of crSnap.docs) {
         const cd = doc.data();
+        if (cd.archived === true) continue;
         const parentRef = doc.ref.parent.parent;
         const parentDoc = await parentRef.get();
         const pTitle = (parentDoc.data() || {}).title || "Unknown Event";
