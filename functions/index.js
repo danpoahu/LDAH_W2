@@ -21799,6 +21799,39 @@ exports.onInteractionUpdatedLifecycle = functions
     const collection = after.workflowEventCollection || "events";
     const isRecurring = collection === "recurringEvents";
 
+    // --- fixEventLocation closed (2026-09-25): a partner was asked to add the
+    //     missing Location (it also decides Virtual / In person) to one of their
+    //     events. Daniel wants to check each one, so closing it raises a task on
+    //     his My Day saying what is there now -- or that it is still blank.
+    if (step === "fixEventLocation") {
+      const evSnap = await db.collection(collection).doc(eventId).get();
+      const ev = evSnap.exists ? (evSnap.data() || {}) : {};
+      const loc = String(ev.location || "").trim();
+      const who = after.owner || "A partner";
+      await db.collection("interactions").add({
+        channel: "Office",
+        interactionType: "Data review",
+        contactId: "", contactName: "", contactType: "",
+        summary: loc
+          ? "Check: " + who + " added the location to \"" + (ev.title || "event") + "\" (" + (ev.eventDate || "") + ") — now \"" + loc + "\""
+          : "Check: " + who + " closed the location task for \"" + (ev.title || "event") + "\" (" + (ev.eventDate || "") + ") but it is STILL BLANK",
+        notes: "Location now: " + (loc || "(blank)") + "\nTask closed by " + who + ".\nOpen the event from Event Attendance to confirm.",
+        followUpDate: toHstDateKey(new Date()),
+        status: "Open",
+        isDraft: false,
+        owner: "Dan Pellegrini",
+        ownerUid: DAN_PELLEGRINI_UID,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        workflowEventId: eventId,
+        workflowEventCollection: collection,
+        workflowStep: "checkEventLocationFix",
+        sourceTaskId: context.params.interactionId,
+      });
+      console.log("fixEventLocation closed -> check task for Dan on", eventId, "location:", loc || "(blank)");
+      return null;
+    }
+
     // --- resourceUpdateCall closed: La'akea called the partner, so mark their
     //     resource listing updated for the cycle (mirrors a form submission /
     //     staff approval). This also drops them out of the nudge "awaiting"
