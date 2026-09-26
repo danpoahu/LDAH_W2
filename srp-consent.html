@@ -809,5 +809,6 @@
         }
     </script>
 
+<script>/* SPEED — DO NOT REMOVE (2026-09-26): wakes the Submit function and its database connection while the family reads the form, so Submit does not wait ~5 s. */try{fetch('https://us-central1-ldah-932d5.cloudfunctions.net/submitSrpConsent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({warm:true})}).catch(function(){});}catch(_){}</script>
 </body>
 </html>
