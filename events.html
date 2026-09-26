@@ -2533,11 +2533,11 @@
 
         // Track analytics
         try {
-          await db.collection('analytics').add({
+          db.collection('analytics').add({
             eventType: 'event_request',
             timestamp: firebase.firestore.FieldValue.serverTimestamp(),
             page: window.location.pathname
-          });
+          }).catch(function(){});
           
           if (typeof gtag !== 'undefined') {
             gtag('event', 'event_request', {
@@ -2598,6 +2598,10 @@
     };
     
     async function openSignupModal(eventId) {
+      /* Wake the duplicate-signup check while the family fills in the form
+         (2026-09-25). Its server can take ~4 s to start cold, and Submit waited
+         on it; a bad request here costs nothing and leaves it warm. */
+      try { if (!window._ldahDupWarm) { window._ldahDupWarm = 1; fetch('https://us-central1-ldah-932d5.cloudfunctions.net/checkDuplicateEventSignups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(function(){}); } } catch (_) {}
       // Clean up any existing signup modal to prevent duplicate IDs
       const existingModal = document.getElementById('signupModal');
       if (existingModal) existingModal.remove();
@@ -3832,9 +3836,9 @@
           });
           // Update denormalized counts (best-effort — CF will also do it)
           try {
-            await db.collection(collectionName).doc(eventId).update({
+            db.collection(collectionName).doc(eventId).update({
               signupCount: firebase.firestore.FieldValue.increment(1)
-            });
+            }).catch(function(){});
           } catch (countErr) {
             console.warn('Count update deferred to Cloud Function:', countErr.message);
           }
@@ -4364,21 +4368,21 @@
 
           // Update denormalized counts
           try {
-            await db.collection('events').doc(eventId).update({
+            db.collection('events').doc(eventId).update({
               signupCount: firebase.firestore.FieldValue.increment(1)
-            });
+            }).catch(function(){});
           } catch (countErr) {
             console.warn('Count update deferred to Cloud Function:', countErr.message);
           }
           if (window.ldahAnalytics) ldahAnalytics.trackFormSubmit('event_signup');
           try {
-            await db.collection('analytics').add({
+            db.collection('analytics').add({
               eventType: 'event_signup',
               timestamp: firebase.firestore.FieldValue.serverTimestamp(),
               page: window.location.pathname,
               eventId: eventId,
               eventTitle: eventData.title
-            });
+            }).catch(function(){});
             if (typeof gtag !== 'undefined') {
               gtag('event', 'event_signup', { event_category: 'engagement', event_label: eventData.title });
             }
@@ -4416,10 +4420,10 @@
 
           // Update denormalized counts on parent doc (may fail for unauthenticated users — Cloud Function handles this)
           try {
-            await db.collection('events').doc(eventId).update({
+            db.collection('events').doc(eventId).update({
               signupCount: firebase.firestore.FieldValue.increment(1),
               pendingCount: firebase.firestore.FieldValue.increment(1)
-            });
+            }).catch(function(){});
           } catch (countErr) {
             console.warn('Count update deferred to Cloud Function:', countErr.message);
           }
@@ -4427,13 +4431,13 @@
 
           // Track analytics
           try {
-            await db.collection('analytics').add({
+            db.collection('analytics').add({
               eventType: 'event_signup',
               timestamp: firebase.firestore.FieldValue.serverTimestamp(),
               page: window.location.pathname,
               eventId: eventId,
               eventTitle: eventData.title
-            });
+            }).catch(function(){});
 
             if (typeof gtag !== 'undefined') {
               gtag('event', 'event_signup', {
@@ -4619,6 +4623,10 @@
     }
 
     async function openRecurringSignupModal(programId) {
+      /* Wake the duplicate-signup check while the family fills in the form
+         (2026-09-25). Its server can take ~4 s to start cold, and Submit waited
+         on it; a bad request here costs nothing and leaves it warm. */
+      try { if (!window._ldahDupWarm) { window._ldahDupWarm = 1; fetch('https://us-central1-ldah-932d5.cloudfunctions.net/checkDuplicateEventSignups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(function(){}); } } catch (_) {}
       // Clean up any existing signup modal to prevent duplicate IDs
       const existingModal = document.getElementById('signupModal');
       if (existingModal) existingModal.remove();
@@ -5241,19 +5249,19 @@
           try {
             await db.collection('recurringEvents').doc(programId).update({
               signupCount: firebase.firestore.FieldValue.increment(1)
-            });
+            }).catch(function(){});
           } catch (countErr) {
             console.warn('Count update deferred to Cloud Function:', countErr.message);
           }
           if (window.ldahAnalytics) ldahAnalytics.trackFormSubmit('recurring_event_signup');
           try {
-            await db.collection('analytics').add({
+            db.collection('analytics').add({
               eventType: 'recurring_signup',
               timestamp: firebase.firestore.FieldValue.serverTimestamp(),
               page: window.location.pathname,
               programId,
               eventTitle: program.title
-            });
+            }).catch(function(){});
           } catch(e) { /* analytics non-critical */ }
 
           const successContent = document.getElementById('signupFormContent');
@@ -5285,23 +5293,23 @@
 
           // Update denormalized counts on parent doc (may fail for unauthenticated users — Cloud Function handles this)
           try {
-            await db.collection('recurringEvents').doc(programId).update({
+            db.collection('recurringEvents').doc(programId).update({
               signupCount: firebase.firestore.FieldValue.increment(1),
               pendingCount: firebase.firestore.FieldValue.increment(1)
-            });
+            }).catch(function(){});
           } catch (countErr) {
             console.warn('Count update deferred to Cloud Function:', countErr.message);
           }
           if (window.ldahAnalytics) ldahAnalytics.trackFormSubmit('recurring_event_signup');
 
           try {
-            await db.collection('analytics').add({
+            db.collection('analytics').add({
               eventType: 'recurring_signup',
               timestamp: firebase.firestore.FieldValue.serverTimestamp(),
               page: window.location.pathname,
               programId,
               eventTitle: program.title
-            });
+            }).catch(function(){});
           } catch(e) { /* analytics non-critical */ }
 
           const successContent = document.getElementById('signupFormContent');
