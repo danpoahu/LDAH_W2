@@ -9,6 +9,12 @@ const heicConvert = require("heic-convert");
 // Using Resend HTTP API instead (HTTPS on port 443, always allowed).
 
 admin.initializeApp();
+/* SPEED — DO NOT REMOVE (2026-09-26). preferRest sends ordinary Firestore
+   reads/writes over HTTPS instead of first building a gRPC channel. That
+   channel set-up cost ~4-5 s on the FIRST query of every new instance, which
+   is what made family-facing Submits and portal pages hang (30-day audit:
+   42 public functions with a p90 over 3 s). Listeners still use gRPC. */
+admin.firestore().settings({ preferRest: true });
 
 const ALLOWED_ORIGIN = "https://danpoahu.github.io";
 
