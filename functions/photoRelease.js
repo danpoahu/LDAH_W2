@@ -520,6 +520,13 @@ exports.submitPhotoRelease = functions
 
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }
     if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    /* SPEED — DO NOT REMOVE (2026-09-26): the page sends {warm:true} when it
+       loads, so this instance opens its database connection before Submit. */
+    if ((req.body || {}).warm === true) {
+      try { await admin.firestore().collection("events").limit(1).get(); } catch (e) { /* warming only */ }
+      res.status(200).json({ warm: true });
+      return;
+    }
 
     const { token, typedName, agree } = req.body || {};
 

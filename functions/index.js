@@ -328,6 +328,12 @@ exports.extractScreeningReferral = functions
 exports.getEventCapacity = functions
   .runWith({ timeoutSeconds: 30, maxInstances: 10 })
   .https.onCall(async (data) => {
+    /* SPEED — DO NOT REMOVE (2026-09-26): {warm:true} opens the database
+       connection early so the real call does not wait ~3-5 s. */
+    if (data && data.warm === true) {
+      try { await admin.firestore().collection("events").limit(1).get(); } catch (e) { /* warming only */ }
+      return { warm: true };
+    }
     const eventId = (data && typeof data.eventId === "string") ? data.eventId.trim() : "";
     if (!eventId) {
       throw new functions.https.HttpsError("invalid-argument", "Missing eventId.");
@@ -11959,6 +11965,13 @@ exports.submitResourceUpdate = functions
     res.set("Access-Control-Allow-Headers", "Content-Type");
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }
     if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    /* SPEED — DO NOT REMOVE (2026-09-26): the page sends {warm:true} when it
+       loads, so this instance opens its database connection before Submit. */
+    if ((req.body || {}).warm === true) {
+      try { await admin.firestore().collection("events").limit(1).get(); } catch (e) { /* warming only */ }
+      res.status(200).json({ warm: true });
+      return;
+    }
 
     const body = req.body || {};
     const token = (body.token || "").toString().trim();
@@ -13749,6 +13762,13 @@ exports.requestConnectGenUploadUrl = functions
     res.set("Access-Control-Allow-Headers", "Content-Type");
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }
     if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    /* SPEED — DO NOT REMOVE (2026-09-26): the page sends {warm:true} when it
+       loads, so this instance opens its database connection before Submit. */
+    if ((req.body || {}).warm === true) {
+      try { await admin.firestore().collection("events").limit(1).get(); } catch (e) { /* warming only */ }
+      res.status(200).json({ warm: true });
+      return;
+    }
 
     const body = req.body || {};
     const uploadAuthToken = (body.uploadAuthToken || "").toString().trim();
@@ -13832,6 +13852,13 @@ exports.confirmConnectGenUpload = functions
     res.set("Access-Control-Allow-Headers", "Content-Type");
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }
     if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    /* SPEED — DO NOT REMOVE (2026-09-26): the page sends {warm:true} when it
+       loads, so this instance opens its database connection before Submit. */
+    if ((req.body || {}).warm === true) {
+      try { await admin.firestore().collection("events").limit(1).get(); } catch (e) { /* warming only */ }
+      res.status(200).json({ warm: true });
+      return;
+    }
 
     const body = req.body || {};
     const uploadAuthToken = (body.uploadAuthToken || "").toString().trim();
@@ -14060,6 +14087,13 @@ exports.sendConnectGenUploadLaterEmail = functions
     res.set("Access-Control-Allow-Headers", "Content-Type");
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }
     if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    /* SPEED — DO NOT REMOVE (2026-09-26): the page sends {warm:true} when it
+       loads, so this instance opens its database connection before Submit. */
+    if ((req.body || {}).warm === true) {
+      try { await admin.firestore().collection("events").limit(1).get(); } catch (e) { /* warming only */ }
+      res.status(200).json({ warm: true });
+      return;
+    }
 
     const body = req.body || {};
     const uploadAuthToken = (body.uploadAuthToken || "").toString().trim();
@@ -15311,6 +15345,13 @@ exports.saveConnectGenWorksheet = functions
     res.set("Access-Control-Allow-Headers", "Content-Type");
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }
     if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    /* SPEED — DO NOT REMOVE (2026-09-26): the page sends {warm:true} when it
+       loads, so this instance opens its database connection before Submit. */
+    if ((req.body || {}).warm === true) {
+      try { await admin.firestore().collection("events").limit(1).get(); } catch (e) { /* warming only */ }
+      res.status(200).json({ warm: true });
+      return;
+    }
 
     const body = req.body || {};
     const token = String(body.token || "").trim();
@@ -16863,6 +16904,13 @@ exports.submitCaseAdvocacyAuthorization = functions
     res.set("Access-Control-Allow-Headers", "Content-Type");
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }
     if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    /* SPEED — DO NOT REMOVE (2026-09-26): the page sends {warm:true} when it
+       loads, so this instance opens its database connection before Submit. */
+    if ((req.body || {}).warm === true) {
+      try { await admin.firestore().collection("events").limit(1).get(); } catch (e) { /* warming only */ }
+      res.status(200).json({ warm: true });
+      return;
+    }
 
     const body = req.body || {};
     const token = (body.token || "").toString().trim();
@@ -21615,6 +21663,13 @@ exports.confirmVolunteerHelp = functions
     _volCors(res);
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }
     if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    /* SPEED — DO NOT REMOVE (2026-09-26): the page sends {warm:true} when it
+       loads, so this instance opens its database connection before Submit. */
+    if ((req.body || {}).warm === true) {
+      try { await admin.firestore().collection("events").limit(1).get(); } catch (e) { /* warming only */ }
+      res.status(200).json({ warm: true });
+      return;
+    }
     const token = String((req.body || {}).token || "").trim();
     if (!token) { res.status(400).json({ error: "Missing token." }); return; }
     try {
@@ -23474,6 +23529,12 @@ exports.getMemberProfile = functions
 exports.checkMemberEligibility = functions
   .runWith({ timeoutSeconds: 15, maxInstances: 10 })
   .https.onCall(async (data, context) => {
+    /* SPEED — DO NOT REMOVE (2026-09-26): {warm:true} opens the database
+       connection early so the real call does not wait ~3-5 s. */
+    if (data && data.warm === true) {
+      try { await admin.firestore().collection("events").limit(1).get(); } catch (e) { /* warming only */ }
+      return { warm: true };
+    }
     if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Please sign in.");
     const db = admin.firestore();
     const doc = await _findMemberContactByEmail(db, context.auth.token.email);
