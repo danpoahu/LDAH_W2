@@ -9263,7 +9263,17 @@ function buildUnsubscribePage({ title, body, ok }) {
 exports.handleUnsubscribe = functions
   .runWith({ timeoutSeconds: 20, maxInstances: 5 })
   .https.onRequest(async (req, res) => {
-    const token = (req.query && req.query.token) ? String(req.query.token).trim() : '';
+    /* Opening the link NEVER unsubscribes (2026-09-26). Email security
+       scanners (e.g. Outlook Safe Links) open every link in a message, and a
+       GET that acted unsubscribed families who never clicked. GET shows a
+       confirm button; only the POST from that button changes anything. The
+       success page offers "keep me subscribed" (another POST) as the undo. */
+    const token = String((req.query && req.query.token) || (req.body && req.body.token) || '').trim();
+    const action = String((req.body && req.body.action) || '').trim();
+    const _esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    const _btn = (act, label, bg) => '<form method="POST" action="?token=' + encodeURIComponent(token) + '" style="margin:22px 0 0">' +
+      '<input type="hidden" name="action" value="' + act + '">' +
+      '<button type="submit" style="background:' + bg + ';color:#fff;border:none;border-radius:8px;padding:12px 26px;font-size:16px;font-weight:700;cursor:pointer">' + label + '</button></form>';
     if (!token) {
       res.set('Content-Type', 'text/html');
       res.status(400).send(buildUnsubscribePage({
@@ -9287,15 +9297,37 @@ exports.handleUnsubscribe = functions
       }
       const contactDoc = snap.docs[0];
       const contact = contactDoc.data();
+      const name = _esc((contact.displayName || contact.firstName || '').trim());
+      res.set('Content-Type', 'text/html');
+      if (req.method !== 'POST') {
+        res.status(200).send(buildUnsubscribePage({
+          title: 'Stop LDAH announcement emails?',
+          body: (name ? name + ', press' : 'Press') + ' the button to stop event announcement emails from LDAH. You will still get emails about events you sign up for.' +
+            _btn('unsubscribe', 'Yes, unsubscribe me', '#004E7C'),
+          ok: false,
+        }));
+        return;
+      }
+      if (action === 'resubscribe') {
+        await contactDoc.ref.update({
+          marketingOptOut: false,
+          resubscribedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        res.status(200).send(buildUnsubscribePage({
+          title: 'You are still on the list',
+          body: (name ? name + ', you' : 'You') + ' will keep getting LDAH event announcements. Mahalo!',
+          ok: true,
+        }));
+        return;
+      }
       await contactDoc.ref.update({
         marketingOptOut: true,
         unsubscribedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
-      const name = (contact.displayName || contact.firstName || '').trim();
-      res.set('Content-Type', 'text/html');
       res.status(200).send(buildUnsubscribePage({
         title: 'You have been unsubscribed',
-        body: (name ? name + ', you' : 'You') + ' will no longer receive event announcement emails from LDAH. You will still receive emails about events you have signed up for. Changed your mind? Reply to any past email and we will get you back on the list.',
+        body: (name ? name + ', you' : 'You') + ' will no longer receive event announcement emails from LDAH. You will still receive emails about events you have signed up for.' +
+          '<br><br>Pressed that by mistake?' + _btn('resubscribe', 'Keep me subscribed', '#0891B2'),
         ok: true,
       }));
     } catch (err) {
@@ -25470,6 +25502,20 @@ exports.sendMembershipResumeEmail = functions
     res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
     res.set("Access-Control-Allow-Headers", "Content-Type");
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    /* Staff only (2026-09-26). Its one caller is the LDAH-Int My Day
+       "remind" button; without a sign-in check anyone holding a member id
+       could make LDAH email that person. Any active staff role may send it,
+       partner accounts may not. */
+    try {
+      const _tok = String((req.body || {}).idToken || "").trim();
+      if (!_tok) { res.status(401).json({ error: "Sign in to LDAH-Int to send this." }); return; }
+      let _uid = "";
+      try { _uid = (await admin.auth().verifyIdToken(_tok)).uid; }
+      catch (e) { res.status(401).json({ error: "Your sign-in has expired. Reload LDAH-Int and try again." }); return; }
+      const _roleSnap = await admin.firestore().collection("userRoles").doc(_uid).get();
+      const _role = _roleSnap.exists ? String((_roleSnap.data() || {}).role || "") : "";
+      if (!_role || _role === "partner" || _role === "superPartner") { res.status(403).json({ error: "LDAH staff only." }); return; }
+    } catch (e) { res.status(401).json({ error: "Could not check your sign-in." }); return; }
     try {
       const { memberId } = req.body || {};
       if (!memberId) { res.status(400).json({ error: "missing memberId" }); return; }
@@ -25594,6 +25640,24 @@ exports.handleMembershipOptOut = functions
             'Clicked this by mistake, or changed your mind? ' +
             '<a href="' + undoUrlAgain + '">Actually, I still want to join</a>.',
           ok: true,
+        }));
+        return;
+      }
+
+      /* Opening the link changes nothing (2026-09-26): scanners open every
+         link, and this one archives the membership and raises a task for staff.
+         GET shows a confirm button; the POST from it (with &undo=1 for the
+         "still want to join" link) is what acts. */
+      if (req.method !== 'POST') {
+        const _act = membershipOptOutLink(token) + (undo ? '&undo=1' : '');
+        res.status(200).send(buildUnsubscribePage({
+          title: undo ? 'Still want to join?' : 'Stop membership reminders?',
+          body: (undo
+            ? 'Press the button to put your membership back so you can finish it.'
+            : (first ? _emailEsc(first) + ', press' : 'Press') + ' the button and we will stop emailing you about finishing this membership. Nothing has been charged.') +
+            '<form method="POST" action="' + _act + '" style="margin:22px 0 0"><button type="submit" style="background:#004E7C;color:#fff;border:none;border-radius:8px;padding:12px 26px;font-size:16px;font-weight:700;cursor:pointer">' +
+            (undo ? 'Yes, I still want to join' : 'Yes, stop the reminders') + '</button></form>',
+          ok: false,
         }));
         return;
       }
@@ -28571,3 +28635,11 @@ exports.partnerContactEmails = functions
       res.status(500).json({ error: e.message });
     }
   });
+
+// Advocacy Readiness score (2026-09-23). Its own file, like IT_Help: a daily
+// forward-only check per open case-advocacy family (ARMED via
+// advocacyReadinessConfig/settings.armed) and a Super Admin "run now".
+// Merged onto main 2026-09-26 -- it had lived only on the volunteer-onboarding-packet
+// branch, so a full deploy from main would have deleted both functions.
+exports.sweepAdvocacyReadiness = require("./advocacyReadiness").sweepAdvocacyReadiness;
+exports.runAdvocacyReadinessNow = require("./advocacyReadiness").runAdvocacyReadinessNow;

@@ -336,7 +336,7 @@
                 + '  <div id="renewError" class="inline-error"></div>'
                 + '  <div class="form-group"><label class="fld-label" for="renewName">Full name</label><input type="text" id="renewName" autocomplete="name" value="' + esc(fullName) + '"></div>'
                 + '  <div class="form-group"><label class="fld-label" for="renewEmail">Email</label><input type="email" id="renewEmail" autocomplete="email" value="' + esc(p.email) + '"></div>'
-                + '  <div class="form-group"><label class="fld-label" for="renewPhone">Phone <span style="font-weight:400;color:var(--text-soft);">(optional)</span></label><input type="tel" id="renewPhone" autocomplete="tel" value="' + esc(p.phone) + '"></div>'
+                + '  <div class="form-group"><label class="fld-label" for="renewPhone">Phone</label><input type="tel" id="renewPhone" autocomplete="tel" value="' + esc(p.phone) + '"></div>'
                 + '  <div class="form-group"><label class="fld-label" for="renewLevel">Membership level</label><select id="renewLevel">' + options + '</select></div>'
                 + '  <div class="btn-row"><button class="btn btn-primary btn-block" id="renewSubmit">Continue to payment</button></div>'
                 + '</div>'
@@ -375,14 +375,25 @@
 
             var btn = id('renewSubmit'); btn.disabled = true; btn.textContent = 'Saving…';
             try {
-                var ref = await db.collection('members').add({
-                    name: renewName, email: email, phone: phone,
-                    level: renewLevel, amount: renewAmount,
-                    status: 'pending', source: 'member-portal-renewal',
-                    linkedContactId: (memberProfile && memberProfile.id) || null,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                renewDocId = ref.id;
+                /* One record per renewal (2026-09-26). Pressing Continue again
+                   (back, change level, retry) used to add a NEW members doc
+                   every time; now the one already started is updated. */
+                if (renewDocId) {
+                    await db.collection('members').doc(renewDocId).update({
+                        name: renewName, email: email, phone: phone,
+                        level: renewLevel, amount: renewAmount,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                } else {
+                    var ref = await db.collection('members').add({
+                        name: renewName, email: email, phone: phone,
+                        level: renewLevel, amount: renewAmount,
+                        status: 'pending', source: 'member-portal-renewal',
+                        linkedContactId: (memberProfile && memberProfile.id) || null,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    renewDocId = ref.id;
+                }
             } catch (e) {
                 btn.disabled = false; btn.textContent = 'Continue to payment';
                 renewError('Sorry, something went wrong saving your info. Please try again or call (808) 536-9684.');
