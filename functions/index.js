@@ -12256,6 +12256,15 @@ exports.submitConnectGenConsent = functions
     if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
 
     const body = req.body || {};
+    /* SPEED — DO NOT REMOVE (2026-09-26). The consent page sends {warm:true}
+       when it loads, so this instance's FIRST Firestore query (~4-5 s, the
+       channel set-up) happens while the family reads the form, not after they
+       press Submit. Connect-Gen consent Submit measured a 5.6 s median. */
+    if (body.warm === true) {
+      try { await admin.firestore().collection("events").limit(1).get(); } catch (e) { /* warming only */ }
+      res.status(200).json({ warm: true });
+      return;
+    }
     const token = (body.token || "").toString().trim();
     const typedName = (body.typedName || "").toString().trim();
     const agree = body.agree === true;
@@ -12494,6 +12503,15 @@ exports.submitSrpConsent = functions
     if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
 
     const body = req.body || {};
+    /* SPEED — DO NOT REMOVE (2026-09-26). The consent page sends {warm:true}
+       when it loads, so this instance's FIRST Firestore query (~4-5 s, the
+       channel set-up) happens while the family reads the form, not after they
+       press Submit. Connect-Gen consent Submit measured a 5.6 s median. */
+    if (body.warm === true) {
+      try { await admin.firestore().collection("events").limit(1).get(); } catch (e) { /* warming only */ }
+      res.status(200).json({ warm: true });
+      return;
+    }
     const token = (body.token || "").toString().trim();
     const form = body.form || {};
     const parent = form.parent || {};
@@ -12736,6 +12754,15 @@ exports.submitReadinessConsent = functions
     if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
 
     const body = req.body || {};
+    /* SPEED — DO NOT REMOVE (2026-09-26). The consent page sends {warm:true}
+       when it loads, so this instance's FIRST Firestore query (~4-5 s, the
+       channel set-up) happens while the family reads the form, not after they
+       press Submit. Connect-Gen consent Submit measured a 5.6 s median. */
+    if (body.warm === true) {
+      try { await admin.firestore().collection("events").limit(1).get(); } catch (e) { /* warming only */ }
+      res.status(200).json({ warm: true });
+      return;
+    }
     const form = body.form || {};
     const parent = form.parent || {};
     const child = form.child || {};
