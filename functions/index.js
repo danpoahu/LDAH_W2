@@ -2902,6 +2902,19 @@ exports.checkDuplicateEventSignups = functions
       const eventId = String(body.eventId || "");
       const email = String(body.email || "").trim().toLowerCase();
       const dates = Array.isArray(body.dates) ? body.dates.map(String) : [];
+      /* SPEED — DO NOT REMOVE (2026-09-25). The signup form sends {warm:true}
+         when it opens. Answering WITHOUT touching Firestore woke the instance
+         but left its Firestore connection cold, and that first query is what
+         took ~4 s on Submit (measured on Daniel's test: warm-up 0.1 s, real
+         check 4.05 s). So the warm-up does one tiny read to open the channel. */
+      if (body.warm === true) {
+        try {
+          await admin.firestore().collection(collection).doc(eventId || "_warm")
+            .collection("signups").limit(1).get();
+        } catch (e) { /* warming only */ }
+        res.status(200).json({ warm: true });
+        return;
+      }
       if (!eventId || !email || dates.length === 0) {
         res.status(200).json({ overlappingDates: [] });
         return;
