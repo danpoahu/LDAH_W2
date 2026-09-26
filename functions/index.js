@@ -4083,6 +4083,12 @@ async function applyRegistrationToContact(linkedContactId, registration, signupI
         }
 
         if (Object.keys(childEntry).length === 0) continue;
+        /* Ethnicity is inherited from the PARENT's answer, so on its own it
+           says nothing about a child. It was creating a blank "child" on every
+           signup that asked the parent's ethnicity -- 12 of the 15 phantom
+           children on one partner's card (2026-09-25). A child needs at least
+           one child-specific fact. */
+        if (!childEntry.name && !childEntry.ageRange && !childEntry.gender && !childEntry.disabilityCategories) continue;
 
         // NB: FieldValue.serverTimestamp() throws inside array elements.
         // Use a plain Timestamp (admin SDK converts on write) — the whole
@@ -4107,7 +4113,19 @@ async function applyRegistrationToContact(linkedContactId, registration, signupI
         // "Mason Quillan"). See _childMatches() above for the rule and for why it
         // stays deliberately hard to satisfy — collapsing two real siblings is
         // the one mistake that cannot be undone from what is left behind.
-        const idx = _findChildMatchIndex(existingChildren, childEntry);
+        let idx = _findChildMatchIndex(existingChildren, childEntry);
+        /* Unnamed children (2026-09-25). The name-based matcher can never match
+           a child with no name, so each signup appended another identical
+           "Child N". An unnamed entry whose age band and gender match an
+           existing UNNAMED child is the same record as far as anything can
+           tell, so it merges; a named child is never merged this way. */
+        if (idx === -1 && !childEntry.name) {
+          const _ua = _canonAgeRange(childEntry.ageRange || "");
+          const _ug = String(childEntry.gender || "").trim().toLowerCase();
+          idx = existingChildren.findIndex((ec) => ec && !_childNorm(ec.name) &&
+            _canonAgeRange(ec.ageRange || ec.childAgeRange || "") === _ua &&
+            String(ec.gender || ec.childGender || "").trim().toLowerCase() === _ug);
+        }
         if (idx === -1) {
           existingChildren.push(childEntry);
         } else {
