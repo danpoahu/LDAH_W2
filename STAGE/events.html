@@ -5200,7 +5200,7 @@
           signupDocId = signupDocRef.id;
 
           try {
-            await /* SPEED — DO NOT await (Daniel 2026-09-25): background write; the thank-you screen must not wait on it. */ db.collection('recurringEvents').doc(programId).update({
+            /* SPEED — DO NOT await (Daniel 2026-09-25): background write; the thank-you screen must not wait on it. */ db.collection('recurringEvents').doc(programId).update({
               signupCount: firebase.firestore.FieldValue.increment(1)
             }).catch(function(){});
           } catch (countErr) {
