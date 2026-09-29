@@ -5538,6 +5538,7 @@ async function buildAdvocacyMembershipGapHtml(db) {
   ixSnap.forEach((d) => {
     const x = d.data() || {};
     if (!_isCaseAdvocacyIx(x)) return;   // the query used to do this; it no longer can
+    if (x.partnerIsland) return;          // PIP case: not an LDAH membership question (2026-09-29)
     const cid = x.contactId;
     if (!cid) return;
     let ms = null;
@@ -5563,6 +5564,7 @@ async function buildAdvocacyMembershipGapHtml(db) {
     try { cSnap = await db.collection("contacts").doc(cid).get(); } catch (_) { continue; }
     if (!cSnap.exists) continue;
     const c = cSnap.data() || {};
+    if (c.partnerIsland) continue;        // PIP family (2026-09-29)
     // Use the SAME membership test as the rest of the app (_membershipIsActive).
     // A family who pays through checkout is stamped membershipStatus:"active" by
     // onMembershipPaid, while the PayPal reconciliation webhook stamps "paid" —
@@ -5623,7 +5625,7 @@ async function buildAdvocacyMembershipGapHtml(db) {
     '</table></div>';
 }
 
-async function buildBackupStatusHtml(db) {
+async function buildBackupStatusHtml(db, readOnly) {
   var PROJECT = "ldah-932d5", LOCATION = "nam5";
   var latest = null;
   try {
@@ -5646,7 +5648,7 @@ async function buildBackupStatusHtml(db) {
   var pending = !latest;                                      // grey: no backup yet (schedule new)
   var stale = overdue;
 
-  try {
+  if (!readOnly) try {   // a preview only reads (2026-09-29)
     await db.collection("system").doc("backupStatus").set({
       lastBackupTime: latest ? latest.t : null,
       lastBackupName: latest ? latest.name : null,
@@ -5680,6 +5682,18 @@ async function runDailyReport(overrideRecipients, opts) {
     const db = admin.firestore();
     const now = new Date();
 
+    /* Two reports from one builder (Daniel, 2026-09-29): "keep the PIP out of
+       LDAH reports", plus a Pacific Island Partners report of its own.
+       A record is PIP when it carries partnerIsland (ownership, not location);
+       recurring programmes never do, so they are always LDAH.
+       returnHtml builds the report without sending it: the LDAH-Int preview
+       button asks for exactly what would go out, so there is one report, not two. */
+    const _scopeOpts = opts || {};
+    const SCOPE = _scopeOpts.scope === "pip" ? "pip" : "ldah";
+    const IS_PIP = SCOPE === "pip";
+    const RETURN_HTML = _scopeOpts.returnHtml === true;
+    const inScopePip = (isPip) => (IS_PIP ? !!isPip : !isPip);
+
     // Convert to Hawaii time for display and date matching
     const hawaiiNow = new Date(now.toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
     // Display strings format directly from `now` with the HST timeZone —
@@ -5711,12 +5725,15 @@ async function runDailyReport(overrideRecipients, opts) {
 
     // ── 1. Get active recipients ──
     let recipients = overrideRecipients || null;
-    if (!recipients) {
+    if (!recipients && !RETURN_HTML) {
       recipients = [];
       try {
         const recipSnap = await db.collection("dailyReportRecipients").where("active", "==", true).get();
         recipSnap.forEach((doc) => {
           const d = doc.data();
+          // scope: "ldah" (default for everyone already on the list), "pip" or "both".
+          const sc = d.scope === "pip" || d.scope === "both" ? d.scope : "ldah";
+          if (sc !== "both" && sc !== SCOPE) return;
           if (d.email) recipients.push({ name: d.name || "", email: d.email });
         });
       } catch (err) {
@@ -5725,8 +5742,8 @@ async function runDailyReport(overrideRecipients, opts) {
       }
     }
 
-    if (recipients.length === 0) {
-      console.log("sendDailySessionSheet: no recipients, skipping.");
+    if (!RETURN_HTML && recipients.length === 0) {
+      console.log("sendDailySessionSheet: no " + SCOPE + " recipients, skipping.");
       return null;
     }
 
@@ -5749,6 +5766,8 @@ async function runDailyReport(overrideRecipients, opts) {
     // SECTION 1: All Active Events & Programs with signups
     // ═══════════════════════════════════════════════════
     const allSessions = [];
+    const pipEventIsland = {};   // eventId -> island, every PIP event (incl. past)
+    const pipEventTitles = [];   // for audit-log lines, which carry only text
 
     // Active one-time events (skip if archived, past moveToPastDate, or past removeDate —
     // matches the LDAH-Int CMS Active/Past/Expired categorization).
@@ -5756,6 +5775,11 @@ async function runDailyReport(overrideRecipients, opts) {
       const eventsSnap = await db.collection("events").get();
       for (const doc of eventsSnap.docs) {
         const data = doc.data();
+        if (data.partnerIsland) {
+          pipEventIsland[doc.id] = data.partnerIsland;
+          if (data.title) pipEventTitles.push(String(data.title));
+        }
+        if (!inScopePip(data.partnerIsland)) continue;
         if (data.archived === true) continue;
         if (data.moveToPastDate && /^\d{4}-\d{2}-\d{2}$/.test(data.moveToPastDate) && data.moveToPastDate <= todayISO) continue;
         if (data.removeDate && /^\d{4}-\d{2}-\d{2}$/.test(data.removeDate) && data.removeDate <= todayISO) continue;
@@ -5858,11 +5882,13 @@ async function runDailyReport(overrideRecipients, opts) {
       console.error("sendDailySessionSheet: error fetching events:", err.message);
     }
 
-    console.log(`sendDailySessionSheet: ${allSessions.length} one-time events found`);
+    allSessions.forEach((x) => { if (pipEventIsland[x.id]) x.island = pipEventIsland[x.id]; });
+    console.log(`sendDailySessionSheet[${SCOPE}]: ${allSessions.length} one-time events found`);
 
     // Active recurring programs — grouped by session date (matching session sheet logic)
     try {
-      const recurringSnap = await db.collection("recurringEvents").get();
+      // Recurring programmes are LDAH by definition; the PIP report has none.
+      const recurringSnap = IS_PIP ? { docs: [] } : await db.collection("recurringEvents").get();
       for (const doc of recurringSnap.docs) {
         const data = doc.data();
         if (data.active === false) continue;
@@ -6026,6 +6052,7 @@ async function runDailyReport(overrideRecipients, opts) {
           if (dl.trim()) detailLines += "<strong>" + esc(dl.trim()) + "</strong><br>";
         }
       }
+      if (IS_PIP && s.island) detailLines += "Island: <strong>" + esc(s.island) + "</strong><br>";
       if (s.time) detailLines += "Time: <strong>" + esc(s.time) + "</strong><br>";
       if (s.location) detailLines += esc(s.location);
 
@@ -6057,7 +6084,20 @@ async function runDailyReport(overrideRecipients, opts) {
     if (allSessions.length === 0) {
       sessionsHtml = `<p style="color:#666;font-style:italic;">No active events or programs.</p>`;
     } else {
-      for (const s of allSessions) { sessionsHtml += buildSessionCard(s); }
+      if (IS_PIP) {
+        // Grouped by island, as Sandy works them. Stable sort keeps each island's order.
+        allSessions.sort((a, b) => (a.island || "~").localeCompare(b.island || "~"));
+        let lastIsland = null;
+        for (const s of allSessions) {
+          if (s.island !== lastIsland) {
+            lastIsland = s.island;
+            sessionsHtml += `<h3 style="margin:14px 0 8px;font-size:15px;color:#5B21B6;">${esc(s.island || "No island")}</h3>`;
+          }
+          sessionsHtml += buildSessionCard(s);
+        }
+      } else {
+        for (const s of allSessions) { sessionsHtml += buildSessionCard(s); }
+      }
     }
 
     // ═══════════════════════════════════════════════════
@@ -6067,7 +6107,7 @@ async function runDailyReport(overrideRecipients, opts) {
     // returning Connect-Gen families so La'a + admins see the pre-call
     // workload at a glance.
     const returningCGRows = [];
-    try {
+    if (!IS_PIP) try {
       const cgSigSnap = await db.collection("recurringEvents")
         .doc("CmkPXEpPwfAQ5sR377K2").collection("signups")
         .where("isReturningCGFamily", "==", true).get();
@@ -6111,6 +6151,20 @@ async function runDailyReport(overrideRecipients, opts) {
 
     // Groups signup/registration/status/new-contact facts by person+event into
     // a single line each; feedback/admin/session items stay as their own lines.
+    // "Sandy Scanlan" -> "Sandy S."; the public signup form -> "self sign-up" (2026-09-29).
+    function shortCreator(n) {
+      const t = String(n || "").trim();
+      if (!t) return "";
+      if (/auto-?signup/i.test(t)) return "self sign-up";
+      const w = t.split(/\s+/);
+      return w.length > 1 ? w[0] + " " + w[w.length - 1].charAt(0).toUpperCase() + "." : w[0];
+    }
+    function byTag(n, escFn) {
+      const b = shortCreator(n);
+      if (!b) return "";
+      return ` <span style="color:#999;">(${b === "self sign-up" ? b : "by " + escFn(b)})</span>`;
+    }
+
     function buildGroupedChangeLines(raw, escFn) {
       const groups = new Map();
       const singles = [];
@@ -6133,7 +6187,7 @@ async function runDailyReport(overrideRecipients, opts) {
       newContacts.forEach((nc) => {
         let attached = null, best = -1;
         groups.forEach((g) => { if (g.person === nc.person && g.sort > best) { best = g.sort; attached = g; } });
-        if (attached) { attached.newContact = true; if ((nc.sort || 0) > attached.sort) { attached.sort = nc.sort || 0; attached.time = nc.time || attached.time; } }
+        if (attached) { attached.newContact = true; attached.newBy = nc.by || ""; if ((nc.sort || 0) > attached.sort) { attached.sort = nc.sort || 0; attached.time = nc.time || attached.time; } }
         else { unattached.push(nc); }
       });
       // A bulk import would otherwise bury the day's real activity under
@@ -6150,7 +6204,7 @@ async function runDailyReport(overrideRecipients, opts) {
           time: newest.time, sort: newest.sort || 0,
         });
       } else {
-        unattached.forEach((nc) => singles.push({ single: true, icon: "&#128100;", text: `New contact created: <strong>${escFn(nc.person)}</strong>${nc.source ? " (from " + escFn(nc.source) + ")" : ""}`, time: nc.time, sort: nc.sort || 0 }));
+        unattached.forEach((nc) => singles.push({ single: true, icon: "&#128100;", text: `New contact created: <strong>${escFn(nc.person)}</strong>${nc.source ? " (from " + escFn(nc.source) + ")" : ""}${byTag(nc.by, escFn)}`, time: nc.time, sort: nc.sort || 0 }));
       }
       const lines = [];
       groups.forEach((g) => {
@@ -6159,7 +6213,7 @@ async function runDailyReport(overrideRecipients, opts) {
         else if (g.completedReg) verb = "completed registration for";
         else if (g.signedUp) verb = "signed up for";
         else verb = "was updated for";
-        const tag = g.newContact ? ` <span style="color:#0891b2;font-weight:700;">(new)</span>` : "";
+        const tag = g.newContact ? ` <span style="color:#0891b2;font-weight:700;">(new)</span>${byTag(g.newBy, escFn)}` : "";
         let txt = `<strong>${escFn(g.person)}</strong>${tag} ${verb} <em>${escFn(g.event)}</em>`;
         if (g.statusWord) txt += ` <span style="color:#666;">&middot; ${escFn(g.statusWord)}</span>`;
         const icon = g.completedReg ? "&#9989;" : (g.signedUp ? "&#128221;" : "&#128260;");
@@ -6178,7 +6232,9 @@ async function runDailyReport(overrideRecipients, opts) {
         if (nd.archived === true) continue;   // archived signups stay out of the report (2026-09-25)
         const parentRef = doc.ref.parent.parent;
         const parentDoc = await parentRef.get();
-        const evTitle = (parentDoc.data() || {}).title || "Unknown Event";
+        const _pd = parentDoc.data() || {};
+        if (!inScopePip(parentRef.parent.id === "events" && _pd.partnerIsland)) continue;
+        const evTitle = _pd.title || "Unknown Event";
         rawChanges.push({ kind: "signup", person: nd.name || "Someone", email: nd.email || "", event: evTitle, time: fmtTs(nd.timestamp), sort: nd.timestamp ? (nd.timestamp.seconds || 0) : 0 });
       }
     } catch (err) { console.warn("Changelog signups:", err.message); }
@@ -6191,7 +6247,9 @@ async function runDailyReport(overrideRecipients, opts) {
         if (cd.archived === true) continue;
         const parentRef = doc.ref.parent.parent;
         const parentDoc = await parentRef.get();
-        const pTitle = (parentDoc.data() || {}).title || "Unknown Event";
+        const _pd2 = parentDoc.data() || {};
+        if (!inScopePip(parentRef.parent.id === "events" && _pd2.partnerIsland)) continue;
+        const pTitle = _pd2.title || "Unknown Event";
         rawChanges.push({ kind: "completedReg", person: cd.name || "Someone", email: cd.email || "", event: pTitle, time: fmtTs(cd.registrationCompletedAt), sort: cd.registrationCompletedAt ? (cd.registrationCompletedAt.seconds || 0) : 0 });
       }
     } catch (err) { console.warn("Changelog regs:", err.message); }
@@ -6201,6 +6259,7 @@ async function runDailyReport(overrideRecipients, opts) {
       const fbSnap = await db.collection("eventFeedback").where("submittedAt", ">=", cutoffTimestamp).get();
       fbSnap.forEach((f) => {
         const fd = f.data();
+        if (!inScopePip((fd.eventCollection || "events") === "events" && pipEventIsland[fd.eventId])) return;
         rawChanges.push({ single: true, icon: "&#128172;", text: `Feedback received for <em>${esc(fd.eventTitle || fd.eventId || "an event")}</em>${fd.presenterRating ? " (Presenter: " + esc(fd.presenterRating) + ")" : ""}`, time: fmtTs(fd.submittedAt), sort: fd.submittedAt ? (fd.submittedAt.seconds || 0) : 0 });
       });
     } catch (err) { console.warn("Changelog feedback:", err.message); }
@@ -6210,7 +6269,8 @@ async function runDailyReport(overrideRecipients, opts) {
       const ctSnap = await db.collection("contacts").where("createdAt", ">=", cutoffTimestamp).get();
       ctSnap.forEach((c) => {
         const cdata = c.data();
-        rawChanges.push({ kind: "newContact", person: cdata.displayName || cdata.firstName || "Unknown", email: cdata.email || "", source: cdata.source || "", time: fmtTs(cdata.createdAt), sort: cdata.createdAt ? (cdata.createdAt.seconds || 0) : 0 });
+        if (!inScopePip(cdata.partnerIsland)) return;
+        rawChanges.push({ kind: "newContact", person: cdata.displayName || cdata.firstName || "Unknown", email: cdata.email || "", source: cdata.source || "", by: cdata.createdByName || "", time: fmtTs(cdata.createdAt), sort: cdata.createdAt ? (cdata.createdAt.seconds || 0) : 0 });
       });
     } catch (err) { console.warn("Changelog contacts:", err.message); }
 
@@ -6219,7 +6279,8 @@ async function runDailyReport(overrideRecipients, opts) {
     // renewal is the same shape with source 'member-portal-renewal', so it
     // gets the same line with a different verb. Pushed as `single` so the
     // person+event grouper leaves it as its own line.
-    try {
+    // Memberships are LDAH's.
+    if (!IS_PIP) try {
       const memSnap = await db.collection("members").where("paidAt", ">=", cutoffTimestamp).get();
       memSnap.forEach((m) => {
         const md = m.data() || {};
@@ -6270,6 +6331,9 @@ async function runDailyReport(overrideRecipients, opts) {
       const alSnap = await db.collection("auditLog").where("timestamp", ">=", cutoffTimestamp).get();
       alSnap.forEach((a) => {
         const ad = a.data();
+        // Audit lines are text only: a line naming a PIP event is PIP.
+        const _adTxt = String(ad.details || "");
+        if (!inScopePip(pipEventTitles.some((t) => _adTxt.indexOf(t) !== -1))) return;
         const r = auditToRaw(ad.action, ad.details);
         if (!r) return;
         r.time = fmtTs(ad.timestamp);
@@ -6304,15 +6368,37 @@ async function runDailyReport(overrideRecipients, opts) {
     // ═══════════════════════════════════════════════════
     // SECTION 2.5: Overdue / Due Today Interactions
     // ═══════════════════════════════════════════════════
-    const overdueInt = [], dueTodayInt = [];
+    const overdueInt = [], dueTodayInt = [], openPipCases = [];
+    openPipCases.byFamily = {};
     try {
       const oiSnap = await db.collection("interactions").where("status", "==", "Open").get();
       oiSnap.forEach((d) => {
         const x = d.data();
         if (x.isDraft === true) return;
+        if (!inScopePip(x.partnerIsland)) return;
+        if (IS_PIP && _isCaseAdvocacyIx(x)) {
+          let _startMs = 0;
+          try { _startMs = x.createdAt && x.createdAt.toMillis ? x.createdAt.toMillis() : (x.createdAt ? new Date(x.createdAt).getTime() : 0); } catch (_) {}
+          const cand = { name: x.contactName || "(no contact)", island: x.partnerIsland || "", owner: x.caseAdvocateName || x.owner || "",
+            fu: x.followUpDate || "", days: _startMs ? Math.max(0, Math.floor((now.getTime() - _startMs) / 86400000)) : null,
+            isFile: x.workflowStep === "caseAdvocacy", hasAdv: !!x.caseAdvocateName, ms: _startMs || Infinity };
+          /* ONE row per family, chosen exactly as My Day's "Open PIP cases" does:
+             the case file, then a record naming an advocate, then the oldest.
+             A family with an open case file and an open follow-up log is one case,
+             not two (Daniel, 2026-09-29: "duplicates in the open cases section"). */
+          const key = x.contactId || ("_" + d.id);
+          const prev = openPipCases.byFamily[key];
+          let take = !prev;
+          if (prev) {
+            if (cand.isFile !== prev.isFile) take = cand.isFile;
+            else if (cand.hasAdv !== prev.hasAdv) take = cand.hasAdv;
+            else take = cand.ms < prev.ms;
+          }
+          if (take) openPipCases.byFamily[key] = cand;
+        }
         const fu = x.followUpDate;
         if (!fu || !/^\d{4}-\d{2}-\d{2}$/.test(fu)) return;
-        const row = { name: x.contactName || "(no contact)", summary: x.summary || x.interactionType || "", owner: x.owner || "", fu };
+        const row = { name: x.contactName || "(no contact)", summary: x.summary || x.interactionType || "", owner: x.owner || "", fu, island: x.partnerIsland || "" };
         if (fu < todayISO) overdueInt.push(row);
         else if (fu === todayISO) dueTodayInt.push(row);
       });
@@ -6326,7 +6412,7 @@ async function runDailyReport(overrideRecipients, opts) {
     } else {
       const oiRow = (r, tag, color) =>
         `<tr style="border-bottom:1px solid #eee;">`
-        + `<td style="padding:6px 10px;font-size:12px;font-weight:600;">${esc(r.name)}</td>`
+        + `<td style="padding:6px 10px;font-size:12px;font-weight:600;">${esc(r.name)}${IS_PIP && r.island ? `<br><span style="font-weight:400;color:#6D28D9;font-size:11px;">${esc(r.island)}</span>` : ""}</td>`
         + `<td style="padding:6px 10px;font-size:12px;color:#333;">${esc((r.summary || "").substring(0, 90))}</td>`
         + `<td style="padding:6px 10px;font-size:12px;color:#555;">${esc(r.owner)}</td>`
         + `<td style="padding:6px 10px;font-size:12px;white-space:nowrap;">${esc(r.fu)}</td>`
@@ -6344,9 +6430,28 @@ async function runDailyReport(overrideRecipients, opts) {
         + oiRows + `</table>`;
     }
 
+    let openPipCasesHtml = "";
+    if (IS_PIP) {
+      Object.keys(openPipCases.byFamily).forEach((k) => openPipCases.push(openPipCases.byFamily[k]));
+      openPipCases.sort((a, b) => (a.island || "").localeCompare(b.island || "") || (a.name || "").localeCompare(b.name || ""));
+      openPipCasesHtml = openPipCases.length === 0
+        ? `<p style="color:#666;font-style:italic;">No open PIP cases.</p>`
+        : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;border-collapse:collapse;">`
+          + `<tr style="background:#F5F3FF;">`
+          + ["Family", "Island", "Advocate", "Open", "Follow-up"].map((h) => `<th style="padding:6px 10px;text-align:left;font-size:11px;color:#5B21B6;font-weight:800;">${h}</th>`).join("") + `</tr>`
+          + openPipCases.map((c) => `<tr style="border-bottom:1px solid #eee;">`
+            + `<td style="padding:6px 10px;font-size:12px;font-weight:600;">${esc(c.name)}</td>`
+            + `<td style="padding:6px 10px;font-size:12px;">${esc(c.island)}</td>`
+            + `<td style="padding:6px 10px;font-size:12px;">${esc(c.owner)}</td>`
+            + `<td style="padding:6px 10px;font-size:12px;white-space:nowrap;">${c.days === null ? "" : c.days + " day" + (c.days === 1 ? "" : "s")}</td>`
+            + `<td style="padding:6px 10px;font-size:12px;white-space:nowrap;">${esc(c.fu)}</td></tr>`).join("")
+          + `</table>`;
+    }
+
     // ═══════════════════════════════════════════════════
     // SECTION 3: Pending/New Public Submissions
     // ═══════════════════════════════════════════════════
+    // Website forms carry no island; they are LDAH's.
     const formSections = [];
 
     // Helper: check if status is pending or new (or no status = new)
@@ -6427,6 +6532,7 @@ async function runDailyReport(overrideRecipients, opts) {
       }
     } catch (_) {}
 
+    if (IS_PIP) formSections.length = 0;
     let formsHtml = "";
     if (formSections.length === 0) {
       formsHtml = `<p style="color:#666;font-style:italic;">No pending submissions.</p>`;
@@ -6451,7 +6557,7 @@ async function runDailyReport(overrideRecipients, opts) {
     // Mirrors the LDAH-Int dashboard panel (cmsRenderResourceCyclePanel).
     // Cycle starts every May 1 / Nov 1 with a 7-day grace window.
     let cycleHtml = "";
-    try {
+    if (!IS_PIP) try {
       const _yr = hawaiiNow.getFullYear();
       const _may1 = new Date(_yr, 4, 1).getTime();
       const _nov1 = new Date(_yr, 10, 1).getTime();
@@ -6533,7 +6639,7 @@ async function runDailyReport(overrideRecipients, opts) {
     // Monthly extra (1st of month HST, or forced for a preview): Website &
     // App Analytics year-to-date executive summary, as its own page.
     var _opts = opts || {};
-    var isMonthly = _opts.forceMonthly === true || (hawaiiNow.getDate() === 1);
+    var isMonthly = !IS_PIP && (_opts.forceMonthly === true || (hawaiiNow.getDate() === 1));
     let analyticsSummaryHtml = "";
     if (isMonthly) {
       try { analyticsSummaryHtml = await buildAnalyticsYtdHtml(db, esc, hawaiiNow); }
@@ -6542,11 +6648,15 @@ async function runDailyReport(overrideRecipients, opts) {
 
     const orgFooterHtml = await getOrgFooterHtml();
     let backupStatusHtml = "";
-    try { backupStatusHtml = await buildBackupStatusHtml(db); }
-    catch (err) { console.warn("backup status build failed:", err.message); }
     let advocacyGapHtml = "";
-    try { advocacyGapHtml = await buildAdvocacyMembershipGapHtml(db); }
-    catch (err) { console.warn("advocacy/membership gap build failed:", err.message); }
+    // The backup line tops both reports (Daniel, 2026-09-29): it is the whole database.
+    try { backupStatusHtml = await buildBackupStatusHtml(db, RETURN_HTML); }
+    catch (err) { console.warn("backup status build failed:", err.message); }
+    if (!IS_PIP) {
+      try { advocacyGapHtml = await buildAdvocacyMembershipGapHtml(db); }
+      catch (err) { console.warn("advocacy/membership gap build failed:", err.message); }
+    }
+    const REPORT_NAME = IS_PIP ? "Pacific Island Partners Daily Report" : "LDAH Daily Report";
     const emailHtml = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -6557,10 +6667,10 @@ async function runDailyReport(overrideRecipients, opts) {
 
   <!-- Header -->
   <tr>
-    <td style="background-color:#1a3c6e;padding:24px 32px;text-align:center;">
+    <td style="background-color:${IS_PIP ? "#5B21B6" : "#1a3c6e"};padding:24px 32px;text-align:center;">
       <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="180" style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;background-color:#ffffff;padding:14px 20px;border-radius:10px;">
       <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:bold;letter-spacing:0.5px;">
-        LDAH Daily Report
+        ${REPORT_NAME}
       </h1>
       <p style="margin:4px 0 0;color:#b0c4de;font-size:14px;">${todayStr}</p>
     </td>
@@ -6618,6 +6728,18 @@ async function runDailyReport(overrideRecipients, opts) {
   </tr>
   <tr><td style="padding:0 28px 16px;">${overdueHtml}</td></tr>
 
+  ${IS_PIP ? `
+  <!-- PIP: Open PIP Cases -->
+  <tr>
+    <td style="padding:24px 28px 8px;">
+      <h2 style="margin:0;font-size:17px;color:#5B21B6;border-bottom:2px solid #5B21B6;padding-bottom:6px;">
+        Open PIP Cases
+      </h2>
+      <p style="margin:4px 0 12px;font-size:12px;color:#666;">${openPipCases.length} open &mdash; do not close until case advocacy is done</p>
+    </td>
+  </tr>
+  <tr><td style="padding:0 28px 16px;">${openPipCasesHtml}</td></tr>
+  ` : `
   <!-- Section 3: Pending/New Public Submissions -->
   <tr>
     <td style="padding:24px 28px 8px;">
@@ -6627,6 +6749,7 @@ async function runDailyReport(overrideRecipients, opts) {
     </td>
   </tr>
   <tr><td style="padding:0 28px 16px;">${formsHtml}</td></tr>
+  `}
 
   ${analyticsSummaryHtml ? `
   <!-- Page 2 (1st of month): Website & App Analytics — Executive Summary -->
@@ -6652,7 +6775,8 @@ async function runDailyReport(overrideRecipients, opts) {
 
     // ── 6. Send to each active recipient ──
     const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
-    const subject = `LDAH Daily Report -- ${todayFormatted}`;
+    const subject = `${REPORT_NAME} -- ${todayFormatted}`;
+    if (RETURN_HTML) return { html: emailHtml, subject: subject, scope: SCOPE };
     let sentCount = 0;
 
     for (const recipient of recipients) {
@@ -6662,7 +6786,7 @@ async function runDailyReport(overrideRecipients, opts) {
           to: recipient.email,
           subject,
           html: emailHtml,
-          type: "daily-session-sheet",
+          type: IS_PIP ? "daily-report-pip" : "daily-session-sheet",
           recipientName: recipient.name || "",
         });
         sentCount++;
@@ -6672,15 +6796,36 @@ async function runDailyReport(overrideRecipients, opts) {
       }
     }
 
-    console.log(`sendDailySessionSheet: complete. Sent to ${sentCount}/${recipients.length} recipients. Sessions: ${allSessions.length}`);
+    console.log(`sendDailySessionSheet[${SCOPE}]: complete. Sent to ${sentCount}/${recipients.length} recipients. Sessions: ${allSessions.length}`);
     return null;
 }
 
 exports.sendDailySessionSheet = functions
-  .runWith({ timeoutSeconds: 120, maxInstances: 1, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .runWith({ timeoutSeconds: 300, maxInstances: 1, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
   .pubsub.schedule("0 6 * * *")
   .timeZone("Pacific/Honolulu")
-  .onRun(async (context) => { return runDailyReport(null); });
+  .onRun(async (context) => {
+    // LDAH first, then Pacific Island Partners. One failing must not stop the other.
+    try { await runDailyReport(null, { scope: "ldah" }); } catch (e) { console.error("daily report (LDAH) failed:", e.message); }
+    try { await runDailyReport(null, { scope: "pip" }); } catch (e) { console.error("daily report (PIP) failed:", e.message); }
+    return null;
+  });
+
+// The LDAH-Int "Preview Today's Report" button. Builds exactly what the 6 AM
+// job would send, for either scope, without sending anything. Replaces the
+// hand-copied client-side builder, which had drifted (missing sections).
+exports.previewDailyReport = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 3 })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Please sign in.");
+    const roleSnap = await admin.firestore().collection("userRoles").doc(context.auth.uid).get();
+    const role = roleSnap.exists ? (roleSnap.data().role || "") : "";
+    if (["superAdmin", "admin"].indexOf(role) === -1) {
+      throw new functions.https.HttpsError("permission-denied", "Only admins can preview the daily report.");
+    }
+    const scope = (data && data.scope) === "pip" ? "pip" : "ldah";
+    return runDailyReport([], { scope: scope, returnHtml: true, forceMonthly: !!(data && data.forceMonthly) });
+  });
 
 // ── Day-of Pending Signups ──────────────────────────────────────────
 // Daily 6 AM HST job. Scans today's NON-recurring events (`events`
