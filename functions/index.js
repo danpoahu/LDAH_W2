@@ -4878,18 +4878,18 @@ const PIP_FEEDBACK_LOGO = "https://www.ldahawaii.org/assets/images/wp/Pacific-Is
 function buildPipFeedbackEmailHtml({ name, eventTitle, feedbackUrl, mode }) {
   const line = mode === "reminder"
     ? `A quick reminder: we would still love to hear what you thought of <strong>${eventTitle}</strong>.`
-    : `Mahalo for coming to <strong>${eventTitle}</strong>! Tell us what you thought. It takes one minute.`;
+    : `Thank you for coming to <strong>${eventTitle}</strong>! Tell us what you thought. It takes one minute.`;
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#ffffff;font-family:Arial,Helvetica,sans-serif;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:16px 12px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
 <tr><td align="center" style="padding:4px 0 12px;"><img src="${PIP_FEEDBACK_LOGO}" alt="Pacific Island Partners" width="150" style="display:block;border:0;max-width:150px;height:auto;"></td></tr>
 <tr><td style="font-size:16px;color:#222222;line-height:1.5;">
-<p style="margin:0 0 12px;">Aloha ${name},</p>
+<p style="margin:0 0 12px;">Hi ${name},</p>
 <p style="margin:0 0 18px;">${line}</p>
 <p style="margin:0 0 18px;text-align:center;"><a href="${feedbackUrl}" style="display:inline-block;background:#C2410C;color:#ffffff;text-decoration:none;font-weight:bold;font-size:17px;padding:13px 28px;border-radius:8px;">Share Your Feedback</a></p>
 <p style="margin:0 0 18px;font-size:13px;color:#666666;word-break:break-all;">Or open: ${feedbackUrl}</p>
-<p style="margin:0;font-size:15px;">Mahalo,<br><strong>Pacific Island Partners</strong><br><span style="font-size:12px;color:#666666;">Leadership in Disabilities &amp; Achievement of Hawai&#699;i &middot; Hawai&#699;i and Pacific Island Parent Training &amp; Information Center<br><a href="https://www.ldahawaii.org/pacific.html" style="color:#C2410C;">ldahawaii.org/pacific.html</a></span></p>
+<p style="margin:0;font-size:15px;">Thank you,<br><strong>Pacific Island Partners</strong><br><span style="font-size:12px;color:#666666;">Leadership in Disabilities &amp; Achievement of Hawai&#699;i &middot; Hawai&#699;i and Pacific Island Parent Training &amp; Information Center<br><a href="https://www.ldahawaii.org/pacific.html" style="color:#C2410C;">ldahawaii.org/pacific.html</a></span></p>
 </td></tr></table></td></tr></table></body></html>`;
 }
 
