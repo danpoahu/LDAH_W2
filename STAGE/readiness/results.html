@@ -86,6 +86,23 @@
   .pick label { font-size:12px; font-weight:700; color:var(--soft); display:flex; flex-direction:column; gap:3px; flex:1 1 150px; }
   .pick select, .pick input { font:inherit; font-size:15px; padding:8px 10px; border:1.5px solid var(--line); border-radius:10px; background:#fff; color:var(--ink); }
   .badge.b-class { background:#EDE9FE; color:#5B21B6; }
+  /* Tap buttons instead of dropdowns (2026-09-30): one tap per ear, and a
+     "Both" button for the usual answer. Values saved are unchanged. */
+  .rl2 { display:grid; grid-template-columns:78px 1fr 60px; gap:8px; align-items:center; padding:7px 0; border-bottom:1px solid #F1F5F9; }
+  .rl2 .lab { font-size:.88rem; color:#475569; font-weight:600; line-height:1.2; }
+  .ears { display:grid; grid-template-columns:1fr 1fr; gap:10px; min-width:0; }
+  .ear { display:flex; align-items:center; gap:5px; min-width:0; }
+  .eh { font-size:.7rem; font-weight:800; color:#94a3b8; width:11px; flex:none; text-align:center; }
+  .seg { display:flex; gap:4px; flex:1; min-width:0; }
+  .sb { flex:1 1 0; min-width:0; min-height:42px; padding:0 4px; border:1.5px solid #cbd5e1; border-radius:9px; background:#fff; color:var(--ink);
+        font:700 .84rem 'Source Sans 3',sans-serif; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; touch-action:manipulation; }
+  .sb.on.p { background:var(--pass); border-color:var(--pass); color:#fff; }
+  .sb.on.f { background:var(--fail); border-color:var(--fail); color:#fff; }
+  .sb.on.o { background:var(--pend); border-color:var(--pend); color:#fff; }
+  .both { min-height:42px; border:1.5px dashed var(--blue); background:#F0F9FF; color:var(--blue-d); border-radius:9px;
+          font:800 .72rem 'Source Sans 3',sans-serif; line-height:1.1; cursor:pointer; padding:0 4px; touch-action:manipulation; }
+  .both:active, .sb:active { transform:scale(.96); }
+  @media (max-width:520px){ .rl2 { grid-template-columns:1fr 60px; } .rl2 .lab { grid-column:1 / -1; } .ears { grid-template-columns:1fr; gap:6px; } }
 </style>
 </head>
 <body>
@@ -287,7 +304,27 @@
   const PF = ['','Pass','Fail','Could not test'];
   const OTO = ['','Clear or minimal earwax','Excessive earwax','Blood or foreign object','P.E. tube'];
   function selHtml(id, opts, cur){ return '<select id="'+id+'">'+opts.map(o=>'<option value="'+esc(o)+'"'+(cur===o?' selected':'')+'>'+(o||'—')+'</option>').join('')+'</select>'; }
-  function rlRow(label, rId, lId, opts, val){ val=val||{}; return '<div class="rl"><div class="lab">'+label+'</div>'+selHtml(rId,opts,val.right)+selHtml(lId,opts,val.left)+'</div>'; }
+  const SHORT = { 'Pass':'P', 'Fail':'F', 'Could not test':'CNT', 'Clear or minimal earwax':'Clear', 'Excessive earwax':'Wax', 'Blood or foreign object':'Blood/FO', 'P.E. tube':'Tube' };
+  function tone(v){ return (v==='Pass'||v==='Clear or minimal earwax') ? 'p' : (v==='Fail' ? 'f' : 'o'); }
+  function segHtml(id, opts, cur){
+    return '<input type="hidden" id="'+id+'" value="'+esc(cur||'')+'"><div class="seg" data-for="'+id+'">' +
+      opts.filter(o=>o).map(o=>'<button type="button" class="sb '+tone(o)+(cur===o?' on':'')+'" data-v="'+esc(o)+'" title="'+esc(o)+'" onclick="segPick(this)">'+esc(SHORT[o]||o)+'</button>').join('') + '</div>';
+  }
+  function rlRow(label, rId, lId, opts, val, bothV, bothLbl){
+    val=val||{};
+    return '<div class="rl2"><div class="lab">'+label+'</div><div class="ears">' +
+      '<div class="ear"><span class="eh">R</span>'+segHtml(rId,opts,val.right)+'</div>' +
+      '<div class="ear"><span class="eh">L</span>'+segHtml(lId,opts,val.left)+'</div></div>' +
+      '<button type="button" class="both" title="Set right and left to '+esc(bothV)+'" onclick="segBoth(\''+rId+'\',\''+lId+'\',\''+esc(bothV)+'\')">'+bothLbl+'</button></div>';
+  }
+  function segSet(id, v){
+    const inp=$(id); if(!inp) return; inp.value=v;
+    const seg=document.querySelector('.seg[data-for="'+id+'"]');
+    if(seg) seg.querySelectorAll('.sb').forEach(x=>x.classList.toggle('on', x.getAttribute('data-v')===v));
+  }
+  /* Tap again to clear a choice. */
+  window.segPick = function(b){ const id=b.parentNode.getAttribute('data-for'), v=b.getAttribute('data-v'); segSet(id, $(id).value===v ? '' : v); };
+  window.segBoth = function(r, l, v){ segSet(r, v); segSet(l, v); };
 
   window.openEntry = function(i){
     const r = window._view[i]; if(!r) return;
@@ -304,12 +341,12 @@
     f += '<div class="grid2"><div><label class="l">Date of Screening</label><input type="date" id="eDate" value="'+when+'"></div>'+
          '<div><label class="l">Site</label><input id="eSite" value="'+esc(site)+'"></div></div>';
     f += '<label class="l">Screened by</label><input id="eBy" value="'+esc(by)+'">';
-    f += '<div class="sec">Hearing</div><div class="rl"><div></div><div class="h">Right</div><div class="h">Left</div></div>';
-    f += rlRow('Otoscopy','eOtoR','eOtoL',OTO,hd.otoscopy);
-    f += rlRow('OAE','eOaeR','eOaeL',PF,hd.oae);
-    f += rlRow('Tympanometry','eTympR','eTympL',PF,hd.tympanometry);
-    f += '<div class="sec">Vision</div><div class="rl"><div></div><div class="h">Right</div><div class="h">Left</div></div>';
-    f += rlRow('Distance','eDistR','eDistL',PF,vs.distance);
+    f += '<div class="sec">Hearing</div>';
+    f += rlRow('Otoscopy','eOtoR','eOtoL',OTO,hd.otoscopy,'Clear or minimal earwax','Both<br>Clear');
+    f += rlRow('OAE','eOaeR','eOaeL',PF,hd.oae,'Pass','Both<br>Pass');
+    f += rlRow('Tympano&shy;metry','eTympR','eTympL',PF,hd.tympanometry,'Pass','Both<br>Pass');
+    f += '<div class="sec">Vision</div>';
+    f += rlRow('Distance','eDistR','eDistL',PF,vs.distance,'Pass','Both<br>Pass');
     f += '<label class="l">Lea Symbols / PlusOptix</label><textarea id="eLea" rows="2">'+esc(vs.leaSymbols||'')+'</textarea>';
     $('entryForm').innerHTML = f;
     $('entryMsg').textContent = '';
