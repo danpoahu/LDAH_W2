@@ -3111,12 +3111,42 @@ async function ensureConnectGenPrepToken(ref, signup, collection, eventId) {
 }
 
 exports.onEventSignupCreated = functions
-  .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: SIGNUP_TRIGGER_SECRETS })
+  .runWith({ timeoutSeconds: 60, maxInstances: 10, secrets: SIGNUP_TRIGGER_SECRETS })
   .firestore.document("events/{eventId}/signups/{signupId}")
   .onCreate(async (snap, context) => {
     await ensureConnectGenPrepToken(snap.ref, snap.data() || {}, "events", context.params.eventId);
-    return handleSignupCreated(snap, context, "events");
+    const r = await handleSignupCreated(snap, context, "events");
+    await maybeSendFeedbackOnCreate(snap, context, "events");
+    return r;
   });
+
+/* Feedback for people ADDED already marked attended (2026-10-01). The one-off
+   event form creates its attendees as attended, so the on-attendance trigger
+   (an update) never fired for them: 4 of 112 Pacific partner attendees with an
+   email got a feedback request in September. Sends only when the form's tick
+   box asked for it (feedbackRequested === true), under the same rules as every
+   other feedback send: one-off cutoff, an hour after the start, never twice. */
+async function maybeSendFeedbackOnCreate(snap, context, collection) {
+  try {
+    const data = snap.data() || {};
+    if (data.feedbackRequested !== true) return;
+    if (data.attendanceStatus !== "attended") return;
+    if (!data.email || data.archived === true || data.feedbackEmailSentAt) return;
+    const db = admin.firestore();
+    const evSnap = await db.collection(collection).doc(context.params.eventId).get();
+    if (!evSnap.exists) return;
+    const event = evSnap.data() || {};
+    if (_oneOffEmailSuppressed(event, "feedback")) return;
+    const startMs = eventStartMs(event, null);
+    if (startMs !== null && Date.now() < startMs + FEEDBACK_MIN_MINUTES_AFTER_START * 60000) return;
+    await sendOneFeedbackEmail({ collection, eventId: context.params.eventId, signupId: context.params.signupId,
+      signup: data, sessionDate: null, mode: "initial", event });
+    await snap.ref.update({ feedbackEmailSentAt: admin.firestore.FieldValue.serverTimestamp() });
+    console.log("feedback (on-create) sent", collection, context.params.eventId, context.params.signupId);
+  } catch (e) {
+    console.error("maybeSendFeedbackOnCreate failed:", e.message);
+  }
+}
 
 exports.onRecurringEventSignupCreated = functions
   .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: SIGNUP_TRIGGER_SECRETS })
@@ -4840,6 +4870,29 @@ exports.sendNoShowReInvites = functions
   });
 
 // ── Feedback Email HTML Builder ─────────────────────────────────
+/* Pacific Island Partners feedback email (2026-10-01). Partner families on the
+   outer islands read email on a phone over cell data, so this one is kept
+   deliberately small: one small logo, two short lines, one button, the plain
+   link as a fallback, a text sign-off. No donate section, no LDAH footer. */
+const PIP_FEEDBACK_LOGO = "https://www.ldahawaii.org/assets/images/wp/Pacific-Island-Partners-Logo.png";
+function buildPipFeedbackEmailHtml({ name, eventTitle, feedbackUrl, mode }) {
+  const line = mode === "reminder"
+    ? `A quick reminder: we would still love to hear what you thought of <strong>${eventTitle}</strong>.`
+    : `Mahalo for coming to <strong>${eventTitle}</strong>! Tell us what you thought. It takes one minute.`;
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#ffffff;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:16px 12px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
+<tr><td align="center" style="padding:4px 0 12px;"><img src="${PIP_FEEDBACK_LOGO}" alt="Pacific Island Partners" width="150" style="display:block;border:0;max-width:150px;height:auto;"></td></tr>
+<tr><td style="font-size:16px;color:#222222;line-height:1.5;">
+<p style="margin:0 0 12px;">Aloha ${name},</p>
+<p style="margin:0 0 18px;">${line}</p>
+<p style="margin:0 0 18px;text-align:center;"><a href="${feedbackUrl}" style="display:inline-block;background:#C2410C;color:#ffffff;text-decoration:none;font-weight:bold;font-size:17px;padding:13px 28px;border-radius:8px;">Share Your Feedback</a></p>
+<p style="margin:0 0 18px;font-size:13px;color:#666666;word-break:break-all;">Or open: ${feedbackUrl}</p>
+<p style="margin:0;font-size:15px;">Mahalo,<br><strong>Pacific Island Partners</strong><br><span style="font-size:12px;color:#666666;">Leadership in Disabilities &amp; Achievement of Hawai&#699;i &middot; Hawai&#699;i and Pacific Island Parent Training &amp; Information Center<br><a href="https://www.ldahawaii.org/pacific.html" style="color:#C2410C;">ldahawaii.org/pacific.html</a></span></p>
+</td></tr></table></td></tr></table></body></html>`;
+}
+
 function buildFeedbackEmailHtml({ name, eventTitle, feedbackUrl, mode, donateHtml, orgFooterHtml }) {
   const isReminder = mode === "reminder";
   const intro = isReminder
@@ -4912,6 +4965,8 @@ exports.sendFeedbackEmails = functions
     if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
 
     const { collection, eventId, sessionDate } = req.body;
+    /* Optional: only these signups (2026-10-01), e.g. to leave someone out. */
+    const onlyIds = Array.isArray(req.body.signupIds) ? req.body.signupIds.map(String) : null;
     if (!collection || !eventId) {
       res.status(400).json({ error: "Missing collection or eventId" });
       return;
@@ -4980,6 +5035,7 @@ exports.sendFeedbackEmails = functions
       for (const doc of signupsSnap.docs) {
         const data = doc.data();
 
+        if (onlyIds && onlyIds.indexOf(doc.id) === -1) { skipped++; continue; }
         // Must have email
         if (!data.email) {
           skipped++;
@@ -5014,28 +5070,11 @@ exports.sendFeedbackEmails = functions
           continue;
         }
 
-        const name = data.name || data.firstName || "there";
-        const feedbackUrl =
-          "https://ldahawaii.org/feedback.html?eventId=" + encodeURIComponent(eventId) +
-          "&signupId=" + encodeURIComponent(doc.id) +
-          "&type=" + encodeURIComponent(type) +
-          (sessionDate ? "&sessionDate=" + encodeURIComponent(sessionDate) : "");
-
-        const donateHtml = await buildDonateBlock('feedback');
-        const orgFooterHtml = await getOrgFooterHtml();
-        const htmlBody = buildFeedbackEmailHtml({ name, eventTitle, feedbackUrl, donateHtml, orgFooterHtml });
-
         try {
-          await sendEmailViaResend({
-            from: `LDAH <${fromAddress}>`,
-            to: familyEmails(data),
-            subject: `How was ${eventTitle}? We'd love your feedback`,
-            html: htmlBody,
-            type: "feedback-request",
-            relatedEventId: eventId,
-            relatedSignupId: doc.id,
-            recipientName: name,
-          });
+          /* One builder for every feedback email, so the LDAH vs Pacific
+             Island Partners version is always decided the same way. */
+          await sendOneFeedbackEmail({ collection, eventId, signupId: doc.id, signup: data,
+            sessionDate: sessionDate || null, mode: "initial", event: _evForGuard || { title: eventTitle } });
 
           if (sessionDate) {
             await doc.ref.set({
@@ -5131,14 +5170,20 @@ async function sendOneFeedbackEmail({ collection, eventId, signupId, signup, ses
     "&signupId=" + encodeURIComponent(signupId) +
     "&type=" + encodeURIComponent(type) +
     (sessionDate ? "&sessionDate=" + encodeURIComponent(sessionDate) : "");
-  const donateHtml = await buildDonateBlock('feedback');
-  const orgFooterHtml = await getOrgFooterHtml();
-  const html = buildFeedbackEmailHtml({ name, eventTitle, feedbackUrl, mode, donateHtml, orgFooterHtml });
+  const pip = !!(event && event.partnerIsland);
+  let html;
+  if (pip) {
+    html = buildPipFeedbackEmailHtml({ name, eventTitle, feedbackUrl, mode });
+  } else {
+    const donateHtml = await buildDonateBlock('feedback');
+    const orgFooterHtml = await getOrgFooterHtml();
+    html = buildFeedbackEmailHtml({ name, eventTitle, feedbackUrl, mode, donateHtml, orgFooterHtml });
+  }
   const subject = mode === "reminder"
     ? `Reminder: please share your feedback on ${eventTitle}`
     : `How was ${eventTitle}? We'd love your feedback`;
   return sendEmailViaResend({
-    from: `LDAH <${fromAddress}>`,
+    from: `${pip ? "Pacific Island Partners" : "LDAH"} <${fromAddress}>`,
     to: familyEmails(signup),
     subject,
     html,
@@ -5161,6 +5206,7 @@ async function maybeSendFeedbackEmailOnAttendance(change, context, collection) {
     const after = change.after.data() || {};
     if (!after.email) return;
     if (after.archived === true) return;
+    if (after.feedbackRequested === false) return;   // the one-off tick box was cleared (2026-10-01)
 
     const eventId = context.params.eventId;
     const signupId = context.params.signupId;
