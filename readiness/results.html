@@ -79,7 +79,10 @@
   .savebar .save { background:#fff; color:var(--blue-d); border:2px solid var(--blue); }
   .savebar .email { background:var(--blue); color:#fff; }
   .savebar .email:disabled { background:#94a3b8; }
-  #entryMsg { text-align:center; font-size:.9rem; padding:8px; min-height:20px; }
+  /* Floats just above the Save bar (2026-09-30): it used to sit under the
+     form, behind the fixed bar, so "email failed" and "timed out" were never seen. */
+  #entryMsg { position:fixed; left:12px; right:12px; bottom:calc(var(--safe-bot) + 84px); z-index:21; text-align:center; font-size:.95rem; font-weight:700; pointer-events:none; }
+  #entryMsg:not(:empty) { background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px 12px; box-shadow:0 6px 20px rgba(15,23,42,.15); pointer-events:auto; }
   /* Location / classroom / date pickers (2026-09-30): pick a school and a class
      and the roster shows, whatever date the consent was signed. */
   .pick { display:flex; gap:8px; flex-wrap:wrap; padding:0 16px 10px; max-width:720px; margin:0 auto; }
