@@ -26939,7 +26939,7 @@ exports.getScreeningConsentDownloadUrl = functions
     // one this service generated.
     const expectedPrefix = SCREENING_CONSENT_PREFIX + contactId + "/";
     const remainder = storagePath.slice(expectedPrefix.length);
-    const looksGenerated = /^consent-\d{10,}\.(pdf|jpg|png|heic)$/.test(remainder);
+    const looksGenerated = /^(consent|printout)-\d{10,}\.(pdf|jpg|png|heic)$/.test(remainder);   // printout = vision screener photo (2026-09-30)
     if (storagePath.indexOf(expectedPrefix) !== 0 ||
         storagePath.indexOf("..") !== -1 ||
         remainder.indexOf("/") !== -1 ||
