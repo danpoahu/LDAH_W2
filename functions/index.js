@@ -26886,7 +26886,11 @@ exports.requestScreeningConsentUploadUrl = functions
       if (!snap.exists) { res.status(404).json({ error: "Contact not found" }); return; }
 
       const ts = Date.now();
-      const storagePath = SCREENING_CONSENT_PREFIX + contactId + "/consent-" + ts + "." + ext;
+      // kind 'printout' (2026-09-30): a photo of the vision screener's printout,
+      // taken on screening day from readiness/results.html. Same private folder,
+      // same signed-URL viewing, just named so nobody mistakes it for a consent.
+      const kind = String(body.kind || "").trim() === "printout" ? "printout" : "consent";
+      const storagePath = SCREENING_CONSENT_PREFIX + contactId + "/" + kind + "-" + ts + "." + ext;
       const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
       // Echo the caller's origin for the browser PUT — the dashboard runs from
       // danpoahu.github.io for both live and STAGE.
