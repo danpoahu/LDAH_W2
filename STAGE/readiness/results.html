@@ -102,6 +102,16 @@
   .both { min-height:42px; border:1.5px dashed var(--blue); background:#F0F9FF; color:var(--blue-d); border-radius:9px;
           font:800 .72rem 'Source Sans 3',sans-serif; line-height:1.1; cursor:pointer; padding:0 4px; touch-action:manipulation; }
   .both:active, .sb:active { transform:scale(.96); }
+  /* Printout photo (2026-09-30): the vision screener's printout, photographed on the phone. */
+  .photoBox { margin-top:10px; }
+  .photoBtn { width:100%; min-height:48px; border:2px dashed var(--blue); background:#F0F9FF; color:var(--blue-d); border-radius:12px;
+              font:700 1rem 'Source Sans 3',sans-serif; cursor:pointer; touch-action:manipulation; }
+  .photoBtn:active { transform:scale(.98); }
+  .pList { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+  .pItem { border:1px solid var(--line); border-radius:10px; padding:6px; background:#fff; font-size:.8rem; color:var(--soft); text-align:center; }
+  .pItem img { display:block; max-width:140px; max-height:140px; border-radius:6px; margin:0 auto 4px; }
+  .pItem button { font:700 .8rem 'Source Sans 3',sans-serif; color:var(--blue-d); background:none; border:none; cursor:pointer; padding:4px; }
+  #ePhotoMsg { font-size:.85rem; margin-top:6px; color:var(--soft); }
   @media (max-width:520px){ .rl2 { grid-template-columns:1fr 54px; } .rl2 .lab { grid-column:1 / -1; } .ears { grid-template-columns:1fr; gap:6px; } }
 </style>
 </head>
@@ -228,7 +238,7 @@
         childName:(((s.child&&s.child.firstName)||'')+' '+((s.child&&s.child.lastName)||'')).trim(),
         parentName:c.displayName||(((c.firstName||'')+' '+(c.lastName||'')).trim()), email:c.email||'',
         signedAt:s.signedAt, results:s.results||null, resultsSent:!!(s.results&&s.results.resultsSentAt),
-        location:s.location||'', classroom:s.classroom||'' }); });
+        location:s.location||'', classroom:s.classroom||'', printouts:Array.isArray(s.printouts)?s.printouts:[] }); });
     });
   }
   // Realtime listener — new consents & results appear live, on any device, no refresh.
@@ -328,7 +338,7 @@
 
   window.openEntry = function(i){
     const r = window._view[i]; if(!r) return;
-    current = { contactId:r.contactId, screeningId:r.screeningId };
+    current = { contactId:r.contactId, screeningId:r.screeningId, printouts:(r.printouts||[]).slice() };
     $('entryTitle').textContent = r.childName || 'Results';
     const res = r.results||{}, hd=res.hearing||{}, vs=res.vision||{};
     const by = res.screenedBy || dayDefaults.screenedBy || (auth.currentUser && auth.currentUser.displayName) || '';
@@ -348,12 +358,72 @@
     f += '<div class="sec">Vision</div>';
     f += rlRow('Distance','eDistR','eDistL',PF,vs.distance,'Pass','Both<br>Pass');
     f += '<label class="l">Lea Symbols / PlusOptix</label><textarea id="eLea" rows="2">'+esc(vs.leaSymbols||'')+'</textarea>';
+    f += '<div class="photoBox"><input type="file" id="ePhoto" accept="image/*" capture="environment" style="display:none" onchange="uploadPrintout(this)">' +
+         '<button type="button" class="photoBtn" onclick="document.getElementById(\'ePhoto\').click()">Photo of printout</button>' +
+         '<div class="pList" id="ePhotoList">'+printoutsHtml(current.printouts)+'</div><div id="ePhotoMsg"></div></div>';
     $('entryForm').innerHTML = f;
     $('entryMsg').textContent = '';
     $('btnSave').disabled=false; $('btnEmail').disabled=false; $('btnSave').textContent='Save'; $('btnEmail').textContent='Save & email family';
     view('entry'); window.scrollTo(0,0);
   };
   window.closeEntry = function(){ view('report'); };
+
+  /* ---- Printout photo ----
+     Uploads go through the same private, staff-only route as paper consents:
+     the function hands back a one-time upload link for this child's folder,
+     and every later view is a short-lived signed link that is audit-logged.
+     The photo is attached to the screening straight away, so it is kept even
+     if Save is never pressed. */
+  const UPLOAD_FN = 'https://us-central1-ldah-932d5.cloudfunctions.net/requestScreeningConsentUploadUrl';
+  const VIEW_FN = 'https://us-central1-ldah-932d5.cloudfunctions.net/getScreeningConsentDownloadUrl';
+  function printoutsHtml(list, freshUrl){
+    return (list||[]).map((p,i)=>{
+      const fresh = freshUrl && i===list.length-1;
+      return '<div class="pItem" id="pi'+i+'">'+(fresh?'<img src="'+freshUrl+'" alt="Printout">':'')+'Printout '+(i+1)+(fresh?'':' <button type="button" onclick="viewPrintout('+i+')">View</button>')+'</div>';
+    }).join('');
+  }
+  function shrink(file){
+    return createImageBitmap(file).then(bm=>{
+      const max=2000, k=Math.min(1, max/Math.max(bm.width,bm.height));
+      const c=document.createElement('canvas'); c.width=Math.round(bm.width*k); c.height=Math.round(bm.height*k);
+      c.getContext('2d').drawImage(bm,0,0,c.width,c.height);
+      return new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(new Error('no blob')),'image/jpeg',0.85));
+    });
+  }
+  window.uploadPrintout = async function(inp){
+    const file = inp.files && inp.files[0]; inp.value=''; if(!file||!current) return;
+    const msg=$('ePhotoMsg'); msg.style.color='var(--soft)'; msg.textContent='Preparing the photo\u2026';
+    let blob=file, type=file.type||'image/jpeg';
+    try { blob = await shrink(file); type='image/jpeg'; } catch(e){ blob=file; }
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const r = await fetch(UPLOAD_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idToken,contactId:current.contactId,mimeType:type,sizeBytes:blob.size,kind:'printout'})});
+      const j = await r.json().catch(()=>({}));
+      if(!r.ok||!j.uploadUrl) throw new Error(j.error||'Could not start the upload.');
+      await new Promise((res,rej)=>{ const x=new XMLHttpRequest(); x.open('PUT', j.uploadUrl); x.setRequestHeader('Content-Type', type);
+        x.upload.onprogress=e=>{ if(e.lengthComputable) msg.textContent='Uploading\u2026 '+Math.round(e.loaded/e.total*100)+'%'; };
+        x.onload=()=> (x.status>=200&&x.status<300)?res():rej(new Error('Upload failed ('+x.status+'). Try again.'));
+        x.onerror=()=>rej(new Error('Upload failed. Check the connection and try again.')); x.send(blob); });
+      const entry={ storagePath:j.storagePath, uploadedAt:new Date().toISOString(), by:(auth.currentUser.displayName||auth.currentUser.email||'') };
+      const snap=await db.collection('contacts').doc(current.contactId).get();
+      const arr=(((snap.data()||{}).screenings)||[]).map(s=> (s&&s.id===current.screeningId)? Object.assign({},s,{printouts:(Array.isArray(s.printouts)?s.printouts:[]).concat([entry])}) : s);
+      await db.collection('contacts').doc(current.contactId).update({ screenings: arr });
+      current.printouts.push(entry);
+      $('ePhotoList').innerHTML = printoutsHtml(current.printouts, URL.createObjectURL(blob));
+      msg.style.color='var(--pass)'; msg.textContent='Printout saved to this child.';
+    } catch(e){ msg.style.color='var(--fail)'; msg.textContent=(e&&e.message)||String(e); }
+  };
+  window.viewPrintout = async function(i){
+    const p=current&&current.printouts[i]; const box=$('pi'+i); if(!p||!box) return;
+    box.lastChild && (box.lastChild.textContent='Opening\u2026');
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const r = await fetch(VIEW_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idToken,contactId:current.contactId,storagePath:p.storagePath})});
+      const j = await r.json().catch(()=>({}));
+      if(!r.ok||!j.url) throw new Error(j.error||'Could not open it.');
+      box.innerHTML='<a href="'+j.url+'" target="_blank" rel="noopener"><img src="'+j.url+'" alt="Printout '+(i+1)+'"></a>Printout '+(i+1);
+    } catch(e){ box.innerHTML='Printout '+(i+1)+' <span style="color:var(--fail)">'+esc((e&&e.message)||'')+'</span>'; }
+  };
 
   function val(id){ const e=$(id); return e?(e.value||'').trim():''; }
 
