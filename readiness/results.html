@@ -80,6 +80,39 @@
   .savebar .email { background:var(--blue); color:#fff; }
   .savebar .email:disabled { background:#94a3b8; }
   #entryMsg { text-align:center; font-size:.9rem; padding:8px; min-height:20px; }
+  /* Location / classroom / date pickers (2026-09-30): pick a school and a class
+     and the roster shows, whatever date the consent was signed. */
+  .pick { display:flex; gap:8px; flex-wrap:wrap; padding:0 16px 10px; max-width:720px; margin:0 auto; }
+  .pick label { font-size:12px; font-weight:700; color:var(--soft); display:flex; flex-direction:column; gap:3px; flex:1 1 150px; }
+  .pick select, .pick input { font:inherit; font-size:15px; padding:8px 10px; border:1.5px solid var(--line); border-radius:10px; background:#fff; color:var(--ink); }
+  .badge.b-class { background:#EDE9FE; color:#5B21B6; }
+  /* Tap buttons instead of dropdowns (2026-09-30): one tap per ear, and a
+     "Both" button for the usual answer. Values saved are unchanged. */
+  .rl2 { display:grid; grid-template-columns:72px 1fr 54px; gap:8px; align-items:center; padding:7px 0; border-bottom:1px solid #F1F5F9; }
+  .rl2 .lab { font-size:.88rem; color:#475569; font-weight:600; line-height:1.2; }
+  .ears { display:grid; grid-template-columns:1fr 1fr; gap:10px; min-width:0; }
+  .ear { display:flex; align-items:center; gap:5px; min-width:0; }
+  .eh { font-size:.7rem; font-weight:800; color:#94a3b8; width:11px; flex:none; text-align:center; }
+  .seg { display:flex; gap:4px; flex:1; min-width:0; }
+  .sb { flex:1 1 0; min-width:0; min-height:42px; padding:0 2px; border:1.5px solid #cbd5e1; border-radius:9px; background:#fff; color:var(--ink);
+        font:700 .8rem 'Source Sans 3',sans-serif; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; touch-action:manipulation; }
+  .sb.on.p { background:var(--pass); border-color:var(--pass); color:#fff; }
+  .sb.on.f { background:var(--fail); border-color:var(--fail); color:#fff; }
+  .sb.on.o { background:var(--pend); border-color:var(--pend); color:#fff; }
+  .both { min-height:42px; border:1.5px dashed var(--blue); background:#F0F9FF; color:var(--blue-d); border-radius:9px;
+          font:800 .72rem 'Source Sans 3',sans-serif; line-height:1.1; cursor:pointer; padding:0 4px; touch-action:manipulation; }
+  .both:active, .sb:active { transform:scale(.96); }
+  /* Printout photo (2026-09-30): the vision screener's printout, photographed on the phone. */
+  .photoBox { margin-top:10px; }
+  .photoBtn { width:100%; min-height:48px; border:2px dashed var(--blue); background:#F0F9FF; color:var(--blue-d); border-radius:12px;
+              font:700 1rem 'Source Sans 3',sans-serif; cursor:pointer; touch-action:manipulation; }
+  .photoBtn:active { transform:scale(.98); }
+  .pList { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+  .pItem { border:1px solid var(--line); border-radius:10px; padding:6px; background:#fff; font-size:.8rem; color:var(--soft); text-align:center; }
+  .pItem img { display:block; max-width:140px; max-height:140px; border-radius:6px; margin:0 auto 4px; }
+  .pItem button { font:700 .8rem 'Source Sans 3',sans-serif; color:var(--blue-d); background:none; border:none; cursor:pointer; padding:4px; }
+  #ePhotoMsg { font-size:.85rem; margin-top:6px; color:var(--soft); }
+  @media (max-width:520px){ .rl2 { grid-template-columns:1fr 54px; } .rl2 .lab { grid-column:1 / -1; } .ears { grid-template-columns:1fr; gap:6px; } }
 </style>
 </head>
 <body>
@@ -106,6 +139,11 @@
     <button class="chip on" id="cToday" onclick="setFilter('today')">Today</button>
     <button class="chip" id="cAll" onclick="setFilter('all')">All</button>
     <span class="count" id="count"></span>
+  </div>
+  <div class="pick">
+    <label>Screening date<input type="date" id="fDate" onchange="setDate(this.value)"></label>
+    <label>Location<select id="fLoc" onchange="setLoc(this.value)"><option value="">Signed today / all</option></select></label>
+    <label>Classroom<select id="fClass" onchange="setClass(this.value)"><option value="">All classrooms</option></select></label>
   </div>
   <div class="wrap" id="list"></div>
 </div>
@@ -199,7 +237,8 @@
       list.forEach(s => { if(!s) return; rows.push({ contactId:doc.id, screeningId:s.id||'', child:s.child||{},
         childName:(((s.child&&s.child.firstName)||'')+' '+((s.child&&s.child.lastName)||'')).trim(),
         parentName:c.displayName||(((c.firstName||'')+' '+(c.lastName||'')).trim()), email:c.email||'',
-        signedAt:s.signedAt, results:s.results||null, resultsSent:!!(s.results&&s.results.resultsSentAt) }); });
+        signedAt:s.signedAt, results:s.results||null, resultsSent:!!(s.results&&s.results.resultsSentAt),
+        location:s.location||'', classroom:s.classroom||'', printouts:Array.isArray(s.printouts)?s.printouts:[] }); });
     });
   }
   // Realtime listener — new consents & results appear live, on any device, no refresh.
@@ -209,23 +248,51 @@
     if (!unsub) $('list').innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto 12px;"></div>Loading screenings…</div>';
     if (unsub) return;
     unsub = db.collection('contacts').where('hasScreenings','==',true).onSnapshot(
-      snap => { buildRows(snap); renderList(); },
+      snap => { buildRows(snap); fillPickers(); renderList(); },
       err => { $('list').innerHTML = '<div class="empty">Couldn’t load: '+esc(err.message)+'</div>'; }
     );
   }
 
   function isToday(ts){ if(!ts||!ts.toDate) return false; const d=ts.toDate(), n=new Date(); return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate(); }
 
+  /* ---- Location / classroom / date ----
+     A school roster (e.g. Pali View's paper consents) was signed weeks before
+     screening day, so "Today" never shows it. Picking the location lists every
+     child there, whatever date they signed; the classroom narrows it to one
+     room. The screening date is what each result is stamped with. The choices
+     are remembered on this device. */
+  let pick = { loc:'', cls:'', date:'' };
+  try { pick = Object.assign(pick, JSON.parse(localStorage.getItem('srpPick')||'{}')); } catch(e){}
+  function savePick(){ try { localStorage.setItem('srpPick', JSON.stringify(pick)); } catch(e){} }
+  function fillPickers(){
+    const locs = {}; rows.forEach(r=>{ if(r.location){ const L = locs[r.location] = locs[r.location] || { n:0, pend:0, cls:{} }; L.n++; if(!r.results) L.pend++; if(r.classroom) L.cls[r.classroom]=(L.cls[r.classroom]||0)+1; } });
+    if (pick.loc && !locs[pick.loc]) { pick.loc=''; pick.cls=''; }
+    const ls = $('fLoc'); if (ls) ls.innerHTML = '<option value="">Signed today / all</option>' + Object.keys(locs).sort().map(k=>'<option value="'+esc(k)+'"'+(k===pick.loc?' selected':'')+'>'+esc(k)+' ('+locs[k].pend+' to screen)</option>').join('');
+    const cl = pick.loc && locs[pick.loc] ? Object.keys(locs[pick.loc].cls).sort() : [];
+    if (pick.cls && cl.indexOf(pick.cls)===-1) pick.cls='';
+    const cs = $('fClass'); if (cs){ cs.innerHTML = '<option value="">All classrooms</option>' + cl.map(k=>'<option value="'+esc(k)+'"'+(k===pick.cls?' selected':'')+'>'+esc(k)+' ('+locs[pick.loc].cls[k]+')</option>').join(''); cs.disabled = !pick.loc; }
+    const fd = $('fDate'); if (fd && !fd.value) fd.value = pick.date || todayKey();
+  }
+  window.setLoc = function(v){ pick.loc=v||''; pick.cls=''; savePick(); fillPickers(); renderList(); };
+  window.setClass = function(v){ pick.cls=v||''; savePick(); renderList(); };
+  window.setDate = function(v){ pick.date=v||''; savePick(); };
+
   function renderList(){
-    let list = filter==='today' ? rows.filter(r=>isToday(r.signedAt)) : rows.slice();
+    const byLoc = !!pick.loc;
+    $('cToday').style.opacity = byLoc ? '.45' : ''; $('cAll').style.opacity = byLoc ? '.45' : '';
+    let list = byLoc ? rows.filter(r=>r.location===pick.loc && (!pick.cls || r.classroom===pick.cls))
+                     : (filter==='today' ? rows.filter(r=>isToday(r.signedAt)) : rows.slice());
     // Pending (no results yet) float to the TOP so Chassidy sees who's next; within
     // each group, most recently signed first.
     list.sort((a,b)=>{
       const ap=a.results?1:0, bp=b.results?1:0;
       if(ap!==bp) return ap-bp;
+      if(byLoc){ const c=(a.classroom||'').localeCompare(b.classroom||''); if(c) return c; return (a.childName||'').localeCompare(b.childName||''); }
       return ((b.signedAt&&b.signedAt.toMillis)?b.signedAt.toMillis():0)-((a.signedAt&&a.signedAt.toMillis)?a.signedAt.toMillis():0);
     });
-    $('count').textContent = list.length + (list.length===1?' screening':' screenings') + (filter==='today'?' today':'');
+    $('count').textContent = byLoc
+      ? list.length + (list.length===1?' child':' children') + ' \u00b7 ' + list.filter(r=>!r.results).length + ' to screen'
+      : list.length + (list.length===1?' screening':' screenings') + (filter==='today'?' today':'');
     if (!list.length){ $('list').innerHTML = '<div class="empty">No screenings'+(filter==='today'?' today yet':'')+'.</div>'; return; }
     let h='';
     list.forEach((r,i)=>{
@@ -235,7 +302,7 @@
         '<div class="child">'+esc(r.childName||'Child')+'</div>'+
         '<div class="parent">'+esc(r.parentName||'')+'</div>'+
         '<div class="when">Signed '+esc(when)+'</div>'+
-        '<div class="badges"><span class="badge b-consent">Consent ✓</span>'+resBadge+'</div>'+
+        '<div class="badges">'+(r.classroom?'<span class="badge b-class">'+esc(r.classroom)+'</span>':'')+'<span class="badge b-consent">Consent ✓</span>'+resBadge+'</div>'+
         '<button class="act'+(r.results?' edit':'')+'" onclick="openEntry('+i+')">'+(r.results?'Edit results':'Add results')+'</button>'+
       '</div>';
     });
@@ -247,35 +314,116 @@
   const PF = ['','Pass','Fail','Could not test'];
   const OTO = ['','Clear or minimal earwax','Excessive earwax','Blood or foreign object','P.E. tube'];
   function selHtml(id, opts, cur){ return '<select id="'+id+'">'+opts.map(o=>'<option value="'+esc(o)+'"'+(cur===o?' selected':'')+'>'+(o||'—')+'</option>').join('')+'</select>'; }
-  function rlRow(label, rId, lId, opts, val){ val=val||{}; return '<div class="rl"><div class="lab">'+label+'</div>'+selHtml(rId,opts,val.right)+selHtml(lId,opts,val.left)+'</div>'; }
+  const SHORT = { 'Pass':'P', 'Fail':'F', 'Could not test':'CNT', 'Clear or minimal earwax':'Clear', 'Excessive earwax':'Wax', 'Blood or foreign object':'Blood', 'P.E. tube':'Tube' };
+  function tone(v){ return (v==='Pass'||v==='Clear or minimal earwax') ? 'p' : (v==='Fail' ? 'f' : 'o'); }
+  function segHtml(id, opts, cur){
+    return '<input type="hidden" id="'+id+'" value="'+esc(cur||'')+'"><div class="seg" data-for="'+id+'">' +
+      opts.filter(o=>o).map(o=>'<button type="button" class="sb '+tone(o)+(cur===o?' on':'')+'" data-v="'+esc(o)+'" title="'+esc(o)+'" onclick="segPick(this)">'+esc(SHORT[o]||o)+'</button>').join('') + '</div>';
+  }
+  function rlRow(label, rId, lId, opts, val, bothV, bothLbl){
+    val=val||{};
+    return '<div class="rl2"><div class="lab">'+label+'</div><div class="ears">' +
+      '<div class="ear"><span class="eh">R</span>'+segHtml(rId,opts,val.right)+'</div>' +
+      '<div class="ear"><span class="eh">L</span>'+segHtml(lId,opts,val.left)+'</div></div>' +
+      '<button type="button" class="both" title="Set right and left to '+esc(bothV)+'" onclick="segBoth(\''+rId+'\',\''+lId+'\',\''+esc(bothV)+'\')">'+bothLbl+'</button></div>';
+  }
+  function segSet(id, v){
+    const inp=$(id); if(!inp) return; inp.value=v;
+    const seg=document.querySelector('.seg[data-for="'+id+'"]');
+    if(seg) seg.querySelectorAll('.sb').forEach(x=>x.classList.toggle('on', x.getAttribute('data-v')===v));
+  }
+  /* Tap again to clear a choice. */
+  window.segPick = function(b){ const id=b.parentNode.getAttribute('data-for'), v=b.getAttribute('data-v'); segSet(id, $(id).value===v ? '' : v); };
+  window.segBoth = function(r, l, v){ segSet(r, v); segSet(l, v); };
 
   window.openEntry = function(i){
     const r = window._view[i]; if(!r) return;
-    current = { contactId:r.contactId, screeningId:r.screeningId };
+    current = { contactId:r.contactId, screeningId:r.screeningId, printouts:(r.printouts||[]).slice() };
     $('entryTitle').textContent = r.childName || 'Results';
     const res = r.results||{}, hd=res.hearing||{}, vs=res.vision||{};
     const by = res.screenedBy || dayDefaults.screenedBy || (auth.currentUser && auth.currentUser.displayName) || '';
-    const site = res.site || dayDefaults.site || '';
+    const site = res.site || (r.location ? r.location + (r.classroom ? ' \u2014 ' + r.classroom : '') : '') || dayDefaults.site || '';
     let when = '';
     if (res.screenedAt){ if(res.screenedAt.toDate){const d=res.screenedAt.toDate();when=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');} else if(typeof res.screenedAt==='string'){when=res.screenedAt.slice(0,10);} }
+    if(!when && pick.date) when = pick.date;
     if(!when){ const t=new Date(); when=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'); }
     let f = '';
     f += '<div class="grid2"><div><label class="l">Date of Screening</label><input type="date" id="eDate" value="'+when+'"></div>'+
          '<div><label class="l">Site</label><input id="eSite" value="'+esc(site)+'"></div></div>';
     f += '<label class="l">Screened by</label><input id="eBy" value="'+esc(by)+'">';
-    f += '<div class="sec">Hearing</div><div class="rl"><div></div><div class="h">Right</div><div class="h">Left</div></div>';
-    f += rlRow('Otoscopy','eOtoR','eOtoL',OTO,hd.otoscopy);
-    f += rlRow('OAE','eOaeR','eOaeL',PF,hd.oae);
-    f += rlRow('Tympanometry','eTympR','eTympL',PF,hd.tympanometry);
-    f += '<div class="sec">Vision</div><div class="rl"><div></div><div class="h">Right</div><div class="h">Left</div></div>';
-    f += rlRow('Distance','eDistR','eDistL',PF,vs.distance);
+    f += '<div class="sec">Hearing</div>';
+    f += rlRow('Otoscopy','eOtoR','eOtoL',OTO,hd.otoscopy,'Clear or minimal earwax','Both<br>Clear');
+    f += rlRow('OAE','eOaeR','eOaeL',PF,hd.oae,'Pass','Both<br>Pass');
+    f += rlRow('Tympano&shy;metry','eTympR','eTympL',PF,hd.tympanometry,'Pass','Both<br>Pass');
+    f += '<div class="sec">Vision</div>';
+    f += rlRow('Distance','eDistR','eDistL',PF,vs.distance,'Pass','Both<br>Pass');
     f += '<label class="l">Lea Symbols / PlusOptix</label><textarea id="eLea" rows="2">'+esc(vs.leaSymbols||'')+'</textarea>';
+    f += '<div class="photoBox"><input type="file" id="ePhoto" accept="image/*" capture="environment" style="display:none" onchange="uploadPrintout(this)">' +
+         '<button type="button" class="photoBtn" onclick="document.getElementById(\'ePhoto\').click()">Photo of printout</button>' +
+         '<div class="pList" id="ePhotoList">'+printoutsHtml(current.printouts)+'</div><div id="ePhotoMsg"></div></div>';
     $('entryForm').innerHTML = f;
     $('entryMsg').textContent = '';
     $('btnSave').disabled=false; $('btnEmail').disabled=false; $('btnSave').textContent='Save'; $('btnEmail').textContent='Save & email family';
     view('entry'); window.scrollTo(0,0);
   };
   window.closeEntry = function(){ view('report'); };
+
+  /* ---- Printout photo ----
+     Uploads go through the same private, staff-only route as paper consents:
+     the function hands back a one-time upload link for this child's folder,
+     and every later view is a short-lived signed link that is audit-logged.
+     The photo is attached to the screening straight away, so it is kept even
+     if Save is never pressed. */
+  const UPLOAD_FN = 'https://us-central1-ldah-932d5.cloudfunctions.net/requestScreeningConsentUploadUrl';
+  const VIEW_FN = 'https://us-central1-ldah-932d5.cloudfunctions.net/getScreeningConsentDownloadUrl';
+  function printoutsHtml(list, freshUrl){
+    return (list||[]).map((p,i)=>{
+      const fresh = freshUrl && i===list.length-1;
+      return '<div class="pItem" id="pi'+i+'">'+(fresh?'<img src="'+freshUrl+'" alt="Printout">':'')+'Printout '+(i+1)+(fresh?'':' <button type="button" onclick="viewPrintout('+i+')">View</button>')+'</div>';
+    }).join('');
+  }
+  function shrink(file){
+    return createImageBitmap(file).then(bm=>{
+      const max=2000, k=Math.min(1, max/Math.max(bm.width,bm.height));
+      const c=document.createElement('canvas'); c.width=Math.round(bm.width*k); c.height=Math.round(bm.height*k);
+      c.getContext('2d').drawImage(bm,0,0,c.width,c.height);
+      return new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(new Error('no blob')),'image/jpeg',0.85));
+    });
+  }
+  window.uploadPrintout = async function(inp){
+    const file = inp.files && inp.files[0]; inp.value=''; if(!file||!current) return;
+    const msg=$('ePhotoMsg'); msg.style.color='var(--soft)'; msg.textContent='Preparing the photo\u2026';
+    let blob=file, type=file.type||'image/jpeg';
+    try { blob = await shrink(file); type='image/jpeg'; } catch(e){ blob=file; }
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const r = await fetch(UPLOAD_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idToken,contactId:current.contactId,mimeType:type,sizeBytes:blob.size,kind:'printout'})});
+      const j = await r.json().catch(()=>({}));
+      if(!r.ok||!j.uploadUrl) throw new Error(j.error||'Could not start the upload.');
+      await new Promise((res,rej)=>{ const x=new XMLHttpRequest(); x.open('PUT', j.uploadUrl); x.setRequestHeader('Content-Type', type);
+        x.upload.onprogress=e=>{ if(e.lengthComputable) msg.textContent='Uploading\u2026 '+Math.round(e.loaded/e.total*100)+'%'; };
+        x.onload=()=> (x.status>=200&&x.status<300)?res():rej(new Error('Upload failed ('+x.status+'). Try again.'));
+        x.onerror=()=>rej(new Error('Upload failed. Check the connection and try again.')); x.send(blob); });
+      const entry={ storagePath:j.storagePath, uploadedAt:new Date().toISOString(), by:(auth.currentUser.displayName||auth.currentUser.email||'') };
+      const snap=await db.collection('contacts').doc(current.contactId).get();
+      const arr=(((snap.data()||{}).screenings)||[]).map(s=> (s&&s.id===current.screeningId)? Object.assign({},s,{printouts:(Array.isArray(s.printouts)?s.printouts:[]).concat([entry])}) : s);
+      await db.collection('contacts').doc(current.contactId).update({ screenings: arr });
+      current.printouts.push(entry);
+      $('ePhotoList').innerHTML = printoutsHtml(current.printouts, URL.createObjectURL(blob));
+      msg.style.color='var(--pass)'; msg.textContent='Printout saved to this child.';
+    } catch(e){ msg.style.color='var(--fail)'; msg.textContent=(e&&e.message)||String(e); }
+  };
+  window.viewPrintout = async function(i){
+    const p=current&&current.printouts[i]; const box=$('pi'+i); if(!p||!box) return;
+    box.lastChild && (box.lastChild.textContent='Opening\u2026');
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const r = await fetch(VIEW_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idToken,contactId:current.contactId,storagePath:p.storagePath})});
+      const j = await r.json().catch(()=>({}));
+      if(!r.ok||!j.url) throw new Error(j.error||'Could not open it.');
+      box.innerHTML='<a href="'+j.url+'" target="_blank" rel="noopener"><img src="'+j.url+'" alt="Printout '+(i+1)+'"></a>Printout '+(i+1);
+    } catch(e){ box.innerHTML='Printout '+(i+1)+' <span style="color:var(--fail)">'+esc((e&&e.message)||'')+'</span>'; }
+  };
 
   function val(id){ const e=$(id); return e?(e.value||'').trim():''; }
 
