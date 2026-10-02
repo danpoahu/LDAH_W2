@@ -28838,3 +28838,15 @@ exports.partnerContactEmails = functions
 // branch, so a full deploy from main would have deleted both functions.
 exports.sweepAdvocacyReadiness = require("./advocacyReadiness").sweepAdvocacyReadiness;
 exports.runAdvocacyReadinessNow = require("./advocacyReadiness").runAdvocacyReadinessNow;
+
+// Volunteer onboarding documents (2026-10-02): staff send an accepted volunteer
+// one personal link to the Confidentiality Agreement, Drug-Free Workplace Policy,
+// Emergency Contact Form and an ongoing Service Log. The shared email helpers are
+// passed in so the send goes through sendEmailViaResend and lands in emailLog.
+const _volunteerDocuments = require("./volunteerDocuments")({
+  sendEmailViaResend, _emailEsc, _emailBtn, _emailLinkFooter,
+  getOrgFooterHtml, lifecycleFromAddress, EMAIL_SECRETS,
+});
+exports.sendVolunteerDocuments = _volunteerDocuments.sendVolunteerDocuments;
+exports.getVolunteerDocuments = _volunteerDocuments.getVolunteerDocuments;
+exports.submitVolunteerDocument = _volunteerDocuments.submitVolunteerDocument;
