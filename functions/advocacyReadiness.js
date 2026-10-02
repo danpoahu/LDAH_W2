@@ -87,7 +87,9 @@ const READINESS_RULES = Object.freeze({
   workshopCap: 2.5,                 // across the life of the case
   meeting: Object.freeze({ worked: 1.5, partly: 0.5, didnt: 0 }),
   parentLedBonus: 1,
-  certTier: 1,                      // per bronze / silver / gold certificate
+  // Per certificate tier (Daniel 2026-10-01): Bronze and Silver 0.5, Gold 1.0 -- 2 in total,
+  // less than one parent-led meeting that worked (2.5). Doing counts more than coursework.
+  certTier: Object.freeze({ bronze: 0.5, silver: 0.5, gold: 1 }),
   certLesson: 0,
   notesMaxPerCheck: 0.5,            // |sum of note points| per check
   capWithoutBothGates: 9.5,
@@ -123,7 +125,8 @@ const READINESS_RUBRIC = [
   "    issue. Only do this when it is clearly the same issue; name that meeting in sameIssueAsRef and the",
   "    amount in takeBack. The score never falls below the family's starting score.",
   "  - The parent led the meeting: +" + READINESS_RULES.parentLedBonus + " extra (on any outcome).",
-  "  - Certification: +" + READINESS_RULES.certTier + " per tier certificate (bronze, silver, gold). Individual lessons are 0 points,",
+  "  - Certification certificates: bronze +" + READINESS_RULES.certTier.bronze + ", silver +" + READINESS_RULES.certTier.silver +
+    ", gold +" + READINESS_RULES.certTier.gold + ". Individual lessons are 0 points,",
   "    but mention the progress.",
   "  - Notes: from evidence of growing independence (e.g. the parent drafted their own email to the school,",
   "    requested records themselves, prepared questions for the meeting) you may add at most +/-" +
@@ -613,7 +616,7 @@ function applyRules({ items, proposal, state, progress }) {
       entries.push({
         kind: "cert", ref: it.ref, date,
         text: aiText(it.ref, "Earned the " + tierLabel(it.meta.tier) + " certificate."),
-        points: READINESS_RULES.certTier,
+        points: READINESS_RULES.certTier[it.meta.tier] || 0,
       });
 
     } else if (it.kind === "cert" && it.meta.type === "lesson") {
@@ -753,7 +756,7 @@ function fixedPointsHint(it) {
     const b = READINESS_RULES.meeting[it.meta.outcome] || 0;
     return "+" + (b + (it.meta.parentLed ? READINESS_RULES.parentLedBonus : 0));
   }
-  if (it.kind === "cert") return it.meta.type === "tier" ? "+" + READINESS_RULES.certTier : "0";
+  if (it.kind === "cert") return it.meta.type === "tier" ? "+" + (READINESS_RULES.certTier[it.meta.tier] || 0) : "0";
   return "0, or up to +/-" + READINESS_RULES.notesMaxPerCheck + " with a quote";
 }
 
