@@ -10,7 +10,7 @@
 // START: set once from the intake notes. The model SUGGESTS (0–6, with a
 // verbatim quote), an advocate CONFIRMS from the staff UI (startScore).
 //
-// CHECKS: every other day per open family, FORWARD ONLY. A check starts from
+// CHECKS: Monday, Wednesday and Friday mornings per open family, FORWARD ONLY. A check starts from
 // the prior score and reads only items dated after the checkpoint
 // (lastCheckedAt). Nothing already scored is ever re-read or re-scored, and the
 // model is never shown the history of scored items — only a compact state
@@ -73,7 +73,7 @@ const ADVOCACY_READINESS_MODEL = "claude-opus-5";
 
 const READINESS_COLLECTION = "advocacyReadiness";
 const READINESS_CONFIG_PATH = "advocacyReadinessConfig/settings";
-const CHECK_INTERVAL_HOURS = 44;           // "every other day", with slack for a 6am schedule
+const CHECK_INTERVAL_HOURS = 40;           // Mon/Wed/Fri 6am (Daniel 2026-10-01): gaps are 48h or 72h, 40h keeps slack
 const START_CONTEXT_DAYS = 14;             // intake window read for the start suggestion
 const MEETING_CHANNEL = "out of office meeting";
 const SWEEP_TIME_BUDGET_MS = 420 * 1000;   // stop STARTING families after this (fn timeout 540s)
@@ -1217,7 +1217,9 @@ async function runReadiness({ contactId, force, mode }) {
 
 const sweepAdvocacyReadiness = functions
   .runWith({ timeoutSeconds: 540, memory: "512MB", maxInstances: 1, secrets: ["ANTHROPIC_API_KEY"] })
-  .pubsub.schedule("0 6 * * *")
+  // Monday, Wednesday and Friday mornings (2026-10-01): still three checks a week,
+  // but on the days the staff actually work their cases. Was daily + a 44h gate.
+  .pubsub.schedule("0 6 * * 1,3,5")
   .timeZone("Pacific/Honolulu")
   .onRun(async () => {
     const db = _db();
