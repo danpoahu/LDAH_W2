@@ -4968,6 +4968,22 @@ exports.sendFeedbackEmails = functions
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }
     if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
 
+    /* Signed-in staff only (2026-10-03). This endpoint sends real family emails and
+       had no check at all; nothing in the dashboard calls it, so requiring a
+       Firebase ID token breaks nothing. Caller sends  Authorization: Bearer <idToken>. */
+    try {
+      const m = String(req.get("Authorization") || "").match(/^Bearer\s+(.+)$/);
+      if (!m) { res.status(401).json({ error: "Sign-in required" }); return; }
+      const decoded = await admin.auth().verifyIdToken(m[1]);
+      const ur = await admin.firestore().collection("userRoles").doc(decoded.uid).get();
+      const role = ur.exists ? String((ur.data() || {}).role || "") : "";
+      if (!["superAdmin", "admin", "superPartner"].includes(role) || (ur.data() || {}).isArchived === true) {
+        res.status(403).json({ error: "Not allowed" }); return;
+      }
+    } catch (e) {
+      res.status(401).json({ error: "Sign-in required" }); return;
+    }
+
     const { collection, eventId, sessionDate } = req.body;
     /* Optional: only these signups (2026-10-01), e.g. to leave someone out. */
     const onlyIds = Array.isArray(req.body.signupIds) ? req.body.signupIds.map(String) : null;
