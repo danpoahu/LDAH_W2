@@ -607,9 +607,61 @@ const REVIEW_BCC = "";
 /**
  * Log a single email send (or failure) to Firestore for admin review.
  */
+/* Pacific Island Partners stamp (2026-10-03). A Super Partner may read an
+ * emailLog row only when it carries pip == true (Firestore rule), so the stamp
+ * is decided here, once, for every send. Daniel's rule: pip ONLY for email SENT
+ * AS Pacific Island Partners. An ordinary LDAH email to a PIP family, or about
+ * an event with partnerIsland, is NOT stamped. A row is PIP when ANY of:
+ *   - the caller says so (entry.pip === true)
+ *   - the sender name is "Pacific Island Partners" (PIP feedback builder)
+ *   - the type is PIP-only (PIP daily report, PIP deck resume), resends too
+ *   - a staff-training-deck send whose recipients are ALL partner accounts
+ * partnerIsland is filled from the related event only when the row is PIP. */
+const PIP_EMAIL_TYPES = new Set(["daily-report-pip", "partnerTrainingResume"]);
+const _pipEventCache = new Map();          // eventId -> partnerIsland ('' = LDAH)
+let _pipPartnerEmails = null;               // lower-case partner / superPartner login emails
+let _pipPartnerEmailsAt = 0;
+async function _pipPartnerAccountEmails() {
+  if (_pipPartnerEmails && Date.now() - _pipPartnerEmailsAt < 10 * 60 * 1000) return _pipPartnerEmails;
+  const s = new Set();
+  const snap = await admin.firestore().collection("userRoles")
+    .where("role", "in", ["partner", "superPartner"]).get();
+  snap.forEach((d) => { const e = String((d.data() || {}).email || "").trim().toLowerCase(); if (e) s.add(e); });
+  _pipPartnerEmails = s; _pipPartnerEmailsAt = Date.now();
+  return s;
+}
+async function pipStampFor(entry) {
+  let island = entry.partnerIsland || "";
+  let pip = entry.pip === true;
+  const baseType = String(entry.type || "").replace(/(-resend)+$/i, "");
+  if (String(entry.from || "").trim().indexOf("Pacific Island Partners") === 0) pip = true;
+  if (PIP_EMAIL_TYPES.has(baseType)) pip = true;
+  try {
+    if (!pip && baseType === "staff-training-deck") {
+      const to = normalizeRecipients(entry.to);
+      const partners = await _pipPartnerAccountEmails();
+      if (to.length && to.every((a) => partners.has(a.toLowerCase()))) pip = true;
+    }
+    const evId = entry.relatedEventId;
+    if (pip && !island && evId) {
+      if (!_pipEventCache.has(evId)) {
+        const ev = await admin.firestore().collection("events").doc(String(evId)).get();
+        _pipEventCache.set(evId, (ev.exists && ev.data().partnerIsland) || "");
+      }
+      island = _pipEventCache.get(evId) || "";
+    }
+  } catch (e) {
+    console.warn("pipStampFor lookup failed:", e.message);
+  }
+  return { pip, partnerIsland: pip ? island : "" };
+}
+
 async function logEmailSend(entry) {
   try {
+    const stamp = await pipStampFor(entry);
     await admin.firestore().collection("emailLog").add({
+      pip: stamp.pip,
+      partnerIsland: stamp.partnerIsland,
       sentAt: admin.firestore.FieldValue.serverTimestamp(),
       from: entry.from || "",
       to: entry.to || "",
@@ -5138,6 +5190,23 @@ exports.resendLoggedEmail = functions
     res.set("Access-Control-Max-Age", "3600");
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }
     if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    /* Signed-in staff only (2026-10-03). This endpoint re-sends any logged
+       email to any address (overrideTo) and had no check at all. Only a
+       non-archived Super Admin / Admin may use it; the dashboard's Resend
+       button sends  Authorization: Bearer <Firebase ID token>. */
+    try {
+      const m = String(req.get("Authorization") || "").match(/^Bearer\s+(.+)$/);
+      if (!m) { res.status(401).json({ error: "Sign-in required" }); return; }
+      const decoded = await admin.auth().verifyIdToken(m[1]);
+      const ur = await admin.firestore().collection("userRoles").doc(decoded.uid).get();
+      const role = ur.exists ? String((ur.data() || {}).role || "") : "";
+      if (!["superAdmin", "admin"].includes(role) || (ur.data() || {}).isArchived === true) {
+        res.status(403).json({ error: "Not allowed" }); return;
+      }
+    } catch (e) {
+      res.status(401).json({ error: "Sign-in required" }); return;
+    }
 
     const { logId, overrideTo } = req.body || {};
     if (!logId) { res.status(400).json({ error: "Missing logId" }); return; }
