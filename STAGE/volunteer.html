@@ -1929,7 +1929,15 @@
       volId = cleanId(volId); if (!volId) return;
       st.volId = volId; st.done = false; st.saving = false; st.toReview = false;
       var draft = loadDraft(volId);
-      if (draft) { st.ctx = draft.ctx || ctx || {}; st.d = draft.d || {}; st.part = Math.max(0, Math.min(+draft.part || 0, 4)); }
+      if (draft) {
+        /* A draft on this device wins for answers; a server ctx (emailed ?apply= link)
+           fills anything the draft is missing (2026-10-02). */
+        var sc = {}; Object.keys(ctx || {}).forEach(function (k) { if (trim(ctx[k])) sc[k] = ctx[k]; });
+        st.ctx = Object.assign({}, draft.ctx || {}, sc); st.d = draft.d || {}; st.part = Math.max(0, Math.min(+draft.part || 0, 4));
+        if (!trim(st.d.firstName)) st.d.firstName = trim(st.ctx.firstName);
+        if (!trim(st.d.lastName)) st.d.lastName = trim(st.ctx.lastName);
+        if (!trim(st.d.cellPhone) && !trim(st.d.homePhone) && !trim(st.d.workPhone)) st.d.cellPhone = trim(st.ctx.phone);
+      }
       else {
         ctx = ctx || {}; st.ctx = ctx; st.part = 0;
         st.d = { firstName: trim(ctx.firstName), lastName: trim(ctx.lastName), cellPhone: trim(ctx.phone), state: 'HI', dlState: 'HI', hoursPer: 'week', preferredDays: [] };
@@ -1960,7 +1968,52 @@
       bn.querySelector('.va-x').addEventListener('click', function () { bn.remove(); });
       document.body.appendChild(bn);
     }
+    /* ?apply=<token>: the personal link staff email from the dashboard
+       (sendVolunteerApplicationLink). Works on ANY device: the server returns the
+       quick-form answers and Step 2 opens pre-filled (2026-10-02). */
+    var FN_BASE = 'https://us-central1-ldah-932d5.cloudfunctions.net/';
+    function applyPanel(icon, title, html) {
+      var m = $('application-modal'), mc = m.querySelector('.modal-content');
+      mc.classList.remove('va-mode'); m.classList.remove('va-open');
+      $('modal-body').innerHTML = '<div class="va-panel" style="padding:8px 0;"><span class="va-ico">' + icon + '</span><h3>' + title + '</h3>' + html + '</div>';
+      m.classList.add('active');
+    }
+    var PHONE_LINK = '<a href="tel:+18085369684">' + OFFICE_PHONE + '</a>';
+    function openFromApplyLink(token) {
+      if (!/^[a-f0-9]{64}$/.test(token)) {
+        applyPanel(SAVE_SVG, 'This link is not valid', '<p>We could not recognise this application link. Please call LDAH at ' + PHONE_LINK + ' and we will send you a new one.</p><div class="va-btns"><button type="button" class="va-btn va-btn-ghost" onclick="closeModal()">Close</button></div>');
+        return;
+      }
+      applyPanel(SAVE_SVG, 'Opening your application', '<p>One moment while we load your details.</p>');
+      fetch(FN_BASE + 'getVolunteerApplicationPrefill', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: { token: token } }) })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (x) {
+          if (!x.ok || x.j.error || !x.j.result) {
+            var notFound = x.j.error && /NOT_FOUND/i.test(x.j.error.status || '');
+            applyPanel(SAVE_SVG, notFound ? 'This link is not valid' : 'We could not open your application',
+              (notFound ? '<p>This application link is not valid any more. Please call LDAH at ' + PHONE_LINK + ' and we will send you a new one.</p>'
+                        : '<p>Something went wrong loading your details. Please try again in a moment, or call LDAH at ' + PHONE_LINK + '.</p>')
+              + '<div class="va-btns">' + (notFound ? '' : '<button type="button" class="va-btn va-btn-primary" id="va-apply-retry">Try again</button>') + '<button type="button" class="va-btn va-btn-ghost" onclick="closeModal()">Close</button></div>');
+            var rb = $('va-apply-retry'); if (rb) rb.addEventListener('click', function () { openFromApplyLink(token); });
+            return;
+          }
+          var r = x.j.result;
+          if (r.alreadyCompleted) {
+            lsDel(draftKey(cleanId(r.volunteerId)));
+            applyPanel(CHECK_SVG, 'You have already completed your application. Mahalo!', '<p>LDAH has your volunteer application. Our volunteer coordinator will be in touch about next steps.</p><p style="color:var(--text-soft);font-size:.92rem;">Questions? Call ' + PHONE_LINK + '.</p><div class="va-btns"><button type="button" class="va-btn va-btn-primary" onclick="closeModal()">Close</button></div>');
+            return;
+          }
+          window.vaOpenStep2(r.volunteerId, { firstName: r.firstName, lastName: r.lastName, email: r.email, phone: r.phone, opportunityId: r.opportunityId, opportunityTitle: r.opportunityTitle });
+        })
+        .catch(function () {
+          applyPanel(SAVE_SVG, 'We could not reach LDAH', '<p>Please check your connection and try again, or call LDAH at ' + PHONE_LINK + '.</p><div class="va-btns"><button type="button" class="va-btn va-btn-primary" id="va-apply-retry">Try again</button><button type="button" class="va-btn va-btn-ghost" onclick="closeModal()">Close</button></div>');
+          $('va-apply-retry').addEventListener('click', function () { openFromApplyLink(token); });
+        });
+    }
     function onLoad() {
+      var apply = null;
+      try { apply = new URLSearchParams(location.search).get('apply'); } catch (e) {}
+      if (apply !== null) { openFromApplyLink(String(apply).trim().toLowerCase()); return; }
       var id = null;
       try { id = cleanId(new URLSearchParams(location.search).get('finish')); } catch (e) {}
       if (id) { if (loadDraft(id)) window.vaOpenStep2(id, null); else noDraftPanel(id); return; }
