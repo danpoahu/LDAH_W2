@@ -808,13 +808,17 @@
     function openApplicationModal(opportunityId, opportunityTitle) {
       const modal = document.getElementById('application-modal');
       const modalBody = document.getElementById('modal-body');
+      // Step 2 support: reset the full-application layout if it was open.
+      modal.classList.remove('va-open');
+      modal.querySelector('.modal-content').classList.remove('va-mode');
+      window._vaOppTitle = opportunityTitle;
 
       modalBody.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
           <h2 style="color: var(--ocean-deep); font-size: 1.5rem;">Apply: ${opportunityTitle}</h2>
           <button onclick="closeModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-soft);">&times;</button>
         </div>
-        <form onsubmit="submitApplication(event, '${opportunityId}', '${opportunityTitle}')">
+        <form onsubmit="submitApplication(event, '${opportunityId}', window._vaOppTitle)">
           <div class="form-group">
             <label>First Name *</label>
             <input type="text" id="app-firstName" required>
@@ -851,7 +855,9 @@
     }
 
     function closeModal() {
-      document.getElementById('application-modal').classList.remove('active');
+      const m = document.getElementById('application-modal');
+      if (m.classList.contains('va-open') && window.vaCloseStep2) { window.vaCloseStep2(); return; }
+      m.classList.remove('active');
     }
 
     async function submitApplication(event, opportunityId, opportunityTitle) {
@@ -870,8 +876,15 @@
       };
 
       try {
-        await db.collection('volunteers').add(formData);
+        const volRef = await db.collection('volunteers').add(formData);
         if (window.ldahAnalytics) ldahAnalytics.trackFormSubmit('volunteer_application');
+
+        // STEP 2 (STAGE): turn this same modal into the full volunteer application,
+        // pre-filled from Step 1. SPEED: nothing else is awaited here.
+        if (window.vaOpenStep2) {
+          window.vaOpenStep2(volRef.id, { firstName: formData.firstName, lastName: formData.lastName, email: formData.email, phone: formData.phone, opportunityId: opportunityId, opportunityTitle: opportunityTitle || '' });
+          return;
+        }
 
         document.getElementById('modal-body').innerHTML = `
           <div style="text-align: center; padding: 40px;">
@@ -888,7 +901,7 @@
     }
 
     document.getElementById('application-modal').addEventListener('click', function(e) {
-      if (e.target === this) closeModal();
+      if (e.target === this && !this.classList.contains('va-open')) closeModal();
     });
 
     // Gallery 2
@@ -1304,5 +1317,714 @@
       });
     })();
   </script>
+  <!-- ═══ Volunteer Application, STEP 2 (STAGE, 2026-10-02) ═══════════════════
+       The full paper "Volunteer Application_FINAL" as a guided web form. It opens
+       in the same modal the moment the quick form (Step 1) is saved, pre-filled
+       with what Step 1 gathered. Step 1 itself is untouched and stays instant.
+       Saves to volunteerApplicationDetails/{volunteerDocId} (private: public
+       create-only, read by superAdmin/admin only), then sets a small
+       fullApplicationAt flag on the volunteers doc in the background.
+       No field here carries the `required` attribute: every check is done in JS
+       against VISIBLE fields only, so a hidden conditional can never block submit. -->
+  <style>
+    .modal-content.va-mode{padding:0;max-width:760px;display:flex;flex-direction:column;height:92vh;height:min(92dvh,940px);max-height:none;overflow:hidden;}
+    #application-modal.va-open{z-index:10001;}
+    .modal-content.va-mode > #modal-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;}
+    .va-top h2:focus{outline:none;}
+    .va-shell{display:flex;flex:1 1 auto;flex-direction:column;height:100%;min-height:0;background:#fff;}
+    .va-top{padding:16px 22px 12px;border-bottom:1px solid #E7ECF1;background:#fff;flex:0 0 auto;}
+    .va-titlerow{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
+    .va-kicker{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--sunset-coral);}
+    .va-top h2{font-size:1.3rem;color:var(--ocean-deep);margin:2px 0 0;line-height:1.25;}
+    .va-x{background:none;border:0;font-size:1.8rem;line-height:1;color:var(--text-soft);cursor:pointer;width:44px;height:44px;border-radius:10px;flex:0 0 auto;}
+    .va-x:hover{background:var(--sand-light);color:var(--ocean-deep);}
+    .va-prog{display:flex;gap:6px;margin-top:12px;}
+    .va-prog span{flex:1;height:6px;border-radius:99px;background:#E2E8F0;transition:background .25s;}
+    .va-prog span.done{background:var(--ocean-light);}
+    .va-prog span.cur{background:var(--ocean-deep);}
+    .va-steplbl{margin-top:8px;font-size:.9rem;color:var(--text-soft);}
+    .va-steplbl b{color:var(--text-dark);font-weight:600;}
+    .va-body{flex:1 1 auto;overflow-y:auto;padding:18px 22px 26px;-webkit-overflow-scrolling:touch;background:var(--bg-warm);}
+    .va-foot{flex:0 0 auto;border-top:1px solid #E7ECF1;background:#fff;padding:10px 22px calc(10px + env(safe-area-inset-bottom));}
+    .va-foot-row{display:flex;align-items:center;gap:10px;}
+    .va-foot-row .va-sp{flex:1;}
+    .va-foot-sub{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:4px;}
+    .va-saved{font-size:.8rem;color:var(--text-soft);}
+    .va-btn{min-height:48px;padding:0 22px;border-radius:12px;font-family:'Outfit',sans-serif;font-weight:600;font-size:1rem;cursor:pointer;border:2px solid transparent;transition:background .2s,transform .2s;}
+    .va-btn-primary{background:var(--ocean-deep);color:#fff;box-shadow:0 4px 14px rgba(8,145,178,.25);}
+    .va-btn-primary:hover{background:#0E7490;}
+    .va-btn-primary[disabled]{opacity:.6;cursor:wait;}
+    .va-btn-ghost{background:#fff;color:var(--ocean-deep);border-color:rgba(8,145,178,.35);}
+    .va-btn-ghost:hover{background:var(--sand-light);}
+    .va-btn-link{background:none;border:0;color:var(--ocean-deep);text-decoration:underline;min-height:40px;padding:0 4px;font-weight:600;font-size:.92rem;cursor:pointer;font-family:inherit;}
+    .va-btn-danger{color:#B91C1C;}
+    .va-intro{background:#fff;border:1px solid rgba(8,145,178,.15);border-left:5px solid var(--ocean-deep);border-radius:14px;padding:14px 16px;margin-bottom:16px;}
+    .va-intro p{margin:0;line-height:1.55;}
+    .va-intro .va-hi{font-family:'Outfit',sans-serif;font-weight:600;font-size:1.08rem;color:var(--ocean-deep);margin-bottom:4px;}
+    .va-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+    .va-chip{background:var(--sand-light);border:1px solid #FDE68A;border-radius:999px;padding:4px 12px;font-size:.86rem;color:#78350F;max-width:100%;overflow-wrap:anywhere;}
+    .va-chip b{font-weight:700;}
+    .va-conf{font-size:.84rem;color:var(--text-soft);margin-top:8px !important;}
+    .va-card{background:#fff;border:1px solid #E7ECF1;border-radius:14px;padding:16px 16px 4px;margin-bottom:14px;box-shadow:0 2px 10px rgba(8,145,178,.04);}
+    .va-card h3{font-size:1.06rem;color:var(--text-dark);margin:0 0 4px;}
+    .va-card h4{font-family:'Outfit',sans-serif;font-size:.95rem;color:var(--ocean-deep);margin:6px 0 8px;font-weight:600;}
+    .va-hint{font-size:.88rem;color:var(--text-soft);margin:0 0 12px;line-height:1.5;}
+    .va-grid{display:grid;grid-template-columns:1fr;column-gap:14px;}
+    @media (min-width:560px){
+      .va-grid.c2{grid-template-columns:1fr 1fr;}
+      .va-grid.c3{grid-template-columns:2fr 1fr 1fr;}
+      .va-grid.c3e{grid-template-columns:1fr 1fr 1fr;}
+      .va-span{grid-column:1/-1;}
+    }
+    .va-f{margin-bottom:14px;min-width:0;}
+    .va-l{display:block;font-weight:600;font-size:.95rem;margin-bottom:6px;color:var(--text-dark);line-height:1.35;}
+    .va-l .req{color:var(--sunset-coral);}
+    .va-fh{font-size:.84rem;color:var(--text-soft);margin:-2px 0 6px;line-height:1.4;}
+    .va-in{display:block;width:100%;min-height:48px;padding:10px 14px;border:2px solid rgba(8,145,178,.2);border-radius:10px;font-size:16px;font-family:'Source Sans 3',sans-serif;background:#fff;color:var(--text-dark);transition:border-color .2s,box-shadow .2s;}
+    textarea.va-in{min-height:88px;resize:vertical;line-height:1.5;}
+    select.va-in{appearance:auto;}
+    .va-in:focus{outline:none;border-color:var(--ocean-deep);box-shadow:0 0 0 3px rgba(8,145,178,.12);}
+    .va-in[readonly]{background:#F1F5F9;color:var(--text-soft);}
+    .va-err{display:none;color:#B91C1C;font-size:.86rem;margin-top:5px;font-weight:600;line-height:1.35;}
+    .va-f.bad .va-err{display:block;}
+    .va-f.bad .va-in{border-color:#DC2626;}
+    .va-yn{display:flex;gap:10px;}
+    .va-yn button{flex:1;min-height:50px;border:2px solid rgba(8,145,178,.25);background:#fff;border-radius:12px;font-family:'Outfit',sans-serif;font-weight:600;font-size:1rem;color:var(--text-dark);cursor:pointer;transition:.15s;}
+    .va-yn button:hover{border-color:var(--ocean-deep);}
+    .va-yn button[aria-checked="true"]{background:var(--ocean-deep);border-color:var(--ocean-deep);color:#fff;}
+    .va-yn button:focus-visible,.va-days button:focus-visible{outline:3px solid var(--ocean-light);outline-offset:2px;}
+    .va-f.bad .va-yn button,.va-f.bad .va-days button{border-color:#FCA5A5;}
+    .va-days{display:flex;flex-wrap:wrap;gap:8px;}
+    .va-days button{min-height:46px;min-width:62px;padding:0 14px;border:2px solid rgba(8,145,178,.25);background:#fff;border-radius:999px;font-family:'Outfit',sans-serif;font-weight:600;font-size:.95rem;color:var(--text-dark);cursor:pointer;}
+    .va-days button[aria-pressed="true"]{background:var(--ocean-deep);border-color:var(--ocean-deep);color:#fff;}
+    .va-cond{border-left:3px solid var(--ocean-light);padding-left:14px;margin:2px 0 8px;}
+    .va-cond[data-show^="_"]{border-left:0;padding-left:0;margin:0;}
+    .va-cond[hidden],.va-panel[hidden],[data-part][hidden]{display:none !important;}
+    .va-tick{display:flex;gap:12px;align-items:flex-start;padding:14px;border:2px solid rgba(8,145,178,.25);border-radius:12px;background:#fff;cursor:pointer;font-size:.98rem;line-height:1.5;font-weight:500;}
+    .va-tick input{width:26px;height:26px;flex:0 0 auto;accent-color:var(--ocean-deep);margin-top:1px;cursor:pointer;}
+    .va-tick.on{border-color:var(--ocean-deep);background:#ECFEFF;}
+    .va-f.bad .va-tick{border-color:#DC2626;}
+    .va-legal{font-size:.92rem;line-height:1.6;color:#334155;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px 14px;margin-bottom:14px;}
+    .va-legal p{margin:0 0 8px;} .va-legal p:last-child{margin:0;}
+    .va-note{background:var(--sand-light);border:1px solid #FDE68A;border-radius:10px;padding:10px 12px;font-size:.9rem;color:#78350F;line-height:1.5;margin-bottom:14px;}
+    .va-eeo{font-size:.9rem;color:#334155;line-height:1.55;border-top:1px dashed #E2E8F0;padding-top:12px;margin:4px 0 14px;font-style:italic;}
+    .va-date{font-size:.92rem;color:var(--text-soft);margin:-4px 0 14px;}
+    .va-date b{color:var(--text-dark);}
+    .va-rev{background:#fff;border:1px solid #E7ECF1;border-radius:14px;padding:14px 16px;margin-bottom:12px;}
+    .va-rev-h{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;}
+    .va-rev-h h3{font-size:1rem;margin:0;color:var(--ocean-deep);}
+    .va-rev dl{display:grid;grid-template-columns:1fr;margin:0;}
+    .va-rev dt{font-size:.8rem;color:var(--text-soft);font-weight:600;}
+    .va-rev dd{margin:0 0 9px;color:var(--text-dark);white-space:pre-wrap;overflow-wrap:anywhere;}
+    .va-rev dd.va-none{color:#94A3B8;}
+    @media (min-width:560px){ .va-rev dl{grid-template-columns:42% 58%;column-gap:14px;} .va-rev dt{padding-top:1px;} }
+    .va-rev-sub{grid-column:1/-1;font-family:'Outfit',sans-serif;font-weight:600;font-size:.88rem;color:var(--text-dark);border-top:1px dashed #E2E8F0;padding-top:8px;margin-top:2px;margin-bottom:6px;}
+    .va-alert{background:#FEF2F2;border:1px solid #FECACA;color:#991B1B;border-radius:10px;padding:12px 14px;font-size:.93rem;line-height:1.5;margin-bottom:14px;}
+    .va-panel{padding:26px 22px;text-align:center;max-width:520px;margin:0 auto;}
+    .va-panel h3{font-size:1.35rem;color:var(--ocean-deep);margin:12px 0 8px;}
+    .va-panel p{color:#334155;line-height:1.6;margin:0 0 12px;}
+    .va-panel .va-btns{display:flex;flex-direction:column;gap:10px;margin-top:18px;}
+    .va-ico{width:64px;height:64px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:#ECFEFF;color:var(--ocean-deep);}
+    .va-ico svg{width:34px;height:34px;}
+    .va-link{display:flex;gap:8px;margin:6px 0 4px;}
+    .va-link input{flex:1;min-width:0;font-size:.85rem;}
+    .va-banner{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:9000;background:#0F2C3A;color:#fff;border-radius:14px;padding:10px 10px 10px 18px;display:flex;align-items:center;gap:10px;box-shadow:0 12px 30px rgba(0,0,0,.25);width:calc(100% - 32px);max-width:560px;font-size:.95rem;}
+    .va-banner span{flex:1;line-height:1.4;}
+    .va-banner .va-btn{min-height:42px;padding:0 16px;font-size:.92rem;background:var(--plumeria);color:#0F2C3A;}
+    .va-banner .va-x{color:#fff;width:40px;height:40px;font-size:1.5rem;}
+    @media (max-width:640px){
+      #application-modal.active.va-open{padding:0;}
+      .modal-content.va-mode{height:100vh;height:100dvh;max-height:none;border-radius:0;border:0;}
+      .va-top{padding:12px 16px 10px;}
+      .va-top h2{font-size:1.12rem;}
+      .va-body{padding:14px 16px 22px;}
+      /* left gutter keeps the site's floating accessibility button off the footer buttons */
+      .va-foot{padding:8px 16px calc(8px + env(safe-area-inset-bottom)) 76px;}
+      .va-card{padding:14px 14px 2px;}
+      .va-btn{padding:0 18px;}
+    }
+  </style>
+  <script>
+  (function () {
+    'use strict';
+    var FORM_VERSION = 'LDAH Volunteer Application (paper FINAL, 2026 web)';
+    var KEY_PREFIX = 'ldahVolApp:';
+    var DRAFT_DAYS = 60;
+    var OFFICE_PHONE = '(808) 536-9684';
+    var PARTS = ['About you', 'Experience & availability', 'Work & references', 'Emergency, driving & background', 'Review & sign'];
+    var STATES = [['AL','Alabama'],['AK','Alaska'],['AS','American Samoa'],['AZ','Arizona'],['AR','Arkansas'],['CA','California'],['CO','Colorado'],['CT','Connecticut'],['DE','Delaware'],['DC','District of Columbia'],['FM','Federated States of Micronesia'],['FL','Florida'],['GA','Georgia'],['GU','Guam'],['HI','Hawaii'],['ID','Idaho'],['IL','Illinois'],['IN','Indiana'],['IA','Iowa'],['KS','Kansas'],['KY','Kentucky'],['LA','Louisiana'],['ME','Maine'],['MH','Marshall Islands'],['MD','Maryland'],['MA','Massachusetts'],['MI','Michigan'],['MN','Minnesota'],['MS','Mississippi'],['MO','Missouri'],['MT','Montana'],['NE','Nebraska'],['NV','Nevada'],['NH','New Hampshire'],['NJ','New Jersey'],['NM','New Mexico'],['NY','New York'],['NC','North Carolina'],['ND','North Dakota'],['MP','Northern Mariana Islands'],['OH','Ohio'],['OK','Oklahoma'],['OR','Oregon'],['PW','Palau'],['PA','Pennsylvania'],['PR','Puerto Rico'],['RI','Rhode Island'],['SC','South Carolina'],['SD','South Dakota'],['TN','Tennessee'],['TX','Texas'],['UT','Utah'],['VT','Vermont'],['VI','U.S. Virgin Islands'],['VA','Virginia'],['WA','Washington'],['WV','West Virginia'],['WI','Wisconsin'],['WY','Wyoming']];
+    var EDUCATION = ['Some high school', 'High school diploma or GED', 'Some college', 'Trade or vocational certificate', 'Associate degree', "Bachelor's degree", "Master's degree", 'Doctorate or professional degree', 'Other'];
+    var DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    var CERT_TEXT = ['My signature below certifies that all statements made on this application are true, complete and correct to the best of my knowledge and belief. I understand these statements are subject to verification. I understand that falsification on this application can disqualify me from consideration or result in my volunteer services being denied. Furthermore, my signature below provides my authorization to LDAH to conduct driver license and motor vehicle record checks as needed, as well as reference checks to determine my suitability for placement.', 'I hereby release all parties from any liability for furnishing this information.'];
+    var EEO_TEXT = 'LDAH acknowledges that equal opportunity for all persons is a fundamental human value. Each volunteer applicant will be considered on the basis of individual ability and merit, without regard to race, color, age, religion, national origin, disability, sexual orientation, sex, or marital status.';
+    var DRIVE_INTRO = 'If you are volunteering for a position that requires driving, LDAH requires a valid driver’s license and proof of automobile insurance.';
+    var DRIVE_AGREE = 'As a volunteer, I agree to provide a valid driver’s license number and proof of automobile insurance. I agree to mail or deliver copies of these documents to LDAH, so that they can be filed with this application. I will immediately notify my volunteer supervisor if my driver’s license is restricted, suspended, revoked, or expired.';
+    var CRIM_NOTE = 'Answering “yes” will not automatically prohibit individuals from becoming volunteers, but will be considered with respect to time, circumstances, seriousness and relationship to volunteer responsibilities. Some volunteer positions may require a background check. If you are selected for one of those assignments, you will be provided with a separate criminal background check authorization form.';
+    var PARENT_TEXT = 'I give my consent for my child, named on page one of this application, to provide volunteer services to LDAH. I also give LDAH my consent to obtain any emergency medical treatment necessary for the safety of my child.';
+
+    var st = { volId: null, ctx: {}, d: {}, part: 0, toReview: false, saving: false, done: false };
+    var saveTimer = null;
+
+    function $(id) { return document.getElementById(id); }
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+    function lsGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+    function lsSet(k, v) { try { window.localStorage.setItem(k, v); return true; } catch (e) { return false; } }
+    function lsDel(k) { try { window.localStorage.removeItem(k); } catch (e) {} }
+    function cleanId(v) { return String(v || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 40); }
+    function trim(v) { return String(v == null ? '' : v).trim(); }
+    function digits(v) { return String(v || '').replace(/\D/g, ''); }
+    function todayIso() { var t = new Date(); return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0'); }
+    function fmtDate(iso) {
+      if (!iso) return '';
+      var p = String(iso).split('-'); if (p.length !== 3) return String(iso);
+      var dt = new Date(+p[0], +p[1] - 1, +p[2]);
+      return isNaN(dt) ? String(iso) : dt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    }
+    function ageOn(iso) {
+      var p = String(iso || '').split('-'); if (p.length !== 3) return null;
+      var y = +p[0], m = +p[1], dd = +p[2]; if (!y || !m || !dd) return null;
+      var t = new Date(), a = t.getFullYear() - y;
+      if (t.getMonth() + 1 < m || (t.getMonth() + 1 === m && t.getDate() < dd)) a--;
+      return a;
+    }
+    function isMinor() { var a = ageOn(st.d.dob); return a !== null && a >= 0 && a < 18; }
+
+    /* ── field builders (HTML strings; values are set later through .value) ── */
+    function lab(o, forId) {
+      return '<label class="va-l"' + (forId ? ' for="' + forId + '"' : ' id="va-lbl-' + o.k + '"') + '>' + esc(o.label) + (o.req ? ' <span class="req" aria-hidden="true">*</span>' : '') + '</label>' + (o.hint ? '<div class="va-fh">' + esc(o.hint) + '</div>' : '');
+    }
+    function wrap(o, inner) { return '<div class="va-f' + (o.cls ? ' ' + o.cls : '') + '" data-f="' + o.k + '"' + (o.req ? ' data-req="1"' : '') + '>' + inner + '<div class="va-err" id="va-err-' + o.k + '" role="alert"></div></div>'; }
+    function F(o) {
+      var id = 'va-' + o.k, a = ' class="va-in" id="' + id + '" data-k="' + o.k + '"' + (o.ph ? ' placeholder="' + esc(o.ph) + '"' : '') + (o.auto ? ' autocomplete="' + o.auto + '"' : '') + (o.im ? ' inputmode="' + o.im + '"' : '') + (o.max ? ' maxlength="' + o.max + '"' : '') + (o.ro ? ' readonly' : '') + (o.req ? ' aria-required="true"' : '');
+      var input;
+      if (o.type === 'textarea') input = '<textarea' + a + ' rows="' + (o.rows || 3) + '" maxlength="' + (o.max || 2000) + '"></textarea>';
+      else if (o.type === 'state') input = '<select' + a + '>' + STATES.map(function (s) { return '<option value="' + s[0] + '">' + esc(s[1]) + '</option>'; }).join('') + '</select>';
+      else if (o.type === 'select') input = '<select' + a + '><option value="">Choose one</option>' + o.opts.map(function (s) { var v = Array.isArray(s) ? s[0] : s, t = Array.isArray(s) ? s[1] : s; return '<option value="' + esc(v) + '">' + esc(t) + '</option>'; }).join('') + '</select>';
+      else input = '<input' + a + ' type="' + (o.type || 'text') + '"' + (o.type === 'date' && o.maxToday ? ' max="' + todayIso() + '"' : '') + (o.type === 'number' ? ' min="1" max="200" step="1"' : '') + (o.type !== 'date' && o.type !== 'number' && !o.max ? ' maxlength="200"' : '') + '>';
+      return wrap(o, lab(o, id) + input);
+    }
+    function YN(o) {
+      var opts = o.opts || [['yes', 'Yes'], ['no', 'No']];
+      return wrap(o, lab(o) + '<div class="va-yn" role="radiogroup" aria-labelledby="va-lbl-' + o.k + '">' + opts.map(function (p) { return '<button type="button" role="radio" aria-checked="false" data-yn="' + o.k + '" data-v="' + p[0] + '">' + esc(p[1]) + '</button>'; }).join('') + '</div>');
+    }
+    function TICK(o) { return wrap(o, '<label class="va-tick" for="va-' + o.k + '"><input type="checkbox" id="va-' + o.k + '" data-k="' + o.k + '"><span>' + esc(o.text) + '</span></label>'); }
+    function DAYSF(o) { return wrap(o, lab(o) + '<div class="va-days" role="group" aria-labelledby="va-lbl-' + o.k + '">' + DAYS.concat(['Any day']).map(function (dname) { return '<button type="button" aria-pressed="false" data-day="' + dname + '">' + dname + '</button>'; }).join('') + '</div>'); }
+    function COND(rule, inner) { return '<div class="va-cond" data-show="' + rule + '" hidden>' + inner + '</div>'; }
+    function CARD(title, hint, inner) { return '<section class="va-card"><h3>' + esc(title) + '</h3>' + (hint ? '<p class="va-hint">' + esc(hint) + '</p>' : '') + inner + '</section>'; }
+    function G(cls, inner) { return '<div class="va-grid ' + cls + '">' + inner + '</div>'; }
+    function LEGAL(paras) { return '<div class="va-legal">' + paras.map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') + '</div>'; }
+
+    function partsHtml() {
+      var p0 = '<div class="va-intro" id="va-intro"></div>'
+        + CARD('Your legal name', 'Please use your legal name.', G('c3e', F({ k: 'lastName', label: 'Last name', req: 1, auto: 'family-name' }) + F({ k: 'firstName', label: 'First name', req: 1, auto: 'given-name' }) + F({ k: 'middleName', label: 'Middle name', auto: 'additional-name' })))
+        + COND('_noEmail=yes', F({ k: 'email', label: 'Email', req: 1, type: 'email', auto: 'email', im: 'email' }))
+        + CARD('Address', '', G('c3', F({ k: 'address', label: 'Street address', req: 1, auto: 'address-line1' }) + F({ k: 'apt', label: 'Apt. #', auto: 'address-line2' }) + '<div></div>')
+            + G('c3', F({ k: 'city', label: 'City', req: 1, auto: 'address-level2' }) + F({ k: 'state', label: 'State', req: 1, type: 'state', auto: 'address-level1' }) + F({ k: 'zip', label: 'ZIP', req: 1, im: 'numeric', auto: 'postal-code', max: 10 })))
+        + CARD('Phone', 'At least one number, please.', G('c3e', F({ k: 'cellPhone', label: 'Cell phone', type: 'tel', auto: 'tel', ph: '(808) 555-1234' }) + F({ k: 'homePhone', label: 'Home phone', type: 'tel', ph: '(808) 555-1234' }) + F({ k: 'workPhone', label: 'Work phone', type: 'tel', ph: '(808) 555-1234' })))
+        + CARD('About you', '', G('c2', YN({ k: 'sex', label: 'Sex', opts: [['male', 'Male'], ['female', 'Female']] }) + F({ k: 'dob', label: 'Date of birth', req: 1, type: 'date', maxToday: 1, auto: 'bday' }))
+            + F({ k: 'physicalLimitations', label: 'Physical limitations', req: 1, type: 'textarea', rows: 2, hint: 'Be specific. If none, write “none”.', ph: 'none' }));
+
+      var p1 = CARD('Interests and background', '', F({ k: 'interests', label: 'Interests, skills, hobbies', req: 1, type: 'textarea', rows: 3 })
+            + F({ k: 'clubs', label: 'Clubs, organizations you belong to', type: 'textarea', rows: 2 })
+            + G('c2', F({ k: 'education', label: 'Education (highest level)', type: 'select', opts: EDUCATION }) + F({ k: 'schoolName', label: 'Name of school' })))
+        + CARD('Past volunteering', '', YN({ k: 'volunteeredBefore', label: 'Have you volunteered before?', req: 1 })
+            + COND('volunteeredBefore=yes', G('c2', F({ k: 'pastPosition', label: 'Position' }) + F({ k: 'pastAgency', label: 'Agency', req: 1 }))
+              + F({ k: 'pastWork', label: 'Describe the work', type: 'textarea', rows: 3 })
+              + G('c2', F({ k: 'pastAgencyAddress', label: 'Agency address' }) + F({ k: 'pastAgencyPhone', label: 'Agency phone', type: 'tel', ph: '(808) 555-1234' }))
+              + YN({ k: 'mayContactAgency', label: 'May we contact the agency?', req: 1 })))
+        + CARD('Your availability', '', G('c2', F({ k: 'hours', label: 'Hours you can give', req: 1, type: 'number', im: 'numeric' }) + F({ k: 'hoursPer', label: 'Per', req: 1, type: 'select', opts: [['week', 'Week'], ['month', 'Month']] }))
+            + DAYSF({ k: 'preferredDays', label: 'Preferred days', req: 1, hint: 'Tap all that apply.' })
+            + F({ k: 'geoPref', label: 'Geographic preference', hint: 'Which island or area works best for you?', ph: 'e.g. Honolulu, Windward Oʻahu, Hilo' }));
+
+      var refs = '';
+      for (var i = 1; i <= 3; i++) {
+        var rq = i <= 2 ? 1 : 0;
+        refs += '<h4>Reference ' + i + (rq ? '' : '') + '</h4>' + G('c3e', F({ k: 'ref' + i + 'Name', label: 'Name', req: rq }) + F({ k: 'ref' + i + 'Rel', label: 'Relationship', req: rq, ph: 'e.g. coworker, friend' }) + F({ k: 'ref' + i + 'Phone', label: 'Phone', req: rq, type: 'tel', ph: '(808) 555-1234' }))
+          + F({ k: 'ref' + i + 'Address', label: 'Address' });
+      }
+      var p2 = CARD('Employment history', '', YN({ k: 'employed', label: 'Are you currently employed?', req: 1 })
+            + COND('employed=yes', G('c2', F({ k: 'employerName', label: 'Name of current employer', req: 1, auto: 'organization' }) + F({ k: 'employerPhone', label: 'Employer phone', type: 'tel', ph: '(808) 555-1234' }))
+              + G('c2', F({ k: 'employerAddress', label: 'Employer address' }) + F({ k: 'employmentBegan', label: 'Date employment began', type: 'date', maxToday: 1 }))
+              + G('c2', F({ k: 'supervisor', label: 'Name of supervisor' }) + F({ k: 'jobTitle', label: 'Job title', auto: 'organization-title' }))
+              + YN({ k: 'mayContactEmployer', label: 'May we contact your employer?', req: 1 })
+              + F({ k: 'jobDuties', label: 'Description of duties', type: 'textarea', rows: 3 })
+              + YN({ k: 'employerPartnership', label: 'Does your employer have a community partnership?' })))
+        + CARD('References', 'Personal or professional, not a relative. Please give at least two.', refs);
+
+      var p3 = CARD('In case of emergency, please notify', 'Please give at least one person.',
+            '<h4>Emergency contact 1</h4>' + G('c3e', F({ k: 'ec1Name', label: 'Name', req: 1 }) + F({ k: 'ec1Rel', label: 'Relationship', req: 1 }) + F({ k: 'ec1Phone', label: 'Day phone', req: 1, type: 'tel', ph: '(808) 555-1234' }))
+            + '<h4>Emergency contact 2</h4>' + G('c3e', F({ k: 'ec2Name', label: 'Name' }) + F({ k: 'ec2Rel', label: 'Relationship' }) + F({ k: 'ec2Phone', label: 'Day phone', type: 'tel', ph: '(808) 555-1234' })))
+        + CARD('Driving information', DRIVE_INTRO, YN({ k: 'canDrive', label: 'Are you able to use your automobile if the volunteer position requires one?', req: 1 })
+            + COND('canDrive=yes', LEGAL([DRIVE_AGREE]) + TICK({ k: 'driveAgree', req: 1, text: 'I agree to the driving terms above.' })
+              + G('c2', F({ k: 'insCarrier', label: 'Insurance carrier', req: 1 }) + F({ k: 'insPolicy', label: 'Policy #', req: 1 }))
+              + G('c3e', F({ k: 'dlNumber', label: 'Driver’s license #', req: 1 }) + F({ k: 'dlState', label: 'State of issue', req: 1, type: 'state' }) + F({ k: 'dlExpires', label: 'Expiration date', req: 1, type: 'date' }))
+              + '<div class="va-note">After you submit, please mail or deliver copies of your driver’s license and proof of auto insurance to LDAH so they can be filed with your application.</div>'))
+        + CARD('Criminal history', '', YN({ k: 'criminal', label: 'Have you ever been convicted of a misdemeanor or felony, or are any misdemeanor or felony charges pending against you?', req: 1 })
+            + '<div class="va-note">' + esc(CRIM_NOTE) + '</div>'
+            + COND('criminal=yes', F({ k: 'criminalExplain', label: 'Please explain', req: 1, type: 'textarea', rows: 4 })));
+
+      var p4 = '<div id="va-review"></div>'
+        + CARD('Certification and release', '', LEGAL(CERT_TEXT) + '<p class="va-eeo">' + esc(EEO_TEXT) + '</p>'
+            + F({ k: 'signatureName', label: 'Signature: type your full legal name', req: 1, auto: 'name' })
+            + TICK({ k: 'certify', req: 1, text: 'I certify that the statements on this application are true, complete and correct, and I give the authorization and release above.' })
+            + '<p class="va-date">Date: <b class="va-today"></b> (stamped automatically when you submit)</p>')
+        + COND('_minor=yes', CARD('Parental consent', 'The applicant is under 18, so a parent or guardian completes this part.', LEGAL([PARENT_TEXT])
+            + F({ k: 'parentName', label: 'Printed name of parent/guardian', req: 1 })
+            + F({ k: 'parentSignature', label: 'Signature of parent/guardian: type full name', req: 1 })
+            + TICK({ k: 'parentConsent', req: 1, text: 'I am this applicant’s parent or legal guardian and I give the consent above.' })
+            + '<p class="va-date">Date: <b class="va-today"></b> (stamped automatically when you submit)</p>'))
+        + '<div id="va-submit-err"></div>';
+
+      return [p0, p1, p2, p3, p4].map(function (h, i) { return '<div data-part="' + i + '"' + (i ? ' hidden' : '') + '>' + h + '</div>'; }).join('');
+    }
+
+    function shellHtml() {
+      return '<div class="va-shell">'
+        + '<div class="va-top"><div class="va-titlerow"><div><div class="va-kicker">Step 2 of 2 &middot; Volunteer application</div><h2 id="va-title" tabindex="-1">Complete your volunteer application</h2></div>'
+        + '<button type="button" class="va-x" id="va-close" aria-label="Close and finish later">&times;</button></div>'
+        + '<div class="va-prog" id="va-prog" aria-hidden="true">' + PARTS.map(function () { return '<span></span>'; }).join('') + '</div>'
+        + '<div class="va-steplbl" id="va-steplbl" aria-live="polite"></div></div>'
+        + '<div class="va-body" id="va-body"><form id="va-form" novalidate autocomplete="on" onsubmit="return false;">' + partsHtml() + '</form>'
+        + '<div class="va-panel" id="va-later" hidden></div><div class="va-panel" id="va-done" hidden></div></div>'
+        + '<div class="va-foot" id="va-foot"><div class="va-foot-row"><button type="button" class="va-btn va-btn-ghost" id="va-back">Back</button><span class="va-sp"></span><button type="button" class="va-btn va-btn-primary" id="va-next">Next</button></div>'
+        + '<div class="va-foot-sub"><button type="button" class="va-btn-link" id="va-later-btn">Finish later</button><span class="va-saved" id="va-saved"></span></div></div>'
+        + '</div>';
+    }
+
+    /* ── state <-> DOM ── */
+    function fillDom() {
+      var form = $('va-form');
+      form.querySelectorAll('[data-k]').forEach(function (el) {
+        var k = el.getAttribute('data-k'), v = st.d[k];
+        if (el.type === 'checkbox') { el.checked = v === true; var t = el.closest('.va-tick'); if (t) t.classList.toggle('on', el.checked); }
+        else el.value = v == null ? '' : v;
+      });
+      form.querySelectorAll('[data-yn]').forEach(function (b) { b.setAttribute('aria-checked', String(st.d[b.getAttribute('data-yn')] === b.getAttribute('data-v'))); });
+      var days = st.d.preferredDays || [];
+      form.querySelectorAll('[data-day]').forEach(function (b) { b.setAttribute('aria-pressed', String(days.indexOf(b.getAttribute('data-day')) !== -1)); });
+    }
+    function refreshConds() {
+      st.d._minor = isMinor() ? 'yes' : 'no';
+      $('va-form').querySelectorAll('[data-show]').forEach(function (el) {
+        var r = el.getAttribute('data-show').split('=');
+        el.hidden = st.d[r[0]] !== r[1];
+      });
+    }
+    function clearErr(k) { var f = document.querySelector('#va-form [data-f="' + k + '"]'); if (f) f.classList.remove('bad'); }
+    function setErr(k, msg) {
+      var f = document.querySelector('#va-form [data-f="' + k + '"]'), e = $('va-err-' + k);
+      if (f) f.classList.add('bad'); if (e) e.textContent = msg;
+      var inp = $('va-' + k); if (inp) inp.setAttribute('aria-invalid', 'true');
+    }
+    function onInput(ev) {
+      var el = ev.target, k = el.getAttribute && el.getAttribute('data-k'); if (!k) return;
+      if (el.type === 'checkbox') { st.d[k] = el.checked; var t = el.closest('.va-tick'); if (t) t.classList.toggle('on', el.checked); }
+      else st.d[k] = el.value;
+      el.removeAttribute('aria-invalid'); clearErr(k);
+      if (k === 'dob') refreshConds();
+      queueSave();
+    }
+    function onClick(ev) {
+      var b = ev.target.closest('[data-yn],[data-day]'); if (!b) return;
+      if (b.hasAttribute('data-yn')) {
+        var k = b.getAttribute('data-yn'); st.d[k] = b.getAttribute('data-v');
+        b.parentNode.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-checked', String(x === b)); });
+        clearErr(k); refreshConds();
+      } else {
+        var dname = b.getAttribute('data-day'), days = (st.d.preferredDays || []).slice(), at = days.indexOf(dname);
+        if (at === -1) days.push(dname); else days.splice(at, 1);
+        var order = DAYS.concat(['Any day']); days.sort(function (x, y) { return order.indexOf(x) - order.indexOf(y); });
+        st.d.preferredDays = days; b.setAttribute('aria-pressed', String(at === -1)); clearErr('preferredDays');
+      }
+      queueSave();
+    }
+
+    /* ── drafts (this device only) ── */
+    function draftKey(id) { return KEY_PREFIX + id; }
+    function loadDraft(id) {
+      var raw = lsGet(draftKey(id)); if (!raw) return null;
+      try { var o = JSON.parse(raw); if (!o || !o.d) return null; if (Date.now() - (o.savedAt || 0) > DRAFT_DAYS * 864e5) { lsDel(draftKey(id)); return null; } return o; } catch (e) { return null; }
+    }
+    function saveDraft() {
+      if (!st.volId || st.done) return false;
+      var ok = lsSet(draftKey(st.volId), JSON.stringify({ v: 1, savedAt: Date.now(), part: st.part, ctx: st.ctx, d: st.d }));
+      var s = $('va-saved'); if (s) s.textContent = ok ? 'Draft saved on this device' : 'This browser is not saving drafts';
+      return ok;
+    }
+    function queueSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveDraft, 400); }
+    function listDrafts() {
+      var out = [];
+      try {
+        for (var i = 0; i < window.localStorage.length; i++) {
+          var key = window.localStorage.key(i);
+          if (key && key.indexOf(KEY_PREFIX) === 0) { var id = key.slice(KEY_PREFIX.length), o = loadDraft(id); if (o) out.push({ id: id, o: o }); }
+        }
+      } catch (e) {}
+      return out.sort(function (a, b) { return (b.o.savedAt || 0) - (a.o.savedAt || 0); });
+    }
+
+    /* ── navigation ── */
+    function showPart(i) {
+      st.part = i;
+      $('va-later').hidden = true; $('va-done').hidden = true; $('va-form').hidden = false; $('va-foot').hidden = false;
+      document.querySelectorAll('#va-form [data-part]').forEach(function (p) { p.hidden = +p.getAttribute('data-part') !== i; });
+      var bars = $('va-prog').children;
+      for (var j = 0; j < bars.length; j++) bars[j].className = j < i ? 'done' : (j === i ? 'cur' : '');
+      $('va-steplbl').innerHTML = 'Part ' + (i + 1) + ' of ' + PARTS.length + ' &middot; <b>' + esc(PARTS[i]) + '</b>';
+      $('va-back').style.visibility = i === 0 ? 'hidden' : 'visible';
+      $('va-next').textContent = i === 4 ? 'Submit application' : (st.toReview ? 'Back to review' : 'Next');
+      if (i === 4) renderReview();
+      $('va-body').scrollTop = 0;
+      try { $('va-title').focus({ preventScroll: true }); } catch (e) {}
+    }
+    function next() {
+      if (st.saving) return;
+      if (!validate(st.part)) return;
+      if (st.part === 4) { submit(); return; }
+      var to = st.toReview ? 4 : st.part + 1;
+      st.toReview = false; showPart(to); saveDraft();
+    }
+    function back() { if (st.part > 0) { st.toReview = false; showPart(st.part - 1); saveDraft(); } }
+
+    /* ── validation: VISIBLE fields only ── */
+    function validate(i) {
+      var panel = document.querySelector('#va-form [data-part="' + i + '"]'), d = st.d, bad = [];
+      function err(k, m) { bad.push(k); setErr(k, m); }
+      function shown(el) { return !el.closest('[hidden]'); }
+      panel.querySelectorAll('.va-f').forEach(function (f) { f.classList.remove('bad'); });
+      panel.querySelectorAll('.va-f[data-req]').forEach(function (f) {
+        if (!shown(f)) return;
+        var k = f.getAttribute('data-f'), v = d[k];
+        if (f.querySelector('.va-yn')) { if (!v) err(k, 'Please choose one.'); }
+        else if (f.querySelector('.va-days')) { if (!v || !v.length) err(k, 'Please pick at least one day.'); }
+        else if (f.querySelector('input[type=checkbox]')) { if (v !== true) err(k, 'Please tick this box to continue.'); }
+        else if (!trim(v)) err(k, 'Please fill this in.');
+      });
+      panel.querySelectorAll('input[type=tel]').forEach(function (el) {
+        var k = el.getAttribute('data-k'), n = digits(d[k]);
+        if (shown(el) && n && n.length !== 10 && bad.indexOf(k) === -1) err(k, 'Please enter a 10-digit phone number.');
+      });
+      if (i === 0) {
+        if (!digits(d.cellPhone) && !digits(d.homePhone) && !digits(d.workPhone)) err('cellPhone', 'Please give at least one phone number.');
+        if (trim(d.zip) && !/^\d{5}(-\d{4})?$/.test(trim(d.zip)) && bad.indexOf('zip') === -1) err('zip', 'Please enter a 5-digit ZIP code.');
+        if (d._noEmail === 'yes' && trim(d.email) && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(trim(d.email))) err('email', 'Please check your email address.');
+        var a = ageOn(d.dob);
+        if (d.dob && (a === null || a < 0 || a > 110)) err('dob', 'Please check your date of birth.');
+      }
+      if (i === 1 && trim(d.hours) && !(+d.hours > 0)) err('hours', 'Please enter a number of hours.');
+      if (i === 3 && d.canDrive === 'yes' && d.dlExpires && d.dlExpires < todayIso() && bad.indexOf('dlExpires') === -1) err('dlExpires', 'This date has passed. If you have renewed your license, enter the new expiration date.');
+      if (i === 4 && trim(d.signatureName)) {
+        /* Compare letters only, both sides the same way, so an ʻokina vs ' vs ’, a hyphen,
+           a "Jr." or a stray space never refuses a real signature (Kaʻai, O'Brien, Smith Jr.). */
+        var _nk = function (x) { return trim(x).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]/g, ''); };
+        var sig = _nk(d.signatureName);
+        var fn = _nk(d.firstName), ln = _nk(d.lastName);
+        if ((fn && sig.indexOf(fn) === -1) || (ln && sig.indexOf(ln) === -1)) err('signatureName', 'Please type your full legal name as you gave it in Part 1 (' + trim(d.firstName) + ' ' + trim(d.lastName) + ').');
+      }
+      if (bad.length) {
+        var first = panel.querySelector('[data-f="' + bad[0] + '"]');
+        if (first) { first.scrollIntoView({ behavior: 'smooth', block: 'center' }); var fi = first.querySelector('input,select,textarea,button'); if (fi) setTimeout(function () { try { fi.focus({ preventScroll: true }); } catch (e) {} }, 300); }
+        return false;
+      }
+      return true;
+    }
+
+    /* ── review ── */
+    function yn(v) { return v === 'yes' ? 'Yes' : v === 'no' ? 'No' : ''; }
+    function ph(v) { return digits(v) ? (window.ldahFormatPhone ? window.ldahFormatPhone(v) : v) : ''; }
+    function reviewSections() {
+      var d = st.d, S = [];
+      var stName = function (c) { var s = STATES.find(function (x) { return x[0] === c; }); return s ? s[1] : (c || ''); };
+      S.push({ part: 0, title: 'About you', rows: [
+        ['Legal name', [d.firstName, d.middleName, d.lastName].map(trim).filter(Boolean).join(' ')],
+        ['Email', st.ctx.email || d.email],
+        ['Address', [trim(d.address) + (trim(d.apt) ? ', Apt. ' + trim(d.apt) : ''), [trim(d.city), stName(d.state)].filter(Boolean).join(', ') + ' ' + trim(d.zip)].filter(function (x) { return trim(x); }).join('\n')],
+        ['Cell phone', ph(d.cellPhone)], ['Home phone', ph(d.homePhone)], ['Work phone', ph(d.workPhone)],
+        ['Sex', d.sex === 'male' ? 'Male' : d.sex === 'female' ? 'Female' : ''],
+        ['Date of birth', fmtDate(d.dob) + (isMinor() ? ' (under 18)' : '')],
+        ['Physical limitations', d.physicalLimitations]] });
+      var ex = [['Interests, skills, hobbies', d.interests], ['Clubs, organizations', d.clubs], ['Education (highest level)', d.education], ['Name of school', d.schoolName], ['Volunteered before?', yn(d.volunteeredBefore)]];
+      if (d.volunteeredBefore === 'yes') ex = ex.concat([['Position', d.pastPosition], ['Describe the work', d.pastWork], ['Agency', d.pastAgency], ['Agency address', d.pastAgencyAddress], ['Agency phone', ph(d.pastAgencyPhone)], ['May we contact the agency?', yn(d.mayContactAgency)]]);
+      ex = ex.concat([['Availability', trim(d.hours) ? d.hours + ' hours per ' + (d.hoursPer || 'week') : ''], ['Preferred days', (d.preferredDays || []).join(', ')], ['Geographic preference', d.geoPref]]);
+      S.push({ part: 1, title: 'Experience & availability', rows: ex });
+      var w = [['Currently employed?', yn(d.employed)]];
+      if (d.employed === 'yes') w = w.concat([['Employer', d.employerName], ['Employer phone', ph(d.employerPhone)], ['Employer address', d.employerAddress], ['Date employment began', fmtDate(d.employmentBegan)], ['Supervisor', d.supervisor], ['Job title', d.jobTitle], ['May we contact your employer?', yn(d.mayContactEmployer)], ['Description of duties', d.jobDuties], ['Employer community partnership?', yn(d.employerPartnership)]]);
+      for (var i = 1; i <= 3; i++) {
+        if (!trim(d['ref' + i + 'Name']) && i === 3) continue;
+        w.push(['#sub', 'Reference ' + i]);
+        w = w.concat([['Name', d['ref' + i + 'Name']], ['Relationship', d['ref' + i + 'Rel']], ['Phone', ph(d['ref' + i + 'Phone'])], ['Address', d['ref' + i + 'Address']]]);
+      }
+      S.push({ part: 2, title: 'Work & references', rows: w });
+      var e = [['#sub', 'Emergency contact 1'], ['Name', d.ec1Name], ['Relationship', d.ec1Rel], ['Day phone', ph(d.ec1Phone)]];
+      if (trim(d.ec2Name) || digits(d.ec2Phone)) e = e.concat([['#sub', 'Emergency contact 2'], ['Name', d.ec2Name], ['Relationship', d.ec2Rel], ['Day phone', ph(d.ec2Phone)]]);
+      e.push(['#sub', 'Driving']); e.push(['Able to use your car?', yn(d.canDrive)]);
+      if (d.canDrive === 'yes') e = e.concat([['Driving terms', d.driveAgree ? 'Agreed' : ''], ['Insurance carrier', d.insCarrier], ['Policy #', d.insPolicy], ['Driver’s license #', d.dlNumber], ['State of issue', stName(d.dlState)], ['Expiration date', fmtDate(d.dlExpires)]]);
+      e.push(['#sub', 'Criminal history']); e.push(['Conviction or pending charges?', yn(d.criminal)]);
+      if (d.criminal === 'yes') e.push(['Explanation', d.criminalExplain]);
+      S.push({ part: 3, title: 'Emergency, driving & background', rows: e });
+      return S;
+    }
+    function renderReview() {
+      var html = '<div class="va-intro"><p class="va-hi">Almost done</p><p>Check your answers below. Tap <b>Edit</b> to change anything, then sign at the bottom.</p></div>';
+      reviewSections().forEach(function (s) {
+        html += '<section class="va-rev"><div class="va-rev-h"><h3>' + esc(s.title) + '</h3><button type="button" class="va-btn-link" data-goto="' + s.part + '">Edit</button></div><dl>'
+          + s.rows.map(function (r) { if (r[0] === '#sub') return '<div class="va-rev-sub">' + esc(r[1]) + '</div>'; var v = trim(r[1]); return '<dt>' + esc(r[0]) + '</dt><dd' + (v ? '' : ' class="va-none"') + '>' + (v ? esc(v) : 'Not given') + '</dd>'; }).join('')
+          + '</dl></section>';
+      });
+      $('va-review').innerHTML = html;
+      var today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      document.querySelectorAll('#va-form .va-today').forEach(function (b) { b.textContent = today; });
+    }
+
+    /* ── payload ── */
+    function s(v) { return trim(v); }
+    function b(v) { return v === 'yes' ? true : v === 'no' ? false : null; }
+    function buildPayload() {
+      var d = st.d, FV = firebase.firestore.FieldValue, minor = isMinor();
+      var refs = [1, 2, 3].map(function (i) { return { name: s(d['ref' + i + 'Name']), relationship: s(d['ref' + i + 'Rel']), phone: s(d['ref' + i + 'Phone']), address: s(d['ref' + i + 'Address']) }; });
+      var p = {
+        volunteerId: st.volId,
+        opportunityId: s(st.ctx.opportunityId),
+        opportunityTitle: s(st.ctx.opportunityTitle),
+        formVersion: FORM_VERSION,
+        source: 'volunteer.html step 2',
+        submittedAt: FV.serverTimestamp(),
+        applicant: {
+          lastName: s(d.lastName), firstName: s(d.firstName), middleName: s(d.middleName),
+          email: s(st.ctx.email || d.email),
+          address: s(d.address), apt: s(d.apt), city: s(d.city), state: s(d.state), zip: s(d.zip),
+          homePhone: s(d.homePhone), workPhone: s(d.workPhone), cellPhone: s(d.cellPhone),
+          sex: d.sex === 'male' ? 'Male' : d.sex === 'female' ? 'Female' : '',
+          dateOfBirth: s(d.dob), physicalLimitations: s(d.physicalLimitations)
+        },
+        experience: {
+          interests: s(d.interests), clubs: s(d.clubs), education: s(d.education), schoolName: s(d.schoolName),
+          volunteeredBefore: b(d.volunteeredBefore),
+          pastVolunteer: d.volunteeredBefore === 'yes' ? { position: s(d.pastPosition), description: s(d.pastWork), agency: s(d.pastAgency), agencyAddress: s(d.pastAgencyAddress), agencyPhone: s(d.pastAgencyPhone), mayContactAgency: b(d.mayContactAgency) } : null
+        },
+        availability: { hours: s(d.hours), per: d.hoursPer === 'month' ? 'month' : 'week', preferredDays: (d.preferredDays || []).slice(), geographicPreference: s(d.geoPref) },
+        employment: d.employed === 'yes'
+          ? { currentlyEmployed: true, employerName: s(d.employerName), employerPhone: s(d.employerPhone), employerAddress: s(d.employerAddress), dateEmploymentBegan: s(d.employmentBegan), supervisor: s(d.supervisor), jobTitle: s(d.jobTitle), mayContactEmployer: b(d.mayContactEmployer), duties: s(d.jobDuties), communityPartnership: b(d.employerPartnership) }
+          : { currentlyEmployed: false },
+        references: refs.filter(function (r, i) { return i < 2 || r.name || r.phone; }),
+        emergencyContacts: [{ name: s(d.ec1Name), relationship: s(d.ec1Rel), dayPhone: s(d.ec1Phone) }].concat(s(d.ec2Name) || digits(d.ec2Phone) ? [{ name: s(d.ec2Name), relationship: s(d.ec2Rel), dayPhone: s(d.ec2Phone) }] : []),
+        driving: d.canDrive === 'yes'
+          ? { canUseCar: true, agreedToTerms: d.driveAgree === true, insuranceCarrier: s(d.insCarrier), policyNumber: s(d.insPolicy), licenseNumber: s(d.dlNumber), licenseState: s(d.dlState), licenseExpiration: s(d.dlExpires) }
+          : { canUseCar: false },
+        criminalHistory: { hasHistory: d.criminal === 'yes', explanation: d.criminal === 'yes' ? s(d.criminalExplain) : '' },
+        isMinor: minor,
+        parentalConsent: minor ? { parentName: s(d.parentName), parentSignature: s(d.parentSignature), consented: d.parentConsent === true, signedAt: FV.serverTimestamp() } : null,
+        signatureName: s(d.signatureName),
+        certified: d.certify === true,
+        signedAt: FV.serverTimestamp()
+      };
+      return p;
+    }
+
+    /* ── submit: ONE awaited write (the record itself); the flag is background ── */
+    function submit() {
+      var btn = $('va-next'), errBox = $('va-submit-err');
+      var payload = buildPayload();
+      st.saving = true; btn.disabled = true; btn.textContent = 'Submitting…'; errBox.innerHTML = '';
+      var fs = firebase.firestore();
+      fs.collection('volunteerApplicationDetails').doc(st.volId).set(payload).then(function () {
+        st.done = true; st.saving = false; lsDel(draftKey(st.volId));
+        // SPEED: flag write is fire-and-forget. It lets the dashboard show
+        // "Full application" without reading the private record.
+        fs.collection('volunteers').doc(st.volId).update({ fullApplicationAt: firebase.firestore.FieldValue.serverTimestamp() })
+          .catch(function (e) { console.warn('[volunteer] fullApplicationAt flag not set:', e && e.code); });
+        if (window.ldahAnalytics && ldahAnalytics.trackFormSubmit) { try { ldahAnalytics.trackFormSubmit('volunteer_full_application'); } catch (e) {} }
+        showDone();
+      }).catch(function (e) {
+        console.warn('[volunteer] full application not saved:', e && e.code, e && e.message);
+        st.saving = false; btn.disabled = false; btn.textContent = 'Submit application';
+        saveDraft();
+        errBox.innerHTML = '<div class="va-alert" role="alert"><b>We could not send your application just now.</b> Your answers are still saved on this device, so nothing is lost. Please try again in a moment, or call LDAH at ' + OFFICE_PHONE + '.</div>';
+        errBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    }
+
+    var CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+    var SAVE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>';
+
+    function showDone() {
+      var first = trim(st.d.firstName) || trim(st.ctx.firstName);
+      $('va-form').hidden = true; $('va-later').hidden = true; $('va-foot').hidden = true;
+      var bars = $('va-prog').children; for (var j = 0; j < bars.length; j++) bars[j].className = 'done';
+      $('va-steplbl').innerHTML = '<b>Application complete</b>';
+      $('va-close').setAttribute('aria-label', 'Close');
+      var p = $('va-done');
+      p.innerHTML = '<span class="va-ico">' + CHECK_SVG + '</span><h3>Mahalo' + (first ? ', ' + esc(first) : '') + '!</h3>'
+        + '<p>Your volunteer application is complete and has been sent to LDAH securely. Our volunteer coordinator will be in touch about next steps.</p>'
+        + (st.d.canDrive === 'yes' ? '<p>One more thing: please mail or deliver copies of your driver’s license and proof of auto insurance to LDAH, 245 N. Kukui Street, Suite 205, Honolulu, HI 96817.</p>' : '')
+        + '<p style="color:var(--text-soft);font-size:.92rem;">Questions? Call ' + OFFICE_PHONE + '.</p>'
+        + '<div class="va-btns"><button type="button" class="va-btn va-btn-primary" data-va="close">Close</button></div>';
+      p.hidden = false; $('va-body').scrollTop = 0;
+    }
+
+    function finishLink() { return location.origin + location.pathname + '?finish=' + encodeURIComponent(st.volId); }
+    function showLater() {
+      var ok = saveDraft();
+      $('va-form').hidden = true; $('va-done').hidden = true; $('va-foot').hidden = true;
+      $('va-steplbl').innerHTML = '<b>Finish later</b>';
+      var p = $('va-later');
+      p.innerHTML = '<span class="va-ico">' + SAVE_SVG + '</span>'
+        + (ok
+          ? '<h3>Your draft is saved</h3><p>Your answers are saved <b>on this device only</b>, in this browser. Nothing is sent to LDAH until you press Submit.</p>'
+            + '<p>To pick up where you left off, come back to the How to Help page on this device, or bookmark this link:</p>'
+            + '<div class="va-link"><input class="va-in" id="va-link" readonly value="' + esc(finishLink()) + '" aria-label="Link to finish your application"><button type="button" class="va-btn va-btn-ghost" data-va="copy">Copy</button></div>'
+            + '<p style="font-size:.9rem;color:var(--text-soft);">The link only works in this same browser. On a shared or public computer, choose Discard draft so the next person cannot see your answers.</p>'
+          : '<h3>This browser cannot save a draft</h3><p>Private browsing or a privacy setting is stopping us from saving your answers here. If you close now, what you have typed will be lost. You can keep going, or call LDAH at ' + OFFICE_PHONE + '.</p>')
+        + '<div class="va-btns"><button type="button" class="va-btn va-btn-primary" data-va="resume">Keep going</button><button type="button" class="va-btn va-btn-ghost" data-va="close">Close for now</button>'
+        + (ok ? '<button type="button" class="va-btn-link va-btn-danger" data-va="discard">Discard draft</button>' : '') + '</div>';
+      p.hidden = false; $('va-body').scrollTop = 0;
+    }
+
+    function onShellClick(ev) {
+      var t = ev.target.closest('[data-va],[data-goto]'); if (!t) return;
+      if (t.hasAttribute('data-goto')) { st.toReview = true; showPart(+t.getAttribute('data-goto')); return; }
+      var a = t.getAttribute('data-va');
+      if (a === 'close') closeStep2();
+      else if (a === 'resume') showPart(st.part);
+      else if (a === 'copy') { var i = $('va-link'); i.select(); try { navigator.clipboard.writeText(i.value).then(function () { t.textContent = 'Copied'; }, function () { document.execCommand('copy'); t.textContent = 'Copied'; }); } catch (e) { document.execCommand('copy'); t.textContent = 'Copied'; } }
+      else if (a === 'discard') { if (window.confirm('Discard your saved answers on this device? Your interest from Step 1 stays with LDAH.')) { lsDel(draftKey(st.volId)); closeStep2(); } }
+    }
+
+    function closeStep2() {
+      clearTimeout(saveTimer);
+      if (!st.done && st.volId && $('va-form')) saveDraft();
+      var m = $('application-modal');
+      m.classList.remove('active', 'va-open');
+      var mc = m.querySelector('.modal-content'); if (mc) mc.classList.remove('va-mode');
+      document.body.style.overflow = '';
+    }
+    window.vaCloseStep2 = closeStep2;
+
+    function mountShell() {
+      var m = $('application-modal'), mc = m.querySelector('.modal-content'), body = $('modal-body');
+      mc.classList.add('va-mode'); m.classList.add('active', 'va-open');
+      body.innerHTML = shellHtml();
+      document.body.style.overflow = 'hidden';
+      var form = $('va-form');
+      form.addEventListener('input', onInput); form.addEventListener('change', onInput); form.addEventListener('click', onClick);
+      $('va-body').addEventListener('click', onShellClick);
+      $('va-next').addEventListener('click', next);
+      $('va-back').addEventListener('click', back);
+      $('va-later-btn').addEventListener('click', showLater);
+      $('va-close').addEventListener('click', function () { if (st.done) closeStep2(); else showLater(); });
+      form.querySelectorAll('input[type=tel]').forEach(function (el) { if (window.ldahAttachPhoneFormat) window.ldahAttachPhoneFormat(el); });
+      if (window.LDAHFormat && window.LDAHFormat.attachFormatter) ['firstName', 'lastName', 'middleName'].forEach(function (k) { try { window.LDAHFormat.attachFormatter($('va-' + k), 'name'); } catch (e) {} });
+    }
+
+    function introHtml() {
+      var c = st.ctx, first = trim(st.d.firstName) || trim(c.firstName);
+      return '<p class="va-hi">' + (first ? 'Thanks, ' + esc(first) + '!' : 'Welcome back!') + ' Your interest is saved.</p>'
+        + '<p>LDAH’s volunteer application takes about 10 minutes. ' + (c.email ? 'We’ve filled in what you already gave us.' : 'Your progress saves on this device as you go.') + '</p>'
+        + '<div class="va-chips">' + (c.opportunityTitle ? '<span class="va-chip">Applying for: <b>' + esc(c.opportunityTitle) + '</b></span>' : '')
+        + (c.email ? '<span class="va-chip">Email: <b>' + esc(c.email) + '</b></span>' : '') + '</div>'
+        + '<p class="va-conf">All information on this application is confidential.</p>';
+    }
+
+    /* Open Step 2 for a volunteers doc id. ctx = what Step 1 gathered:
+       { firstName, lastName, email, phone, opportunityId, opportunityTitle }. */
+    window.vaOpenStep2 = function (volId, ctx) {
+      volId = cleanId(volId); if (!volId) return;
+      st.volId = volId; st.done = false; st.saving = false; st.toReview = false;
+      var draft = loadDraft(volId);
+      if (draft) {
+        /* A draft on this device wins for answers; a server ctx (emailed ?apply= link)
+           fills anything the draft is missing (2026-10-02). */
+        var sc = {}; Object.keys(ctx || {}).forEach(function (k) { if (trim(ctx[k])) sc[k] = ctx[k]; });
+        st.ctx = Object.assign({}, draft.ctx || {}, sc); st.d = draft.d || {}; st.part = Math.max(0, Math.min(+draft.part || 0, 4));
+        if (!trim(st.d.firstName)) st.d.firstName = trim(st.ctx.firstName);
+        if (!trim(st.d.lastName)) st.d.lastName = trim(st.ctx.lastName);
+        if (!trim(st.d.cellPhone) && !trim(st.d.homePhone) && !trim(st.d.workPhone)) st.d.cellPhone = trim(st.ctx.phone);
+      }
+      else {
+        ctx = ctx || {}; st.ctx = ctx; st.part = 0;
+        st.d = { firstName: trim(ctx.firstName), lastName: trim(ctx.lastName), cellPhone: trim(ctx.phone), state: 'HI', dlState: 'HI', hoursPer: 'week', preferredDays: [] };
+      }
+      st.d._noEmail = st.ctx.email ? 'no' : 'yes';
+      var banner = $('va-banner'); if (banner) banner.remove();
+      mountShell();
+      $('va-intro').innerHTML = introHtml();
+      fillDom(); refreshConds(); showPart(st.part); saveDraft();
+    };
+    window.vaBuildPayload = function () { return buildPayload(); };
+
+    /* ?finish=<volunteerDocId> resumes the draft saved in THIS browser. */
+    function noDraftPanel(id) {
+      var m = $('application-modal'), mc = m.querySelector('.modal-content');
+      mc.classList.remove('va-mode'); m.classList.remove('va-open');
+      $('modal-body').innerHTML = '<div class="va-panel" style="padding:8px 0;"><span class="va-ico">' + SAVE_SVG + '</span><h3>No saved draft on this device</h3>'
+        + '<p>Drafts of the volunteer application are kept only in the browser where you started. We could not find one here.</p>'
+        + '<p>You can start the full application now. It takes about 10 minutes.</p>'
+        + '<div class="va-btns"><button type="button" class="va-btn va-btn-primary" id="va-start-fresh">Start the application</button><button type="button" class="va-btn va-btn-ghost" onclick="closeModal()">Close</button></div></div>';
+      m.classList.add('active');
+      $('va-start-fresh').addEventListener('click', function () { window.vaOpenStep2(id, {}); });
+    }
+    function resumeBanner(item) {
+      var bn = document.createElement('div'); bn.className = 'va-banner'; bn.id = 'va-banner'; bn.setAttribute('role', 'status');
+      bn.innerHTML = '<span>You have an unfinished volunteer application saved on this device.</span><button type="button" class="va-btn">Continue</button><button type="button" class="va-x" aria-label="Dismiss">&times;</button>';
+      bn.querySelector('.va-btn').addEventListener('click', function () { window.vaOpenStep2(item.id, item.o.ctx); });
+      bn.querySelector('.va-x').addEventListener('click', function () { bn.remove(); });
+      document.body.appendChild(bn);
+    }
+    /* ?apply=<token>: the personal link staff email from the dashboard
+       (sendVolunteerApplicationLink). Works on ANY device: the server returns the
+       quick-form answers and Step 2 opens pre-filled (2026-10-02). */
+    var FN_BASE = 'https://us-central1-ldah-932d5.cloudfunctions.net/';
+    function applyPanel(icon, title, html) {
+      var m = $('application-modal'), mc = m.querySelector('.modal-content');
+      mc.classList.remove('va-mode'); m.classList.remove('va-open');
+      $('modal-body').innerHTML = '<div class="va-panel" style="padding:8px 0;"><span class="va-ico">' + icon + '</span><h3>' + title + '</h3>' + html + '</div>';
+      m.classList.add('active');
+    }
+    var PHONE_LINK = '<a href="tel:+18085369684">' + OFFICE_PHONE + '</a>';
+    function openFromApplyLink(token) {
+      if (!/^[a-f0-9]{64}$/.test(token)) {
+        applyPanel(SAVE_SVG, 'This link is not valid', '<p>We could not recognise this application link. Please call LDAH at ' + PHONE_LINK + ' and we will send you a new one.</p><div class="va-btns"><button type="button" class="va-btn va-btn-ghost" onclick="closeModal()">Close</button></div>');
+        return;
+      }
+      applyPanel(SAVE_SVG, 'Opening your application', '<p>One moment while we load your details.</p>');
+      fetch(FN_BASE + 'getVolunteerApplicationPrefill', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: { token: token } }) })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (x) {
+          if (!x.ok || x.j.error || !x.j.result) {
+            var notFound = x.j.error && /NOT_FOUND/i.test(x.j.error.status || '');
+            applyPanel(SAVE_SVG, notFound ? 'This link is not valid' : 'We could not open your application',
+              (notFound ? '<p>This application link is not valid any more. Please call LDAH at ' + PHONE_LINK + ' and we will send you a new one.</p>'
+                        : '<p>Something went wrong loading your details. Please try again in a moment, or call LDAH at ' + PHONE_LINK + '.</p>')
+              + '<div class="va-btns">' + (notFound ? '' : '<button type="button" class="va-btn va-btn-primary" id="va-apply-retry">Try again</button>') + '<button type="button" class="va-btn va-btn-ghost" onclick="closeModal()">Close</button></div>');
+            var rb = $('va-apply-retry'); if (rb) rb.addEventListener('click', function () { openFromApplyLink(token); });
+            return;
+          }
+          var r = x.j.result;
+          if (r.alreadyCompleted) {
+            lsDel(draftKey(cleanId(r.volunteerId)));
+            applyPanel(CHECK_SVG, 'You have already completed your application. Mahalo!', '<p>LDAH has your volunteer application. Our volunteer coordinator will be in touch about next steps.</p><p style="color:var(--text-soft);font-size:.92rem;">Questions? Call ' + PHONE_LINK + '.</p><div class="va-btns"><button type="button" class="va-btn va-btn-primary" onclick="closeModal()">Close</button></div>');
+            return;
+          }
+          window.vaOpenStep2(r.volunteerId, { firstName: r.firstName, lastName: r.lastName, email: r.email, phone: r.phone, opportunityId: r.opportunityId, opportunityTitle: r.opportunityTitle });
+        })
+        .catch(function () {
+          applyPanel(SAVE_SVG, 'We could not reach LDAH', '<p>Please check your connection and try again, or call LDAH at ' + PHONE_LINK + '.</p><div class="va-btns"><button type="button" class="va-btn va-btn-primary" id="va-apply-retry">Try again</button><button type="button" class="va-btn va-btn-ghost" onclick="closeModal()">Close</button></div>');
+          $('va-apply-retry').addEventListener('click', function () { openFromApplyLink(token); });
+        });
+    }
+    function onLoad() {
+      var apply = null;
+      try { apply = new URLSearchParams(location.search).get('apply'); } catch (e) {}
+      if (apply !== null) { openFromApplyLink(String(apply).trim().toLowerCase()); return; }
+      var id = null;
+      try { id = cleanId(new URLSearchParams(location.search).get('finish')); } catch (e) {}
+      if (id) { if (loadDraft(id)) window.vaOpenStep2(id, null); else noDraftPanel(id); return; }
+      var drafts = listDrafts(); if (drafts.length) resumeBanner(drafts[0]);
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', onLoad); else onLoad();
+  })();
+  </script>
+
 </body>
 </html>

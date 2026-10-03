@@ -27,7 +27,7 @@ const admin = require("firebase-admin");
 const crypto = require("crypto");
 
 // The Step 2 page is on STAGE only for now. Change to the root path when promoted.
-const APPLY_PAGE_URL = "https://www.ldahawaii.org/STAGE/volunteer.html";
+const APPLY_PAGE_URL = "https://www.ldahawaii.org/volunteer.html";
 const TOKENS = "volunteerApplyTokens";
 const RESEND_COOLDOWN_MS = 2 * 60 * 1000;
 const OFFICE_PHONE = "(808) 536-9684";

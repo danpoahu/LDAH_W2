@@ -38,7 +38,7 @@ const admin = require("firebase-admin");
 const crypto = require("crypto");
 
 // The page is on STAGE only for now. Change to the root path when promoted.
-const DOCS_PAGE_URL = "https://www.ldahawaii.org/STAGE/volunteer-documents.html";
+const DOCS_PAGE_URL = "https://www.ldahawaii.org/volunteer-documents.html";
 const COLLECTION = "volunteerOnboarding";
 const TOKENS = "volunteerOnboardingTokens";
 const DEFAULT_SUPERVISOR = "Rosie Rowe";
