@@ -1432,6 +1432,15 @@
     .va-banner span{flex:1;line-height:1.4;}
     .va-banner .va-btn{min-height:42px;padding:0 16px;font-size:.92rem;background:var(--plumeria);color:#0F2C3A;}
     .va-banner .va-x{color:#fff;width:40px;height:40px;font-size:1.5rem;}
+    /* Email me a link to finish on another device (2026-10-03) */
+    .va-foot-sub{flex-wrap:wrap;}
+    .va-email-row{flex:1 1 100%;display:flex;flex-direction:column;gap:4px;margin-top:2px;}
+    .va-email-row[hidden],.va-email-msg:empty{display:none !important;}
+    .va-btn-email{min-height:46px;width:100%;padding:0 14px;font-size:.95rem;line-height:1.25;}
+    .va-btn-email[disabled]{opacity:.65;cursor:wait;}
+    .va-email-msg{font-size:.9rem;line-height:1.45;color:#334155;border-radius:10px;padding:8px 12px;background:#F0F9FF;border:1px solid #BAE6FD;text-align:left;}
+    .va-email-msg.ok{background:#ECFDF5;border-color:#A7F3D0;color:#065F46;}
+    .va-email-msg.bad{background:#FEF2F2;border-color:#FECACA;color:#991B1B;}
     @media (max-width:640px){
       #application-modal.active.va-open{padding:0;}
       .modal-content.va-mode{height:100vh;height:100dvh;max-height:none;border-radius:0;border:0;}
@@ -1588,7 +1597,8 @@
         + '<div class="va-body" id="va-body"><form id="va-form" novalidate autocomplete="on" onsubmit="return false;">' + partsHtml() + '</form>'
         + '<div class="va-panel" id="va-later" hidden></div><div class="va-panel" id="va-done" hidden></div></div>'
         + '<div class="va-foot" id="va-foot"><div class="va-foot-row"><button type="button" class="va-btn va-btn-ghost" id="va-back">Back</button><span class="va-sp"></span><button type="button" class="va-btn va-btn-primary" id="va-next">Next</button></div>'
-        + '<div class="va-foot-sub"><button type="button" class="va-btn-link" id="va-later-btn">Finish later</button><span class="va-saved" id="va-saved"></span></div></div>'
+        + '<div class="va-foot-sub"><button type="button" class="va-btn-link" id="va-later-btn">Finish later</button><span class="va-saved" id="va-saved"></span>'
+        + '<div class="va-email-row" id="va-email-row" hidden><button type="button" class="va-btn va-btn-ghost va-btn-email" id="va-email-btn">' + EMAIL_LABEL + '</button><div class="va-email-msg" id="va-email-msg" role="status" aria-live="polite"></div></div></div></div>'
         + '</div>';
     }
 
@@ -1863,6 +1873,49 @@
       p.hidden = false; $('va-body').scrollTop = 0;
     }
 
+    /* ── "Email me a link to finish on another device" (2026-10-03) ──
+       Sends the answers so far to emailMyApplicationLink, which keeps them
+       server-side and emails the address LDAH has on file the personal ?apply=
+       link. The local draft is kept too. No confirm()/alert(): messages show inline. */
+    var EMAIL_LABEL = 'Email me a link to finish on another device';
+    var emailWarmed = false;
+    /* Website: phone-size screens or a touch-first device only (a desktop visitor
+       is already on the computer). 700px matches the site's phone layouts. */
+    function canEmailLink() {
+      try { return window.matchMedia('(max-width: 700px)').matches || window.matchMedia('(pointer: coarse)').matches; } catch (e) { return false; }
+    }
+    function syncEmailRow() {
+      var row = $('va-email-row'); if (!row) return;
+      row.hidden = !canEmailLink();
+      if (!row.hidden && !emailWarmed) {
+        emailWarmed = true;
+        /* SPEED: open the function's Firestore channel before the tap. Fire-and-forget. */
+        try { fetch(FN_BASE + 'emailMyApplicationLink', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: { warm: true } }) }).catch(function () {}); } catch (e) {}
+      }
+    }
+    function setEmailMsg(el, cls, text) { if (!el) return; el.className = 'va-email-msg' + (cls ? ' ' + cls : ''); el.textContent = text || ''; }
+    function emailMeLink(btn, msgEl) {
+      if (!st.volId || !btn || btn.disabled) return;
+      saveDraft();
+      var d = {}; Object.keys(st.d || {}).forEach(function (k) { if (k.charAt(0) !== '_') d[k] = st.d[k]; });
+      btn.disabled = true; btn.textContent = 'Sending…';
+      setEmailMsg(msgEl, '', '');
+      var KEPT = ' Your answers are still saved on this device.';
+      function done(cls, text) { btn.disabled = false; btn.textContent = EMAIL_LABEL; setEmailMsg(msgEl, cls, text); }
+      fetch(FN_BASE + 'emailMyApplicationLink', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: { volunteerId: st.volId, draft: d, part: st.part } }) })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j || {} }; }); })
+        .then(function (x) {
+          var r = x.j.result;
+          if (r && r.ok) return done('ok', 'Sent to ' + r.emailMasked + '. Open it on your computer to pick up where you left off.');
+          if (r && r.alreadyCompleted) return done('ok', 'LDAH already has your full application. Mahalo! There is nothing more to fill in.');
+          if (r && r.cooldown) { var m = Math.max(1, Math.ceil((+r.retryAfterSec || 60) / 60)); return done('', 'We just sent a link to ' + r.emailMasked + (r.draftSaved ? ', and it now has your latest answers' : '') + '. If it has not arrived, check your spam folder. You can ask for another email in about ' + m + ' minute' + (m === 1 ? '' : 's') + '.'); }
+          if (r && r.dailyLimit) return done('bad', 'We have already sent 5 links today, so we cannot send another until tomorrow.' + (r.draftSaved ? ' The link we sent to ' + r.emailMasked + ' has your latest answers.' : '') + KEPT);
+          var e = x.j.error || {}, known = /NOT_FOUND|FAILED_PRECONDITION|RESOURCE_EXHAUSTED|UNAVAILABLE|INVALID_ARGUMENT/.test(e.status || '');
+          done('bad', (known && e.message ? e.message : 'We could not send the email just now. Please try again in a moment.') + (/saved on this device/.test(e.message || '') ? '' : KEPT));
+        })
+        .catch(function () { done('bad', 'We could not reach LDAH. Please check your connection and try again.' + KEPT); });
+    }
+
     function finishLink() { return location.origin + location.pathname + '?finish=' + encodeURIComponent(st.volId); }
     function showLater() {
       var ok = saveDraft();
@@ -1876,7 +1929,9 @@
             + '<div class="va-link"><input class="va-in" id="va-link" readonly value="' + esc(finishLink()) + '" aria-label="Link to finish your application"><button type="button" class="va-btn va-btn-ghost" data-va="copy">Copy</button></div>'
             + '<p style="font-size:.9rem;color:var(--text-soft);">The link only works in this same browser. On a shared or public computer, choose Discard draft so the next person cannot see your answers.</p>'
           : '<h3>This browser cannot save a draft</h3><p>Private browsing or a privacy setting is stopping us from saving your answers here. If you close now, what you have typed will be lost. You can keep going, or call LDAH at ' + OFFICE_PHONE + '.</p>')
-        + '<div class="va-btns"><button type="button" class="va-btn va-btn-primary" data-va="resume">Keep going</button><button type="button" class="va-btn va-btn-ghost" data-va="close">Close for now</button>'
+        + '<div class="va-btns"><button type="button" class="va-btn va-btn-primary" data-va="resume">Keep going</button>'
+        + (canEmailLink() ? '<button type="button" class="va-btn va-btn-ghost va-btn-email" data-va="email">' + EMAIL_LABEL + '</button><div class="va-email-msg" id="va-later-email-msg" role="status" aria-live="polite"></div>' : '')
+        + '<button type="button" class="va-btn va-btn-ghost" data-va="close">Close for now</button>'
         + (ok ? '<button type="button" class="va-btn-link va-btn-danger" data-va="discard">Discard draft</button>' : '') + '</div>';
       p.hidden = false; $('va-body').scrollTop = 0;
     }
@@ -1887,6 +1942,7 @@
       var a = t.getAttribute('data-va');
       if (a === 'close') closeStep2();
       else if (a === 'resume') showPart(st.part);
+      else if (a === 'email') emailMeLink(t, $('va-later-email-msg'));
       else if (a === 'copy') { var i = $('va-link'); i.select(); try { navigator.clipboard.writeText(i.value).then(function () { t.textContent = 'Copied'; }, function () { document.execCommand('copy'); t.textContent = 'Copied'; }); } catch (e) { document.execCommand('copy'); t.textContent = 'Copied'; } }
       else if (a === 'discard') { if (window.confirm('Discard your saved answers on this device? Your interest from Step 1 stays with LDAH.')) { lsDel(draftKey(st.volId)); st.volId = null; /* null first, or closeStep2 saves the draft straight back (10-03) */ closeStep2(); } }
     }
@@ -1912,6 +1968,8 @@
       $('va-next').addEventListener('click', next);
       $('va-back').addEventListener('click', back);
       $('va-later-btn').addEventListener('click', showLater);
+      $('va-email-btn').addEventListener('click', function () { emailMeLink($('va-email-btn'), $('va-email-msg')); });
+      syncEmailRow();
       $('va-close').addEventListener('click', function () { if (st.done) closeStep2(); else showLater(); });
       form.querySelectorAll('input[type=tel]').forEach(function (el) { if (window.ldahAttachPhoneFormat) window.ldahAttachPhoneFormat(el); });
       if (window.LDAHFormat && window.LDAHFormat.attachFormatter) ['firstName', 'lastName', 'middleName'].forEach(function (k) { try { window.LDAHFormat.attachFormatter($('va-' + k), 'name'); } catch (e) {} });
@@ -1928,8 +1986,11 @@
 
     /* Open Step 2 for a volunteers doc id. ctx = what Step 1 gathered:
        { firstName, lastName, email, phone, opportunityId, opportunityTitle }. */
-    window.vaOpenStep2 = function (volId, ctx) {
+    function isBlank(v) { return v == null || v === false || (typeof v === 'string' && !v.trim()) || (Array.isArray(v) && !v.length); }
+    /* sd = { d, part } from getVolunteerApplicationPrefill (answers saved by "Email me a link"). */
+    window.vaOpenStep2 = function (volId, ctx, sd) {
       volId = cleanId(volId); if (!volId) return;
+      var sdd = sd && sd.d && typeof sd.d === 'object' ? sd.d : null;
       st.volId = volId; st.done = false; st.saving = false; st.toReview = false;
       var draft = loadDraft(volId);
       if (draft) {
@@ -1939,11 +2000,14 @@
         st.ctx = Object.assign({}, draft.ctx || {}, sc); st.d = draft.d || {}; st.part = Math.max(0, Math.min(+draft.part || 0, 4));
         if (!trim(st.d.firstName)) st.d.firstName = trim(st.ctx.firstName);
         if (!trim(st.d.lastName)) st.d.lastName = trim(st.ctx.lastName);
+        /* The emailed link's saved answers fill anything this device's draft is missing. */
+        if (sdd) Object.keys(sdd).forEach(function (k) { if (isBlank(st.d[k]) && !isBlank(sdd[k])) st.d[k] = sdd[k]; });
         if (!trim(st.d.cellPhone) && !trim(st.d.homePhone) && !trim(st.d.workPhone)) st.d.cellPhone = trim(st.ctx.phone);
       }
       else {
         ctx = ctx || {}; st.ctx = ctx; st.part = 0;
         st.d = { firstName: trim(ctx.firstName), lastName: trim(ctx.lastName), cellPhone: trim(ctx.phone), state: 'HI', dlState: 'HI', hoursPer: 'week', preferredDays: [] };
+        if (sdd) { Object.keys(sdd).forEach(function (k) { if (!isBlank(sdd[k])) st.d[k] = sdd[k]; }); st.part = Math.max(0, Math.min(+sd.part || 0, 4)); }
       }
       st.d._noEmail = st.ctx.email ? 'no' : 'yes';
       var banner = $('va-banner'); if (banner) banner.remove();
@@ -2006,7 +2070,7 @@
             applyPanel(CHECK_SVG, 'You have already completed your application. Mahalo!', '<p>LDAH has your volunteer application. Our volunteer coordinator will be in touch about next steps.</p><p style="color:var(--text-soft);font-size:.92rem;">Questions? Call ' + PHONE_LINK + '.</p><div class="va-btns"><button type="button" class="va-btn va-btn-primary" onclick="closeModal()">Close</button></div>');
             return;
           }
-          window.vaOpenStep2(r.volunteerId, { firstName: r.firstName, lastName: r.lastName, email: r.email, phone: r.phone, opportunityId: r.opportunityId, opportunityTitle: r.opportunityTitle });
+          window.vaOpenStep2(r.volunteerId, { firstName: r.firstName, lastName: r.lastName, email: r.email, phone: r.phone, opportunityId: r.opportunityId, opportunityTitle: r.opportunityTitle }, r.draft ? { d: r.draft, part: r.draftPart } : null);
         })
         .catch(function () {
           applyPanel(SAVE_SVG, 'We could not reach LDAH', '<p>Please check your connection and try again, or call LDAH at ' + PHONE_LINK + '.</p><div class="va-btns"><button type="button" class="va-btn va-btn-primary" id="va-apply-retry">Try again</button><button type="button" class="va-btn va-btn-ghost" onclick="closeModal()">Close</button></div>');
@@ -2022,6 +2086,7 @@
       if (id) { if (loadDraft(id)) window.vaOpenStep2(id, null); else noDraftPanel(id); return; }
       var drafts = listDrafts(); if (drafts.length) resumeBanner(drafts[0]);
     }
+    window.addEventListener('resize', syncEmailRow);
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', onLoad); else onLoad();
   })();
   </script>

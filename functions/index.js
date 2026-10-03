@@ -28859,6 +28859,11 @@ const _volunteerApplyLink = require("./volunteerApplyLink")({
 });
 exports.sendVolunteerApplicationLink = _volunteerApplyLink.sendVolunteerApplicationLink;
 exports.getVolunteerApplicationPrefill = _volunteerApplyLink.getVolunteerApplicationPrefill;
+// "Email me a link to finish on another device" (2026-10-03): the applicant saves
+// their Step 2 answers server-side and gets their ?apply= link at the address on file.
+exports.emailMyApplicationLink = _volunteerApplyLink.emailMyApplicationLink;
+exports.deleteVolunteerDraftOnApply = _volunteerApplyLink.deleteVolunteerDraftOnApply;
+exports.purgeVolunteerApplicationDrafts = _volunteerApplyLink.purgeVolunteerApplicationDrafts;
 
 // Volunteer QR check-in / check-out (2026-10-02): the printed Roster poster opens
 // volunteer-checkin.html; a phone that knows the volunteer's personal token checks
