@@ -37,7 +37,7 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 
-// The page is on STAGE only for now. Change to the root path when promoted.
+// Live page (promoted to root with W2 v63.0, 2026-10-02).
 const DOCS_PAGE_URL = "https://www.ldahawaii.org/volunteer-documents.html";
 const COLLECTION = "volunteerOnboarding";
 const TOKENS = "volunteerOnboardingTokens";

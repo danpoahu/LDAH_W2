@@ -7,7 +7,7 @@
 // branded LDAH email with ONE personal link that opens Step 2 directly, pre-
 // filled, on ANY device:
 //
-//   https://www.ldahawaii.org/STAGE/volunteer.html?apply=<token>
+//   https://www.ldahawaii.org/volunteer.html?apply=<token>
 //
 // The page then writes volunteerApplicationDetails/{id} and the one-time
 // volunteers.fullApplicationAt flag exactly as Step 2 always has (live rules:
@@ -26,7 +26,7 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 
-// The Step 2 page is on STAGE only for now. Change to the root path when promoted.
+// Live page (promoted to root with W2 v63.0, 2026-10-02).
 const APPLY_PAGE_URL = "https://www.ldahawaii.org/volunteer.html";
 const TOKENS = "volunteerApplyTokens";
 const RESEND_COOLDOWN_MS = 2 * 60 * 1000;
