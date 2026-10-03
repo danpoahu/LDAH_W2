@@ -15419,7 +15419,7 @@ function buildPledgeVolunteerInviteHtml({
     </p>
 
     <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
-      We are building a roster of people who can lend a hand now and then &mdash; at events like our Learning Labs and community booths, or in our Honolulu office.
+      We are building a roster of people who can lend a hand now and then &mdash; at community events and outreach booths, or in our Honolulu office.
     </p>
 
     <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
