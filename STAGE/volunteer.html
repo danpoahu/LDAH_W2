@@ -1888,7 +1888,7 @@
       if (a === 'close') closeStep2();
       else if (a === 'resume') showPart(st.part);
       else if (a === 'copy') { var i = $('va-link'); i.select(); try { navigator.clipboard.writeText(i.value).then(function () { t.textContent = 'Copied'; }, function () { document.execCommand('copy'); t.textContent = 'Copied'; }); } catch (e) { document.execCommand('copy'); t.textContent = 'Copied'; } }
-      else if (a === 'discard') { if (window.confirm('Discard your saved answers on this device? Your interest from Step 1 stays with LDAH.')) { lsDel(draftKey(st.volId)); closeStep2(); } }
+      else if (a === 'discard') { if (window.confirm('Discard your saved answers on this device? Your interest from Step 1 stays with LDAH.')) { lsDel(draftKey(st.volId)); st.volId = null; /* null first, or closeStep2 saves the draft straight back (10-03) */ closeStep2(); } }
     }
 
     function closeStep2() {
