@@ -1715,8 +1715,11 @@
       if (i === 1 && trim(d.hours) && !(+d.hours > 0)) err('hours', 'Please enter a number of hours.');
       if (i === 3 && d.canDrive === 'yes' && d.dlExpires && d.dlExpires < todayIso() && bad.indexOf('dlExpires') === -1) err('dlExpires', 'This date has passed. If you have renewed your license, enter the new expiration date.');
       if (i === 4 && trim(d.signatureName)) {
-        var sig = trim(d.signatureName).toLowerCase().replace(/[^a-zÀ-ɏʻ' -]/g, '');
-        var fn = trim(d.firstName).toLowerCase(), ln = trim(d.lastName).toLowerCase();
+        /* Compare letters only, both sides the same way, so an ʻokina vs ' vs ’, a hyphen,
+           a "Jr." or a stray space never refuses a real signature (Kaʻai, O'Brien, Smith Jr.). */
+        var _nk = function (x) { return trim(x).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]/g, ''); };
+        var sig = _nk(d.signatureName);
+        var fn = _nk(d.firstName), ln = _nk(d.lastName);
         if ((fn && sig.indexOf(fn) === -1) || (ln && sig.indexOf(ln) === -1)) err('signatureName', 'Please type your full legal name as you gave it in Part 1 (' + trim(d.firstName) + ' ' + trim(d.lastName) + ').');
       }
       if (bad.length) {
