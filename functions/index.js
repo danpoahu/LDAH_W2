@@ -3129,13 +3129,17 @@ exports.onEventSignupCreated = functions
 async function maybeSendFeedbackOnCreate(snap, context, collection) {
   try {
     const data = snap.data() || {};
-    if (data.feedbackRequested !== true) return;
+    // Only an explicit untick stops it (2026-10-03). A missing value means the
+    // record came from an old browser tab without the tick box; the box defaults
+    // to ON, so for one-off events missing counts as on (checked below).
+    if (data.feedbackRequested === false) return;
     if (data.attendanceStatus !== "attended") return;
     if (!data.email || data.archived === true || data.feedbackEmailSentAt) return;
     const db = admin.firestore();
     const evSnap = await db.collection(collection).doc(context.params.eventId).get();
     if (!evSnap.exists) return;
     const event = evSnap.data() || {};
+    if (data.feedbackRequested !== true && event.isOneOff !== true) return;
     if (_oneOffEmailSuppressed(event, "feedback")) return;
     const startMs = eventStartMs(event, null);
     if (startMs !== null && Date.now() < startMs + FEEDBACK_MIN_MINUTES_AFTER_START * 60000) return;
@@ -5161,7 +5165,23 @@ exports.resendLoggedEmail = functions
  * Shared helper: send ONE feedback email (initial or reminder).
  * Caller is responsible for dedupe bookkeeping after this resolves.
  */
+/* Feedback-email hold list (Daniel 2026-10-03): the Scanlans are kept off ALL
+   feedback emails until Daniel lifts it, so Sandy's surprise holds. Matched on
+   last name or Sandy's email. Throwing here means every caller (they each wrap
+   this in try/catch) skips the send AND does not stamp feedbackEmailSentAt. */
+const FEEDBACK_HOLD_LASTNAMES = ["scanlan"];
+const FEEDBACK_HOLD_EMAILS = ["sandysamoa2@gmail.com"];
+function _feedbackHeld(signup) {
+  const s = signup || {};
+  const nameBlob = [s.lastName, s.name, s.parentName, s.firstName].filter(Boolean).join(" ").toLowerCase();
+  const email = String(s.email || "").trim().toLowerCase();
+  return FEEDBACK_HOLD_EMAILS.includes(email) || FEEDBACK_HOLD_LASTNAMES.some((n) => nameBlob.split(/[^a-z]+/).includes(n));
+}
 async function sendOneFeedbackEmail({ collection, eventId, signupId, signup, sessionDate, mode, event }) {
+  if (_feedbackHeld(signup)) {
+    console.log("feedback email held (hold list) for", collection, eventId, signupId);
+    throw new Error("FEEDBACK_HELD");
+  }
   const type = collection === "recurringEvents" ? "recurring" : "event";
   const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
   const eventTitle = (event && event.title) || "an LDAH Event";
