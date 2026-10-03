@@ -36,7 +36,7 @@ const crypto = require("crypto");
 const V = require("./volunteerDocuments")._pure;
 
 // The check-in page is on STAGE only for now. Change to the root path when promoted.
-const CHECKIN_PAGE_URL = "https://www.ldahawaii.org/STAGE/volunteer-checkin.html";
+const CHECKIN_PAGE_URL = "https://www.ldahawaii.org/volunteer-checkin.html";
 const COLLECTION = "volunteerOnboarding";
 const TOKENS = "volunteerOnboardingTokens";
 const LINK_REQUESTS = "volunteerLinkRequests";

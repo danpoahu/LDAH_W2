@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="LDAH volunteer check-in and check-out - Leadership in Disabilities and Achievement of Hawaiʻi.">
+<title>Volunteer Check-in - LDAH</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ocean-deep:#0891B2; --ocean-dark:#0E7490; --ocean-pale:#E0F7FB;
+  --coral:#EA580C; --coral-dark:#C2410C; --palm:#15803D; --palm-dark:#166534; --palm-pale:#F0FDF4;
+  --amber:#B45309; --amber-pale:#FFFBEB;
+  --text-dark:#1E293B; --text-soft:#64748B; --line:#E2E8F0; --bg:#FEFDFB; --red:#B91C1C;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Source Sans 3',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--text-dark);background:var(--bg);line-height:1.55;min-height:100vh;display:flex;flex-direction:column;-webkit-text-size-adjust:100%;}
+h1,h2,h3{font-family:'Outfit',sans-serif;font-weight:600;line-height:1.2;}
+button,input,textarea{font-family:inherit;font-size:1rem;}
+.page-header{background:#fff;box-shadow:0 1px 20px rgba(8,145,178,.08);border-bottom:1px solid rgba(8,145,178,.1);}
+.page-header-inner{max-width:560px;margin:0 auto;padding:.7rem 1rem;display:flex;align-items:center;gap:.75rem;}
+.page-header img{width:50px;height:50px;flex-shrink:0;}
+.page-header h1{color:var(--ocean-deep);font-size:1.12rem;margin:0;}
+.page-header p{color:var(--text-soft);font-size:.82rem;margin:0;line-height:1.3;}
+.site-pill{margin-left:auto;flex-shrink:0;background:var(--ocean-pale);color:var(--ocean-dark);border:1px solid #A5F3FC;border-radius:99px;padding:5px 12px;font-weight:700;font-size:.85rem;}
+main{flex:1;width:100%;max-width:520px;margin:0 auto;padding:22px 16px 40px;}
+.view{text-align:center;}
+.hi{font-size:2.1rem;color:var(--text-dark);margin:.4rem 0 .3rem;}
+.sub{color:var(--text-soft);font-size:1.08rem;margin-bottom:1.4rem;}
+.big-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;min-height:150px;border:none;border-radius:28px;color:#fff;font-family:'Outfit',sans-serif;font-weight:700;font-size:2.2rem;cursor:pointer;box-shadow:0 12px 30px rgba(0,0,0,.18);transition:transform .1s;-webkit-tap-highlight-color:transparent;}
+.big-btn:active{transform:scale(.98);}
+.big-btn:disabled{opacity:.6;cursor:wait;}
+.big-btn small{font-size:1rem;font-weight:500;opacity:.92;margin-top:4px;}
+.big-btn.in{background:linear-gradient(135deg,var(--palm),var(--palm-dark));}
+.big-btn.out{background:linear-gradient(135deg,var(--coral),var(--coral-dark));}
+.clock{background:#fff;border:1px solid var(--line);border-radius:20px;padding:16px;margin-bottom:18px;box-shadow:0 4px 18px rgba(0,78,124,.06);}
+.clock .since{font-size:1.1rem;color:var(--text-soft);}
+.clock .since b{color:var(--text-dark);}
+.clock .elapsed{font-family:'Outfit',sans-serif;font-size:2.6rem;font-weight:700;color:var(--ocean-dark);line-height:1.1;margin-top:4px;font-variant-numeric:tabular-nums;}
+.totals-line{margin-top:18px;font-size:1rem;color:var(--text-soft);}
+.totals-line b{color:var(--ocean-dark);font-family:'Outfit',sans-serif;font-size:1.15rem;}
+.links{margin-top:22px;display:flex;flex-direction:column;gap:6px;align-items:center;}
+.link{background:none;border:none;color:var(--ocean-deep);font-weight:700;font-size:1rem;cursor:pointer;padding:10px 8px;min-height:44px;text-decoration:underline;text-underline-offset:3px;}
+.link.soft{color:var(--text-soft);font-weight:600;font-size:.95rem;}
+a.link{display:inline-flex;align-items:center;}
+.card{background:#fff;border-radius:20px;padding:1.3rem;box-shadow:0 4px 20px rgba(0,78,124,.08);border:1px solid rgba(8,145,178,.08);text-align:left;}
+.q{font-size:1.5rem;margin-bottom:.35rem;text-align:center;}
+.qsub{color:var(--text-soft);text-align:center;margin-bottom:1rem;}
+.chips{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.chip{border:2px solid #CBD5E1;background:#fff;border-radius:18px;min-height:78px;padding:10px;font-family:'Outfit',sans-serif;font-weight:600;font-size:1.15rem;cursor:pointer;color:var(--text-dark);-webkit-tap-highlight-color:transparent;}
+.chip:active{transform:scale(.98);}
+.chip.on{background:var(--ocean-deep);border-color:var(--ocean-deep);color:#fff;}
+.chip:disabled{opacity:.55;}
+.field{margin-bottom:14px;}
+.field label{display:block;font-weight:700;font-size:1.02rem;margin-bottom:.35rem;}
+.field .hint{display:block;font-size:.9rem;color:var(--text-soft);margin:-.15rem 0 .4rem;}
+input[type=email],input[type=text],input[type=time]{width:100%;border:1.5px solid #CBD5E1;border-radius:14px;padding:14px 16px;font-size:1.15rem;background:#fff;color:var(--text-dark);min-height:58px;}
+input:focus{outline:none;border-color:var(--ocean-deep);box-shadow:0 0 0 3px rgba(8,145,178,.15);}
+.btn{display:flex;align-items:center;justify-content:center;width:100%;border:none;border-radius:16px;min-height:62px;padding:14px 20px;font-family:'Outfit',sans-serif;font-weight:700;font-size:1.25rem;cursor:pointer;}
+.btn-primary{background:linear-gradient(135deg,var(--ocean-deep),var(--ocean-dark));color:#fff;box-shadow:0 8px 20px rgba(8,145,178,.3);}
+.btn-green{background:linear-gradient(135deg,var(--palm),var(--palm-dark));color:#fff;box-shadow:0 8px 20px rgba(21,128,61,.28);}
+.btn:disabled{opacity:.6;cursor:wait;}
+.err{display:none;background:#FEF2F2;border:1px solid #FECACA;color:var(--red);border-radius:12px;padding:12px 14px;font-size:1rem;margin-top:12px;font-weight:600;text-align:left;}
+.notice{background:var(--amber-pale);border:1px solid #FDE68A;color:#78350F;border-radius:14px;padding:14px 16px;font-size:1.05rem;margin-bottom:16px;line-height:1.45;}
+.calc{background:#F8FAFC;border:1px dashed #CBD5E1;border-radius:12px;padding:12px;text-align:center;margin-bottom:14px;font-size:1.02rem;}
+.calc b{font-family:'Outfit',sans-serif;font-size:1.3rem;color:var(--ocean-dark);}
+.done-tick{width:110px;height:110px;border-radius:50%;background:var(--palm);color:#fff;display:flex;align-items:center;justify-content:center;margin:.4rem auto 1rem;box-shadow:0 10px 26px rgba(21,128,61,.3);}
+.done-tick svg{width:62px;height:62px;}
+.done-hours{font-family:'Outfit',sans-serif;font-size:2.6rem;font-weight:700;color:var(--ocean-dark);line-height:1.1;}
+.sent-icon{width:90px;height:90px;border-radius:50%;background:var(--ocean-pale);color:var(--ocean-dark);display:flex;align-items:center;justify-content:center;margin:.4rem auto 1rem;}
+.sent-icon svg{width:48px;height:48px;}
+.spinner{width:44px;height:44px;border:4px solid var(--ocean-pale);border-top-color:var(--ocean-deep);border-radius:50%;animation:spin 1s linear infinite;margin:2.5rem auto 1rem;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(140px);background:var(--palm);color:#fff;border-radius:14px;padding:13px 20px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.2);transition:transform .3s;z-index:50;max-width:calc(100% - 32px);text-align:center;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+footer{background:var(--text-dark);color:rgba(255,255,255,.7);padding:1.1rem 1rem;text-align:center;font-size:.85rem;line-height:1.6;}
+footer a{color:rgba(255,255,255,.85);text-decoration:none;}
+footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
+.hidden{display:none !important;}
+</style>
+</head>
+<body>
+<header class="page-header">
+  <div class="page-header-inner">
+    <img src="logo_blue.png" alt="LDAH logo">
+    <div>
+      <h1>Volunteer Check-in</h1>
+      <p>Leadership in Disabilities and Achievement of Hawaiʻi</p>
+    </div>
+    <span class="site-pill hidden" id="sitePill"></span>
+  </div>
+</header>
+
+<main>
+  <div id="vLoading" class="view"><div class="spinner"></div><p class="sub">One moment...</p></div>
+
+  <!-- This phone does not know the volunteer yet -->
+  <div id="vUnknown" class="view hidden">
+    <h2 class="hi" style="font-size:1.8rem;">Aloha, volunteer</h2>
+    <p class="sub">Enter the email you applied with. We will email you a link. Open it on this phone, and this phone will remember you.</p>
+    <form class="card" id="emailForm" novalidate onsubmit="vcRequestLink(event)">
+      <div class="field">
+        <label for="fEmail">Your email</label>
+        <input type="email" id="fEmail" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="name@example.com">
+      </div>
+      <button type="submit" class="btn btn-primary" id="btnEmail">Email me my link</button>
+      <div class="err" id="emailErr"></div>
+    </form>
+  </div>
+
+  <!-- Link requested -->
+  <div id="vSent" class="view hidden">
+    <div class="sent-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></div>
+    <h2 class="hi" style="font-size:1.7rem;">Check your email</h2>
+    <p class="sub" id="sentMsg">If you're on our volunteer roster, we've emailed you a link. Open it on this phone.</p>
+    <p class="sub" style="font-size:.98rem;">Not there after a few minutes? Check your spam folder, or call <a href="tel:+18085369684">(808) 536-9684</a>.</p>
+    <div class="links"><button type="button" class="link" onclick="vcShowUnknown()">Try a different email</button></div>
+  </div>
+
+  <!-- Known, not checked in -->
+  <div id="vReady" class="view hidden">
+    <h2 class="hi" id="readyHi">Hi</h2>
+    <p class="sub">Tap when you start volunteering.</p>
+    <button type="button" class="big-btn in" id="btnIn" onclick="vcCheckIn()">Check in</button>
+    <p class="totals-line" id="readyTotals"></p>
+    <div class="links">
+      <a class="link" id="docsLink1" href="#">My documents and hours</a>
+      <button type="button" class="link soft" id="notMe1" onclick="vcForget()">Not you?</button>
+    </div>
+  </div>
+
+  <!-- Checked in -->
+  <div id="vIn" class="view hidden">
+    <h2 class="hi" id="inHi">Hi</h2>
+    <div class="clock">
+      <div class="since">Checked in at <b id="inSince"></b></div>
+      <div class="elapsed" id="inElapsed">0 m</div>
+    </div>
+    <button type="button" class="big-btn out" onclick="vcAskWhat()">Check out<small>when you are done for the day</small></button>
+    <div class="links">
+      <button type="button" class="link" onclick="vcShowForgot(false)">I left earlier: enter my time out</button>
+      <a class="link soft" id="docsLink2" href="#">My documents and hours</a>
+    </div>
+  </div>
+
+  <!-- What did you do? (one tap checks out) -->
+  <div id="vWhat" class="view hidden">
+    <div class="card">
+      <h2 class="q">What did you do today?</h2>
+      <p class="qsub">Tap one to check out.</p>
+      <div class="field">
+        <label for="fNote">Add a note</label>
+        <span class="hint">For example the event name. You can leave this blank.</span>
+        <input type="text" id="fNote" maxlength="120" autocomplete="off">
+      </div>
+      <div class="chips" id="whatChips"></div>
+      <div class="err" id="whatErr"></div>
+    </div>
+    <div class="links"><button type="button" class="link soft" onclick="vcRender()">Not yet, keep me checked in</button></div>
+  </div>
+
+  <!-- Forgot to check out / left earlier -->
+  <div id="vForgot" class="view hidden">
+    <div class="card">
+      <h2 class="q">Enter your hours</h2>
+      <div class="notice" id="forgotNotice"></div>
+      <div class="field">
+        <label for="fOut">What time did you leave?</label>
+        <input type="time" id="fOut" step="300">
+      </div>
+      <div class="calc" id="forgotCalc">Enter the time you left</div>
+      <div class="field" style="margin-bottom:6px;"><label>What did you do?</label></div>
+      <div class="chips" id="forgotChips"></div>
+      <div class="field">
+        <label for="fNote2">Add a note</label>
+        <input type="text" id="fNote2" maxlength="120" autocomplete="off">
+      </div>
+      <button type="button" class="btn btn-green" id="btnForgot" onclick="vcSaveForgot()">Save my hours</button>
+      <div class="err" id="forgotErr"></div>
+    </div>
+    <div class="links">
+      <button type="button" class="link soft" id="forgotBack" onclick="vcRender()">Back</button>
+      <button type="button" class="link soft" onclick="vcDiscard()">I wasn't volunteering: remove this check-in</button>
+    </div>
+  </div>
+
+  <!-- Checked out -->
+  <div id="vDone" class="view hidden">
+    <div class="done-tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
+    <h2 class="hi" id="doneHi" style="font-size:1.8rem;">Thank you</h2>
+    <div class="done-hours" id="doneHours"></div>
+    <p class="sub" id="doneSub" style="margin-top:.4rem;"></p>
+    <p class="totals-line" id="doneTotals"></p>
+    <div class="links">
+      <button type="button" class="btn btn-primary" style="margin-top:6px;" onclick="vcRender()">Done</button>
+      <a class="link soft" id="docsLink3" href="#">My documents and hours</a>
+    </div>
+  </div>
+
+  <div id="vMessage" class="view hidden">
+    <h2 class="hi" style="font-size:1.6rem;" id="msgTitle"></h2>
+    <p class="sub" id="msgBody"></p>
+    <div class="links"><button type="button" class="link" onclick="vcReload()">Try again</button></div>
+  </div>
+</main>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<footer>
+  <b>Leadership in Disabilities and Achievement of Hawaiʻi</b><br>
+  <a href="tel:+18085369684">(808) 536-9684</a> &middot; Neighbor Islands toll free <a href="tel:+18005339684">1-800-533-9684</a>
+</footer>
+
+<script>
+(function(){
+  'use strict';
+  var FN_BASE = 'https://us-central1-ldah-932d5.cloudfunctions.net/';
+  // Shared with volunteer-documents.html: opening a personal link on a phone
+  // saves the token here, so scanning the poster later knows who they are.
+  var STORE_KEY = 'ldahVolunteerToken';
+  var VIEWS = ['vLoading', 'vUnknown', 'vSent', 'vReady', 'vIn', 'vWhat', 'vForgot', 'vDone', 'vMessage'];
+  var DEFAULT_TYPES = ['IEP meeting', 'Training', 'Community event', 'Office help', 'Outreach', 'Other'];
+  var S = { token: '', site: '', status: null, timer: null, forgotType: '', busy: false };
+
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function view(id){ VIEWS.forEach(function(v){ $(v).classList.toggle('hidden', v !== id); }); window.scrollTo(0, 0); }
+  function toast(msg){ var t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(function(){ t.classList.remove('show'); }, 2800); }
+  function fmtHours(n){ n = Math.round((Number(n) || 0) * 100) / 100; return (n % 1 === 0 ? String(n) : n.toFixed(2).replace(/0$/, '')); }
+  function fmtTime(hhmm){ var m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || ''); if (!m) return hhmm || ''; var h = +m[1]; return ((h % 12) || 12) + ':' + m[2] + (h < 12 ? ' am' : ' pm'); }
+  function mins(v){ var m = /^(\d{1,2}):(\d{2})$/.exec(String(v || '')); return m ? (+m[1]) * 60 + (+m[2]) : null; }
+  function fmtDay(key){ var d = new Date(key + 'T12:00:00'); return isNaN(d) ? key : d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }); }
+
+  function store(){ try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { return null; } }
+  function saveStore(token, first){ try { localStorage.setItem(STORE_KEY, JSON.stringify({ t: token, first: first || '', savedAt: new Date().toISOString() })); return true; } catch (e) { return false; } }
+  function clearStore(){ try { localStorage.removeItem(STORE_KEY); } catch (e) {} }
+
+  // Callable protocol over fetch: POST {data} -> {result} | {error:{message, details}}.
+  async function call(name, data){
+    var r, j = {};
+    try {
+      r = await fetch(FN_BASE + name, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: data }) });
+      j = await r.json().catch(function(){ return {}; });
+    } catch (e) { throw new Error('We could not reach LDAH. Check your connection and try again.'); }
+    if (!r.ok || j.error) {
+      var err = new Error((j.error && j.error.message) || 'Something went wrong. Please try again.');
+      err.status = j.error && j.error.status; err.details = (j.error && j.error.details) || {};
+      throw err;
+    }
+    return j.result;
+  }
+
+  function types(){ return (S.status && S.status.serviceTypes && S.status.serviceTypes.length) ? S.status.serviceTypes : DEFAULT_TYPES; }
+  function docsHref(){ return 'volunteer-documents.html?t=' + encodeURIComponent(S.token); }
+  function first(){ return (S.status && S.status.firstName) || ''; }
+
+  async function load(){
+    var qs = new URLSearchParams(location.search);
+    S.site = (qs.get('site') || '').replace(/[^A-Za-z0-9 ʻ'&-]/g, '').slice(0, 40).trim();
+    if (S.site) { $('sitePill').textContent = S.site; $('sitePill').classList.remove('hidden'); }
+    var urlTok = (qs.get('t') || '').trim();
+    if (/^[a-f0-9]{64}$/.test(urlTok)) {
+      saveStore(urlTok, '');
+      // Keep the token out of the address bar (and out of a screenshot).
+      try { qs.delete('t'); history.replaceState(null, '', location.pathname + (qs.toString() ? '?' + qs.toString() : '')); } catch (e) {}
+    }
+    var st = store();
+    S.token = urlTok || (st && st.t) || '';
+    if (!/^[a-f0-9]{64}$/.test(S.token)) { S.token = ''; vcShowUnknown(); return; }
+    view('vLoading');
+    try {
+      S.status = await call('volunteerCheckinStatus', { token: S.token });
+      saveStore(S.token, S.status.firstName);
+      vcRender();
+    } catch (e) {
+      if (e.status === 'NOT_FOUND') { clearStore(); S.token = ''; vcShowUnknown(); toast('Please enter your email to get a new link.'); return; }
+      $('msgTitle').textContent = 'We could not check you in';
+      $('msgBody').textContent = e.message;
+      view('vMessage');
+    }
+  }
+  window.vcReload = load;
+
+  window.vcShowUnknown = function(){ stopTimer(); view('vUnknown'); $('emailErr').style.display = 'none'; };
+
+  window.vcRender = function(){
+    stopTimer();
+    var s = S.status;
+    if (!s) { vcShowUnknown(); return; }
+    var hi = first() ? 'Hi ' + first() : 'Aloha';
+    ['docsLink1', 'docsLink2', 'docsLink3'].forEach(function(id){ $(id).href = docsHref(); });
+    if (s.open && s.open.stale) { vcShowForgot(true); return; }
+    if (s.open) {
+      $('inHi').textContent = hi;
+      $('inSince').textContent = fmtTime(s.open.timeIn) + (s.open.site ? ' (' + s.open.site + ')' : '');
+      tick(); S.timer = setInterval(tick, 5000);
+      view('vIn');
+      return;
+    }
+    $('readyHi').textContent = hi;
+    $('notMe1').textContent = first() ? 'Not ' + first() + '?' : 'Not you?';
+    var t = s.totals || {};
+    $('readyTotals').innerHTML = t.count ? 'You have volunteered <b>' + fmtHours(t.total) + '</b> ' + (t.total === 1 ? 'hour' : 'hours') + ' with us. Mahalo!' : 'Mahalo for volunteering with LDAH.';
+    $('btnIn').disabled = false; $('btnIn').textContent = 'Check in';
+    view('vReady');
+  };
+
+  function stopTimer(){ if (S.timer) { clearInterval(S.timer); S.timer = null; } }
+  function tick(){
+    var o = S.status && S.status.open; if (!o) return;
+    var m = Math.max(0, Math.floor((Date.now() - Date.parse(o.at)) / 60000));
+    var h = Math.floor(m / 60);
+    $('inElapsed').textContent = (h ? h + ' h ' : '') + (m % 60) + ' m';
+    // Crossed 12 hours or midnight while the page sat open: ask for the time out.
+    if (m >= 12 * 60) { o.stale = true; vcRender(); }
+  }
+
+  window.vcCheckIn = async function(){
+    if (S.busy) return; S.busy = true;
+    var b = $('btnIn'); b.disabled = true; b.textContent = 'Checking in...';
+    try {
+      var r = await call('volunteerCheckIn', { token: S.token, site: S.site });
+      S.status = r;
+      toast(r.already ? 'You were already checked in.' : 'Checked in at ' + fmtTime(r.open && r.open.timeIn) + '. Have a great day!');
+      vcRender();
+    } catch (e) {
+      b.disabled = false; b.textContent = 'Check in';
+      toast(e.message);
+    } finally { S.busy = false; }
+  };
+
+  function chipsHtml(onclickFn){
+    return types().map(function(t){ return '<button type="button" class="chip" data-type="' + esc(t) + '" onclick="' + onclickFn + '(this)">' + esc(t) + '</button>'; }).join('');
+  }
+
+  window.vcAskWhat = function(){
+    stopTimer();
+    $('whatChips').innerHTML = chipsHtml('vcCheckOut');
+    $('fNote').value = '';
+    $('whatErr').style.display = 'none';
+    view('vWhat');
+  };
+
+  function showDone(r){
+    $('doneHi').textContent = first() ? 'Thank you, ' + first() : 'Thank you';
+    $('doneHours').textContent = fmtHours(r.entry.hours) + ' ' + (r.entry.hours === 1 ? 'hour' : 'hours') + ' logged';
+    $('doneSub').textContent = r.entry.serviceType + ', ' + fmtTime(r.entry.timeIn) + ' to ' + fmtTime(r.entry.timeOut);
+    $('doneTotals').innerHTML = 'Your total: <b>' + fmtHours(r.totals.total) + '</b> ' + (r.totals.total === 1 ? 'hour' : 'hours');
+    S.status.open = null; S.status.totals = r.totals;
+    view('vDone');
+  }
+
+  window.vcCheckOut = async function(btn){
+    if (S.busy) return; S.busy = true;
+    var all = document.querySelectorAll('#whatChips .chip');
+    all.forEach(function(c){ c.disabled = true; c.classList.toggle('on', c === btn); });
+    btn.textContent = 'Saving...';
+    var type = btn.getAttribute('data-type');
+    try {
+      var r = await call('volunteerCheckOut', { token: S.token, serviceType: type, note: $('fNote').value.trim() });
+      showDone(r);
+    } catch (e) {
+      if (e.details && e.details.needsTimeOut) { S.status.open && (S.status.open.stale = true); vcShowForgot(true, e.message); }
+      else { var er = $('whatErr'); er.textContent = e.message; er.style.display = 'block'; }
+      all.forEach(function(c){ c.disabled = false; c.textContent = c.getAttribute('data-type'); c.classList.remove('on'); });
+    } finally { S.busy = false; }
+  };
+
+  // Forgot to check out (stale = older than 12 h or an earlier day), or "I left earlier".
+  window.vcShowForgot = function(stale, msg){
+    stopTimer();
+    var o = S.status && S.status.open; if (!o) { vcRender(); return; }
+    S.forgotType = '';
+    var today = S.status.today;
+    var when = (o.date === today ? 'today' : 'on ' + fmtDay(o.date)) + ' at ' + fmtTime(o.timeIn);
+    $('forgotNotice').innerHTML = stale
+      ? 'You checked in ' + esc(when) + ' but did not check out. Enter the time you left and we will log your hours.'
+      : 'You checked in ' + esc(when) + '. Enter the time you left.';
+    if (msg) $('forgotNotice').innerHTML += '<br><b>' + esc(msg) + '</b>';
+    $('forgotChips').innerHTML = chipsHtml('vcPickForgot');
+    $('fOut').value = ''; $('fNote2').value = '';
+    $('fOut').min = o.timeIn;
+    $('forgotErr').style.display = 'none';
+    $('forgotBack').classList.toggle('hidden', !!stale);
+    $('btnForgot').disabled = false; $('btnForgot').textContent = 'Save my hours';
+    forgotCalc();
+    view('vForgot');
+  };
+  window.vcPickForgot = function(btn){
+    S.forgotType = btn.getAttribute('data-type');
+    document.querySelectorAll('#forgotChips .chip').forEach(function(c){ c.classList.toggle('on', c === btn); });
+  };
+  function forgotHours(){
+    var o = S.status && S.status.open; if (!o) return null;
+    var a = mins(o.timeIn), b = mins($('fOut').value);
+    if (a == null || b == null) return null;
+    return b <= a ? -1 : Math.round((b - a) / 60 * 100) / 100;
+  }
+  function forgotCalc(){
+    var h = forgotHours(), c = $('forgotCalc'), o = S.status.open;
+    if (h == null) c.innerHTML = 'Checked in at <b>' + esc(fmtTime(o.timeIn)) + '</b>. Enter the time you left.';
+    else if (h < 0) c.innerHTML = '<span style="color:var(--red);font-weight:600;">The time you left must be after ' + esc(fmtTime(o.timeIn)) + '</span>';
+    else c.innerHTML = esc(fmtTime(o.timeIn)) + ' to ' + esc(fmtTime($('fOut').value)) + ' is <b>' + fmtHours(h) + '</b> ' + (h === 1 ? 'hour' : 'hours');
+  }
+  $('fOut').addEventListener('input', forgotCalc);
+  $('fOut').addEventListener('change', forgotCalc);
+
+  window.vcSaveForgot = async function(){
+    if (S.busy) return;
+    var er = $('forgotErr'); er.style.display = 'none';
+    var h = forgotHours();
+    var problem = h == null ? 'Enter the time you left.' : h < 0 ? 'The time you left must be after you checked in.' : h > 16 ? 'That is more than 16 hours. Please check the time.' : !S.forgotType ? 'Tap what you did.' : '';
+    if (problem) { er.textContent = problem; er.style.display = 'block'; return; }
+    S.busy = true;
+    var b = $('btnForgot'); b.disabled = true; b.textContent = 'Saving...';
+    try {
+      var r = await call('volunteerCheckOut', { token: S.token, serviceType: S.forgotType, note: $('fNote2').value.trim(), timeOut: $('fOut').value });
+      showDone(r);
+    } catch (e) {
+      er.textContent = e.message; er.style.display = 'block';
+      b.disabled = false; b.textContent = 'Save my hours';
+    } finally { S.busy = false; }
+  };
+
+  window.vcDiscard = async function(){
+    if (S.busy) return;
+    if (!confirm('Remove this check-in? No hours will be logged for it.')) return;
+    S.busy = true;
+    try {
+      await call('volunteerCheckOut', { token: S.token, discard: true });
+      S.status.open = null;
+      toast('Check-in removed.');
+      vcRender();
+    } catch (e) { toast(e.message); } finally { S.busy = false; }
+  };
+
+  window.vcRequestLink = async function(ev){
+    if (ev) ev.preventDefault();
+    if (S.busy) return;
+    var er = $('emailErr'); er.style.display = 'none';
+    var email = $('fEmail').value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { er.textContent = 'Please enter a full email address, like name@example.com.'; er.style.display = 'block'; return; }
+    S.busy = true;
+    var b = $('btnEmail'); b.disabled = true; b.textContent = 'Sending...';
+    try {
+      var r = await call('requestVolunteerLink', { email: email, site: S.site });
+      $('sentMsg').textContent = (r && r.message) || "If you're on our volunteer roster, we've emailed you a link. Open it on this phone.";
+      view('vSent');
+    } catch (e) {
+      er.textContent = e.message; er.style.display = 'block';
+    } finally { S.busy = false; b.disabled = false; b.textContent = 'Email me my link'; }
+  };
+
+  window.vcForget = function(){
+    if (!confirm('Forget this phone? You will need your email link to check in again.')) return;
+    clearStore(); S.token = ''; S.status = null;
+    vcShowUnknown();
+  };
+
+  /* SPEED: wake the functions while the volunteer looks at the screen, so the
+     big button does not wait for a cold start. Failure is harmless. */
+  try {
+    call('volunteerCheckIn', { warm: true }).catch(function(){});
+    call('volunteerCheckOut', { warm: true }).catch(function(){});
+  } catch (_) {}
+  load();
+})();
+</script>
+</body>
+</html>
