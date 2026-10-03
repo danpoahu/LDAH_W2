@@ -15234,6 +15234,52 @@ function buildPledgeConfirmationEmailHtml({
 </td></tr></table></body></html>`;
 }
 
+// Match a pledger to a contact card by email, or create one (2026-10-03).
+// Daniel: pledge-takers become the roster we ask to volunteer, and that ask
+// needs the card's unsubscribe link. onContactCreated seeds the token, the
+// opt-in default and the island (from the zip); nothing that watches a new
+// contact sends email. Students are left alone: they may be children, and the
+// form takes no parent's details. An existing card is linked, never edited.
+const PLEDGE_CONTACT_TYPE = { Parent: "Parent/Guardian", Both: "Parent/Guardian", Professional: "Professional" };
+async function ensurePledgeContact(db, pledgeRef, pledge) {
+  const role = String(pledge.role || "").trim();
+  const emailLc = String(pledge.email || "").trim().toLowerCase();
+  if (!emailLc || emailLc.indexOf("@") === -1 || role === "Student" || pledge.contactId) return null;
+  let contactId = null;
+  const snap = await db.collection("contacts").where("email", "==", emailLc).limit(1).get();
+  if (!snap.empty) {
+    contactId = snap.docs[0].id;
+  } else {
+    const raw = String(pledge.email || "").trim();
+    if (raw !== emailLc) {
+      const snap2 = await db.collection("contacts").where("email", "==", raw).limit(1).get();
+      if (!snap2.empty) contactId = snap2.docs[0].id;
+    }
+  }
+  let created = false;
+  if (!contactId) {
+    const name = String(pledge.name || "").trim();
+    const sp = name.indexOf(" ");
+    const ref = await db.collection("contacts").add({
+      displayName: name,
+      firstName: sp === -1 ? name : name.slice(0, sp),
+      lastName: sp === -1 ? "" : name.slice(sp + 1).trim(),
+      email: emailLc,
+      phone: "",
+      zipCode: String(pledge.zip || "").trim(),
+      type: PLEDGE_CONTACT_TYPE[role] || "Parent/Guardian",
+      source: "anti-bullying-pledge",
+      createdBy: "anti-bullying-pledge",
+      createdByName: "Anti-Bullying Pledge",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    contactId = ref.id;
+    created = true;
+  }
+  await pledgeRef.update({ contactId, contactCreated: created });
+  return { contactId, created };
+}
+
 exports.onPledgeCreated = functions
   .runWith({ timeoutSeconds: 60, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
   .firestore.document("pledges/{pledgeId}")
@@ -15290,6 +15336,11 @@ exports.onPledgeCreated = functions
         confirmationEmailError: String(err.message || err),
       }).catch(() => {});
     }
+    try {
+      await ensurePledgeContact(admin.firestore(), snap.ref, pledge);
+    } catch (err) {
+      console.error("onPledgeCreated contact link failed:", err.message);
+    }
     return null;
   });
 
@@ -15305,12 +15356,10 @@ exports.onPledgeCreated = functions
 //   send    → each eligible pledger, then stamps pledges/{id}.volunteerInviteSentAt
 //             → { sent, failed:[...], skipped:[...] }
 //
-// Pledgers are not turned into contacts anywhere (onPledgeCreated only sends
-// the thank-you), and contact creation lives inline in handleSignupCreated —
-// there is no shared "ensure contact" helper. So a pledger with no contact
-// card (or a card with no unsubscribeToken) is SKIPPED with 'no contact card'
-// rather than quietly creating a record: this is a marketing email and must
-// carry a working unsubscribe link.
+// onPledgeCreated links each adult pledger to a contact card (ensurePledgeContact).
+// A pledger with no card (a Student, or a pledge from before 2026-10-03) or a
+// card with no unsubscribeToken is SKIPPED with 'no contact card': this is a
+// marketing email and must carry a working unsubscribe link.
 // ──────────────────────────────────────────────────────────────────────────
 
 const PLEDGE_INVITE_SUBJECT =
@@ -29020,6 +29069,7 @@ exports.onChatHelpRequest = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  ensurePledgeContact,
   pledgeInviteSkipReason,
   buildPledgeVolunteerInviteHtml,
   _screeningUrgency,
