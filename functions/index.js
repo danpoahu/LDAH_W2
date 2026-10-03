@@ -938,7 +938,16 @@ const _PERSONA_FALLBACK = {
       firstName: 'Rosie', fullName: 'Rosie Rowe',
       title: 'Executive Director', email: 'rrowe@ldahawaii.org',
       phone: '(808) 536-9684',
-      signatureHtml: '',
+      signatureHtml:
+        '<p style="margin:16px 0 2px;font-size:14px;color:#555555;line-height:1.5;">' +
+          '<strong>Rosie Rowe</strong><br>' +
+          'Executive Director<br>' +
+          'Leadership in Disabilities &amp; Achievement of Hawai\'i<br>' +
+          '245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>' +
+          'Phone: (808) 536-9684<br>' +
+          'Email: <a href="mailto:rrowe@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">rrowe@ldahawaii.org</a><br>' +
+          '<a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>' +
+        '</p>',
     },
     general: {
       firstName: 'LDAH', fullName: 'LDAH Team',
@@ -15245,7 +15254,8 @@ exports.onPledgeCreated = functions
 
     // Donate block conditional: Parent / Professional / Both → include; Student → skip.
     const includeDonate = role !== "Student";
-    const signatureHtml = await buildSignatureBlock("eventCoordinator");
+    // Signed by Rosie (Daniel 2026-10-03), not the shared event-coordinator persona.
+    const signatureHtml = await buildSignatureBlock("executiveDirector");
     const donateHtml = includeDonate ? await buildDonateBlock("universal") : "";
     const orgFooterHtml = await getOrgFooterHtml();
 
@@ -15281,6 +15291,270 @@ exports.onPledgeCreated = functions
       }).catch(() => {});
     }
     return null;
+  });
+
+// ──────────────────────────────────────────────────────────────────────────
+// Anti-Bullying Pledge → volunteer roster invite (staff-triggered, 2026-10-03)
+// Staff click "Send volunteer request" on the Int dashboard (Anti-Bullying
+// Pledges tab). POST JSON { mode: 'preview'|'test'|'send', pledgeIds?, includeStudents? }
+// with  Authorization: Bearer <Firebase ID token>  from a non-archived
+// superAdmin or admin.
+//
+//   preview → { eligible:[{id,name,role,email}], skipped:[{id,name,role,reason}] }
+//   test    → one copy to the CALLER's own verified email, subject "[Test] ..."
+//   send    → each eligible pledger, then stamps pledges/{id}.volunteerInviteSentAt
+//             → { sent, failed:[...], skipped:[...] }
+//
+// Pledgers are not turned into contacts anywhere (onPledgeCreated only sends
+// the thank-you), and contact creation lives inline in handleSignupCreated —
+// there is no shared "ensure contact" helper. So a pledger with no contact
+// card (or a card with no unsubscribeToken) is SKIPPED with 'no contact card'
+// rather than quietly creating a record: this is a marketing email and must
+// carry a working unsubscribe link.
+// ──────────────────────────────────────────────────────────────────────────
+
+const PLEDGE_INVITE_SUBJECT =
+  "Thank you for standing up to bullying. Will you help us from time to time?";
+const PLEDGE_INVITE_VOLUNTEER_URL = "https://www.ldahawaii.org/volunteer.html#volunteer";
+const PLEDGE_INVITE_UNSUB_BASE = "https://us-central1-ldah-932d5.cloudfunctions.net/handleUnsubscribe";
+
+/* Same shape check the combined announcement uses: two addresses in one field
+   or a bare fragment is not an address. */
+function _pledgeInviteEmailOk(e) {
+  return /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]{2,}$/.test(String(e || ""));
+}
+
+/**
+ * Pure: why this pledge must NOT get the volunteer invite, or "" if it may.
+ * ctx = { volunteerEmails:Set<lowercase>, optedOutEmails:Set<lowercase>,
+ *         includeStudents:boolean, contactEmails?:Set<lowercase> }
+ * contactEmails (emails with a contact card that carries an unsubscribeToken)
+ * is checked only when supplied, so the reason list stays testable without it.
+ */
+function pledgeInviteSkipReason(pledge, ctx) {
+  const p = pledge || {};
+  const c = ctx || {};
+  const email = String(p.email || "").trim().toLowerCase();
+  if (!email || !_pledgeInviteEmailOk(email)) return "no email";
+  if (email.endsWith("@ldahawaii.org")) return "staff";
+  if (/\btest\b/i.test(String(p.name || ""))) return "test entry";
+  if (c.volunteerEmails && c.volunteerEmails.has(email)) return "already a volunteer";
+  if (c.optedOutEmails && c.optedOutEmails.has(email)) return "unsubscribed";
+  if (p.volunteerInviteSentAt) return "already invited";
+  if (p.role === "Student" && !c.includeStudents) return "student";
+  if (c.contactEmails && !c.contactEmails.has(email)) return "no contact card";
+  return "";
+}
+
+function buildPledgeVolunteerInviteHtml({
+  firstName, unsubscribeUrl, signatureHtml, orgFooterHtml,
+}) {
+  const fn = String(firstName || "").trim();
+  const greeting = fn ? `Aloha ${_emailEsc(fn)},` : "Aloha,";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;">
+<tr><td align="center" style="padding:24px 16px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;max-width:600px;width:100%;">
+  <tr><td style="background-color:#ffffff;padding:28px 32px 20px;text-align:center;border-bottom:3px solid #1a3c6e;">
+    <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="150" style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;">
+  </td></tr>
+  <tr><td style="padding:32px;">
+    <p style="margin:0 0 16px;font-size:16px;color:#333333;">${greeting}</p>
+
+    <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
+      Thank you for taking the pledge to stand up to bullying. It means a lot to us, and to the keiki and families we work with.
+    </p>
+
+    <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
+      We are building a roster of people who can lend a hand now and then &mdash; at events like our Learning Labs and community booths, or in our Honolulu office.
+    </p>
+
+    <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
+      There is no set schedule. We reach out when something comes up, and you only say yes when it works for you.
+    </p>
+
+    ${_emailBtn(PLEDGE_INVITE_VOLUNTEER_URL, "Join our volunteer roster", { bg: "#1a3c6e", align: "center" })}
+
+    <p style="margin:24px 0 4px;font-size:15px;color:#333333;line-height:1.5;">Mahalo,</p>
+
+    ${signatureHtml || ""}
+  </td></tr>
+  ${orgFooterHtml || ""}
+  <tr><td style="padding:14px 32px 20px;text-align:center;font-size:12px;color:#999999;line-height:1.5;">
+    You received this because you took the Anti-Bullying Pledge with Leadership in Disabilities and Achievement of Hawai&#699;i.
+    <a href="${_emailEsc(unsubscribeUrl || "")}" style="color:#999999;text-decoration:underline;">Unsubscribe</a> from future emails.
+  </td></tr>
+</table>
+</td></tr></table></body></html>`;
+}
+
+exports.sendPledgeVolunteerInvite = functions
+  .runWith({ timeoutSeconds: 300, maxInstances: 2, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.set("Access-Control-Max-Age", "3600");
+
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    /* Same check as sendFeedbackEmails, narrowed to superAdmin + admin. */
+    let caller;
+    try {
+      const m = String(req.get("Authorization") || "").match(/^Bearer\s+(.+)$/);
+      if (!m) { res.status(401).json({ error: "Sign-in required" }); return; }
+      caller = await admin.auth().verifyIdToken(m[1]);
+      const ur = await admin.firestore().collection("userRoles").doc(caller.uid).get();
+      const role = ur.exists ? String((ur.data() || {}).role || "") : "";
+      if (!["superAdmin", "admin"].includes(role) || (ur.data() || {}).isArchived === true) {
+        res.status(403).json({ error: "Not allowed" }); return;
+      }
+    } catch (e) {
+      res.status(401).json({ error: "Sign-in required" }); return;
+    }
+
+    const body = req.body || {};
+    const mode = String(body.mode || "");
+    if (!["preview", "test", "send"].includes(mode)) {
+      res.status(400).json({ error: "mode must be 'preview', 'test' or 'send'" }); return;
+    }
+    const onlyIds = Array.isArray(body.pledgeIds) ? new Set(body.pledgeIds.map(String)) : null;
+    const includeStudents = body.includeStudents === true;
+
+    try {
+      const db = admin.firestore();
+      const [pledgeSnap, volSnap, contactSnap] = await Promise.all([
+        db.collection("pledges").get(),
+        db.collection("volunteers").select("email").get(),
+        db.collection("contacts").select("email", "marketingOptOut", "unsubscribeToken").get(),
+      ]);
+
+      const volunteerEmails = new Set();
+      volSnap.forEach((d) => {
+        const e = String((d.data() || {}).email || "").trim().toLowerCase();
+        if (e) volunteerEmails.add(e);
+      });
+
+      /* Contacts store email lowercase, but hand-typed records exist, so match
+         on trim+lowercase. ANY card with that email opted out wins. */
+      const optedOutEmails = new Set();
+      const tokenByEmail = new Map();
+      contactSnap.forEach((d) => {
+        const c = d.data() || {};
+        const e = String(c.email || "").trim().toLowerCase();
+        if (!e) return;
+        if (c.marketingOptOut === true) { optedOutEmails.add(e); return; }
+        const tok = typeof c.unsubscribeToken === "string" ? c.unsubscribeToken.trim() : "";
+        if (tok && !tokenByEmail.has(e)) tokenByEmail.set(e, tok);
+      });
+      const contactEmails = new Set(tokenByEmail.keys());
+      const ctx = { volunteerEmails, optedOutEmails, includeStudents, contactEmails };
+
+      const eligible = [];
+      const skipped = [];
+      const seenEmails = new Set();
+      pledgeSnap.forEach((d) => {
+        if (onlyIds && !onlyIds.has(d.id)) return;
+        const p = d.data() || {};
+        const name = String(p.name || "").trim();
+        const role = String(p.role || "");
+        const email = String(p.email || "").trim().toLowerCase();
+        let reason = pledgeInviteSkipReason(p, ctx);
+        /* Two pledges from one address get one email. */
+        if (!reason && seenEmails.has(email)) reason = "duplicate email";
+        if (reason) { skipped.push({ id: d.id, name, role, reason }); return; }
+        seenEmails.add(email);
+        eligible.push({ id: d.id, name, role, email, ref: d.ref });
+      });
+
+      const strip = (e) => ({ id: e.id, name: e.name, role: e.role, email: e.email });
+
+      if (mode === "preview") {
+        res.status(200).json({ eligible: eligible.map(strip), skipped });
+        return;
+      }
+
+      const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+      const signatureHtml = await buildSignatureBlock("executiveDirector");
+      const orgFooterHtml = await getOrgFooterHtml();
+      const firstOf = (n) => (String(n || "").trim().split(/\s+/)[0] || "");
+
+      if (mode === "test") {
+        const to = String(caller.email || "").trim();
+        if (!_pledgeInviteEmailOk(to)) {
+          res.status(400).json({ error: "Your sign-in has no email address to send the test to." }); return;
+        }
+        const first = eligible[0];
+        const firstName = first ? firstOf(first.name) : "Friend";
+        const html = buildPledgeVolunteerInviteHtml({
+          firstName,
+          unsubscribeUrl: PLEDGE_INVITE_UNSUB_BASE + "?token=test-token-noop",
+          signatureHtml, orgFooterHtml,
+        });
+        await sendEmailViaResend({
+          from: `LDAH <${fromAddress}>`,
+          to,
+          subject: "[Test] " + PLEDGE_INVITE_SUBJECT,
+          html,
+          type: "pledge-volunteer-invite-test",
+          relatedSignupId: first ? first.id : null,
+          recipientName: firstName,
+        });
+        res.status(200).json({ ok: true, test: true, to, firstName });
+        return;
+      }
+
+      // mode === "send"
+      let sent = 0;
+      const failed = [];
+      for (const e of eligible) {
+        try {
+          const unsubscribeUrl = PLEDGE_INVITE_UNSUB_BASE + "?token=" +
+            encodeURIComponent(tokenByEmail.get(e.email));
+          const html = buildPledgeVolunteerInviteHtml({
+            firstName: firstOf(e.name), unsubscribeUrl, signatureHtml, orgFooterHtml,
+          });
+          await sendEmailViaResend({
+            from: `LDAH <${fromAddress}>`,
+            to: e.email,
+            subject: PLEDGE_INVITE_SUBJECT,
+            html,
+            type: "pledge-volunteer-invite",
+            relatedSignupId: e.id,
+            recipientName: e.name,
+          });
+          sent++;
+          try {
+            await e.ref.update({
+              volunteerInviteSentAt: admin.firestore.FieldValue.serverTimestamp(),
+              volunteerInviteSentBy: caller.uid,
+            });
+          } catch (stampErr) {
+            /* The email went; say so loudly, because without the stamp a second
+               click would send it again. */
+            console.error(`sendPledgeVolunteerInvite: sent but could not stamp pledge ${e.id}:`, stampErr.message);
+            failed.push({ id: e.id, name: e.name, role: e.role, email: e.email, sentButNotMarked: true,
+              error: "Email sent, but the pledge could not be marked as invited: " + stampErr.message });
+          }
+        } catch (sendErr) {
+          console.error(`sendPledgeVolunteerInvite: send failed for pledge ${e.id}:`, sendErr.message);
+          failed.push({ id: e.id, name: e.name, role: e.role, email: e.email,
+            error: String(sendErr.message || sendErr) });
+        }
+        await sleepMs(250);   // Resend allows 5/sec
+      }
+
+      console.log(`sendPledgeVolunteerInvite: sent=${sent}, failed=${failed.length}, skipped=${skipped.length} by ${caller.uid}`);
+      res.status(200).json({ sent, failed, skipped });
+    } catch (err) {
+      console.error("sendPledgeVolunteerInvite error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
   });
 
 // ───────────────────────────────────────────────────────────────────────
@@ -28746,6 +29020,8 @@ exports.onChatHelpRequest = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  pledgeInviteSkipReason,
+  buildPledgeVolunteerInviteHtml,
   _screeningUrgency,
   _buildScreeningReferralIntroHtml,
   handleSignupCreated,
