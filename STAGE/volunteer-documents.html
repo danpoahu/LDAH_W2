@@ -133,6 +133,16 @@ footer{background:var(--text-dark);color:rgba(255,255,255,.7);padding:1.25rem 1r
 footer a{color:rgba(255,255,255,.85);text-decoration:none;}
 footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
 .hidden{display:none !important;}
+/* Quick log (2026-10-02): the obvious first thing once the 3 documents are done */
+.quick-card{display:flex;align-items:center;gap:16px;width:100%;text-align:left;border:none;border-radius:20px;padding:20px 18px;cursor:pointer;background:linear-gradient(135deg,#15803D,#166534);color:#fff;box-shadow:0 10px 26px rgba(21,128,61,.28);min-height:104px;margin-bottom:14px;}
+.quick-card:active{transform:scale(.99);}
+.quick-card .qi{flex-shrink:0;width:54px;height:54px;border-radius:50%;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;}
+.quick-card .qi svg{width:30px;height:30px;}
+.quick-card b{display:block;font-family:'Outfit',sans-serif;font-size:1.45rem;font-weight:700;line-height:1.15;}
+.quick-card span{display:block;font-size:.98rem;opacity:.95;}
+.chips.big{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.chips.big .chip{min-height:70px;border-radius:16px;font-family:'Outfit',sans-serif;font-size:1.1rem;padding:10px;}
+.tip{font-size:.95rem;color:var(--text-soft);text-align:center;margin:0 0 16px;line-height:1.45;}
 </style>
 </head>
 <body>
@@ -217,6 +227,9 @@ footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
     }
     try {
       S.data = await call('getVolunteerDocuments', { token: S.token });
+      // Remember this volunteer on this phone, so scanning the check-in poster
+      // later knows who they are (volunteer-checkin.html reads the same key).
+      try { localStorage.setItem('ldahVolunteerToken', JSON.stringify({ t: S.token, first: S.data.volunteer.firstName || '', savedAt: new Date().toISOString() })); } catch (_) {}
       render();
     } catch (e) {
       $('heroSub').textContent = '';
@@ -249,9 +262,15 @@ footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
       { k: 'emergency', title: 'Emergency Contact Form', sub: 'Who to call in an emergency', done: d.emergency.done, badge: d.emergency.done ? 'Done' : 'To do' },
       { k: 'log', title: 'Volunteer Service Log', sub: 'Add your hours whenever you volunteer', done: false, badge: fmtHours(t.total) + ' hrs logged', log: true }
     ];
-    $('docList').innerHTML = items.map(function(it, i){
+    if (n === 3) items = [items[3], items[0], items[1], items[2]];   // the log first once documents are done
+    var quick = n === 3
+      ? '<button type="button" class="quick-card" onclick="vdOpen(\'quick\')"><span class="qi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>' +
+        '<span><b>Log today\'s hours</b><span>' + (t.count ? 'You have ' + fmtHours(t.total) + ' hours so far' : 'Tap here each day you volunteer') + '</span></span></button>' +
+        '<p class="tip">At the LDAH office or an event? Scan the volunteer check-in poster to check in and out.</p>'
+      : '';
+    $('docList').innerHTML = quick + items.map(function(it, i){
       return '<button type="button" class="doc-item' + (it.done ? ' done' : '') + '" onclick="vdOpen(\'' + it.k + '\')">' +
-        '<span class="doc-num">' + (it.done ? TICK_SVG : (i + 1)) + '</span>' +
+        '<span class="doc-num">' + (it.done ? TICK_SVG : (it.log ? 4 : (i + 1))) + '</span>' +
         '<span class="doc-txt"><b>' + esc(it.title) + '</b><span>' + esc(it.sub) + '</span></span>' +
         '<span class="badge ' + (it.log ? 'log' : (it.done ? 'done' : 'todo')) + '">' + esc(it.badge) + '</span></button>';
     }).join('');
@@ -264,10 +283,11 @@ footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
 
   window.vdOpen = function(k){
     S.step = k;
-    var html = k === 'emergency' ? emergencyHtml() : k === 'log' ? logHtml() : agreementHtml(k);
+    var html = k === 'emergency' ? emergencyHtml() : k === 'log' ? logHtml() : k === 'quick' ? quickHtml() : agreementHtml(k);
     $('stepCard').innerHTML = html;
     show('vList', false); show('vStep', true);
     if (k === 'log') logWire();
+    if (k === 'quick') quickWire();
     window.scrollTo(0, 0);
   };
 
@@ -494,6 +514,50 @@ footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
       toast('Entry removed.');
       vdOpen('log');
     } catch (e) { toast(e.message); }
+  };
+
+  // ── Quick log: "Log today's hours" (phone-first, all hours count for LDAH) ──
+  function quickHtml(){
+    S.log = { type: '', split: false };
+    var types = S.data.serviceTypes || ['IEP meeting', 'Training', 'Community event', 'Other'];
+    var t = S.data.log.totals;
+    var h = '<h2 class="step-title">Log today\'s hours</h2><p class="step-sub">You have <b>' + fmtHours(t.total) + '</b> hours logged so far.</p>';
+    h += '<div class="field"><span class="lbl">What did you do?</span><div class="chips big" id="lgTypes">' + types.map(function(x){ return '<button type="button" class="chip" data-type="' + esc(x) + '" onclick="vdPickType(this)">' + esc(x) + '</button>'; }).join('') + '</div></div>';
+    h += '<div class="times"><div class="field"><label for="lgIn">Time in</label><input type="time" id="lgIn" step="300"></div><div class="field"><label for="lgOut">Time out</label><input type="time" id="lgOut" step="300"></div></div>';
+    h += '<div class="calc" id="lgCalc">Enter your time in and time out</div>';
+    h += '<div class="field"><label for="lgDate">Date</label><span class="hint">Today is filled in. Change it if you are logging an earlier day.</span><input type="date" id="lgDate" max="' + esc(S.data.today) + '" value="' + esc(S.data.today) + '"></div>';
+    h += '<div class="field"><label for="lgDetail">Note</label><span class="hint">For example the event or training name. You can leave this blank.</span><input type="text" id="lgDetail" maxlength="120"></div>';
+    h += '<button type="button" class="btn btn-primary" id="btnLog" onclick="vdQuickSave()">Save my hours</button><div class="err" id="stepErr"></div>';
+    h += '<div class="btn-row" style="margin-top:14px;"><button type="button" class="btn btn-ghost" onclick="vdOpen(\'log\')">Split with PTI or SRP, or see all my entries</button></div>';
+    return h;
+  }
+  function quickRecalc(){
+    var hrs = logHours(), c = $('lgCalc');
+    if (hrs == null) c.innerHTML = 'Enter your time in and time out';
+    else if (hrs < 0) c.innerHTML = '<span style="color:var(--red);font-weight:600;">Time out must be later than time in</span>';
+    else c.innerHTML = 'That is <b>' + fmtHours(hrs) + '</b> ' + (hrs === 1 ? 'hour' : 'hours');
+  }
+  function quickWire(){ ['lgIn', 'lgOut'].forEach(function(id){ $(id).addEventListener('input', quickRecalc); $(id).addEventListener('change', quickRecalc); }); quickRecalc(); }
+  window.vdQuickSave = async function(){
+    var err = $('stepErr'), b = $('btnLog');
+    err.style.display = 'none';
+    var hrs = logHours(), date = $('lgDate').value;
+    var problem = !S.log.type ? 'Tap what you did.' : hrs == null ? 'Enter your time in and time out.' : hrs < 0 ? 'Time out must be later than time in.' : hrs > 16 ? 'That is more than 16 hours. Please split it into separate days.' : !date ? 'Pick the date you volunteered.' : date > S.data.today ? 'That date is in the future.' : '';
+    if (problem) { err.textContent = problem; err.style.display = 'block'; return; }
+    b.disabled = true; b.textContent = 'Saving...';
+    try {
+      var r = await call('submitVolunteerDocument', { token: S.token, doc: 'log', data: {
+        serviceDate: date, serviceType: S.log.type, serviceDetail: $('lgDetail').value.trim(),
+        timeIn: $('lgIn').value, timeOut: $('lgOut').value, pti: 0, srp: 0 } });
+      var e = Object.assign({ id: r.entryId }, r.entry);
+      S.data.log.entries.unshift(e);
+      S.data.log.entries.sort(function(x, y){ return x.serviceDate < y.serviceDate ? 1 : x.serviceDate > y.serviceDate ? -1 : 0; });
+      S.data.log.totals = r.totals;
+      toast(fmtHours(e.hours) + ' hours logged. Total ' + fmtHours(r.totals.total) + '. Mahalo!');
+      S.step = null; render(); window.scrollTo(0, 0);
+    } catch (ex) {
+      err.textContent = ex.message; err.style.display = 'block'; b.disabled = false; b.textContent = 'Save my hours';
+    }
   };
 
   /* SPEED (2026-10-02): wake the submit function while the volunteer reads, so

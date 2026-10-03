@@ -28859,3 +28859,15 @@ const _volunteerApplyLink = require("./volunteerApplyLink")({
 });
 exports.sendVolunteerApplicationLink = _volunteerApplyLink.sendVolunteerApplicationLink;
 exports.getVolunteerApplicationPrefill = _volunteerApplyLink.getVolunteerApplicationPrefill;
+
+// Volunteer QR check-in / check-out (2026-10-02): the printed Roster poster opens
+// volunteer-checkin.html; a phone that knows the volunteer's personal token checks
+// them in and out, and check-out writes a Service Log entry (source:'qr').
+const _volunteerCheckin = require("./volunteerCheckin")({
+  sendEmailViaResend, _emailEsc, _emailBtn, _emailLinkFooter,
+  getOrgFooterHtml, lifecycleFromAddress, EMAIL_SECRETS,
+});
+exports.volunteerCheckinStatus = _volunteerCheckin.volunteerCheckinStatus;
+exports.volunteerCheckIn = _volunteerCheckin.volunteerCheckIn;
+exports.volunteerCheckOut = _volunteerCheckin.volunteerCheckOut;
+exports.requestVolunteerLink = _volunteerCheckin.requestVolunteerLink;
