@@ -68,8 +68,9 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const Anthropic = require("@anthropic-ai/sdk");
 
-// Same model as the Connect-Gen Case Review (CG_CASE_REVIEW_MODEL in index.js).
-const ADVOCACY_READINESS_MODEL = "claude-opus-5";
+// Haiku 4.5 (Daniel 2026-09-27, cost). That switch lived only on another branch,
+// so the 10-01 Mon/Wed/Fri deploy from main put Opus 5 back; restored 2026-10-03.
+const ADVOCACY_READINESS_MODEL = "claude-haiku-4-5";
 
 const READINESS_COLLECTION = "advocacyReadiness";
 const READINESS_CONFIG_PATH = "advocacyReadinessConfig/settings";
