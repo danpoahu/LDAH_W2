@@ -9884,7 +9884,8 @@ async function _runCombinedAnnouncement({ db, dryRun, testEmail }) {
     if (!email || !c.unsubscribeToken) return;
     const lower = email.toLowerCase();
     if (!_sane(email)) { dropped.malformed++; return; }
-    if (job.excludeArchived === true && c.archived === true) { dropped.archived++; return; }
+    // Archived/merged are always left out now (2026-10-03); excludeArchived:false no longer re-includes them.
+    if (c.archived === true || c.mergedInto) { dropped.archived++; return; }
     if (staffEmails.has(lower)) { dropped.staff++; return; }
     if (excludeEmails.has(lower)) { dropped.excluded++; return; }
     recipients.push({
@@ -10215,6 +10216,9 @@ exports.sendEventAnnouncement = functions
         recipients = [];
         contactsSnap.forEach(d => {
           const c = d.data();
+          // Archived or merged contacts never get announcements (2026-10-03): an
+          // archived test contact and 15 archived families were still emailed.
+          if (c.archived === true || c.mergedInto) return;
           const email = (c.email || '').trim();
           if (!email) return;
           if (!c.unsubscribeToken) return;
