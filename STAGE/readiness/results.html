@@ -236,7 +236,12 @@
 
   function buildRows(snap){
     rows = [];
-    snap.forEach(doc => { const c = doc.data()||{}; const list = Array.isArray(c.screenings)?c.screenings:[];
+    // Sandbox (test) contacts are invisible unless the signed-in user is one of
+    // its sandboxViewers. Filtered here so pickers, list and counts never see them.
+    const me = (auth.currentUser && auth.currentUser.uid) || '';
+    snap.forEach(doc => { const c = doc.data()||{};
+      if (c.sandbox === true && !(me && Array.isArray(c.sandboxViewers) && c.sandboxViewers.indexOf(me) !== -1)) return;
+      const list = Array.isArray(c.screenings)?c.screenings:[];
       list.forEach(s => { if(!s) return; rows.push({ contactId:doc.id, screeningId:s.id||'', child:s.child||{},
         childName:(((s.child&&s.child.firstName)||'')+' '+((s.child&&s.child.lastName)||'')).trim(),
         parentName:c.displayName||(((c.firstName||'')+' '+(c.lastName||'')).trim()), email:c.email||'',
