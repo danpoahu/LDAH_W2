@@ -27733,6 +27733,16 @@ exports.submitScreeningReferral = functions
           console.warn("submitScreeningReferral: coordinator lookup failed:", e.message);
         }
         if (!uid) uid = CONNECT_GEN_ALERT_CC_UID;
+        /* Sandbox (practice) contacts name their own coordinator (2026-10-05):
+           a test run must never put a task on the real coordinator's list. */
+        let coordName = CASE_ADVOCACY_COORDINATOR_NAME;
+        try {
+          const _sb = (await db.collection("contacts").doc(contactId).get()).data() || {};
+          if (_sb.sandbox === true && _sb.sandboxCoordinator && _sb.sandboxCoordinator.uid) {
+            uid = String(_sb.sandboxCoordinator.uid);
+            coordName = String(_sb.sandboxCoordinator.name || coordName);
+          }
+        } catch (e) { console.warn("submitScreeningReferral: sandbox check failed:", e.message); }
 
         /* followUpDate stays TODAY so the case surfaces in the coordinator's
            allocation queue like every other unassigned case. The 21-day
@@ -27750,7 +27760,7 @@ exports.submitScreeningReferral = functions
           notes: provenance,
           followUpDate: todayHst,
           status: "Open",
-          owner: CASE_ADVOCACY_COORDINATOR_NAME,
+          owner: coordName,
           ownerUid: uid,
           needsAdvocateAssignment: true,
           source: "lions-screening",
