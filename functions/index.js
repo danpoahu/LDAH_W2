@@ -3322,6 +3322,9 @@ exports.onEventFeedbackCreated = functions
       await db.collection("interactions").add({
         channel: "Event Feedback",
         interactionType: "Follow-up",
+        // A partner event's follow-up belongs to that island (2026-10-05):
+        // without it the Super Partner island chip and island reports miss it.
+        partnerIsland: (evData && evData.partnerIsland) || "",
         contactId: contactId,
         contactName: contactName || "Unknown",
         contactType: contactType,
