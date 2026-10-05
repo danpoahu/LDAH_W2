@@ -8,6 +8,15 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#0891B2">
 <title>Screenings — LDAH Staff</title>
+<!-- Installable (2026-10-05): "Screenings" on the home screen of the screening
+     phone or iPad. No service worker on purpose, so it always loads fresh. -->
+<link rel="manifest" href="screenings.webmanifest">
+<link rel="apple-touch-icon" href="screenings-icon-192.png">
+<meta name="apple-mobile-web-app-title" content="Screenings">
+<script>
+  window.__scrInstall = null;
+  window.addEventListener('beforeinstallprompt', function(e) { e.preventDefault(); window.__scrInstall = e; if (window.__scrInstallShow) window.__scrInstallShow(); });
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -16,6 +25,7 @@
     --pass:#16A34A; --fail:#B91C1C; --pend:#B45309; --safe-top:env(safe-area-inset-top); --safe-bot:env(safe-area-inset-bottom); }
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { height:100%; }
+  [hidden] { display:none !important; }
   body { font-family:'Source Sans 3',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; color:var(--ink); background:var(--bg); font-size:16px; line-height:1.5; }
   h1,h2,h3 { font-family:'Outfit',sans-serif; }
   input,select,button,textarea { font-family:inherit; font-size:16px; }
@@ -137,7 +147,7 @@
 
 <!-- Report -->
 <div id="report" style="display:none;">
-  <div class="bar"><h1>Screenings</h1><button id="signOut">Sign out</button></div>
+  <div class="bar"><h1>Screenings</h1><button id="installApp" hidden>Install</button><button id="signOut">Sign out</button></div>
   <div class="filters">
     <button class="chip on" id="cToday" onclick="setFilter('today')">Today</button>
     <button class="chip" id="cAll" onclick="setFilter('all')">All</button>
@@ -472,6 +482,40 @@
       $('btnSave').disabled=false; $('btnEmail').disabled=false;
     }
   };
+</script>
+<div id="installHelp" hidden style="position:fixed;inset:0;z-index:50;background:rgba(15,23,42,.5);display:flex;align-items:flex-end;justify-content:center;padding:16px calc(16px + env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));">
+  <div style="background:#fff;border-radius:16px;max-width:420px;width:100%;padding:20px;">
+    <h2 style="font-size:1.15rem;margin-bottom:8px;">Put Screenings on your home screen</h2>
+    <ol id="installSteps" style="padding-left:20px;line-height:1.7;"></ol>
+    <button id="installHelpClose" style="margin-top:14px;width:100%;background:var(--blue);color:#fff;border:none;border-radius:10px;padding:12px;font-weight:600;font-size:1rem;">Got it</button>
+  </div>
+</div>
+<script>
+/* Install button (2026-10-05). Android/Chrome: Chrome's own install prompt.
+   iPhone/iPad: Apple allows no button, so show the two taps instead.
+   Hidden once it runs as the installed app. */
+(function() {
+  var btn = document.getElementById('installApp'), help = document.getElementById('installHelp');
+  if (!btn) return;
+  var standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  var ua = navigator.userAgent || '';
+  var ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  window.__scrInstallShow = function() { if (!standalone) btn.hidden = false; };
+  if (!standalone && (ios || window.__scrInstall)) btn.hidden = false;
+  btn.addEventListener('click', async function() {
+    if (window.__scrInstall) {
+      var ev = window.__scrInstall; ev.prompt();
+      try { var r = await ev.userChoice; if (r && r.outcome === 'accepted') btn.hidden = true; } catch (e) {}
+      window.__scrInstall = null; return;
+    }
+    var steps = document.getElementById('installSteps');
+    steps.innerHTML = ios
+      ? '<li>Tap the <b>Share</b> button (the square with an arrow' + (/iPad/.test(ua) || navigator.maxTouchPoints > 1 && /Macintosh/.test(ua) ? ', top right' : ', at the bottom') + ').</li><li>Tap <b>Add to Home Screen</b>.</li><li>Tap <b>Add</b>. A <b>Screenings</b> icon appears on your home screen.</li>'
+      : '<li>Open this page in <b>Chrome</b>.</li><li>Tap the <b>&#8942;</b> menu, then <b>Install app</b> (or <b>Add to Home screen</b>).</li>';
+    help.hidden = false;
+  });
+  document.getElementById('installHelpClose').addEventListener('click', function() { help.hidden = true; });
+})();
 </script>
 </body>
 </html>
