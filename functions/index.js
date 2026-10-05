@@ -6309,6 +6309,13 @@ async function runDailyReport(overrideRecipients, opts) {
       return ` <span style="color:#999;">(${b === "self sign-up" ? b : "by " + escFn(b)})</span>`;
     }
 
+    // Which partner (island) a PIP line belongs to (2026-10-05). The PIP report
+    // goes to every partner, so each family line names its island. LDAH: none.
+    function islTag(isl, escFn) {
+      const t = String(isl || "").trim();
+      return (IS_PIP && t) ? ` <span style="color:#7C3AED;font-weight:700;">&middot; ${escFn(t)}</span>` : "";
+    }
+
     function buildGroupedChangeLines(raw, escFn) {
       const groups = new Map();
       const singles = [];
@@ -6320,7 +6327,8 @@ async function runDailyReport(overrideRecipients, opts) {
         if (it.person && it.event) {
           const k = it.person + "||" + it.event;
           let g = groups.get(k);
-          if (!g) { g = { person: it.person, event: it.event, signedUp: false, completedReg: false, statusWord: "", newContact: false, sort: 0, time: "" }; groups.set(k, g); }
+          if (!g) { g = { person: it.person, event: it.event, signedUp: false, completedReg: false, statusWord: "", newContact: false, sort: 0, time: "", island: "" }; groups.set(k, g); }
+          if (it.island && !g.island) g.island = it.island;
           if (it.kind === "signup") g.signedUp = true;
           else if (it.kind === "completedReg") g.completedReg = true;
           else if (it.kind === "status") g.statusWord = it.statusWord || g.statusWord;
@@ -6348,7 +6356,7 @@ async function runDailyReport(overrideRecipients, opts) {
           time: newest.time, sort: newest.sort || 0,
         });
       } else {
-        unattached.forEach((nc) => singles.push({ single: true, icon: "&#128100;", text: `New contact created: <strong>${escFn(nc.person)}</strong>${nc.source ? " (from " + escFn(nc.source) + ")" : ""}${byTag(nc.by, escFn)}`, time: nc.time, sort: nc.sort || 0 }));
+        unattached.forEach((nc) => singles.push({ single: true, icon: "&#128100;", text: `New contact created: <strong>${escFn(nc.person)}</strong>${nc.source ? " (from " + escFn(nc.source) + ")" : ""}${byTag(nc.by, escFn)}${islTag(nc.island, escFn)}`, time: nc.time, sort: nc.sort || 0 }));
       }
       const lines = [];
       groups.forEach((g) => {
@@ -6358,7 +6366,7 @@ async function runDailyReport(overrideRecipients, opts) {
         else if (g.signedUp) verb = "signed up for";
         else verb = "was updated for";
         const tag = g.newContact ? ` <span style="color:#0891b2;font-weight:700;">(new)</span>${byTag(g.newBy, escFn)}` : "";
-        let txt = `<strong>${escFn(g.person)}</strong>${tag} ${verb} <em>${escFn(g.event)}</em>`;
+        let txt = `<strong>${escFn(g.person)}</strong>${tag} ${verb} <em>${escFn(g.event)}</em>${islTag(g.island, escFn)}`;
         if (g.statusWord) txt += ` <span style="color:#666;">&middot; ${escFn(g.statusWord)}</span>`;
         const icon = g.completedReg ? "&#9989;" : (g.signedUp ? "&#128221;" : "&#128260;");
         lines.push({ icon, text: txt, time: g.time, sort: g.sort });
@@ -6379,7 +6387,7 @@ async function runDailyReport(overrideRecipients, opts) {
         const _pd = parentDoc.data() || {};
         if (!inScopePip(parentRef.parent.id === "events" && _pd.partnerIsland)) continue;
         const evTitle = _pd.title || "Unknown Event";
-        rawChanges.push({ kind: "signup", person: nd.name || "Someone", email: nd.email || "", event: evTitle, time: fmtTs(nd.timestamp), sort: nd.timestamp ? (nd.timestamp.seconds || 0) : 0 });
+        rawChanges.push({ kind: "signup", island: _pd.partnerIsland || "", person: nd.name || "Someone", email: nd.email || "", event: evTitle, time: fmtTs(nd.timestamp), sort: nd.timestamp ? (nd.timestamp.seconds || 0) : 0 });
       }
     } catch (err) { console.warn("Changelog signups:", err.message); }
 
@@ -6394,7 +6402,7 @@ async function runDailyReport(overrideRecipients, opts) {
         const _pd2 = parentDoc.data() || {};
         if (!inScopePip(parentRef.parent.id === "events" && _pd2.partnerIsland)) continue;
         const pTitle = _pd2.title || "Unknown Event";
-        rawChanges.push({ kind: "completedReg", person: cd.name || "Someone", email: cd.email || "", event: pTitle, time: fmtTs(cd.registrationCompletedAt), sort: cd.registrationCompletedAt ? (cd.registrationCompletedAt.seconds || 0) : 0 });
+        rawChanges.push({ kind: "completedReg", island: _pd2.partnerIsland || "", person: cd.name || "Someone", email: cd.email || "", event: pTitle, time: fmtTs(cd.registrationCompletedAt), sort: cd.registrationCompletedAt ? (cd.registrationCompletedAt.seconds || 0) : 0 });
       }
     } catch (err) { console.warn("Changelog regs:", err.message); }
 
@@ -6404,7 +6412,7 @@ async function runDailyReport(overrideRecipients, opts) {
       fbSnap.forEach((f) => {
         const fd = f.data();
         if (!inScopePip((fd.eventCollection || "events") === "events" && pipEventIsland[fd.eventId])) return;
-        rawChanges.push({ single: true, icon: "&#128172;", text: `Feedback received for <em>${esc(fd.eventTitle || fd.eventId || "an event")}</em>${fd.presenterRating ? " (Presenter: " + esc(fd.presenterRating) + ")" : ""}`, time: fmtTs(fd.submittedAt), sort: fd.submittedAt ? (fd.submittedAt.seconds || 0) : 0 });
+        rawChanges.push({ single: true, icon: "&#128172;", text: `Feedback received for <em>${esc(fd.eventTitle || fd.eventId || "an event")}</em>${fd.presenterRating ? " (Presenter: " + esc(fd.presenterRating) + ")" : ""}${islTag(pipEventIsland[fd.eventId], esc)}`, time: fmtTs(fd.submittedAt), sort: fd.submittedAt ? (fd.submittedAt.seconds || 0) : 0 });
       });
     } catch (err) { console.warn("Changelog feedback:", err.message); }
 
@@ -6414,7 +6422,7 @@ async function runDailyReport(overrideRecipients, opts) {
       ctSnap.forEach((c) => {
         const cdata = c.data();
         if (!inScopePip(cdata.partnerIsland)) return;
-        rawChanges.push({ kind: "newContact", person: cdata.displayName || cdata.firstName || "Unknown", email: cdata.email || "", source: cdata.source || "", by: cdata.createdByName || "", time: fmtTs(cdata.createdAt), sort: cdata.createdAt ? (cdata.createdAt.seconds || 0) : 0 });
+        rawChanges.push({ kind: "newContact", island: cdata.partnerIsland || "", person: cdata.displayName || cdata.firstName || "Unknown", email: cdata.email || "", source: cdata.source || "", by: cdata.createdByName || "", time: fmtTs(cdata.createdAt), sort: cdata.createdAt ? (cdata.createdAt.seconds || 0) : 0 });
       });
     } catch (err) { console.warn("Changelog contacts:", err.message); }
 
