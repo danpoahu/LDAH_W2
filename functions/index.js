@@ -13409,6 +13409,160 @@ function _screeningResultsEmailHtml({ parentName, childName, url }) {
   </div>`;
 }
 
+// ── Screening completeness (server copy of readiness/results.html) ──────────
+// Copied EXACTLY from results.html screeningParts/isComplete (2026-10-05) so the
+// bulk sender and the screening page agree on "done". Vision done = distance
+// right+left filled. Hearing done = otoscopy right+left + OAE right+left filled,
+// plus tympanometry for any ear whose OAE is 'Fail'. 'Could not test' is a value.
+function _screeningFilled(v) { return typeof v === "string" ? v.trim() !== "" : (v != null && v !== ""); }
+function _screeningResultsOf(s) {
+  if (!s || typeof s !== "object") return {};
+  if (s.results && typeof s.results === "object") return s.results;
+  if (s.hearing || s.vision) return s; // a results object passed directly
+  return {};
+}
+function _screeningParts(s) {
+  const r = _screeningResultsOf(s), h = r.hearing || {}, v = r.vision || {};
+  const pair = (o) => !!o && _screeningFilled(o.right) && _screeningFilled(o.left);
+  const oae = h.oae || {}, ty = h.tympanometry || {};
+  let hearing = pair(h.otoscopy) && pair(h.oae);
+  if (hearing && oae.right === "Fail" && !_screeningFilled(ty.right)) hearing = false;
+  if (hearing && oae.left === "Fail" && !_screeningFilled(ty.left)) hearing = false;
+  return { vision: pair(v.distance) ? "done" : "todo", hearing: hearing ? "done" : "todo" };
+}
+function _screeningIsComplete(s) { const p = _screeningParts(s); return p.vision === "done" && p.hearing === "done"; }
+function _screeningMissing(s) {
+  const p = _screeningParts(s), out = [];
+  if (p.vision !== "done") out.push("vision");
+  if (p.hearing !== "done") out.push("hearing");
+  return out;
+}
+// Valid family addresses for a contact (familyEmails + a basic '@' check).
+function _screeningFamilyEmails(c) {
+  return familyEmails(c).map((e) => String(e || "").trim()).filter((e) => e && e.indexOf("@") !== -1);
+}
+// 'sent' | 'incomplete' | 'noEmail' | 'ready' — checked in that order.
+function _screeningSendStatus(contact, screening) {
+  const r = (screening && screening.results) || {};
+  if (r.resultsSentAt) return "sent";
+  if (!_screeningIsComplete(screening)) return "incomplete";
+  if (!_screeningFamilyEmails(contact || {}).length) return "noEmail";
+  return "ready";
+}
+function _screeningSandboxHidden(c, uid) {
+  return !!c && c.sandbox === true && !(uid && Array.isArray(c.sandboxViewers) && c.sandboxViewers.indexOf(uid) !== -1);
+}
+function _tsToIso(v) {
+  if (!v) return "";
+  if (v.toDate) return v.toDate().toISOString();
+  if (typeof v === "string") return v;
+  if (typeof v._seconds === "number") return new Date(v._seconds * 1000).toISOString();
+  return "";
+}
+// Pure: sort contacts' screenings at one location (+ optional classroom) into
+// the four buckets. docs = [{ id, data }]. Sorted classroom → child last → first.
+function _screeningBulkBuckets(docs, { location, classroom, uid }) {
+  const out = { ready: [], incomplete: [], noEmail: [], sent: [] };
+  const loc = String(location || ""), cls = classroom ? String(classroom) : "";
+  (docs || []).forEach((d) => {
+    const c = (d && d.data) || {};
+    if (_screeningSandboxHidden(c, uid)) return;
+    const list = Array.isArray(c.screenings) ? c.screenings : [];
+    list.forEach((s) => {
+      if (!s || (s.location || "") !== loc) return;
+      if (cls && (s.classroom || "") !== cls) return;
+      const child = s.child || {};
+      const emails = _screeningFamilyEmails(c);
+      const row = {
+        contactId: d.id,
+        screeningId: s.id || "",
+        child: { firstName: child.firstName || "", lastName: child.lastName || "" },
+        classroom: s.classroom || "",
+        parentName: c.displayName || ((c.firstName || "") + " " + (c.lastName || "")).trim(),
+        email: emails[0] || "",
+        emails,
+      };
+      const st = _screeningSendStatus(c, s);
+      if (st === "sent") row.sentAt = _tsToIso(s.results && s.results.resultsSentAt);
+      if (st === "incomplete") row.missing = _screeningMissing(s);
+      out[st].push(row);
+    });
+  });
+  const key = (r) => [r.classroom, r.child.lastName, r.child.firstName].map((x) => String(x || "").toLowerCase());
+  const cmp = (a, b) => {
+    const ka = key(a), kb = key(b);
+    for (let i = 0; i < ka.length; i++) { const x = ka[i].localeCompare(kb[i]); if (x) return x; }
+    return 0;
+  };
+  Object.keys(out).forEach((k) => out[k].sort(cmp));
+  return out;
+}
+
+function _screeningSendError(status, message) { const e = new Error(message); e.status = status; return e; }
+
+// Core of one family results email (extracted from sendScreeningResults
+// 2026-10-05): re-reads the contact, mints a token, emails the secure link to
+// familyEmails(c), then stamps resultsSentAt/resultsToken in a transaction.
+// Returns { ok:true, to, url } or { ok:false, skipped:'alreadySent' } (only
+// with opts.skipIfSent), or throws an Error with .status.
+//   opts.requirePrimaryEmail — single-send behaviour: contact.email must be set.
+//   opts.skipIfSent          — bulk: never send a second time.
+async function _sendOneScreeningResult(db, contactId, screeningId, opts = {}) {
+  const FieldValue = admin.firestore.FieldValue;
+  const cSnap = await db.collection("contacts").doc(contactId).get();
+  if (!cSnap.exists) throw _screeningSendError(404, "Contact not found");
+  const c = cSnap.data() || {};
+  if (opts.requirePrimaryEmail) {
+    const email = (c.email || "").trim();
+    if (!email || email.indexOf("@") === -1) throw _screeningSendError(400, "This contact has no email address");
+  } else if (!_screeningFamilyEmails(c).length) {
+    throw _screeningSendError(400, "This contact has no email address");
+  }
+  const screenings = Array.isArray(c.screenings) ? c.screenings : [];
+  const idx = screenings.findIndex((s) => s && s.id === screeningId);
+  if (idx === -1) throw _screeningSendError(404, "Screening not found");
+  const scr = screenings[idx];
+  if (!scr.results) throw _screeningSendError(400, "No screening results have been entered yet");
+  if (opts.skipIfSent && scr.results.resultsSentAt) return { ok: false, skipped: "alreadySent" };
+
+  const token = crypto.randomBytes(16).toString("hex");
+  await db.collection("screeningResultTokens").doc(token).set({
+    token, contactId, screeningId,
+    createdAt: FieldValue.serverTimestamp(),
+    expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + SCREENING_RESULT_TOKEN_TTL_MS),
+  });
+  const url = SCREENING_RESULTS_BASE_URL + "?token=" + encodeURIComponent(token);
+  const child = scr.child || {};
+  const childName = ((child.firstName || "") + " " + (child.lastName || "")).trim();
+  const html = _screeningResultsEmailHtml({ parentName: c.firstName || "", childName, url });
+  const to = familyEmails(c);
+  await sendEmailViaResend({
+    from: lifecycleFromAddress(),
+    // Fan out to both parents/guardians when a second one is on file.
+    to,
+    subject: "Your child's screening results are ready — LDAH",
+    html,
+    type: "screening-results",
+    recipientName: c.firstName || undefined,
+  });
+  // Stamp resultsSentAt + resultsToken on that screening entry (Timestamp.now — arrays can't hold serverTimestamp).
+  // In a transaction on a FRESH read (2026-10-05): with several screening
+  // stations, another phone may have saved this child (or another child on
+  // the card) while the email was sending; the old write-back of the copy
+  // read above could erase that save.
+  const _sentAt = admin.firestore.Timestamp.now();
+  const _cRef = db.collection("contacts").doc(contactId);
+  await db.runTransaction(async (tx) => {
+    const fresh = await tx.get(_cRef);
+    const list = Array.isArray((fresh.data() || {}).screenings) ? fresh.data().screenings : [];
+    const _updated = list.map((s) => (s && s.id === screeningId)
+      ? Object.assign({}, s, { results: Object.assign({}, s.results, { resultsSentAt: _sentAt, resultsToken: token }) })
+      : s);
+    tx.update(_cRef, { screenings: _updated });
+  });
+  return { ok: true, to, url };
+}
+
 exports.sendScreeningResults = functions
   .runWith({ timeoutSeconds: 30, maxInstances: 5, secrets: EMAIL_SECRETS })
   .https.onRequest(async (req, res) => {
@@ -13427,57 +13581,98 @@ exports.sendScreeningResults = functions
     const contactId = (body.contactId || "").toString().trim();
     if (!contactId) { res.status(400).json({ error: "Missing contactId" }); return; }
     try {
-      const db = admin.firestore();
-      const FieldValue = admin.firestore.FieldValue;
-      const cSnap = await db.collection("contacts").doc(contactId).get();
-      if (!cSnap.exists) { res.status(404).json({ error: "Contact not found" }); return; }
-      const c = cSnap.data() || {};
-      const email = (c.email || "").trim();
-      if (!email || email.indexOf("@") === -1) { res.status(400).json({ error: "This contact has no email address" }); return; }
       const screeningId = (body.screeningId || "").toString().trim();
-      const screenings = Array.isArray(c.screenings) ? c.screenings : [];
-      const idx = screenings.findIndex((s) => s && s.id === screeningId);
-      if (idx === -1) { res.status(404).json({ error: "Screening not found" }); return; }
-      const scr = screenings[idx];
-      if (!scr.results) { res.status(400).json({ error: "No screening results have been entered yet" }); return; }
-
-      const token = crypto.randomBytes(16).toString("hex");
-      await db.collection("screeningResultTokens").doc(token).set({
-        token, contactId, screeningId,
-        createdAt: FieldValue.serverTimestamp(),
-        expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + SCREENING_RESULT_TOKEN_TTL_MS),
-      });
-      const url = SCREENING_RESULTS_BASE_URL + "?token=" + encodeURIComponent(token);
-      const child = scr.child || {};
-      const childName = ((child.firstName || "") + " " + (child.lastName || "")).trim();
-      const html = _screeningResultsEmailHtml({ parentName: c.firstName || "", childName, url });
-      await sendEmailViaResend({
-        from: lifecycleFromAddress(),
-        // Fan out to both parents/guardians when a second one is on file.
-        to: familyEmails(c),
-        subject: "Your child's screening results are ready — LDAH",
-        html,
-        type: "screening-results",
-        recipientName: c.firstName || undefined,
-      });
-      // Stamp resultsSentAt + resultsToken on that screening entry (Timestamp.now — arrays can't hold serverTimestamp).
-      // In a transaction on a FRESH read (2026-10-05): with several screening
-      // stations, another phone may have saved this child (or another child on
-      // the card) while the email was sending; the old write-back of the copy
-      // read above could erase that save.
-      const _sentAt = admin.firestore.Timestamp.now();
-      const _cRef = db.collection("contacts").doc(contactId);
-      await db.runTransaction(async (tx) => {
-        const fresh = await tx.get(_cRef);
-        const list = Array.isArray((fresh.data() || {}).screenings) ? fresh.data().screenings : [];
-        const _updated = list.map((s) => (s && s.id === screeningId)
-          ? Object.assign({}, s, { results: Object.assign({}, s.results, { resultsSentAt: _sentAt, resultsToken: token }) })
-          : s);
-        tx.update(_cRef, { screenings: _updated });
-      });
-      res.status(200).json({ ok: true, url });
+      const r = await _sendOneScreeningResult(admin.firestore(), contactId, screeningId, { requirePrimaryEmail: true });
+      res.status(200).json({ ok: true, url: r.url });
     } catch (err) {
+      if (err && err.status) { res.status(err.status).json({ error: err.message }); return; }
       console.error("sendScreeningResults error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+// Bulk family results for one school (2026-10-05). Staff dashboard:
+//   POST { mode:'preview'|'send', location, classroom?, screeningIds? }
+//   Authorization: Bearer <idToken>  (or body.idToken). superAdmin/admin only.
+// preview → buckets; send → emails every 'ready' child (or the ready subset of
+// screeningIds) one at a time, ~300 ms apart, never twice.
+exports.sendScreeningResultsBulk = functions
+  .runWith({ timeoutSeconds: 300, maxInstances: 2, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.set("Access-Control-Max-Age", "3600");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const m = String(req.get("Authorization") || "").match(/^Bearer\s+(.+)$/);
+    const idToken = (m ? m[1] : (body.idToken || "")).toString().trim();
+    if (!idToken) { res.status(401).json({ error: "Sign-in required" }); return; }
+    let uid = "";
+    try { uid = (await admin.auth().verifyIdToken(idToken)).uid; }
+    catch (e) { res.status(401).json({ error: "Invalid or expired sign-in" }); return; }
+    const db = admin.firestore();
+    try {
+      const ur = await db.collection("userRoles").doc(uid).get();
+      const u = ur.exists ? (ur.data() || {}) : {};
+      if (!["superAdmin", "admin"].includes(String(u.role || "")) || u.isArchived === true) {
+        res.status(403).json({ error: "Not allowed" }); return;
+      }
+    } catch (e) { res.status(403).json({ error: "Not allowed" }); return; }
+
+    const mode = String(body.mode || "");
+    if (mode !== "preview" && mode !== "send") { res.status(400).json({ error: "mode must be 'preview' or 'send'" }); return; }
+    const location = typeof body.location === "string" ? body.location : "";
+    if (!location.trim()) { res.status(400).json({ error: "Missing location" }); return; }
+    const classroom = typeof body.classroom === "string" && body.classroom ? body.classroom : "";
+    const onlyIds = Array.isArray(body.screeningIds) ? body.screeningIds.map(String) : null;
+
+    try {
+      const snap = await db.collection("contacts").where("hasScreenings", "==", true).get();
+      const docs = snap.docs.map((d) => ({ id: d.id, data: d.data() || {} }));
+      const b = _screeningBulkBuckets(docs, { location, classroom, uid });
+      if (mode === "preview") {
+        res.status(200).json({ location, classroom, ready: b.ready, incomplete: b.incomplete, noEmail: b.noEmail, sent: b.sent });
+        return;
+      }
+
+      const brief = (r, reason) => ({ contactId: r.contactId, screeningId: r.screeningId, child: r.child, reason });
+      const skipped = [];
+      let toSend = b.ready;
+      if (onlyIds) {
+        const want = new Set(onlyIds);
+        toSend = b.ready.filter((r) => want.has(r.screeningId));
+        const readyIds = new Set(b.ready.map((r) => r.screeningId));
+        b.incomplete.forEach((r) => { if (want.has(r.screeningId)) skipped.push(brief(r, "incomplete")); });
+        b.noEmail.forEach((r) => { if (want.has(r.screeningId)) skipped.push(brief(r, "noEmail")); });
+        b.sent.forEach((r) => { if (want.has(r.screeningId)) skipped.push(brief(r, "sent")); });
+        const known = new Set([].concat(b.incomplete, b.noEmail, b.sent).map((r) => r.screeningId));
+        onlyIds.forEach((id) => { if (!readyIds.has(id) && !known.has(id)) skipped.push({ contactId: "", screeningId: id, child: null, reason: "notFound" }); });
+      } else {
+        b.incomplete.forEach((r) => skipped.push(brief(r, "incomplete")));
+        b.noEmail.forEach((r) => skipped.push(brief(r, "noEmail")));
+        b.sent.forEach((r) => skipped.push(brief(r, "sent")));
+      }
+
+      let sent = 0;
+      const failed = [];
+      for (let i = 0; i < toSend.length; i++) {
+        const r = toSend[i];
+        if (i > 0) await new Promise((ok) => setTimeout(ok, 300));
+        try {
+          const out = await _sendOneScreeningResult(db, r.contactId, r.screeningId, { skipIfSent: true });
+          if (out.ok) sent++;
+          else skipped.push(brief(r, "sent"));
+        } catch (err) {
+          console.error("sendScreeningResultsBulk child error:", r.contactId, r.screeningId, err.message);
+          failed.push({ contactId: r.contactId, screeningId: r.screeningId, child: r.child, error: err.message });
+        }
+      }
+      res.status(200).json({ sent, failed, skipped });
+    } catch (err) {
+      console.error("sendScreeningResultsBulk error:", err.message);
       res.status(500).json({ error: err.message });
     }
   });
@@ -29104,6 +29299,11 @@ exports.onChatHelpRequest = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  _screeningParts,
+  _screeningIsComplete,
+  _screeningMissing,
+  _screeningSendStatus,
+  _screeningBulkBuckets,
   ensurePledgeContact,
   pledgeInviteSkipReason,
   buildPledgeVolunteerInviteHtml,
