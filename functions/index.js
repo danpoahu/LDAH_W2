@@ -15390,20 +15390,63 @@ exports.verifyPrefillCodeAndPrefill = functions
 const PLEDGE_TEXT =
   "I pledge to help end bullying in my community. I will support others who have been hurt or harmed, treat others with kindness, be more accepting of people's differences, and help include those who are left out.";
 
+// `card` = the community.html resource card (res<N>) the link mirrors. When the
+// Int editor uploads a replacement PDF for that card it saves res<N>File (a
+// Storage download URL) in pageContent/community, and the email follows it.
 const PLEDGE_RESOURCES = [
-  { label: "Bullying Checklist", href: "https://www.ldahawaii.org/assets/docs/wp/Bullying-Check-list.pdf" },
-  { label: "IDEA Sample Letter to Principal", href: "https://www.ldahawaii.org/assets/docs/wp/IDEA-Sample-Letter-to-Principal.pdf" },
-  { label: "504 Sample Letter to Principal", href: "https://www.ldahawaii.org/assets/docs/wp/504-Sample-Letter-to-Principal.pdf" },
-  { label: "Elementary Cyberbullying Prevention", href: "https://www.ldahawaii.org/assets/docs/wp/BP-101-elementary-cyberbullying.pdf" },
-  { label: "Middle/High School Cyberbullying Prevention", href: "https://www.ldahawaii.org/assets/docs/wp/BP-101-middle-high-cyberbullying.pdf" },
+  { card: 6, label: "Bullying Checklist", href: "https://www.ldahawaii.org/assets/docs/wp/Bullying-Check-list.pdf" },
+  { card: 1, label: "IDEA Sample Letter to Principal", href: "https://www.ldahawaii.org/assets/docs/wp/IDEA-Sample-Letter-to-Principal.pdf" },
+  { card: 3, label: "504 Sample Letter to Principal", href: "https://www.ldahawaii.org/assets/docs/wp/504-Sample-Letter-to-Principal.pdf" },
+  { card: 8, label: "Elementary Cyberbullying Prevention", href: "https://www.ldahawaii.org/assets/docs/wp/BP-101-elementary-cyberbullying.pdf" },
+  { card: 9, label: "Middle/High School Cyberbullying Prevention", href: "https://www.ldahawaii.org/assets/docs/wp/BP-101-mhschool-cyberbullying.pdf" },
 ];
 
+function _pledgeIsHttpsUrl(v) {
+  if (typeof v !== "string" || !v.trim()) return false;
+  try { return new URL(v.trim()).protocol === "https:"; } catch (e) { return false; }
+}
+
+// CMS titles are saved from a WYSIWYG editor and may carry markup.
+function _pledgePlainTitle(v) {
+  if (typeof v !== "string") return "";
+  return v.replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<").replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, "\"").replace(/&#39;/gi, "'")
+    .replace(/\s+/g, " ").trim();
+}
+
+// Pure: the email's resource list with any CMS-uploaded PDFs (and CMS titles)
+// swapped in. Anything missing or not https keeps the fixed default.
+function resolvePledgeResources(pageContent) {
+  const data = pageContent && typeof pageContent === "object" ? pageContent : {};
+  return PLEDGE_RESOURCES.map((r) => {
+    const file = data[`res${r.card}File`];
+    const title = _pledgePlainTitle(data[`res${r.card}Title`]);
+    return {
+      card: r.card,
+      label: title || r.label,
+      href: _pledgeIsHttpsUrl(file) ? file.trim() : r.href,
+    };
+  });
+}
+
+async function loadPledgeResources(db) {
+  try {
+    const doc = await db.collection("pageContent").doc("community").get();
+    return resolvePledgeResources(doc.exists ? doc.data() : null);
+  } catch (err) {
+    console.warn("onPledgeCreated: pageContent/community read failed, using default resources:", err.message);
+    return PLEDGE_RESOURCES;
+  }
+}
+
 function buildPledgeConfirmationEmailHtml({
-  name, role, signatureHtml, donateHtml, orgFooterHtml,
+  name, role, signatureHtml, donateHtml, orgFooterHtml, resources = PLEDGE_RESOURCES,
 }) {
   const safeName = _emailEsc(name || "friend");
   const greeting = `Aloha ${safeName},`;
-  const resourcesList = PLEDGE_RESOURCES
+  const resourcesList = (Array.isArray(resources) && resources.length ? resources : PLEDGE_RESOURCES)
     .map((r) => `<li style="margin:6px 0;font-size:15px;color:#333333;line-height:1.5;">
       <a href="${_emailEsc(r.href)}" target="_blank" style="color:#1a3c6e;text-decoration:underline;">${_emailEsc(r.label)}</a>
     </li>`).join("");
@@ -15524,9 +15567,10 @@ exports.onPledgeCreated = functions
     const signatureHtml = await buildSignatureBlock("executiveDirector");
     const donateHtml = includeDonate ? await buildDonateBlock("universal") : "";
     const orgFooterHtml = await getOrgFooterHtml();
+    const resources = await loadPledgeResources(admin.firestore());
 
     const html = buildPledgeConfirmationEmailHtml({
-      name, role, signatureHtml, donateHtml, orgFooterHtml,
+      name, role, signatureHtml, donateHtml, orgFooterHtml, resources,
     });
     const subject = "Mahalo for taking the pledge -- your Bullying Response Kit";
     const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
@@ -29299,6 +29343,10 @@ exports.onChatHelpRequest = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  PLEDGE_RESOURCES,
+  resolvePledgeResources,
+  loadPledgeResources,
+  buildPledgeConfirmationEmailHtml,
   _screeningParts,
   _screeningIsComplete,
   _screeningMissing,
