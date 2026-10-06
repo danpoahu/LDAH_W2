@@ -151,11 +151,12 @@
     <button type="submit" class="btn-primary" id="loginBtn">Sign in</button>
     <div id="loginErr" class="err"></div>
   </form>
+  <button type="button" class="installBtn" id="installAppLogin" hidden style="margin-top:14px;width:100%;background:#fff;color:var(--blue);border:2px solid var(--blue);border-radius:10px;padding:11px;font-weight:600;font-size:1rem;">Install Screenings on this device</button>
 </div>
 
 <!-- Report -->
 <div id="report" style="display:none;">
-  <div class="bar"><h1>Screenings</h1><button id="installApp" hidden>Install</button><button id="signOut">Sign out</button></div>
+  <div class="bar"><h1>Screenings</h1><button id="installApp" class="installBtn" hidden>Install</button><button id="signOut">Sign out</button></div>
   <div class="filters">
     <button class="chip on" id="cToday" onclick="setFilter('today')">Today</button>
     <button class="chip" id="cAll" onclick="setFilter('all')">All</button>
@@ -175,8 +176,10 @@
   <div class="form" id="entryForm"></div>
   <div class="savebar">
     <button class="save" id="btnSave" onclick="saveEntry(false)">Save</button>
-    <button class="email" id="btnEmail" onclick="saveEntry(true)">Save &amp; email family</button>
-    <div class="lockNote" id="emailNote" hidden>Email unlocks when vision and hearing are both done</div>
+    <!-- Family results go out in one bulk email after the event (Daniel 2026-10-05),
+         so the per-child email button is kept in the code but never shown. -->
+    <button class="email" id="btnEmail" onclick="saveEntry(true)" style="display:none">Save &amp; email family</button>
+    <div class="lockNote" id="emailNote" hidden style="display:none">Email unlocks when vision and hearing are both done</div>
   </div>
   <div id="entryMsg"></div>
 </div>
@@ -671,14 +674,16 @@
    iPhone/iPad: Apple allows no button, so show the two taps instead.
    Hidden once it runs as the installed app. */
 (function() {
-  var btn = document.getElementById('installApp'), help = document.getElementById('installHelp');
-  if (!btn) return;
+  var btns = Array.prototype.slice.call(document.querySelectorAll('.installBtn')), help = document.getElementById('installHelp');
+  if (!btns.length) return;
+  var btn = { set hidden(v) { btns.forEach(function(b) { b.hidden = v; }); } };
   var standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
   var ua = navigator.userAgent || '';
   var ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
   window.__scrInstallShow = function() { if (!standalone) btn.hidden = false; };
   if (!standalone && (ios || window.__scrInstall)) btn.hidden = false;
-  btn.addEventListener('click', async function() {
+  btns.forEach(function(b) { b.addEventListener('click', onInstall); });
+  async function onInstall() {
     if (window.__scrInstall) {
       var ev = window.__scrInstall; ev.prompt();
       try { var r = await ev.userChoice; if (r && r.outcome === 'accepted') btn.hidden = true; } catch (e) {}
@@ -689,7 +694,7 @@
       ? '<li>Tap the <b>Share</b> button (the square with an arrow' + (/iPad/.test(ua) || navigator.maxTouchPoints > 1 && /Macintosh/.test(ua) ? ', top right' : ', at the bottom') + ').</li><li>Tap <b>Add to Home Screen</b>.</li><li>Tap <b>Add</b>. A <b>Screenings</b> icon appears on your home screen.</li>'
       : '<li>Open this page in <b>Chrome</b>.</li><li>Tap the <b>&#8942;</b> menu, then <b>Install app</b> (or <b>Add to Home screen</b>).</li>';
     help.hidden = false;
-  });
+  }
   document.getElementById('installHelpClose').addEventListener('click', function() { help.hidden = true; });
 })();
 </script>
