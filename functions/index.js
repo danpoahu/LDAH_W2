@@ -3945,6 +3945,46 @@ function _findChildMatchIndex(list, entry) {
   return list.findIndex((c) => _childMatches(c, entry));
 }
 
+// Where an incoming child entry goes on the contact's children[] (pure;
+// exported via __test). Returns the index to merge into, -1 to append, or
+// null to add nothing at all.
+function _placeChildEntry(list, entry) {
+  const kids = Array.isArray(list) ? list : [];
+  if (!entry || typeof entry !== "object") return null;
+  let idx = _findChildMatchIndex(kids, entry);
+  if (idx !== -1) return idx;
+  if (_childNorm(entry.name)) return -1;            // a named child is never merged below
+
+  /* Unnamed children (2026-09-25). The name-based matcher can never match
+     a child with no name, so each signup appended another identical
+     "Child N". An unnamed entry whose age band and gender match an
+     existing UNNAMED child is the same record as far as anything can
+     tell, so it merges. */
+  const _ua = _canonAgeRange(entry.ageRange || "");
+  const _ug = String(entry.gender || "").trim().toLowerCase();
+  idx = kids.findIndex((ec) => ec && !_childNorm(ec.name) &&
+    _canonAgeRange(ec.ageRange || ec.childAgeRange || "") === _ua &&
+    String(ec.gender || ec.childGender || "").trim().toLowerCase() === _ug);
+  if (idx !== -1) return idx;
+
+  /* Disability-only entries (2026-10-06). A signup that carries only the
+     child's disability categories (no name, age band or gender) says which
+     disabilities, not which child. The one-off gathering form sends exactly
+     that, copied from the contact's first child, and every such signup
+     appended a second "Child 2" holding only the disability. With one child
+     on file it can only be that child, so it merges (disabilities and source
+     keys are unioned). With none, it is the first we know of the child. With
+     two or more it cannot be placed, and a guess could pin a disability on
+     the wrong sibling, so nothing is added. */
+  const disOnly = !_childAgeOf(entry) && !_childGenderOf(entry) &&
+    Array.isArray(entry.disabilityCategories) && entry.disabilityCategories.length > 0;
+  if (disOnly) {
+    if (kids.length === 1) return 0;
+    if (kids.length >= 2) return null;
+  }
+  return -1;
+}
+
 // Every signup key a row now stands for. sourceSignupId is the per-child
 // idempotency key; once rows are merged — by the rule above, or by a human
 // collapsing several rows in Int — one scalar cannot hold every key the row
@@ -4236,19 +4276,10 @@ async function applyRegistrationToContact(linkedContactId, registration, signupI
         // "Mason Quillan"). See _childMatches() above for the rule and for why it
         // stays deliberately hard to satisfy — collapsing two real siblings is
         // the one mistake that cannot be undone from what is left behind.
-        let idx = _findChildMatchIndex(existingChildren, childEntry);
-        /* Unnamed children (2026-09-25). The name-based matcher can never match
-           a child with no name, so each signup appended another identical
-           "Child N". An unnamed entry whose age band and gender match an
-           existing UNNAMED child is the same record as far as anything can
-           tell, so it merges; a named child is never merged this way. */
-        if (idx === -1 && !childEntry.name) {
-          const _ua = _canonAgeRange(childEntry.ageRange || "");
-          const _ug = String(childEntry.gender || "").trim().toLowerCase();
-          idx = existingChildren.findIndex((ec) => ec && !_childNorm(ec.name) &&
-            _canonAgeRange(ec.ageRange || ec.childAgeRange || "") === _ua &&
-            String(ec.gender || ec.childGender || "").trim().toLowerCase() === _ug);
-        }
+        // _placeChildEntry() holds the whole rule: name match, unnamed twin,
+        // disability-only. null = add nothing.
+        const idx = _placeChildEntry(existingChildren, childEntry);
+        if (idx === null) continue;
         if (idx === -1) {
           existingChildren.push(childEntry);
         } else {
@@ -29361,6 +29392,7 @@ exports.__test = {
   _cgMaybeGenerateCaseReview,
   _childMatches,
   _findChildMatchIndex,
+  _placeChildEntry,
   _mergeChildEntries,
   _childSourceKeys,
   _childHasSourceKey,
