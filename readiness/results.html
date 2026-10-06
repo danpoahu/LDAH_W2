@@ -60,6 +60,8 @@
   .b-pend { background:#FEF3C7; color:var(--pend); }
   .card .act { width:100%; padding:13px; border:none; border-radius:12px; background:var(--blue); color:#fff; font-weight:700; font-size:1rem; }
   .card .act.edit { background:#fff; color:var(--blue-d); border:2px solid var(--blue); }
+  /* One screening done, one to go (2026-10-05): orange so it's quick to spot. */
+  .card .act.half { background:#fff; color:#EA580C; border:2px solid #EA580C; }
 
   /* Login */
   .login { max-width:400px; margin:0 auto; padding:calc(var(--safe-top) + 40px) 22px 40px; }
@@ -395,7 +397,7 @@
         '<div class="parent">'+esc(r.parentName||'')+'</div>'+
         '<div class="when">Signed '+esc(when)+'</div>'+
         '<div class="badges">'+(r.classroom?'<span class="badge b-class">'+esc(r.classroom)+'</span>':'')+'<span class="badge b-consent">Consent ✓</span>'+resBadge+'</div>'+
-        '<button class="act'+(done?' edit':'')+'" onclick="openEntry('+i+')">'+(done?'Edit results':'Add results')+'</button>'+
+        '<button class="act'+(done?' edit':((parts.vision==='done')!==(parts.hearing==='done')?' half':''))+'" onclick="openEntry('+i+')">'+(done?'Edit results':'Add results')+'</button>'+
       '</div>';
     });
     $('list').innerHTML = h;
