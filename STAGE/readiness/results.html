@@ -76,7 +76,7 @@
   .err.show { display:block; }
 
   /* Results entry form */
-  .form { padding:16px 16px calc(var(--safe-bot) + 90px); max-width:600px; margin:0 auto; }
+  .form { padding:16px 16px calc(var(--safe-bot) + 112px); max-width:600px; margin:0 auto; }
   .form .sec { font-family:'Outfit',sans-serif; font-weight:700; color:var(--blue); font-size:1.05rem; margin:20px 0 8px; padding-bottom:5px; border-bottom:2px solid #E0F2FE; }
   .form label.l { display:block; font-weight:600; font-size:.92rem; margin:14px 0 5px; }
   .rl { display:grid; grid-template-columns:1.1fr 1fr 1fr; gap:8px; align-items:center; margin-bottom:8px; }
@@ -84,14 +84,22 @@
   .rl .h { font-size:.68rem; color:#94a3b8; font-weight:700; text-transform:uppercase; }
   .form select { padding:11px 10px; }
   .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .savebar { position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--line); padding:12px 16px calc(var(--safe-bot) + 12px); display:flex; gap:10px; z-index:20; }
+  .savebar { position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--line); padding:12px 16px calc(var(--safe-bot) + 12px); display:flex; flex-wrap:wrap; gap:10px; z-index:20; }
   .savebar button { flex:1; padding:14px; border-radius:12px; font-weight:700; font-size:.98rem; border:none; }
   .savebar .save { background:#fff; color:var(--blue-d); border:2px solid var(--blue); }
   .savebar .email { background:var(--blue); color:#fff; }
   .savebar .email:disabled { background:#94a3b8; }
+  /* Station screening (2026-10-05): vision and hearing are done at different
+     stations by different screeners, so the family email waits for both. */
+  .savebar .lockNote { flex:1 1 100%; text-align:center; font-size:.82rem; color:var(--soft); margin-top:-4px; }
+  .otherBox { background:#F8FAFC; border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:4px; font-size:.9rem; }
+  .otherBox .ol { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; padding:2px 0; }
+  .otherBox .ol b { font-family:'Outfit',sans-serif; font-weight:600; }
+  .otherBox .ok { color:var(--pass); } .otherBox .todo { color:var(--pend); }
+  .otherBox .det { color:var(--soft); font-size:.82rem; }
   /* Floats just above the Save bar (2026-09-30): it used to sit under the
      form, behind the fixed bar, so "email failed" and "timed out" were never seen. */
-  #entryMsg { position:fixed; left:12px; right:12px; bottom:calc(var(--safe-bot) + 84px); z-index:21; text-align:center; font-size:.95rem; font-weight:700; pointer-events:none; }
+  #entryMsg { position:fixed; left:12px; right:12px; bottom:calc(var(--safe-bot) + 104px); z-index:21; text-align:center; font-size:.95rem; font-weight:700; pointer-events:none; }
   #entryMsg:not(:empty) { background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px 12px; box-shadow:0 6px 20px rgba(15,23,42,.15); pointer-events:auto; }
   /* Location / classroom / date pickers (2026-09-30): pick a school and a class
      and the roster shows, whatever date the consent was signed. */
@@ -168,6 +176,7 @@
   <div class="savebar">
     <button class="save" id="btnSave" onclick="saveEntry(false)">Save</button>
     <button class="email" id="btnEmail" onclick="saveEntry(true)">Save &amp; email family</button>
+    <div class="lockNote" id="emailNote" hidden>Email unlocks when vision and hearing are both done</div>
   </div>
   <div id="entryMsg"></div>
 </div>
@@ -195,6 +204,64 @@
   const $ = id => document.getElementById(id);
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   function view(v){ ['loading','login','report','entry'].forEach(id=>$(id).style.display='none'); $(v).style.display='block'; }
+
+  /* PURE-BEGIN — station screening (2026-10-05). Pure functions only (no DOM,
+     no Firestore): scratchpad results_merge_test.js extracts and tests this block.
+     COMPLETE = both parts done:
+       Vision  done = distance right AND left have a result.
+       Hearing done = otoscopy right AND left, OAE right AND left have a result,
+                      plus tympanometry for any ear whose OAE is "Fail" (the
+                      family page says tympanometry is done when OAE fails).
+     "Could not test" counts as a result. Lea Symbols / PlusOptix is free text
+     and never required. */
+  const RESULT_PATHS = ['hearing.otoscopy.right','hearing.otoscopy.left','hearing.oae.right','hearing.oae.left',
+    'hearing.tympanometry.right','hearing.tympanometry.left','vision.distance.right','vision.distance.left','vision.leaSymbols'];
+  function _filled(v){ return typeof v === 'string' ? v.trim() !== '' : (v != null && v !== ''); }
+  function _resultsOf(s){
+    if (!s || typeof s !== 'object') return {};
+    if (s.results && typeof s.results === 'object') return s.results;
+    if (s.hearing || s.vision) return s;   // a results object passed directly
+    return {};
+  }
+  function _getPath(o, path){ return path.split('.').reduce((a,k)=>(a && typeof a === 'object') ? a[k] : undefined, o); }
+  // Copies only the objects along the path, so untouched values (Firestore
+  // Timestamps like resultsSentAt) are kept as they are.
+  function _setPath(o, path, value){
+    const k = path.split('.'), root = Object.assign({}, o||{}); let cur = root;
+    for (let i=0;i<k.length-1;i++){ const nx = (cur[k[i]] && typeof cur[k[i]] === 'object') ? Object.assign({}, cur[k[i]]) : {}; cur[k[i]] = nx; cur = nx; }
+    cur[k[k.length-1]] = value; return root;
+  }
+  function screeningParts(s){
+    const r = _resultsOf(s), h = r.hearing || {}, v = r.vision || {};
+    const pair = o => !!o && _filled(o.right) && _filled(o.left);
+    const oae = h.oae || {}, ty = h.tympanometry || {};
+    let hearing = pair(h.otoscopy) && pair(h.oae);
+    if (hearing && oae.right === 'Fail' && !_filled(ty.right)) hearing = false;
+    if (hearing && oae.left === 'Fail' && !_filled(ty.left)) hearing = false;
+    return { vision: pair(v.distance) ? 'done' : 'todo', hearing: hearing ? 'done' : 'todo' };
+  }
+  function isComplete(s){ const p = screeningParts(s); return p.vision === 'done' && p.hearing === 'done'; }
+  /* Merge one screener's changes into the latest saved results.
+     patch.fields = { 'hearing.oae.right':'Pass', 'site':'…', … } — ONLY the
+     fields this screener changed. Everything else in base is kept. A section
+     with any changed field gets <section>At / <section>By / <section>ByUid. */
+  function mergeResults(base, patch){
+    let out = Object.assign({}, base || {});
+    const f = (patch && patch.fields) || {}, secs = {};
+    Object.keys(f).forEach(p => { out = _setPath(out, p, f[p]); const s = p.split('.')[0]; if (s === 'hearing' || s === 'vision') secs[s] = 1; });
+    RESULT_PATHS.forEach(p => { if (_getPath(out, p) === undefined) out = _setPath(out, p, ''); });  // same shape as before
+    ['site','screenedAt','screenedBy'].forEach(k => { if (out[k] === undefined) out[k] = ''; });
+    const st = patch && patch.stamp;
+    if (st) Object.keys(secs).forEach(s => { out[s+'At'] = st.at; out[s+'By'] = st.by || ''; if (st.uid) out[s+'ByUid'] = st.uid; });
+    return out;
+  }
+  // Replace the screening with this id inside a contact's screenings array.
+  function applyToScreening(list, screeningId, fn){
+    let found = false, item = null;
+    const out = (Array.isArray(list) ? list : []).map(s => { if (!found && s && s.id === screeningId){ found = true; item = fn(s); return item; } return s; });
+    return { list: out, found, item };
+  }
+  /* PURE-END */
 
   let filter = 'today';
   let rows = [];
@@ -266,7 +333,7 @@
     if (!unsub) $('list').innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto 12px;"></div>Loading screenings…</div>';
     if (unsub) return;
     unsub = db.collection('contacts').where('hasScreenings','==',true).onSnapshot(
-      snap => { buildRows(snap); fillPickers(); renderList(); },
+      snap => { buildRows(snap); fillPickers(); renderList(); refreshOpenEntry(); },
       err => { $('list').innerHTML = '<div class="empty">Couldn’t load: '+esc(err.message)+'</div>'; }
     );
   }
@@ -283,7 +350,7 @@
   try { pick = Object.assign(pick, JSON.parse(localStorage.getItem('srpPick')||'{}')); } catch(e){}
   function savePick(){ try { localStorage.setItem('srpPick', JSON.stringify(pick)); } catch(e){} }
   function fillPickers(){
-    const locs = {}; rows.forEach(r=>{ if(r.location){ const L = locs[r.location] = locs[r.location] || { n:0, pend:0, cls:{} }; L.n++; if(!r.results) L.pend++; if(r.classroom) L.cls[r.classroom]=(L.cls[r.classroom]||0)+1; } });
+    const locs = {}; rows.forEach(r=>{ if(r.location){ const L = locs[r.location] = locs[r.location] || { n:0, pend:0, cls:{} }; L.n++; if(!isComplete(r.results)) L.pend++; if(r.classroom) L.cls[r.classroom]=(L.cls[r.classroom]||0)+1; } });
     if (pick.loc && !locs[pick.loc]) { pick.loc=''; pick.cls=''; }
     const ls = $('fLoc'); if (ls) ls.innerHTML = '<option value="">Signed today / all</option>' + Object.keys(locs).sort().map(k=>'<option value="'+esc(k)+'"'+(k===pick.loc?' selected':'')+'>'+esc(k)+' ('+locs[k].pend+' to screen)</option>').join('');
     const cl = pick.loc && locs[pick.loc] ? Object.keys(locs[pick.loc].cls).sort() : [];
@@ -300,28 +367,32 @@
     $('cToday').style.opacity = byLoc ? '.45' : ''; $('cAll').style.opacity = byLoc ? '.45' : '';
     let list = byLoc ? rows.filter(r=>r.location===pick.loc && (!pick.cls || r.classroom===pick.cls))
                      : (filter==='today' ? rows.filter(r=>isToday(r.signedAt)) : rows.slice());
-    // Pending (no results yet) float to the TOP so Chassidy sees who's next; within
-    // each group, most recently signed first.
+    // Not complete (vision or hearing still to do) float to the TOP so Chassidy
+    // sees who's next; within each group, most recently signed first.
     list.sort((a,b)=>{
-      const ap=a.results?1:0, bp=b.results?1:0;
+      const ap=isComplete(a.results)?1:0, bp=isComplete(b.results)?1:0;
       if(ap!==bp) return ap-bp;
       if(byLoc){ const c=(a.classroom||'').localeCompare(b.classroom||''); if(c) return c; return (a.childName||'').localeCompare(b.childName||''); }
       return ((b.signedAt&&b.signedAt.toMillis)?b.signedAt.toMillis():0)-((a.signedAt&&a.signedAt.toMillis)?a.signedAt.toMillis():0);
     });
     $('count').textContent = byLoc
-      ? list.length + (list.length===1?' child':' children') + ' \u00b7 ' + list.filter(r=>!r.results).length + ' to screen'
+      ? list.length + (list.length===1?' child':' children') + ' \u00b7 ' + list.filter(r=>!isComplete(r.results)).length + ' to screen'
       : list.length + (list.length===1?' screening':' screenings') + (filter==='today'?' today':'');
     if (!list.length){ $('list').innerHTML = '<div class="empty">No screenings'+(filter==='today'?' today yet':'')+'.</div>'; return; }
     let h='';
     list.forEach((r,i)=>{
       const when = (r.signedAt&&r.signedAt.toDate)?r.signedAt.toDate().toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
-      const resBadge = r.results ? '<span class="badge b-done">Results '+(r.resultsSent?'sent':'done')+'</span>' : '<span class="badge b-pend">Results pending</span>';
+      // A child stays "to screen" until BOTH parts are done (2026-10-05).
+      const done = isComplete(r.results), parts = screeningParts(r.results);
+      const partBadge = (lbl, st) => st==='done' ? '<span class="badge b-done">'+lbl+' ✓</span>' : '<span class="badge b-pend">'+lbl+' to do</span>';
+      const resBadge = done ? '<span class="badge b-done">Results '+(r.resultsSent?'sent':'done')+'</span>'
+        : partBadge('Vision', parts.vision) + partBadge('Hearing', parts.hearing) + (r.resultsSent?'<span class="badge b-done">Results sent</span>':'');
       h += '<div class="card">'+
         '<div class="child">'+esc(r.childName||'Child')+'</div>'+
         '<div class="parent">'+esc(r.parentName||'')+'</div>'+
         '<div class="when">Signed '+esc(when)+'</div>'+
         '<div class="badges">'+(r.classroom?'<span class="badge b-class">'+esc(r.classroom)+'</span>':'')+'<span class="badge b-consent">Consent ✓</span>'+resBadge+'</div>'+
-        '<button class="act'+(r.results?' edit':'')+'" onclick="openEntry('+i+')">'+(r.results?'Edit results':'Add results')+'</button>'+
+        '<button class="act'+(done?' edit':'')+'" onclick="openEntry('+i+')">'+(done?'Edit results':'Add results')+'</button>'+
       '</div>';
     });
     $('list').innerHTML = h;
@@ -351,12 +422,82 @@
     if(seg) seg.querySelectorAll('.sb').forEach(x=>x.classList.toggle('on', x.getAttribute('data-v')===v));
   }
   /* Tap again to clear a choice. */
-  window.segPick = function(b){ const id=b.parentNode.getAttribute('data-for'), v=b.getAttribute('data-v'); segSet(id, $(id).value===v ? '' : v); };
-  window.segBoth = function(r, l, v){ segSet(r, v); segSet(l, v); };
+  window.segPick = function(b){ const id=b.parentNode.getAttribute('data-for'), v=b.getAttribute('data-v'); segSet(id, $(id).value===v ? '' : v); markTouched(id); };
+  window.segBoth = function(r, l, v){ segSet(r, v); segSet(l, v); markTouched(r); markTouched(l); };
+
+  /* ---- Station screening: who changed what (2026-10-05) ----
+     Each form field maps to one path in results. Only fields THIS screener
+     changed are saved, so the hearing station never overwrites vision (or
+     the other way round) from an old copy. */
+  const FORM_FIELDS = [
+    { id:'eOtoR', path:'hearing.otoscopy.right' }, { id:'eOtoL', path:'hearing.otoscopy.left' },
+    { id:'eOaeR', path:'hearing.oae.right' }, { id:'eOaeL', path:'hearing.oae.left' },
+    { id:'eTympR', path:'hearing.tympanometry.right' }, { id:'eTympL', path:'hearing.tympanometry.left' },
+    { id:'eDistR', path:'vision.distance.right' }, { id:'eDistL', path:'vision.distance.left' },
+    { id:'eLea', path:'vision.leaSymbols' },
+    { id:'eDate', path:'screenedAt', common:true }, { id:'eSite', path:'site', common:true }, { id:'eBy', path:'screenedBy', common:true }
+  ];
+  let saving = false;
+  function storedVal(base, path){ const v=_getPath(base||{}, path); if (path==='screenedAt' && v && v.toDate){ const d=v.toDate(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); } return v==null ? '' : String(v).trim(); }
+  function markTouched(id){ if (current){ current.touched[id] = true; updateLock(); } }
+  // The fields to save: changed by this screener since the form opened (or
+  // since the last live refresh). Site / date / screened-by are pre-filled
+  // from the day's defaults, so they are also saved when nothing is stored yet.
+  function buildPatch(withStamp){
+    const fields = {};
+    if (!current) return { fields };
+    FORM_FIELDS.forEach(f => {
+      const v = val(f.id);
+      if (v === current.initial[f.id]) return;
+      if (current.touched[f.id] || (f.common && v !== '' && storedVal(current.base, f.path) === '')) fields[f.path] = v;
+    });
+    const u = auth.currentUser || {};
+    return withStamp ? { fields, stamp:{ at: firebase.firestore.Timestamp.now(), by: u.displayName || u.email || '', uid: u.uid || '' } } : { fields };
+  }
+  function updateLock(){
+    if (!current) return;
+    const ok = isComplete(mergeResults(current.base, buildPatch(false)));
+    if (!saving) $('btnEmail').disabled = !ok;
+    $('emailNote').hidden = ok;
+  }
+  // Read-only line per part, from what is SAVED (refreshed live).
+  function otherHtml(base){
+    const b = base || {}, p = screeningParts(b);
+    const pairTxt = o => o && (o.right||o.left) ? 'R '+(SHORT[o.right]||o.right||'—')+' · L '+(SHORT[o.left]||o.left||'—') : '';
+    const at = t => (t && t.toDate) ? t.toDate().toLocaleString('en-US',{hour:'numeric',minute:'2-digit'}) : '';
+    const line = (lbl, key, det) => {
+      const by = b[key+'By'] || '', when = at(b[key+'At']);
+      return p[key]==='done'
+        ? '<div class="ol"><b class="ok">'+lbl+' ✓</b><span>done'+(by?' by '+esc(by):'')+(when?' at '+esc(when):'')+'</span>'+(det?'<span class="det">'+esc(det)+'</span>':'')+'</div>'
+        : '<div class="ol"><b class="todo">'+lbl+' to do</b>'+(det?'<span class="det">saved so far: '+esc(det)+'</span>':'')+'</div>';
+    };
+    const h = b.hearing || {}, v = b.vision || {};
+    const hDet = [h.otoscopy&&(h.otoscopy.right||h.otoscopy.left)?'Oto '+pairTxt(h.otoscopy):'', h.oae&&(h.oae.right||h.oae.left)?'OAE '+pairTxt(h.oae):'', h.tympanometry&&(h.tympanometry.right||h.tympanometry.left)?'Tymp '+pairTxt(h.tympanometry):''].filter(Boolean).join('; ');
+    return line('Vision','vision', pairTxt(v.distance)) + line('Hearing','hearing', hDet);
+  }
+  // Live refresh: called on every contacts snapshot. Shows the other station's
+  // saved results and updates any field this screener has not changed. Fields
+  // this screener changed are left exactly as typed.
+  function refreshOpenEntry(){
+    if (!current || $('entry').style.display !== 'block') return;
+    const r = rows.find(x => x.contactId===current.contactId && x.screeningId===current.screeningId);
+    if (!r) return;
+    current.base = r.results || {};
+    FORM_FIELDS.forEach(f => {
+      if (f.common) return;   // site / date / screened-by stay as this screener has them
+      const now = val(f.id); if (now !== current.initial[f.id]) return;
+      const sv = storedVal(current.base, f.path); if (sv === now) return;
+      if (f.id === 'eLea'){ const t=$('eLea'); if (t && document.activeElement !== t) t.value = sv; else return; } else segSet(f.id, sv);
+      current.initial[f.id] = sv;
+    });
+    if ((r.printouts||[]).length > current.printouts.length){ current.printouts = r.printouts.slice(); const pl=$('ePhotoList'); if (pl) pl.innerHTML = printoutsHtml(current.printouts); }
+    const ob = $('eOther'); if (ob) ob.innerHTML = otherHtml(current.base);
+    updateLock();
+  }
 
   window.openEntry = function(i){
     const r = window._view[i]; if(!r) return;
-    current = { contactId:r.contactId, screeningId:r.screeningId, printouts:(r.printouts||[]).slice() };
+    current = { contactId:r.contactId, screeningId:r.screeningId, printouts:(r.printouts||[]).slice(), base:(r.results||{}), touched:{}, initial:{} };
     $('entryTitle').textContent = r.childName || 'Results';
     const res = r.results||{}, hd=res.hearing||{}, vs=res.vision||{};
     const by = res.screenedBy || dayDefaults.screenedBy || (auth.currentUser && auth.currentUser.displayName) || '';
@@ -366,6 +507,7 @@
     if(!when && pick.date) when = pick.date;
     if(!when){ const t=new Date(); when=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'); }
     let f = '';
+    f += '<div class="otherBox" id="eOther">'+otherHtml(current.base)+'</div>';
     f += '<div class="grid2"><div><label class="l">Date of Screening</label><input type="date" id="eDate" value="'+when+'"></div>'+
          '<div><label class="l">Site</label><input id="eSite" value="'+esc(site)+'"></div></div>';
     f += '<label class="l">Screened by</label><input id="eBy" value="'+esc(by)+'">';
@@ -380,11 +522,17 @@
          '<button type="button" class="photoBtn" onclick="document.getElementById(\'ePhoto\').click()">Photo of printout</button>' +
          '<div class="pList" id="ePhotoList">'+printoutsHtml(current.printouts)+'</div><div id="ePhotoMsg"></div></div>';
     $('entryForm').innerHTML = f;
+    // "initial" = what is SAVED, not what is pre-filled, so a pre-filled site /
+    // date / screened-by still counts as new on the first save.
+    FORM_FIELDS.forEach(fd => { current.initial[fd.id] = storedVal(current.base, fd.path); });
+    ['eDate','eSite','eBy','eLea'].forEach(id => { const el=$(id); if (el){ el.addEventListener('input', () => markTouched(id)); el.addEventListener('change', () => markTouched(id)); } });
     $('entryMsg').textContent = '';
+    saving = false;
     $('btnSave').disabled=false; $('btnEmail').disabled=false; $('btnSave').textContent='Save'; $('btnEmail').textContent='Save & email family';
+    updateLock();
     view('entry'); window.scrollTo(0,0);
   };
-  window.closeEntry = function(){ view('report'); };
+  window.closeEntry = function(){ view('report'); current = null; };
 
   /* ---- Printout photo ----
      Uploads go through the same private, staff-only route as paper consents:
@@ -410,12 +558,13 @@
   }
   window.uploadPrintout = async function(inp){
     const file = inp.files && inp.files[0]; inp.value=''; if(!file||!current) return;
+    const cur = current;   // the child this photo belongs to, even if the form is closed mid-upload
     const msg=$('ePhotoMsg'); msg.style.color='var(--soft)'; msg.textContent='Preparing the photo\u2026';
     let blob=file, type=file.type||'image/jpeg';
     try { blob = await shrink(file); type='image/jpeg'; } catch(e){ blob=file; }
     try {
       const idToken = await auth.currentUser.getIdToken();
-      const r = await fetch(UPLOAD_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idToken,contactId:current.contactId,mimeType:type,sizeBytes:blob.size,kind:'printout'})});
+      const r = await fetch(UPLOAD_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idToken,contactId:cur.contactId,mimeType:type,sizeBytes:blob.size,kind:'printout'})});
       const j = await r.json().catch(()=>({}));
       if(!r.ok||!j.uploadUrl) throw new Error(j.error||'Could not start the upload.');
       await new Promise((res,rej)=>{ const x=new XMLHttpRequest(); x.open('PUT', j.uploadUrl); x.setRequestHeader('Content-Type', type);
@@ -423,11 +572,19 @@
         x.onload=()=> (x.status>=200&&x.status<300)?res():rej(new Error('Upload failed ('+x.status+'). Try again.'));
         x.onerror=()=>rej(new Error('Upload failed. Check the connection and try again.')); x.send(blob); });
       const entry={ storagePath:j.storagePath, uploadedAt:new Date().toISOString(), by:(auth.currentUser.displayName||auth.currentUser.email||'') };
-      const snap=await db.collection('contacts').doc(current.contactId).get();
-      const arr=(((snap.data()||{}).screenings)||[]).map(s=> (s&&s.id===current.screeningId)? Object.assign({},s,{printouts:(Array.isArray(s.printouts)?s.printouts:[]).concat([entry])}) : s);
-      await db.collection('contacts').doc(current.contactId).update({ screenings: arr });
-      current.printouts.push(entry);
-      $('ePhotoList').innerHTML = printoutsHtml(current.printouts, URL.createObjectURL(blob));
+      // Transaction (2026-10-05): re-reads the contact and appends ONLY this
+      // photo, so it can never undo results another screener just saved.
+      const ref=db.collection('contacts').doc(cur.contactId);
+      const saved = await db.runTransaction(async tx => {
+        const snap = await tx.get(ref);
+        const out = applyToScreening(((snap.data()||{}).screenings)||[], cur.screeningId, s => Object.assign({}, s, { printouts:(Array.isArray(s.printouts)?s.printouts:[]).concat([entry]) }));
+        if (!out.found) throw new Error('This child\u2019s screening was not found. Nothing was saved.');
+        tx.update(ref, { screenings: out.list });
+        return out.item.printouts;
+      });
+      cur.printouts = saved.slice();
+      if (current !== cur) return;
+      $('ePhotoList').innerHTML = printoutsHtml(cur.printouts, URL.createObjectURL(blob));
       msg.style.color='var(--pass)'; msg.textContent='Printout saved to this child.';
     } catch(e){ msg.style.color='var(--fail)'; msg.textContent=(e&&e.message)||String(e); }
   };
@@ -447,39 +604,58 @@
 
   window.saveEntry = async function(sendEmail){
     if(!current) return;
-    const msg = $('entryMsg'); msg.style.color='#64748b'; msg.textContent = sendEmail?'Saving & emailing…':'Saving…';
-    $('btnSave').disabled=true; $('btnEmail').disabled=true;
-    const results = {
-      site: val('eSite'), screenedAt: $('eDate').value||'', screenedBy: val('eBy'),
-      hearing: { otoscopy:{right:val('eOtoR'),left:val('eOtoL')}, oae:{right:val('eOaeR'),left:val('eOaeL')}, tympanometry:{right:val('eTympR'),left:val('eTympL')} },
-      vision: { distance:{right:val('eDistR'),left:val('eDistL')}, leaSymbols:val('eLea') }
-    };
+    const cur = current;
+    const msg = $('entryMsg');
+    // The family email waits until vision AND hearing are both done.
+    if (sendEmail && !isComplete(mergeResults(cur.base, buildPatch(false)))){ msg.style.color='#b45309'; msg.textContent='Email unlocks when vision and hearing are both done.'; updateLock(); return; }
+    msg.style.color='#64748b'; msg.textContent = sendEmail?'Saving & emailing…':'Saving…';
+    saving = true; $('btnSave').disabled=true; $('btnEmail').disabled=true;
+    const patch = buildPatch(true);
+    const site = val('eSite'), screenedBy = val('eBy');
     try {
-      // Watchdog: never let a save hang silently. If the write doesn't finish in
-      // 15s (e.g. the connection dropped), surface an error instead of nothing.
-      const doWrite = (async () => {
-        const snap = await db.collection('contacts').doc(current.contactId).get();
-        const arr = (((snap.data()||{}).screenings)||[]).map(s => (s&&s.id===current.screeningId)?Object.assign({},s,{results:results}):s);
-        await db.collection('contacts').doc(current.contactId).update({ screenings: arr });
-      })();
-      await Promise.race([ doWrite, new Promise((_,rej)=>setTimeout(()=>rej({ code:'timeout' }), 15000)) ]);
+      let merged = cur.base;
+      if (Object.keys(patch.fields).length){
+        // TRANSACTION (2026-10-05): two stations can save the same child seconds
+        // apart. Re-read the contact inside the transaction and merge ONLY the
+        // fields this screener changed into the latest results; Firestore
+        // retries if the doc changed underneath. Watchdog: never let a save hang
+        // silently — if it doesn't finish in 15s, surface an error.
+        const ref = db.collection('contacts').doc(cur.contactId);
+        const doWrite = db.runTransaction(async tx => {
+          const snap = await tx.get(ref);
+          if (!snap.exists) throw new Error('This contact was not found');
+          const out = applyToScreening(((snap.data()||{}).screenings)||[], cur.screeningId, s => Object.assign({}, s, { results: mergeResults(s.results, patch) }));
+          if (!out.found) throw new Error('This child\u2019s screening was not found');
+          tx.update(ref, { screenings: out.list });
+          return out.item.results;
+        });
+        merged = await Promise.race([ doWrite, new Promise((_,rej)=>setTimeout(()=>rej({ code:'timeout' }), 15000)) ]);
+        // Saved: what is on screen is now the baseline.
+        cur.base = merged; cur.touched = {};
+        FORM_FIELDS.forEach(fd => { cur.initial[fd.id] = storedVal(merged, fd.path); });
+      }
       // Remember Site + Screened by as today's defaults so they auto-fill on the
       // next child, on any browser (persisted server-side).
-      dayDefaults = { site: results.site, screenedBy: results.screenedBy };
-      db.collection('screeningDefaults').doc('current').set({ site: results.site, screenedBy: results.screenedBy, dateKey: todayKey(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(()=>{});
+      dayDefaults = { site: site, screenedBy: screenedBy };
+      db.collection('screeningDefaults').doc('current').set({ site: site, screenedBy: screenedBy, dateKey: todayKey(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(()=>{});
+      if (sendEmail && !isComplete(merged)){
+        saving = false; msg.style.color='#b45309'; msg.textContent='Saved, but not emailed: vision and hearing are not both done yet.';
+        $('btnSave').disabled=false; updateLock(); return;
+      }
       if (sendEmail){
         let idToken=''; try { idToken = await auth.currentUser.getIdToken(); } catch(_){}
         const res = await fetch(SEND_RESULTS, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idToken, contactId:current.contactId, screeningId:current.screeningId }) });
-        if (!res.ok){ let d=''; try{const j=await res.json(); d=j&&j.error?' ('+j.error+')':'';}catch(e){} msg.style.color='#b91c1c'; msg.textContent='Saved, but email failed'+d+'.'; $('btnSave').disabled=false; $('btnEmail').disabled=false; return; }
+        if (!res.ok){ let d=''; try{const j=await res.json(); d=j&&j.error?' ('+j.error+')':'';}catch(e){} msg.style.color='#b91c1c'; msg.textContent='Saved, but email failed'+d+'.'; saving=false; $('btnSave').disabled=false; $('btnEmail').disabled=false; updateLock(); return; }
         msg.style.color='#16a34a'; msg.textContent='Saved & emailed. ✓';
       } else { msg.style.color='#16a34a'; msg.textContent='Results saved. ✓'; }
-      setTimeout(()=>{ closeEntry(); }, 800);
+      saving = false;
+      setTimeout(()=>{ if (current === cur) closeEntry(); }, 800);
     } catch (ex){
       msg.style.color='#b91c1c';
       if (ex && ex.code==='timeout') msg.textContent = 'Save timed out — check your internet connection and try again. (Nothing was lost; just tap Save again.)';
       else if (ex && ex.code==='permission-denied') msg.textContent = 'Your account can’t save results (needs admin access — ask Daniel).';
       else msg.textContent = 'Error: '+((ex&&ex.message)||'could not save')+'. Please try again.';
-      $('btnSave').disabled=false; $('btnEmail').disabled=false;
+      saving = false; $('btnSave').disabled=false; $('btnEmail').disabled=false; updateLock();
     }
   };
 </script>

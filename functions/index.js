@@ -13461,10 +13461,20 @@ exports.sendScreeningResults = functions
         recipientName: c.firstName || undefined,
       });
       // Stamp resultsSentAt + resultsToken on that screening entry (Timestamp.now — arrays can't hold serverTimestamp).
-      const _updated = screenings.map((s, i) => i === idx
-        ? Object.assign({}, s, { results: Object.assign({}, s.results, { resultsSentAt: admin.firestore.Timestamp.now(), resultsToken: token }) })
-        : s);
-      await db.collection("contacts").doc(contactId).update({ screenings: _updated });
+      // In a transaction on a FRESH read (2026-10-05): with several screening
+      // stations, another phone may have saved this child (or another child on
+      // the card) while the email was sending; the old write-back of the copy
+      // read above could erase that save.
+      const _sentAt = admin.firestore.Timestamp.now();
+      const _cRef = db.collection("contacts").doc(contactId);
+      await db.runTransaction(async (tx) => {
+        const fresh = await tx.get(_cRef);
+        const list = Array.isArray((fresh.data() || {}).screenings) ? fresh.data().screenings : [];
+        const _updated = list.map((s) => (s && s.id === screeningId)
+          ? Object.assign({}, s, { results: Object.assign({}, s.results, { resultsSentAt: _sentAt, resultsToken: token }) })
+          : s);
+        tx.update(_cRef, { screenings: _updated });
+      });
       res.status(200).json({ ok: true, url });
     } catch (err) {
       console.error("sendScreeningResults error:", err.message);
