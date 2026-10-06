@@ -15393,21 +15393,12 @@ const PLEDGE_TEXT =
 // `card` = the community.html resource card (res<N>) the link mirrors. When the
 // Int editor uploads a replacement PDF for that card it saves res<N>File (a
 // Storage download URL) in pageContent/community, and the email follows it.
-// The whole Bullying Response Kit, in the page's card order (2026-10-05:
-// Daniel wants every updated PDF in the email). Each item links to the PDF
-// uploaded in the Int page editor for that card (res<N>File) when there is one,
-// otherwise to the original file below.
 const PLEDGE_RESOURCES = [
-  { card: 1, label: "IDEA Sample Letter to Principal", href: "https://www.ldahawaii.org/assets/docs/wp/IDEA-Sample-Letter-to-Principal.pdf" },
-  { card: 2, label: "Completed IDEA Sample Letter", href: "https://www.ldahawaii.org/assets/docs/wp/Completed-IDEA-Sample-Letter-to-Principal.pdf" },
-  { card: 3, label: "504 Sample Letter to Principal", href: "https://www.ldahawaii.org/assets/docs/wp/504-Sample-Letter-to-Principal.pdf" },
-  { card: 4, label: "Completed 504 Sample Letter", href: "https://www.ldahawaii.org/assets/docs/wp/Completed-504-Sample-Letter-to-Principal.pdf" },
-  { card: 5, label: "Sample Follow Up Letter to Superintendent", href: "https://www.ldahawaii.org/assets/docs/wp/Sample-Follow-Up-Letter-to-Supt.pdf" },
   { card: 6, label: "Bullying Checklist", href: "https://www.ldahawaii.org/assets/docs/wp/Bullying-Check-list.pdf" },
-  { card: 7, label: "Complex Area Superintendents", href: "https://www.ldahawaii.org/assets/docs/wp/Complex-Area-Superintendents.pdf" },
+  { card: 1, label: "IDEA Sample Letter to Principal", href: "https://www.ldahawaii.org/assets/docs/wp/IDEA-Sample-Letter-to-Principal.pdf" },
+  { card: 3, label: "504 Sample Letter to Principal", href: "https://www.ldahawaii.org/assets/docs/wp/504-Sample-Letter-to-Principal.pdf" },
   { card: 8, label: "Elementary Cyberbullying Prevention", href: "https://www.ldahawaii.org/assets/docs/wp/BP-101-elementary-cyberbullying.pdf" },
   { card: 9, label: "Middle/High School Cyberbullying Prevention", href: "https://www.ldahawaii.org/assets/docs/wp/BP-101-mhschool-cyberbullying.pdf" },
-  { card: 10, label: "Bullying Postcard", href: "https://www.ldahawaii.org/assets/docs/wp/Bullying-Postcard-1.pdf" },
 ];
 
 function _pledgeIsHttpsUrl(v) {
@@ -15488,7 +15479,7 @@ function buildPledgeConfirmationEmailHtml({
 
     ${_emailBtn("https://www.ldahawaii.org/community.html", "View the Full Response Kit", { bg: "#1a3c6e", align: "center" })}
 
-    <p style="margin:28px 0 8px;font-size:15px;color:#333333;line-height:1.5;font-weight:700;">Everything in the kit, ready to download:</p>
+    <p style="margin:28px 0 8px;font-size:15px;color:#333333;line-height:1.5;font-weight:700;">A few resources to start with:</p>
     <ul style="margin:0 0 20px;padding-left:22px;">${resourcesList}</ul>
 
     <p style="margin:20px 0 0;font-size:15px;color:#555555;line-height:1.6;">

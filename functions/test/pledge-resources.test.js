@@ -48,7 +48,7 @@ function ok(cond, name) { if (cond) { pass++; return; } fail++; console.error(`F
   ok(byCard[3].href === PLEDGE_RESOURCES.find((r) => r.card === 3).href, 'javascript: rejected');
   ok(byCard[8].href.endsWith('BP-101-elementary-cyberbullying.pdf'), 'blank rejected');
   ok(byCard[9].href.endsWith('BP-101-mhschool-cyberbullying.pdf') && byCard[9].label === 'Middle/High School Cyberbullying Prevention', 'non-string rejected, empty title ignored');
-  ok(out.length === 10, 'all 10 kit items');
+  ok(out.length === 5, 'still 5 items');
 
   // loadPledgeResources: doc read failure falls back silently.
   const failingDb = { collection: () => ({ doc: () => ({ get: async () => { throw new Error('boom'); } }) }) };
