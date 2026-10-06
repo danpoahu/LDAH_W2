@@ -28248,23 +28248,22 @@ function _buildScreeningReferralIntroHtml(o) {
         'help you work out the next step if you would like help with one. If everything is already in hand, ' +
         'that is good news and the call will be a short one.</p>' +
 
-      '<p style="' + p + '">There is nothing you need to do before then, and nothing to sign. If you would ' +
-        'rather not hear from us, just reply to this email and we will close the referral.</p>' +
+      
 
-      /* Signed by a person (2026-09-16). This is the ONLY letter a screening
+      /* Signed by the School Readiness Project Team, no person, title or
+         email (Daniel, 2026-10-06). The "nothing you need to do / reply to
+         opt out" paragraph was removed the same day. Earlier note:
+         Signed by a person (2026-09-16). This is the ONLY letter a screening
          family receives — Daniel: "The first one ... will be all that is needed
          ... we don't need another one ever." A letter that promises "one of our
          parent consultants will contact you" and is then signed by the
          organisation gives the family nobody to reply to. */
       '<p style="margin:26px 0 4px;font-size:15px;color:#333;line-height:1.5;">With Aloha,</p>' +
       '<p style="margin:16px 0 2px;font-size:14px;color:#555555;line-height:1.5;">' +
-        (o.signerName ? '<strong>' + esc(o.signerName) + '</strong><br>' : '') +
-        (o.signerTitle ? esc(o.signerTitle) + '<br>' : '') +
+        '<strong>The School Readiness Project Team</strong><br>' +
         'Leadership in Disabilities &amp; Achievement of Hawai&#699;i<br>' +
         '245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>' +
         'Phone: (808) 536-9684<br>' +
-        (o.signerEmail ? '<a href="mailto:' + esc(o.signerEmail) + '" style="color:#1a73e8;text-decoration:none;">' +
-          esc(o.signerEmail) + '</a><br>' : '') +
         '<a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>' +
       '</p>' +
     '</div>' +
