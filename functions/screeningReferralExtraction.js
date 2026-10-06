@@ -102,7 +102,8 @@ const SCREENING_REFERRAL_TOOL_SCHEMA = {
       type: ["string", "null"],
       description:
         "VISION only: the 'Email:' blank. Transcribe exactly, lowercase. Handwritten addresses are " +
-        "error-prone — if any character is ambiguous, still give your best reading but list " +
+        "error-prone: check an ambiguous character against the parent's printed name and common " +
+        "domains first; if it is still genuinely ambiguous, give your best reading and list " +
         "'parentEmail' in uncertainFields. Null if blank. Always null on a hearing form.",
     },
     parentPhone: {
@@ -145,9 +146,12 @@ const SCREENING_REFERRAL_TOOL_SCHEMA = {
       type: "array",
       items: { type: "string" },
       description:
-        "Names of the fields above you are NOT confident about, so a human can check exactly those. " +
-        "Be generous here — a flagged field costs one glance, a wrong one creates the wrong family " +
-        "record. Empty array if everything was clear.",
+        "Names of the fields above you genuinely cannot read with confidence, so a human checks exactly " +
+        "those: smudged or faint writing, ambiguous letters, text cut off at the edge, or two plausible " +
+        "readings that the rest of the page cannot settle. Do NOT flag a field that is clearly written. " +
+        "Before flagging, use the context of the whole page to resolve the doubt: the printed labels, " +
+        "the email address spelling against the parent's printed name, Hawaii phone numbers starting " +
+        "808, the school name. Empty array if everything was clear.",
     },
   },
   required: ["formType", "outcome", "consentSigned", "confidence", "uncertainFields"],
@@ -173,7 +177,10 @@ function buildSystemPrompt(todayStr) {
     "- Read CIRCLES as well as ticks. On the vision form, age and grade are selected by circling a printed number, not by writing one.",
     "- screeningDate is the date the screening was performed — not the parent's signature date and not the 'This form is due' date. These sit close together; take care.",
     "- Do not diagnose, summarise or soften the results. Quote what the form says.",
-    "- Flag anything doubtful in uncertainFields rather than committing to a confident guess. Over-flagging is the cheaper mistake here.",
+    "- Flag a field in uncertainFields only when you genuinely cannot read it with confidence: smudged, ambiguous letters, cut off, or two plausible readings. Do NOT flag fields that are clearly written. Before flagging, use the context of the whole page to resolve ambiguity: the printed labels, the email address spelling against the parent's printed name, area code 808 on phone numbers, the school name.",
+    "- Keep confidence 'low' for genuinely poor pages (bad photo, heavy skew, cut-off edges, handwriting you are mostly guessing at).",
+    "",
+    "After examining the page, you MUST call record_screening_referral exactly once.",
   ].join("\n");
 }
 
@@ -215,6 +222,74 @@ function contactability(data, paired) {
   };
 }
 
+/* The model call and its response parsing, kept here (not inline in index.js)
+ * so a test can drive it with a fake client.
+ *
+ * Adaptive thinking cannot be combined with a FORCED tool_choice, so the first
+ * attempt lets the model think and uses tool_choice auto, with the system prompt
+ * insisting on exactly one record_screening_referral call. If it answers in text
+ * instead, we retry ONCE the old way (forced tool, no thinking) rather than fail
+ * the page. Streamed + finalMessage(): 16000 max_tokens with thinking can run
+ * long, and streaming keeps the socket alive (same reason as the Case Review).
+ *
+ * Throws an Error whose .code is "truncated" (stop_reason max_tokens) or
+ * "no_tool_use" (nothing usable after the retry). (2026-10-05) */
+const SCREENING_REFERRAL_TOOL_NAME = "record_screening_referral";
+const SCREENING_REFERRAL_MAX_TOKENS = 16000;
+const SCREENING_REFERRAL_RETRY_MAX_TOKENS = 4000;
+
+function _extractionError(code, message) {
+  const e = new Error(message);
+  e.code = code;
+  return e;
+}
+
+function _findToolUse(response) {
+  return ((response && response.content) || []).find(
+    (b) => b && b.type === "tool_use" && b.name === SCREENING_REFERRAL_TOOL_NAME && b.input
+  ) || null;
+}
+
+async function runScreeningExtraction(client, { model, system, mediaBlock }) {
+  const tools = [{
+    name: SCREENING_REFERRAL_TOOL_NAME,
+    description: "Record the contents of this Lions screening form. Call exactly once.",
+    input_schema: SCREENING_REFERRAL_TOOL_SCHEMA,
+  }];
+  const messages = [{ role: "user", content: [mediaBlock, { type: "text", text: "Read this Lions screening form." }] }];
+
+  const first = await client.messages.stream({
+    model,
+    max_tokens: SCREENING_REFERRAL_MAX_TOKENS,
+    thinking: { type: "adaptive" },
+    system,
+    tools,
+    tool_choice: { type: "auto" },
+    messages,
+  }).finalMessage();
+
+  if (first.stop_reason === "max_tokens") throw _extractionError("truncated", "truncated at max_tokens");
+  const toolUse = _findToolUse(first);
+  if (toolUse) return { response: first, toolUse, retried: false };
+
+  /* Model replied in prose. One forced retry, thinking off (forced tool use and
+     thinking cannot be combined). */
+  const second = await client.messages.stream({
+    model,
+    max_tokens: SCREENING_REFERRAL_RETRY_MAX_TOKENS,
+    thinking: { type: "disabled" },
+    system,
+    tools,
+    tool_choice: { type: "tool", name: SCREENING_REFERRAL_TOOL_NAME },
+    messages,
+  }).finalMessage();
+
+  if (second.stop_reason === "max_tokens") throw _extractionError("truncated", "truncated at max_tokens (retry)");
+  const retryUse = _findToolUse(second);
+  if (!retryUse) throw _extractionError("no_tool_use", "no tool_use block after retry");
+  return { response: second, toolUse: retryUse, retried: true, firstUsage: first.usage || null };
+}
+
 const SCREENING_REFERRAL_FORM_TYPES = ["vision", "hearing"];
 const SCREENING_REFERRAL_OUTCOMES = ["pass", "refer", "unclear"];
 const SCREENING_REFERRAL_HEARING_RECS = ["1", "2", "2a", "2b", "3", "4"];
@@ -224,7 +299,10 @@ module.exports = {
   SCREENING_REFERRAL_FORM_TYPES,
   SCREENING_REFERRAL_OUTCOMES,
   SCREENING_REFERRAL_HEARING_RECS,
+  SCREENING_REFERRAL_TOOL_NAME,
+  SCREENING_REFERRAL_MAX_TOKENS,
   buildSystemPrompt,
+  runScreeningExtraction,
   isReferral,
   contactability,
 };

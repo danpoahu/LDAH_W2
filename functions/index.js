@@ -223,7 +223,7 @@ exports.extractEventFromFlyer = functions
    touching Firestore. Compare extractEventFromFlyer above — same shape, same
    reasoning. (2026-09-10) */
 exports.extractScreeningReferral = functions
-  .runWith({ timeoutSeconds: 120, maxInstances: 3, secrets: ["ANTHROPIC_API_KEY_FLYER"] })
+  .runWith({ timeoutSeconds: 240, maxInstances: 3, secrets: ["ANTHROPIC_API_KEY_FLYER"] })
   .https.onRequest(async (req, res) => {
     res.set("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
     res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -255,31 +255,31 @@ exports.extractScreeningReferral = functions
       /* Opus, not the Haiku the flyer extractor uses. These pages are HANDWRITTEN
          and the child's name becomes a family record; a misread there is unpicked
          by hand later. One page is a couple of cents. */
+      /* Adaptive thinking + tool_choice auto, one forced-tool retry if the model
+         answers in prose, streamed. See runScreeningExtraction. (2026-10-05) */
       const client = new Anthropic({ apiKey: _anthropicKey("ANTHROPIC_API_KEY_FLYER") });
-      const response = await client.messages.create({
-        model: SCREENING_REFERRAL_MODEL,
-        max_tokens: 2000,
-        system: screeningReferral.buildSystemPrompt(_todayStr),
-        tools: [{
-          name: "record_screening_referral",
-          description: "Record the contents of this Lions screening form.",
-          input_schema: screeningReferral.SCREENING_REFERRAL_TOOL_SCHEMA,
-        }],
-        tool_choice: { type: "tool", name: "record_screening_referral" },
-        messages: [{ role: "user", content: [mediaBlock, { type: "text", text: "Read this Lions screening form." }] }],
-      });
-
-      if (response.stop_reason === "max_tokens") {
-        console.error("extractScreeningReferral: truncated at max_tokens");
-        res.status(502).json({ ok: false, error: "The reading came back incomplete. Please try that page again." });
-        return;
+      let extraction;
+      try {
+        extraction = await screeningReferral.runScreeningExtraction(client, {
+          model: SCREENING_REFERRAL_MODEL,
+          system: screeningReferral.buildSystemPrompt(_todayStr),
+          mediaBlock,
+        });
+      } catch (e) {
+        if (e && e.code === "truncated") {
+          console.error("extractScreeningReferral: truncated at max_tokens");
+          res.status(502).json({ ok: false, error: "The reading came back incomplete. Please try that page again." });
+          return;
+        }
+        if (e && e.code === "no_tool_use") {
+          console.error("extractScreeningReferral: no tool_use after retry");
+          res.status(502).json({ ok: false, error: "Nothing could be read from that page." });
+          return;
+        }
+        throw e;
       }
-
-      const toolUse = (response.content || []).find((b) => b.type === "tool_use");
-      if (!toolUse || !toolUse.input) {
-        res.status(502).json({ ok: false, error: "Nothing could be read from that page." });
-        return;
-      }
+      const response = extraction.response;
+      const toolUse = extraction.toolUse;
 
       /* Coerce the closed sets against a JS allowlist rather than trusting the
          model to have honoured its own enum — same guard the flyer extractor
@@ -306,7 +306,7 @@ exports.extractScreeningReferral = functions
       const usage = response.usage || {};
       console.log("extractScreeningReferral:", d.formType, "referral=" + d.isReferral,
         "confidence=" + d.confidence, "inputTokens=" + (usage.input_tokens || "?"),
-        "outputTokens=" + (usage.output_tokens || "?"));
+        "outputTokens=" + (usage.output_tokens || "?"), "retried=" + extraction.retried);
 
       res.status(200).json({ ok: true, referral: d });
     } catch (err) {
