@@ -29951,3 +29951,42 @@ exports.volunteerCheckinStatus = _volunteerCheckin.volunteerCheckinStatus;
 exports.volunteerCheckIn = _volunteerCheckin.volunteerCheckIn;
 exports.volunteerCheckOut = _volunteerCheckin.volunteerCheckOut;
 exports.requestVolunteerLink = _volunteerCheckin.requestVolunteerLink;
+
+/* ── Revoked staff access (2026-10-07) ─────────────────────────────────────
+   "Revoked" in LDAH-Int's Existing Users locks a person out WITHOUT archiving
+   them: their userRoles doc, history and records stay as they are. The role
+   value alone is not enough -- the dashboard refuses it, but the Firebase login
+   would still work and the rules treat any userRoles doc as staff -- so this
+   disables the Auth account and revokes its refresh tokens (signed out on every
+   device). Changing the role to anything else turns the login back on. */
+exports.onUserRoleRevoked = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 2 })
+  .firestore.document("userRoles/{uid}")
+  .onWrite(async (change, context) => {
+    const uid = context.params.uid;
+    const before = change.before.exists ? (change.before.data() || {}) : {};
+    const after = change.after.exists ? (change.after.data() || {}) : null;
+    if (!after) return null;
+    const was = before.role === "revoked";
+    const now = after.role === "revoked";
+    if (was === now) return null;
+    const db = admin.firestore();
+    try {
+      if (now) {
+        await admin.auth().updateUser(uid, { disabled: true });
+        await admin.auth().revokeRefreshTokens(uid);
+        await change.after.ref.update({ revokedAt: admin.firestore.FieldValue.serverTimestamp(), roleBeforeRevoke: before.role || "" });
+        try { await db.collection("chatPresence").doc(uid).set({ online: false }, { merge: true }); } catch (_) {}
+        await db.collection("auditLog").add({ action: "Staff access revoked", details: (after.email || uid) + " - login disabled, signed out everywhere", timestamp: admin.firestore.FieldValue.serverTimestamp(), performedBy: "System (auto)" });
+        console.log("onUserRoleRevoked: disabled " + uid);
+      } else {
+        await admin.auth().updateUser(uid, { disabled: false });
+        await change.after.ref.update({ unrevokedAt: admin.firestore.FieldValue.serverTimestamp() });
+        await db.collection("auditLog").add({ action: "Staff access restored", details: (after.email || uid) + " - login enabled, role " + (after.role || "(none)"), timestamp: admin.firestore.FieldValue.serverTimestamp(), performedBy: "System (auto)" });
+        console.log("onUserRoleRevoked: re-enabled " + uid);
+      }
+    } catch (e) {
+      console.error("onUserRoleRevoked " + uid + ": " + e.message);
+    }
+    return null;
+  });
