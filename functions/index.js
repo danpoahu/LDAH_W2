@@ -28122,6 +28122,10 @@ exports.submitScreeningReferral = functions
           type: "Parent/Guardian",
           parentNameKnown: !!_pn,
           source: "lions-screening",
+          /* Not opted in to announcements (Daniel, 2026-10-07): a screening
+             referral says nothing about whether the family wants LDAH mail or
+             has a child with a disability. Staff can tick them in later. */
+          marketingOptOut: true,
           createdAt: FieldValue.serverTimestamp(),
         };
         const ref = await db.collection("contacts").add(doc);
