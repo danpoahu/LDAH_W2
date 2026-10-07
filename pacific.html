@@ -17,10 +17,8 @@
 
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
   <script src="js/cms-donate.js" defer></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics-compat.js"></script>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -427,27 +425,6 @@
     }
     .footer-bottom p { margin: 0.25rem 0; }
 
-    /* Membership Login Modal */
-    .membership-btn {
-        display: inline-block;
-        padding: 12px 28px;
-        background: rgba(255, 255, 255, 0.15);
-        color: white;
-        text-decoration: none;
-        border-radius: 50px;
-        font-weight: 600;
-        font-size: 1rem;
-        transition: transform 0.3s, box-shadow 0.3s, background 0.3s;
-        border: 2px solid rgba(255, 255, 255, 0.5);
-        cursor: pointer;
-    }
-
-    .membership-btn:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        background: rgba(255, 255, 255, 0.25);
-    }
-
     .hero-buttons {
         display: flex;
         gap: 14px;
@@ -456,194 +433,12 @@
         align-items: stretch;
     }
 
-    .hero-buttons .facebook-btn,
-    .hero-buttons .membership-btn {
+    .hero-buttons .facebook-btn {
         display: flex;
         align-items: center;
         justify-content: center;
     }
 
-    .login-modal {
-        display: none;
-        position: fixed;
-        z-index: 3000;
-        left: 0; top: 0;
-        width: 100%; height: 100%;
-        background-color: rgba(0, 0, 0, 0.7);
-        animation: fadeIn 0.3s;
-    }
-
-    .login-modal.active {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 20px;
-    }
-
-    .login-modal-content {
-        background: white;
-        border-radius: 20px;
-        width: 100%;
-        max-width: 440px;
-        position: relative;
-        animation: slideUp 0.3s;
-        overflow: hidden;
-    }
-
-    .login-modal-header {
-        background: linear-gradient(135deg, var(--ocean-deep), var(--ocean-mid));
-        color: white;
-        padding: 1.5rem 2rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    .login-modal-header h3 {
-        margin: 0;
-        font-size: 1.3rem;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-
-    .close-login {
-        background: rgba(255, 255, 255, 0.2);
-        border: none;
-        color: white;
-        font-size: 1.8rem;
-        cursor: pointer;
-        width: 38px; height: 38px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: background 0.3s;
-    }
-
-    .close-login:hover { background: rgba(255, 255, 255, 0.3); }
-
-    .login-modal-body {
-        padding: 2rem;
-    }
-
-    .login-form-group {
-        margin-bottom: 1.25rem;
-    }
-
-    .login-form-group label {
-        display: block;
-        font-weight: 600;
-        color: var(--text-dark);
-        margin-bottom: 6px;
-        font-size: 0.95rem;
-    }
-
-    .login-form-group input {
-        width: 100%;
-        padding: 12px 16px;
-        border: 2px solid #e2e8f0;
-        border-radius: 12px;
-        font-size: 1rem;
-        font-family: inherit;
-        transition: border-color 0.3s, box-shadow 0.3s;
-        outline: none;
-    }
-
-    .login-form-group input:focus {
-        border-color: var(--ocean-deep);
-        box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.15);
-    }
-
-    .login-submit-btn {
-        width: 100%;
-        padding: 14px;
-        background: linear-gradient(135deg, var(--ocean-deep), var(--ocean-mid));
-        color: white;
-        border: none;
-        border-radius: 12px;
-        font-size: 1.05rem;
-        font-weight: 700;
-        cursor: pointer;
-        transition: transform 0.2s, box-shadow 0.2s;
-        font-family: inherit;
-        margin-top: 0.5rem;
-    }
-
-    .login-submit-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(8, 145, 178, 0.3);
-    }
-
-    .login-links {
-        display: flex;
-        justify-content: space-between;
-        margin-top: 1.25rem;
-        padding-top: 1.25rem;
-        border-top: 1px solid #e2e8f0;
-    }
-
-    .login-links a {
-        color: var(--ocean-deep);
-        text-decoration: none;
-        font-weight: 600;
-        font-size: 0.9rem;
-        transition: color 0.3s;
-    }
-
-    .login-links a:hover {
-        color: var(--sunset-coral);
-        text-decoration: underline;
-    }
-
-    .login-error {
-        display: none;
-        background: #FEF2F2;
-        border: 1px solid #FECACA;
-        color: #DC2626;
-        padding: 10px 14px;
-        border-radius: 10px;
-        font-size: 0.9rem;
-        margin-bottom: 1rem;
-    }
-
-    .login-error.visible { display: block; }
-
-    .login-success {
-        display: none;
-        text-align: center;
-        padding: 2rem;
-    }
-
-    .login-success.visible { display: block; }
-
-    .login-success h4 {
-        color: var(--ocean-deep);
-        font-size: 1.3rem;
-        margin-bottom: 0.5rem;
-    }
-
-    .login-success p {
-        color: var(--text-soft);
-        margin-bottom: 1rem;
-    }
-
-    .partner-content-btn {
-        display: inline-block;
-        padding: 12px 24px;
-        background: linear-gradient(135deg, var(--ocean-deep), var(--ocean-mid));
-        color: white;
-        border-radius: 50px;
-        text-decoration: none;
-        font-weight: 600;
-        transition: transform 0.2s;
-        border: none;
-        cursor: pointer;
-        font-size: 1rem;
-        font-family: inherit;
-    }
-
-    .partner-content-btn:hover { transform: translateY(-2px); }
 
     /* Iframe Modal */
     .iframe-modal {
@@ -1050,57 +845,6 @@
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
-    /* Partner edit mode was removed 2026-08-20. Pacific partners edit their
-       island's content in LDAH-Int (CMS > Page Editor), never on the public
-       site. The login below is the Membership Login and is unrelated. */
-
-    .save-toast-pacific {
-        position: fixed;
-        bottom: 30px;
-        left: 50%;
-        transform: translateX(-50%) translateY(20px);
-        background: #004E7C;
-        color: #fff;
-        padding: 0.75rem 1.5rem;
-        border-radius: 10px;
-        font-weight: 600;
-        z-index: 10001;
-        opacity: 0;
-        transition: all 0.3s;
-        pointer-events: none;
-    }
-    .save-toast-pacific.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-
-    /* Logged-in state header badge */
-    .auth-badge {
-        position: fixed;
-        top: 80px;
-        right: 20px;
-        background: #004E7C;
-        color: #fff;
-        padding: 0.4rem 0.8rem;
-        border-radius: 20px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        z-index: 1000;
-        display: none;
-        align-items: center;
-        gap: 0.5rem;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-    }
-    .auth-badge.visible { display: flex; }
-    .auth-badge button {
-        background: rgba(255,255,255,0.2);
-        border: none;
-        color: #fff;
-        cursor: pointer;
-        font-size: 0.8rem;
-        padding: 0.1rem 0.4rem;
-        border-radius: 10px;
-    }
-    .auth-badge button:hover { background: rgba(255,255,255,0.35); }
-
-    /* Hidden file input for photo uploads */
 
     @media (max-width: 768px) {
         .hero-section h1 { font-size: 2em; }
@@ -1112,7 +856,6 @@
         .social-links { flex-direction: column; }
         .states-grid { grid-template-columns: 1fr; }
         .support-grid { grid-template-columns: 1fr; }
-        .auth-badge { top: auto; bottom: 20px; right: 10px; font-size: 0.7rem; }
     }
     </style>
 
@@ -1143,7 +886,6 @@
         <p id="pacific-heroSubtitle">Supporting families across the Pacific Islands with resources for children with disabilities.</p>
         <div class="hero-buttons">
             <button class="facebook-btn" onclick="openIframeModal('PI Partners Facebook Group', 'https://www.facebook.com/groups/333501733848880')">Join PI Partners on Facebook</button>
-            <button class="membership-btn" onclick="openLoginModal()">Membership Login</button>
         </div>
     </header>
 
@@ -1260,12 +1002,6 @@
         </div>
     </div>
 
-    <!-- Auth Badge (shows when logged in) -->
-    <div id="authBadge" class="auth-badge">
-        <span id="authBadgeText"></span>
-        <button onclick="handleLogout()">Logout</button>
-    </div>
-
     <!-- Island Detail Modal -->
     <div id="islandModal" class="island-modal" onclick="closeIslandModal(event)">
         <div class="island-modal-content" onclick="event.stopPropagation()">
@@ -1286,17 +1022,10 @@
             if (!text) return text;
             return text.replace(/[\u{1F300}-\u{1FFFF}\u{2600}-\u{27FF}\u{FE00}-\u{FEFF}]|[\u{1F1E0}-\u{1F1FF}]{2}/gu, '').replace(/  +/g, ' ').trim();
         }
-        // Firebase SDK - for page content + auth + storage
+        // Firebase SDK - for page content (the partner sign-in was removed 2026-10-07; partners work in LDAH-Int)
         const firebaseConfig = { apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk", authDomain: "ldah-932d5.firebaseapp.com", projectId: "ldah-932d5", storageBucket: "ldah-932d5.firebasestorage.app" };
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
-        const auth = firebase.auth();
-        const storage = firebase.storage();
-
-        // Current user state
-        let currentUser = null;    // Firebase auth user
-        let currentRole = null;    // { role, island, displayName }
-        
         // Load page content from Firebase
         let cmsData = {};
 
@@ -1817,179 +1546,6 @@
             }
         };
 
-        // === Firebase Auth Login Functions ===
-        // Listen for auth state changes (persists across page reloads)
-        auth.onAuthStateChanged(async (user) => {
-            if (user) {
-                currentUser = user;
-                try {
-                    const roleDoc = await db.collection('userRoles').doc(user.uid).get();
-                    if (roleDoc.exists) {
-                        currentRole = roleDoc.data();
-                    } else {
-                        currentRole = { role: 'partner', island: null };
-                    }
-                } catch (err) {
-                    console.error('Error fetching role:', err);
-                    currentRole = { role: 'partner', island: null };
-                }
-                // Show auth badge
-                const badge = document.getElementById('authBadge');
-                document.getElementById('authBadgeText').textContent = currentRole.displayName || user.email;
-                badge.classList.add('visible');
-                // Update membership button
-                updateMembershipButton();
-            } else {
-                currentUser = null;
-                currentRole = null;
-                document.getElementById('authBadge').classList.remove('visible');
-                updateMembershipButton();
-            }
-        });
-
-        function updateMembershipButton() {
-            const btn = document.querySelector('.membership-btn');
-            if (!btn) return;
-            if (currentUser) {
-                btn.textContent = 'My Partner Island';
-                btn.onclick = function() {
-                    if (currentRole && currentRole.island) {
-                        openIslandModal(currentRole.island);
-                    } else {
-                        openLoginModal();
-                    }
-                };
-            } else {
-                btn.textContent = 'Membership Login';
-                btn.onclick = openLoginModal;
-            }
-        }
-
-        function openLoginModal() {
-            const modal = document.getElementById('loginModal');
-            if (currentUser) {
-                // Already logged in — show success state directly
-                document.getElementById('loginForm').style.display = 'none';
-                document.getElementById('loginSuccess').classList.add('visible');
-                document.getElementById('loginError').classList.remove('visible');
-            } else {
-                document.getElementById('loginForm').style.display = 'block';
-                document.getElementById('loginSuccess').classList.remove('visible');
-                document.getElementById('loginError').classList.remove('visible');
-                document.getElementById('loginEmail').value = '';
-                document.getElementById('loginPassword').value = '';
-            }
-            modal.classList.add('active');
-            document.body.style.overflow = 'hidden';
-            if (!currentUser) setTimeout(() => document.getElementById('loginEmail').focus(), 300);
-        }
-
-        function closeLoginModal(event) {
-            if (event && event.target !== event.currentTarget) return;
-            document.getElementById('loginModal').classList.remove('active');
-            document.body.style.overflow = 'auto';
-        }
-
-        async function handleLogin() {
-            const email = document.getElementById('loginEmail').value.trim();
-            const password = document.getElementById('loginPassword').value;
-            const errorEl = document.getElementById('loginError');
-
-            if (!email || !password) {
-                errorEl.textContent = 'Please enter both email and password.';
-                errorEl.classList.add('visible');
-                return;
-            }
-
-            errorEl.classList.remove('visible');
-
-            try {
-                await auth.signInWithEmailAndPassword(email, password);
-                document.getElementById('loginForm').style.display = 'none';
-                document.getElementById('loginSuccess').classList.add('visible');
-            } catch (err) {
-                console.error('Login error:', err);
-                if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-                    errorEl.textContent = 'Invalid email or password.';
-                } else if (err.code === 'auth/wrong-password') {
-                    errorEl.textContent = 'Incorrect password. Please try again.';
-                } else if (err.code === 'auth/too-many-requests') {
-                    errorEl.textContent = 'Too many attempts. Please try again later.';
-                } else {
-                    errorEl.textContent = 'Login error. Please try again later.';
-                }
-                errorEl.classList.add('visible');
-            }
-        }
-
-        function handleLogout() {
-            auth.signOut();
-            showToast('Logged out');
-        }
-
-        function showPasswordReset() {
-            closeLoginModal();
-            setTimeout(() => {
-                const modal = document.getElementById('resetModal');
-                document.getElementById('resetForm').style.display = 'block';
-                document.getElementById('resetSuccess').classList.remove('visible');
-                document.getElementById('resetError').classList.remove('visible');
-                document.getElementById('resetEmail').value = '';
-                modal.classList.add('active');
-                document.body.style.overflow = 'hidden';
-                setTimeout(() => document.getElementById('resetEmail').focus(), 300);
-            }, 200);
-        }
-
-        function closeResetModal(event) {
-            if (event && event.target !== event.currentTarget) return;
-            document.getElementById('resetModal').classList.remove('active');
-            document.body.style.overflow = 'auto';
-        }
-
-        async function handlePasswordReset() {
-            const email = document.getElementById('resetEmail').value.trim();
-            const errorEl = document.getElementById('resetError');
-
-            if (!email) {
-                errorEl.textContent = 'Please enter your email address.';
-                errorEl.classList.add('visible');
-                return;
-            }
-
-            errorEl.classList.remove('visible');
-            try {
-                await auth.sendPasswordResetEmail(email);
-            } catch (err) {
-                // Don't reveal if account exists — always show success
-                console.log('Reset email result:', err?.code);
-            }
-            document.getElementById('resetForm').style.display = 'none';
-            document.getElementById('resetSuccess').classList.add('visible');
-        }
-
-        // Allow Enter key to submit login/reset forms
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                if (document.getElementById('loginModal').classList.contains('active')) {
-                    handleLogin();
-                } else if (document.getElementById('resetModal').classList.contains('active')) {
-                    handlePasswordReset();
-                }
-            }
-        });
-
-        function showToast(msg) {
-            const existing = document.querySelector('.save-toast-pacific');
-            if (existing) existing.remove();
-            const toast = document.createElement('div');
-            toast.className = 'save-toast-pacific';
-            toast.textContent = msg;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.classList.add('show'), 10);
-            setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 2500);
-        }
-
         // Header and Footer Loader - Fetches from external files
         async function loadHeaderFooter() {
             const headerContainer = document.getElementById('header-container');
@@ -2049,69 +1605,6 @@
             loadHeaderFooter();
         }
     </script>
-    <!-- Membership Login Modal -->
-    <div id="loginModal" class="login-modal" onclick="closeLoginModal(event)">
-        <div class="login-modal-content" onclick="event.stopPropagation()">
-            <div class="login-modal-header">
-                <h3>Partner Login</h3>
-                <button class="close-login" onclick="closeLoginModal()">&times;</button>
-            </div>
-            <div class="login-modal-body">
-                <!-- Login Form -->
-                <div id="loginForm">
-                    <div class="login-error" id="loginError"></div>
-                    <div class="login-form-group">
-                        <label for="loginEmail">Email Address</label>
-                        <input type="email" id="loginEmail" placeholder="Enter your email" autocomplete="email">
-                    </div>
-                    <div class="login-form-group">
-                        <label for="loginPassword">Password</label>
-                        <input type="password" id="loginPassword" placeholder="Enter your password" autocomplete="current-password">
-                    </div>
-                    <button class="login-submit-btn" onclick="handleLogin()">Sign In</button>
-                    <div class="login-links">
-                        <a href="javascript:void(0)" onclick="showPasswordReset()">Forgot Password?</a>
-                    </div>
-                </div>
-                <!-- Success State -->
-                <div id="loginSuccess" class="login-success">
-                    <h4>Welcome, Partner!</h4>
-                    <p>You are now logged in. You can edit your island's content directly.</p>
-                    <button class="partner-content-btn" onclick="closeLoginModal(); if(currentRole && currentRole.island) openIslandModal(currentRole.island);">Go to My Island</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Password Reset Modal -->
-    <div id="resetModal" class="login-modal" onclick="closeResetModal(event)">
-        <div class="login-modal-content" onclick="event.stopPropagation()">
-            <div class="login-modal-header">
-                <h3>Reset Password</h3>
-                <button class="close-login" onclick="closeResetModal()">&times;</button>
-            </div>
-            <div class="login-modal-body">
-                <div id="resetForm">
-                    <p style="color: var(--text-soft); margin-bottom: 1.25rem;">Enter your email address and we'll help you reset your password.</p>
-                    <div class="login-error" id="resetError"></div>
-                    <div class="login-form-group">
-                        <label for="resetEmail">Email Address</label>
-                        <input type="email" id="resetEmail" placeholder="Enter your email" autocomplete="email">
-                    </div>
-                    <button class="login-submit-btn" onclick="handlePasswordReset()">Send Reset Link</button>
-                    <div class="login-links" style="justify-content: center;">
-                        <a href="javascript:void(0)" onclick="closeResetModal(); openLoginModal();">← Back to Login</a>
-                    </div>
-                </div>
-                <div id="resetSuccess" class="login-success">
-                    <h4>Check Your Email</h4>
-                    <p>If an account exists with that email, a password reset link has been sent.</p>
-                    <button class="partner-content-btn" onclick="closeResetModal()">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <script src="modal.js"></script>
 <link rel="stylesheet" href="logo-story.css">
 <script src="logo-story.js"></script>
