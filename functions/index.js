@@ -28360,23 +28360,11 @@ exports.submitScreeningReferral = functions
         });
         caseId = ref.id;
 
-        if (uid) {
-          try {
-            await db.collection("notifications").add({
-              recipientUid: uid,
-              recipientName: CASE_ADVOCACY_COORDINATOR_NAME,
-              type: "case-advocacy-needs-advocate",
-              title: "Assign a parent consultant — Lions " + label + " referral",
-              message: childName + " was referred from a Lions " + label + " screening on " +
-                screeningDate + ". Initial contact is due by " + contactDueDate + ".",
-              interactionId: caseId,
-              read: false,
-              createdAt: FieldValue.serverTimestamp(),
-            });
-          } catch (e) {
-            console.warn("submitScreeningReferral: notification write failed:", e.message);
-          }
-        }
+        /* One task, not one notice per family (Daniel, 2026-10-07): the
+           coordinator gets a single "Assign N case management cases" task that
+           opens the Case Management report, kept in step by
+           _syncCaseMgmtAssignTask and closed when none are left. */
+        try { await _syncCaseMgmtAssignTask(); } catch (e) { console.warn("submitScreeningReferral: assign-task sync failed:", e.message); }
       }
 
       /* ── 4. The introduction email ──────────────────────────────────────
@@ -29988,5 +29976,67 @@ exports.onUserRoleRevoked = functions
     } catch (e) {
       console.error("onUserRoleRevoked " + uid + ": " + e.message);
     }
+    return null;
+  });
+
+
+/* ── Case management assignment task (2026-10-07) ──────────────────────────
+   ONE open task for the coordinator: "Assign N case management cases", with a
+   button (in LDAH-Int My Day) to the Case Management report, where she assigns
+   them. Recounted whenever a referral is saved or a case's assignment changes;
+   closed automatically when nothing is left to assign. */
+const CASE_MGMT_ASSIGN_STEP = "assignCaseMgmt";
+async function _syncCaseMgmtAssignTask() {
+  const db = admin.firestore();
+  const cases = await db.collection("interactions").where("workflowStep", "==", "caseAdvocacy").get();
+  let n = 0;
+  cases.forEach((d) => {
+    const x = d.data() || {};
+    if (x.status === "Open" && x.serviceLevel === "management" && x.needsAdvocateAssignment === true && !x.partnerIsland) n++;
+  });
+  const tasks = await db.collection("interactions").where("workflowStep", "==", CASE_MGMT_ASSIGN_STEP).get();
+  const open = tasks.docs.filter((d) => (d.data() || {}).status === "Open");
+  const todayHst = new Date().toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
+  const summary = "Assign " + n + " case management " + (n === 1 ? "case" : "cases");
+  const FV = admin.firestore.FieldValue;
+  if (n > 0) {
+    if (open.length) {
+      const t = open[0];
+      if ((t.data() || {}).assignCount !== n) await t.ref.update({ summary, assignCount: n, updatedAt: FV.serverTimestamp() });
+      for (const extra of open.slice(1)) await extra.ref.update({ status: "Closed", notes: "Duplicate assignment task closed automatically.", updatedAt: FV.serverTimestamp() });
+    } else {
+      await db.collection("interactions").add({
+        channel: "Office", interactionType: "Case Management Assignment",
+        contactId: "", contactName: "", contactType: "",
+        summary, assignCount: n,
+        notes: "New screening referrals are waiting for a staff member. Open the Case Management report and pick a staff member for each family under Needs attention. This task updates its count as you go and closes itself when every family is assigned.",
+        owner: CASE_ADVOCACY_COORDINATOR_NAME, ownerUid: CONNECT_GEN_ALERT_CC_UID,
+        status: "Open", isDraft: false, followUpDate: todayHst,
+        workflowStep: CASE_MGMT_ASSIGN_STEP, source: "lions-screening",
+        createdBy: "System (auto)", createdAt: FV.serverTimestamp(), updatedAt: FV.serverTimestamp(),
+      });
+    }
+  } else {
+    for (const t of open) {
+      await t.ref.update({ status: "Closed", assignCount: 0,
+        notes: String((t.data() || {}).notes || "") + "\n---\n[" + todayHst + "] Every case management case is assigned. Closed automatically.",
+        updatedAt: FV.serverTimestamp() });
+    }
+  }
+  return n;
+}
+
+exports.onCaseMgmtAssignmentChanged = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 3 })
+  .firestore.document("interactions/{interactionId}")
+  .onUpdate(async (change) => {
+    const b = change.before.data() || {};
+    const a = change.after.data() || {};
+    if (a.workflowStep !== "caseAdvocacy" && b.workflowStep !== "caseAdvocacy") return null;
+    if (a.serviceLevel !== "management" && b.serviceLevel !== "management") return null;
+    const was = b.needsAdvocateAssignment === true && b.status === "Open";
+    const now = a.needsAdvocateAssignment === true && a.status === "Open";
+    if (was === now) return null;
+    try { await _syncCaseMgmtAssignTask(); } catch (e) { console.error("onCaseMgmtAssignmentChanged:", e.message); }
     return null;
   });
