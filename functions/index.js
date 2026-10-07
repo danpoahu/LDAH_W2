@@ -671,6 +671,7 @@ async function logEmailSend(entry) {
       type: entry.type || "unknown",
       relatedEventId: entry.relatedEventId || "",
       relatedSignupId: entry.relatedSignupId || "",
+      relatedContactId: entry.relatedContactId || null,
       recipientName: entry.recipientName || "",
       success: entry.success === true,
       error: entry.error || null,
@@ -727,7 +728,7 @@ function familyEmails(rec) {
 
 async function sendEmailViaResend({
   from, to, subject, html, bcc, cc,
-  type, relatedEventId, relatedSignupId, recipientName,
+  type, relatedEventId, relatedSignupId, recipientName, relatedContactId,
 }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error("RESEND_API_KEY secret is not set");
@@ -784,7 +785,7 @@ async function sendEmailViaResend({
         const result = await response.json();
         await logEmailSend({
           from, to: toDisplay, bcc: bccLogValue, subject, html,
-          type, relatedEventId, relatedSignupId, recipientName,
+          type, relatedEventId, relatedSignupId, recipientName, relatedContactId,
           success: true, resendId: (result && result.id) || null,
         });
         return result;
@@ -802,7 +803,7 @@ async function sendEmailViaResend({
       // Non-retryable, or retries exhausted — log the failure and throw.
       await logEmailSend({
         from, to: toDisplay, bcc: bccLogValue, subject, html,
-        type, relatedEventId, relatedSignupId, recipientName,
+        type, relatedEventId, relatedSignupId, recipientName, relatedContactId,
         success: false, error: msg,
       });
       throw new Error(msg);
@@ -818,7 +819,7 @@ async function sendEmailViaResend({
       }
       await logEmailSend({
         from, to: toDisplay, bcc: bccLogValue, subject, html,
-        type, relatedEventId, relatedSignupId, recipientName,
+        type, relatedEventId, relatedSignupId, recipientName, relatedContactId,
         success: false, error: err.message || String(err),
       });
       throw err;
@@ -27725,6 +27726,297 @@ exports.getScreeningConsentDownloadUrl = functions
     }
   });
 
+/* ── Family email fix: a bad address becomes a phone call (2026-10-07) ─────
+   A Lions screening form is handwritten, faxed, then read by a model, so the
+   parent's email is the field most likely to arrive wrong. Until now a wrong
+   address failed quietly: a malformed one threw inside sendEmailViaResend and
+   the referral just said "send-failed"; a well-formed one that bounced looked
+   like a success forever, because nothing ever asked Resend what happened.
+   The family never got the welcome letter and nobody knew.
+
+   Both cases now put ONE urgent task on the admin seat: ring the family on the
+   phone number from the fax, confirm the address, correct it on the contact.
+   One open task per contact — a second failure appends a line to it. */
+const SCREENING_EMAIL_FIX_UID = LIFECYCLE_SEAT_UID;   // the admin seat (Justin Banaga)
+const SCREENING_EMAIL_FIX_STEP = "fixFamilyEmail";
+const SCREENING_INTRO_BOUNCE_EVENTS = ["bounced", "failed", "suppressed"];
+const SCREENING_INTRO_DELIVERED_EVENTS = ["delivered", "opened", "clicked"];
+const SCREENING_INTRO_DELIVERED_SETTLE_MS = 48 * 60 * 60 * 1000;
+
+/* Pure. Splits the address the same way normalizeRecipients() does and says
+   which parts Resend would refuse. noneValid means the send cannot go at all;
+   badParts alone means it goes to the good part and the bad one still needs
+   fixing on the contact. */
+function _familyEmailFormatProblem(value) {
+  const parts = String(value || "").split(/[;,]/).map((p) => p.trim()).filter(Boolean);
+  const badParts = parts.filter((p) => !RESEND_EMAIL_RE.test(p));
+  const validCount = parts.length - badParts.length;
+  return { supplied: parts.length > 0, noneValid: parts.length > 0 && validCount === 0, badParts };
+}
+
+/* Pure. 10 digits -> (808) 555-1234; anything else is shown as typed. */
+function _formatFamilyPhone(phone) {
+  const raw = String(phone || "").trim();
+  const d = raw.replace(/\D/g, "");
+  if (d.length === 11 && d[0] === "1") return "(" + d.slice(1, 4) + ") " + d.slice(4, 7) + "-" + d.slice(7);
+  if (d.length === 10) return "(" + d.slice(0, 3) + ") " + d.slice(3, 6) + "-" + d.slice(6);
+  if (d.length === 7) return d.slice(0, 3) + "-" + d.slice(3);
+  return raw;
+}
+
+/* Pure. What Resend's last_event means for a screening intro. `final` stops
+   the checker asking again; `fix` puts the call task on the seat. Delivered is
+   only final after 48h, because a bounce can still land after the first
+   "delivered". */
+function _introDeliveryDecision(lastEvent, sentAtMs, nowMs) {
+  const ev = String(lastEvent || "").trim().toLowerCase();
+  if (SCREENING_INTRO_BOUNCE_EVENTS.indexOf(ev) !== -1) return { final: true, fix: true };
+  if (ev === "complained" || ev === "canceled") return { final: true, fix: false };
+  if (SCREENING_INTRO_DELIVERED_EVENTS.indexOf(ev) !== -1 &&
+      Number(sentAtMs) > 0 && nowMs - sentAtMs >= SCREENING_INTRO_DELIVERED_SETTLE_MS) {
+    return { final: true, fix: false };
+  }
+  return { final: false, fix: false };
+}
+
+/* Pure. The interaction doc minus server timestamps. */
+function _buildFamilyEmailFixTaskDoc(o) {
+  const name = String(o.contactName || "").trim() || "the family";
+  const reason = String(o.reason || "the email did not go through").trim();
+  const badEmail = String(o.badEmail || "").trim();
+  const phoneTxt = _formatFamilyPhone(o.phone);
+  const child = String(o.childName || "").trim();
+  const sType = String(o.screeningType || "").trim();
+  const notes = [
+    "The screening welcome email to this family did not go through (" + reason + ").",
+    "Email on file: " + (badEmail || "(blank)"),
+    phoneTxt ?
+      "Call the family at " + phoneTxt + ". That is the phone number from the faxed screening form." :
+      "There is no phone number on the contact. Look on the faxed screening form for one.",
+    "Confirm the right email address with the parent, then correct it on the contact card.",
+    "Correcting the address does not re-send the welcome letter.",
+    child ? "Child screened: " + child + (sType ? " (" + sType + " screening)" : "") + "." : "",
+    o.sourceDetail ? "Source: " + String(o.sourceDetail) : "",
+  ].filter(Boolean).join("\n");
+  return {
+    channel: "Outbound Phone",
+    interactionType: "Fix Family Email",
+    workflowStep: SCREENING_EMAIL_FIX_STEP,
+    contactId: String(o.contactId || ""),
+    contactName: name,
+    contactType: "Parent/Guardian",
+    summary: "ASAP: call family to fix email — " + name + " (" + reason + ")",
+    notes: notes,
+    followUpDate: String(o.todayHst || ""),
+    status: "Open",
+    urgent: true,
+    isDraft: false,
+    owner: String(o.ownerName || ""),
+    ownerUid: String(o.ownerUid || ""),
+    badEmail: badEmail,
+    familyPhone: String(o.phone || ""),
+    emailFixReason: reason,
+    screeningChildName: child,
+    screeningType: sType,
+    source: "lions-screening",
+  };
+}
+
+/* Creates (or appends to) the one open fix task for a contact, plus a bell to
+   the owner. Interaction + bell go in one batch: one write on the referral
+   save path. Pass `contact` when you already hold it; it is read otherwise.
+   Sandbox (practice) contacts route to their own coordinator, never the seat.
+   Returns { taskId, created }. Throws on failure — callers wrap it. */
+async function _createFamilyEmailFixTask(o) {
+  const db = admin.firestore();
+  const FieldValue = admin.firestore.FieldValue;
+  const contactId = String(o.contactId || "").trim();
+  if (!contactId) throw new Error("_createFamilyEmailFixTask: contactId is required");
+  const todayHst = new Date().toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
+
+  // Single-field query + in-code filter, same shape as the case dedup: no
+  // composite index needed.
+  let existing = null;
+  const ex = await db.collection("interactions").where("contactId", "==", contactId).get();
+  ex.forEach((doc) => {
+    if (existing) return;
+    const x = doc.data() || {};
+    if (x.workflowStep === SCREENING_EMAIL_FIX_STEP && x.status === "Open") existing = doc;
+  });
+  if (existing) {
+    const cur = existing.data() || {};
+    const line = todayHst + ": " + String(o.reason || "email did not go through") +
+      (o.badEmail ? " (" + String(o.badEmail) + ")" : "") +
+      (o.sourceDetail ? " — " + String(o.sourceDetail) : "");
+    await existing.ref.update({
+      notes: String(cur.notes || "") + "\n\n" + line,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return { taskId: existing.id, created: false };
+  }
+
+  let contact = o.contact || null;
+  if (!contact) {
+    try { contact = (await db.collection("contacts").doc(contactId).get()).data() || null; }
+    catch (e) { console.warn("_createFamilyEmailFixTask: contact read failed:", e.message); }
+  }
+  let ownerUid = SCREENING_EMAIL_FIX_UID;
+  let ownerName = "";
+  if (contact && contact.sandbox === true && contact.sandboxCoordinator && contact.sandboxCoordinator.uid) {
+    ownerUid = String(contact.sandboxCoordinator.uid);
+    ownerName = String(contact.sandboxCoordinator.name || "");
+  }
+  if (!ownerName) {
+    ownerName = (await _lcResolveStaffName(db, ownerUid)) ||
+      (ownerUid === SCREENING_EMAIL_FIX_UID ? "Justin Banaga" : "");
+  }
+
+  const doc = _buildFamilyEmailFixTaskDoc(Object.assign({}, o, {
+    contactId, ownerUid, ownerName, todayHst,
+  }));
+  doc.createdBy = "system";
+  doc.createdAt = FieldValue.serverTimestamp();
+  doc.updatedAt = FieldValue.serverTimestamp();
+
+  const taskRef = db.collection("interactions").doc();
+  const batch = db.batch();
+  batch.set(taskRef, doc);
+  batch.set(db.collection("notifications").doc(), {
+    recipientUid: ownerUid,
+    recipientName: ownerName,
+    type: "family-email-fix",
+    title: "Call a family to fix their email",
+    message: "The screening welcome email to " + doc.contactName + " did not go through (" +
+      doc.emailFixReason + "). Call them and correct the address on the contact.",
+    interactionId: taskRef.id,
+    read: false,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  await batch.commit();
+  return { taskId: taskRef.id, created: true };
+}
+
+/* Every 30 minutes: ask Resend what became of each screening intro sent in the
+   last 7 days. A bounce (or Resend refusing a suppressed address) becomes the
+   call task above. Queries by type only — a single-field equality, no
+   composite index — and filters the date in code; screening intros are a few
+   hundred a year at most. Sequential, ~600 ms apart: Resend allows 2 requests a
+   second for the whole team and the real sends share that budget. */
+exports.checkScreeningIntroBounces = functions
+  .runWith({ timeoutSeconds: 300, maxInstances: 1, secrets: ["RESEND_API_KEY"] })
+  .pubsub.schedule("every 30 minutes").timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const apiKey = String(process.env.RESEND_API_KEY || "").trim();
+    if (!apiKey) { console.error("checkScreeningIntroBounces: RESEND_API_KEY not set"); return null; }
+    const db = admin.firestore();
+    const FieldValue = admin.firestore.FieldValue;
+    const now = Date.now();
+    const since = now - 7 * 24 * 60 * 60 * 1000;
+    const CAP = 200;
+    const GAP_MS = 600;
+
+    let snap;
+    try {
+      snap = await db.collection("emailLog")
+        .where("type", "==", "lions-screening-intro")
+        .select("sentAt", "to", "success", "resendId", "deliveryFinal", "relatedContactId")
+        .get();
+    } catch (e) { console.error("checkScreeningIntroBounces query:", e.message); return null; }
+
+    const due = [];
+    snap.forEach((d) => {
+      const x = d.data() || {};
+      const sentMs = x.sentAt && typeof x.sentAt.toMillis === "function" ? x.sentAt.toMillis() : 0;
+      if (!sentMs || sentMs < since) return;
+      if (x.success !== true || !x.resendId || x.deliveryFinal === true) return;
+      due.push({ ref: d.ref, id: d.id, x, sentMs });
+    });
+    due.sort((a, b) => a.sentMs - b.sentMs);
+    const batchOf = due.slice(0, CAP);
+
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    let checked = 0; let bounced = 0; let tasks = 0; let errors = 0;
+    for (let i = 0; i < batchOf.length; i++) {
+      const it = batchOf[i];
+      if (i > 0) await sleep(GAP_MS);
+      let body = null;
+      try {
+        let resp = await fetch("https://api.resend.com/emails/" + encodeURIComponent(it.x.resendId), {
+          headers: { "Authorization": "Bearer " + apiKey },
+        });
+        if (resp.status === 429) {
+          await sleep(2000);
+          resp = await fetch("https://api.resend.com/emails/" + encodeURIComponent(it.x.resendId), {
+            headers: { "Authorization": "Bearer " + apiKey },
+          });
+          if (resp.status === 429) { console.warn("checkScreeningIntroBounces: rate-limited, stopping this run"); break; }
+        }
+        if (!resp.ok) {
+          errors++;
+          console.warn("checkScreeningIntroBounces: Resend " + resp.status + " for " + it.id);
+          continue;
+        }
+        body = await resp.json();
+      } catch (e) {
+        errors++;
+        console.warn("checkScreeningIntroBounces: fetch failed for " + it.id + ":", e.message);
+        continue;
+      }
+      checked++;
+      const lastEvent = String((body && body.last_event) || "");
+      const decision = _introDeliveryDecision(lastEvent, it.sentMs, Date.now());
+      const patch = { deliveryStatus: lastEvent || null, deliveryCheckedAt: FieldValue.serverTimestamp() };
+
+      if (decision.fix) {
+        bounced++;
+        try {
+          let contactId = String(it.x.relatedContactId || "").trim();
+          let contact = null;
+          const toLc = String(it.x.to || "").split(",")[0].trim().toLowerCase();
+          if (contactId) {
+            const cs = await db.collection("contacts").doc(contactId).get();
+            contact = cs.exists ? (cs.data() || {}) : null;
+          } else if (toLc) {
+            const q = await db.collection("contacts").where("email", "==", toLc).limit(1).get();
+            if (!q.empty) { contactId = q.docs[0].id; contact = q.docs[0].data() || {}; }
+          }
+          if (!contactId) {
+            console.warn("checkScreeningIntroBounces: no contact for bounced " + it.id);
+          } else {
+            const scr = (Array.isArray(contact && contact.screenings) ? contact.screenings : [])
+              .filter((s) => s && s.source === "lions-screening");
+            const last = scr.length ? scr[scr.length - 1] : null;
+            await _createFamilyEmailFixTask({
+              contactId,
+              contact,
+              contactName: (contact && (contact.displayName || contact.name)) || "",
+              badEmail: (contact && contact.email) || it.x.to || "",
+              phone: (contact && contact.phone) || "",
+              childName: (last && last.childName) || "",
+              screeningType: (last && last.screeningType) || "",
+              reason: "the email bounced",
+              sourceDetail: "Resend reported " + lastEvent + " for the screening welcome email (emailLog " + it.id + ")",
+            });
+            tasks++;
+          }
+          patch.deliveryFinal = true;
+        } catch (e) {
+          // Leave deliveryFinal unset so the next run tries again; the task
+          // helper's dedup stops a second task if the first half-landed.
+          errors++;
+          console.error("checkScreeningIntroBounces: fix task failed for " + it.id + ":", e.message);
+        }
+      } else if (decision.final) {
+        patch.deliveryFinal = true;
+      }
+      try { await it.ref.update(patch); }
+      catch (e) { errors++; console.warn("checkScreeningIntroBounces: emailLog update failed:", e.message); }
+    }
+    console.log("checkScreeningIntroBounces: due=" + due.length + " checked=" + checked +
+      " bounced=" + bounced + " tasks=" + tasks + " errors=" + errors);
+    return null;
+  });
+
 /* ── Lions screening referral → contact + screening record + case ────────────
    The write half of the Screening Referrals intake. extractScreeningReferral
    reads the page; a human confirms the reading on screen; this records it.
@@ -28130,6 +28422,12 @@ exports.submitScreeningReferral = functions
         });
       } catch (e) { console.warn("intro signer lookup failed:", e.message); }
 
+      /* The address the intro goes to, and whether it is one Resend will
+         accept. Checked only where a send would otherwise happen (below). */
+      const _introTo = emailLc || reach.email;
+      const _introFmt = _familyEmailFormatProblem(_introTo);
+      let _emailFixReason = "";
+
       if (!reach.namesLdah) {
         emailSkipped = "consent-does-not-name-ldah";
       } else if (!emailLc && !reach.email) {
@@ -28144,11 +28442,17 @@ exports.submitScreeningReferral = functions
            parent who had done nothing in between. The stamp already existed;
            nothing was reading it. */
         emailSkipped = "already-introduced";
+      } else if (_introFmt.noneValid) {
+        /* Not an address Resend will take (a model misread the handwriting, or
+           the parent wrote "gmail" with no ".com"). Skip the send — it would
+           only throw — and put a call on the admin seat instead. */
+        emailSkipped = "invalid-email-format";
+        _emailFixReason = "the email address is not valid";
       } else {
         try {
           await sendEmailViaResend({
             from: `LDAH <${process.env.SMTP_FROM || "onboarding@resend.dev"}>`,
-            to: emailLc || reach.email,
+            to: _introTo,
             recipientName: parentName || "",
             subject: SCREENING_REFERRAL_INTRO_SUBJECT,
             html: _buildScreeningReferralIntroHtml({
@@ -28172,6 +28476,37 @@ exports.submitScreeningReferral = functions
         } catch (e) {
           console.error("submitScreeningReferral: intro email failed:", e.message);
           emailSkipped = "send-failed";
+          _emailFixReason = "the email could not be sent";
+        }
+        // Sent to the good half of "good@x.com; garbage" — the garbage half
+        // still needs correcting on the contact.
+        if (!_emailFixReason && _introFmt.badParts.length) {
+          _emailFixReason = "part of the email address is not valid";
+        }
+      }
+
+      /* ── 4a. A bad address becomes a phone call (2026-10-07) ────────────
+         Only where an email was supplied and either fails the format check or
+         the send itself failed. A blank address is a different case and is
+         left alone. Never fails the save. */
+      let emailFixTaskId = "";
+      if (_emailFixReason && _introFmt.supplied) {
+        try {
+          const _fix = await _createFamilyEmailFixTask({
+            contactId,
+            contact: contactBefore,
+            contactName: (contactBefore && contactBefore.displayName) || parentName || ("Parent of " + childName),
+            badEmail: _introTo,
+            phone: phoneDigits || (contactBefore && contactBefore.phone) || "",
+            childName,
+            screeningType: label,
+            reason: _emailFixReason,
+            sourceDetail: "Lions " + label + " screening referral, screened " + screeningDate +
+              ", entered by " + (staff.name || staff.email || staff.uid),
+          });
+          emailFixTaskId = _fix.taskId;
+        } catch (e) {
+          console.error("submitScreeningReferral: email fix task failed:", e.message);
         }
       }
 
@@ -28181,7 +28516,8 @@ exports.submitScreeningReferral = functions
           details: "type=" + formType + ", child=" + childName + ", screened=" + screeningDate +
             ", contactDue=" + contactDueDate + ", contactId=" + contactId +
             ", contactCreated=" + created + ", caseId=" + caseId + ", caseReused=" + caseReused +
-            ", introEmail=" + (emailed ? "sent" : "skipped:" + emailSkipped),
+            ", introEmail=" + (emailed ? "sent" : "skipped:" + emailSkipped) +
+            (emailFixTaskId ? ", emailFixTask=" + emailFixTaskId : ""),
           performedBy: staff.email || staff.uid,
           role: staff.role || "",
           timestamp: FieldValue.serverTimestamp(),
@@ -28198,6 +28534,7 @@ exports.submitScreeningReferral = functions
         contactDueDate: contactDueDate,
         introEmailSent: emailed,
         introEmailSkipped: emailSkipped,
+        emailFixTaskId: emailFixTaskId,
         needsParentContact: !reach.reachable,
       });
     } catch (err) {
@@ -29387,6 +29724,11 @@ exports.__test = {
   buildPledgeVolunteerInviteHtml,
   _screeningUrgency,
   _buildScreeningReferralIntroHtml,
+  _familyEmailFormatProblem,
+  _formatFamilyPhone,
+  _introDeliveryDecision,
+  _buildFamilyEmailFixTaskDoc,
+  SCREENING_EMAIL_FIX_UID,
   handleSignupCreated,
   _cgMaybeGenerateCaseReview,
   _childMatches,
