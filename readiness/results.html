@@ -527,9 +527,9 @@
     f += '<div class="sec">Vision</div>';
     f += rlRow('Distance','eDistR','eDistL',PF,vs.distance,'Pass','Both<br>Pass');
     f += '<label class="l">Lea Symbols / PlusOptix</label><textarea id="eLea" rows="2">'+esc(vs.leaSymbols||'')+'</textarea>';
-    /* Three images per child (10-08). No capture= so the device offers the camera
-       OR the photo library -- the photo may already be on the iPad. */
-    f += '<div class="photoBox"><label class="l">Images</label><input type="file" id="ePhoto" accept="image/*" style="display:none" onchange="uploadPrintout(this)">' +
+    /* Three images per child (10-08). capture= opens the camera straight away,
+       no Take Photo / Library menu (Daniel: no extra clicks). */
+    f += '<div class="photoBox"><label class="l">Images</label><input type="file" id="ePhoto" accept="image/*" capture="environment" style="display:none" onchange="uploadPrintout(this)">' +
          '<div class="slotRow">'+[1,2,3].map(n=>'<div class="slot" id="slot'+n+'">'+slotHtml(n)+'</div>').join('')+'</div><div id="ePhotoMsg"></div></div>';
     $('entryForm').innerHTML = f;
     // "initial" = what is SAVED, not what is pre-filled, so a pre-filled site /
