@@ -26061,22 +26061,45 @@ exports.flagDuplicateContacts = functions
 
     const snap = await db.collection("contacts").get();
     const byPhone = {};
+    // Same email too (10-08): two Jaeda Kom cards, neither with a phone, were
+    // never raised. Only a well-formed address counts.
+    const byEmail = {};
     snap.forEach(d => {
       const v = d.data() || {};
       if (v.archived === true) return;
       const key = _dupPhoneKey(v.phone);
-      if (!key) return;
-      (byPhone[key] = byPhone[key] || []).push({ id: d.id, v });
+      if (key) (byPhone[key] = byPhone[key] || []).push({ id: d.id, v });
+      const em = String(v.email || "").trim().toLowerCase();
+      if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) (byEmail[em] = byEmail[em] || []).push({ id: d.id, v });
     });
+    const groups = [
+      ...Object.entries(byPhone).map(([key, recs]) => ({ kind: "phone", key, recs })),
+      ...Object.entries(byEmail).map(([key, recs]) => ({ kind: "email", key, recs })),
+    ];
+    // The person who added the second card owns an email-match task (staff fix
+    // their own records). Falls back to the lifecycle seat for system-made cards.
+    const roleCache = {};
+    const ownerFor = async r => {
+      const uid = String(r.v.createdBy || "");
+      if (!uid || uid.length < 20) return null;
+      if (!(uid in roleCache)) {
+        const rd = await db.collection("userRoles").doc(uid).get().catch(() => null);
+        roleCache[uid] = rd && rd.exists ? (rd.data().displayName || rd.data().name || r.v.createdByName || "") : null;
+      }
+      return roleCache[uid] === null ? null : { uid, name: roleCache[uid] };
+    };
 
     let created = 0;
-    for (const [phoneKey, recs] of Object.entries(byPhone)) {
+    for (const { kind, key: phoneKey, recs } of groups) {
       if (recs.length < 2) continue;
       recs.sort((a, b) => (a.v.createdAt?.toMillis?.() || 0) - (b.v.createdAt?.toMillis?.() || 0));
       for (let i = 1; i < recs.length; i++) {
         const a = recs[0], b = recs[i];
         const pairKey = _dupPairKey(a.id, b.id);
         if (decided.has(pairKey) || alreadyTasked.has(pairKey)) continue;
+        alreadyTasked.add(pairKey);   // a pair sharing phone AND email is raised once
+        const isEmail = kind === "email";
+        const own = isEmail ? await ownerFor(b) : null;
 
         const nm = r => String(r.v.displayName || ((r.v.firstName || "") + " " + (r.v.lastName || ""))).trim() || "(no name)";
         const when = r => r.v.createdAt?.toDate?.()
@@ -26103,35 +26126,46 @@ exports.flagDuplicateContacts = functions
           contactId: a.id,
           contactName: nm(a),
           contactType: "",
-          summary: "Possible duplicate — " + nm(a) + " and " + nm(b) + " share the phone number " + (a.v.phone || phoneKey),
+          summary: "Possible duplicate — " + nm(a) + " and " + nm(b) + " " + (isEmail ? "share the email address " + phoneKey : "share the phone number " + (a.v.phone || phoneKey)),
           followUpDate: toHstDateKey(new Date()),
           status: "Open",
           notes:
-            "Two contact records share the same phone number. Please decide whether these are ONE person or TWO.\n\n" +
+            (isEmail ? "Two contact records share the same email address." : "Two contact records share the same phone number.") + " Please decide whether these are ONE person or TWO.\n\n" +
             "RECORD A — kept if you merge\n" + line(a) + "\n" +
             "RECORD B — folded into A and removed if you merge\n" + line(b) + "\n" +
-            "WHAT TO LOOK FOR\n" +
-            "· MERGE if this is one person with two email addresses — a work one and a\n" +
+            (isEmail
+              ? "WHAT TO LOOK FOR\n" +
+                "· MERGE if this is one person entered twice — the usual case when the\n" +
+                "  name matches too.\n" +
+                "· KEEP SEPARATE if two people really share one inbox — a parent who uses\n" +
+                "  a spouse's address, or a family email.\n\n"
+              : "") +
+            (isEmail ? "" : "WHAT TO LOOK FOR\n") +
+            (isEmail ? "" : ("· MERGE if this is one person with two email addresses — a work one and a\n" +
             "  personal one, or an old address they have stopped using. Same name plus\n" +
             "  same phone is almost always one person.\n" +
             "· KEEP SEPARATE if these are two different people sharing a phone — two\n" +
             "  parents in one household, a couple, or staff on one office line.\n" +
-            "  Different first names on the same number is the usual sign.\n\n" +
-            (sameEmail
+            "  Different first names on the same number is the usual sign.\n\n")) +
+            (sameEmail && !isEmail
               ? "WHAT THIS PAIR LOOKS LIKE: both records carry the SAME email address\n" +
                 "as well as the same phone. That is a strong sign of one person — even\n" +
                 "if the names differ, which happens when someone changes their surname.\n\n"
               : sameName
                 ? "WHAT THIS PAIR LOOKS LIKE: both records carry the SAME name, which\n" +
                   "points towards one person.\n\n"
+                : isEmail
+                ? "WHAT THIS PAIR LOOKS LIKE: the names are DIFFERENT on one email address,\n" +
+                  "which can be a surname change or two people sharing an inbox. Check\n" +
+                  "before merging.\n\n"
                 : "WHAT THIS PAIR LOOKS LIKE: the names are DIFFERENT and the emails do\n" +
                   "not match, which often means two people sharing one phone. Check\n" +
                   "before merging.\n\n") +
             "Nothing is merged until you choose. If you keep them separate, this pair\n" +
             "will not be raised again.",
           isDraft: false,
-          owner: laaName,
-          ownerUid: LIFECYCLE_ADMIN_UID,
+          owner: own ? own.name : laaName,
+          ownerUid: own ? own.uid : LIFECYCLE_ADMIN_UID,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           workflowEventId: pairKey,
