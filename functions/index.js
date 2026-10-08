@@ -26186,6 +26186,119 @@ exports.flagDuplicateContacts = functions
     return null;
   });
 
+// Duplicate one-off events (10-08, Daniel). Sandy entered four FB posts twice
+// on 9-04, minutes apart, and August reach counted each twice. Same creator +
+// same eventDate + same title (case/spacing ignored) + the same figure (within
+// 1%, so a 2218/2219 typo still matches; 667 vs 733 on one day is two posts).
+// The person who added the later copy gets the task: zero every attendance
+// entry and the Total box on that copy, then press Archive duplicate in My Day,
+// which stamps duplicateOf and drops it from the reports. Closing the task
+// without archiving means "not a duplicate" -- the pair is never raised again.
+function _dupEventFigure(v) {
+  const S = v.summary || {};
+  const ov = S.attendanceOverrides || {};
+  for (const x of [ov.attTotal, S.attendanceTotalResolved, S.totalAttended]) {
+    const n = Number(x);
+    if (x !== undefined && x !== null && x !== "" && isFinite(n)) return n;
+  }
+  return null;
+}
+function _dupEventSameFigure(a, b) {
+  if (a === null || b === null) return a === b;
+  return Math.abs(a - b) <= Math.max(1, 0.01 * Math.max(a, b));
+}
+exports.flagDuplicateEvents = functions
+  .runWith({ timeoutSeconds: 300, maxInstances: 1 })
+  .pubsub.schedule("5 6 * * *").timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const laaName = await _lcResolveStaffName(db, LIFECYCLE_ADMIN_UID);
+    const raised = new Set();
+    (await db.collection("interactions").where("workflowStep", "==", "duplicateEvent").get())
+      .forEach(d => { const k = (d.data() || {}).dupPairKey; if (k) raised.add(k); });
+
+    const snap = await db.collection("events").where("isOneOff", "==", true).get();
+    const groups = {};
+    snap.forEach(d => {
+      const v = d.data() || {};
+      if (v.duplicateOf || v.infoOnly === true || v.flyerOnly === true || v.eventType === "flyer") return;
+      const who = String(v.createdByUid || v.createdBy || "");
+      const title = String(v.title || "").toLowerCase().replace(/\s+/g, " ").trim();
+      if (!who || !title || !v.eventDate) return;
+      const k = who + "|" + v.eventDate + "|" + title;
+      (groups[k] = groups[k] || []).push({ id: d.id, v, fig: _dupEventFigure(v) });
+    });
+
+    const roleOk = {};
+    let created = 0;
+    for (const recs of Object.values(groups)) {
+      if (recs.length < 2) continue;
+      recs.sort((a, b) => (a.v.createdAt?.toMillis?.() || 0) - (b.v.createdAt?.toMillis?.() || 0));
+      const used = new Set();
+      for (let i = 1; i < recs.length; i++) {
+        const b = recs[i];
+        const a = recs.slice(0, i).find(x => !used.has(x.id) && _dupEventSameFigure(x.fig, b.fig));
+        if (!a) continue;
+        const pairKey = _dupPairKey(a.id, b.id);
+        if (raised.has(pairKey)) continue;
+        raised.add(pairKey);
+        used.add(b.id);
+
+        const uid = String(b.v.createdByUid || "");
+        if (uid && !(uid in roleOk)) {
+          const rd = await db.collection("userRoles").doc(uid).get().catch(() => null);
+          roleOk[uid] = !!(rd && rd.exists && (rd.data() || {}).isArchived !== true);
+        }
+        const toCreator = !!uid && roleOk[uid];
+        const when = r => r.v.createdAt?.toDate?.()
+          ? r.v.createdAt.toDate().toLocaleString("en-US", { timeZone: "Pacific/Honolulu", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+          : "unknown time";
+        const fig = r => (r.fig === null ? "no total" : r.fig.toLocaleString("en-US"));
+        const line = r => "  " + (r.v.title || "(no title)") + " · " + (r.v.location || "no location") +
+          " · total " + fig(r) + "\n  added " + when(r) + "\n" +
+          (r.v.description ? "  " + String(r.v.description).slice(0, 120) + "\n" : "");
+
+        await db.collection("interactions").add({
+          channel: "Office",
+          interactionType: "Data review",
+          contactId: "",
+          contactName: b.v.title || "One-off event",
+          contactType: "",
+          summary: "Entered twice? " + (b.v.title || "One-off event") + " on " + b.v.eventDate,
+          followUpDate: toHstDateKey(new Date()),
+          status: "Open",
+          notes:
+            "This one-off looks like it was entered twice, so the reports count it twice.\n\n" +
+            "KEEP — the first entry\n" + line(a) + "\n" +
+            "THE COPY — this task's event\n" + line(b) + "\n" +
+            "IF IT IS A DUPLICATE\n" +
+            "1. Press Open Event Summary (it opens the copy).\n" +
+            "2. Set every attendance entry to 0, and the Total box to 0. Save.\n" +
+            "3. Press Archive duplicate. It only works once everything reads 0, and it\n" +
+            "   takes the copy out of every report.\n\n" +
+            "IF IT IS NOT A DUPLICATE (two different activities on one day)\n" +
+            "Close this task. Nothing changes and this pair will not be raised again.",
+          isDraft: false,
+          owner: toCreator ? (b.v.createdByName || "") : laaName,
+          ownerUid: toCreator ? uid : LIFECYCLE_ADMIN_UID,
+          partnerIsland: b.v.partnerIsland || "",
+          createdBy: "System",
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          workflowStep: "duplicateEvent",
+          workflowEventId: b.id,
+          workflowEventCollection: "events",
+          workflowSessionKey: "",
+          dupKeeperEventId: a.id,
+          dupPairKey: pairKey,
+        });
+        created++;
+      }
+    }
+    console.log("flagDuplicateEvents: created", created);
+    return null;
+  });
+
 // Called from the Int task. action = 'merge' | 'keep-separate'.
 exports.resolveContactDuplicate = functions
   .runWith({ timeoutSeconds: 120, maxInstances: 5 })
