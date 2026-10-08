@@ -131,6 +131,9 @@
               font:700 1rem 'Source Sans 3',sans-serif; cursor:pointer; touch-action:manipulation; }
   .photoBtn:active { transform:scale(.98); }
   .pList { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+  .slotRow { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .slot .photoBtn { min-height:64px; font-size:.95rem; }
+  .slot .pItem { min-height:64px; }
   .pItem { border:1px solid var(--line); border-radius:10px; padding:6px; background:#fff; font-size:.8rem; color:var(--soft); text-align:center; }
   .pItem img { display:block; max-width:140px; max-height:140px; border-radius:6px; margin:0 auto 4px; }
   .pItem button { font:700 .8rem 'Source Sans 3',sans-serif; color:var(--blue-d); background:none; border:none; cursor:pointer; padding:4px; }
@@ -495,7 +498,7 @@
       if (f.id === 'eLea'){ const t=$('eLea'); if (t && document.activeElement !== t) t.value = sv; else return; } else segSet(f.id, sv);
       current.initial[f.id] = sv;
     });
-    if ((r.printouts||[]).length > current.printouts.length){ current.printouts = r.printouts.slice(); const pl=$('ePhotoList'); if (pl) pl.innerHTML = printoutsHtml(current.printouts); }
+    if (JSON.stringify(r.printouts||[]) !== JSON.stringify(current.printouts)){ current.printouts = (r.printouts||[]).slice(); renderSlots(); }
     const ob = $('eOther'); if (ob) ob.innerHTML = otherHtml(current.base);
     updateLock();
   }
@@ -503,6 +506,7 @@
   window.openEntry = function(i){
     const r = window._view[i]; if(!r) return;
     current = { contactId:r.contactId, screeningId:r.screeningId, printouts:(r.printouts||[]).slice(), base:(r.results||{}), touched:{}, initial:{} };
+    Object.keys(_fresh).forEach(k=>delete _fresh[k]);
     $('entryTitle').textContent = r.childName || 'Results';
     const res = r.results||{}, hd=res.hearing||{}, vs=res.vision||{};
     const by = res.screenedBy || dayDefaults.screenedBy || (auth.currentUser && auth.currentUser.displayName) || '';
@@ -523,9 +527,10 @@
     f += '<div class="sec">Vision</div>';
     f += rlRow('Distance','eDistR','eDistL',PF,vs.distance,'Pass','Both<br>Pass');
     f += '<label class="l">Lea Symbols / PlusOptix</label><textarea id="eLea" rows="2">'+esc(vs.leaSymbols||'')+'</textarea>';
-    f += '<div class="photoBox"><input type="file" id="ePhoto" accept="image/*" capture="environment" style="display:none" onchange="uploadPrintout(this)">' +
-         '<button type="button" class="photoBtn" onclick="document.getElementById(\'ePhoto\').click()">Photo of printout</button>' +
-         '<div class="pList" id="ePhotoList">'+printoutsHtml(current.printouts)+'</div><div id="ePhotoMsg"></div></div>';
+    /* Three images per child (10-08). No capture= so the device offers the camera
+       OR the photo library -- the photo may already be on the iPad. */
+    f += '<div class="photoBox"><label class="l">Images</label><input type="file" id="ePhoto" accept="image/*" style="display:none" onchange="uploadPrintout(this)">' +
+         '<div class="slotRow">'+[1,2,3].map(n=>'<div class="slot" id="slot'+n+'">'+slotHtml(n)+'</div>').join('')+'</div><div id="ePhotoMsg"></div></div>';
     $('entryForm').innerHTML = f;
     // "initial" = what is SAVED, not what is pre-filled, so a pre-filled site /
     // date / screened-by still counts as new on the first save.
@@ -547,12 +552,23 @@
      if Save is never pressed. */
   const UPLOAD_FN = 'https://us-central1-ldah-932d5.cloudfunctions.net/requestScreeningConsentUploadUrl';
   const VIEW_FN = 'https://us-central1-ldah-932d5.cloudfunctions.net/getScreeningConsentDownloadUrl';
-  function printoutsHtml(list, freshUrl){
-    return (list||[]).map((p,i)=>{
-      const fresh = freshUrl && i===list.length-1;
-      return '<div class="pItem" id="pi'+i+'">'+(fresh?'<img src="'+freshUrl+'" alt="Printout">':'')+'Printout '+(i+1)+(fresh?'':' <button type="button" onclick="viewPrintout('+i+')">View</button>')+'</div>';
-    }).join('');
+  /* Image 1 / 2 / 3 (10-08). Each photo is a printouts[] entry with a slot.
+     Entries saved before slots existed take slot 1, 2, 3 in the order taken.
+     A retake replaces that slot's entry; the old file stays in Storage. */
+  const slotOf = (p, i) => Number(p && p.slot) || Math.min(i + 1, 3);
+  function slotEntry(n){ const l=(current&&current.printouts)||[]; let hit=null; l.forEach((p,i)=>{ if(slotOf(p,i)===n) hit=p; }); return hit; }
+  const _fresh = {};
+  function slotHtml(n){
+    const p = slotEntry(n);
+    if (!p) return '<button type="button" class="photoBtn" onclick="pickSlot('+n+')">+ Image '+n+'</button>';
+    const img = _fresh[n] ? '<img src="'+_fresh[n]+'" alt="Image '+n+'">' : '';
+    return '<div class="pItem">'+img+'<b>Image '+n+' \u2713</b><br>' +
+      (_fresh[n] ? '' : '<button type="button" onclick="viewSlot('+n+')">View</button>') +
+      '<button type="button" onclick="pickSlot('+n+')">Replace</button></div>';
   }
+  function renderSlots(){ [1,2,3].forEach(n=>{ const el=$('slot'+n); if(el) el.innerHTML=slotHtml(n); }); }
+  let _slot = 1;
+  window.pickSlot = function(n){ _slot = n; const i=$('ePhoto'); if(i) i.click(); };
   function shrink(file){
     return createImageBitmap(file).then(bm=>{
       const max=2000, k=Math.min(1, max/Math.max(bm.width,bm.height));
@@ -564,6 +580,7 @@
   window.uploadPrintout = async function(inp){
     const file = inp.files && inp.files[0]; inp.value=''; if(!file||!current) return;
     const cur = current;   // the child this photo belongs to, even if the form is closed mid-upload
+    const slot = _slot;
     const msg=$('ePhotoMsg'); msg.style.color='var(--soft)'; msg.textContent='Preparing the photo\u2026';
     let blob=file, type=file.type||'image/jpeg';
     try { blob = await shrink(file); type='image/jpeg'; } catch(e){ blob=file; }
@@ -576,33 +593,33 @@
         x.upload.onprogress=e=>{ if(e.lengthComputable) msg.textContent='Uploading\u2026 '+Math.round(e.loaded/e.total*100)+'%'; };
         x.onload=()=> (x.status>=200&&x.status<300)?res():rej(new Error('Upload failed ('+x.status+'). Try again.'));
         x.onerror=()=>rej(new Error('Upload failed. Check the connection and try again.')); x.send(blob); });
-      const entry={ storagePath:j.storagePath, uploadedAt:new Date().toISOString(), by:(auth.currentUser.displayName||auth.currentUser.email||'') };
+      const entry={ storagePath:j.storagePath, uploadedAt:new Date().toISOString(), by:(auth.currentUser.displayName||auth.currentUser.email||''), slot:slot };
       // Transaction (2026-10-05): re-reads the contact and appends ONLY this
       // photo, so it can never undo results another screener just saved.
       const ref=db.collection('contacts').doc(cur.contactId);
       const saved = await db.runTransaction(async tx => {
         const snap = await tx.get(ref);
-        const out = applyToScreening(((snap.data()||{}).screenings)||[], cur.screeningId, s => Object.assign({}, s, { printouts:(Array.isArray(s.printouts)?s.printouts:[]).concat([entry]) }));
+        const out = applyToScreening(((snap.data()||{}).screenings)||[], cur.screeningId, s => Object.assign({}, s, { printouts:(Array.isArray(s.printouts)?s.printouts:[]).filter((p,i)=>slotOf(p,i)!==slot).concat([entry]) }));
         if (!out.found) throw new Error('This child\u2019s screening was not found. Nothing was saved.');
         tx.update(ref, { screenings: out.list });
         return out.item.printouts;
       });
       cur.printouts = saved.slice();
       if (current !== cur) return;
-      $('ePhotoList').innerHTML = printoutsHtml(cur.printouts, URL.createObjectURL(blob));
-      msg.style.color='var(--pass)'; msg.textContent='Printout saved to this child.';
+      _fresh[slot] = URL.createObjectURL(blob); renderSlots();
+      msg.style.color='var(--pass)'; msg.textContent='Image '+slot+' saved to this child.';
     } catch(e){ msg.style.color='var(--fail)'; msg.textContent=(e&&e.message)||String(e); }
   };
-  window.viewPrintout = async function(i){
-    const p=current&&current.printouts[i]; const box=$('pi'+i); if(!p||!box) return;
-    box.lastChild && (box.lastChild.textContent='Opening\u2026');
+  window.viewSlot = async function(n){
+    const p=slotEntry(n); const box=$('slot'+n); if(!p||!box) return;
+    box.innerHTML='<div class="pItem">Image '+n+'<br>Opening\u2026</div>';
     try {
       const idToken = await auth.currentUser.getIdToken();
       const r = await fetch(VIEW_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idToken,contactId:current.contactId,storagePath:p.storagePath})});
       const j = await r.json().catch(()=>({}));
       if(!r.ok||!j.url) throw new Error(j.error||'Could not open it.');
-      box.innerHTML='<a href="'+j.url+'" target="_blank" rel="noopener"><img src="'+j.url+'" alt="Printout '+(i+1)+'"></a>Printout '+(i+1);
-    } catch(e){ box.innerHTML='Printout '+(i+1)+' <span style="color:var(--fail)">'+esc((e&&e.message)||'')+'</span>'; }
+      box.innerHTML='<div class="pItem"><a href="'+j.url+'" target="_blank" rel="noopener"><img src="'+j.url+'" alt="Image '+n+'"></a><b>Image '+n+' \u2713</b><br><button type="button" onclick="pickSlot('+n+')">Replace</button></div>';
+    } catch(e){ box.innerHTML='<div class="pItem">Image '+n+' <span style="color:var(--fail)">'+esc((e&&e.message)||'')+'</span></div>'; }
   };
 
   function val(id){ const e=$(id); return e?(e.value||'').trim():''; }
