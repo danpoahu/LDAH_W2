@@ -26192,12 +26192,44 @@ exports.resolveContactDuplicate = functions
   .https.onRequest(async (req, res) => {
     res.set("Access-Control-Allow-Origin", "*");
     res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
     try {
-      const { action, keeperId, loserId, interactionId, decidedBy } = req.body || {};
+      const { action, keeperId, loserId, interactionId } = req.body || {};
       if (!keeperId || !loserId) { res.status(400).json({ error: "missing ids" }); return; }
       const db = admin.firestore();
+
+      /* Signed-in, and only against a real open duplicate task (10-08). This
+         endpoint merges and DELETES contacts and had no check at all: anyone
+         with the URL could fold one contact into another. Now the caller sends
+         Authorization: Bearer <idToken>, must have an active userRoles account,
+         and the ids must match an open contactDuplicate task that is theirs --
+         or any task for an admin, superAdmin or superPartner. */
+      let decidedBy = "staff";
+      try {
+        const m = String(req.get("Authorization") || "").match(/^Bearer\s+(.+)$/);
+        if (!m) { res.status(401).json({ error: "Sign-in required" }); return; }
+        const decoded = await admin.auth().verifyIdToken(m[1]);
+        const ur = await db.collection("userRoles").doc(decoded.uid).get();
+        const u = ur.exists ? (ur.data() || {}) : {};
+        const role = String(u.role || "");
+        if (!role || u.isArchived === true) { res.status(403).json({ error: "Not allowed" }); return; }
+        if (!interactionId) { res.status(400).json({ error: "missing task" }); return; }
+        const t = await db.collection("interactions").doc(String(interactionId)).get();
+        const tv = t.exists ? (t.data() || {}) : {};
+        const sameIds = tv.dupKeeperId === keeperId && tv.dupLoserId === loserId;
+        if (!t.exists || tv.workflowStep !== "contactDuplicate" || !sameIds || tv.status === "Closed") {
+          res.status(409).json({ error: "This duplicate task is closed or does not match" }); return;
+        }
+        const isOwner = tv.ownerUid === decoded.uid;
+        if (!isOwner && !["superAdmin", "admin", "superPartner"].includes(role)) {
+          res.status(403).json({ error: "This task belongs to someone else" }); return;
+        }
+        decidedBy = u.displayName || u.name || decoded.email || "staff";
+      } catch (e) {
+        res.status(401).json({ error: "Sign-in required" }); return;
+      }
       const pairKey = _dupPairKey(keeperId, loserId);
       const FieldValue = admin.firestore.FieldValue;
 
