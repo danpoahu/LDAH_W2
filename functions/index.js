@@ -5718,6 +5718,11 @@ async function buildAdvocacyMembershipGapHtml(db) {
     const x = d.data() || {};
     if (!_isCaseAdvocacyIx(x)) return;   // the query used to do this; it no longer can
     if (x.partnerIsland) return;          // PIP case: not an LDAH membership question (2026-09-29)
+    // Case management (Lions screening referrals) is not advocacy, and needs no
+    // membership (2026-10-09, Daniel). Same derivation as Int's case report:
+    // the stored serviceLevel wins, older Lions cases fall back to their source.
+    if (x.serviceLevel === "management") return;
+    if (x.serviceLevel !== "advocacy" && x.caseAdvocacySource === "lions-screening") return;
     const cid = x.contactId;
     if (!cid) return;
     let ms = null;
