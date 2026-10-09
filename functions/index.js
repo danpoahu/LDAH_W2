@@ -22680,12 +22680,12 @@ exports.onWorkshopFormWritten = functions
       } catch (e) { console.warn("workshopForm: could not close the form task:", e.message); }
 
       if (needsTravel) {
-        // The form now names its own approver (Daniel, 2026-09-10). The standing
-        // default is only a fallback for forms submitted before that picker
-        // existed — a form saved today always carries a uid.
-        const approverUid = after.travelApproverUid || WORKSHOP_TRAVEL_APPROVER_UID;
+        // Every travel request goes to the Assistant Admin seat (Daniel,
+        // 2026-10-09) — the same seat that books it. The per-form picker
+        // (2026-09-10) is gone; travelApproverUid on older forms is ignored.
+        const approverUid = LIFECYCLE_ADMIN_UID;
         const approver = (await _lcResolveStaffName(db, approverUid)) ||
-                         after.travelApproverName || "";
+                         LIFECYCLE_ADMIN_NAME;
         const _tOk = await _lcCreateIfMissing(db, {
           eventId, eventTitle: title, step: "workshopTravelOk", sessionKey: "",
           ownerUid: approverUid,
