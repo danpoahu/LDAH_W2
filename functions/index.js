@@ -15926,7 +15926,7 @@ exports.sendPledgeVolunteerInvite = functions
 // Verify the ID token in the request body, then look up userRoles/{uid} and
 // confirm admin/superAdmin. Returns { uid, email, role, name } on success,
 // or throws an Error tagged with .statusCode = 401/403 for the caller.
-async function _verifyStaffIdToken(idTokenRaw) {
+async function _verifyStaffIdToken(idTokenRaw, extraRoles) {
   const idToken = String(idTokenRaw || "").trim();
   if (!idToken) { const e = new Error("Missing idToken"); e.statusCode = 401; throw e; }
   let decoded;
@@ -15946,7 +15946,8 @@ async function _verifyStaffIdToken(idTokenRaw) {
   }
   const data = roleSnap.data() || {};
   const role = data.role || "";
-  if (role !== "admin" && role !== "superAdmin") {
+  if (role !== "admin" && role !== "superAdmin" &&
+      !(Array.isArray(extraRoles) && extraRoles.indexOf(role) !== -1)) {
     const e = new Error("Admin only");
     e.statusCode = 403;
     throw e;
@@ -26304,6 +26305,184 @@ exports.flagDuplicateEvents = functions
     return null;
   });
 
+/* ── ASQ follow-up tasks (2026-10-09, Daniel) ─────────────────────────────
+   The ASQ Management report (Int) writes asqRecords/{contactId}__{screeningId}.
+   Two things hang off it:
+
+   1. Marked "entered" in ASQ Online -> the staff member on the child's case
+      gets a task to ask the family whether they want the ASQ sent to them.
+      Only children who failed a screening have a case (case management), so
+      that is nearly always a Lions referral. No open case, or a case nobody
+      owns yet -> Noe, who assigns case management.
+      The family's answer (Yes / No buttons on the task) is written back onto
+      the record as familyWants. Yes -> whoever entered the child gets a task
+      to send it from ASQ Online.
+
+   2. ASQ_DAILY_UID gets ONE task each weekday at 8am HST to check ASQ Online
+      for returned results and upload them on the report. An open one is
+      carried forward (re-dated, counts refreshed) instead of piling up. */
+const ASQ_DAILY_UID = "b88SzZ8dyCOmPQesGoX3OmW9jgW2";   // dailyUser who runs ASQ Online
+const ASQ_ONLINE_URL = "https://www.asqonline.com/landing_pages";
+
+async function _asqCaseOwner(db, contactId) {
+  try {
+    const q = await db.collection("interactions").where("contactId", "==", contactId).get();
+    let best = null;
+    q.forEach((d) => {
+      const x = d.data() || {};
+      if (x.workflowStep !== "caseAdvocacy" || x.status === "Closed") return;
+      const ms = (x.createdAt && x.createdAt.toMillis) ? x.createdAt.toMillis() : 0;
+      if (!best || ms > best.ms) best = { ms, uid: x.ownerUid || "", name: x.owner || x.ownerName || "", caseId: d.id };
+    });
+    return best;
+  } catch (e) {
+    console.warn("asq: case lookup failed:", e.message);
+    return null;
+  }
+}
+
+exports.onAsqRecordWritten = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 5 })
+  .firestore.document("asqRecords/{key}")
+  .onWrite(async (change, context) => {
+    if (!change.after.exists) return null;
+    const db = admin.firestore();
+    const FV = admin.firestore.FieldValue;
+    const before = change.before.exists ? (change.before.data() || {}) : {};
+    const a = change.after.data() || {};
+    const key = context.params.key;
+    const today = toHstDateKey(new Date());
+    const child = a.childName || "the child";
+    const fam = a.parentName || "the family";
+
+    // 1. Entered -> ask the family (once per child).
+    if (a.status === "entered" && before.status !== "entered" && !a.familyTaskId && a.contactId) {
+      const cs = await _asqCaseOwner(db, a.contactId);
+      const toCase = !!(cs && cs.uid);
+      // Sandbox test children never reach real staff.
+      let sandbox = false;
+      try { sandbox = ((await db.collection("contacts").doc(a.contactId).get()).data() || {}).sandbox === true; } catch (_) {}
+      const ownerUid = sandbox ? DAN_PELLEGRINI_UID : toCase ? cs.uid : NOELANI_DELAVEGA_UID;
+      const ownerName = (await _lcResolveStaffName(db, ownerUid)) || (toCase ? cs.name : "Noelani Dela Vega");
+      const ref = await db.collection("interactions").add({
+        channel: "Outbound Phone",
+        interactionType: "Tier 1: Individual Assistance:  Advocacy",
+        workflowStep: "asqOfferFamily",
+        asqKey: key,
+        contactId: a.contactId,
+        contactName: fam,
+        contactType: "Parent/Guardian",
+        summary: "Ask " + fam + " if they want the ASQ for " + child,
+        notes:
+          (a.enteredByName || "Staff") + " entered " + child + " in ASQ Online" +
+          (a.asqType ? " (" + a.asqType + ")" : "") + " on " + (a.enteredDay || today) + ".\n\n" +
+          "Contact the family and ask whether they want the ASQ sent to them.\n" +
+          "Press Yes, send it or No thanks with their answer. Yes gives " +
+          (a.enteredByName || "the ASQ coordinator") + " a task to send it." +
+          (toCase ? "" : "\n\nThis child has no case owner yet, so it came to you to pass on or handle."),
+        followUpDate: today,
+        status: "Open",
+        isDraft: false,
+        owner: ownerName,
+        ownerUid: ownerUid,
+        relatedCaseId: cs ? cs.caseId : "",
+        createdBy: "System",
+        createdAt: FV.serverTimestamp(),
+        updatedAt: FV.serverTimestamp(),
+      });
+      await change.after.ref.set({ familyTaskId: ref.id, familyTaskOwner: ownerName }, { merge: true });
+      console.log("asq: family task", ref.id, "->", ownerName, "for", key);
+      return null;
+    }
+
+    // 2. Family said yes -> whoever entered the child sends it (once).
+    if (a.familyWants === "yes" && before.familyWants !== "yes" && !a.sendTaskId) {
+      const ownerUid = a.enteredByUid || ASQ_DAILY_UID;
+      const ownerName = (await _lcResolveStaffName(db, ownerUid)) || a.enteredByName || "";
+      const ref = await db.collection("interactions").add({
+        channel: "ASQ Online",
+        interactionType: "Data review",
+        workflowStep: "asqSendToFamily",
+        asqKey: key,
+        contactId: a.contactId || "",
+        contactName: fam,
+        contactType: "Parent/Guardian",
+        summary: "Send the ASQ for " + child + " to " + fam,
+        notes:
+          (a.familyAnsweredBy || "Staff") + " spoke with the family: they want the ASQ.\n\n" +
+          "1. Press Open ASQ Online and send it to the family from there.\n" +
+          "2. Press Mark sent. That closes this task.",
+        followUpDate: today,
+        status: "Open",
+        isDraft: false,
+        owner: ownerName,
+        ownerUid: ownerUid,
+        createdBy: "System",
+        createdAt: FV.serverTimestamp(),
+        updatedAt: FV.serverTimestamp(),
+      });
+      await change.after.ref.set({ sendTaskId: ref.id }, { merge: true });
+      console.log("asq: send task", ref.id, "->", ownerName, "for", key);
+    }
+    return null;
+  });
+
+exports.asqDailyCheck = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 1 })
+  .pubsub.schedule("0 8 * * 1-5").timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const FV = admin.firestore.FieldValue;
+    const today = toHstDateKey(new Date());
+    let waiting = 0, toSend = 0;
+    const recs = await db.collection("asqRecords").get();
+    recs.forEach((d) => {
+      const x = d.data() || {};
+      if (x.status !== "entered") return;
+      if (!(Array.isArray(x.results) && x.results.length)) waiting++;
+      if (x.familyWants === "yes" && !x.sentDay) toSend++;
+    });
+    const notes =
+      "Check ASQ Online for any results that have come in.\n\n" +
+      "1. Press Open ASQ Online and look for completed questionnaires.\n" +
+      "2. For each one, press Open ASQ report, find the child and press Upload results " +
+      "(the PDF from ASQ Online). It then shows on the report and on the family card.\n" +
+      "3. Tick this task done.\n\n" +
+      "Today: " + waiting + " entered " + (waiting === 1 ? "child" : "children") + " with no results uploaded yet" +
+      (toSend ? "; " + toSend + " " + (toSend === 1 ? "family wants" : "families want") + " the ASQ sent." : ".");
+    const open = await db.collection("interactions")
+      .where("ownerUid", "==", ASQ_DAILY_UID)
+      .where("workflowStep", "==", "asqDailyCheck").get();
+    let carried = null;
+    open.forEach((d) => { if ((d.data() || {}).status !== "Closed" && !carried) carried = d.ref; });
+    if (carried) {
+      await carried.update({ followUpDate: today, notes, updatedAt: FV.serverTimestamp() });
+      console.log("asqDailyCheck: carried forward", carried.id);
+      return null;
+    }
+    const ownerName = (await _lcResolveStaffName(db, ASQ_DAILY_UID)) || "";
+    const ref = await db.collection("interactions").add({
+      channel: "ASQ Online",
+      interactionType: "Data review",
+      workflowStep: "asqDailyCheck",
+      contactId: "",
+      contactName: "ASQ Online",
+      contactType: "",
+      summary: "Check ASQ Online for new results",
+      notes,
+      followUpDate: today,
+      status: "Open",
+      isDraft: false,
+      owner: ownerName,
+      ownerUid: ASQ_DAILY_UID,
+      createdBy: "System",
+      createdAt: FV.serverTimestamp(),
+      updatedAt: FV.serverTimestamp(),
+    });
+    console.log("asqDailyCheck: created", ref.id);
+    return null;
+  });
+
 // Called from the Int task. action = 'merge' | 'keep-separate'.
 exports.resolveContactDuplicate = functions
   .runWith({ timeoutSeconds: 120, maxInstances: 5 })
@@ -27814,8 +27993,10 @@ exports.requestScreeningConsentUploadUrl = functions
     if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) { res.status(400).json({ error: "Invalid file size." }); return; }
     if (sizeBytes > SCREENING_CONSENT_MAX_BYTES) { res.status(400).json({ error: "File is larger than 25 MB. Please choose a smaller file." }); return; }
 
+    // ASQ results (2026-10-09) are uploaded by the ASQ coordinator, a dailyUser.
+    const _kindIn = String(body.kind || "").trim();
     let staff;
-    try { staff = await _verifyStaffIdToken(body.idToken); }
+    try { staff = await _verifyStaffIdToken(body.idToken, _kindIn === "asq" ? ["dailyUser"] : []); }
     catch (err) { res.status(err.statusCode || 401).json({ error: err.message }); return; }
 
     try {
@@ -27827,7 +28008,7 @@ exports.requestScreeningConsentUploadUrl = functions
       // kind 'printout' (2026-09-30): a photo of the vision screener's printout,
       // taken on screening day from readiness/results.html. Same private folder,
       // same signed-URL viewing, just named so nobody mistakes it for a consent.
-      const kind = String(body.kind || "").trim() === "printout" ? "printout" : "consent";
+      const kind = _kindIn === "printout" ? "printout" : _kindIn === "asq" ? "asq" : "consent";
       const storagePath = SCREENING_CONSENT_PREFIX + contactId + "/" + kind + "-" + ts + "." + ext;
       const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
       // Echo the caller's origin for the browser PUT — the dashboard runs from
@@ -27860,8 +28041,10 @@ exports.getScreeningConsentDownloadUrl = functions
     if (!contactId) { res.status(400).json({ error: "Missing contactId" }); return; }
     if (!storagePath) { res.status(400).json({ error: "Missing storagePath" }); return; }
 
+    // An ASQ results file (asq-<ts>) may also be opened by the dailyUser who uploads them.
+    const _isAsqPath = /\/asq-\d{10,}\.(pdf|jpg|png|heic)$/.test(storagePath);
     let staff;
-    try { staff = await _verifyStaffIdToken(body.idToken); }
+    try { staff = await _verifyStaffIdToken(body.idToken, _isAsqPath ? ["dailyUser"] : []); }
     catch (err) { res.status(err.statusCode || 401).json({ error: err.message }); return; }
 
     // Defense in depth: only ever sign a path inside this contact's own folder,
@@ -27877,7 +28060,7 @@ exports.getScreeningConsentDownloadUrl = functions
     // one this service generated.
     const expectedPrefix = SCREENING_CONSENT_PREFIX + contactId + "/";
     const remainder = storagePath.slice(expectedPrefix.length);
-    const looksGenerated = /^(consent|printout)-\d{10,}\.(pdf|jpg|png|heic)$/.test(remainder);   // printout = vision screener photo (2026-09-30)
+    const looksGenerated = /^(consent|printout|asq)-\d{10,}\.(pdf|jpg|png|heic)$/.test(remainder);   // printout = vision screener photo (2026-09-30)
     if (storagePath.indexOf(expectedPrefix) !== 0 ||
         storagePath.indexOf("..") !== -1 ||
         remainder.indexOf("/") !== -1 ||
