@@ -28026,6 +28026,47 @@ exports.requestScreeningConsentUploadUrl = functions
     }
   });
 
+/* Private training images (2026-10-10). Decks with real screenshots of
+   LDAH-Int live in the public repo as code only; their images sit in
+   Storage under trainingPrivate/<deckId>/ and are handed out here as
+   short-lived signed URLs to signed-in LDAH staff (any LDAH role, incl.
+   dailyUser; never partners or the public). */
+exports.getTrainingImageUrls = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    const body = req.body || {};
+    const deckId = String(body.deckId || "").trim();
+    if (!/^[a-z0-9-]{3,60}$/.test(deckId)) { res.status(400).json({ error: "Invalid deckId" }); return; }
+    let uid;
+    try { uid = (await admin.auth().verifyIdToken(String(body.idToken || ""))).uid; }
+    catch (_) { res.status(401).json({ error: "Please sign in to LDAH-Int first." }); return; }
+    const role = (((await admin.firestore().collection("userRoles").doc(uid).get()).data()) || {}).role || "";
+    if (["superAdmin", "admin", "webAdmin", "dailyUser", "dataUser"].indexOf(role) === -1) {
+      res.status(403).json({ error: "This training is for LDAH staff." }); return;
+    }
+    try {
+      const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
+      const [files] = await bucket.getFiles({ prefix: "trainingPrivate/" + deckId + "/" });
+      const expires = Date.now() + 2 * 60 * 60 * 1000;
+      const urls = {};
+      for (const f of files) {
+        const name = f.name.split("/").pop();
+        if (!/^[a-z0-9-]+\.(png|jpg)$/.test(name)) continue;
+        const [u] = await f.getSignedUrl({ version: "v4", action: "read", expires });
+        urls[name] = u;
+      }
+      res.status(200).json({ ok: true, urls });
+    } catch (err) {
+      console.error("getTrainingImageUrls:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
 exports.getScreeningConsentDownloadUrl = functions
   .runWith({ timeoutSeconds: 30, maxInstances: 10 })
   .https.onRequest(async (req, res) => {
