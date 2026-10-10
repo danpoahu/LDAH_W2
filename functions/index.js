@@ -22830,6 +22830,28 @@ exports.onInteractionUpdatedLifecycle = functions
     if (after.status !== "Closed") return null;
 
     const db = admin.firestore();
+
+    // --- onCloseCreateTask (2026-10-10): a task that hands off to the next
+    //     person when it is closed, e.g. Noe reviews a training deck and closing
+    //     her review task gives Dustin his Launch training task. The next task
+    //     is stored whole on the first one; created once (onCloseCreatedTaskId).
+    if (after.onCloseCreateTask && !after.onCloseCreatedTaskId) {
+      const next = Object.assign({}, after.onCloseCreateTask, {
+        status: "Open",
+        isDraft: false,
+        followUpDate: toHstDateKey(new Date()),
+        createdBy: "System",
+        createdByUid: "",
+        sourceTaskId: context.params.interactionId,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      const ref = await db.collection("interactions").add(next);
+      await change.after.ref.update({ onCloseCreatedTaskId: ref.id });
+      console.log("onCloseCreateTask:", context.params.interactionId, "closed -> task", ref.id, "for", next.owner || next.ownerUid);
+      return null;
+    }
+
     const eventId = after.workflowEventId;
     if (!eventId) return null;
     const step = after.workflowStep;
