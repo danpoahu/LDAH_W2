@@ -24983,6 +24983,8 @@ async function _zoomAuth() {
 // on the S2S app. Until those are granted every call here 403s, which is
 // handled as a soft failure: the signup simply keeps the shared link.
 
+const ZOOM_REGISTRATION_ENABLED = false;   // Daniel 2026-10-11: off
+
 /** Meeting id for an event, from the same slot its emails already use. */
 async function _zoomMeetingIdForEvent(event, collection) {
   const zoomDoc = (await admin.firestore().collection("settings").doc("zoomDefault").get()).data();
@@ -25032,6 +25034,10 @@ async function _zoomRegisterSignup({ meetingId, email, firstName, lastName }) {
  */
 async function ensureZoomRegistration({ signupRef, signup, event, collection }) {
   if (!signup || signup.zoomJoinUrl) return (signup && signup.zoomJoinUrl) || "";
+  // OFF (Daniel 2026-10-11): never approved, "a step too far in automation".
+  // Registering made Zoom email every family its own confirmation. Links
+  // already cached above keep working; nobody new is registered.
+  if (ZOOM_REGISTRATION_ENABLED !== true) return "";
   if (signup.status !== "confirmed") return "";          // only people actually coming
   const email = String(signup.email || "").trim();
   if (!email) return "";
