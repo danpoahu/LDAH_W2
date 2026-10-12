@@ -655,6 +655,12 @@
         // Saved: what is on screen is now the baseline.
         cur.base = merged; cur.touched = {};
         FORM_FIELDS.forEach(fd => { cur.initial[fd.id] = storedVal(merged, fd.path); });
+        // Show it now (2026-10-11). A transaction does not echo into the live
+        // listener until the server confirms, and a phone's listener can stall
+        // in the background, so reopening the child showed the OLD results
+        // although they were saved. Update this page's own copy straight away.
+        rows.forEach(r => { if (r.contactId===cur.contactId && r.screeningId===cur.screeningId){ r.results = merged; r.resultsSent = !!(merged && merged.resultsSentAt); } });
+        try { fillPickers(); renderList(); } catch(_){}
       }
       // Remember Site + Screened by as today's defaults so they auto-fill on the
       // next child, on any browser (persisted server-side).
