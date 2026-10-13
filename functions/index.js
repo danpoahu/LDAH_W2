@@ -28084,7 +28084,8 @@ exports.getTrainingImageUrls = functions
       const urls = {};
       for (const f of files) {
         const name = f.name.split("/").pop();
-        if (!/^[a-z0-9-]+\.(png|jpg)$/.test(name)) continue;
+        // .html (2026-10-13): a private report page, e.g. the PIP events review.
+        if (!/^[a-z0-9-]+\.(png|jpg|html)$/.test(name)) continue;
         const [u] = await f.getSignedUrl({ version: "v4", action: "read", expires });
         urls[name] = u;
       }
