@@ -12762,7 +12762,8 @@ exports.submitConnectGenConsent = functions
             let sessions = getSignupSessions(fresh, event);
             if (!sessions || sessions.length === 0) sessions = legacySessionsForSignup(fresh, event);
             const sessionKeys = (sessions || []).map((x) => x && x.dateKey).filter(Boolean);
-            const signatureHtml = await buildSignatureBlock("eventCoordinator");
+            // Team signature, not a named person (Daniel 2026-10-13).
+            const signatureHtml = PARENT_CONSULTANT_TEAM_SIGNATURE;
             const donateHtml = await buildDonateBlock("universal");
             const html = buildConnectGenConsentReceivedEmailHtml({
               name: fresh.name || typedName,
@@ -14166,6 +14167,19 @@ async function _cgMaybeConfirm(ref, signupData, event) {
 // It replaces the old behaviour, where signing the consent produced a
 // "You're Confirmed" email that then asked for the documents.
 // Idempotence stamp: cgConsentReceivedEmailSentAt.
+// Signature for the Connect-Gen "consent received, what's left" email
+// (Daniel 2026-10-13: "Parent Consultant Team" for this type of email).
+// Replies go to the From address (registration@), so that is the email shown.
+const PARENT_CONSULTANT_TEAM_SIGNATURE =
+  '<p style="margin:16px 0 2px;font-size:14px;color:#555555;line-height:1.5;">' +
+    '<strong>Parent Consultant Team</strong><br>' +
+    'Leadership in Disabilities &amp; Achievement of Hawai\'i<br>' +
+    '245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>' +
+    'Phone: (808) 536-9684<br>' +
+    'Email: <a href="mailto:registration@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">registration@ldahawaii.org</a><br>' +
+    '<a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>' +
+  '</p>';
+
 function buildConnectGenConsentReceivedEmailHtml({
   name, eventTitle, datesPhrase, outstanding, outstandingPhrase, uploadUrl, worksheetUrl, signatureHtml, donateHtml,
 }) {
