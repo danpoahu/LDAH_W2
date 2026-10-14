@@ -30491,3 +30491,194 @@ exports.onCaseMgmtAssignmentChanged = functions
     try { await _syncCaseMgmtAssignTask(); } catch (e) { console.error("onCaseMgmtAssignmentChanged:", e.message); }
     return null;
   });
+
+// ══════════════════════════════════════════════════════════════════════
+// SCHOOL CONSENT REQUEST (2026-10-13)
+// A school sent a classroom's paper screening consents and one child's page
+// came back unsigned. Staff press ONE button on a My Day task; the school
+// contact gets a system email with a no-login link; the upload lands in
+// Storage under schoolConsentRequests/{requestId}/ and the task is updated so
+// staff (and Daniel) know the page is in. Modelled on the Connect-Gen upload
+// (token on a server-only doc, resumable upload URL, confirm step).
+// schoolConsentRequests has NO Firestore rule = client-denied; only these
+// functions read it.
+// ══════════════════════════════════════════════════════════════════════
+const SCHOOL_UPLOAD_BASE_URL = "https://www.ldahawaii.org/school-upload.html";
+const SCHOOL_UPLOAD_MIME_EXT = { "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png", "image/heic": "heic", "image/heif": "heif" };
+const SCHOOL_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
+const SCHOOL_UPLOAD_DAYS = 21;
+
+function _schoolCors(req, res) {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") { res.status(204).send(""); return true; }
+  if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return true; }
+  return false;
+}
+
+function _buildSchoolConsentRequestEmailHtml(r, uploadUrl, expiresText, senderName, senderTitle) {
+  const esc = lifecycleEsc;
+  const btn = _emailBtn(uploadUrl, "Upload the signed page", { bg: "#1a3c6e" });
+  return [
+    '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f7;">',
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f4f4f7;padding:24px 0;"><tr><td align="center">',
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">',
+    '<tr><td style="background:#1a3c6e;padding:18px 24px;"><p style="margin:0;font-size:18px;color:#ffffff;font-weight:700;">One consent page still needed</p></td></tr>',
+    '<tr><td style="padding:24px;">',
+    '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">Aloha ' + esc(r.toName || "there") + ',</p>',
+    '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">Mahalo for sending the screening consent forms for ' + esc(r.schoolName || "your school") + '. We have entered every family whose forms were complete.</p>',
+    '<div style="background:#FFFBEB;border:1.5px solid #F59E0B;border-left:4px solid #D97706;border-radius:8px;padding:12px 16px;margin:0 0 16px;color:#78350F;font-size:14px;line-height:1.6;">',
+    '<strong style="color:#7C2D12;">' + esc(r.childName) + (r.classroom ? ' (' + esc(r.classroom) + ')' : '') + '</strong><br>' + esc(r.missingText || ""),
+    '</div>',
+    '<p style="margin:0 0 6px;font-size:15px;color:#222;line-height:1.55;">Once the family has completed and signed it, please upload a scan or a clear photo of the page here. No login is needed:</p>',
+    btn,
+    (r.screeningText ? '<p style="margin:14px 0;font-size:14px;color:#555;line-height:1.55;">We can only screen ' + esc((r.childName || "").split(" ")[0]) + ' on ' + esc(r.screeningText) + ' once this page is signed.</p>' : ''),
+    '<p style="margin:0 0 14px;font-size:14px;color:#555;line-height:1.55;">This link works until <strong>' + esc(expiresText) + '</strong>. If you have any questions, just reply to this email.</p>',
+    '<p style="margin:18px 0 4px;font-size:15px;color:#333;line-height:1.55;">Mahalo,</p>',
+    '<p style="margin:0;font-size:15px;color:#333;line-height:1.5;"><strong>' + esc(senderName) + '</strong>' + (senderTitle ? '<br><span style="color:#555;font-size:14px;">' + esc(senderTitle) + '</span>' : '') + '<br><span style="color:#555;font-size:14px;">Leadership in Disabilities &amp; Achievement of Hawaiʻi</span></p>',
+    _emailLinkFooter([{ label: "Upload the signed page", href: uploadUrl }]),
+    '</td></tr></table></td></tr></table></body></html>',
+  ].join("");
+}
+
+// Staff button on the My Day task. Body: { idToken, taskId }.
+// The task carries schoolConsentRequest: { requestId, toEmail, toName,
+// schoolName, childName, classroom, missingText, screeningText, ccEmail,
+// senderName, senderTitle }.
+exports.sendSchoolConsentRequest = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 5, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    if (_schoolCors(req, res)) return;
+    const body = req.body || {};
+    let staff;
+    try { staff = await _verifyStaffIdToken(body.idToken); }
+    catch (e) { res.status(e.statusCode || 401).json({ error: e.message }); return; }
+    const taskId = String(body.taskId || "").trim();
+    if (!taskId) { res.status(400).json({ error: "Missing taskId" }); return; }
+    try {
+      const db = admin.firestore();
+      const taskRef = db.collection("interactions").doc(taskId);
+      const taskSnap = await taskRef.get();
+      if (!taskSnap.exists) { res.status(404).json({ error: "Task not found" }); return; }
+      const r = (taskSnap.data() || {}).schoolConsentRequest || {};
+      if (!r.requestId || !r.toEmail || !r.childName) { res.status(400).json({ error: "This task has no school request on it." }); return; }
+      const reqRef = db.collection("schoolConsentRequests").doc(String(r.requestId));
+      const prev = await reqRef.get();
+      const token = (prev.exists && prev.data().token) || crypto.randomBytes(24).toString("hex");
+      const expiresAt = new Date(Date.now() + SCHOOL_UPLOAD_DAYS * 86400000);
+      const expiresText = expiresAt.toLocaleDateString("en-US", { timeZone: "Pacific/Honolulu", month: "long", day: "numeric", year: "numeric" });
+      await reqRef.set({
+        token, taskId, toEmail: r.toEmail, toName: r.toName || "", schoolName: r.schoolName || "",
+        childName: r.childName, classroom: r.classroom || "", missingText: r.missingText || "",
+        status: prev.exists && prev.data().status === "received" ? "received" : "sent",
+        expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+        lastSentAt: admin.firestore.FieldValue.serverTimestamp(), lastSentBy: staff.uid,
+        sendCount: admin.firestore.FieldValue.increment(1),
+      }, { merge: true });
+      const uploadUrl = SCHOOL_UPLOAD_BASE_URL + "?t=" + token;
+      const roleSnap = await db.collection("userRoles").doc(staff.uid).get();
+      const rd = roleSnap.exists ? roleSnap.data() || {} : {};
+      const senderName = r.senderName || rd.displayName || staff.name;
+      const html = _buildSchoolConsentRequestEmailHtml(r, uploadUrl, expiresText, senderName, r.senderTitle || "");
+      await sendEmailViaResend({
+        from: lifecycleFromAddress(), to: r.toEmail, cc: r.ccEmail || rd.email || "",
+        subject: "Signed consent page needed: " + r.childName + (r.schoolName ? " (" + r.schoolName + ")" : ""),
+        html, type: "school-consent-request", recipientName: r.toName || r.toEmail,
+      });
+      const hst = new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      await taskRef.update({
+        notes: String((taskSnap.data() || {}).notes || "") + "\n\n" + hst + " HST: request emailed to " + r.toEmail + " by " + senderName + ". Waiting for the upload.",
+        schoolConsentRequestSentAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      await db.collection("auditLog").add({
+        action: "School consent request emailed",
+        details: r.childName + " -> " + r.toEmail + " (task " + taskId + ")",
+        performedBy: senderName, timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      res.status(200).json({ ok: true, sentTo: r.toEmail });
+    } catch (err) {
+      console.error("sendSchoolConsentRequest:", err.message);
+      res.status(500).json({ error: err.message || "Send failed" });
+    }
+  });
+
+// Public upload page backend. Body: { t, action: 'info'|'url'|'confirm', ... }
+exports.schoolConsentUpload = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 5 })
+  .https.onRequest(async (req, res) => {
+    if (_schoolCors(req, res)) return;
+    const body = req.body || {};
+    const db = admin.firestore();
+    if (body.warm === true) { try { await db.collection("schoolConsentRequests").limit(1).get(); } catch (e) { /* warm */ } res.status(200).json({ warm: true }); return; }
+    const t = String(body.t || "").trim();
+    if (!/^[a-f0-9]{48}$/.test(t)) { res.status(400).json({ error: "This link is not valid." }); return; }
+    try {
+      const snap = await db.collection("schoolConsentRequests").where("token", "==", t).limit(1).get();
+      if (snap.empty) { res.status(401).json({ error: "This link is not valid. Please reply to the email you received." }); return; }
+      const doc = snap.docs[0]; const r = doc.data() || {};
+      if (!r.expiresAt || r.expiresAt.toDate().getTime() <= Date.now()) { res.status(401).json({ error: "This link has expired. Please reply to the email you received and we will send a new one." }); return; }
+      const action = String(body.action || "info");
+      if (action === "info") {
+        res.status(200).json({ ok: true, childName: r.childName, classroom: r.classroom || "", schoolName: r.schoolName || "", missingText: r.missingText || "", filesReceived: (r.files || []).length });
+        return;
+      }
+      const prefix = "schoolConsentRequests/" + doc.id + "/";
+      const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
+      if (action === "url") {
+        const mimeType = String(body.mimeType || ""); const ext = SCHOOL_UPLOAD_MIME_EXT[mimeType];
+        const size = Number(body.sizeBytes);
+        if (!ext) { res.status(400).json({ error: "Please upload a PDF, JPG, PNG or iPhone photo." }); return; }
+        if (!Number.isFinite(size) || size <= 0 || size > SCHOOL_UPLOAD_MAX_BYTES) { res.status(400).json({ error: "The file must be smaller than 25 MB." }); return; }
+        if ((r.files || []).length >= 10) { res.status(400).json({ error: "We already have several files for this request. Please reply to the email instead." }); return; }
+        const storagePath = prefix + "upload-" + Date.now() + "." + ext;
+        const [uploadUrl] = await bucket.file(storagePath).createResumableUpload({ origin: "https://www.ldahawaii.org", metadata: { contentType: mimeType } });
+        res.status(200).json({ ok: true, uploadUrl, storagePath });
+        return;
+      }
+      if (action === "confirm") {
+        const storagePath = String(body.storagePath || "");
+        if (!storagePath.startsWith(prefix)) { res.status(400).json({ error: "That upload does not belong to this link." }); return; }
+        const [exists] = await bucket.file(storagePath).exists();
+        if (!exists) { res.status(400).json({ error: "The upload did not arrive. Please try again." }); return; }
+        const FieldValue = admin.firestore.FieldValue;
+        const rec = { storagePath, originalFilename: String(body.originalFilename || "").slice(0, 200), sizeBytes: Number(body.sizeBytes) || 0, mimeType: String(body.mimeType || ""), uploadedAt: new Date().toISOString() };
+        await doc.ref.update({ files: FieldValue.arrayUnion(rec), status: "received", receivedAt: FieldValue.serverTimestamp() });
+        const hst = new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+        if (r.taskId) {
+          try {
+            const tRef = db.collection("interactions").doc(r.taskId); const tSnap = await tRef.get();
+            if (tSnap.exists) {
+              await tRef.update({
+                notes: String((tSnap.data() || {}).notes || "") + "\n\n" + hst + " HST: the school uploaded the signed page (" + (rec.originalFilename || "file") + "). Dan is adding " + r.childName + " to the system; this task closes when that is done.",
+                schoolConsentReceivedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+              });
+            }
+          } catch (e) { console.warn("schoolConsentUpload: task note failed:", e.message); }
+        }
+        // A to-do for Daniel, who finishes the record (one per request).
+        if (!r.danTaskId) {
+          try {
+            const today = new Date().toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
+            const dRef = await db.collection("interactions").add({
+              channel: "Other", interactionType: "Follow-up", workflowStep: "schoolConsentReceived",
+              contactName: r.childName, summary: "Signed consent page received for " + r.childName + (r.schoolName ? " (" + r.schoolName + ")" : "") + " — add to the system",
+              notes: "Uploaded by the school " + hst + " HST. File: Storage " + storagePath + ". Request " + doc.id + ", Chassidy's task " + (r.taskId || "-") + ".",
+              followUpDate: today, status: "Open", urgent: true, isDraft: false,
+              owner: "Dan Pellegrini", ownerUid: DAN_PELLEGRINI_UID, createdBy: "system",
+              createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+            });
+            await doc.ref.update({ danTaskId: dRef.id });
+          } catch (e) { console.warn("schoolConsentUpload: Dan task failed:", e.message); }
+        }
+        await db.collection("auditLog").add({ action: "School consent page uploaded", details: r.childName + " (" + (r.schoolName || "") + ") " + storagePath, performedBy: "School upload link", timestamp: FieldValue.serverTimestamp() });
+        res.status(200).json({ ok: true });
+        return;
+      }
+      res.status(400).json({ error: "Unknown action" });
+    } catch (err) {
+      console.error("schoolConsentUpload:", err.message);
+      res.status(500).json({ error: "Something went wrong. Please try again, or reply to the email you received." });
+    }
+  });
