@@ -1838,7 +1838,8 @@
       // Archived, one-off and partner events are excluded here for exactly the
       // reasons in isPubliclyListable — the calendar is a public surface like
       // the card lists, and a one-off is a record of something already over.
-      const regularEvents = (window.allEventsData || []).filter(isPubliclyListable);
+      // homeOnly (2026-10-14): a flyer meant for the home rotation alone, e.g. the app promo.
+      const regularEvents = (window.allEventsData || []).filter(ev => isPubliclyListable(ev) && ev.homeOnly !== true);
       const approvedRequests = window.approvedEventRequests || [];
       return [...regularEvents, ...approvedRequests];
     }
