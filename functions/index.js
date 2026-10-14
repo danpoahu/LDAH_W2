@@ -26385,10 +26385,11 @@ async function _asqCaseOwner(db, contactId) {
 
 /* Next school's batch, raised when the one before it is finished (Pali View ->
    Central Union, 2026-10-14). Due 3 days before the screening, or today if
-   that has passed. spec = { school, label, firstDay }. */
+   that has passed. spec = { school, label, firstDay } for a school, or
+   { keys, source, label, notes, urgent } for a fixed list (Lions). */
 async function _asqCreateSchoolBatch(db, spec, ownerUid) {
-  const cs = await db.collection("contacts").where("hasScreenings", "==", true).get();
-  const keys = [];
+  const keys = Array.isArray(spec.keys) ? spec.keys.slice() : [];
+  const cs = keys.length ? { forEach() {} } : await db.collection("contacts").where("hasScreenings", "==", true).get();
   cs.forEach((d) => {
     const c = d.data() || {};
     if (c.archived === true || c.partnerIsland || c.sandbox === true) return;
@@ -26413,16 +26414,16 @@ async function _asqCreateSchoolBatch(db, spec, ownerUid) {
   const ownerName = (await _lcResolveStaffName(db, ownerUid)) || "";
   const ref = await db.collection("interactions").add({
     channel: "ASQ Online", interactionType: "Data review", workflowStep: "asqBatch",
-    asqKeys: keys, asqSchool: spec.school, asqSchoolLabel: label, asqDone: done,
+    asqKeys: keys, asqSchool: spec.school || "", asqSource: spec.source || "", asqSchoolLabel: label, asqDone: done,
     contactId: "", contactName: "ASQ Online", contactType: "",
-    summary: "Enter the " + keys.length + " " + label + " children in ASQ Online (screening " + (spec.firstDay || "soon") + ")",
-    notes:
+    summary: "Enter the " + keys.length + " " + label + " children in ASQ Online" + (spec.firstDay ? " (screening " + spec.firstDay + ")" : ""),
+    notes: spec.notes ||
       "Enter all " + keys.length + " " + label + " children in ASQ Online by " + due + ". Their screening starts " + (spec.firstDay || "soon") + ".\n\n" +
       "1. Press Open ASQ report: " + label + ". It opens filtered to " + label + ".\n" +
       "2. Enter each child in ASQ Online, then press Mark entered on their row (or Not needed if one doesn't need it).\n" +
       "3. This task counts your entries and closes itself when all are done.\n\n" +
       "These parents already agreed to the ASQ on the consent form, so entering them does not create any ask-the-family tasks.",
-    followUpDate: due, status: "Open", isDraft: false, urgent: true,
+    followUpDate: due, status: "Open", isDraft: false, urgent: spec.urgent !== false,
     owner: ownerName, ownerUid: ownerUid, createdBy: "System",
     createdAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
@@ -26447,8 +26448,14 @@ async function _asqBatchRecount(db, key) {
     const upd = { asqEntered: entered, asqNotNeeded: notNeeded, asqDone: done, updatedAt: admin.firestore.FieldValue.serverTimestamp() };
     if (keys.length && done >= keys.length) {
       upd.status = "Closed";
-      if (x.asqNext && x.asqNext.school && !x.asqNextTaskId) {
-        try { upd.asqNextTaskId = await _asqCreateSchoolBatch(db, x.asqNext, x.ownerUid || ASQ_DAILY_UID); } catch (e) { console.warn("asq: next batch failed:", e.message); }
+      // Next batches wait for this one (Daniel 2026-10-14: Pali View first).
+      const nexts = Array.isArray(x.asqNext) ? x.asqNext : (x.asqNext ? [x.asqNext] : []);
+      if (nexts.length && !x.asqNextTaskId && !(x.asqNextTaskIds && x.asqNextTaskIds.length)) {
+        const ids = [];
+        for (const spec of nexts) {
+          try { ids.push(await _asqCreateSchoolBatch(db, spec, x.ownerUid || ASQ_DAILY_UID)); } catch (e) { console.warn("asq: next batch failed:", e.message); }
+        }
+        upd.asqNextTaskIds = ids;
       }
       upd.notes = (x.notes || "") + "\n---\n[System — " + toHstDateKey(new Date()) + "]\nAll " + keys.length +
         " children done (" + entered + " entered" + (notNeeded ? ", " + notNeeded + " not needed" : "") + "). Closed automatically.";
