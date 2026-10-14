@@ -12853,7 +12853,7 @@ function _srpBuildInviteEmailHtml({ parentName, childName, formUrl }) {
     </p>
     <p style="margin:0 0 14px;font-size:.9rem;color:#64748B;">If the button doesn't work, copy and paste this link into your browser:<br><a href="${esc(formUrl)}" style="color:#0891B2;word-break:break-all;">${esc(formUrl)}</a></p>
     <p style="margin:0 0 4px;font-size:.9rem;color:#64748B;">This link is unique to you and expires in 60 days.</p>
-    <p style="margin:18px 0 0;font-size:.9rem;color:#64748B;">Mahalo,<br>Leadership in Disabilities &amp; Achievement of Hawai&#699;i<br>245 North Kukui Street, Suite 205, Honolulu, HI 96817<br>(808) 696-5361</p>
+    ${_srpSignOffHtml()}
   </div>`;
 }
 
@@ -12954,6 +12954,9 @@ exports.submitSrpConsent = functions
           type: "Parent/Guardian",
           source: "srp-consent",
           createdBy: "srp-consent",
+          // Screening families are not opted in to LDAH email (Daniel 2026-10-14);
+          // a contact that already existed keeps whatever it had.
+          marketingOptOut: true,
           createdByName: "SRP Screening Consent",
           createdAt: FieldValue.serverTimestamp(),
         });
@@ -13223,6 +13226,9 @@ exports.submitReadinessConsent = functions
           type: "Parent/Guardian",
           source: "readiness-kiosk",
           createdBy: "readiness-kiosk",
+          // Screening families are not opted in to LDAH email (Daniel 2026-10-14);
+          // a contact that already existed keeps whatever it had.
+          marketingOptOut: true,
           createdByName: "Readiness Screening Kiosk",
           createdAt: FieldValue.serverTimestamp(),
         });
@@ -13443,7 +13449,7 @@ function _screeningResultsEmailHtml({ parentName, childName, url }) {
     <p style="margin:0 0 14px;">For your privacy, the results are <strong>not included in this email</strong>. Please view them securely here:</p>
     <p style="margin:0 0 26px;text-align:center;"><a href="${esc(url)}" style="display:inline-block;background:#0891B2;color:#ffffff;text-decoration:none;padding:13px 28px;border-radius:10px;font-weight:600;">View my results</a></p>
     <p style="margin:0 0 14px;font-size:.9rem;color:#64748B;">This link is private to you and expires in 60 days. Questions? Call the School Readiness Project at (808) 696-5361.</p>
-    <p style="margin:18px 0 0;font-size:.9rem;color:#64748B;">Mahalo,<br>Leadership in Disabilities &amp; Achievement of Hawai&#699;i<br>245 North Kukui Street, Suite 205, Honolulu, HI 96817<br>(808) 696-5361</p>
+    ${_srpSignOffHtml()}
   </div>`;
 }
 
@@ -30630,6 +30636,19 @@ function _schoolCors(req, res) {
   return false;
 }
 
+/* Every screening email is signed by the School Readiness Project Team, with
+   LDAH's own address lines (Daniel 2026-10-14). Same wording as the Lions intro. */
+function _srpSignOffHtml(close) {
+  return '<p style="margin:18px 0 4px;font-size:15px;color:#333;line-height:1.55;">' + (close || 'Mahalo,') + '</p>' +
+    '<p style="margin:0;font-size:14px;color:#555555;line-height:1.5;">' +
+      '<strong>The School Readiness Project Team</strong><br>' +
+      'Leadership in Disabilities &amp; Achievement of Hawai&#699;i<br>' +
+      '245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>' +
+      'Phone: (808) 536-9684<br>' +
+      '<a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>' +
+    '</p>';
+}
+
 function _buildSchoolConsentRequestEmailHtml(r, uploadUrl, expiresText, senderName, senderTitle) {
   const esc = lifecycleEsc;
   const btn = _emailBtn(uploadUrl, "Upload the signed page", { bg: "#1a3c6e" });
@@ -30648,8 +30667,7 @@ function _buildSchoolConsentRequestEmailHtml(r, uploadUrl, expiresText, senderNa
     btn,
     (r.screeningText ? '<p style="margin:14px 0;font-size:14px;color:#555;line-height:1.55;">We can only screen ' + esc((r.childName || "").split(" ")[0]) + ' on ' + esc(r.screeningText) + ' once this page is signed.</p>' : ''),
     '<p style="margin:0 0 14px;font-size:14px;color:#555;line-height:1.55;">This link works until <strong>' + esc(expiresText) + '</strong>. If you have any questions, just reply to this email.</p>',
-    '<p style="margin:18px 0 4px;font-size:15px;color:#333;line-height:1.55;">Mahalo,</p>',
-    '<p style="margin:0;font-size:15px;color:#333;line-height:1.5;"><strong>' + esc(senderName) + '</strong>' + (senderTitle ? '<br><span style="color:#555;font-size:14px;">' + esc(senderTitle) + '</span>' : '') + '<br><span style="color:#555;font-size:14px;">Leadership in Disabilities &amp; Achievement of Hawaiʻi</span></p>',
+    _srpSignOffHtml(),
     _emailLinkFooter([{ label: "Upload the signed page", href: uploadUrl }]),
     '</td></tr></table></td></tr></table></body></html>',
   ].join("");
