@@ -873,6 +873,22 @@
         if (list.some(function (i) { return String(i).toLowerCase() === 'statewide'; })) return 'Statewide';
         return list.join(' & ');
       }
+      /* "Last updated Mon D, YYYY" — same wording/format as the staff
+         dashboard. lastUpdateAt is a Firestore Timestamp; a plain {seconds}
+         object or an ISO string is tolerated. No date = empty string (the
+         public site never says "never"). */
+      function ldahLastUpdatedLabel(r) {
+        var v = r && r.lastUpdateAt;
+        var ms = 0;
+        if (v && typeof v.toMillis === 'function') ms = v.toMillis();
+        else if (v && typeof v.seconds === 'number') ms = v.seconds * 1000;
+        else if (typeof v === 'string' && v) ms = Date.parse(v) || 0;
+        if (!ms) return '';
+        return 'Last updated ' + new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      }
+      function ldahEscHtml(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
 
 
         // Strip emoji from text content loaded from Firebase
@@ -1080,6 +1096,7 @@
 
             // Plain-text snippet for the card body (strip HTML, trim).
             const rawDesc = String(resource.services || '').replace(/<[^>]*>/g, '').trim();
+            const luLabel = ldahLastUpdatedLabel(resource);
 
             return `
                 <button type="button" class="resource-card" data-id="${resource.id}" data-island="${ldahIslandLabel(resource)}" data-type="${resource.type}" onclick="openResourceModal('${String(resource.id).replace(/'/g, "\\'")}')">
@@ -1088,6 +1105,7 @@
                         <div class="resource-card-id">
                             <h3 class="resource-card-name">${resource.name || ''}</h3>
                             <div class="resource-card-meta"><strong>${(resource.types && resource.types.length ? resource.types.join(' · ') : (resource.type || ''))}</strong>${cityIsland ? ' · ' + cityIsland : ''}</div>
+                            ${luLabel ? `<div class="resource-card-updated" style="color:#16A34A;font-size:.72rem;font-weight:600;margin-top:2px;">${ldahEscHtml(luLabel)}</div>` : ''}
                         </div>
                     </div>
                     ${rawDesc ? `<p class="resource-card-desc">${rawDesc}</p>` : ''}
@@ -1123,6 +1141,8 @@
 
             // Body
             let body = '';
+            const luLabel = ldahLastUpdatedLabel(r);
+            if (luLabel) body += `<p style="color:#16A34A;font-size:.72rem;font-weight:600;margin:0 0 12px;">${ldahEscHtml(luLabel)}</p>`;
             if (r.person) body += `<div class="detail-section"><h4>Contact Person</h4><p>${r.person}</p></div>`;
             if (r.address || r.city) {
                 body += `<div class="detail-section"><h4>Address</h4><p>${r.address ? r.address + '<br>' : ''}${r.city || ''}${r.state ? ', ' + r.state : ''} ${r.zip || ''}</p></div>`;
