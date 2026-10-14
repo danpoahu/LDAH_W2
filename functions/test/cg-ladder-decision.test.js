@@ -61,8 +61,10 @@ check('a non-Connect-Gen signup is out of scope',
 // "you cannot make it" on the next morning's run.
 {
   const justRegistered = base({ timestamp: ts(NOW - 1 * DAY) });
-  check('a family who registered yesterday is not chased at T-1',
-    rung(justRegistered, owes(['documents']), '2026-09-04'), null);
+  // 2026-10-14: the T-1 last call is exempt — the 08:00 auto-move is next, so
+  // this is the family's only warning.
+  check('a family who registered yesterday DOES get the T-1 last call',
+    rung(justRegistered, owes(['documents']), '2026-09-04'), 'final');
   check('a family who registered yesterday is not chased at T-4',
     rung(justRegistered, owes(['documents']), '2026-09-07'), null);
   check('a family who registered yesterday is not chased at T-7',

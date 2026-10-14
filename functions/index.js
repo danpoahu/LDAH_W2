@@ -19535,7 +19535,10 @@ async function _cgHandleLateSignup({ snap, signupData, signupId, collectionName,
 //     accidentally safe — with no T-1 rung, a family registering 25 hours out
 //     matches nothing. Adding T-1 removes that accident: the same family would
 //     match on the very next 08:00 run, minutes after registering, and be told
-//     they cannot make it. Nothing is chased until the signup is 48 hours old.
+//     they cannot make it. The offer and reminder wait until the signup is 48
+//     hours old. The T-1 last call does NOT (2026-10-14): since the auto-move
+//     decides at 08:00 on the session day, skipping it left short-notice
+//     families with no warning before their place moved.
 //
 //   * THE T-4 RUNG NEEDS A PRIOR OFFER, OR AGE. The old code proceeded when
 //     rescheduleOfferSentAt was absent, so a family registering four days out
@@ -19558,14 +19561,18 @@ function _cgLadderDecision({ signup, requirements, sessionKey, todayKey, nowMs }
     if (!todayKey) return none("no today key");
     const now = Number.isFinite(nowMs) ? nowMs : Date.now();
 
-    // Age gate first: it applies to every rung, and a signup with no creation
-    // stamp is left alone rather than guessed at.
+    // Age gate first: a signup with no creation stamp is left alone rather
+    // than guessed at. The 48h minimum covers the T-7 offer and T-4 reminder,
+    // but NOT the T-1 last call (Daniel, 2026-10-14): the auto-move decides at
+    // 08:00 on the session morning, so a family who registered 2-3 days out
+    // would otherwise hear nothing until the move itself.
     const created = signup.timestamp && signup.timestamp.toMillis ? signup.timestamp.toMillis() : 0;
     if (!created) return none("no creation stamp");
     const age = now - created;
-    if (age < CG_LADDER_MIN_SIGNUP_AGE_MS) return none("signup too new");
-
     const dayOf = (n) => addDaysHst(todayKey, n);
+    const isFinalDay = sessionKey === dayOf(CG_LADDER_FINAL_DAYS);
+    if (age < CG_LADDER_MIN_SIGNUP_AGE_MS && !isFinalDay) return none("signup too new");
+
     const ms = (t) => (t && t.toMillis ? t.toMillis() : 0);
 
     if (sessionKey === dayOf(CG_LADDER_OFFER_DAYS)) {
