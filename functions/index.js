@@ -19011,8 +19011,14 @@ async function _cgFetchDocumentBlocks(signup) {
       console.warn("_cgFetchDocumentBlocks: size cap reached, skipping " + path);
       continue;
     }
-    total += buf.length;
     const mime = String((item.d && item.d.mimeType) || "").toLowerCase();
+    // A password-protected PDF is refused by the API and used to sink the whole
+    // review (Calloway Bastien, 2026-10-14). Skip it and read the rest.
+    if (mime === "application/pdf" && buf.indexOf("/Encrypt") !== -1) {
+      console.warn("_cgFetchDocumentBlocks: password-protected PDF skipped: " + path);
+      continue;
+    }
+    total += buf.length;
     const b64 = buf.toString("base64");
     if (mime === "application/pdf") {
       blocks.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: b64 } });
