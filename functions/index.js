@@ -26383,6 +26383,31 @@ async function _asqCaseOwner(db, contactId) {
   }
 }
 
+async function _asqBatchRecount(db, key) {
+  const tq = await db.collection("interactions").where("asqKeys", "array-contains", key).get();
+  for (const t of tq.docs) {
+    const x = t.data() || {};
+    if (x.workflowStep !== "asqBatch" || x.status === "Closed") continue;
+    const keys = Array.isArray(x.asqKeys) ? x.asqKeys : [];
+    const snaps = keys.length ? await db.getAll(...keys.map((k) => db.collection("asqRecords").doc(k))) : [];
+    let entered = 0, notNeeded = 0;
+    snaps.forEach((s) => {
+      const st = s.exists ? ((s.data() || {}).status || "") : "";
+      if (st === "entered") entered++;
+      else if (st === "notNeeded") notNeeded++;
+    });
+    const done = entered + notNeeded;
+    const upd = { asqEntered: entered, asqNotNeeded: notNeeded, asqDone: done, updatedAt: admin.firestore.FieldValue.serverTimestamp() };
+    if (keys.length && done >= keys.length) {
+      upd.status = "Closed";
+      upd.notes = (x.notes || "") + "\n---\n[System — " + toHstDateKey(new Date()) + "]\nAll " + keys.length +
+        " children done (" + entered + " entered" + (notNeeded ? ", " + notNeeded + " not needed" : "") + "). Closed automatically.";
+    }
+    await t.ref.update(upd);
+    console.log("asq: batch", t.id, done + "/" + keys.length, upd.status ? "CLOSED" : "");
+  }
+}
+
 exports.onAsqRecordWritten = functions
   .runWith({ timeoutSeconds: 60, maxInstances: 5 })
   .firestore.document("asqRecords/{key}")
@@ -26397,8 +26422,17 @@ exports.onAsqRecordWritten = functions
     const child = a.childName || "the child";
     const fam = a.parentName || "the family";
 
-    // 1. Entered -> ask the family (once per child).
-    if (a.status === "entered" && before.status !== "entered" && !a.familyTaskId && a.contactId) {
+    // 0. A batch task ("enter these N children", workflowStep asqBatch) counts
+    //    its children on every status change and closes itself when all are
+    //    entered or marked not needed (2026-10-14).
+    if (a.status !== before.status) {
+      try { await _asqBatchRecount(db, key); } catch (e) { console.warn("asq: batch recount failed:", e.message); }
+    }
+
+    // 1. Entered -> ask the family (once per child). Children from a school's
+    //    consent forms are skipped: the parent already agreed to the ASQ on the
+    //    consent (Daniel 2026-10-14; Pali View would have put 54 tasks on Noe).
+    if (a.status === "entered" && before.status !== "entered" && !a.familyTaskId && a.contactId && a.source !== "school-paper") {
       const cs = await _asqCaseOwner(db, a.contactId);
       const toCase = !!(cs && cs.uid);
       // Sandbox test children never reach real staff.
