@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Upload a Signed Consent Page - LDAH</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<!-- No-login upload for a school sending back one child's signed screening
+     consent page. The link token is checked by the schoolConsentUpload Cloud
+     Function; files go straight to Storage. (2026-10-13) -->
+<style>
+:root{ --ocean:#0891B2; --deep:#1a3c6e; --ink:#1E293B; --soft:#64748B; --line:#E2E8F0; --bg:#FEFDFB; --ok:#15803D; --warn:#B45309; }
+*{ box-sizing:border-box; margin:0; padding:0; }
+body{ font-family:'Source Sans 3',-apple-system,'Segoe UI',sans-serif; color:var(--ink); background:var(--bg); line-height:1.6; min-height:100vh; }
+header{ background:#fff; border-bottom:1px solid var(--line); padding:14px 16px; display:flex; align-items:center; gap:12px; }
+header img{ height:44px; }
+header span{ font-family:'Outfit',sans-serif; font-weight:600; color:var(--deep); }
+main{ max-width:620px; margin:28px auto; padding:0 16px; }
+h1{ font-family:'Outfit',sans-serif; font-size:1.5rem; color:var(--deep); margin-bottom:10px; }
+.card{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:22px; box-shadow:0 6px 24px rgba(2,60,100,.06); }
+.child{ background:#FFFBEB; border:1.5px solid #F59E0B; border-left:5px solid #D97706; border-radius:10px; padding:12px 14px; margin:14px 0; color:#78350F; }
+.child b{ color:#7C2D12; }
+.drop{ border:2px dashed #94A3B8; border-radius:12px; padding:26px 14px; text-align:center; cursor:pointer; margin-top:14px; transition:.15s; }
+.drop:hover,.drop.over{ border-color:var(--ocean); background:#F0F9FF; }
+.drop strong{ display:block; font-size:1.05rem; color:var(--deep); }
+.drop small{ color:var(--soft); }
+.btn{ display:inline-block; margin-top:16px; background:var(--deep); color:#fff; border:0; border-radius:8px; padding:12px 26px; font-weight:700; font-size:1rem; cursor:pointer; font-family:inherit; }
+.btn:disabled{ opacity:.5; cursor:default; }
+#files{ margin-top:10px; font-size:.95rem; color:var(--soft); }
+#msg{ margin-top:14px; font-weight:600; }
+.ok{ color:var(--ok); } .err{ color:#B91C1C; }
+.done{ text-align:center; padding:10px 0; }
+.done h2{ font-family:'Outfit',sans-serif; color:var(--ok); margin-bottom:6px; }
+</style>
+</head>
+<body>
+<header><img src="logo_blue.png" alt="LDAH logo"><span>Leadership in Disabilities &amp; Achievement of Hawaiʻi</span></header>
+<main>
+  <div class="card" id="card">
+    <h1>Upload a signed consent page</h1>
+    <p id="lead">Checking your link…</p>
+    <div id="body" style="display:none;">
+      <div class="child" id="child"></div>
+      <p>Upload a scan or a clear photo of the completed, signed page. A PDF or a phone photo is fine.</p>
+      <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose files to upload">
+        <strong>Click to choose the file</strong>
+        <small>or drag it here · PDF, JPG, PNG or iPhone photo · up to 25 MB</small>
+      </div>
+      <input type="file" id="pick" accept="application/pdf,image/jpeg,image/png,image/heic,image/heif" multiple hidden>
+      <div id="files"></div>
+      <button class="btn" id="send" disabled>Upload</button>
+      <div id="msg"></div>
+    </div>
+  </div>
+</main>
+<script>
+(function(){
+  var API = 'https://us-central1-ldah-932d5.cloudfunctions.net/schoolConsentUpload';
+  var t = new URLSearchParams(location.search).get('t') || '';
+  var lead = document.getElementById('lead'), body = document.getElementById('body');
+  var pick = document.getElementById('pick'), drop = document.getElementById('drop');
+  var send = document.getElementById('send'), msg = document.getElementById('msg'), list = document.getElementById('files');
+  var chosen = [];
+  function post(data){
+    return fetch(API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(Object.assign({ t:t }, data)) })
+      .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error || 'Something went wrong.'); return j; }); });
+  }
+  function esc(s){ return String(s||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  if (!t) { lead.textContent = 'This link is incomplete. Please use the button in the email you received.'; return; }
+  post({ action:'info' }).then(function(j){
+    lead.textContent = 'Mahalo for helping us complete ' + (j.schoolName || 'your school') + '’s screening consents.';
+    document.getElementById('child').innerHTML = '<b>' + esc(j.childName) + (j.classroom ? ' (' + esc(j.classroom) + ')' : '') + '</b><br>' + esc(j.missingText);
+    if (j.filesReceived) msg.innerHTML = '<span class="ok">We already have ' + j.filesReceived + ' file' + (j.filesReceived===1?'':'s') + ' from this link. You can add another if needed.</span>';
+    body.style.display = '';
+  }).catch(function(e){ lead.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; });
+  function setFiles(fl){
+    chosen = Array.prototype.slice.call(fl || []).slice(0, 5);
+    list.innerHTML = chosen.map(function(f){ return esc(f.name) + ' · ' + Math.max(1, Math.round(f.size/1024)) + ' KB'; }).join('<br>');
+    send.disabled = !chosen.length;
+  }
+  drop.onclick = function(){ pick.click(); };
+  drop.onkeydown = function(e){ if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick.click(); } };
+  pick.onchange = function(){ setFiles(pick.files); };
+  drop.ondragover = function(e){ e.preventDefault(); drop.classList.add('over'); };
+  drop.ondragleave = function(){ drop.classList.remove('over'); };
+  drop.ondrop = function(e){ e.preventDefault(); drop.classList.remove('over'); setFiles(e.dataTransfer.files); };
+  function mime(f){ if (f.type) return f.type; return /\.hei[cf]$/i.test(f.name) ? 'image/heic' : ''; }
+  send.onclick = function(){
+    send.disabled = true; msg.innerHTML = 'Uploading…';
+    var i = 0;
+    (function next(){
+      if (i >= chosen.length) {
+        document.getElementById('card').innerHTML = '<div class="done"><h2>Received, mahalo!</h2><p>LDAH has the signed page and will finish the screening record. You can close this page.</p></div>';
+        return;
+      }
+      var f = chosen[i++], mt = mime(f);
+      post({ action:'url', mimeType: mt, sizeBytes: f.size }).then(function(u){
+        return fetch(u.uploadUrl, { method:'PUT', headers:{'Content-Type': mt}, body: f }).then(function(r){
+          if (!r.ok) throw new Error('The upload did not finish. Please try again.');
+          return post({ action:'confirm', storagePath: u.storagePath, originalFilename: f.name, sizeBytes: f.size, mimeType: mt });
+        });
+      }).then(next).catch(function(e){ msg.innerHTML = '<span class="err">' + esc(e.message) + '</span>'; send.disabled = false; });
+    })();
+  };
+  post({ warm:true }).catch(function(){});
+})();
+</script>
+</body>
+</html>
