@@ -30682,3 +30682,178 @@ exports.schoolConsentUpload = functions
       res.status(500).json({ error: "Something went wrong. Please try again, or reply to the email you received." });
     }
   });
+
+// ── LDAH school consent packet page → structured fields (STAGE "Screening Referrals") ──
+/* A school returns our own paper packet for a whole classroom as one PDF: per
+   child, the "Informed Consent for Screening Services – School Readiness
+   Project" (front + back), the "Consent to Release and Obtain Information" page,
+   and often a blank scan back. The dashboard splits the PDF into page images and
+   sends them here ONE PAGE AT A TIME; this says which page it is and transcribes
+   it. It writes NOTHING — the dashboard groups the pages into one row per child,
+   a person checks every row, and only then is the contact saved.
+   Same key, model and streamed tool-use pattern as extractScreeningReferral
+   above; unlike that one it requires a signed-in staff member, because what it
+   returns is a family's contact details. (2026-10-13) */
+const SCHOOL_CONSENT_TOOL_NAME = "record_consent_page";
+const SCHOOL_CONSENT_PAGE_TYPES = ["consentFront", "consentBack", "release", "blank", "other"];
+const _scStr = { type: "string" };
+const _scYesNo = { type: "string", enum: ["yes", "no", ""] };
+const SCHOOL_CONSENT_TOOL_SCHEMA = {
+  type: "object",
+  properties: {
+    pageType: { type: "string", enum: SCHOOL_CONSENT_PAGE_TYPES },
+    parent: {
+      type: "object",
+      description: "consentFront only.",
+      properties: { first: _scStr, last: _scStr, relationship: _scStr, email: _scStr, cell: _scStr,
+        home: _scStr, address: _scStr, city: _scStr, zip: _scStr },
+    },
+    child: {
+      type: "object",
+      description: "consentFront only.",
+      properties: { first: _scStr, last: _scStr, sex: { type: "string", enum: ["M", "F", ""] }, ethnicity: _scStr,
+        nativeHawaiian: _scYesNo, birthdate: _scStr, school: _scStr, grade: _scStr, usCitizen: _scYesNo },
+    },
+    insurance: { type: "array", items: _scStr, description: "consentFront only: the ticked insurance boxes, label text as printed (e.g. 'Med Quest', 'Medicare', 'Kaiser', 'HMSA Quest', 'Private Plan', 'None')." },
+    q: {
+      type: "object",
+      description: "Q1-3 are on consentFront, Q4-8 on consentBack. Fill only the ones on this page.",
+      properties: {
+        pediatrician: _scYesNo, screenedBefore: _scYesNo, screenedWhen: _scStr, glasses: _scYesNo,
+        tubes: _scYesNo, tubesDetail: _scStr, earInfections: _scYesNo, earInfectionsLast: _scStr,
+        sick2wk: _scYesNo, sickDetail: _scStr, annualPhysical: _scYesNo, screeningInfo: _scYesNo,
+      },
+    },
+    acknowledgmentsChecked: { type: "integer", description: "consentBack only: how many of the 5 acknowledgment boxes are checked (0-5)." },
+    printedName: { type: "string", description: "consentBack: the parent's printed name. release: the printed parent/guardian name at the bottom." },
+    signed: { type: "boolean", description: "consentBack / release: true only if a handwritten signature is present on the signature line." },
+    signedDate: { type: "string", description: "YYYY-MM-DD, the date beside the signature." },
+    version: { type: "string", description: "consentBack: the small version text at the bottom right, e.g. '9/25,CK'." },
+    release: {
+      type: "object",
+      description: "release only.",
+      properties: { childName: _scStr, childFirst: _scStr, childLast: _scStr, birthdate: _scStr, parentName: _scStr,
+        phone: _scStr, address: _scStr, city: _scStr, state: _scStr, zip: _scStr, agency: _scStr, relationship: _scStr },
+    },
+    uncertain: { type: "array", items: _scStr, description: "One short note per value you could not read with confidence, as 'field: what is unclear', e.g. \"parent.email: 'l' vs '1'\"." },
+    notes: { type: "string", description: "Anything a checker should know that does not fit a field. Empty if nothing." },
+  },
+  required: ["pageType", "uncertain"],
+};
+
+function _schoolConsentSystemPrompt(todayStr) {
+  return [
+    "You transcribe ONE scanned page from a paper consent packet of Leadership in Disabilities and Achievement of Hawaiʻi (LDAH). Parents fill these in by hand.",
+    "TODAY'S DATE is " + todayStr + " (Hawaii time).",
+    "First decide pageType:",
+    "- consentFront: 'INFORMED CONSENT FOR SCREENING SERVICES / SCHOOL READINESS PROJECT' with the parent/guardian name, relationship boxes, email, phones, address, child's name, sex, ethnicity, Native Hawaiian, birthdate, insurance boxes, school, grade, U.S. citizen, and questions 1-3.",
+    "- consentBack: questions 4-8 (tubes, ear infections, sick in the last 2 weeks, annual physical, information on early childhood screening), five acknowledgment check boxes, the printed parent name, signature, date and a small version text such as '9/25,CK'.",
+    "- release: 'CONSENT TO RELEASE AND OBTAIN INFORMATION' (child's name, date of birth, parent/legal guardian, phone, address, the agency or person, relationship to child, signature, date).",
+    "- blank: an empty page, or only faint bleed-through from the other side.",
+    "- other: anything else (class roster, cover sheet, a different form). Do not transcribe it.",
+    "Rules:",
+    "- Transcribe EXACTLY what is written. NEVER invent, guess or 'correct' a value. Leave a field empty when it is blank on the paper.",
+    "- When handwriting is unclear, give your best reading AND add an entry to 'uncertain' naming the field and the doubt, e.g. \"parent.email: 'l' vs '1'\" or \"child.birthdate: year could be 2021 or 2024\".",
+    "- Dates as YYYY-MM-DD. A two-digit year is 20YY. Write the date as the parent wrote it, even if it looks wrong (a birth year equal to this year is still transcribed, then noted in 'uncertain').",
+    "- Phone numbers as (808) 123-4567. If no area code is written, keep the 7 digits as 123-4567 and note it in 'uncertain'.",
+    "- Email exactly as written, keeping its letters; do not add or fix a domain. Note anything doubtful.",
+    "- Yes/No answers: 'yes' or 'no' from the ticked box; '' if neither or both are ticked (note that in 'uncertain').",
+    "- relationship: the ticked box (Mother, Father, Stepmother, Stepfather, Grandmother, Grandfather, Aunty, Uncle, Guardian) or the handwritten word.",
+    "- Names: first and last as written, in normal capitalisation (Mary not MARY).",
+    "- signed is true ONLY if there is handwriting on the signature line. acknowledgmentsChecked counts the five boxes that carry a tick, check or X.",
+    "Return ONLY via the record_consent_page tool, called exactly once.",
+  ].join("\n");
+}
+
+function _scFindToolUse(response) {
+  return ((response && response.content) || []).find(
+    (b) => b && b.type === "tool_use" && b.name === SCHOOL_CONSENT_TOOL_NAME && b.input
+  ) || null;
+}
+
+exports.extractSchoolConsentPage = functions
+  .runWith({ timeoutSeconds: 240, maxInstances: 3, secrets: ["ANTHROPIC_API_KEY_FLYER"] })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    res.set("Access-Control-Max-Age", "3600");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ ok: false, error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    try { await _verifyStaffIdToken(body.idToken, ["dailyUser"]); }
+    catch (err) { res.status(err.statusCode || 401).json({ ok: false, error: err.message }); return; }
+
+    try {
+      const { fileBase64, mediaType } = body;
+      const okTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+      if (!fileBase64 || typeof fileBase64 !== "string" || okTypes.indexOf(mediaType) === -1) {
+        res.status(400).json({ ok: false, error: "Missing fileBase64 or unsupported mediaType" });
+        return;
+      }
+      if (fileBase64.length > 9000000) { // ~6.7 MB binary
+        res.status(413).json({ ok: false, error: "That page is too large — please use a file under about 6 MB." });
+        return;
+      }
+      const mediaBlock = mediaType === "application/pdf"
+        ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: fileBase64 } }
+        : { type: "image",    source: { type: "base64", media_type: mediaType,        data: fileBase64 } };
+
+      const _nowHst = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
+      const _todayStr = _nowHst.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+      const system = _schoolConsentSystemPrompt(_todayStr);
+      const tools = [{ name: SCHOOL_CONSENT_TOOL_NAME, description: "Record this consent packet page. Call exactly once.", input_schema: SCHOOL_CONSENT_TOOL_SCHEMA }];
+      const messages = [{ role: "user", content: [mediaBlock, { type: "text", text: "Read this page from an LDAH consent packet." }] }];
+
+      /* Same as runScreeningExtraction: adaptive thinking with tool_choice auto,
+         then one forced-tool retry with thinking off if it answered in prose. */
+      const client = new Anthropic({ apiKey: _anthropicKey("ANTHROPIC_API_KEY_FLYER") });
+      let response = await client.messages.stream({
+        model: SCREENING_REFERRAL_MODEL, max_tokens: 16000, thinking: { type: "adaptive" },
+        system, tools, tool_choice: { type: "auto" }, messages,
+      }).finalMessage();
+      let retried = false;
+      if (response.stop_reason !== "max_tokens" && !_scFindToolUse(response)) {
+        retried = true;
+        response = await client.messages.stream({
+          model: SCREENING_REFERRAL_MODEL, max_tokens: 4000, thinking: { type: "disabled" },
+          system, tools, tool_choice: { type: "tool", name: SCHOOL_CONSENT_TOOL_NAME }, messages,
+        }).finalMessage();
+      }
+      if (response.stop_reason === "max_tokens") {
+        console.error("extractSchoolConsentPage: truncated at max_tokens");
+        res.status(502).json({ ok: false, error: "The reading came back incomplete. Please try that page again." });
+        return;
+      }
+      const toolUse = _scFindToolUse(response);
+      if (!toolUse) {
+        res.status(502).json({ ok: false, error: "Nothing could be read from that page." });
+        return;
+      }
+
+      /* Coerce the closed sets rather than trusting the model's own enum. */
+      const d = toolUse.input || {};
+      const pageType = SCHOOL_CONSENT_PAGE_TYPES.indexOf(d.pageType) === -1 ? "other" : d.pageType;
+      const uncertain = Array.isArray(d.uncertain) ? d.uncertain.filter((u) => typeof u === "string" && u.trim()) : [];
+      const fields = {};
+      ["parent", "child", "q", "release"].forEach((k) => { if (d[k] && typeof d[k] === "object" && !Array.isArray(d[k])) fields[k] = d[k]; });
+      if (Array.isArray(d.insurance)) fields.insurance = d.insurance.filter((x) => typeof x === "string");
+      if (d.acknowledgmentsChecked != null) {
+        const n = parseInt(d.acknowledgmentsChecked, 10);
+        fields.acknowledgmentsChecked = Number.isFinite(n) ? Math.max(0, Math.min(5, n)) : 0;
+      }
+      ["printedName", "signedDate", "version", "notes"].forEach((k) => { if (typeof d[k] === "string") fields[k] = d[k]; });
+      if (typeof d.signed === "boolean") fields.signed = d.signed;
+
+      const usage = response.usage || {};
+      console.log("extractSchoolConsentPage:", pageType, "uncertain=" + uncertain.length,
+        "inputTokens=" + (usage.input_tokens || "?"), "outputTokens=" + (usage.output_tokens || "?"), "retried=" + retried);
+      res.status(200).json({ ok: true, pageType, fields, uncertain });
+    } catch (err) {
+      /* Never err.cause.message — the SDK puts the request (key included) there. */
+      console.error("extractSchoolConsentPage error:", err && err.name, err && err.message,
+        err && err.cause && err.cause.code);
+      res.status(500).json({ ok: false, error: "Could not read that page. Please try it again." });
+    }
+  });
