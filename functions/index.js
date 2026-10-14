@@ -19239,7 +19239,11 @@ async function _cgMaybeGenerateCaseReview({ db, collection, eventId, signupRef, 
     const pres = _cgResolveCaseReviewPresenter(event, sessions, first);
     // Logged, not silent: this gate rejecting everything is exactly how the
     // feature sat dead for a week without anyone being able to see why.
-    if (!_cgCaseReviewPresenterAllowed(flags.cgCaseReviewPresenterUids, pres.presenterUid)) {
+    // Daniel 2026-10-14: case summaries for everyone. cgCaseReviewAllPresenters
+    // lifts the presenter list; a session with no presenter yet still gets its
+    // summary, and the presenter task waits until there is someone to give it to.
+    const allPresenters = flags.cgCaseReviewAllPresenters === true;
+    if (!allPresenters && !_cgCaseReviewPresenterAllowed(flags.cgCaseReviewPresenterUids, pres.presenterUid)) {
       console.log("_cgMaybeGenerateCaseReview: presenter not enrolled for " +
         signupRef.path + " (session " + first.dateKey + ", presenterUid=" +
         (pres.presenterUid || "none") + ") — skipping");
@@ -19257,10 +19261,12 @@ async function _cgMaybeGenerateCaseReview({ db, collection, eventId, signupRef, 
          9-14 (Noelani) to 9-21 (Chassidy) and only Noelani ever had a task.
          The task is idempotent per signup + session, so this raises one only
          for a session that has none -- no regeneration, no API cost. */
-      await _cgCreateCaseReviewTask({
-        db, collection, eventId, signupRef, signup, presenterUid: pres.presenterUid,
-        sessionDateKey: first.dateKey, sessionLabel: first.rawString || "",
-      });
+      if (pres.presenterUid) {
+        await _cgCreateCaseReviewTask({
+          db, collection, eventId, signupRef, signup, presenterUid: pres.presenterUid,
+          sessionDateKey: first.dateKey, sessionLabel: first.rawString || "",
+        });
+      }
       return false;
     }
 
@@ -19269,10 +19275,12 @@ async function _cgMaybeGenerateCaseReview({ db, collection, eventId, signupRef, 
     });
     if (!wrote) return false;
 
-    await _cgCreateCaseReviewTask({
-      db, collection, eventId, signupRef, signup, presenterUid: pres.presenterUid,
-      sessionDateKey: first.dateKey, sessionLabel: first.rawString || "",
-    });
+    if (pres.presenterUid) {
+      await _cgCreateCaseReviewTask({
+        db, collection, eventId, signupRef, signup, presenterUid: pres.presenterUid,
+        sessionDateKey: first.dateKey, sessionLabel: first.rawString || "",
+      });
+    }
     return true;
   } catch (e) {
     // Never let this affect the family's status or anything else in the caller.
