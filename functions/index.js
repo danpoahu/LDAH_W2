@@ -30988,3 +30988,40 @@ exports.extractSchoolConsentPage = functions
       res.status(500).json({ ok: false, error: "Could not read that page. Please try it again." });
     }
   });
+
+// ── Email flyer dissemination tally (2026-10-14, Daniel) ─────────────────────
+// Every announcement email that carries event flyers counts toward "materials
+// disseminated" in LDAH-Int's Parent Center Data Collection report (Section V).
+// One counter doc, settings/disseminationDaily, keyed by HST day:
+//   emails.<day>      announcement emails sent that day
+//   emailFlyers.<day> flyers inside them (a combined announcement carries
+//                     several; each distinct flyer image counts once per email)
+// Failed sends (success === false) do not count. Sends nothing, writes one doc.
+const EMAIL_FLYER_TYPES = ["event-announcement", "event-announcement-combined", "event-announcement-resend", "molokai-movie-flyer"];
+function _emailFlyerCount(html) {
+  const seen = new Set();
+  const re = /event-images%2F[^"'?&\s)]+/g;
+  let m;
+  while ((m = re.exec(String(html || "")))) seen.add(m[0]);
+  return seen.size;
+}
+function _emailLogHstDay(d) {
+  const ts = d.sentAt || d.timestamp;
+  const dt = ts && typeof ts.toDate === "function" ? ts.toDate() : (ts ? new Date(ts) : new Date());
+  return dt.toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
+}
+exports.tallyEmailFlyerDissemination = functions.firestore
+  .document("emailLog/{logId}")
+  .onCreate(async (snap) => {
+    const d = snap.data() || {};
+    if (EMAIL_FLYER_TYPES.indexOf(d.type) === -1 || d.success === false) return null;
+    const flyers = _emailFlyerCount(d.html);
+    if (!flyers) return null;
+    const day = _emailLogHstDay(d);
+    const inc = admin.firestore.FieldValue.increment;
+    await admin.firestore().collection("settings").doc("disseminationDaily").set({
+      emails: { [day]: inc(1) }, emailFlyers: { [day]: inc(flyers) },
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return null;
+  });

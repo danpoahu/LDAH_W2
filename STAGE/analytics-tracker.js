@@ -22,6 +22,7 @@
     '/community.html': 'community',
     '/accessibility.html': 'accessibility',
     '/install.html': 'install',
+    '/Packet/': 'aloha_packet', '/Packet/index.html': 'aloha_packet',
     '/cms.html': 'cms'
   };
 
