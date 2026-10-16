@@ -28812,10 +28812,16 @@ exports.submitScreeningReferral = functions
        is where the family's name, email and phone are. It records the contact
        and the screening only: no case, no task, no email. */
     const isVisionPass = formType === "vision" && r.outcome === "pass";
+    /* An UNCLEAR vision form is saved as a referral (Daniel 2026-10-16:
+       "better safe than sorry"), with a note saying it read as unclear. */
+    if (formType === "vision" && r.outcome !== "pass" && r.outcome !== "refer") {
+      r.outcome = "refer";
+      r.resultNotes = (String(r.resultNotes || "") + " [Read as unclear; saved as a referral to be safe.]").trim();
+    }
     if (!isVisionPass && !screeningReferral.isReferral(r)) {
       res.status(422).json({
-        error: "This form records a PASS, not a referral. Nothing was saved — " +
-               "check the page, or set the outcome to refer if the reading was wrong.",
+        error: "This hearing form records a PASS, not a referral. Nothing was saved — " +
+               "check the page, or set the result to Refer if the reading was wrong.",
       });
       return;
     }
