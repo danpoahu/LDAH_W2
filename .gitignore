@@ -12,3 +12,6 @@ node_modules/
 # `git add`. Already-tracked files are unaffected by this rule; add a new
 # legitimate function file intentionally with `git add -f <file>`.
 functions/*.js
+
+# also ignore a node_modules symlink (a bare entry; "node_modules/" only matches folders)
+node_modules
