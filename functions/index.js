@@ -28625,12 +28625,14 @@ async function _lionsFamilyByChild(db, childName, placeholderOnly) {
   const want = letters(childName), wantEnds = ends(childName);
   if (!want) return {};
   const ids = new Set();
-  const [made, cases] = await Promise.all([
+  const [made, flagged, cases] = await Promise.all([
     db.collection("contacts").where("source", "==", "lions-screening").get(),
+    db.collection("contacts").where("lionsScreened", "==", true).get(),
     db.collection("interactions").where("caseAdvocacySource", "==", "lions-screening").get(),
   ]);
   const docs = {};
   made.forEach((d) => { ids.add(d.id); docs[d.id] = d.data() || {}; });
+  flagged.forEach((d) => { ids.add(d.id); docs[d.id] = d.data() || {}; });
   cases.forEach((d) => { const c = (d.data() || {}).contactId; if (c) ids.add(c); });
   const missing = [...ids].filter((id) => !docs[id]);
   for (let i = 0; i < missing.length; i += 100) {
@@ -28683,7 +28685,12 @@ exports.submitScreeningReferral = functions
     /* Only referred children come to LDAH. A pass in the batch is a filing
        mistake at the school, and opening a case for a child who passed is worse
        than refusing the page — so refuse it and say why. */
-    if (!screeningReferral.isReferral(r)) {
+    /* A vision PASS is saved too (Daniel, 2026-10-16): the child probably came
+       back on the hearing form, which has no parent contact, so the vision page
+       is where the family's name, email and phone are. It records the contact
+       and the screening only: no case, no task, no email. */
+    const isVisionPass = formType === "vision" && r.outcome === "pass";
+    if (!isVisionPass && !screeningReferral.isReferral(r)) {
       res.status(422).json({
         error: "This form records a PASS, not a referral. Nothing was saved — " +
                "check the page, or set the outcome to refer if the reading was wrong.",
@@ -28814,7 +28821,7 @@ exports.submitScreeningReferral = functions
         room: String(r.room || ""),
         school: String(r.schoolName || ""),
         teacher: String(r.teacherName || ""),
-        outcome: "refer",
+        outcome: isVisionPass ? "pass" : "refer",
         hearingRecommendation: r.hearingRecommendation || "",
         resultNotes: String(r.resultNotes || ""),
         paperConsent: true,
@@ -28860,6 +28867,7 @@ exports.submitScreeningReferral = functions
 
       await db.collection("contacts").doc(contactId).update({
         screenings: FieldValue.arrayUnion(screening),
+        lionsScreened: true,   // lets a later hearing form find this family by the child (2026-10-16)
       });
 
       /* ── 2b. The child, on the contact where the card looks for them ─────
@@ -28897,6 +28905,21 @@ exports.submitScreeningReferral = functions
         /* The referral itself is saved; a missing child row is a display fault,
            not a reason to fail the request. */
         console.warn("submitScreeningReferral: could not merge children[]:", e.message);
+      }
+
+      if (isVisionPass) {
+        try {
+          await db.collection("auditLog").add({
+            action: "Lions vision pass recorded",
+            details: "contact=" + contactId + ", child=" + childName + ", screened=" + screeningDate +
+              (created ? ", contact created" : "") + (linkedByChild ? ", linked by child" : ""),
+            performedBy: staff.email || staff.uid, role: staff.role || "",
+            timestamp: FieldValue.serverTimestamp(),
+          });
+        } catch (e) { console.warn("audit write failed:", e.message); }
+        res.status(200).json({ ok: true, passRecorded: true, contactId, contactCreated: created,
+          linkedByChild, caseId: null, screeningId: screening.id });
+        return;
       }
 
       /* ── 3. One open case per family ────────────────────────────────────
@@ -29163,6 +29186,8 @@ exports.submitScreeningReferral = functions
           timestamp: FieldValue.serverTimestamp(),
         });
       } catch (e) { console.warn("audit write failed:", e.message); }
+
+      try { await _syncLionsParentContactTasks(); } catch (e) { console.warn("submitScreeningReferral: parent-contact task sync failed:", e.message); }
 
       res.status(200).json({
         ok: true,
@@ -30372,6 +30397,7 @@ exports.__test = {
   SCREENING_EMAIL_FIX_UID,
   handleSignupCreated,
   _cgMaybeGenerateCaseReview,
+  _syncLionsParentContactTasks,
   _childMatches,
   _findChildMatchIndex,
   _placeChildEntry,
@@ -30674,6 +30700,96 @@ async function _syncCaseMgmtAssignTask() {
   }
   return n;
 }
+
+/* ── Find the parent's contact details (Daniel, 2026-10-16) ─────────────
+   A Lions family with no email and no phone cannot be reached, so the case
+   cannot start. Each one gets a task for WHOEVER HAS THE CASE: Noe while it
+   waits to be assigned, then the parent consultant she gives it to. Kept in
+   step from the case and the contact, never stored as a flag: the task moves
+   when the case moves and closes itself once an email or phone is on file or
+   the case closes. Run on every Lions save, when a case changes hands, and
+   every 30 minutes for edits made on the contact card. */
+const LIONS_PARENT_CONTACT_STEP = "lionsParentContact";
+async function _syncLionsParentContactTasks() {
+  const db = admin.firestore();
+  const FV = admin.firestore.FieldValue;
+  const todayHst = new Date().toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
+  const [cases, tasks] = await Promise.all([
+    db.collection("interactions").where("caseAdvocacySource", "==", "lions-screening").get(),
+    db.collection("interactions").where("workflowStep", "==", LIONS_PARENT_CONTACT_STEP).get(),
+  ]);
+  const open = cases.docs.filter((d) => { const x = d.data() || {}; return x.status === "Open" && x.contactId && !x.partnerIsland; });
+  const snaps = open.length ? await db.getAll(...open.map((d) => db.collection("contacts").doc(d.data().contactId))) : [];
+  const want = {};
+  open.forEach((d, i) => {
+    const c = snaps[i] && snaps[i].exists ? (snaps[i].data() || {}) : null;
+    if (!c) return;
+    const reachable = !!String(c.email || "").trim() || String(c.phone || "").replace(/\D/g, "").length >= 7;
+    if (!reachable) want[d.id] = { x: d.data(), c };
+  });
+  const byCase = {};
+  tasks.forEach((t) => { const y = t.data() || {}; if (y.status === "Open" && y.relatedCaseId) (byCase[y.relatedCaseId] = byCase[y.relatedCaseId] || []).push(t); });
+  let made = 0, moved = 0, closed = 0;
+  for (const caseId of Object.keys(want)) {
+    const { x, c } = want[caseId];
+    const have = byCase[caseId] || [];
+    delete byCase[caseId];
+    const kids = (Array.isArray(c.screenings) ? c.screenings : []).filter((s) => s && s.source === "lions-screening").map((s) => s.childName).filter(Boolean);
+    const child = kids[0] || "";
+    const name = String(c.displayName || "").trim() || ("Parent of " + child);
+    if (!have.length) {
+      await db.collection("interactions").add({
+        channel: "Phone", interactionType: "Find Parent Contact",
+        contactId: x.contactId, contactName: name, contactType: "Parent/Guardian",
+        summary: "Find a phone or email for " + name + (child ? " (" + child + ", Lions screening)" : ""),
+        notes: "This family came from a Lions screening form with no parent phone or email, so nobody can reach them yet. " +
+               "Ask the school or check other records, then add the phone or email here. This task closes itself once either is on file.",
+        owner: x.owner || "", ownerUid: x.ownerUid || "",
+        status: "Open", isDraft: false,
+        followUpDate: x.caseAdvocacyContactDueDate || todayHst,
+        workflowStep: LIONS_PARENT_CONTACT_STEP, relatedCaseId: caseId, source: "lions-screening",
+        createdBy: "System (auto)", createdAt: FV.serverTimestamp(), updatedAt: FV.serverTimestamp(),
+      });
+      made++;
+      continue;
+    }
+    const t0 = have[0], y0 = t0.data() || {};
+    if ((x.ownerUid || "") !== (y0.ownerUid || "")) {
+      await t0.ref.update({ owner: x.owner || "", ownerUid: x.ownerUid || "",
+        notes: String(y0.notes || "") + "\n---\n[" + todayHst + "] Moved to " + (x.owner || "the new case owner") + " with the case.",
+        updatedAt: FV.serverTimestamp() });
+      moved++;
+    }
+    for (const extra of have.slice(1)) { await extra.ref.update({ status: "Closed", notes: "Duplicate task closed automatically.", updatedAt: FV.serverTimestamp() }); closed++; }
+  }
+  for (const caseId of Object.keys(byCase)) {
+    for (const t of byCase[caseId]) {
+      await t.ref.update({ status: "Closed",
+        notes: String((t.data() || {}).notes || "") + "\n---\n[" + todayHst + "] A phone or email is now on file (or the case closed). Closed automatically.",
+        updatedAt: FV.serverTimestamp() });
+      closed++;
+    }
+  }
+  if (made || moved || closed) console.log("_syncLionsParentContactTasks: made=" + made + " moved=" + moved + " closed=" + closed);
+  return { made, moved, closed };
+}
+
+exports.sweepLionsParentContactTasks = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 1 })
+  .pubsub.schedule("every 30 minutes").timeZone("Pacific/Honolulu")
+  .onRun(async () => { try { await _syncLionsParentContactTasks(); } catch (e) { console.error("sweepLionsParentContactTasks:", e.message); } return null; });
+
+exports.onLionsCaseOwnerChanged = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 3 })
+  .firestore.document("interactions/{interactionId}")
+  .onUpdate(async (change) => {
+    const b = change.before.data() || {};
+    const a = change.after.data() || {};
+    if (a.caseAdvocacySource !== "lions-screening") return null;
+    if ((a.ownerUid || "") === (b.ownerUid || "") && a.status === b.status) return null;
+    try { await _syncLionsParentContactTasks(); } catch (e) { console.error("onLionsCaseOwnerChanged:", e.message); }
+    return null;
+  });
 
 exports.onCaseMgmtAssignmentChanged = functions
   .runWith({ timeoutSeconds: 60, maxInstances: 3 })
