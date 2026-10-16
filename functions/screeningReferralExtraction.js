@@ -115,10 +115,21 @@ const SCREENING_REFERRAL_TOOL_SCHEMA = {
       type: "string",
       enum: ["pass", "refer", "unclear"],
       description:
-        "VISION: 'pass' if 'Your child Passed the Vision Screening' is ticked; 'refer' if 'Your child " +
+        "VISION: a photoscreener PRINTOUT or label stuck or printed in the 'Photoscreener/Autorefractor " +
+        "Results' box (Plusoptix, Welch Allyn, Spot: dpt/Sphere/Cylinder/Axis readings) means 'refer', " +
+        "because the form says to affix it only on a Refer — even if 'Passed' is ticked or scribbled. " +
+        "Otherwise 'pass' if 'Your child Passed the Vision Screening' is ticked; 'refer' if 'Your child " +
         "should see an Eye Doctor' is ticked, or if UTT is marked for a Pre K child (UTT for Pre K is a " +
         "Refer). HEARING: 'pass' if recommendation 1 is marked; 'refer' for any of 2, 2a, 2b, 3 or 4. " +
         "'unclear' when no box is marked or two conflict — never guess between pass and refer.",
+    },
+    screenerPrintout: {
+      type: ["boolean", "null"],
+      description:
+        "VISION only: true if a photoscreener printout or label (Plusoptix, Welch Allyn, Spot — " +
+        "dpt / Sphere / Cylinder / Axis readings) is affixed or printed in the Photoscreener/" +
+        "Autorefractor Results box; false if that box only has the printed 'Your Child Passed the " +
+        "Photoscreener Test' line and a tick. Null on a hearing form.",
     },
     hearingRecommendation: {
       type: ["string", "null"],
@@ -174,6 +185,7 @@ function buildSystemPrompt(todayStr) {
     "Return ONLY via the provided tool. Rules:",
     "- TRANSCRIBE, never tidy. Copy handwriting exactly as written, including unusual spellings and Hawaiian diacritics. Do not expand nicknames, correct names, or reformat an address.",
     "- A BLANK FIELD IS null. Never infer a value from context, never carry a value across from another field, and never invent a plausible one. A null costs a human one keystroke; a wrong value costs a family.",
+    "- VISION: a photoscreener printout or label in the Photoscreener/Autorefractor Results box is a REFER (the form says 'Affix referral label here if Refer'). Set screenerPrintout true and outcome 'refer', whatever else is ticked.",
     "- Read CIRCLES as well as ticks. On the vision form, age and grade are selected by circling a printed number, not by writing one.",
     "- screeningDate is the date the screening was performed — not the parent's signature date and not the 'This form is due' date. These sit close together; take care.",
     "- Do not diagnose, summarise or soften the results. Quote what the form says.",
@@ -189,6 +201,8 @@ function buildSystemPrompt(todayStr) {
  * every other numbered recommendation is a referral. */
 function isReferral(data) {
   if (!data) return false;
+  // A screener printout on a vision form is a referral (Daniel 2026-10-16).
+  if (data.formType === "vision" && data.screenerPrintout === true) return true;
   if (data.formType === "hearing" && data.hearingRecommendation) {
     return data.hearingRecommendation !== "1";
   }

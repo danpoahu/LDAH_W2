@@ -296,6 +296,13 @@ exports.extractScreeningReferral = functions
       if (!Array.isArray(d.uncertainFields)) d.uncertainFields = [];
       if (["high", "medium", "low"].indexOf(d.confidence) === -1) d.confidence = "low";
 
+      /* A printout in the photoscreener box is a Refer (Daniel 2026-10-16): the
+         form says to affix the label only on a Refer. Enforced here so the
+         grid comes up as Refer whatever the model ticked. */
+      if (d.formType === "vision" && d.screenerPrintout === true && d.outcome !== "refer") {
+        d.outcome = "refer";
+        d.resultNotes = (String(d.resultNotes || "") + " [Photoscreener printout on the form: Refer.]").trim();
+      }
       /* Derived server-side so the browser cannot disagree with the rule. */
       d.isReferral = screeningReferral.isReferral(d);
       d.contactability = screeningReferral.contactability(d);
