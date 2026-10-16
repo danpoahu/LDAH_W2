@@ -39,6 +39,10 @@
   table.res td.ear { text-align:left; font-weight:600; color:#475569; white-space:nowrap; }
   table.res td .mk { color:var(--blue); font-weight:800; font-size:1.05rem; }
   .lea { background:#F8FAFC; border:1px solid var(--line); border-radius:8px; padding:.75rem .9rem; font-size:.9rem; color:#334155; white-space:pre-wrap; min-height:2.4rem; }
+  .files { margin:.4rem 0 1rem; }
+  .files img { display:block; max-width:100%; border:1px solid var(--line); border-radius:10px; margin:.4rem 0; }
+  .fbtn { display:inline-block; background:var(--blue); color:#fff; text-decoration:none; font-weight:600; border-radius:9px; padding:.55rem 1rem; margin:.3rem .4rem .3rem 0; font-size:.92rem; }
+  .fnote { color:var(--soft); font-size:.82rem; }
   .privacy { background:#FFFBEB; border:1px solid #FDE68A; border-radius:10px; padding:.8rem 1rem; margin-top:1.5rem; font-size:.85rem; color:#713F12; }
   .msg h3 { color:var(--blue); font-size:1.3rem; margin-bottom:.5rem; } .msg p { color:var(--soft); }
   footer { background:var(--ink); color:#fff; text-align:center; padding:1.2rem; font-size:.85rem; margin-top:auto; }
@@ -121,9 +125,22 @@
       b += '<div class="sub">Otoacoustic Emissions (OAE) — measures the inner ear’s response to sound.</div>' + resTable(pf, hearing.oae);
       if (hearing.tympanometry && (hearing.tympanometry.right || hearing.tympanometry.left))
         b += '<div class="sub">Tympanometry — measures eardrum stiffness (done when the OAE result is “Fail”).</div>' + resTable(pf, hearing.tympanometry);
+      /* The screener's own result files, sent only for a part that did not pass. */
+      const files = Array.isArray(data.files) ? data.files : [];
+      const fileHtml = kind => {
+        const f = files.filter(x => x && x.kind === kind);
+        if (!f.length) return '';
+        return '<div class="files"><div class="sub">' + (kind === 'hearing' ? 'Your child’s hearing screening result from the machine. Please share it with your pediatrician.' : 'The vision screener’s printout. Please share it with your pediatrician.') + '</div>' +
+          f.map(x => x.type === 'image'
+            ? '<a href="' + esc(x.url) + '" target="_blank" rel="noopener"><img src="' + esc(x.url) + '" alt="' + esc(x.label) + '"></a>'
+            : '<a class="fbtn" href="' + esc(x.url) + '" target="_blank" rel="noopener">Open ' + esc(x.label) + ' (PDF)</a>').join('') +
+          '<div class="fnote">For your privacy this link works for 30 minutes. Reopen this page from your email for a fresh one.</div></div>';
+      };
+      b += fileHtml('hearing');
       b += '<div class="sec-title">Vision</div>';
       b += '<div class="sub">Distance acuity.</div>' + resTable(pf, vision.distance);
       if (vision.leaSymbols) b += '<div class="sub">Lea Symbols Charts / PlusOptix</div><div class="lea">'+esc(vision.leaSymbols)+'</div>';
+      b += fileHtml('vision');
       $('body').innerHTML = b;
 
       const anything = (hearing.otoscopy&&(hearing.otoscopy.right||hearing.otoscopy.left)) || (hearing.oae&&(hearing.oae.right||hearing.oae.left)) || (vision.distance&&(vision.distance.right||vision.distance.left)) || vision.leaSymbols;
