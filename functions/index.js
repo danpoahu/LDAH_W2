@@ -677,6 +677,7 @@ async function logEmailSend(entry) {
       success: entry.success === true,
       error: entry.error || null,
       resendId: entry.resendId || null,
+      attachmentName: entry.attachmentName || null,
     });
   } catch (e) {
     console.warn("emailLog write failed:", e.message);
@@ -730,6 +731,7 @@ function familyEmails(rec) {
 async function sendEmailViaResend({
   from, to, subject, html, bcc, cc,
   type, relatedEventId, relatedSignupId, recipientName, relatedContactId,
+  attachments,   // optional [{ filename, content: base64 }] (2026-10-16, school results PDF)
 }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error("RESEND_API_KEY secret is not set");
@@ -758,6 +760,8 @@ async function sendEmailViaResend({
   const ccList = normalizeRecipients(cc);
 
   const body = { from, to: toList, subject, html };
+  if (Array.isArray(attachments) && attachments.length) body.attachments = attachments;
+  const attachmentName = (Array.isArray(attachments) && attachments.length) ? attachments.map((a) => a.filename).join(", ") : null;
   if (bccList.length) body.bcc = bccList;
   if (ccList.length) body.cc = ccList;
 
@@ -787,7 +791,7 @@ async function sendEmailViaResend({
         await logEmailSend({
           from, to: toDisplay, bcc: bccLogValue, subject, html,
           type, relatedEventId, relatedSignupId, recipientName, relatedContactId,
-          success: true, resendId: (result && result.id) || null,
+          success: true, resendId: (result && result.id) || null, attachmentName,
         });
         return result;
       }
@@ -13601,7 +13605,8 @@ async function _sendOneScreeningResult(db, contactId, screeningId, opts = {}) {
     const fresh = await tx.get(_cRef);
     const list = Array.isArray((fresh.data() || {}).screenings) ? fresh.data().screenings : [];
     const _updated = list.map((s) => (s && s.id === screeningId)
-      ? Object.assign({}, s, { results: Object.assign({}, s.results, { resultsSentAt: _sentAt, resultsToken: token }) })
+      ? Object.assign({}, s, { results: Object.assign({}, s.results, { resultsSentAt: _sentAt, resultsToken: token,
+          resultsSendCount: (Number(s.results && s.results.resultsSendCount) || (s.results && s.results.resultsSentAt ? 1 : 0)) + 1 }) })
       : s);
     tx.update(_cRef, { screenings: _updated });
   });
@@ -13618,21 +13623,112 @@ exports.sendScreeningResults = functions
     if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
 
     const body = req.body || {};
-    const idToken = (body.idToken || "").toString().trim();
-    if (!idToken) { res.status(401).json({ error: "Sign-in required" }); return; }
-    try { await admin.auth().verifyIdToken(idToken); }
-    catch (e) { res.status(401).json({ error: "Invalid or expired sign-in" }); return; }
+    // Admin / Super Admin only (2026-10-16): this is also the Resend button on
+    // the contact card, and it emails a family.
+    try { await _verifyStaffIdToken(body.idToken); }
+    catch (e) { res.status(e.statusCode || 401).json({ error: e.message }); return; }
 
     const contactId = (body.contactId || "").toString().trim();
     if (!contactId) { res.status(400).json({ error: "Missing contactId" }); return; }
     try {
       const screeningId = (body.screeningId || "").toString().trim();
       const r = await _sendOneScreeningResult(admin.firestore(), contactId, screeningId, { requirePrimaryEmail: true });
-      res.status(200).json({ ok: true, url: r.url });
+      res.status(200).json({ ok: true, url: r.url, to: r.to });
     } catch (err) {
       if (err && err.status) { res.status(err.status).json({ error: err.message }); return; }
       console.error("sendScreeningResults error:", err.message);
       res.status(500).json({ error: err.message });
+    }
+  });
+
+/* ── Screening results to the SCHOOL (Chassidy, 2026-10-16) ──────────────
+   For children whose parent signed the Consent to Release and Obtain
+   Information naming the school. -Int builds one PDF of the ticked children's
+   results and staff type the school contact's name and email before sending.
+     mode 'contact' → the last contact used for this school (prefill only)
+     mode 'send'    → { location, classroom?, toName, toEmail, items:[{contactId,
+                       screeningId}], pdfBase64, filename }
+   Every item is re-checked here (results entered, release signed) and only
+   those are stamped results.schoolSentAt / schoolSentTo. Admin/superAdmin. */
+const SCHOOL_RESULTS_CONTACTS_DOC = "settings/screeningSchoolContacts";
+exports.sendScreeningResultsToSchool = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 3, memory: "512MB", secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    const body = req.body || {};
+    let staff;
+    try { staff = await _verifyStaffIdToken(body.idToken); }
+    catch (e) { res.status(e.statusCode || 401).json({ error: e.message }); return; }
+    const db = admin.firestore();
+    const location = String(body.location || "").trim();
+    if (!location) { res.status(400).json({ error: "Pick a school." }); return; }
+    const locKey = location.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 80);
+    try {
+      if (body.mode === "contact") {
+        const d = (await db.doc(SCHOOL_RESULTS_CONTACTS_DOC).get()).data() || {};
+        res.status(200).json({ ok: true, contact: d[locKey] || null });
+        return;
+      }
+      if (body.mode !== "send") { res.status(400).json({ error: "Unknown mode" }); return; }
+      const toName = String(body.toName || "").trim();
+      const toEmail = String(body.toEmail || "").trim().toLowerCase();
+      if (!toName) { res.status(400).json({ error: "The school contact's name is required." }); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail)) { res.status(400).json({ error: "A valid school contact email is required." }); return; }
+      const pdf = String(body.pdfBase64 || "");
+      if (!pdf || pdf.length > 14 * 1024 * 1024) { res.status(400).json({ error: "The results PDF is missing or too large." }); return; }
+      const items = Array.isArray(body.items) ? body.items.slice(0, 300) : [];
+      if (!items.length) { res.status(400).json({ error: "No children picked." }); return; }
+
+      // Re-check every child: right school, results entered, release signed.
+      const ok = [];
+      for (const it of items) {
+        const cSnap = await db.collection("contacts").doc(String(it.contactId || "")).get();
+        if (!cSnap.exists) continue;
+        const s = ((cSnap.data() || {}).screenings || []).find((x) => x && x.id === it.screeningId);
+        if (!s || String(s.location || "").trim() !== location) continue;
+        if (!s.results || !(s.release && s.release.signed)) continue;
+        ok.push({ ref: cSnap.ref, screeningId: s.id, child: ((s.child && (s.child.firstName + " " + (s.child.lastName || ""))) || "").trim() });
+      }
+      if (!ok.length) { res.status(400).json({ error: "None of the picked children has both results and a signed release." }); return; }
+
+      const esc = _emailEsc;
+      const classroom = String(body.classroom || "").trim();
+      const filename = String(body.filename || "screening-results.pdf").replace(/[^A-Za-z0-9._-]+/g, "-").slice(0, 100);
+      const html = '<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;color:#1E293B;line-height:1.6;">' +
+        '<p style="margin:0 0 14px;">Aloha ' + esc(toName) + ',</p>' +
+        '<p style="margin:0 0 14px;">Attached are the vision and hearing screening results for ' + ok.length + ' ' + (ok.length === 1 ? "child" : "children") +
+        ' at ' + esc(location) + (classroom ? " (" + esc(classroom) + " class)" : "") +
+        ' whose parent or guardian signed the Consent to Release and Obtain Information naming your school.</p>' +
+        '<p style="margin:0 0 14px;">Please keep this document confidential. Any child marked as not passing should see their doctor for a full check; we are following up with those families directly.</p>' +
+        _srpSignOffHtml() + '</div>';
+      await sendEmailViaResend({
+        from: lifecycleFromAddress(), to: toEmail, cc: staff.email || undefined,
+        subject: "Screening results for " + location + (classroom ? " - " + classroom : "") + " (LDAH School Readiness Project)",
+        html, type: "screening-results-school", recipientName: toName,
+        attachments: [{ filename, content: pdf }],
+      });
+      const now = admin.firestore.Timestamp.now();
+      for (const o of ok) {
+        await db.runTransaction(async (tx) => {
+          const fresh = await tx.get(o.ref);
+          const list = ((fresh.data() || {}).screenings || []).map((s) => (s && s.id === o.screeningId)
+            ? Object.assign({}, s, { results: Object.assign({}, s.results, { schoolSentAt: now, schoolSentTo: toName + " <" + toEmail + ">", schoolSentBy: staff.email || staff.uid }) })
+            : s);
+          tx.update(o.ref, { screenings: list });
+        });
+      }
+      await db.doc(SCHOOL_RESULTS_CONTACTS_DOC).set({ [locKey]: { name: toName, email: toEmail, location, updatedAt: now, by: staff.email || staff.uid } }, { merge: true });
+      await db.collection("auditLog").add({ action: "Screening results sent to school",
+        details: location + (classroom ? " / " + classroom : "") + " -> " + toName + " <" + toEmail + ">, " + ok.length + " children: " + ok.map((o) => o.child).join(", "),
+        performedBy: staff.email || staff.uid, role: staff.role || "", timestamp: admin.firestore.FieldValue.serverTimestamp() });
+      res.status(200).json({ ok: true, count: ok.length, skipped: items.length - ok.length });
+    } catch (err) {
+      console.error("sendScreeningResultsToSchool:", err && err.message);
+      res.status(500).json({ error: (err && err.message) || "Send failed" });
     }
   });
 

@@ -534,8 +534,8 @@
        no Take Photo / Library menu (Daniel: no extra clicks). Since 10-16 each
        slot also takes a PDF (screeners asked for 2 PDFs + 1 photo), through a
        second input that opens the file picker instead of the camera. */
-    f += '<div class="photoBox"><label class="l">Photos and PDFs</label><input type="file" id="ePhoto" accept="image/*" capture="environment" style="display:none" onchange="uploadPrintout(this)">' +
-         '<input type="file" id="eFile" accept="application/pdf,image/*" style="display:none" onchange="uploadPrintout(this)">' +
+    f += '<div class="photoBox"><label class="l">Vision photo &middot; Hearing PDFs</label><input type="file" id="ePhoto" accept="image/*" capture="environment" style="display:none" onchange="uploadPrintout(this)">' +
+         '<input type="file" id="eFile" accept="application/pdf" style="display:none" onchange="uploadPrintout(this)">' +
          '<div class="slotRow">'+[1,2,3].map(n=>'<div class="slot" id="slot'+n+'">'+slotHtml(n)+'</div>').join('')+'</div><div id="ePhotoMsg"></div></div>';
     $('entryForm').innerHTML = f;
     // "initial" = what is SAVED, not what is pre-filled, so a pre-filled site /
@@ -566,14 +566,17 @@
   const _fresh = {};
   function slotHtml(n){
     const p = slotEntry(n);
-    if (!p) return '<div class="slotPick"><button type="button" class="photoBtn" onclick="pickSlot('+n+')">+ Photo '+n+'</button>' +
-      '<button type="button" class="photoBtn" onclick="pickSlot('+n+',1)">+ PDF '+n+'</button></div>';
+    /* Slot 1 = the vision screener photo (camera), slots 2-3 = the hearing
+       machine's PDFs (file picker), Chassidy 2026-10-16. */
+    const pdfSlot = n !== 1, lbl = SLOT_LABEL[n];
+    if (!p) return '<button type="button" class="photoBtn" onclick="pickSlot('+n+','+(pdfSlot?1:0)+')">+ '+lbl+'</button>';
     const f = _fresh[n];
-    const img = !f ? '' : (f.pdf ? '<span class="pdfBadge">PDF</span>' : '<img src="'+f.url+'" alt="File '+n+'">');
-    return '<div class="pItem">'+img+'<b>File '+n+' \u2713</b><br>' +
+    const img = !f ? '' : (f.pdf ? '<span class="pdfBadge">PDF</span>' : '<img src="'+f.url+'" alt="'+lbl+'">');
+    return '<div class="pItem">'+img+'<b>'+lbl+' \u2713</b><br>' +
       (f ? '' : '<button type="button" onclick="viewSlot('+n+')">View</button>') +
-      '<button type="button" onclick="pickSlot('+n+')">Photo</button><button type="button" onclick="pickSlot('+n+',1)">PDF</button></div>';
+      '<button type="button" onclick="pickSlot('+n+','+(pdfSlot?1:0)+')">Replace</button></div>';
   }
+  const SLOT_LABEL = { 1: 'Vision photo', 2: 'Hearing PDF 1', 3: 'Hearing PDF 2' };
   const isPdfPath = (p) => /\.pdf$/i.test(String((p && p.storagePath) || ''));
   function renderSlots(){ [1,2,3].forEach(n=>{ const el=$('slot'+n); if(el) el.innerHTML=slotHtml(n); }); }
   let _slot = 1;
@@ -604,7 +607,7 @@
         x.upload.onprogress=e=>{ if(e.lengthComputable) msg.textContent='Uploading\u2026 '+Math.round(e.loaded/e.total*100)+'%'; };
         x.onload=()=> (x.status>=200&&x.status<300)?res():rej(new Error('Upload failed ('+x.status+'). Try again.'));
         x.onerror=()=>rej(new Error('Upload failed. Check the connection and try again.')); x.send(blob); });
-      const entry={ storagePath:j.storagePath, uploadedAt:new Date().toISOString(), by:(auth.currentUser.displayName||auth.currentUser.email||''), slot:slot, mimeType:type };
+      const entry={ storagePath:j.storagePath, uploadedAt:new Date().toISOString(), by:(auth.currentUser.displayName||auth.currentUser.email||''), slot:slot, mimeType:type, kind:(slot===1?'vision':'hearing') };
       // Transaction (2026-10-05): re-reads the contact and appends ONLY this
       // photo, so it can never undo results another screener just saved.
       const ref=db.collection('contacts').doc(cur.contactId);
@@ -618,20 +621,20 @@
       cur.printouts = saved.slice();
       if (current !== cur) return;
       _fresh[slot] = { url: URL.createObjectURL(blob), pdf: pdf }; renderSlots();
-      msg.style.color='var(--pass)'; msg.textContent=(pdf ? 'PDF ' : 'Photo ')+slot+' saved to this child.';
+      msg.style.color='var(--pass)'; msg.textContent=SLOT_LABEL[slot]+' saved to this child.';
     } catch(e){ msg.style.color='var(--fail)'; msg.textContent=(e&&e.message)||String(e); }
   };
   window.viewSlot = async function(n){
     const p=slotEntry(n); const box=$('slot'+n); if(!p||!box) return;
-    box.innerHTML='<div class="pItem">File '+n+'<br>Opening\u2026</div>';
+    box.innerHTML='<div class="pItem">'+SLOT_LABEL[n]+'<br>Opening\u2026</div>';
     try {
       const idToken = await auth.currentUser.getIdToken();
       const r = await fetch(VIEW_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idToken,contactId:current.contactId,storagePath:p.storagePath})});
       const j = await r.json().catch(()=>({}));
       if(!r.ok||!j.url) throw new Error(j.error||'Could not open it.');
-      const look = isPdfPath(p) ? '<span class="pdfBadge">Open PDF</span>' : '<img src="'+j.url+'" alt="File '+n+'">';
-      box.innerHTML='<div class="pItem"><a href="'+j.url+'" target="_blank" rel="noopener">'+look+'</a><b>File '+n+' \u2713</b><br><button type="button" onclick="pickSlot('+n+')">Photo</button><button type="button" onclick="pickSlot('+n+',1)">PDF</button></div>';
-    } catch(e){ box.innerHTML='<div class="pItem">File '+n+' <span style="color:var(--fail)">'+esc((e&&e.message)||'')+'</span></div>'; }
+      const look = isPdfPath(p) ? '<span class="pdfBadge">Open PDF</span>' : '<img src="'+j.url+'" alt="'+SLOT_LABEL[n]+'">';
+      box.innerHTML='<div class="pItem"><a href="'+j.url+'" target="_blank" rel="noopener">'+look+'</a><b>'+SLOT_LABEL[n]+' \u2713</b><br><button type="button" onclick="pickSlot('+n+','+(n!==1?1:0)+')">Replace</button></div>';
+    } catch(e){ box.innerHTML='<div class="pItem">'+SLOT_LABEL[n]+' <span style="color:var(--fail)">'+esc((e&&e.message)||'')+'</span></div>'; }
   };
 
   function val(id){ const e=$(id); return e?(e.value||'').trim():''; }
