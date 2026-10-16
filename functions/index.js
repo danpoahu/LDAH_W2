@@ -28747,7 +28747,12 @@ exports.checkScreeningIntroBounces = functions
    "Ryder Cook-Briones". Failing an exact match, first and last word ("Kayla
    Grace Kahapea" vs "Kayla Kahapea") count only when that is unique too.
    placeholderOnly: only a family with no email and no phone may match. */
-async function _lionsFamilyByChild(db, childName, placeholderOnly) {
+async function _lionsFamilyByChild(db, childName, placeholderOnly, schoolName) {
+  // Same school only (2026-10-16): the first word of the school name, letters only
+  // ("HONOWAI ELEMENTARY SCHOOL" = "Honowai Elementary" = "honowai"), so a child at
+  // another school who shares the name is never pulled into the wrong family.
+  const schoolKey = (x) => (String(x || "").toLowerCase().match(/[a-z']+/) || [""])[0].replace(/'/g, "");
+  const wantSchool = schoolKey(schoolName);
   const letters = (x) => String(x || "").toLowerCase().replace(/[^a-z]+/g, "");
   const words = (x) => String(x || "").toLowerCase().replace(/[^a-z\s]+/g, "").trim().split(/\s+/).filter(Boolean);
   const ends = (x) => { const w = words(x); return w.length >= 2 ? w[0] + "|" + w[w.length - 1] : ""; };
@@ -28774,7 +28779,8 @@ async function _lionsFamilyByChild(db, childName, placeholderOnly) {
     if (c.archived === true) return;
     if (placeholderOnly && (String(c.email || "").trim() || String(c.phone || "").trim())) return;
     const kids = (Array.isArray(c.screenings) ? c.screenings : [])
-      .filter((s) => s && s.source === "lions-screening").map((s) => s.childName);
+      .filter((s) => s && s.source === "lions-screening" && (!wantSchool || !schoolKey(s.school) || schoolKey(s.school) === wantSchool))
+      .map((s) => s.childName);
     if (kids.some((k) => letters(k) === want)) exact.push(id);
     else if (wantEnds && kids.some((k) => ends(k) === wantEnds)) loose.push(id);
   });
@@ -28870,7 +28876,7 @@ exports.submitScreeningReferral = functions
          pick, rather than guessed. */
       let linkedByChild = false;
       if (!contactId) {
-        const m = await _lionsFamilyByChild(db, childName, formType === "vision");
+        const m = await _lionsFamilyByChild(db, childName, formType === "vision", r.schoolName);
         if (m.ambiguous) {
           res.status(409).json({
             error: "More than one family on file has a Lions screening for " + childName +
