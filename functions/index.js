@@ -13843,8 +13843,34 @@ exports.getScreeningResults = functions
       const r = _scr.results || {};
       const child = _scr.child || {};
       const asIso = (v) => (v && v.toDate ? v.toDate().toISOString() : (typeof v === "string" ? v : ""));
+      /* The screener's files, only for a part the child did NOT pass (Daniel
+         2026-10-16): the vision photo when vision failed, the hearing machine's
+         PDFs when hearing (OAE or tympanometry) failed. 30-minute signed links,
+         minted fresh on every page load. */
+      const _failed = (o) => !!o && (o.right === "Fail" || o.left === "Fail");
+      const _hFail = _failed((r.hearing || {}).oae) || _failed((r.hearing || {}).tympanometry);
+      const _vFail = _failed((r.vision || {}).distance);
+      const files = [];
+      if (_hFail || _vFail) {
+        const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
+        const pr = Array.isArray(_scr.printouts) ? _scr.printouts : [];
+        for (let i = 0; i < pr.length; i++) {
+          const p = pr[i] || {};
+          if (!p.storagePath || p.storagePath.indexOf(SCREENING_CONSENT_PREFIX + t.contactId + "/") !== 0) continue;
+          const slot = Number(p.slot) || 0;
+          const kind = p.kind || (slot === 2 || slot === 3 ? "hearing" : "vision");
+          if ((kind === "hearing" && !_hFail) || (kind === "vision" && !_vFail)) continue;
+          try {
+            const [url] = await bucket.file(p.storagePath).getSignedUrl({ version: "v4", action: "read", expires: Date.now() + 30 * 60 * 1000 });
+            const isPdf = /\.pdf$/i.test(p.storagePath);
+            files.push({ kind, type: isPdf ? "pdf" : "image", url,
+              label: kind === "hearing" ? "Hearing screening result" + (slot === 3 ? " (2)" : "") : "Vision screener printout" });
+          } catch (e) { console.warn("getScreeningResults: could not sign", p.storagePath, e.message); }
+        }
+      }
       res.status(200).json({
         ok: true,
+        files,
         childName: ((child.firstName || "") + " " + (child.lastName || "")).trim(),
         parentName: ((_cData.firstName || "") + " " + (_cData.lastName || "")).trim(),
         address: _cData.location || _cData.streetAddress || "",
