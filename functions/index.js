@@ -28610,6 +28610,48 @@ exports.checkScreeningIntroBounces = functions
    3. It does not contact a hearing-only family. The hearing form collects no
       parent contact and its consent does not name LDAH, so those park in a
       queue instead. See screeningReferralExtraction.js.               (2026-09-10) */
+/* Find the family of a Lions-screened child by the child's name (2026-10-16).
+   Candidates are every contact a Lions referral touched: those it created
+   (source 'lions-screening') plus those it opened a case on (an existing family
+   matched by email). A candidate matches when one of its Lions screenings names
+   the same child: letters only, case ignored, so "RYDER COOK-BRIONES" equals
+   "Ryder Cook-Briones". Failing an exact match, first and last word ("Kayla
+   Grace Kahapea" vs "Kayla Kahapea") count only when that is unique too.
+   placeholderOnly: only a family with no email and no phone may match. */
+async function _lionsFamilyByChild(db, childName, placeholderOnly) {
+  const letters = (x) => String(x || "").toLowerCase().replace(/[^a-z]+/g, "");
+  const words = (x) => String(x || "").toLowerCase().replace(/[^a-z\s]+/g, "").trim().split(/\s+/).filter(Boolean);
+  const ends = (x) => { const w = words(x); return w.length >= 2 ? w[0] + "|" + w[w.length - 1] : ""; };
+  const want = letters(childName), wantEnds = ends(childName);
+  if (!want) return {};
+  const ids = new Set();
+  const [made, cases] = await Promise.all([
+    db.collection("contacts").where("source", "==", "lions-screening").get(),
+    db.collection("interactions").where("caseAdvocacySource", "==", "lions-screening").get(),
+  ]);
+  const docs = {};
+  made.forEach((d) => { ids.add(d.id); docs[d.id] = d.data() || {}; });
+  cases.forEach((d) => { const c = (d.data() || {}).contactId; if (c) ids.add(c); });
+  const missing = [...ids].filter((id) => !docs[id]);
+  for (let i = 0; i < missing.length; i += 100) {
+    const snaps = await db.getAll(...missing.slice(i, i + 100).map((id) => db.collection("contacts").doc(id)));
+    snaps.forEach((sn) => { if (sn.exists) docs[sn.id] = sn.data() || {}; });
+  }
+  const exact = [], loose = [];
+  Object.keys(docs).forEach((id) => {
+    const c = docs[id];
+    if (c.archived === true) return;
+    if (placeholderOnly && (String(c.email || "").trim() || String(c.phone || "").trim())) return;
+    const kids = (Array.isArray(c.screenings) ? c.screenings : [])
+      .filter((s) => s && s.source === "lions-screening").map((s) => s.childName);
+    if (kids.some((k) => letters(k) === want)) exact.push(id);
+    else if (wantEnds && kids.some((k) => ends(k) === wantEnds)) loose.push(id);
+  });
+  const pick = exact.length ? exact : loose;
+  if (pick.length > 1) return { ambiguous: true };
+  return { contactId: pick[0] || "" };
+}
+
 exports.submitScreeningReferral = functions
   .runWith({ timeoutSeconds: 120, maxInstances: 5, secrets: EMAIL_SECRETS })
   .https.onRequest(async (req, res) => {
@@ -28675,6 +28717,28 @@ exports.submitScreeningReferral = functions
         const q = await db.collection("contacts").where("phone", "==", phoneDigits).limit(2).get();
         if (!q.empty) contactId = q.docs[0].id;
       }
+      /* By the child, only when nothing else matched (2026-10-16). Hearing
+         forms carry no parent email or phone, and the hearing and vision pages
+         reach LDAH in separate files with nothing saying which go together, so
+         the in-tab memory on the batch screen cannot pair them. A Lions child
+         already on file under exactly one family is that family. Vision forms
+         only join a family that has no email or phone yet (one a hearing form
+         created), so two real families are never fused by a shared name. Two
+         or more candidates link to nothing: the form is refused for a person to
+         pick, rather than guessed. */
+      let linkedByChild = false;
+      if (!contactId) {
+        const m = await _lionsFamilyByChild(db, childName, formType === "vision");
+        if (m.ambiguous) {
+          res.status(409).json({
+            error: "More than one family on file has a Lions screening for " + childName +
+                   ". Nothing was saved. Open this form and link it to the right family.",
+            ambiguousChild: true,
+          });
+          return;
+        }
+        if (m.contactId) { contactId = m.contactId; linkedByChild = true; }
+      }
       if (!contactId) {
         /* Field names matter here: the contact card reads `displayName` and
            `type`. This wrote `name` and `contactType`, so a referral family
@@ -28720,6 +28784,15 @@ exports.submitScreeningReferral = functions
         }
         if (!String(cur.type || "").trim() && String(cur.contactType || "").trim()) {
           patch.type = cur.contactType;
+        }
+        /* A "Parent of <child>" family made from a hearing form takes the
+           parent's name when the vision form for the same child arrives. */
+        if (cur.parentNameKnown === false && parentName) {
+          const _b = parentName.split(/\s+/);
+          patch.displayName = parentName;
+          patch.firstName = _b[0] || "";
+          patch.lastName = _b.slice(1).join(" ");
+          patch.parentNameKnown = true;
         }
         if (Object.keys(patch).length) {
           await db.collection("contacts").doc(contactId).update(patch);
@@ -29095,6 +29168,7 @@ exports.submitScreeningReferral = functions
         ok: true,
         contactId: contactId,
         contactCreated: created,
+        linkedByChild: linkedByChild,
         caseId: caseId,
         caseReused: caseReused,
         screeningId: screening.id,
