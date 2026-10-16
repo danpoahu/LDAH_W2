@@ -250,7 +250,19 @@ function _findToolUse(response) {
   ) || null;
 }
 
+/* Prompt caching (2026-10-16). The tool schema and system prompt are the same
+   for every page read on a given day (the date is the only thing that changes),
+   and staff read pages back to back, so a cache breakpoint on the system block
+   lets each following page read that ~2k-token prefix from cache at a tenth of
+   the price. Tools come before system in the cached prefix, so one breakpoint
+   covers both. A prefix under the model's minimum is simply not cached. */
+function cachedSystem(system) {
+  if (Array.isArray(system)) return system;
+  return [{ type: "text", text: String(system || ""), cache_control: { type: "ephemeral" } }];
+}
+
 async function runScreeningExtraction(client, { model, system, mediaBlock }) {
+  system = cachedSystem(system);
   const tools = [{
     name: SCREENING_REFERRAL_TOOL_NAME,
     description: "Record the contents of this Lions screening form. Call exactly once.",
@@ -302,6 +314,7 @@ module.exports = {
   SCREENING_REFERRAL_TOOL_NAME,
   SCREENING_REFERRAL_MAX_TOKENS,
   buildSystemPrompt,
+  cachedSystem,
   runScreeningExtraction,
   isReferral,
   contactability,

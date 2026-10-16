@@ -306,7 +306,8 @@ exports.extractScreeningReferral = functions
       const usage = response.usage || {};
       console.log("extractScreeningReferral:", d.formType, "referral=" + d.isReferral,
         "confidence=" + d.confidence, "inputTokens=" + (usage.input_tokens || "?"),
-        "outputTokens=" + (usage.output_tokens || "?"), "retried=" + extraction.retried);
+        "outputTokens=" + (usage.output_tokens || "?"), "cacheRead=" + (usage.cache_read_input_tokens || 0),
+        "cacheWrite=" + (usage.cache_creation_input_tokens || 0), "retried=" + extraction.retried);
 
       res.status(200).json({ ok: true, referral: d });
     } catch (err) {
@@ -19143,7 +19144,9 @@ async function _cgGenerateCaseReview({ db, collection, eventId, signupRef, signu
     // plausible-looking page with no summary, no flags and no family-words
     // block. Opus 5 allows far more; streaming is what makes it safe to ask for.
     max_tokens: 64000,
-    system: CG_CASE_REVIEW_SYSTEM,
+    // Cached (2026-10-16): the ~3k-token instructions + schema repeat for every
+    // family the morning sweep reviews.
+    system: screeningReferral.cachedSystem(CG_CASE_REVIEW_SYSTEM),
     tools: [{
       name: "record_case_review",
       description: "Record the completed Case Review and document summary.",
@@ -19192,7 +19195,9 @@ async function _cgGenerateCaseReview({ db, collection, eventId, signupRef, signu
       details: "signupPath=" + signupRef.path + ", documents=" + docs.blocks.length +
                ", bytes=" + docs.bytes + ", model=" + CG_CASE_REVIEW_MODEL +
                ", inputTokens=" + ((response.usage && response.usage.input_tokens) || "?") +
-               ", outputTokens=" + ((response.usage && response.usage.output_tokens) || "?"),
+               ", outputTokens=" + ((response.usage && response.usage.output_tokens) || "?") +
+               ", cacheRead=" + ((response.usage && response.usage.cache_read_input_tokens) || 0) +
+               ", cacheWrite=" + ((response.usage && response.usage.cache_creation_input_tokens) || 0),
       performedBy: "system",
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
       signupPath: signupRef.path,
@@ -30933,7 +30938,7 @@ exports.extractSchoolConsentPage = functions
 
       const _nowHst = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
       const _todayStr = _nowHst.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-      const system = _schoolConsentSystemPrompt(_todayStr);
+      const system = screeningReferral.cachedSystem(_schoolConsentSystemPrompt(_todayStr));   // prompt caching (2026-10-16)
       const tools = [{ name: SCHOOL_CONSENT_TOOL_NAME, description: "Record this consent packet page. Call exactly once.", input_schema: SCHOOL_CONSENT_TOOL_SCHEMA }];
       const messages = [{ role: "user", content: [mediaBlock, { type: "text", text: "Read this page from an LDAH consent packet." }] }];
 
@@ -30979,7 +30984,8 @@ exports.extractSchoolConsentPage = functions
 
       const usage = response.usage || {};
       console.log("extractSchoolConsentPage:", pageType, "uncertain=" + uncertain.length,
-        "inputTokens=" + (usage.input_tokens || "?"), "outputTokens=" + (usage.output_tokens || "?"), "retried=" + retried);
+        "inputTokens=" + (usage.input_tokens || "?"), "outputTokens=" + (usage.output_tokens || "?"),
+        "cacheRead=" + (usage.cache_read_input_tokens || 0), "cacheWrite=" + (usage.cache_creation_input_tokens || 0), "retried=" + retried);
       res.status(200).json({ ok: true, pageType, fields, uncertain });
     } catch (err) {
       /* Never err.cause.message — the SDK puts the request (key included) there. */
