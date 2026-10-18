@@ -6621,10 +6621,39 @@ async function runDailyReport(overrideRecipients, opts) {
         + `<td style="padding:6px 10px;font-size:12px;color:#555;">${esc(r.owner)}</td>`
         + `<td style="padding:6px 10px;font-size:12px;white-space:nowrap;">${esc(r.fu)}</td>`
         + `<td style="padding:6px 10px;font-size:11px;white-space:nowrap;"><span style="background:${color};color:#fff;padding:2px 8px;border-radius:10px;font-weight:700;">${tag}</span></td></tr>`;
+      /* More than 20 overdue or more than 20 due today (Daniel, 2026-10-17): one
+         line per staff member with their counts instead of every row. A list of
+         20 or fewer still prints row by row under the staff table. */
+      const OI_GROUP_AT = 20;
+      const groupOver = overdueInt.length > OI_GROUP_AT, groupToday = dueTodayInt.length > OI_GROUP_AT;
+      let staffHtml = "";
+      if (groupOver || groupToday) {
+        const byStaff = {};
+        const add = (r, field) => {
+          const k = String(r.owner || "").trim() || "No owner";
+          const g = byStaff[k] = byStaff[k] || { over: 0, today: 0, oldest: "" };
+          g[field]++;
+          if (field === "over" && (!g.oldest || r.fu < g.oldest)) g.oldest = r.fu;
+        };
+        overdueInt.forEach((r) => add(r, "over"));
+        dueTodayInt.forEach((r) => add(r, "today"));
+        const names = Object.keys(byStaff).sort((x, y) => byStaff[y].over - byStaff[x].over || byStaff[y].today - byStaff[x].today || x.localeCompare(y));
+        const badge = (n, color) => n ? `<span style="background:${color};color:#fff;padding:2px 9px;border-radius:10px;font-weight:700;">${n}</span>` : `<span style="color:#bbb;">0</span>`;
+        const th = (t) => `<th style="padding:6px 10px;text-align:left;font-size:11px;color:#666;font-weight:800;">${t}</th>`;
+        staffHtml = `<p style="margin:0 0 8px;font-size:12px;color:#444;"><b>${overdueInt.length} overdue</b> &middot; <b>${dueTodayInt.length} due today</b> &mdash; grouped by staff member.</p>`
+          + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;border-collapse:collapse;margin-bottom:14px;">`
+          + `<tr style="background:#f8f9fa;">` + th("Staff member") + th("Overdue") + th("Due today") + th("Oldest due") + `</tr>`
+          + names.map((k) => `<tr style="border-bottom:1px solid #eee;">`
+            + `<td style="padding:6px 10px;font-size:12px;font-weight:600;">${esc(k)}</td>`
+            + `<td style="padding:6px 10px;font-size:12px;">${badge(byStaff[k].over, "#dc2626")}</td>`
+            + `<td style="padding:6px 10px;font-size:12px;">${badge(byStaff[k].today, "#d97706")}</td>`
+            + `<td style="padding:6px 10px;font-size:12px;white-space:nowrap;color:#555;">${byStaff[k].oldest ? esc(byStaff[k].oldest) : "&mdash;"}</td></tr>`).join("")
+          + `</table>`;
+      }
       let oiRows = "";
-      overdueInt.forEach((r) => { oiRows += oiRow(r, "Overdue", "#dc2626"); });
-      dueTodayInt.forEach((r) => { oiRows += oiRow(r, "Due Today", "#d97706"); });
-      overdueHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;border-collapse:collapse;">`
+      if (!groupOver) overdueInt.forEach((r) => { oiRows += oiRow(r, "Overdue", "#dc2626"); });
+      if (!groupToday) dueTodayInt.forEach((r) => { oiRows += oiRow(r, "Due Today", "#d97706"); });
+      overdueHtml = !oiRows ? staffHtml : staffHtml + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;border-collapse:collapse;">`
         + `<tr style="background:#f8f9fa;">`
         + `<th style="padding:6px 10px;text-align:left;font-size:11px;color:#666;font-weight:800;">Contact</th>`
         + `<th style="padding:6px 10px;text-align:left;font-size:11px;color:#666;font-weight:800;">Task</th>`
