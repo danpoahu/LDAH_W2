@@ -31420,3 +31420,96 @@ exports.tallyEmailFlyerDissemination = functions.firestore
     }, { merge: true });
     return null;
   });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Staff password reset (2026-10-19). DAN's "Forgot password" link calls this
+// instead of Firebase's built-in email. Firebase's own reset page kept telling
+// Chassidy her link was "used or expired" (Microsoft 365 opens links before the
+// person does). This sends a branded email whose link opens
+// ldahawaii.org/staff-reset/, a page that uses the code ONLY when Save is
+// pressed, so a link scanner cannot use it up.
+//
+// - Only accounts with a userRoles doc (DAN users) get an email. The member
+//   portal keeps Firebase's own reset.
+// - Always answers { ok:true }, so it can't be used to find staff addresses.
+// - At most 3 emails per address per hour (staffResetThrottle/{email}).
+// - Sent straight through Resend, NOT sendEmailViaResend: that helper logs the
+//   full html, and the link must never sit in emailLog. The log copy has the
+//   code removed.
+// ═══════════════════════════════════════════════════════════════════════════
+function _staffResetHtml(first, email, link) {
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const btn = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:16px auto 4px;"><tr><td align="center" bgcolor="#0E7490" style="border-radius:6px;background:#0E7490;"><a href="${esc(link)}" target="_blank" style="display:inline-block;padding:12px 28px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:6px;">Set my new password</a></td></tr></table>`;
+  return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f1f5f9;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1f5f9;"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:10px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">
+<tr><td align="center" style="padding:22px 24px 14px;"><img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai&#699;i" width="150" style="display:block;margin:0 auto;border:0;"></td></tr>
+<tr><td style="background:#0E7490;padding:14px 24px;color:#ffffff;font-size:18px;font-weight:700;">Set a new password</td></tr>
+<tr><td style="padding:22px 28px 8px;color:#1E293B;font-size:15px;line-height:1.6;">
+<p style="margin:0 0 14px;">Aloha${first ? " " + esc(first) : ""},</p>
+<p style="margin:0 0 14px;">Someone asked to reset the password for your LDAH staff account (${esc(email)}). Press the button, type your new password twice, and press <b>Save new password</b>.</p>
+<p style="margin:0 0 6px;">The link works for <b>one hour</b>. Nothing changes until you press Save. If you did not ask for this, ignore this email; your password stays the same.</p>
+${btn}
+<div style="margin:28px 0 8px;padding:14px 18px;background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;"><p style="margin:0;font-size:12px;color:#6b7280;line-height:1.5;">If the button above doesn't work in your email app, copy and paste this link into your browser:</p><p style="margin:10px 0 0;font-size:12px;"><a href="${esc(link)}" style="color:#9ca3af;word-break:break-all;">${esc(link)}</a></p></div>
+<p style="margin:18px 0 20px;font-size:14px;color:#555555;line-height:1.5;">Leadership in Disabilities &amp; Achievement of Hawai&#699;i</p>
+</td></tr></table></td></tr></table></body></html>`;
+}
+
+exports.sendStaffPasswordReset = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 5, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    const email = String((req.body && req.body.email) || "").trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { res.status(400).json({ error: "Enter a valid email address." }); return; }
+    const db = admin.firestore();
+    try {
+      // Throttle per address.
+      const tRef = db.collection("staffResetThrottle").doc(email.replace(/[^a-z0-9@._-]/g, "_"));
+      const now = Date.now();
+      const tSnap = await tRef.get();
+      const recent = ((tSnap.exists && tSnap.data().sentAt) || []).filter((t) => now - t < 3600000);
+      if (recent.length >= 3) { console.warn("staff reset throttled for", email); res.json({ ok: true }); return; }
+
+      // DAN users only.
+      let user = null;
+      try { user = await admin.auth().getUserByEmail(email); } catch (e) { user = null; }
+      const role = user ? await db.collection("userRoles").doc(user.uid).get() : null;
+      if (!user || !role || !role.exists || role.data().isArchived === true) {
+        console.log("staff reset: no DAN account for", email);
+        res.json({ ok: true }); return;
+      }
+      const r = role.data() || {};
+      const first = String(r.displayName || user.displayName || "").trim().split(/\s+/)[0] || "";
+
+      const fbLink = await admin.auth().generatePasswordResetLink(email);
+      const code = new URL(fbLink).searchParams.get("oobCode");
+      if (!code) throw new Error("no reset code");
+      const link = "https://www.ldahawaii.org/staff-reset/?oobCode=" + encodeURIComponent(code) + "&email=" + encodeURIComponent(email);
+
+      const from = String(process.env.SMTP_FROM || "LDAH <registration@ldahawaii.org>").replace(/[\r\n\t]+/g, "").trim();
+      const subject = "Set your new LDAH password";
+      const rr = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + String(process.env.RESEND_API_KEY || "").trim(), "Content-Type": "application/json" },
+        body: JSON.stringify({ from: from.indexOf("<") > -1 ? from : "LDAH <" + from + ">", to: [email], subject, html: _staffResetHtml(first, email, link) }),
+      });
+      const j = await rr.json().catch(() => ({}));
+      await db.collection("emailLog").add({
+        sentAt: admin.firestore.FieldValue.serverTimestamp(), from, to: email, bcc: "", subject,
+        html: _staffResetHtml(first, email, "https://www.ldahawaii.org/staff-reset/?oobCode=[removed]"),
+        type: "staff-password-reset", relatedEventId: "", relatedSignupId: "", relatedContactId: null,
+        recipientName: r.displayName || "", success: rr.ok, error: rr.ok ? null : JSON.stringify(j).slice(0, 300),
+        resendId: j.id || null, pip: false, partnerIsland: "",
+      });
+      await tRef.set({ sentAt: recent.concat([now]) });
+      if (!rr.ok) console.error("staff reset send failed for", email, JSON.stringify(j).slice(0, 200));
+      res.json({ ok: true });
+    } catch (e) {
+      console.error("sendStaffPasswordReset:", e.message);
+      res.status(500).json({ error: "Could not send the email. Try again in a minute." });
+    }
+  });
