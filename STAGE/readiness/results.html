@@ -163,6 +163,9 @@
     <div class="fld"><label for="lPass">Password</label><input type="password" id="lPass" autocomplete="current-password" required></div>
     <button type="submit" class="btn-primary" id="loginBtn">Sign in</button>
     <div id="loginErr" class="err"></div>
+    <!-- Forgot password (2026-10-19): the branded staff reset, same as DAN. -->
+    <p style="text-align:center;margin:14px 0 0;font-size:.95rem;"><a href="#" id="forgotLink" style="color:var(--blue-d);font-weight:600;">Forgot password?</a></p>
+    <div id="forgotMsg" style="text-align:center;font-size:.9rem;color:#475569;margin-top:8px;"></div>
   </form>
   <button type="button" class="installBtn" id="installAppLogin" hidden style="margin-top:14px;width:100%;background:#fff;color:var(--blue);border:2px solid var(--blue);border-radius:10px;padding:11px;font-weight:600;font-size:1rem;">Install Screenings on this device</button>
 </div>
@@ -695,6 +698,21 @@
       fillPickers(); renderList();
     } catch (e) { alert('Could not mark absent: ' + ((e && e.message) || e)); }
   };
+
+  /* Forgot password (2026-10-19): sendStaffPasswordReset emails a branded link
+     to ldahawaii.org/staff-reset/, which only uses it when Save is pressed. */
+  document.getElementById('forgotLink').addEventListener('click', async e => {
+    e.preventDefault();
+    const email = ($('lEmail').value || '').trim(), m = $('forgotMsg');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { m.style.color = '#b45309'; m.textContent = 'Type your email above first, then press Forgot password.'; $('lEmail').focus(); return; }
+    m.style.color = '#475569'; m.textContent = 'Sending…';
+    try {
+      const r = await fetch('https://us-central1-ldah-932d5.cloudfunctions.net/sendStaffPasswordReset', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || 'Could not send the email.');
+      m.style.color = '#16a34a'; m.textContent = 'If ' + email + ' is an LDAH staff account, an email is on its way. Use the newest one within the hour.';
+    } catch (err) { m.style.color = '#b91c1c'; m.textContent = (err && err.message) || 'Could not send the email. Try again in a minute.'; }
+  });
 
   window.saveEntry = async function(sendEmail){
     if(!current) return;

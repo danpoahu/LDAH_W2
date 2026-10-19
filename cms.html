@@ -3488,10 +3488,17 @@
       resultDiv.textContent = 'Sending setup link...';
 
       try {
-        await firebase.auth().sendPasswordResetEmail(email);
+        /* Branded staff reset (2026-10-19): sendStaffPasswordReset emails a link
+           to ldahawaii.org/staff-reset/, used only when Save is pressed. It answers
+           the same way for every address, so "not set up yet" can't be shown here. */
+        const _r = await fetch('https://us-central1-ldah-932d5.cloudfunctions.net/sendStaffPasswordReset', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email })
+        });
+        const _j = await _r.json().catch(() => ({}));
+        if (!_r.ok) throw new Error(_j.error || 'Could not send the email. Try again in a minute.');
         resultDiv.style.background = '#f0fdf4';
         resultDiv.style.color = '#166534';
-        resultDiv.innerHTML = '<b>Check your email!</b> We sent a secure link to <b>' + email + '</b> to set your password.<br><br>After setting your password, click the <b>Open LDAH Dashboard</b> button above to log in.';
+        resultDiv.innerHTML = '<b>Check your email!</b> If <b>' + email + '</b> is an LDAH staff account, we sent a link to set your password. Use the newest email within the hour.<br><br>No email after a few minutes? Your account may not be set up yet. Please contact <b>Rosie</b>.<br><br>After setting your password, click the <b>Open LDAH Dashboard</b> button above to log in.';
       } catch (err) {
         if (err.code === 'auth/user-not-found') {
           resultDiv.style.background = '#fef2f2';
