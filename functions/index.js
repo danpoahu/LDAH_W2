@@ -13717,7 +13717,11 @@ exports.sendScreeningResultsToSchool = functions
       const pdf = String(body.pdfBase64 || "");
       if (!pdf || pdf.length > 14 * 1024 * 1024) { res.status(400).json({ error: "The results PDF is missing or too large." }); return; }
       const items = Array.isArray(body.items) ? body.items.slice(0, 300) : [];
-      if (!items.length) { res.status(400).json({ error: "No children picked." }); return; }
+      // Re-screen list (2026-10-19): the PDF can also list children still to be
+      // screened (names only, no results), so a send with no result children is
+      // allowed when that list is not empty. Those children are never stamped.
+      const rescreenCount = Math.max(0, Math.min(500, Number(body.rescreenCount) || 0));
+      if (!items.length && !rescreenCount) { res.status(400).json({ error: "No children picked." }); return; }
 
       // Re-check every child: right school, results entered, release signed.
       const ok = [];
@@ -13729,17 +13733,20 @@ exports.sendScreeningResultsToSchool = functions
         if (!s.results || !(s.release && s.release.signed)) continue;
         ok.push({ ref: cSnap.ref, screeningId: s.id, child: ((s.child && (s.child.firstName + " " + (s.child.lastName || ""))) || "").trim() });
       }
-      if (!ok.length) { res.status(400).json({ error: "None of the picked children has both results and a signed release." }); return; }
+      if (!ok.length && !rescreenCount) { res.status(400).json({ error: "None of the picked children has both results and a signed release." }); return; }
 
       const esc = _emailEsc;
       const classroom = String(body.classroom || "").trim();
       const filename = String(body.filename || "screening-results.pdf").replace(/[^A-Za-z0-9._-]+/g, "-").slice(0, 100);
       const html = '<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;color:#1E293B;line-height:1.6;">' +
         '<p style="margin:0 0 14px;">Aloha ' + esc(toName) + ',</p>' +
-        '<p style="margin:0 0 14px;">Attached are the vision and hearing screening results for ' + ok.length + ' ' + (ok.length === 1 ? "child" : "children") +
+        (ok.length ? '<p style="margin:0 0 14px;">Attached are the vision and hearing screening results for ' + ok.length + ' ' + (ok.length === 1 ? "child" : "children") +
         ' at ' + esc(location) + (classroom ? " (" + esc(classroom) + " class)" : "") +
-        ' whose parent or guardian signed the Consent to Release and Obtain Information naming your school.</p>' +
-        '<p style="margin:0 0 14px;">Please keep this document confidential. Any child marked as not passing should see their doctor for a full check; we are following up with those families directly.</p>' +
+        ' whose parent or guardian signed the Consent to Release and Obtain Information naming your school.</p>' : '') +
+        (rescreenCount ? '<p style="margin:0 0 14px;">' + (ok.length ? 'The PDF also lists ' : 'Attached is a list of ') + rescreenCount + ' ' + (rescreenCount === 1 ? "child" : "children") +
+          (ok.length ? '' : ' at ' + esc(location) + (classroom ? " (" + esc(classroom) + " class)" : "")) +
+          ' who were absent or not screened on the day, so we can plan a re-screen day together. No results are shared for them.</p>' : '') +
+        (ok.length ? '<p style="margin:0 0 14px;">Please keep this document confidential. Any child marked as not passing should see their doctor for a full check; we are following up with those families directly.</p>' : '') +
         _srpSignOffHtml() + '</div>';
       await sendEmailViaResend({
         from: lifecycleFromAddress(), to: toEmail, cc: staff.email || undefined,
