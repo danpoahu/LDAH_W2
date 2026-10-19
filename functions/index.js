@@ -22415,6 +22415,17 @@ function _wpPackingHtml(ev, f) {
   if (f.eqCord) kit.push("Power cord");
   if (f.eqStrip) kit.push("Power strip");
   if (f.eqOther) kit.push(String(f.eqOther));
+  // Screening equipment (Screening Activity Form, -Int v153.48). Staff went to a
+  // screening without some of it in Oct 2026, so it goes on the checklist too.
+  const scr = (f.screening && typeof f.screening === "object") ? f.screening : null;
+  if (scr) {
+    if (scr.eqPlusOptix) kit.push("Plus Optix");
+    if (scr.eqEroScan) kit.push("EroScan Pro");
+    if (scr.eqTitan) kit.push("Titan");
+    if (scr.eqLea) kit.push("Lea Symbols");
+    if (scr.eqMobile) kit.push("Mobile Screening Unit");
+    if (scr.eqOther) kit.push(String(scr.eqOther));
+  }
   const kitHtml = kit.length
     ? kit.map((k) => `<li style="margin:5px 0;font-size:15px;">${esc(k)}</li>`).join("")
     : `<li style="margin:5px 0;font-size:15px;color:#8a939a;">Nothing was ticked on the form.</li>`;
@@ -22431,6 +22442,16 @@ function _wpPackingHtml(ev, f) {
       const bits = [r.day, r.date, [r.start, r.end].filter(Boolean).join("–")].filter(Boolean).join(" · ");
       return `<li style="margin:5px 0;font-size:15px;"><b>${esc(r.workshop)}</b>${bits ? ` — ${esc(bits)}` : ""}${r.trainer ? ` · ${esc(r.trainer)}` : ""}</li>`;
     }).join("");
+
+  const screenings = (scr && Array.isArray(scr.activities) ? scr.activities : [])
+    .filter((r) => r && r.activity)
+    .map((r) => {
+      const bits = [r.day, r.date, [r.start, r.end].filter(Boolean).join("–")].filter(Boolean).join(" · ");
+      return `<li style="margin:5px 0;font-size:15px;"><b>${esc(r.activity)}</b>${bits ? ` — ${esc(bits)}` : ""}${r.trainer ? ` · ${esc(r.trainer)}` : ""}</li>`;
+    }).join("");
+  const milestones = !scr ? "" : (scr.milestones === "yes"
+    ? "Yes" + (scr.milestonesBy === "ldah" ? " — LDAH" : (scr.milestonesBy === "other" ? " — another agency" : ""))
+    : (scr.milestones === "no" ? "No" : ""));
 
   const travel = [];
   if (f.airlineTravel === "yes") travel.push("Airline travel — booked by Admin");
@@ -22450,6 +22471,10 @@ function _wpPackingHtml(ev, f) {
 
     ${sessions ? `<h3 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.06em;color:#1490b4;margin:20px 0 6px;">Sessions</h3>
     <ul style="margin:0 0 4px 20px;padding:0;">${sessions}</ul>` : ""}
+
+    ${screenings ? `<h3 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.06em;color:#1490b4;margin:20px 0 6px;">Screenings</h3>
+    <ul style="margin:0 0 4px 20px;padding:0;">${screenings}</ul>` : ""}
+    ${milestones ? `<table style="border-collapse:collapse;margin:0 0 4px;">${row("Developmental Milestones Training", milestones)}</table>` : ""}
 
     <h3 style="font-size:.95rem;text-transform:uppercase;letter-spacing:.06em;color:#1490b4;margin:20px 0 6px;">Where</h3>
     <table style="border-collapse:collapse;margin:0 0 4px;">
@@ -22530,6 +22555,9 @@ exports.sendWorkshopPackingLists = functions
       // Everyone going: the trainers named on the rows, plus the second person.
       const names = new Set();
       (Array.isArray(f.rows) ? f.rows : []).forEach((r) => { if (r && r.trainer) names.add(String(r.trainer).trim()); });
+      // Each screening activity can have its own trainer (hearing vs vision).
+      ((f.screening && Array.isArray(f.screening.activities)) ? f.screening.activities : [])
+        .forEach((r) => { if (r && r.trainer) names.add(String(r.trainer).trim()); });
       if (f.secondPerson) names.add(String(f.secondPerson).trim());
 
       const to = [];
@@ -22565,6 +22593,7 @@ exports.sendWorkshopPackingLists = functions
         try {
           const escH = (x) => String(x == null ? "" : x).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
           const presenters = [...new Set((Array.isArray(f.rows) ? f.rows : [])
+            .concat((f.screening && Array.isArray(f.screening.activities)) ? f.screening.activities : [])
             .map((r) => (r && r.trainer ? String(r.trainer).trim() : "")).filter(Boolean))];
           const secondP = f.secondPerson ? String(f.secondPerson).trim() : "";
           const li = (presenters.length ? "<li><b>Presenter" + (presenters.length > 1 ? "s" : "") + ":</b> " + presenters.map(escH).join(", ") + "</li>" : "")
