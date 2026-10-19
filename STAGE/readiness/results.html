@@ -62,6 +62,11 @@
   .card .act.edit { background:#fff; color:var(--blue-d); border:2px solid var(--blue); }
   /* One screening done, one to go (2026-10-05): orange so it's quick to spot. */
   .card .act.half { background:#fff; color:#EA580C; border:2px solid #EA580C; }
+  /* Absent, one button per part (2026-10-19): vision and hearing are often done on different days. */
+  .badge.b-abs { background:#E2E8F0; color:#475569; }
+  .absrow { display:flex; gap:8px; margin:-4px 0 12px; }
+  .absrow button { flex:1; padding:9px 6px; border-radius:10px; border:1.5px dashed #94A3B8; background:#fff; color:#475569; font-weight:700; font-size:.88rem; }
+  .absrow button.on { border-style:solid; border-color:#64748B; background:#F1F5F9; }
 
   /* Login */
   .login { max-width:400px; margin:0 auto; padding:calc(var(--safe-top) + 40px) 22px 40px; }
@@ -252,6 +257,25 @@
     return { vision: pair(v.distance) ? 'done' : 'todo', hearing: hearing ? 'done' : 'todo' };
   }
   function isComplete(s){ const p = screeningParts(s); return p.vision === 'done' && p.hearing === 'done'; }
+  /* Absent (2026-10-19). Kept on the screening as absent.{vision,hearing} =
+     'YYYY-MM-DD' (+ visionBy / hearingBy), NOT in results, so the dashboard
+     never mistakes an absent child for one with results. A part marked absent
+     on the day being screened counts as handled for that day only; on any
+     other day the child is to do again. Saving that part's results clears it. */
+  function partsWithAbsent(results, absent, day){
+    const p = screeningParts(results), a = absent || {};
+    ['vision','hearing'].forEach(k => { if (p[k] !== 'done' && a[k]) p[k] = (a[k] === day) ? 'absentToday' : 'absent'; });
+    return p;
+  }
+  function isHandled(results, absent, day){
+    const p = partsWithAbsent(results, absent, day);
+    return ['vision','hearing'].every(k => p[k] === 'done' || p[k] === 'absentToday');
+  }
+  function clearAbsent(absent, secs){
+    const a = Object.assign({}, absent || {});
+    Object.keys(secs || {}).forEach(k => { if (a[k]) { a[k] = ''; a[k+'By'] = ''; } });
+    return a;
+  }
   /* Merge one screener's changes into the latest saved results.
      patch.fields = { 'hearing.oae.right':'Pass', 'site':'…', … } — ONLY the
      fields this screener changed. Everything else in base is kept. A section
@@ -333,7 +357,7 @@
       list.forEach(s => { if(!s) return; rows.push({ contactId:doc.id, screeningId:s.id||'', child:s.child||{},
         childName:(((s.child&&s.child.firstName)||'')+' '+((s.child&&s.child.lastName)||'')).trim(),
         parentName:c.displayName||(((c.firstName||'')+' '+(c.lastName||'')).trim()), email:c.email||'',
-        signedAt:s.signedAt, results:s.results||null, resultsSent:!!(s.results&&s.results.resultsSentAt),
+        signedAt:s.signedAt, results:s.results||null, absent:s.absent||{}, resultsSent:!!(s.results&&s.results.resultsSentAt),
         location:s.location||'', classroom:s.classroom||'', printouts:Array.isArray(s.printouts)?s.printouts:[] }); });
     });
   }
@@ -361,7 +385,7 @@
   try { pick = Object.assign(pick, JSON.parse(localStorage.getItem('srpPick')||'{}')); } catch(e){}
   function savePick(){ try { localStorage.setItem('srpPick', JSON.stringify(pick)); } catch(e){} }
   function fillPickers(){
-    const locs = {}; rows.forEach(r=>{ if(r.location){ const L = locs[r.location] = locs[r.location] || { n:0, pend:0, cls:{} }; L.n++; if(!isComplete(r.results)) L.pend++; if(r.classroom) L.cls[r.classroom]=(L.cls[r.classroom]||0)+1; } });
+    const locs = {}; rows.forEach(r=>{ if(r.location){ const L = locs[r.location] = locs[r.location] || { n:0, pend:0, cls:{} }; L.n++; if(!isHandled(r.results, r.absent, screenDay())) L.pend++; if(r.classroom) L.cls[r.classroom]=(L.cls[r.classroom]||0)+1; } });
     if (pick.loc && !locs[pick.loc]) { pick.loc=''; pick.cls=''; }
     const ls = $('fLoc'); if (ls) ls.innerHTML = '<option value="">Signed today / all</option>' + Object.keys(locs).sort().map(k=>'<option value="'+esc(k)+'"'+(k===pick.loc?' selected':'')+'>'+esc(k)+' ('+locs[k].pend+' to screen)</option>').join('');
     const cl = pick.loc && locs[pick.loc] ? Object.keys(locs[pick.loc].cls).sort() : [];
@@ -371,7 +395,8 @@
   }
   window.setLoc = function(v){ pick.loc=v||''; pick.cls=''; savePick(); fillPickers(); renderList(); };
   window.setClass = function(v){ pick.cls=v||''; savePick(); renderList(); };
-  window.setDate = function(v){ pick.date=v||''; savePick(); };
+  window.setDate = function(v){ pick.date=v||''; savePick(); fillPickers(); renderList(); };
+  function screenDay(){ const fd = $('fDate'); return (fd && fd.value) || pick.date || todayKey(); }
 
   function renderList(){
     const byLoc = !!pick.loc;
@@ -380,29 +405,37 @@
                      : (filter==='today' ? rows.filter(r=>isToday(r.signedAt)) : rows.slice());
     // Not complete (vision or hearing still to do) float to the TOP so Chassidy
     // sees who's next; within each group, most recently signed first.
+    const day = screenDay();
     list.sort((a,b)=>{
-      const ap=isComplete(a.results)?1:0, bp=isComplete(b.results)?1:0;
+      const ap=isHandled(a.results,a.absent,day)?1:0, bp=isHandled(b.results,b.absent,day)?1:0;
       if(ap!==bp) return ap-bp;
       if(byLoc){ const c=(a.classroom||'').localeCompare(b.classroom||''); if(c) return c; return (a.childName||'').localeCompare(b.childName||''); }
       return ((b.signedAt&&b.signedAt.toMillis)?b.signedAt.toMillis():0)-((a.signedAt&&a.signedAt.toMillis)?a.signedAt.toMillis():0);
     });
     $('count').textContent = byLoc
-      ? list.length + (list.length===1?' child':' children') + ' \u00b7 ' + list.filter(r=>!isComplete(r.results)).length + ' to screen'
+      ? list.length + (list.length===1?' child':' children') + ' \u00b7 ' + list.filter(r=>!isHandled(r.results,r.absent,day)).length + ' to screen'
       : list.length + (list.length===1?' screening':' screenings') + (filter==='today'?' today':'');
     if (!list.length){ $('list').innerHTML = '<div class="empty">No screenings'+(filter==='today'?' today yet':'')+'.</div>'; return; }
     let h='';
     list.forEach((r,i)=>{
       const when = (r.signedAt&&r.signedAt.toDate)?r.signedAt.toDate().toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
       // A child stays "to screen" until BOTH parts are done (2026-10-05).
-      const done = isComplete(r.results), parts = screeningParts(r.results);
-      const partBadge = (lbl, st) => st==='done' ? '<span class="badge b-done">'+lbl+' ✓</span>' : '<span class="badge b-pend">'+lbl+' to do</span>';
+      const done = isComplete(r.results), parts = partsWithAbsent(r.results, r.absent, day);
+      const absDay = k => { const v=(r.absent||{})[k]; if(!v) return ''; const d=new Date(v+'T12:00:00'); return isNaN(d)?v:d.toLocaleDateString('en-US',{month:'short',day:'numeric'}); };
+      const partBadge = (lbl, st) => st==='done' ? '<span class="badge b-done">'+lbl+' ✓</span>'
+        : (st==='absentToday'||st==='absent') ? '<span class="badge b-abs">'+lbl+' absent '+esc(absDay(lbl.toLowerCase()))+'</span>'
+        : '<span class="badge b-pend">'+lbl+' to do</span>';
+      const absBtn = (k, lbl) => parts[k]==='done' ? '' : (parts[k]==='absentToday'
+        ? '<button class="on" onclick="markAbsent('+i+',\''+k+'\',false)">Undo '+lbl.toLowerCase()+' absent</button>'
+        : '<button onclick="markAbsent('+i+',\''+k+'\',true)">'+lbl+' absent</button>');
+      const absRow = done ? '' : '<div class="absrow">'+absBtn('vision','Vision')+absBtn('hearing','Hearing')+'</div>';
       const resBadge = done ? '<span class="badge b-done">Results '+(r.resultsSent?'sent':'done')+'</span>'
         : partBadge('Vision', parts.vision) + partBadge('Hearing', parts.hearing) + (r.resultsSent?'<span class="badge b-done">Results sent</span>':'');
       h += '<div class="card">'+
         '<div class="child">'+esc(r.childName||'Child')+'</div>'+
         '<div class="parent">'+esc(r.parentName||'')+'</div>'+
         '<div class="when">Signed '+esc(when)+'</div>'+
-        '<div class="badges">'+(r.classroom?'<span class="badge b-class">'+esc(r.classroom)+'</span>':'')+'<span class="badge b-consent">Consent ✓</span>'+resBadge+'</div>'+
+        '<div class="badges">'+(r.classroom?'<span class="badge b-class">'+esc(r.classroom)+'</span>':'')+'<span class="badge b-consent">Consent ✓</span>'+resBadge+'</div>'+absRow+
         '<button class="act'+(done?' edit':((parts.vision==='done')!==(parts.hearing==='done')?' half':''))+'" onclick="openEntry('+i+')">'+(done?'Edit results':'Add results')+'</button>'+
       '</div>';
     });
@@ -639,6 +672,30 @@
 
   function val(id){ const e=$(id); return e?(e.value||'').trim():''; }
 
+  /* Mark one part absent for the screening day, or undo it (2026-10-19). A
+     transaction that touches only absent.<part>, so it can never undo results
+     another station just saved. */
+  window.markAbsent = async function(i, part, on){
+    const r = (window._view||[])[i]; if (!r) return;
+    const day = screenDay(), u = auth.currentUser || {};
+    const ref = db.collection('contacts').doc(r.contactId);
+    try {
+      const absent = await db.runTransaction(async tx => {
+        const snap = await tx.get(ref);
+        const out = applyToScreening(((snap.data()||{}).screenings)||[], r.screeningId, s => {
+          const a = Object.assign({}, s.absent || {});
+          a[part] = on ? day : ''; a[part+'By'] = on ? (u.displayName || u.email || '') : '';
+          return Object.assign({}, s, { absent: a });
+        });
+        if (!out.found) throw new Error('This child\u2019s screening was not found.');
+        tx.update(ref, { screenings: out.list });
+        return out.item.absent;
+      });
+      rows.forEach(x => { if (x.contactId===r.contactId && x.screeningId===r.screeningId) x.absent = absent; });
+      fillPickers(); renderList();
+    } catch (e) { alert('Could not mark absent: ' + ((e && e.message) || e)); }
+  };
+
   window.saveEntry = async function(sendEmail){
     if(!current) return;
     const cur = current;
@@ -661,7 +718,11 @@
         const doWrite = db.runTransaction(async tx => {
           const snap = await tx.get(ref);
           if (!snap.exists) throw new Error('This contact was not found');
-          const out = applyToScreening(((snap.data()||{}).screenings)||[], cur.screeningId, s => Object.assign({}, s, { results: mergeResults(s.results, patch) }));
+          const secs = {}; Object.keys(patch.fields).forEach(k => { const sec = k.split('.')[0]; if (sec==='vision'||sec==='hearing') secs[sec] = 1; });
+          const out = applyToScreening(((snap.data()||{}).screenings)||[], cur.screeningId, s => {
+            const nx = Object.assign({}, s, { results: mergeResults(s.results, patch) });
+            if (s.absent) nx.absent = clearAbsent(s.absent, secs);   // results entered = no longer absent for that part
+            return nx; });
           if (!out.found) throw new Error('This child\u2019s screening was not found');
           tx.update(ref, { screenings: out.list });
           return out.item.results;
@@ -674,7 +735,8 @@
         // listener until the server confirms, and a phone's listener can stall
         // in the background, so reopening the child showed the OLD results
         // although they were saved. Update this page's own copy straight away.
-        rows.forEach(r => { if (r.contactId===cur.contactId && r.screeningId===cur.screeningId){ r.results = merged; r.resultsSent = !!(merged && merged.resultsSentAt); } });
+        const _secs = {}; Object.keys(patch.fields).forEach(k => { const sec = k.split('.')[0]; if (sec==='vision'||sec==='hearing') _secs[sec] = 1; });
+        rows.forEach(r => { if (r.contactId===cur.contactId && r.screeningId===cur.screeningId){ r.results = merged; r.resultsSent = !!(merged && merged.resultsSentAt); r.absent = clearAbsent(r.absent, _secs); } });
         try { fillPickers(); renderList(); } catch(_){}
       }
       // Remember Site + Screened by as today's defaults so they auto-fill on the
