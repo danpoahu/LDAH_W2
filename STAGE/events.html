@@ -3060,6 +3060,11 @@
         </div>
       `;
 
+      /* Double-click guard (2026-10-20): the seat check above can take ~5 s, so a
+         second tap on Sign Up opened a SECOND form under the first. Families filled
+         the top one and Submit read the empty one ("Please enter your name").
+         Remove any earlier copy right before adding this one. */
+      document.querySelectorAll('#signupModal').forEach(function (m) { m.remove(); });
       document.body.insertAdjacentHTML('beforeend', modalHTML);
 
       /* 🔴 The form opens with #inlineHearAbout REQUIRED, EMPTY and inside
@@ -4938,6 +4943,11 @@
           </div>
         </div>
       `;
+      /* Double-click guard (2026-10-20): the seat check above can take ~5 s, so a
+         second tap on Sign Up opened a SECOND form under the first. Families filled
+         the top one and Submit read the empty one ("Please enter your name").
+         Remove any earlier copy right before adding this one. */
+      document.querySelectorAll('#signupModal').forEach(function (m) { m.remove(); });
       document.body.insertAdjacentHTML('beforeend', modalHTML);
 
       /* 🔴 The form opens with #inlineHearAbout REQUIRED, EMPTY and inside
