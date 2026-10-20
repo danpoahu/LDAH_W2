@@ -2,7 +2,7 @@
   "name": "ldah-cms-helper",
   "description": "LDAH CMS AI Help Chat",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "main": "index.js",
   "dependencies": {
