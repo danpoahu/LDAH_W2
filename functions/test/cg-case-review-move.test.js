@@ -3,6 +3,17 @@
 // and Sierra Rehrer moved 9-14 -> 9-21 and Chassidy never heard).
 // No Firestore, no API calls:  node functions/test/cg-case-review-move.test.js
 process.env.GCLOUD_PROJECT = process.env.GCLOUD_PROJECT || 'ldah-932d5';
+// Pin "now" to 2026-09-01 HST before index.js loads. The recurring-session projector
+// (buildSessionsForRecurringEvent) only projects from the REAL today forward, so
+// once the calendar passed these September fixture dates the sessions vanished
+// and the assertions below failed for no reason in the code under test.
+const FIXED_NOW = Date.parse('2026-09-01T08:00:00-10:00');
+const RealDate = Date;
+global.Date = class extends RealDate {
+  constructor(...a) { if (a.length === 0) super(FIXED_NOW); else super(...a); }
+  static now() { return FIXED_NOW; }
+  static [Symbol.hasInstance](x) { return x instanceof RealDate; }
+};
 const { __test } = require('../index.js');
 const maybe = __test._cgMaybeGenerateCaseReview;
 const fingerprint = __test._cgCaseReviewFingerprint;

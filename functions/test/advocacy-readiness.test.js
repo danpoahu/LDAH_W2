@@ -113,8 +113,10 @@ console.log('\ncertification');
   ];
   const progress = { lessons: { b1: D(2026, 9, 1), b2: D(2026, 9, 2), b3: D(2026, 8, 1) } };
   const r = R.applyRules({ items, proposal: { entries: [] }, state: {}, progress });
-  eq('tier +1, lessons 0 (one line per tier)', r.entries.map((e) => [e.points, e.text]),
-    [[0, 'Completed 2 Bronze lessons (3/6 done).'], [1, 'Earned the Bronze certificate.']]);
+  // Bronze is worth 0.5 since d6addf6 (2026-10-01: Bronze/Silver 0.5, Gold 1).
+  eq('bronze tier +0.5, lessons 0 (one line per tier)', r.entries.map((e) => [e.points, e.text]),
+    [[0, 'Completed 2 Bronze lessons (3/6 done).'], [R.READINESS_RULES.certTier.bronze, 'Earned the Bronze certificate.']]);
+  eq('bronze certificate points are 0.5', R.READINESS_RULES.certTier.bronze, 0.5);
   eq('certSummary', R.certSummary(progress, { }), { bronze: '3/6', silver: '0/6', gold: '0/6' });
   eq('certSummary done', R.certSummary({ tiers: { silver: { completedAt: ts(D(2026, 9, 1)) } } }, { bronze: {} }), { bronze: 'done', silver: 'done', gold: '0/6' });
 }
