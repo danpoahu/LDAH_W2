@@ -30,7 +30,7 @@
 // still edit from the full Service Log on their documents page.
 // ═══════════════════════════════════════════════════════════════════════════
 
-const functions = require("firebase-functions");
+const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 const V = require("./volunteerDocuments")._pure;

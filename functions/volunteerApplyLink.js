@@ -31,7 +31,7 @@
 //     SERVER ONLY rate-limit counters for emailMyApplicationLink. Hashes only.
 // ═══════════════════════════════════════════════════════════════════════════
 
-const functions = require("firebase-functions");
+const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 

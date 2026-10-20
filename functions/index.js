@@ -1,4 +1,4 @@
-const functions = require("firebase-functions");
+const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 const Anthropic = require("@anthropic-ai/sdk");
 const { FLYER_TOOL_SCHEMA, sessionsToSignupDates } = require("./flyerExtraction");

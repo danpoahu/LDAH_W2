@@ -64,7 +64,7 @@
 //   • Never logs error cause.message (it can carry the API key); code/errno only.
 // ═══════════════════════════════════════════════════════════════════════════
 
-const functions = require("firebase-functions");
+const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 const Anthropic = require("@anthropic-ai/sdk");
 
