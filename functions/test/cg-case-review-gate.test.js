@@ -20,14 +20,14 @@ function checkTrue(name, cond) { if (cond) { pass++; return; } fail++; console.e
 // ── the presenter gate ──────────────────────────────────────────────────────
 // Fails CLOSED on every degenerate input: an unset flag must mean nobody's
 // records go anywhere, not everybody's.
-const THREE = ['uidRosie', 'uidNoe', 'uidChassidy'];
-check('a presenter on the list is allowed', allowed(THREE, 'uidNoe'), true);
+const THREE = ['uidStaffC', 'uidPresenterA', 'uidPresenterB'];
+check('a presenter on the list is allowed', allowed(THREE, 'uidPresenterA'), true);
 check('a presenter not on the list is not', allowed(THREE, 'uidLeilani'), false);
 check('an unassigned presenter is not', allowed(THREE, ''), false);
 check('a null presenter is not', allowed(THREE, null), false);
-check('an unset roster allows nobody', allowed(undefined, 'uidNoe'), false);
-check('an empty roster allows nobody', allowed([], 'uidNoe'), false);
-check('a non-array roster allows nobody', allowed('uidNoe', 'uidNoe'), false);
+check('an unset roster allows nobody', allowed(undefined, 'uidPresenterA'), false);
+check('an empty roster allows nobody', allowed([], 'uidPresenterA'), false);
+check('a non-array roster allows nobody', allowed('uidPresenterA', 'uidPresenterA'), false);
 
 // ── the fingerprint ─────────────────────────────────────────────────────────
 // Decides whether we spend money re-reading a file we have already read.

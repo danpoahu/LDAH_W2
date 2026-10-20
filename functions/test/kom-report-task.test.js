@@ -1,4 +1,4 @@
-// The monthly "file the Ke Ola Mamo report" task for Chassidy.
+// The monthly "file the Ke Ola Mamo report" task for the program director.
 //   node functions/test/kom-report-task.test.js
 //
 // A month's figures are only final once the month has closed, so the task lands on

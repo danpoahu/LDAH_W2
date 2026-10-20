@@ -26,10 +26,10 @@ const build = __test._buildScreeningReferralIntroHtml;
 if (typeof build === 'function') {
   const html = build({ parentName: 'A Parent', childName: 'A Child', screeningType: 'vision',
     screeningDate: '2026-09-19', schoolName: 'A School',
-    signerName: 'Chassidy Kruse', signerTitle: 'Director', signerEmail: 'ckruse@ldahawaii.org' });
+    signerName: 'Signer Name', signerTitle: 'Director', signerEmail: 'signer@example.org' });
   // Since 2026-10-06 the letter is signed by the team: no person, title or email.
   check('letter is signed by the team', html.includes('The School Readiness Project Team'), true);
-  check('letter carries no signer name', html.includes('Chassidy Kruse'), false);
+  check('letter carries no signer name', html.includes('Signer Name'), false);
   check('letter carries no signer title', html.includes('Director'), false);
   check('letter carries no email address', /mailto:|@/.test(html), false);
   check('"nothing you need to do" paragraph removed', html.includes('There is nothing you need'), false);

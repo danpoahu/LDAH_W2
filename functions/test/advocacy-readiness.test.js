@@ -162,9 +162,9 @@ eq('stamp parses to end of minute HST', R.parseNoteStamp('Sep 3, 2026 10:15 AM')
 eq('PM stamp', R.parseNoteStamp('Sep 3, 2026 02:05 PM'), Date.UTC(2026, 8, 3, 14, 5, 59, 999) + HST);
 {
   const created = D(2026, 8, 20);
-  const notes = 'Intake: parent new to IEPs.\n---\n[Chassidy K — Sep 3, 2026 10:15 AM]\nMom emailed teacher herself.\n---\n[Noe D — garbled]\nSecond append.';
+  const notes = 'Intake: parent new to IEPs.\n---\n[Staff A — Sep 3, 2026 10:15 AM]\nMom emailed teacher herself.\n---\n[Staff B — garbled]\nSecond append.';
   const b = R.parseNoteBlocks(notes, created);
-  eq('three blocks', b.map((x) => [x.index, x.who, x.text]), [[0, '', 'Intake: parent new to IEPs.'], [1, 'Chassidy K', 'Mom emailed teacher herself.'], [2, 'Noe D', 'Second append.']]);
+  eq('three blocks', b.map((x) => [x.index, x.who, x.text]), [[0, '', 'Intake: parent new to IEPs.'], [1, 'Staff A', 'Mom emailed teacher herself.'], [2, 'Staff B', 'Second append.']]);
   eq('unparseable stamp inherits previous date', b[2].at, b[1].at);
 }
 

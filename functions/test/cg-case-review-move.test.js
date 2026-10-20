@@ -1,6 +1,6 @@
 // A family that MOVES session with unchanged documents keeps its review, but
-// the new session's presenter must still get a task (2026-09-19: Rodlyn Muro
-// and Sierra Rehrer moved 9-14 -> 9-21 and Chassidy never heard).
+// the new session's presenter must still get a task (2026-09-19: two parents
+// moved 9-14 -> 9-21 and the new presenter never heard).
 // No Firestore, no API calls:  node functions/test/cg-case-review-move.test.js
 process.env.GCLOUD_PROJECT = process.env.GCLOUD_PROJECT || 'ldah-932d5';
 // Pin "now" to 2026-09-01 HST before index.js loads. The recurring-session projector
@@ -28,7 +28,7 @@ function fakeDb(existingTasks) {
   const added = [];
   const db = {
     added,
-    doc: () => ({ get: async () => ({ data: () => ({ cgCaseReviewEnabled: true, cgCaseReviewPresenterUids: ['uidNoe', 'uidChassidy'] }) }) }),
+    doc: () => ({ get: async () => ({ data: () => ({ cgCaseReviewEnabled: true, cgCaseReviewPresenterUids: ['uidPresenterA', 'uidPresenterB'] }) }) }),
     collection: (name) => {
       if (name === 'interactions') {
         const filters = {};
@@ -43,7 +43,7 @@ function fakeDb(existingTasks) {
         };
         return q;
       }
-      if (name === 'userRoles') return { doc: (uid) => ({ get: async () => ({ data: () => ({ displayName: uid === 'uidChassidy' ? 'Chassidy Kruse' : 'Noelani' }) }) }) };
+      if (name === 'userRoles') return { doc: (uid) => ({ get: async () => ({ data: () => ({ displayName: uid === 'uidPresenterB' ? 'Presenter B' : 'Presenter A' }) }) }) };
       throw new Error('unexpected collection ' + name);
     },
   };
@@ -53,7 +53,7 @@ function fakeDb(existingTasks) {
 const ts = (ms) => ({ toMillis: () => ms });
 const RAW21 = '2026-09-21|All Islands Virtual – Zoom Meeting|3:00 PM – 5:00 PM';
 const signup = {
-  name: 'Rodlyn Muro', linkedContactId: 'c1', status: 'confirmed',
+  name: 'Parent One', linkedContactId: 'c1', status: 'confirmed',
   selectedSessions: [RAW21],
   connectGenDocuments: { iep: [{ storagePath: 'a/iep.pdf', sizeBytes: 1 }], evaluation: [{ storagePath: 'a/ev.pdf', sizeBytes: 2 }] },
   parentWorksheet: { concerns: [{ a: 'x', b: 'y', c: 'z', d: 'n/a', e: 'n/a' }], lastEditedAt: ts(5) },
@@ -63,8 +63,8 @@ const event = {
   zoomMode: 'program',
   schedules: [{ location: 'All Islands Virtual', venue: 'Zoom Meeting', frequency: 'weekly', dayOfWeek: '1', startTime: '15:00', endTime: '17:00', id: 'sch_v' }],
   sessionSummaries: {
-    '2026-09-14|All Islands Virtual|15:00-17:00': { presenterUid: 'uidNoe' },
-    '2026-09-21|All Islands Virtual|15:00-17:00': { presenterUid: 'uidChassidy' },
+    '2026-09-14|All Islands Virtual|15:00-17:00': { presenterUid: 'uidPresenterA' },
+    '2026-09-21|All Islands Virtual|15:00-17:00': { presenterUid: 'uidPresenterB' },
   },
 };
 const signupRef = { path: 'recurringEvents/E/signups/S', set: async () => {} };
@@ -75,7 +75,7 @@ const signupRef = { path: 'recurringEvents/E/signups/S', set: async () => {} };
   let r = await maybe({ db, collection: 'recurringEvents', eventId: 'E', signupRef, signup, event, reason: 'sweep' });
   check('unchanged documents do not regenerate', r, false);
   check('the new session gets exactly one task', db.added.length, 1);
-  check('...owned by the new presenter', db.added[0] && db.added[0].ownerUid, 'uidChassidy');
+  check('...owned by the new presenter', db.added[0] && db.added[0].ownerUid, 'uidPresenterB');
   check('...keyed to the new session', db.added[0] && db.added[0].cgCaseReviewSessionKey, '2026-09-21');
 
   // Next day's sweep: task already there -> nothing new.

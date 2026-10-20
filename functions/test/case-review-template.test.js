@@ -6,7 +6,7 @@
 // eyeballing:
 //   CASE_REVIEW_OUT_DIR=/tmp node functions/test/case-review-template.test.js
 //
-// What this guards. Part 1 IS Rosie's paper form, and the client approved a
+// What this guards. Part 1 IS the program manager's paper form, and the client approved a
 // specific grid: six boxes across the top, four assessment sub-rows in a fixed
 // order, a numbered follow-up column. Those are not decoration — a consultant
 // reads across the row. So the structural assertions are the point, alongside
@@ -234,7 +234,7 @@ const redacted = renderCaseReviewHtml(redactedData);
 }
 
 // ── The six boxes across the top of the form ────────────────────────────────
-// Rosie reads these left to right. Losing one loses a whole field of the paper
+// Staff read these left to right. Losing one loses a whole field of the paper
 // form, so the count is asserted as well as the labels.
 {
   const strip = full.split('<table class="strip">')[1].split('</table>')[0];

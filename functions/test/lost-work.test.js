@@ -11,11 +11,11 @@ const { __test } = require('../index.js');
 const cl = __test._lostWorkReason;
 
 const ENV = {
-  validUids: new Set(['uidNoe', 'uidDan', 'uidMack']),
+  validUids: new Set(['uidStaffA', 'uidDan', 'uidStaffB']),
   archivedUids: new Set(['uidGone']),
   knownContactIds: new Set(['c1', 'c2']),
 };
-const base = { status: 'Open', ownerUid: 'uidNoe', followUpDate: '2026-09-21', contactId: 'c1' };
+const base = { status: 'Open', ownerUid: 'uidStaffA', followUpDate: '2026-09-21', contactId: 'c1' };
 const T = (o) => cl(Object.assign({}, base, o), ENV);
 
 let pass = 0, fail = 0;
@@ -29,7 +29,7 @@ check('closed with no owner', T({ status: 'Closed', ownerUid: '' }), null);
 check('closed with no date', T({ status: 'Closed', followUpDate: '' }), null);
 
 // THE EVELYN CASE: a real task, named owner, but no uid — invisible to everyone.
-check('open, no ownerUid', T({ ownerUid: '', owner: 'Noelani Dela Vega' }), 'no-owner');
+check('open, no ownerUid', T({ ownerUid: '', owner: 'Staff A' }), 'no-owner');
 
 // ...but a kiosk consent log is SUPPOSED to be ownerless. Never report it.
 check('kiosk consent log', T({ ownerUid: '', source: 'readiness-kiosk' }), null);
