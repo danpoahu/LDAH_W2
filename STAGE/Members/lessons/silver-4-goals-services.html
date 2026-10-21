@@ -1,0 +1,336 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Silver Lesson 4: Goals, Accommodations and Services</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="deck-base.css">
+<link rel="stylesheet" href="lesson-theme.css?v=1">
+<style>
+/* s4- = this deck only */
+.cover h1{width:820px}
+.s4-in{opacity:0;transform:translateY(14px);transition:opacity .45s,transform .45s,border-color .4s,box-shadow .4s}
+.s4-in.on{opacity:1;transform:none}
+
+/* scene: evaluation -> plan */
+.s4-eval{position:absolute;left:90px;top:140px;width:650px;height:84px;display:flex;align-items:center;gap:16px;background:#fff;border:2px solid var(--line);border-radius:16px;padding:0 22px;box-shadow:0 10px 24px rgba(15,23,42,.08);font-size:20px;font-weight:700;color:#334155}
+.s4-eval i{width:48px;height:48px;border-radius:12px;background:#ECFEFF;flex:none;display:flex;align-items:center;justify-content:center}
+.s4-down{position:absolute;left:380px;top:232px;width:70px;text-align:center;font-size:15px;font-weight:800;color:var(--teal)}
+.s4-box{position:absolute;top:300px;width:190px;height:184px;background:#fff;border:2px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 12px 26px rgba(15,23,42,.08)}
+.s4-box b{display:block;font-family:"Outfit",sans-serif;font-size:24px;color:var(--ink);margin:10px 0 6px}
+.s4-box span{font-size:16px;color:var(--soft);line-height:1.3;display:block}
+.s4-box .n{width:36px;height:36px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;font-family:"Outfit",sans-serif;font-weight:800;font-size:18px}
+.s4-box.s4-root{border-color:var(--coral);background:#FFF7ED}.s4-box.s4-root .n{background:var(--coral)}
+.s4-arr{position:absolute;top:360px;font-size:40px;font-weight:800;color:#94A3B8}
+.s4-trace{position:absolute;left:0;top:0;width:1280px;height:720px;pointer-events:none}
+.s4-trace path{fill:none;stroke:var(--coral);stroke-width:4;stroke-linecap:round;stroke-dasharray:600;stroke-dashoffset:600;transition:stroke-dashoffset 1.2s ease}
+.s4-trace.on path{stroke-dashoffset:0}
+.s4-tlab{position:absolute;left:90px;top:616px;width:650px;text-align:center;font-size:18px;font-weight:800;color:#C2410C}
+
+/* scene: present levels rows */
+.s4-colh{position:absolute;top:140px;font-family:"Outfit",sans-serif;font-weight:800;font-size:17px;letter-spacing:.06em;text-transform:uppercase;color:var(--teal)}
+.s4-need,.s4-plan{position:absolute;width:290px;height:78px;border-radius:14px;padding:10px 16px;font-size:17px;line-height:1.25;display:flex;flex-direction:column;justify-content:center}
+.s4-need{left:90px;background:#fff;border:2px solid var(--line);box-shadow:0 8px 20px rgba(15,23,42,.07);color:#334155}
+.s4-need small{font-size:13px;font-weight:800;color:var(--soft);text-transform:uppercase;letter-spacing:.05em}
+.s4-plan{left:450px;background:#ECFEFF;border:2px solid #A5F3FC;color:#0E7490;font-weight:700}
+.s4-plan small{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;opacity:.8}
+.s4-plan.s4-miss{background:#FFF7ED;border:2px dashed #FB923C;color:#C2410C}
+.s4-link{position:absolute;left:384px;width:62px;height:3px;background:#67E8F9}
+.s4-link.s4-gap{background:repeating-linear-gradient(90deg,#FB923C 0 8px,transparent 8px 14px)}
+
+/* scene: goals */
+.s4-vague{position:absolute;left:90px;top:140px;width:650px;padding:18px 24px}
+.s4-vague .t{font-family:"Outfit",sans-serif;font-size:30px;font-weight:700;color:#334155;position:relative;display:inline-block}
+.s4-vague .t:after{content:"";position:absolute;left:-4px;right:-4px;top:52%;height:4px;background:#DC2626;border-radius:2px;transform:scaleX(0);transform-origin:left;transition:transform .6s}
+.s4-vague.s4-x .t:after{transform:scaleX(1)}
+.s4-stamp{position:absolute;right:20px;top:22px;border:3px solid #DC2626;color:#DC2626;border-radius:8px;padding:4px 10px;font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:.06em;transform:rotate(-6deg) scale(.6);opacity:0;transition:all .4s cubic-bezier(.3,1.3,.5,1)}
+.s4-vague.s4-x .s4-stamp,.s4-bad.s4-x .s4-stamp{opacity:1;transform:rotate(-6deg) scale(1)}
+.s4-lab{font-size:13px;font-weight:800;color:var(--soft);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.s4-good{position:absolute;left:90px;top:286px;width:650px;padding:22px 26px;border:2px solid #86EFAC}
+.s4-good .t{font-size:25px;line-height:1.55;color:#1E293B;font-weight:600}
+.s4-p{border-radius:6px;padding:1px 3px;transition:background .5s,box-shadow .5s}
+.s4-p.on.s4-pc{background:#FEF08A;box-shadow:0 0 0 2px #FACC15}
+.s4-p.on.s4-pd{background:#BBF7D0;box-shadow:0 0 0 2px #4ADE80}
+.s4-p.on.s4-pw{background:#BAE6FD;box-shadow:0 0 0 2px #38BDF8}
+.s4-keys{position:absolute;left:90px;top:540px;width:650px;display:flex;gap:14px;justify-content:center}
+.s4-key{padding:8px 16px;border-radius:999px;font-weight:800;font-size:17px}
+.s4-key.s4-kc{background:#FEF08A;color:#854D0E}.s4-key.s4-kd{background:#BBF7D0;color:#166534}.s4-key.s4-kw{background:#BAE6FD;color:#075985}
+
+/* scene: progress reports */
+.s4-how{position:absolute;left:90px;top:140px;width:650px;padding:16px 22px}
+.s4-how .r{display:flex;gap:12px;padding:8px 0;font-size:18px;color:#334155;border-top:1px solid #F1F5F9}
+.s4-how .r:first-of-type{border-top:0}
+.s4-how .r b{width:220px;flex:none;color:var(--ink)}
+.s4-tl{position:absolute;left:90px;width:650px;height:110px}
+.s4-tl .lbl{font-size:16px;font-weight:800;color:#334155;margin-bottom:10px}
+.s4-tl .line{position:absolute;left:0;right:0;top:66px;height:4px;border-radius:2px;background:#CBD5E1}
+.s4-mk{position:absolute;top:40px;width:46px;height:56px;border-radius:8px;background:#fff;border:2px solid #94A3B8;display:flex;align-items:center;justify-content:center;font-family:"Outfit",sans-serif;font-weight:800;font-size:15px;color:#475569;box-shadow:0 6px 14px rgba(15,23,42,.08)}
+.s4-tl.s4-iep .s4-mk{border-color:var(--coral);color:#C2410C;background:#FFF7ED}
+.s4-eq{position:absolute;left:90px;top:610px;width:650px;text-align:center;font-size:19px;font-weight:800;color:var(--teal)}
+
+/* scene: accommodation vs modification */
+.s4-col{position:absolute;top:140px;width:320px;height:420px;border-radius:18px;background:#fff;border:2px solid var(--line);box-shadow:0 12px 28px rgba(15,23,42,.08);padding:20px 22px}
+.s4-col h3{margin:0;font-family:"Outfit",sans-serif;font-size:26px;color:var(--ink)}
+.s4-col .w{display:inline-block;margin:8px 0 14px;padding:4px 14px;border-radius:999px;font-weight:800;font-size:17px;letter-spacing:.04em}
+.s4-col.s4-acc{left:90px;border-top:8px solid var(--teal)}.s4-col.s4-acc .w{background:#CFFAFE;color:#0E7490}
+.s4-col.s4-mod{left:430px;border-top:8px solid var(--coral)}.s4-col.s4-mod .w{background:#FFEDD5;color:#C2410C}
+.s4-it{display:flex;gap:10px;align-items:center;font-size:18px;font-weight:600;color:#334155;padding:7px 0}
+.s4-it i{width:10px;height:10px;border-radius:50%;background:#94A3B8;flex:none}
+.s4-exp{position:absolute;left:22px;right:22px;bottom:18px;border-radius:12px;padding:10px 14px;font-weight:800;font-size:17px;text-align:center}
+.s4-acc .s4-exp{background:#ECFEFF;color:#0E7490}.s4-mod .s4-exp{background:#FFF7ED;color:#C2410C}
+.s4-ask{position:absolute;left:90px;top:584px;width:660px;background:#FFF7ED;border:2px solid #FDBA74;border-radius:14px;padding:12px 18px;font-size:19px;font-weight:700;color:#9A3412;text-align:center}
+
+/* scene: kinds of services */
+.s4-svc{position:absolute;left:90px;top:140px;width:650px;display:flex;flex-direction:column;gap:16px}
+.s4-sv{background:#fff;border:2px solid var(--line);border-radius:16px;padding:14px 20px;box-shadow:0 8px 22px rgba(15,23,42,.07);display:flex;gap:16px;align-items:flex-start}
+.s4-sv i{width:46px;height:46px;border-radius:12px;background:#ECFEFF;flex:none;display:flex;align-items:center;justify-content:center}
+.s4-sv b{display:block;font-family:"Outfit",sans-serif;font-size:22px;color:var(--ink)}
+.s4-sv span{font-size:17px;color:var(--soft)}
+.s4-sv .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.s4-sv .chip{font-size:15px;padding:4px 12px}
+
+/* scene: a service line */
+.s4-bad{position:absolute;left:90px;top:140px;width:650px;padding:16px 22px}
+.s4-bad .t{font-size:22px;font-weight:700;color:#334155}
+.s4-bad .t em{font-style:normal;position:relative;display:inline-block;color:#B91C1C}
+.s4-bad .t em:after{content:"";position:absolute;left:-4px;right:-4px;top:52%;height:4px;background:#DC2626;border-radius:2px;transform:scaleX(0);transform-origin:left;transition:transform .6s}
+.s4-bad.s4-x .t em:after{transform:scaleX(1)}
+.s4-bad .s4-stamp{top:18px}
+.s4-line{position:absolute;left:90px;top:268px;width:650px;padding:16px 22px 20px;border:2px solid #A5F3FC}
+.s4-line .t{font-family:"Outfit",sans-serif;font-size:24px;font-weight:800;color:var(--teal);margin-bottom:12px}
+.s4-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.s4-f{border:2px dashed #CBD5E1;border-radius:12px;padding:10px 14px;min-height:74px;transition:border-color .4s,background .4s}
+.s4-f.on{border:2px solid #22C55E;background:#F0FDF4}
+.s4-f small{display:block;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--soft)}
+.s4-val{display:block;font-size:21px;font-weight:700;color:#1E293B;min-height:28px;margin-top:4px;opacity:0}
+.s4-val.on{opacity:1}
+.s4-who{position:absolute;left:90px;top:598px;width:650px;text-align:center;font-size:18px;font-weight:800;color:var(--teal)}
+
+/* scene: special factors and placement */
+.s4-sf{position:absolute;left:90px;top:140px;width:650px;padding:16px 22px}
+.s4-sf .t{font-family:"Outfit",sans-serif;font-size:21px;font-weight:800;color:var(--ink);margin-bottom:12px}
+.s4-sf .chips{display:flex;flex-wrap:wrap;gap:10px}
+.s4-ord{position:absolute;top:380px;width:280px;height:168px;border-radius:16px;background:#fff;border:2px solid var(--line);box-shadow:0 10px 24px rgba(15,23,42,.08);padding:16px 18px}
+.s4-ord b{display:block;font-family:"Outfit",sans-serif;font-size:22px;color:var(--ink);margin:8px 0 4px}
+.s4-ord span{font-size:16px;color:var(--soft);line-height:1.3;display:block}
+.s4-ord .n{display:inline-flex;width:32px;height:32px;border-radius:50%;background:var(--teal);color:#fff;align-items:center;justify-content:center;font-family:"Outfit",sans-serif;font-weight:800}
+.s4-ord.s4-place{border-color:var(--coral)}.s4-ord.s4-place .n{background:var(--coral)}
+.s4-then{position:absolute;left:386px;top:430px;width:70px;text-align:center;font-size:15px;font-weight:800;color:#94A3B8}
+.s4-esy{position:absolute;left:90px;top:572px;width:650px;background:#FEF3C7;border:2px solid #FCD34D;border-radius:14px;padding:12px 18px;font-size:18px;font-weight:700;color:#92400E}
+
+/* scene: consent and review */
+.s4-form{position:absolute;left:90px;top:150px;width:300px;padding:20px 22px}
+.s4-form h4{margin:0 0 10px;font-family:"Outfit",sans-serif;font-size:20px;color:var(--teal)}
+.s4-form .ln{height:9px;border-radius:5px;background:#E2E8F0;margin:8px 0}
+.s4-form .sig{margin-top:30px;border-top:2px solid #94A3B8;padding-top:4px;font-size:13px;color:#64748B;position:relative}
+.s4-form .sig svg{position:absolute;left:4px;top:-34px}
+.s4-form .sig path{stroke-dasharray:260;stroke-dashoffset:260;transition:stroke-dashoffset 1.3s ease}
+.s4-form.on .sig path{stroke-dashoffset:0}
+.s4-ok{margin-top:16px;display:inline-block;background:#DCFCE7;color:#166534;font-weight:800;border-radius:999px;padding:5px 14px;font-size:15px}
+.s4-loop{position:absolute;left:450px;top:140px;width:280px;height:280px}
+.s4-loop svg{position:absolute;inset:0}
+.s4-loop .ring{fill:none;stroke:#A5F3FC;stroke-width:14}
+.s4-loop .arc{fill:none;stroke:var(--teal);stroke-width:14;stroke-linecap:round;stroke-dasharray:760;stroke-dashoffset:760;transition:stroke-dashoffset 1.6s ease}
+.s4-loop.on .arc{stroke-dashoffset:60}
+.s4-loop .mid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-family:"Outfit",sans-serif}
+.s4-loop .mid b{font-size:24px;color:var(--ink);line-height:1.15}
+.s4-loop .mid span{font-size:16px;color:var(--soft);font-weight:600;margin-top:6px}
+.s4-sooner{position:absolute;left:420px;top:460px;width:330px;background:#FFF7ED;border:2px solid #FDBA74;border-radius:16px;padding:14px 18px;font-size:19px;font-weight:700;color:#9A3412}
+</style>
+</head><body>
+<div id="view"><div id="stage"><div id="nbar"><i></i></div>
+<div id="scenes"></div>
+<div id="spot"></div>
+<svg id="cursor" viewBox="0 0 28 32"><path d="M3 2 L3 26 L9.5 19.5 L14 29 L18.5 27 L14 17.5 L23 17.5 Z" fill="#fff" stroke="#0F172A" stroke-width="2" stroke-linejoin="round"/></svg>
+</div></div>
+<div id="cap" aria-live="polite"></div>
+<div id="bar">
+ <button id="prev">Back</button><button id="play">Start</button><button id="next">Next</button>
+ <div id="dots"></div>
+ <button id="capbtn" aria-pressed="false">Captions</button><button id="voice" aria-pressed="true">Voice on</button>
+</div>
+<script src="lesson-kit.js?v=1"></script>
+<script>
+const DECK_ID='cert-silver-4';
+const L={tier:'silver',lesson:'Silver Lesson 4',title:'Goals, Accommodations and Services'};
+const ICO=d=>`<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#0E7490" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const I_DOC='<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 9h6M9 13h6M9 17h4"/>';
+const s4on=(s,sp=true)=>{const e=typeof s==='string'?q(s):s;e.classList.add('on');if(sp)spot(e,6);return e};
+const NEEDS=[
+ ['Reading','Reads 40 words a minute and guesses at new words','Goal','Reading fluency goal'],
+ ['Writing','Letters hard to form; tires quickly when writing','Service','Occupational therapy'],
+ ['Attention','Loses focus when the room is noisy','Accommodation','A quiet room for tests'],
+ ['Social','Has trouble joining play at recess','Nothing yet','Ask why']];
+const MK=x=>[150,300,450,600].map((l,i)=>`<div class="s4-mk s4-in" style="left:${l}px">${x}${i+1}</div>`).join('');
+
+const SC=[
+COVER({...L,
+ sub:'Reading the plan part by part: present levels, goals, accommodations, services and placement.',
+ say:'Aloha, and welcome to Silver Lesson 4, the last lesson of Silver. The evaluation gives the team information. The I E P turns that information into a plan. In this lesson we take the plan apart, piece by piece, so you can check each one.'}),
+
+{html:()=>HEAD('From information to a plan','Every part traces back')+`
+ <div class="s4-eval s4-in"><i>${ICO(I_DOC)}</i>The evaluation: information about your child</div>
+ <div class="s4-down s4-in">↓<br>the IEP</div>
+ <div class="s4-box s4-root s4-in" style="left:90px"><div class="n">1</div><b>Present levels</b><span>Where your child is now</span></div>
+ <div class="s4-arr" style="left:288px">›</div>
+ <div class="s4-box s4-in" style="left:320px"><div class="n">2</div><b>Goals</b><span>What your child will work toward this year</span></div>
+ <div class="s4-arr" style="left:518px">›</div>
+ <div class="s4-box s4-in" style="left:550px"><div class="n">3</div><b>Services</b><span>The help the school will give</span></div>
+ <svg class="s4-trace" viewBox="0 0 1280 720"><path d="M415 492 C415 570 185 570 185 492"/><path d="M645 492 C645 622 185 622 185 492"/></svg>
+ <div class="s4-tlab s4-in">Every goal and service should trace back to a need here.</div>`+PTS([
+ 'The evaluation gives the team <b>information</b>.',
+ 'The IEP turns that information into a <b>plan</b>.',
+ 'The plan has parts you can <b>check one by one</b>.'],170),
+ steps:[
+ {say:'Think of it this way. The evaluation gives the team information about your child.',li:0,act:async()=>{s4on('.s4-eval')}},
+ {say:'The I E P turns that information into a plan. It starts with present levels, then goals, then services.',li:1,act:async()=>{spot(null);q('.s4-down').classList.add('on');for(const b of all('.s4-box')){b.classList.add('on');await wait(350)}}},
+ {say:'And every goal, and every service, should trace back to a need described in the present levels. That is how you check the plan: part by part.',li:2,act:async()=>{q('.s4-trace').classList.add('on');await wait(900);q('.s4-tlab').classList.add('on')}}]},
+
+{html:()=>HEAD('Present levels','Where everything starts')+`
+ <div class="s4-colh" style="left:90px">Present levels: the need</div><div class="s4-colh" style="left:450px">In the plan</div>`+
+ NEEDS.map((n,i)=>`<div class="s4-need s4-in" style="top:${180+i*100}px"><small>${n[0]}</small>${n[1]}</div>
+ <div class="s4-link s4-in${i===3?' s4-gap':''}" style="top:${218+i*100}px"></div>
+ <div class="s4-plan s4-in${i===3?' s4-miss':''}" style="top:${180+i*100}px"><small>${n[2]}</small>${n[3]}</div>`).join('')+PTS([
+ 'The IEP begins with <b>present levels of academic achievement and functional performance</b>.',
+ 'Every goal and every service should <b>trace back</b> to a need described here.',
+ 'A need with nothing in the plan? <b>Ask why.</b>'],170),
+ steps:[
+ {say:'The I E P begins with your child’s present levels of academic achievement and functional performance. That is a long name for a simple idea: where your child is right now, in school work and in everyday skills.',li:0,act:async()=>{for(const n of all('.s4-need')){n.classList.add('on');await wait(300)}}},
+ {say:'Every goal and every service should trace back to a need described here. Reading needs lead to a reading goal. A writing need might lead to a service. A need around noise might lead to a quiet room for tests.',li:1,act:async()=>{const ls=all('.s4-link'),ps=all('.s4-plan');for(let i=0;i<3;i++){ls[i].classList.add('on');ps[i].classList.add('on');spot(ps[i],6);await wait(1500)}spot(null)}},
+ {say:'Now look at the last row. The present levels describe a need, but nothing in the plan addresses it. When you see that, ask why.',li:2,act:async()=>{all('.s4-link')[3].classList.add('on');s4on(all('.s4-plan')[3])}}]},
+
+{html:()=>HEAD('Goals','Annual goals must be measurable')+`
+ <div class="card s4-vague s4-in"><div class="s4-lab">A goal you might see</div><div class="t">“Will improve reading.”</div><div class="s4-stamp">Not measurable</div></div>
+ <div class="card s4-good s4-in"><div class="s4-lab">A measurable goal</div><div class="t"><span class="s4-p s4-pc">Given a passage at a second-grade level,</span> Kai will <span class="s4-p s4-pd">read 70 words per minute</span> <span class="s4-p s4-pw">with 95% accuracy in 4 of 5 weekly checks.</span></div></div>
+ <div class="s4-keys"><span class="s4-key s4-kc s4-in">Under what conditions</span><span class="s4-key s4-kd s4-in">What your child will do</span><span class="s4-key s4-kw s4-in">How well</span></div>`+PTS([
+ 'Annual goals must be <b>measurable</b>.',
+ '“Will improve reading” is <b>not</b> measurable.',
+ 'A good goal says what your child will <b>do</b>,',
+ 'under what <b>conditions</b>,',
+ 'and <b>how well</b>.'],170),
+ steps:[
+ {say:'Next, goals. The I E P sets annual goals, and annual goals must be measurable.',li:0,act:async()=>{s4on('.s4-vague')}},
+ {say:'Here is a goal you might see: will improve reading. It sounds fine. But improve by how much? Measured how? Nobody could ever say for sure whether it was met. It is not measurable.',li:1,act:async()=>{await wait(2600);q('.s4-vague').classList.add('s4-x')}},
+ {say:'A good goal says three things. First, what your child will do. Here, Kai will read 70 words per minute.',li:2,act:async()=>{const g=s4on('.s4-good');await wait(500);q('.s4-pd').classList.add('on');q('.s4-kd').classList.add('on')}},
+ {say:'Second, under what conditions. Given a passage at a second-grade level.',li:3,act:async()=>{q('.s4-pc').classList.add('on');q('.s4-kc').classList.add('on')}},
+ {say:'And third, how well. With 95 percent accuracy, in 4 of 5 weekly checks. Now anyone can look at the checks and tell whether the goal was met.',li:4,act:async()=>{q('.s4-pw').classList.add('on');q('.s4-kw').classList.add('on');await wait(1500);spot(null)}}]},
+
+{html:()=>HEAD('Measuring progress','How and when you will hear')+`
+ <div class="card s4-how s4-in"><div class="r"><b>How progress is measured</b><span>Weekly reading checks</span></div><div class="r"><b>When you get reports</b><span>With every report card</span></div></div>
+ <div class="s4-tl" style="top:300px"><div class="lbl">Report cards, for students without disabilities</div><div class="line"></div>${MK('RC ')}</div>
+ <div class="s4-tl s4-iep" style="top:450px"><div class="lbl">Your child’s IEP progress reports</div><div class="line"></div>${MK('PR ')}</div>
+ <div class="s4-eq s4-in">At least as often as report cards.</div>`+PTS([
+ 'The IEP must say <b>how progress will be measured</b>.',
+ 'It must say <b>when you will get reports</b>.',
+ 'Progress reports come <b>at least as often as report cards</b> for students without disabilities.'],170),
+ steps:[
+ {say:'A goal is only useful if someone checks it. So the I E P must also say how progress will be measured. In our example, with weekly reading checks.',li:0,act:async()=>{s4on('.s4-how')}},
+ {say:'And it must say when you will get reports on that progress.',li:1,act:async()=>{spot(all('.s4-how .r')[1],4)}},
+ {say:'Here is the rule to remember. Progress reports must come at least as often as report cards for students without disabilities. If other families get a report card, you get a progress report on the goals, at least that often.',li:2,act:async()=>{spot(null);const m=all('.s4-mk');for(let i=0;i<4;i++){m[i].classList.add('on');await wait(250)}for(let i=4;i<8;i++){m[i].classList.add('on');await wait(250)}q('.s4-eq').classList.add('on')}}]},
+
+{html:()=>HEAD('Accommodations and modifications','HOW versus WHAT')+`
+ <div class="s4-col s4-acc s4-in"><h3>Accommodation</h3><div class="w">changes HOW</div>
+  ${['Extra time','A quiet room','Text read aloud','A seat near the teacher'].map(t=>`<div class="s4-it s4-in"><i></i>${t}</div>`).join('')}
+  <div class="s4-exp s4-in">The expectation stays the same</div></div>
+ <div class="s4-col s4-mod s4-in"><h3>Modification</h3><div class="w">changes WHAT</div>
+  ${['Fewer items','Different items','An alternate standard'].map(t=>`<div class="s4-it s4-in"><i></i>${t}</div>`).join('')}
+  <div class="s4-exp s4-in">What your child is expected to learn changes</div></div>
+ <div class="s4-ask s4-in">“Which one is being proposed, and why?”</div>`+PTS([
+ '<b>Accommodations change HOW</b> your child learns or shows what they know.',
+ 'The expectation <b>stays the same</b>.',
+ '<b>Modifications change WHAT</b> your child is expected to learn.',
+ 'Both are legitimate, but they lead to <b>different places</b> over the years.'],160),
+ steps:[
+ {say:'Now two words that sound alike but are not the same. Accommodations, and modifications.',act:async()=>{for(const c of all('.s4-col'))c.classList.add('on')}},
+ {say:'An accommodation changes how. How your child learns, or how they show what they know. Extra time. A quiet room. Text read aloud. A seat near the teacher.',li:0,act:async()=>{const c=q('.s4-acc');spot(c,6);for(const i of c.querySelectorAll('.s4-it')){i.classList.add('on');await wait(700)}}},
+ {say:'With an accommodation, the expectation stays the same. Your child is still learning the same thing as the class.',li:1,act:async()=>{s4on(q('.s4-acc .s4-exp'))}},
+ {say:'A modification changes what. What your child is expected to learn. Fewer items, or different items. An alternate standard.',li:2,act:async()=>{const c=q('.s4-mod');spot(c,6);for(const i of c.querySelectorAll('.s4-it')){i.classList.add('on');await wait(700)}q('.s4-mod .s4-exp').classList.add('on')}},
+ {say:'Both are legitimate. But they lead to different places over the years. So when one is proposed, ask which one it is, and why.',li:3,act:async()=>{s4on('.s4-ask')}}]},
+
+{html:()=>HEAD('Services','Three kinds of help')+`<div class="s4-svc">
+ <div class="s4-sv s4-in"><i>${ICO('<path d="M3 8l9-4 9 4-9 4z"/><path d="M7 10v5c3 2 7 2 10 0v-5"/>')}</i><div><b>Special education</b><span>The specially designed instruction itself.</span></div></div>
+ <div class="s4-sv s4-in"><i>${ICO('<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/>')}</i><div><b>Related services</b><span>Help your child benefit from special education.</span>
+  <div class="chips">${['Speech-language therapy','Occupational therapy','Physical therapy','Counseling','Transportation','And others'].map(t=>`<span class="chip s4-in">${t}</span>`).join('')}</div></div></div>
+ <div class="s4-sv s4-in"><i>${ICO('<path d="M3 10l9-6 9 6"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/>')}</i><div><b>Supplementary aids and services</b><span>Help your child learn in the general classroom.</span></div></div></div>`+PTS([
+ '<b>Special education</b> is the specially designed instruction itself.',
+ '<b>Related services</b> help your child benefit from it.',
+ '<b>Supplementary aids and services</b> help your child learn in the general classroom.'],170),
+ steps:[
+ {say:'Now the services. You will see three kinds. Special education is the specially designed instruction itself. Teaching that is changed to fit your child.',li:0,act:async()=>{s4on(all('.s4-sv')[0])}},
+ {say:'Related services help your child benefit from that instruction. Speech-language therapy, occupational or physical therapy, counseling, transportation, and others.',li:1,act:async()=>{const s=s4on(all('.s4-sv')[1]);await wait(400);for(const c of s.querySelectorAll('.chip')){c.classList.add('on');await wait(350)}}},
+ {say:'And supplementary aids and services help your child learn in the general classroom, alongside other students.',li:2,act:async()=>{s4on(all('.s4-sv')[2])}}]},
+
+{html:()=>HEAD('Read every service line','Four answers on the page')+`
+ <div class="card s4-bad s4-in"><div class="s4-lab">A service line you might see</div><div class="t">Speech-language therapy: <em>as needed</em></div><div class="s4-stamp">Not a service</div></div>
+ <div class="card s4-line s4-in"><div class="t">Speech-language therapy</div><div class="s4-grid">
+  ${[['How much','30 minutes a session'],['How often','2 times a week'],['Where','Speech room'],['Starting when','The first week of the IEP']].map(f=>`<div class="s4-f"><small>${f[0]}</small><span class="s4-val" data-v="${f[1]}">${f[1]}</span></div>`).join('')}</div></div>
+ <div class="s4-who s4-in">Missing an answer? Ask for it to be added.</div>`+PTS([
+ 'Every service should say <b>how much</b>,',
+ '<b>how often</b>,',
+ '<b>where</b>,',
+ 'and <b>starting when</b>.',
+ '<b>“As needed” is not a service.</b>'],170),
+ steps:[
+ {say:'Here is a service line you might see. Speech-language therapy, as needed. It looks like a promise. But as needed is not a service. It does not say how much, or how often, or who decides when it is needed.',li:4,act:async()=>{s4on('.s4-bad');await wait(2400);q('.s4-bad').classList.add('s4-x')}},
+ {say:'For every service, the I E P should say four things. How much. Thirty minutes a session.',li:0,act:async()=>{q('.s4-line').classList.add('on');spot(q('.s4-line'),6);const f=all('.s4-f')[0],v=f.querySelector('.s4-val');f.classList.add('on');v.classList.add('on');await type(v,v.dataset.v,40)}},
+ {say:'How often. Two times a week.',li:1,act:async()=>{const f=all('.s4-f')[1],v=f.querySelector('.s4-val');f.classList.add('on');v.classList.add('on');await type(v,v.dataset.v,40)}},
+ {say:'Where. In the speech room, or in the classroom.',li:2,act:async()=>{const f=all('.s4-f')[2],v=f.querySelector('.s4-val');f.classList.add('on');v.classList.add('on');await type(v,v.dataset.v,40)}},
+ {say:'And starting when. A real start date. Read every service line and ask those four questions. It is also fair to ask who will provide it. If an answer is not on the page, ask for it to be added.',li:3,act:async()=>{const f=all('.s4-f')[3],v=f.querySelector('.s4-val');f.classList.add('on');v.classList.add('on');await type(v,v.dataset.v,40);spot(null);q('.s4-who').classList.add('on')}}]},
+
+{html:()=>HEAD('Special factors and placement','Services first, then the place')+`
+ <div class="card s4-sf s4-in"><div class="t">Special factors the team must consider, where they apply</div><div class="chips">
+  ${['Behavior that gets in the way of learning','Limited English proficiency','Communication needs','Braille, for a child who is blind','Assistive technology'].map((t,i)=>`<span class="chip${i%2?' sand':''} s4-in">${t}</span>`).join('')}</div></div>
+ <div class="s4-ord s4-in" style="left:90px"><span class="n">1</span><b>Services decided</b><span>Goals, accommodations and services are set first.</span></div>
+ <div class="s4-then s4-in">then<br><span style="font-size:34px">›</span></div>
+ <div class="s4-ord s4-place s4-in" style="left:460px"><span class="n">2</span><b>Placement</b><span>The least restrictive environment where those services can be delivered.</span></div>
+ <div class="s4-esy s4-in">Extended School Year services: decided by the team, based on your child’s needs.</div>`+PTS([
+ 'The team must consider <b>special factors</b> where they apply.',
+ 'For behavior: <b>positive behavior supports</b>.',
+ 'Placement comes <b>after</b> services are decided.',
+ 'It must be the <b>least restrictive environment</b> where those services can be delivered.',
+ '<b>Extended School Year</b> is decided by the team, too.'],150),
+ steps:[
+ {say:'The team must also consider special factors, where they apply to your child.',li:0,act:async()=>{const c=s4on('.s4-sf');await wait(300);for(const x of c.querySelectorAll('.chip')){x.classList.add('on');await wait(300)}}},
+ {say:'Behavior that gets in the way of learning, where the team considers positive behavior supports. Limited English proficiency. Communication needs. Braille, for a child who is blind. And assistive technology.',li:1,act:async()=>{const c=all('.s4-sf .chip');for(const x of c){spot(x,4);await wait(1200)}spot(null)}},
+ {say:'Now the order matters. Placement comes after the services are decided. First the team decides what your child needs.',li:2,act:async()=>{s4on(all('.s4-ord')[0])}},
+ {say:'Then it decides where. And placement must be the least restrictive environment where those services can be delivered.',li:3,act:async()=>{q('.s4-then').classList.add('on');s4on('.s4-place')}},
+ {say:'Extended School Year services are decided by the team too, based on your child’s needs.',li:4,act:async()=>{s4on('.s4-esy')}}]},
+
+{html:()=>HEAD('Consent and review','Your signature, every year')+`
+ <div class="card s4-form s4-in"><h4>Consent for services</h4><div class="ln"></div><div class="ln" style="width:82%"></div><div class="ln" style="width:64%"></div>
+  <div class="sig"><svg viewBox="0 0 160 34" width="160" height="34"><path d="M4 24c12-20 18 6 26-6s12 12 20 2 14-14 22-2 16 4 24-6 12 10 30 4" fill="none" stroke="#0E7490" stroke-width="2.6" stroke-linecap="round"/></svg>Parent signature</div>
+  <span class="s4-ok">Services can begin</span></div>
+ <div class="s4-loop s4-in"><svg viewBox="0 0 280 280"><circle class="ring" cx="140" cy="140" r="120"/><circle class="arc" cx="140" cy="140" r="120" transform="rotate(-90 140 140)"/></svg>
+  <div class="mid"><b>IEP review</b><span>At least once a year</span></div></div>
+ <div class="s4-sooner s4-in">Something not working? You may ask for a meeting <b>sooner</b>.</div>`+PTS([
+ 'Services begin only with your <b>written consent</b>.',
+ 'The IEP is reviewed <b>at least once a year</b>.',
+ 'You may ask for a meeting <b>sooner</b> whenever something is not working.'],180),
+ steps:[
+ {say:'Two last pieces. Services begin only with your written consent.',li:0,act:async()=>{s4on('.s4-form')}},
+ {say:'And the I E P is reviewed at least once a year.',li:1,act:async()=>{s4on('.s4-loop')}},
+ {say:'You do not have to wait for the yearly review. Whenever something is not working, you may ask for a meeting sooner.',li:2,act:async()=>{s4on('.s4-sooner')}}]},
+
+QUIZ([
+ {q:'Which of these is a measurable annual goal?',o:['“Will improve reading.”','“Given a passage at a second-grade level, Kai will read 70 words per minute with 95% accuracy in 4 of 5 weekly checks.”','“Will try harder in reading this year.”'],a:1,y:'It says what Kai will do, under what conditions, and how well.',n:'Look for the goal that says do, conditions, and how well.'},
+ {q:'Your child gets extra time on tests, and is expected to learn the same material as the class. What is that?',o:['An accommodation','A modification','A related service'],a:0,y:'Accommodations change HOW. The expectation stays the same.',n:'Does it change how, or what?'},
+ {q:'How often must you get progress reports on your child’s IEP goals?',o:['Only at the yearly IEP meeting','Only when you ask for one','At least as often as report cards for students without disabilities'],a:2,y:'Progress reports come at least as often as regular report cards.',n:'Think about the two timelines we lined up.'}]),
+
+RECAP([
+ 'Every goal and service traces back to a need in the <b>present levels</b>.',
+ 'Annual goals must be <b>measurable</b>: do, conditions, how well.',
+ 'Progress reports come <b>at least as often as report cards</b>.',
+ '<b>Accommodations change HOW</b>. <b>Modifications change WHAT</b>.',
+ 'Each service says <b>how much, how often, where, starting when</b>. “As needed” is not a service.',
+ 'Placement comes <b>after</b> services: the <b>least restrictive environment</b>.'],[
+ 'Every goal and every service should trace back to a need described in the present levels.',
+ 'Annual goals must be measurable. What your child will do, under what conditions, and how well.',
+ 'Progress reports come at least as often as report cards for students without disabilities.',
+ 'Accommodations change how your child learns or is tested. Modifications change what your child is expected to learn.',
+ 'Every service should say how much, how often, where, and starting when. As needed is not a service.',
+ 'And placement comes after the services are decided, in the least restrictive environment where they can be delivered.']),
+
+CLOSE({...L,sub:'You have finished the Silver lessons. Take the Silver Final Quiz on the lesson page, then select Complete.',
+ say:'Mahalo, and congratulations! That is Lesson 4, and you have finished all of the Silver lessons. You now know the team, the evaluation report, the meeting, and the plan itself. The Silver Final Quiz follows on the lesson page. Take it there, and select Complete on the lesson page when you are done.'})
+];
+</script>
+<script src="deck-engine.js?v=1"></script></body></html>

@@ -1,0 +1,187 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Silver Lesson 1: The IEP Team</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="deck-base.css">
+<link rel="stylesheet" href="lesson-theme.css?v=1">
+<style>
+/* s1- = this deck only */
+.s1-path{position:absolute;left:90px;top:220px;display:flex;gap:26px;align-items:center}
+.s1-step{width:300px;height:230px;border-radius:22px;background:#fff;border:2px solid var(--line);box-shadow:0 12px 30px rgba(15,23,42,.08);padding:26px;opacity:.45;transition:all .5s}
+.s1-step .tier{margin-bottom:14px}
+.s1-step h3{font-family:"Outfit",sans-serif;font-size:30px;margin:0 0 8px;color:var(--ink)}
+.s1-step p{margin:0;font-size:19px;color:var(--soft);line-height:1.35}
+.s1-step.on{opacity:1;transform:translateY(-10px);border-color:var(--coral);box-shadow:0 18px 40px rgba(249,115,22,.18)}
+.s1-step.done{opacity:1}
+.tier.bronze{background:linear-gradient(135deg,#FED7AA,#C2410C);color:#fff}
+.s1-arrow{font-size:40px;color:#CBD5E1;font-weight:800}
+
+.s1-table{position:absolute;left:250px;top:334px;width:300px;height:190px;border-radius:50%;background:radial-gradient(ellipse at 40% 35%,#FDE68A,#D97706);box-shadow:inset 0 -10px 0 rgba(0,0,0,.08),0 18px 30px rgba(15,23,42,.15)}
+.s1-table span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:"Outfit",sans-serif;font-weight:800;font-size:26px;color:#78350F}
+.s1-seat{position:absolute;width:168px;padding:10px 10px;border-radius:14px;background:#fff;border:2px solid var(--line);text-align:center;font-size:15px;font-weight:700;line-height:1.2;box-shadow:0 8px 20px rgba(15,23,42,.08);opacity:0;transform:scale(.6);transition:all .45s cubic-bezier(.3,1.3,.5,1)}
+.s1-seat i{display:block;width:40px;height:40px;margin:0 auto 6px;border-radius:50%;background:#CFFAFE;font-style:normal;font-size:20px;line-height:40px;color:#0E7490;font-family:"Outfit",sans-serif;font-weight:800}
+.s1-seat.on{opacity:1;transform:none}
+.s1-seat.you{border-color:var(--coral);background:#FFF7ED}
+.s1-seat.you i{background:var(--coral);color:#fff}
+
+.s1-form{position:absolute;left:90px;top:150px;width:600px;height:470px}
+.s1-chair{position:absolute;left:0;top:30px;width:250px;height:250px;border:3px dashed #CBD5E1;border-radius:22px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#94A3B8;font-weight:700;font-size:19px;text-align:center;padding:16px}
+.s1-chair b{font-size:60px;line-height:1}
+.s1-doc{position:absolute;width:300px;background:#fff;border-radius:12px;border:1px solid var(--line);box-shadow:0 12px 26px rgba(15,23,42,.12);padding:18px 20px;font-size:15px;color:#334155;opacity:0;transform:translateY(20px);transition:all .5s}
+.s1-doc.on{opacity:1;transform:none}
+.s1-doc h4{margin:0 0 10px;font-family:"Outfit",sans-serif;font-size:19px;color:var(--teal)}
+.s1-doc .ln{height:9px;border-radius:5px;background:#E2E8F0;margin:7px 0}
+.s1-doc .sig{margin-top:14px;border-top:2px solid #94A3B8;padding-top:4px;font-size:13px;color:#64748B}
+.s1-doc .sig b{font-family:"Brush Script MT",cursive;font-size:26px;color:#0E7490;display:block;margin-top:-30px;height:30px}
+
+.s1-src{position:absolute;left:80px;top:170px;width:660px;display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.s1-src div{background:#fff;border:2px solid var(--line);border-radius:16px;padding:18px;font-size:19px;font-weight:700;display:flex;gap:14px;align-items:center;opacity:0;transform:translateY(14px);transition:all .45s}
+.s1-src div.on{opacity:1;transform:none}
+.s1-src div i{width:46px;height:46px;border-radius:12px;background:#ECFEFF;flex:none;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:24px}
+.s1-src div.home{border-color:var(--coral);background:#FFF7ED}
+.s1-src div.home i{background:var(--coral)}
+
+.s1-letter{position:absolute;left:110px;top:140px;width:560px;background:#fff;border-radius:14px;border:1px solid var(--line);box-shadow:0 16px 34px rgba(15,23,42,.13);padding:26px 30px;font-size:18px;color:#334155}
+.s1-letter h4{margin:0 0 4px;font-family:"Outfit",sans-serif;font-size:24px;color:var(--teal)}
+.s1-letter .from{font-size:14px;color:#94A3B8;margin-bottom:16px}
+.s1-letter .row{display:flex;gap:12px;padding:10px 0;border-top:1px solid #F1F5F9}
+.s1-letter .row b{width:120px;flex:none;color:var(--ink)}
+</style>
+</head><body>
+<div id="view"><div id="stage"><div id="nbar"><i></i></div>
+<div id="scenes"></div>
+<div id="spot"></div>
+<svg id="cursor" viewBox="0 0 28 32"><path d="M3 2 L3 26 L9.5 19.5 L14 29 L18.5 27 L14 17.5 L23 17.5 Z" fill="#fff" stroke="#0F172A" stroke-width="2" stroke-linejoin="round"/></svg>
+</div></div>
+<div id="cap" aria-live="polite"></div>
+<div id="bar">
+ <button id="prev">Back</button><button id="play">Start</button><button id="next">Next</button>
+ <div id="dots"></div>
+ <button id="capbtn" aria-pressed="false">Captions</button><button id="voice" aria-pressed="true">Voice on</button>
+</div>
+<script src="lesson-kit.js?v=1"></script>
+<script>
+const DECK_ID='cert-silver-1';
+const L={tier:'silver',lesson:'Silver Lesson 1',title:'The IEP Team'};
+const SEATS=[
+ ['P','The parent',true,'left:40px;top:284px'],
+ ['G','General education teacher',false,'left:116px;top:154px'],
+ ['S','Special education teacher',false,'left:316px;top:130px'],
+ ['D','Department representative',false,'left:516px;top:154px'],
+ ['E','Someone who can explain the results',false,'left:592px;top:304px'],
+ ['+','Others you invite',false,'left:470px;top:554px'],
+ ['C','Your child, when appropriate',false,'left:160px;top:554px']];
+const TABLE=()=>`<div class="s1-table"><span>IEP Team</span></div>`+SEATS.map((s,i)=>`<div class="s1-seat${s[2]?' you':''}" style="${s[3]}"><i>${s[0]}</i>${s[1]}</div>`).join('');
+const seat=async i=>{const e=all('.s1-seat')[i];e.classList.add('on');spot(e,6)};
+
+const SC=[
+COVER({...L,lesson:'Silver Lesson 1',title:'The IEP Team: Roles and Responsibilities',
+ sub:'Who sits at the table, what each person is there to do, and why the first seat is yours.',
+ say:'Aloha, and welcome to Silver, the Advocate level of the L D A H Certification Program. Finishing Bronze is real work, and you did it. Silver is about taking your seat at the table, and that is where we start: the I E P team.'}),
+
+{html:()=>HEAD('Where you are','Bronze, Silver, Gold')+`<div class="s1-path">
+ <div class="s1-step done"><span class="tier bronze">Bronze</span><h3>Foundations</h3><p>How special education works and what your rights are.</p></div><div class="s1-arrow">›</div>
+ <div class="s1-step"><span class="tier silver">Silver</span><h3>Advocate</h3><p>Your seat at the table: the team, the report, the meeting, the plan.</p></div><div class="s1-arrow">›</div>
+ <div class="s1-step"><span class="tier gold">Gold</span><h3>Leadership</h3><p>Helping other families and changing things for many children.</p></div></div>`,
+ steps:[
+ {say:'Bronze was about understanding the system. You know what special education is, and what your rights are.',act:async()=>{spot(all('.s1-step')[0],6)}},
+ {say:'Silver is about using that knowledge. Four lessons: the team, the evaluation report, the meeting, and the plan itself.',act:async()=>{const s=all('.s1-step');s[1].classList.add('on');spot(s[1],6)}},
+ {say:'And Gold, after this, is about leadership: helping other families, and changing things for many children at once.',act:async()=>{spot(all('.s1-step')[2],6);await wait(1200);spot(null)}}]},
+
+{html:()=>HEAD('The rules','Who must be on the team')+TABLE()+PTS([
+ 'Set out in Hawaiʻi Administrative Rules <b>§8-60-45</b>.',
+ 'The same list is in IDEA, <b>34 CFR §300.321</b>.',
+ 'Seven roles. One person can fill more than one.'],170),
+ steps:[
+ {say:'The members of an I E P team are not up to the school. They are set out in Hawaiʻi Administrative Rules, section 8 dash 60 dash 45.',li:0},
+ {say:'The federal law, IDEA, has the same list. So this is the same for every child, in every public school in Hawaiʻi.',li:1},
+ {say:'There are seven roles. Let’s fill the table one seat at a time.',li:2}]},
+
+{html:()=>HEAD('Seat by seat','Who sits at the table')+TABLE()+PTS([
+ '<b>You.</b> Listed first. A required member.',
+ '<b>General ed teacher.</b> What the regular classroom looks like.',
+ '<b>Special ed teacher.</b> How teaching will change for your child.',
+ '<b>Department rep.</b> Can commit resources.',
+ '<b>Someone who can explain the results</b>, for teaching.',
+ '<b>Others</b> with knowledge of your child.',
+ '<b>Your child</b>, when appropriate.']),
+ steps:[
+ {say:'First seat. The parent. Look at where you are on the list: first. Not invited, not consulted. A required member. The school must work with you on a time and place, and offer a phone or video call if you cannot be there in person.',li:0,act:()=>seat(0)},
+ {say:'A general education teacher. This person can tell the team what your child’s day looks like in a regular classroom, and what support that teacher will need.',li:1,act:()=>seat(1)},
+ {say:'A special education teacher, who speaks to specially designed instruction. How teaching will be changed for your child.',li:2,act:()=>seat(2)},
+ {say:'A representative of the department, usually an administrator. This is the person who can commit resources. If nobody in the room can say yes to a service, the meeting cannot finish its job.',li:3,act:()=>seat(3)},
+ {say:'Someone who can interpret the evaluation results. Not read the scores out loud. Explain what they mean for teaching your child, in plain language.',li:4,act:()=>seat(4)},
+ {say:'Others with knowledge or special expertise. This seat belongs to you as much as to the school. A relative, a friend to take notes, an advocate, your child’s therapist.',li:5,act:()=>seat(5)},
+ {say:'And your child, when appropriate. Once transition planning starts, around age sixteen, the school must invite them. Many families bring them in sooner.',li:6,act:async()=>{await seat(6);await wait(900);spot(null)}}]},
+
+{html:()=>HEAD('A seat that matters','The person who can say yes')+`<div class="card" style="left:90px;top:170px;width:620px">
+ <div class="big" style="font-size:22px;color:var(--teal)">Department representative</div>
+ <p style="font-size:19px;color:#334155;margin:10px 0 18px">Knows what the school can offer, and has the authority to commit it.</p>
+ <div style="display:flex;gap:12px;flex-wrap:wrap"><span class="chip">Speech therapy</span><span class="chip">Aide support</span><span class="chip">Transportation</span><span class="chip">Assistive technology</span></div>
+ <div class="fade s1-ask" style="margin-top:24px;background:#FFF7ED;border:2px solid #FDBA74;border-radius:14px;padding:14px 18px;font-size:19px;font-weight:700;color:#9A3412">“Who here can approve this service today?”</div></div>`+PTS([
+ 'If no one can commit resources, decisions get put off.',
+ 'It’s fine to ask who in the room can approve a service.'],190),
+ steps:[
+ {say:'One seat deserves a closer look. The department representative is there to say yes to services, and to commit what the school has to offer.',li:0,act:async()=>{spot(q('.card'),6)}},
+ {say:'If a meeting keeps ending with, we will have to check, it is fair to ask: who here can approve this service today?',li:1,act:async()=>{spot(null);q('.s1-ask').classList.add('on')}}]},
+
+{html:()=>HEAD('Excusals','When someone can’t come')+`<div class="s1-form"><div class="s1-chair"><b>?</b>A required member<br>won’t be at the meeting</div>
+ <div class="s1-doc s1-d1" style="left:290px;top:0"><h4>Excusal agreement</h4><div class="ln"></div><div class="ln" style="width:80%"></div><div class="ln" style="width:60%"></div><div class="sig"><b><svg viewBox="0 0 120 30" width="120" height="30"><path d="M4 22c10-18 16 6 24-6s10 10 18 2 12-12 20-2 14 4 22-6 10 8 28 2" fill="none" stroke="#0E7490" stroke-width="2.4" stroke-linecap="round"/></svg></b>Parent signature</div></div>
+ <div class="s1-doc s1-d2" style="left:290px;top:250px"><h4>Written input</h4><div class="ln"></div><div class="ln" style="width:70%"></div><div class="ln" style="width:85%"></div><div style="font-size:13px;color:#64748B;margin-top:8px">From the excused member, before the meeting</div></div></div>`+PTS([
+ 'A required member can be excused only with <b>your written agreement</b>.',
+ 'If their area is being discussed, they send <b>written input</b> first.',
+ 'Not showing up is not an excusal. You can ask to reschedule.'],170),
+ steps:[
+ {say:'What if a required member can’t come?',act:async()=>{spot(q('.s1-chair'),6)}},
+ {say:'They can be excused only if you agree, in writing.',li:0,act:async()=>{const d=q('.s1-d1');d.classList.add('on');spot(d,6)}},
+ {say:'And if their area is going to be discussed or changed, they must also give written input to you and the team before the meeting.',li:1,act:async()=>{const d=q('.s1-d2');d.classList.add('on');spot(d,6)}},
+ {say:'A team member simply not turning up is not the same thing as an excusal. If someone important is missing, you may ask to reschedule.',li:2,act:async()=>{spot(null)}}]},
+
+{html:()=>HEAD('Your information counts','A variety of sources')+`<div class="s1-src">
+ <div><i><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#0E7490" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 9h6M9 13h6M9 17h4"/></svg></i>Standardized tests</div><div><i><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#0E7490" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10l9-6 9 6"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/></svg></i>Teacher observations</div>
+ <div><i><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#0E7490" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V4"/><path d="M4 20h16"/><path d="M7 15l4-4 3 3 5-6"/></svg></i>Grades and work samples</div><div><i><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#0E7490" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/></svg></i>Health and therapy reports</div>
+ <div class="home" style="grid-column:1/3"><i><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg></i>What you see at home</div></div>`+PTS([
+ 'The team must draw on a <b>variety</b> of sources.',
+ 'Not one test, one score, or one opinion.',
+ 'Your observations at home are one of those sources.'],180),
+ steps:[
+ {say:'When the team looks at evaluation information, the rules say it must draw on a variety of sources.',li:0,act:async()=>{const d=all('.s1-src div');for(let i=0;i<4;i++){d[i].classList.add('on');await wait(250)}}},
+ {say:'Not one test. Not one score. Not one person’s opinion.',li:1},
+ {say:'And you are one of those sources. What you see at home, doing homework at the kitchen table, at a family party, is information the team is required to consider. When you speak in a meeting, you are not offering a feeling. You are supplying evidence.',li:2,act:async()=>{const h=q('.s1-src .home');h.classList.add('on');spot(h,6)}}]},
+
+{html:()=>HEAD('Before the meeting','Read the meeting notice')+`<div class="s1-letter"><h4>Notice of IEP Meeting</h4><div class="from">From your child’s school</div>
+ <div class="row s1-r"><b>Purpose</b><span>Annual review of the IEP</span></div>
+ <div class="row s1-r"><b>Date and time</b><span>Thursday, 2:30 pm</span></div>
+ <div class="row s1-r"><b>Place</b><span>School library, or join by phone</span></div>
+ <div class="row s1-r"><b>Who will attend</b><span>Teachers, the vice principal, the school psychologist</span></div></div>`+PTS([
+ 'The notice says the <b>purpose, time and place</b>.',
+ 'It also says <b>who will attend</b>.',
+ 'Tell the school if you are bringing someone.'],190),
+ steps:[
+ {say:'Before any I E P meeting, the school sends a notice. It has to say the purpose of the meeting, and the time and place.',li:0,act:async()=>{const r=all('.s1-r');for(let i=0;i<3;i++){r[i].style.background='#ECFEFF';await wait(300)}}},
+ {say:'It also tells you who will attend. Read that line. Now you know which seats will be filled, and which may be missing.',li:1,act:async()=>{const r=all('.s1-r')[3];r.style.background='#FFF7ED';spot(r,4)}},
+ {say:'And if you are bringing someone with you, let the school know ahead of time. It helps the meeting start well.',li:2,act:async()=>{spot(null)}}]},
+
+QUIZ([
+ {q:'Who is listed FIRST as a required member of the IEP team?',o:['The principal','The parent','The school psychologist'],a:1,y:'The parent is a required member, listed first.',n:'Think about whose seat we filled first.'},
+ {q:'A required team member can’t come. When can they be excused?',o:['When the school decides','When another teacher takes notes','When you agree in writing, with their written input if their area is discussed'],a:2,y:'Excusal needs your written agreement.',n:'Think about the two documents we saw.'},
+ {q:'Who on the team can commit school resources, like a service?',o:['The department representative','The general education teacher','Your child'],a:0,y:'The department representative can say yes to services.',n:'Think about the person who can say yes.'}]),
+
+RECAP([
+ 'The parent is a <b>required member</b>, listed first.',
+ 'General ed teacher, special ed teacher, <b>department rep</b>, someone to <b>explain the results</b>.',
+ 'You may bring <b>others</b> who know your child. Your child joins when appropriate.',
+ 'Excusal needs <b>your written agreement</b>.',
+ 'What you see at home is <b>evaluation information</b>.'],[
+ 'You are a required member of the team, listed first.',
+ 'The school brings a general education teacher, a special education teacher, a department representative who can commit resources, and someone who can explain what the results mean for teaching.',
+ 'You may bring others who know your child, and your child joins when appropriate.',
+ 'A required member can only be excused with your written agreement.',
+ 'And what you see at home is evaluation information the team must consider.']),
+
+CLOSE({...L,sub:'Next: Reading Your Child’s Evaluation Report. Select Complete on the lesson page when you are ready.',
+ say:'Mahalo! That is Lesson 1. Next, we open the evaluation report itself, and learn to read it without anyone translating it for you. Select Complete on the lesson page when you are ready to move on.'})
+];
+</script>
+<script src="deck-engine.js?v=1"></script></body></html>

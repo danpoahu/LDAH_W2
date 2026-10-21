@@ -1,0 +1,318 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gold Lesson 3: Pacific Island Cultural Advocacy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="deck-base.css">
+<link rel="stylesheet" href="lesson-theme.css?v=1">
+<style>
+/* g3- = this deck only */
+.g3-pop{opacity:0;transform:translateY(14px) scale(.92);transition:all .45s cubic-bezier(.3,1.3,.5,1)}
+.g3-pop.on{opacity:1;transform:none}
+
+/* cover art */
+.g3-art{position:absolute;left:860px;top:250px;width:330px;height:230px}
+
+/* scene: across the Pacific (families) */
+.g3-sea{position:absolute;left:70px;top:140px;width:690px;height:520px;border-radius:24px;background:linear-gradient(180deg,#ECFEFF,#A5F3FC);overflow:hidden;box-shadow:inset 0 0 0 2px #CFFAFE}
+.g3-sea svg.g3-bg{position:absolute;left:0;top:0}
+.g3-tag{position:absolute;padding:9px 16px;border-radius:999px;background:#fff;border:2px solid #67E8F9;color:#0B4F61;font-weight:800;font-size:19px;box-shadow:0 8px 18px rgba(14,116,144,.15)}
+.g3-tag.more{background:#FFF7ED;border-color:#FDBA74;color:#C2410C}
+.g3-str{position:absolute;left:150px;top:440px;width:390px;padding:12px 18px;border-radius:16px;background:#fff;border:2px solid #FCD34D;font-size:19px;font-weight:700;color:#92400E;display:flex;gap:12px;align-items:center}
+
+/* scene: start with the family */
+.g3-label{position:absolute;left:90px;top:160px;width:290px;background:#fff;border:2px solid var(--line);border-radius:14px;padding:18px 20px;box-shadow:0 12px 26px rgba(15,23,42,.10);transition:all .6s}
+.g3-label h4{margin:0 0 10px;font-family:"Outfit",sans-serif;font-size:20px;color:var(--soft)}
+.g3-label .ln{height:10px;border-radius:5px;background:#E2E8F0;margin:9px 0}
+.g3-label .x{position:absolute;inset:0;opacity:0;transition:opacity .4s}
+.g3-label.g3-out{opacity:.55;transform:rotate(-4deg) scale(.94)}
+.g3-label.g3-out .x{opacity:1}
+.g3-home{position:absolute;left:430px;top:170px;width:290px;height:210px;border-radius:20px;background:#ECFEFF;border:2px solid #A5F3FC;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font-family:"Outfit",sans-serif;font-weight:800;font-size:22px;color:#0E7490}
+.g3-askq{position:absolute;left:110px;top:430px;width:600px;min-height:110px;background:#FFF7ED;border:3px solid #FDBA74;border-radius:24px;padding:22px 26px;font-family:"Outfit",sans-serif;font-size:27px;font-weight:700;color:#9A3412;line-height:1.3}
+.g3-askq:after{content:"";position:absolute;left:70px;bottom:-22px;border:12px solid transparent;border-top:12px solid #FDBA74;border-left:12px solid #FDBA74}
+.g3-askq small{display:block;font-family:"Source Sans 3",sans-serif;font-size:15px;color:#C2410C;letter-spacing:.06em;text-transform:uppercase;font-weight:800;margin-bottom:6px}
+
+/* scene: decisions together */
+.g3-ring{position:absolute;left:70px;top:130px;width:690px;height:560px}
+.g3-ring svg.g3-lines{position:absolute;left:0;top:0}
+.g3-ring line{stroke:#A5F3FC;stroke-width:4;stroke-dasharray:8 8;opacity:0;transition:opacity .5s}
+.g3-ring line.on{opacity:1}
+.g3-core{position:absolute;left:255px;top:165px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#FDE68A,#F59E0B);display:flex;align-items:center;justify-content:center;text-align:center;font-family:"Outfit",sans-serif;font-weight:800;font-size:21px;color:#78350F;line-height:1.2;box-shadow:0 14px 30px rgba(217,119,6,.25)}
+.g3-node{position:absolute;width:160px;padding:12px 8px;border-radius:16px;background:#fff;border:2px solid #67E8F9;text-align:center;font-weight:800;font-size:19px;color:#0B4F61;box-shadow:0 8px 20px rgba(15,23,42,.08)}
+.g3-node.par{border-color:var(--coral);background:#FFF7ED;color:#9A3412}
+.g3-time{position:absolute;left:175px;top:470px;width:340px;padding:12px 16px;border-radius:16px;background:#fff;border:2px solid #FCD34D;display:flex;gap:12px;align-items:center;font-weight:700;font-size:18px;color:#92400E}
+
+/* scene: silence is not agreement */
+.g3-bub{position:absolute;padding:14px 20px;border-radius:20px;background:#fff;border:2px solid var(--line);font-size:21px;font-weight:700;color:var(--ink);box-shadow:0 10px 24px rgba(15,23,42,.08)}
+.g3-bub small{display:block;font-size:13px;letter-spacing:.07em;text-transform:uppercase;color:var(--soft);font-weight:800;margin-bottom:4px}
+.g3-bub.rep{background:#FEF3C7;border-color:#FCD34D}
+.g3-bub.good{background:#F0FDF4;border-color:#86EFAC}
+.g3-dots{display:flex;gap:8px;padding:6px 0}
+.g3-dots i{width:12px;height:12px;border-radius:50%;background:#B45309;animation:g3blink 1.2s infinite}
+.g3-dots i:nth-child(2){animation-delay:.2s}.g3-dots i:nth-child(3){animation-delay:.4s}
+@keyframes g3blink{0%,100%{opacity:.25}50%{opacity:1}}
+.g3-bub .ln{height:9px;border-radius:5px;background:#BBF7D0;margin:7px 0}
+.g3-tagline{position:absolute;font-size:17px;font-weight:700;color:#B45309}
+.g3-welcome{position:absolute;left:150px;top:612px;padding:10px 20px;border-radius:999px;background:#0E7490;color:#fff;font-weight:800;font-size:19px}
+
+/* scene: relationships */
+.g3-tbl{position:absolute;left:230px;top:320px;width:310px;height:170px;border-radius:50%;background:radial-gradient(ellipse at 40% 35%,#A5F3FC,#0891B2);box-shadow:inset 0 -10px 0 rgba(0,0,0,.08),0 18px 30px rgba(15,23,42,.15)}
+.g3-tent{position:absolute;width:170px;padding:10px 10px 12px;border-radius:12px;background:#fff;border:2px solid var(--line);text-align:center;box-shadow:0 8px 20px rgba(15,23,42,.08)}
+.g3-tent b{display:block;font-family:"Outfit",sans-serif;font-size:19px;color:var(--ink)}
+.g3-tent span{font-size:14px;color:var(--soft);font-weight:600;line-height:1.2;display:block;margin-top:3px}
+.g3-tent.par{border-color:var(--coral);background:#FFF7ED}
+.g3-story{position:absolute;left:110px;top:140px;width:560px;min-height:96px;background:#fff;border:3px solid #67E8F9;border-radius:24px;padding:14px 22px;font-size:22px;font-weight:700;color:#0B4F61}
+.g3-story small{display:block;font-size:13px;letter-spacing:.07em;text-transform:uppercase;color:#0891B2;font-weight:800;margin-bottom:4px}
+
+/* scene: disability understood differently */
+.g3-venn{position:absolute;left:70px;top:140px;width:400px;height:330px}
+.g3-c{position:absolute;width:200px;height:200px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:"Outfit",sans-serif;font-weight:800;font-size:22px;mix-blend-mode:multiply}
+.g3-c.a{left:20px;top:10px;background:rgba(165,243,252,.85);color:#0E7490;padding:0 50px 40px 0}
+.g3-c.b{left:170px;top:10px;background:rgba(254,215,170,.85);color:#C2410C;padding:0 0 40px 50px}
+.g3-c.c{left:95px;top:130px;background:rgba(253,230,138,.85);color:#92400E;padding:60px 0 0}
+.g3-word{position:absolute;left:490px;top:170px;width:260px;background:#fff;border:2px solid var(--line);border-radius:16px;padding:16px 18px;box-shadow:0 10px 24px rgba(15,23,42,.08);font-size:17px;font-weight:700;color:var(--soft)}
+.g3-word .box{margin-top:10px;height:56px;border:3px dashed #CBD5E1;border-radius:12px;display:flex;align-items:center;justify-content:center;font-family:"Outfit",sans-serif;font-size:30px;color:#94A3B8}
+.g3-elig{position:absolute;left:130px;top:490px;width:560px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 14px 30px rgba(15,23,42,.12);padding:18px 22px;display:flex;gap:18px;align-items:center}
+.g3-elig h4{margin:0 0 6px;font-family:"Outfit",sans-serif;font-size:21px;color:var(--teal)}
+.g3-elig p{margin:0;font-size:17px;color:#334155}
+
+/* scene: language access */
+.g3-letter{position:absolute;left:80px;top:136px;width:660px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 14px 30px rgba(15,23,42,.12);padding:16px 24px}
+.g3-letter h4{margin:0 0 2px;font-family:"Outfit",sans-serif;font-size:20px;color:var(--teal)}
+.g3-letter .g3-from{font-size:14px;color:#94A3B8;margin-bottom:8px}
+.g3-letter .body{font-size:19px;color:#334155;min-height:56px;line-height:1.35}
+.g3-card{position:absolute;top:340px;width:320px;height:250px;background:#fff;border:2px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 12px 26px rgba(15,23,42,.10);text-align:center}
+.g3-card h4{margin:10px 0 6px;font-family:"Outfit",sans-serif;font-size:21px;color:var(--ink)}
+.g3-card p{margin:0;font-size:16px;color:var(--soft);font-weight:600}
+.g3-card.yes{border-color:#86EFAC}
+.g3-card.no{border-color:#FCA5A5}
+.g3-stamp{position:absolute;right:16px;top:14px;padding:5px 12px;border:3px solid #16A34A;border-radius:10px;color:#16A34A;font-family:"Outfit",sans-serif;font-weight:800;font-size:17px;transform:rotate(8deg)}
+.g3-notice{position:absolute;left:180px;top:612px;padding:10px 18px;border-radius:14px;background:#FEF3C7;border:2px solid #FCD34D;color:#92400E;font-weight:800;font-size:18px;display:flex;gap:10px;align-items:center}
+
+/* scene: across the region */
+.g3-map{position:absolute;left:70px;top:140px;width:690px;height:430px;border-radius:24px;background:linear-gradient(180deg,#ECFEFF,#A5F3FC);overflow:hidden}
+.g3-map svg{position:absolute;left:0;top:0}
+.g3-map .g3-route{stroke:#0891B2;stroke-width:3;stroke-dasharray:9 9;fill:none;opacity:0;transition:opacity .6s}
+.g3-map .g3-route.on{opacity:.8}
+.g3-pin{position:absolute;width:150px;padding:8px 8px;border-radius:12px;background:#fff;border:2px solid var(--coral);text-align:center;font-size:15px;font-weight:800;color:#9A3412;box-shadow:0 8px 18px rgba(15,23,42,.10)}
+.g3-idea{position:absolute;left:22px;top:20px;padding:8px 16px;border-radius:12px;background:#0E7490;color:#fff;font-family:"Outfit",sans-serif;font-weight:800;font-size:18px}
+.g3-chips{position:absolute;left:70px;top:592px;width:690px;display:flex;gap:14px;flex-wrap:wrap}
+
+/* scene: remember */
+.g3-key{position:absolute;left:130px;top:150px;width:1020px;height:470px;border-radius:30px;background:linear-gradient(135deg,#0B4F61,#0891B2);box-shadow:0 24px 50px rgba(11,79,97,.3);overflow:hidden}
+.g3-key .k1{position:absolute;left:70px;top:90px;width:880px;font-family:"Outfit",sans-serif;font-weight:800;font-size:68px;color:#fff;line-height:1.05}
+.g3-key .k2{position:absolute;left:70px;top:220px;width:880px;font-family:"Outfit",sans-serif;font-weight:700;font-size:44px;color:#FDE68A;line-height:1.2}
+.g3-key .k0{position:absolute;left:70px;top:44px;font-size:16px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#A5F3FC}
+.g3-key svg{position:absolute;right:40px;bottom:30px}
+</style>
+</head><body>
+<div id="view"><div id="stage"><div id="nbar"><i></i></div>
+<div id="scenes"></div>
+<div id="spot"></div>
+<svg id="cursor" viewBox="0 0 28 32"><path d="M3 2 L3 26 L9.5 19.5 L14 29 L18.5 27 L14 17.5 L23 17.5 Z" fill="#fff" stroke="#0F172A" stroke-width="2" stroke-linejoin="round"/></svg>
+</div></div>
+<div id="cap" aria-live="polite"></div>
+<div id="bar">
+ <button id="prev">Back</button><button id="play">Start</button><button id="next">Next</button>
+ <div id="dots"></div>
+ <button id="capbtn" aria-pressed="false">Captions</button><button id="voice" aria-pressed="true">Voice on</button>
+</div>
+<script src="lesson-kit.js?v=1"></script>
+<script>
+const DECK_ID='cert-gold-3';
+const L={tier:'gold',lesson:'Gold Lesson 3',title:'Pacific Island Cultural Advocacy'};
+const g3on=s=>{const e=typeof s==='string'?q(s):s;if(e)e.classList.add('on');return e};
+const g3reveal=async(sel,ms=260)=>{for(const e of all(sel)){e.classList.add('on');await wait(ms)}};
+const ISL=(p)=>`<path d="${p}" fill="#86EFAC" stroke="#22C55E" stroke-width="2"/>`;
+const ICO={
+ chat:'<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#B45309" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.6A8 8 0 1 1 21 12z"/></svg>',
+ clock:'<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#B45309" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+ home:'<svg viewBox="0 0 24 24" width="54" height="54" fill="none" stroke="#0E7490" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/></svg>',
+ doc:'<svg viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="#0E7490" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>',
+ bell:'<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#92400E" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 7l8 6 8-6"/></svg>',
+ heart:'<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#B45309" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/></svg>'};
+
+const SC=[
+COVER({...L,title:'Pacific Island Cultural Advocacy',
+ sub:'Advocating across cultures with respect. Ask, do not assume.',
+ art:`<svg class="g3-art" viewBox="0 0 330 230"><path d="M20 30h170a22 22 0 0 1 22 22v50a22 22 0 0 1-22 22H80l-30 26v-26H20A22 22 0 0 1-2 102V52A22 22 0 0 1 20 30z" fill="rgba(255,255,255,.92)"/><text x="104" y="92" text-anchor="middle" font-family="Outfit,sans-serif" font-size="34" font-weight="800" fill="#0E7490">?</text><path d="M150 100h160a20 20 0 0 1 20 20v46a20 20 0 0 1-20 20h-40v26l-30-26h-90a20 20 0 0 1-20-20v-46a20 20 0 0 1 20-20z" fill="#FDE68A"/><rect x="160" y="128" width="130" height="9" rx="4.5" fill="#D97706" opacity=".55"/><rect x="160" y="148" width="96" height="9" rx="4.5" fill="#D97706" opacity=".55"/></svg>`,
+ say:'Aloha, and welcome to Gold Lesson 3. L D A H serves families across Hawaiʻi and the Pacific. This lesson is about advocating across cultures, with respect.'}),
+
+{html:()=>HEAD('Who we serve','Across Hawaiʻi and the Pacific')+`<div class="g3-sea"><svg class="g3-bg" width="690" height="520" viewBox="0 0 690 520">
+ <path d="M0 70 Q60 55 120 70 T240 70 T360 70 T480 70 T600 70 T720 70" stroke="#fff" stroke-width="3" fill="none" opacity=".7"/>
+ <path d="M0 250 Q60 235 120 250 T240 250 T360 250 T480 250 T600 250 T720 250" stroke="#fff" stroke-width="3" fill="none" opacity=".6"/>
+ <path d="M0 400 Q60 385 120 400 T240 400 T360 400 T480 400 T600 400 T720 400" stroke="#fff" stroke-width="3" fill="none" opacity=".6"/>
+ ${ISL('M560 140c14-12 40-10 50 4s-4 28-24 28-38-18-26-32z')}${ISL('M90 300c10-8 30-6 36 4s-6 18-20 18-24-12-16-22z')}${ISL('M330 190c8-6 22-4 26 4s-4 12-14 12-18-8-12-16z')}</svg>
+ <div class="g3-tag g3-pop" style="left:40px;top:40px">Native Hawaiian</div>
+ <div class="g3-tag g3-pop" style="left:290px;top:30px">Filipino</div>
+ <div class="g3-tag g3-pop" style="left:470px;top:60px">Samoan</div>
+ <div class="g3-tag g3-pop" style="left:60px;top:150px">Chuukese</div>
+ <div class="g3-tag g3-pop" style="left:400px;top:200px">Marshallese</div>
+ <div class="g3-tag g3-pop" style="left:150px;top:240px">Palauan</div>
+ <div class="g3-tag g3-pop" style="left:440px;top:310px">Chamorro</div>
+ <div class="g3-tag more g3-pop" style="left:60px;top:330px">and many other backgrounds</div>
+ <div class="g3-str g3-pop">${ICO.heart}Every family brings strengths to the IEP table.</div></div>`+PTS([
+ 'LDAH serves families across <b>Hawaiʻi and the Pacific</b>.',
+ 'Families from many backgrounds bring <b>strengths</b> to the IEP table.',
+ 'Some meet <b>barriers</b> that have nothing to do with how much they care.',
+ 'This lesson: advocating across cultures <b>with respect</b>.'],150),
+ steps:[
+ {say:'L D A H serves families across Hawaiʻi and the Pacific.',li:0},
+ {say:'Families from Native Hawaiian, Filipino, Samoan, [Chuukese|Chooh-keez], [Marshallese|Mar-shuh-leez], [Palauan|Puh-lau-an], [Chamorro|Chuh-mor-oh] and many other backgrounds bring strengths to the I E P table.',li:1,act:async()=>{await g3reveal('.g3-tag',300);const s=g3on('.g3-str');spot(s,6)}},
+ {say:'And sometimes, they meet barriers that have nothing to do with how much they care. A family can love their child deeply, and still find the meeting hard to follow, or hard to speak up in.',li:2,act:async()=>{spot(null)}},
+ {say:'So this lesson is about advocating across cultures, with respect.',li:3}]},
+
+{html:()=>HEAD('The first rule','Start with the family, not the label')+`<div class="g3-label"><h4>A list of cultural traits</h4><div class="ln"></div><div class="ln" style="width:80%"></div><div class="ln" style="width:90%"></div><div class="ln" style="width:65%"></div>
+ <svg class="x" viewBox="0 0 290 150" preserveAspectRatio="none"><path d="M20 20 L270 130 M270 20 L20 130" stroke="#DC2626" stroke-width="6" stroke-linecap="round" opacity=".7"/></svg></div>
+ <div class="g3-home g3-pop">${ICO.home}A real family</div>
+ <div class="g3-askq g3-pop"><small>The best question</small><span class="g3-qt">“How does your family like to make decisions?”</span></div>`+PTS([
+ '<b>No list</b> of cultural traits describes a real family.',
+ 'Use what you learn here as <b>questions to ask</b>, never as assumptions to make.',
+ 'The best question is the simplest: <b>“How does your family like to make decisions?”</b>'],160),
+ steps:[
+ {say:'Here is the first rule. No list of cultural traits describes a real family.',li:0,act:async()=>{const l=q('.g3-label');spot(l,6);await wait(900);l.classList.add('g3-out');g3on('.g3-home');spot(null)}},
+ {say:'So everything in this lesson is a question to ask, never an assumption to make. Some families will recognize themselves in what you hear today. Many will not. Both are fine.',li:1},
+ {say:'And the best question is the simplest one. How does your family like to make decisions?',li:2,act:async()=>{const a=g3on('.g3-askq');const t=a.querySelector('.g3-qt');await type(t,'“How does your family like to make decisions?”',28);spot(a,6)}}]},
+
+{html:()=>HEAD('Consideration 1','Decisions are often made together')+`<div class="g3-ring"><svg class="g3-lines" width="690" height="560" viewBox="0 0 690 560">
+ <line x1="345" y1="255" x2="345" y2="60"/><line x1="345" y1="255" x2="590" y2="150"/><line x1="345" y1="255" x2="560" y2="400"/><line x1="345" y1="255" x2="130" y2="400"/><line x1="345" y1="255" x2="100" y2="150"/></svg>
+ <div class="g3-core">A big decision<br>for the child</div>
+ <div class="g3-node par g3-pop" style="left:265px;top:32px">Parents</div>
+ <div class="g3-node g3-pop" style="left:510px;top:122px">Grandparents</div>
+ <div class="g3-node g3-pop" style="left:480px;top:372px">Aunties</div>
+ <div class="g3-node g3-pop" style="left:50px;top:372px">Uncles</div>
+ <div class="g3-node g3-pop" style="left:20px;top:122px">Elders</div>
+ <div class="g3-time g3-pop">${ICO.clock}Time to talk as a family before agreeing</div></div>`+PTS([
+ 'In many Pacific families, grandparents, aunties, uncles or elders <b>share in big decisions</b>.',
+ 'Parents may invite them to the IEP meeting as people <b>with knowledge of the child</b>.',
+ 'They may need <b>time to talk with family</b> before agreeing.',
+ 'That is not delay. It is <b>how the decision gets made well</b>.'],150),
+ steps:[
+ {say:'Now, some common considerations. Remember, each one is something some families experience, and a question you can ask.',act:async()=>{spot(q('.g3-core'),8)}},
+ {say:'First. Decisions are often made together. In many Pacific families, grandparents, aunties, uncles or elders share in big decisions.',li:0,act:async()=>{spot(null);const ls=all('.g3-ring line'),ns=all('.g3-node');for(let i=0;i<ns.length;i++){ls[i].classList.add('on');ns[i].classList.add('on');await wait(300)}}},
+ {say:'Parents may invite them to the I E P meeting, as people with knowledge of the child. And that is exactly what they are.',li:1},
+ {say:'Parents may also need time to talk with family before agreeing to anything.',li:2,act:async()=>{const t=g3on('.g3-time');spot(t,6)}},
+ {say:'That is not delay. It is how the decision gets made well. If a family asks for time, the kind answer is: of course.',li:3,act:async()=>{spot(null)}}]},
+
+{html:()=>HEAD('Consideration 2','Silence is not agreement')+`
+ <div class="g3-bub g3-pop" style="left:80px;top:140px;width:340px"><small>A closed question</small>“Does that make sense?”</div>
+ <div class="g3-bub rep g3-pop" style="left:470px;top:190px;width:200px"><small>The parent</small><div class="g3-dots"><i></i><i></i><i></i></div></div>
+ <div class="g3-tagline g3-pop" style="left:440px;top:296px">A nod may mean respect, not yes.</div>
+ <div class="g3-bub g3-pop" style="left:80px;top:350px;width:400px"><small>An open question</small>“What would this look like at home for your child?”</div>
+ <div class="g3-bub good g3-pop" style="left:470px;top:450px;width:270px"><small>The parent</small><div class="ln"></div><div class="ln" style="width:85%"></div><div class="ln" style="width:60%"></div></div>
+ <div class="g3-welcome g3-pop">Disagreeing is expected, and welcome.</div>`+PTS([
+ 'Where respect for teachers runs deep, a parent may <b>nod or stay quiet</b> rather than question a professional.',
+ 'Silence or nodding may be <b>respect, not agreement</b>.',
+ 'Check understanding with <b>open questions</b>.',
+ 'Make it clear that <b>disagreeing is expected and welcome</b>.'],150),
+ steps:[
+ {say:'Second. Silence is not agreement. Where respect for teachers runs deep, a parent may nod, or stay quiet, rather than question a professional.',li:0,act:async()=>{g3on(all('.g3-bub')[0]);await wait(700);g3on(all('.g3-bub')[1])}},
+ {say:'So a nod may mean respect. It may not mean yes. And a closed question, like, does that make sense, almost always gets a nod.',li:1,act:async()=>{const t=g3on('.g3-tagline');spot(t,8)}},
+ {say:'Instead, check understanding with open questions. What would this look like at home for your child? What part worries you most? Questions like these invite a real answer.',li:2,act:async()=>{spot(null);g3on(all('.g3-bub')[2]);await wait(700);const r=g3on(all('.g3-bub')[3]);spot(r,6)}},
+ {say:'And make it clear, out loud, that disagreeing is expected and welcome. For some parents, hearing that said makes all the difference.',li:3,act:async()=>{const w=g3on('.g3-welcome');spot(w,6)}}]},
+
+{html:()=>HEAD('Consideration 3','Relationships come first')+`
+ <div class="g3-story g3-pop"><small>Before the business</small><span class="g3-st">Aloha. Let’s go around the table and introduce ourselves.</span></div>
+ <div class="g3-tbl"></div>
+ <div class="g3-tent par g3-pop" style="left:50px;top:330px"><b>Parent</b><span>Knows the child best</span></div>
+ <div class="g3-tent g3-pop" style="left:570px;top:330px"><b>Grandparent</b><span>Invited by the family</span></div>
+ <div class="g3-tent g3-pop" style="left:100px;top:530px"><b>Teacher</b><span>Teaches the child each day</span></div>
+ <div class="g3-tent g3-pop" style="left:300px;top:550px"><b>Interpreter</b><span>Helps everyone understand</span></div>
+ <div class="g3-tent g3-pop" style="left:500px;top:530px"><b>Department rep</b><span>Can commit resources</span></div>`+PTS([
+ 'Take time to <b>talk story</b>.',
+ '<b>Introduce everyone</b> at the table.',
+ 'Explain <b>each person’s role</b>.',
+ 'This builds the <b>trust</b> that makes a meeting work.'],160),
+ steps:[
+ {say:'Third. Relationships come first. Taking time to talk story, before the business starts, is not wasted time.',li:0,act:async()=>{const s=g3on('.g3-story');spot(s,6)}},
+ {say:'Introduce everyone at the table. Every person, not just the ones who already know each other.',li:1,act:async()=>{spot(null);await g3reveal('.g3-tent',280)}},
+ {say:'And explain each person’s role. Why they are here, and what they do for the child. A family that knows who everyone is can speak to the right person.',li:2,act:async()=>{const t=all('.g3-tent');for(const e of t){spot(e,4);await wait(500)}spot(null)}},
+ {say:'All of that builds the trust that makes a meeting work.',li:3}]},
+
+{html:()=>HEAD('Consideration 4','Disability may be understood differently')+`<div class="g3-venn">
+ <div class="g3-c a g3-pop">Faith</div><div class="g3-c b g3-pop">Family</div><div class="g3-c c g3-pop">Community</div></div>
+ <div class="g3-word g3-pop">Some families have no word for a disability<div class="box">?</div></div>
+ <div class="g3-elig g3-pop">${ICO.doc}<div><h4>Eligibility</h4><p>What it means for <b>this child’s services</b>, explained so the family understands.</p></div></div>`+PTS([
+ 'Some families have <b>no word</b> for a disability.',
+ 'Some see it through <b>faith, family or community</b>.',
+ '<b>Respect</b> that view.',
+ 'And make sure the family understands what <b>eligibility</b> means for their child’s services.'],160),
+ steps:[
+ {say:'Fourth. Disability may be understood differently. Some families have no word for a disability in their language.',li:0,act:async()=>{const w=g3on('.g3-word');spot(w,6)}},
+ {say:'Some see it through faith, through family, or through community.',li:1,act:async()=>{spot(null);await g3reveal('.g3-c',350)}},
+ {say:'Respect that view. You are not there to change how a family understands their child.',li:2,act:async()=>{spot(q('.g3-venn'),6)}},
+ {say:'At the same time, make sure the family understands what eligibility means for their child’s services. Both things can be true at once: their view is respected, and they know what the decision means.',li:3,act:async()=>{const e=g3on('.g3-elig');spot(e,6)}}]},
+
+{html:()=>HEAD('Language access is a right','An interpreter, at no cost')+`<div class="g3-letter g3-pop"><h4>Request for an interpreter</h4><div class="g3-from">Sent in writing, when the meeting is scheduled</div><div class="body g3-lb">Please provide an interpreter in our home language for our child’s IEP meeting. Thank you.</div></div>
+ <div class="g3-card yes g3-pop" style="left:80px"><span class="g3-stamp">NO COST</span>
+ <svg viewBox="0 0 120 80" width="120" height="80"><path d="M8 10h56a8 8 0 0 1 8 8v22a8 8 0 0 1-8 8H30l-12 10V48H8a8 8 0 0 1-8-8V18a8 8 0 0 1 8-8z" fill="#CFFAFE"/><path d="M56 30h56a8 8 0 0 1 8 8v22a8 8 0 0 1-8 8h-10v10l-12-10H56a8 8 0 0 1-8-8V38a8 8 0 0 1 8-8z" fill="#FDE68A"/><rect x="62" y="44" width="44" height="6" rx="3" fill="#D97706" opacity=".6"/><rect x="62" y="56" width="30" height="6" rx="3" fill="#D97706" opacity=".6"/></svg>
+ <h4>An interpreter from the school</h4><p>For a parent whose native language is not English</p></div>
+ <div class="g3-card no g3-pop" style="left:420px">
+ <svg viewBox="0 0 80 80" width="80" height="80"><circle cx="40" cy="40" r="34" fill="#FEF2F2" stroke="#DC2626" stroke-width="5"/><path d="M28 30h24v18H28z" fill="none" stroke="#94A3B8" stroke-width="3" stroke-linejoin="round"/><path d="M33 30v-4a7 7 0 0 1 14 0v4" fill="none" stroke="#94A3B8" stroke-width="3"/><path d="M16 64L64 16" stroke="#DC2626" stroke-width="5" stroke-linecap="round"/></svg>
+ <h4>The child as interpreter</h4><p>A child should never be asked to interpret for their own IEP meeting</p></div>
+ <div class="g3-notice g3-pop">${ICO.bell}Notices in the parent’s native language</div>`+PTS([
+ 'Under IDEA, the school must take <b>whatever action is necessary</b> so a parent understands the IEP meeting.',
+ 'That includes an <b>interpreter at no cost</b> for a parent whose native language is not English.',
+ 'A child should <b>never</b> be asked to interpret for their own IEP meeting.',
+ '<b>Notices</b> must be in the parent’s native language, unless that is clearly not feasible.',
+ 'Ask for the interpreter <b>in writing</b> when the meeting is scheduled.'],140),
+ steps:[
+ {say:'Now, something that is not a cultural question at all. It is a right. Under I D E A, the school must take whatever action is necessary to make sure a parent understands the I E P meeting.',li:0},
+ {say:'That includes providing an interpreter for a parent whose native language is not English. At no cost to the family.',li:1,act:async()=>{const c=g3on('.g3-card.yes');spot(c,6)}},
+ {say:'And here is a line to hold firmly. A child should never be asked to interpret for their own I E P meeting. Not even a capable older child. The interpreter comes from the school.',li:2,act:async()=>{const c=g3on('.g3-card.no');spot(c,6)}},
+ {say:'Notices must also be provided in the parent’s native language, unless that is clearly not feasible.',li:3,act:async()=>{const n=g3on('.g3-notice');spot(n,6)}},
+ {say:'One practical step. Ask for the interpreter in writing, when the meeting is scheduled. That way it is arranged before anyone sits down.',li:4,act:async()=>{const l=g3on('.g3-letter');spot(l,6);await type(q('.g3-lb'),'Please provide an interpreter in our home language for our child’s IEP meeting. Thank you.',24)}}]},
+
+{html:()=>HEAD('Across the Pacific','Learn how things work locally')+`<div class="g3-map"><svg width="690" height="430" viewBox="0 0 690 430">
+ <path class="g3-route" d="M140 140 Q260 60 380 120"/><path class="g3-route" d="M380 120 Q500 170 560 280"/><path class="g3-route" d="M140 140 Q160 260 250 320"/>
+ ${ISL('M110 130c12-16 44-14 54 2s-6 30-28 28-36-14-26-30z')}${ISL('M360 110c8-10 30-8 36 2s-4 18-18 18-24-10-18-20z')}${ISL('M540 270c14-12 40-8 46 6s-10 24-28 22-30-16-18-28z')}${ISL('M236 312c6-6 20-5 24 2s-4 12-12 12-16-8-12-14z')}</svg>
+ <div class="g3-idea g3-pop">IDEA funds special education here too</div>
+ <div class="g3-pin g3-pop" style="left:62px;top:180px">A partner who knows this island</div>
+ <div class="g3-pin g3-pop" style="left:310px;top:150px">A partner who knows this island</div>
+ <div class="g3-pin g3-pop" style="left:490px;top:322px">A partner who knows this island</div>
+ <div class="g3-pin g3-pop" style="left:170px;top:350px">A partner who knows this island</div></div>
+ <div class="g3-chips"><span class="chip g3-pop">U.S. territories</span><span class="chip g3-pop">Freely associated states</span><span class="chip coral g3-pop">Different systems, distances, resources</span></div>`+PTS([
+ 'IDEA also funds special education in the <b>U.S. territories</b> and the <b>freely associated states</b>.',
+ 'LDAH works alongside <b>partners</b> across the region.',
+ 'Systems, distances and resources <b>differ from island to island</b>.',
+ '<b>Learn how things work locally</b> before giving advice.',
+ 'Connect families with the partner who <b>knows their island</b>.'],140),
+ steps:[
+ {say:'Across the Pacific. I D E A also funds special education in the U.S. territories, and in the freely associated states.',li:0,act:async()=>{g3on('.g3-idea');const c=all('.g3-chips .chip');c[0].classList.add('on');await wait(300);c[1].classList.add('on')}},
+ {say:'And L D A H works alongside partners across the region.',li:1,act:async()=>{await g3reveal('.g3-route',250);await g3reveal('.g3-pin',250)}},
+ {say:'But systems, distances and resources differ from island to island. What works on Oʻahu may not exist somewhere else.',li:2,act:async()=>{const c=g3on(all('.g3-chips .chip')[2]);spot(c,6)}},
+ {say:'So learn how things work locally, before giving advice.',li:3,act:async()=>{spot(null)}},
+ {say:'And connect families with the partner who knows their island. That partner knows the people, the system, and the distances.',li:4,act:async()=>{spot(all('.g3-pin')[2],6);await wait(1200);spot(null)}}]},
+
+{html:()=>HEAD('Remember','The heart of this lesson')+`<div class="g3-key"><div class="k0">Remember</div>
+ <div class="k1 fade g3-k1">Ask, do not assume.</div>
+ <div class="k2 fade g3-k2">Every family is the expert on its own culture.</div>
+ <svg width="260" height="150" viewBox="0 0 260 150"><path d="M20 10h130a18 18 0 0 1 18 18v40a18 18 0 0 1-18 18H70l-26 22V86H20A18 18 0 0 1 2 68V28A18 18 0 0 1 20 10z" fill="rgba(255,255,255,.18)"/><path d="M120 60h120a16 16 0 0 1 16 16v38a16 16 0 0 1-16 16h-26v18l-22-18h-72a16 16 0 0 1-16-16V76a16 16 0 0 1 16-16z" fill="rgba(253,230,138,.35)"/></svg></div>`,
+ steps:[
+ {say:'If you remember one thing from this lesson, make it this. Ask, do not assume.',act:async()=>{g3on('.g3-k1')}},
+ {say:'Every family is the expert on its own culture. Your job is to ask good questions, listen to the answers, and make sure the family has what it needs to take its seat at the table.',act:async()=>{const k=g3on('.g3-k2');spot(q('.g3-key'),4)}}]},
+
+QUIZ([
+ {q:'A parent nods quietly through the whole IEP meeting. What is the best next step?',o:['Check understanding with open questions, and say that disagreeing is welcome','Take the nod as agreement and move on','Ask “Does that make sense?” one more time'],a:0,y:'Silence or nodding may be respect rather than agreement. Open questions check real understanding.',n:'Think about what a nod might mean.'},
+ {q:'A parent’s native language is not English. Who should interpret at the IEP meeting?',o:['The child, who speaks both languages','A family friend the parent pays for','An interpreter provided by the school, at no cost'],a:2,y:'The school provides the interpreter at no cost, and a child should never interpret for their own meeting.',n:'Think about the card with the No Cost stamp.'},
+ {q:'A family asks for time to talk with the grandparents before agreeing to the IEP. What is this?',o:['A delay that slows the team down','How the decision gets made well, so give them time','A sign the family does not care'],a:1,y:'Many families decide together. That is not delay; it is how the decision gets made well.',n:'Think about the circle of family around the decision.'}]),
+
+RECAP([
+ 'Use cultural knowledge as <b>questions to ask</b>, never assumptions.',
+ 'Many families <b>decide together</b>, and may bring extended family and need time.',
+ 'Silence or nodding may be <b>respect, not agreement</b>. Use open questions.',
+ 'Relationships first: <b>talk story</b>, introduce everyone, explain roles.',
+ 'An <b>interpreter at no cost</b>, asked for in writing. Never the child.',
+ '<b>Ask, do not assume.</b> Every family is the expert on its own culture.'],[
+ 'Use what you know about culture as questions to ask, never as assumptions.',
+ 'Many Pacific families make decisions together. They may bring extended family to the I E P meeting, and need time to decide.',
+ 'Silence or nodding may be respect rather than agreement, so check understanding with open questions.',
+ 'Relationships come first. Talk story, introduce everyone, and explain each person’s role.',
+ 'Parents have a right to an interpreter at no cost. Ask for one in writing. And a child should never interpret for their own I E P meeting.',
+ 'Ask, do not assume. Every family is the expert on its own culture.']),
+
+CLOSE({...L,sub:'Select Complete on the lesson page when you are ready.',
+ say:'Mahalo! That is Gold Lesson 3. Thank you for the care you bring to every family you walk beside. Select Complete on the lesson page when you are ready to move on.'})
+];
+</script>
+<script src="deck-engine.js?v=1"></script></body></html>

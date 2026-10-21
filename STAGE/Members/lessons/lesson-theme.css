@@ -1,0 +1,51 @@
+/* Member lesson decks: the public site's look on top of deck-base.css
+   (copied from LDAH-Int training/). Teal, coral, sand; Outfit + Source Sans 3. */
+:root{--ink:#1E293B;--soft:#64748B;--teal:#0E7490;--teal2:#0891B2;--pink:#F97316;--bg:#FFFBEB;--line:#E2E8F0;--deep:#0B4F61;--amber:#B45309;--sand:#FEF3C7;--coral:#F97316}
+body{font-family:"Source Sans 3",-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;background:var(--deep)}
+h1,h2,.kicker,.btn,.qq,.qintro,.cover .hello{font-family:"Outfit","Source Sans 3",sans-serif}
+.cover{background:linear-gradient(135deg,#0B4F61,#0891B2 62%,#06B6D4)}
+.cover .brand{font-size:15px}
+#bar{background:#0B3F4E}#bar button{background:#0E6278}
+#dots button{background:#2A7F95}#dots button.seen{background:#A5F3FC}
+#cap{background:rgba(11,63,78,.94)}
+#spot{box-shadow:0 0 0 3000px rgba(11,79,97,.30)}
+.btn:focus-visible,#bar button:focus-visible{outline:3px solid #FDBA74}
+.bub{box-shadow:0 12px 30px rgba(249,115,22,.2)}
+.tier{display:inline-block;padding:4px 12px;border-radius:999px;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;font-family:"Outfit",sans-serif}
+.tier.silver{background:linear-gradient(135deg,#E2E8F0,#94A3B8);color:#1E293B}
+.tier.gold{background:linear-gradient(135deg,#FDE68A,#D97706);color:#451A03}
+.cover .tier{position:absolute;left:70px;top:84px;animation:rise .6s both}
+
+/* shared drawn pieces */
+.card{position:absolute;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 12px 30px rgba(15,23,42,.10);padding:18px 22px}
+.chip{display:inline-flex;align-items:center;gap:8px;background:#ECFEFF;border:2px solid #A5F3FC;color:#0E7490;border-radius:999px;padding:6px 14px;font-weight:700;font-size:17px}
+.chip.coral{background:#FFF7ED;border-color:#FDBA74;color:#C2410C}
+.chip.sand{background:#FEF3C7;border-color:#FCD34D;color:#92400E}
+.big{font-family:"Outfit",sans-serif;font-weight:800}
+.note{position:absolute;font-size:16px;color:var(--soft);font-weight:600}
+.hl-g{background:#BBF7D0}.hl-y{background:#FEF08A}.hl-r{background:#FECACA}
+.pop-in{animation:rise .5s both}
+.fade{opacity:0;transition:opacity .5s,transform .5s;transform:translateY(12px)}
+.fade.on{opacity:1;transform:none}
+
+/* quiz (same pieces as the LDAH-Int decks, re-colored) */
+.scene.quiz{background:linear-gradient(135deg,#FFF7ED,#ECFEFF)}
+.qwrap{position:absolute;left:0;top:0;right:0;bottom:0}
+.qintro{position:absolute;left:120px;top:190px;width:1040px;text-align:center;font-size:30px;font-weight:800;color:#0B4F61;line-height:1.35;animation:rise .5s both}
+.qintro small{display:block;font-size:20px;color:#475569;font-weight:700;margin-top:14px;font-family:"Source Sans 3",sans-serif}
+.qcard{position:absolute;left:120px;top:138px;width:1040px;background:#fff;border-radius:20px;box-shadow:0 18px 40px rgba(15,23,42,.14);padding:22px 30px;animation:rise .5s both}
+.qn{font-size:14px;font-weight:900;color:var(--pink);letter-spacing:.08em;text-transform:uppercase}
+.qq{font-size:27px;font-weight:700;line-height:1.25;margin:6px 0 16px}
+.qo{display:flex;align-items:center;gap:14px;width:100%;text-align:left;font:inherit;font-size:21px;font-weight:600;background:#F8FAFC;border:3px solid #E2E8F0;border-radius:14px;padding:11px 16px;margin-bottom:10px;cursor:pointer;transition:border-color .2s,background .2s;color:var(--ink)}
+.qo:hover:not([disabled]){border-color:#0891B2;background:#F0F9FF}
+.qo[disabled]{cursor:default}
+.qo .L{width:38px;height:38px;border-radius:50%;background:#0E7490;color:#fff;display:flex;align-items:center;justify-content:center;flex:none;font-weight:900}
+.qo.no{border-color:#DC2626;background:#FEF2F2;animation:shake .4s}.qo.no .L{background:#DC2626}
+.qo.yes{border-color:#16A34A;background:#F0FDF4}.qo.yes .L{background:#16A34A}
+.qfb{min-height:30px;font-size:19px;font-weight:700;margin-top:4px}.qfb.good{color:#15803D}.qfb.bad{color:#B91C1C}
+.stars{position:absolute;right:60px;top:46px;display:flex;gap:8px}
+.stars i{width:36px;height:36px;background:#E2E8F0;clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);transition:background .3s}
+.stars i.on{background:#F59E0B;animation:popn .6s}
+.qhelp{position:absolute;left:120px;bottom:30px;font-size:16px;color:#475569;font-weight:700}
+@keyframes shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.waves .w2 path{fill:#FED7AA}

@@ -1,0 +1,359 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gold Lesson 2: Mentoring Other Families</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="deck-base.css">
+<link rel="stylesheet" href="lesson-theme.css?v=1">
+<style>
+/* g2- = this deck only */
+.g2-av{width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none}
+.g2-av svg{width:38px;height:38px;fill:none;stroke:#fff;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.g2-av.t{background:var(--teal2)}.g2-av.c{background:var(--coral)}.g2-av.g{background:#94A3B8}
+
+/* scene 2: families listen to families */
+.g2-fam{position:absolute;width:250px;height:230px;top:170px;background:#fff;border:2px solid var(--line);border-radius:20px;box-shadow:0 12px 30px rgba(15,23,42,.08);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:16px;font-size:19px;font-weight:700;color:var(--ink);opacity:0;transform:translateY(18px);transition:all .5s}
+.g2-fam.on{opacity:1;transform:none}
+.g2-fam.me{border-color:var(--coral);background:#FFF7ED}
+.g2-fam small{display:block;font-size:15px;font-weight:600;color:var(--soft)}
+.g2-link{position:absolute;left:330px;top:225px;width:150px;height:110px;opacity:0;transition:opacity .5s}
+.g2-link.on{opacity:1}
+.g2-say{position:absolute;left:150px;top:438px;width:480px;background:#ECFEFF;border:2px solid #A5F3FC;border-radius:18px;padding:14px 20px;font-size:20px;font-weight:700;color:#0E7490;text-align:center}
+.g2-help{position:absolute;left:90px;top:560px;width:600px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+
+/* scene 3: beside vs in front */
+.g2-lane{position:absolute;left:80px;width:640px;height:225px;background:#fff;border:2px solid var(--line);border-radius:20px;box-shadow:0 10px 26px rgba(15,23,42,.07);opacity:.5;transition:all .5s}
+.g2-lane.on{opacity:1}
+.g2-lane h4{position:absolute;left:24px;top:16px;margin:0;font-family:"Outfit",sans-serif;font-size:22px;color:var(--ink)}
+.g2-road{position:absolute;left:24px;right:24px;top:150px;height:22px;border-radius:11px;background:#E2E8F0}
+.g2-road::after{content:"";position:absolute;left:16px;right:16px;top:10px;border-top:3px dashed #fff}
+.g2-who{position:absolute;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:14px;font-weight:700;color:var(--soft);transition:left .9s ease}
+.g2-tag{position:absolute;right:22px;top:16px;padding:5px 14px;border-radius:999px;font-weight:800;font-size:15px}
+.g2-tag.bad{background:#FEF2F2;color:#B91C1C;border:2px solid #FECACA}
+.g2-tag.good{background:#F0FDF4;color:#15803D;border:2px solid #BBF7D0}
+.g2-q{position:absolute;left:330px;top:58px;width:270px;background:#FFF7ED;border:2px solid #FDBA74;border-radius:14px;padding:8px 12px;font-size:16px;font-weight:700;color:#9A3412}
+
+/* scene 4: four habits */
+.g2-habits{position:absolute;left:80px;top:150px;width:660px;display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.g2-hab{height:225px;background:#fff;border:2px solid var(--line);border-radius:20px;padding:22px;box-shadow:0 10px 26px rgba(15,23,42,.07);opacity:0;transform:scale(.85);transition:all .45s cubic-bezier(.3,1.3,.5,1)}
+.g2-hab.on{opacity:1;transform:none}
+.g2-hab .n{font-family:"Outfit",sans-serif;font-weight:800;font-size:15px;color:var(--coral);letter-spacing:.08em}
+.g2-hab i{display:flex;width:58px;height:58px;border-radius:16px;background:#ECFEFF;align-items:center;justify-content:center;margin:8px 0 12px}
+.g2-hab i svg{width:32px;height:32px;fill:none;stroke:#0E7490;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.g2-hab h3{margin:0 0 4px;font-family:"Outfit",sans-serif;font-size:25px;color:var(--ink)}
+.g2-hab p{margin:0;font-size:16px;color:var(--soft);line-height:1.3}
+
+/* scene 5: listen, share carefully */
+.g2-chat{position:absolute;left:80px;top:140px;width:660px}
+.g2-b{position:absolute;max-width:430px;border-radius:18px;padding:12px 18px;font-size:18px;font-weight:600;line-height:1.3;opacity:0;transform:translateY(12px);transition:all .45s}
+.g2-b.on{opacity:1;transform:none}
+.g2-b.them{left:0;background:#fff;border:2px solid var(--line);color:#334155}
+.g2-b.me{right:0;background:#ECFEFF;border:2px solid #A5F3FC;color:#0E7490;font-weight:700}
+.g2-b .ln{height:9px;border-radius:5px;background:#E2E8F0;margin:7px 0}
+.g2-vs{position:absolute;left:80px;top:440px;width:660px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.g2-v{position:relative;height:190px;border-radius:18px;padding:18px;font-size:22px;font-weight:700;opacity:0;transform:translateY(14px);transition:all .45s}
+.g2-v.on{opacity:1;transform:none}
+.g2-v small{display:block;font-size:15px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px}
+.g2-v.ok{background:#F0FDF4;border:2px solid #86EFAC;color:#166534}
+.g2-v.no{background:#FEF2F2;border:2px solid #FECACA;color:#991B1B}
+.g2-v.no q{text-decoration:line-through;text-decoration-color:#DC2626;text-decoration-thickness:3px}
+.g2-v svg{position:absolute;right:16px;bottom:14px;width:44px;height:44px;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+
+/* scene 6: tools not answers */
+.g2-tools{position:absolute;left:80px;top:150px;width:660px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+.g2-tool{height:300px;background:#fff;border:2px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 10px 26px rgba(15,23,42,.07);opacity:0;transform:translateY(18px);transition:all .45s}
+.g2-tool.on{opacity:1;transform:none}
+.g2-tool h4{margin:0 0 12px;font-family:"Outfit",sans-serif;font-size:19px;color:var(--teal);line-height:1.2;min-height:46px}
+.g2-cols{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.g2-cols>div{background:#F8FAFC;border:1px solid var(--line);border-radius:6px;height:170px;padding:6px}
+.g2-cols b{display:block;height:10px;border-radius:4px;background:#0E7490;margin-bottom:8px;opacity:.7}
+.g2-ln{height:9px;border-radius:5px;background:#E2E8F0;margin:9px 0}
+.g2-ql{display:flex;gap:8px;align-items:center;margin:12px 0;font-size:14px;color:#334155;font-weight:600}
+.g2-ql span{width:26px;height:26px;border-radius:50%;background:#FFF7ED;border:2px solid #FDBA74;color:#C2410C;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none}
+.g2-lead{position:absolute;left:80px;top:490px;width:660px;display:flex;align-items:center;justify-content:center;gap:20px;opacity:0;transition:opacity .5s}
+.g2-lead.on{opacity:1}
+.g2-lead .st{background:#fff;border:2px solid var(--line);border-radius:16px;padding:14px 22px;font-size:20px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:12px}
+.g2-lead .st.go{border-color:var(--coral);background:#FFF7ED}
+.g2-lead .ar{font-size:36px;color:#CBD5E1;font-weight:800}
+
+/* scene 7: confidences */
+.g2-file{position:absolute;left:90px;top:150px;width:420px;background:#fff;border-radius:14px;border:1px solid var(--line);box-shadow:0 16px 34px rgba(15,23,42,.13);padding:22px 26px}
+.g2-file h4{margin:0 0 14px;font-family:"Outfit",sans-serif;font-size:21px;color:var(--teal)}
+.g2-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid #F1F5F9;font-size:18px}
+.g2-row b{width:110px;flex:none;color:var(--ink)}
+.g2-row span{position:relative;color:#334155}
+.g2-row span::after{content:"";position:absolute;left:-4px;right:-4px;top:2px;bottom:2px;background:#1E293B;border-radius:4px;transform:scaleX(0);transform-origin:left;transition:transform .5s}
+.g2-row.on span::after{transform:scaleX(1)}
+.g2-lock{position:absolute;left:540px;top:180px;width:170px;height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:#ECFEFF;border:2px solid #A5F3FC;border-radius:20px;font-weight:800;color:#0E7490;font-size:18px;text-align:center;opacity:0;transform:scale(.8);transition:all .45s}
+.g2-lock.on{opacity:1;transform:none}
+.g2-lock svg{width:64px;height:64px;fill:none;stroke:#0E7490;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.g2-group{position:absolute;left:90px;top:470px;width:620px;background:#fff;border:2px solid var(--line);border-radius:18px;padding:16px 20px;opacity:0;transform:translateY(14px);transition:all .45s}
+.g2-group.on{opacity:1;transform:none}
+.g2-group h5{margin:0 0 10px;font-family:"Outfit",sans-serif;font-size:17px;color:var(--soft);display:flex;align-items:center;gap:8px}
+.g2-group .msg{position:relative;display:inline-block;background:#F1F5F9;border-radius:14px;padding:10px 16px;font-size:18px;color:#334155}
+.g2-group .msg::after{content:"";position:absolute;left:-6px;right:-6px;top:50%;border-top:4px solid #DC2626;transform:scaleX(0);transform-origin:left;transition:transform .5s .2s}
+.g2-group.on .msg::after{transform:scaleX(1)}
+.g2-group .ok{margin-top:10px;font-size:17px;font-weight:700;color:#15803D}
+
+/* scene 8: boundaries */
+.g2-roles{position:absolute;left:80px;top:140px;width:660px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.g2-role{position:relative;height:120px;background:#fff;border:2px solid var(--line);border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font-size:16px;font-weight:700;color:var(--ink);text-align:center;padding:8px;transition:all .45s}
+.g2-role.peer{border-color:var(--coral);background:#FFF7ED}
+.g2-role .x{position:absolute;left:18%;top:8%;width:64%;height:62%;opacity:0;transition:opacity .4s}
+.g2-role.on .x{opacity:1}
+.g2-role.on:not(.peer){color:#94A3B8;background:#F8FAFC}
+.g2-role.peer.on{transform:translateY(-6px);box-shadow:0 14px 30px rgba(249,115,22,.2)}
+.g2-dont{position:absolute;left:80px;top:286px;width:660px}
+.g2-d{display:flex;align-items:center;gap:14px;background:#fff;border:2px solid var(--line);border-radius:14px;padding:10px 16px;margin-bottom:10px;font-size:19px;font-weight:700;color:var(--ink);opacity:0;transform:translateX(-20px);transition:all .45s}
+.g2-d.on{opacity:1;transform:none}
+.g2-d svg{width:30px;height:30px;flex:none;fill:none;stroke:#DC2626;stroke-width:2.6;stroke-linecap:round}
+.g2-d small{font-weight:600;color:var(--soft);font-size:16px;margin-left:auto}
+.g2-idk{position:absolute;left:80px;top:500px;width:360px;background:#ECFEFF;border:2px solid #A5F3FC;border-radius:18px;padding:14px 18px;font-size:20px;font-weight:700;color:#0E7490;opacity:0;transform:translateY(12px);transition:all .45s}
+.g2-idk.on{opacity:1;transform:none}
+.g2-energy{position:absolute;left:470px;top:500px;width:270px;background:#fff;border:2px solid var(--line);border-radius:18px;padding:14px 18px;font-size:16px;font-weight:700;color:var(--ink);opacity:0;transform:translateY(12px);transition:all .45s}
+.g2-energy.on{opacity:1;transform:none}
+.g2-bat{position:relative;margin-top:10px;width:200px;height:40px;border:3px solid #334155;border-radius:8px;padding:3px}
+.g2-bat::after{content:"";position:absolute;right:-10px;top:10px;width:6px;height:14px;background:#334155;border-radius:0 3px 3px 0}
+.g2-bat i{display:block;height:100%;width:15%;border-radius:4px;background:#22C55E;transition:width 1.2s ease}
+.g2-energy.on .g2-bat i{width:85%}
+
+/* scene 9: referral checklist */
+.g2-list{position:absolute;left:80px;top:140px;width:660px;background:#fff;border-radius:18px;border:1px solid var(--line);box-shadow:0 16px 34px rgba(15,23,42,.12);padding:18px 24px}
+.g2-list h4{margin:0 0 6px;font-family:"Outfit",sans-serif;font-size:21px;color:var(--teal)}
+.g2-ck{display:flex;align-items:center;gap:16px;padding:12px 0;border-top:1px solid #F1F5F9;font-size:19px;font-weight:600;color:#334155}
+.g2-ck .bx{width:30px;height:30px;border-radius:8px;border:3px solid var(--teal);flex:none;position:relative;transition:background .3s}
+.g2-ck .bx svg{position:absolute;inset:2px;stroke:#fff;stroke-width:4;fill:none;stroke-dasharray:30;stroke-dashoffset:30;transition:stroke-dashoffset .45s .1s}
+.g2-ck.on .bx{background:var(--teal)}
+.g2-ck.on .bx svg{stroke-dashoffset:0}
+.g2-ck.on{color:var(--ink)}
+.g2-sos{position:absolute;left:80px;top:470px;width:660px;display:flex;align-items:center;gap:16px;background:#FEF2F2;border:2px solid #FCA5A5;border-radius:18px;padding:16px 20px;font-size:20px;font-weight:700;color:#991B1B;opacity:0;transform:translateY(12px);transition:all .45s}
+.g2-sos.on{opacity:1;transform:none}
+.g2-sos svg{width:44px;height:44px;flex:none;fill:none;stroke:#DC2626;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+
+/* scene 10: warm handoff */
+.g2-cold{position:absolute;left:80px;top:160px;width:230px;height:220px;background:#FEF9C3;border-radius:6px;box-shadow:0 12px 24px rgba(15,23,42,.14);transform:rotate(-4deg);padding:22px;font-family:"Outfit",sans-serif;opacity:0;transition:opacity .45s}
+.g2-cold.on{opacity:1}
+.g2-cold b{display:block;font-size:30px;color:#334155}
+.g2-cold .scr{margin-top:10px}
+.g2-cold .lab{position:absolute;left:0;right:0;bottom:-46px;text-align:center;font-size:16px;font-weight:700;color:var(--soft);transform:rotate(4deg)}
+.g2-cold .x{position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;transition:opacity .4s}
+.g2-cold.dim .x{opacity:1}
+.g2-cold.dim{filter:grayscale(.6)}
+.g2-warm{position:absolute;left:360px;top:140px;width:380px;height:500px;background:#fff;border:2px solid var(--line);border-radius:22px;box-shadow:0 14px 32px rgba(15,23,42,.10);padding:20px;opacity:0;transform:translateY(16px);transition:all .5s}
+.g2-warm.on{opacity:1;transform:none;border-color:var(--coral)}
+.g2-warm h4{margin:0 0 12px;font-family:"Outfit",sans-serif;font-size:22px;color:var(--ink)}
+.g2-pair{display:flex;gap:14px;align-items:center}
+.g2-ask{margin:16px 0 0;background:#ECFEFF;border:2px solid #A5F3FC;border-radius:14px;padding:10px 14px;font-size:17px;font-weight:700;color:#0E7490;opacity:0;transition:opacity .45s}
+.g2-ask.on{opacity:1}
+.g2-phone{margin:18px auto 0;width:180px;height:220px;border-radius:26px;background:#0B4F61;padding:12px;opacity:0;transform:scale(.85);transition:all .45s}
+.g2-phone.on{opacity:1;transform:none}
+.g2-phone>div{height:100%;border-radius:16px;background:linear-gradient(180deg,#0891B2,#0E7490);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font-family:"Outfit",sans-serif}
+.g2-phone small{font-size:13px;opacity:.85}
+.g2-phone b{font-size:24px}
+.g2-dots{display:flex;gap:6px}.g2-dots i{width:8px;height:8px;border-radius:50%;background:#fff;animation:g2blink 1.2s infinite}
+.g2-dots i:nth-child(2){animation-delay:.2s}.g2-dots i:nth-child(3){animation-delay:.4s}
+@keyframes g2blink{0%,100%{opacity:.3}50%{opacity:1}}
+</style>
+</head><body>
+<div id="view"><div id="stage"><div id="nbar"><i></i></div>
+<div id="scenes"></div>
+<div id="spot"></div>
+<svg id="cursor" viewBox="0 0 28 32"><path d="M3 2 L3 26 L9.5 19.5 L14 29 L18.5 27 L14 17.5 L23 17.5 Z" fill="#fff" stroke="#0F172A" stroke-width="2" stroke-linejoin="round"/></svg>
+</div></div>
+<div id="cap" aria-live="polite"></div>
+<div id="bar">
+ <button id="prev">Back</button><button id="play">Start</button><button id="next">Next</button>
+ <div id="dots"></div>
+ <button id="capbtn" aria-pressed="false">Captions</button><button id="voice" aria-pressed="true">Voice on</button>
+</div>
+<script src="lesson-kit.js?v=1"></script>
+<script>
+const DECK_ID='cert-gold-2';
+const L={tier:'gold',lesson:'Gold Lesson 2',title:'Mentoring Other Families'};
+const G2P='<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>';
+const G2AV=(c)=>`<div class="g2-av ${c}">${G2P}</div>`;
+const G2X='<svg class="x" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M12 12 L88 88 M88 12 L12 88" stroke="#DC2626" stroke-width="5" stroke-linecap="round" fill="none" opacity=".75"/></svg>';
+const G2NO='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>';
+const G2BX='<div class="bx"><svg viewBox="0 0 24 24"><path d="M5 12 L10 17 L19 7"/></svg></div>';
+const g2on=(s)=>{const e=typeof s==='string'?q(s):s;e.classList.add('on');return e};
+
+const SC=[
+COVER({...L,
+ sub:'Helping another parent well: walking beside them, without taking over, and knowing when to bring in LDAH.',
+ say:'Aloha, and welcome to Gold Lesson 2: Mentoring Other Families. You have been through the I E P process yourself. That experience is worth a great deal to another parent who is just starting out. This lesson is about how to share it well.'}),
+
+{html:()=>HEAD('Why it matters','Families listen to families')+`
+ <div class="g2-fam me" style="left:90px">${G2AV('c')}A parent who has been through an IEP<small>That’s you</small></div>
+ <svg class="g2-link" viewBox="0 0 150 110"><path d="M10 55 C 50 10, 100 10, 140 55" fill="none" stroke="#FDBA74" stroke-width="5" stroke-dasharray="10 8" stroke-linecap="round"/><path d="M10 55 C 50 100, 100 100, 140 55" fill="none" stroke="#A5F3FC" stroke-width="5" stroke-dasharray="10 8" stroke-linecap="round"/><path d="M75 44c-6-8-18-4-16 5 2 7 16 15 16 15s14-8 16-15c2-9-10-13-16-5z" fill="#F97316"/></svg>
+ <div class="g2-fam" style="left:480px">${G2AV('t')}A parent just starting out<small>Worried, and full of questions</small></div>
+ <div class="g2-say fade g2-s1">“We went through this too.”</div>
+ <div class="g2-help fade g2-s2"><span class="chip">Support them</span><span class="chip coral">Don’t take over</span><span class="chip sand">Know when to bring in LDAH</span></div>`+PTS([
+ 'Families listen to other families.',
+ 'A parent who has been through an IEP can reach someone in a way <b>no professional can</b>.',
+ 'This lesson: helping well, <b>without taking over</b>, and knowing when to bring in LDAH.'],170),
+ steps:[
+ {say:'Families listen to other families.',li:0,act:async()=>{const f=all('.g2-fam');f[0].classList.add('on');await wait(300);f[1].classList.add('on')}},
+ {say:'When a worried parent hears, we went through this too, something changes. A parent who has been through an I E P can reach someone in a way no professional can.',li:1,act:async()=>{g2on('.g2-link');g2on('.g2-s1');spot(q('.g2-s1'),8)}},
+ {say:'So this lesson is about helping well. Supporting another parent without taking over, and knowing when to bring in L D A H.',li:2,act:async()=>{spot(null);g2on('.g2-s2')}}]},
+
+{html:()=>HEAD('Your role','Walk beside, not in front')+`
+ <div class="g2-lane g2-l1" style="top:140px"><h4>In front</h4><span class="g2-tag bad">Taking over</span><div class="g2-road"></div>
+  <div class="g2-who" style="left:380px;top:62px">${G2AV('c')}Mentor</div><div class="g2-who" style="left:140px;top:62px">${G2AV('g')}Parent</div></div>
+ <div class="g2-lane g2-l2" style="top:400px"><h4>Beside</h4><span class="g2-tag good">Mentoring</span><div class="g2-road"></div>
+  <div class="g2-who g2-wp" style="left:150px;top:62px">${G2AV('t')}Parent</div><div class="g2-who g2-wm" style="left:236px;top:62px">${G2AV('c')}Mentor</div>
+  <div class="g2-q fade g2-ask1">Parent: “Can we look at this goal again?”</div></div>`+PTS([
+ 'A mentor walks <b>beside</b> another parent.',
+ 'The goal: a parent who can <b>speak for their own child</b>.',
+ 'Not a parent who needs you in every meeting.',
+ 'Success looks like <b>them asking the question themselves</b> next time.'],160),
+ steps:[
+ {say:'Here is the picture to keep in mind. A mentor does not walk in front, leading the way and doing the talking. A mentor walks beside another parent.',li:0,act:async()=>{g2on('.g2-l1');spot(q('.g2-l1'),4);await wait(1600);spot(null);q('.g2-l1').classList.remove('on');g2on('.g2-l2');spot(q('.g2-l2'),4)}},
+ {say:'The goal is a parent who can speak for their own child.',li:1,act:async()=>{spot(null)}},
+ {say:'Not a parent who needs you in every meeting. If they can’t move forward without you, you are walking in front.',li:2,act:async()=>{spot(q('.g2-l1'),4);await wait(1400);spot(null)}},
+ {say:'So what does success look like? It looks like them asking the question themselves, next time, in their own words.',li:3,act:async()=>{const p=q('.g2-wp');p.style.left='160px';g2on('.g2-ask1');spot(q('.g2-ask1'),8);await wait(1500);spot(null)}}]},
+
+{html:()=>HEAD('Habits of a good mentor','Four habits')+`<div class="g2-habits">
+ <div class="g2-hab"><div class="n">HABIT 1</div><i><svg viewBox="0 0 24 24"><path d="M6 9a6 6 0 0 1 12 0c0 4-4 5-4 9a3 3 0 0 1-5.5 1.6"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-1.5 2-1.5 3.5"/></svg></i><h3>Listen first</h3><p>The whole story, before you offer anything.</p></div>
+ <div class="g2-hab"><div class="n">HABIT 2</div><i><svg viewBox="0 0 24 24"><path d="M4 5h11a3 3 0 0 1 3 3v11H7a3 3 0 0 1-3-3z"/><path d="M8 9h6M8 13h6"/></svg></i><h3>Share your story carefully</h3><p>One experience, not a prediction.</p></div>
+ <div class="g2-hab"><div class="n">HABIT 3</div><i><svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M9 8V5h6v3M3 13h18"/></svg></i><h3>Point to tools, not answers</h3><p>Help them prepare, then let them lead.</p></div>
+ <div class="g2-hab"><div class="n">HABIT 4</div><i><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></i><h3>Keep confidences</h3><p>What they tell you stays with you.</p></div></div>`+PTS([
+ '<b>1.</b> Listen first.',
+ '<b>2.</b> Share your story carefully.',
+ '<b>3.</b> Point to tools, not answers.',
+ '<b>4.</b> Keep confidences.'],170),
+ steps:[
+ {say:'Good mentors share four habits. We will look at each one. Habit one: listen first.',li:0,act:async()=>{const h=all('.g2-hab')[0];h.classList.add('on');spot(h,6)}},
+ {say:'Habit two: share your story carefully.',li:1,act:async()=>{const h=all('.g2-hab')[1];h.classList.add('on');spot(h,6)}},
+ {say:'Habit three: point to tools, not answers.',li:2,act:async()=>{const h=all('.g2-hab')[2];h.classList.add('on');spot(h,6)}},
+ {say:'And habit four: keep confidences.',li:3,act:async()=>{const h=all('.g2-hab')[3];h.classList.add('on');spot(h,6);await wait(1200);spot(null)}}]},
+
+{html:()=>HEAD('Habits 1 and 2','Listen first, then share carefully')+`<div class="g2-chat">
+ <div class="g2-b them g2-b1" style="top:0;width:400px">Let me tell you what happened at the meeting…<div class="ln"></div><div class="ln" style="width:85%"></div><div class="ln" style="width:65%"></div></div>
+ <div class="g2-b me g2-b2" style="top:130px">What do you want to happen?</div>
+ <div class="g2-b them g2-b3" style="top:200px">I want her to stay in her class, with more help there.</div></div>
+ <div class="g2-vs">
+ <div class="g2-v ok g2-v1"><small>Say this</small><q>This is what happened for us.</q><svg viewBox="0 0 24 24" stroke="#16A34A"><path d="M5 12 L10 17 L19 7"/></svg></div>
+ <div class="g2-v no g2-v2"><small>Not this</small><q>This is what will happen.</q><svg viewBox="0 0 24 24" stroke="#DC2626"><path d="M6 6 L18 18 M18 6 L6 18"/></svg></div></div>`+PTS([
+ 'Let them tell <b>the whole story</b> before you offer anything.',
+ 'Ask what <b>they</b> want to happen.',
+ 'Their goal may not be the one you would choose.',
+ 'Your experience builds trust, but <b>every child and school is different</b>.',
+ 'Say “this is what happened for us,” not “this is what will happen.”'],140),
+ steps:[
+ {say:'Habit one. Listen first. Let them tell the whole story before you offer anything. Even when you think you know where it is going.',li:0,act:async()=>{const b=g2on('.g2-b1');spot(b,6)}},
+ {say:'Then ask: what do you want to happen?',li:1,act:async()=>{spot(null);g2on('.g2-b2')}},
+ {say:'Listen closely to the answer. Their goal may not be the one you would choose for your own child. That is all right. It is their child, and their goal.',li:2,act:async()=>{const b=g2on('.g2-b3');spot(b,6);await wait(1400);spot(null)}},
+ {say:'Habit two. Share your story carefully. Your experience builds trust. It is why they are talking to you. But every child is different, and every school is different.',li:3},
+ {say:'So say, this is what happened for us. Not, this is what will happen. Your story is one experience. It is not a prediction.',li:4,act:async()=>{const a=g2on('.g2-v1');spot(a,6);await wait(1300);g2on('.g2-v2');spot(q('.g2-v2'),6);await wait(1300);spot(null)}}]},
+
+{html:()=>HEAD('Habit 3','Point to tools, not answers')+`<div class="g2-tools">
+ <div class="g2-tool"><h4>The three-column review</h4><div class="g2-cols"><div><b></b><div class="g2-ln"></div><div class="g2-ln"></div><div class="g2-ln" style="width:60%"></div></div><div><b></b><div class="g2-ln"></div><div class="g2-ln" style="width:70%"></div></div><div><b></b><div class="g2-ln"></div><div class="g2-ln"></div><div class="g2-ln" style="width:50%"></div></div></div></div>
+ <div class="g2-tool"><h4>The highlighting method</h4><div class="g2-ln hl-g" style="background:#BBF7D0"></div><div class="g2-ln"></div><div class="g2-ln" style="background:#FEF08A;width:80%"></div><div class="g2-ln"></div><div class="g2-ln" style="background:#FECACA;width:70%"></div><div class="g2-ln"></div><div class="g2-ln" style="background:#FEF08A;width:55%"></div><div class="g2-ln" style="width:75%"></div><div class="g2-ln" style="background:#BBF7D0;width:90%"></div></div>
+ <div class="g2-tool"><h4>The questions from Silver</h4><div class="g2-ql"><span>?</span><div class="g2-ln" style="flex:1;margin:0"></div></div><div class="g2-ql"><span>?</span><div class="g2-ln" style="flex:1;margin:0"></div></div><div class="g2-ql"><span>?</span><div class="g2-ln" style="flex:1;margin:0;width:70%"></div></div><div class="g2-ql"><span>?</span><div class="g2-ln" style="flex:1;margin:0"></div></div></div></div>
+ <div class="g2-lead"><div class="st">${G2AV('c')}You help them prepare</div><div class="ar">›</div><div class="st go">${G2AV('t')}They lead</div></div>`+PTS([
+ 'Show them the <b>three-column review</b>.',
+ 'Show them the <b>highlighting method</b>.',
+ 'Share the <b>questions from Silver</b>.',
+ 'Help them prepare, <b>then let them lead</b>.'],170),
+ steps:[
+ {say:'Habit three. Point to tools, not answers. You learned real tools in Silver. Pass them on. Show them the three-column review.',li:0,act:async()=>{const t=all('.g2-tool')[0];t.classList.add('on');spot(t,6)}},
+ {say:'Show them the highlighting method, so they can mark up their own child’s papers.',li:1,act:async()=>{const t=all('.g2-tool')[1];t.classList.add('on');spot(t,6)}},
+ {say:'And share the questions from Silver, the ones that helped you in your own meetings.',li:2,act:async()=>{const t=all('.g2-tool')[2];t.classList.add('on');spot(t,6)}},
+ {say:'Help them prepare. Then let them lead. A tool they can use on their own goes much further than an answer from you.',li:3,act:async()=>{spot(null);g2on('.g2-lead')}}]},
+
+{html:()=>HEAD('Habit 4','Keep confidences')+`<div class="g2-file"><h4>A family I’m helping</h4>
+ <div class="g2-row"><b>Child</b><span>Kaiʻa, age 8</span></div>
+ <div class="g2-row"><b>Diagnosis</b><span>Dyslexia, ADHD</span></div>
+ <div class="g2-row"><b>School</b><span>Sample Elementary</span></div></div>
+ <div class="g2-lock"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/><circle cx="12" cy="16" r="1.4"/></svg>Stays with you</div>
+ <div class="g2-group"><h5><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#64748B" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H8l-4 4z"/></svg>Parent group chat</h5><div class="msg">I’m helping a family at that school whose son…</div><div class="ok">Only with their permission.</div></div>`+PTS([
+ 'What a parent tells you <b>stays with you</b>.',
+ 'Do not share their child’s <b>name, diagnosis or school</b>.',
+ 'Not with anyone, without their <b>permission</b>.',
+ 'That includes in a <b>parent group</b>.'],170),
+ steps:[
+ {say:'Habit four. Keep confidences. What a parent tells you stays with you.',li:0,act:async()=>{g2on('.g2-lock');spot(q('.g2-lock'),6)}},
+ {say:'Do not share their child’s name, their diagnosis, or their school.',li:1,act:async()=>{spot(null);for(const r of all('.g2-row')){r.classList.add('on');await wait(450)}}},
+ {say:'Not with anyone, unless they give you permission.',li:2},
+ {say:'And that includes a parent group. Even a friendly group, even with good intentions. If you want to share their story, ask them first.',li:3,act:async()=>{const g=g2on('.g2-group');spot(g,6);await wait(1500);spot(null)}}]},
+
+{html:()=>HEAD('Boundaries','You are a peer')+`<div class="g2-roles">
+ <div class="g2-role peer">${G2AV('c')}Peer</div>
+ <div class="g2-role">${G2AV('g')}Attorney${G2X}</div>
+ <div class="g2-role">${G2AV('g')}Therapist${G2X}</div>
+ <div class="g2-role">${G2AV('g')}School employee${G2X}</div></div>
+ <div class="g2-dont">
+ <div class="g2-d">${G2NO}Give legal advice</div>
+ <div class="g2-d">${G2NO}Sign anything for another family<small>Help them review it</small></div>
+ <div class="g2-d">${G2NO}Promise outcomes</div></div>
+ <div class="g2-idk">“I don’t know. Let’s find out.”</div>
+ <div class="g2-energy">Your own time and energy<div class="g2-bat"><i></i></div></div>`+PTS([
+ 'You are a <b>peer</b>, not an attorney, therapist or school employee.',
+ 'Do not give <b>legal advice</b>.',
+ 'Do not <b>sign anything</b> for another family.',
+ 'Do not <b>promise outcomes</b>.',
+ 'It is fine to say “I don’t know. Let’s find out.”',
+ 'Protect your own time and energy too.'],140),
+ steps:[
+ {say:'Now, boundaries. You are a peer. Not an attorney. Not a therapist. Not a school employee.',li:0,act:async()=>{const r=all('.g2-role');r[0].classList.add('on');spot(r[0],6);await wait(700);spot(null);for(let i=1;i<4;i++){r[i].classList.add('on');await wait(400)}}},
+ {say:'So do not give legal advice, even when you are fairly sure you know the answer.',li:1,act:async()=>{const d=all('.g2-d')[0];d.classList.add('on');spot(d,4)}},
+ {say:'Do not sign anything for another family. If a parent hands you a form and asks you to sign it, don’t. Instead, help them review it themselves, so they can decide.',li:2,act:async()=>{const d=all('.g2-d')[1];d.classList.add('on');spot(d,4)}},
+ {say:'And do not promise outcomes. You cannot know how a school or a team will decide.',li:3,act:async()=>{const d=all('.g2-d')[2];d.classList.add('on');spot(d,4)}},
+ {say:'You don’t have to know everything. It is fine to say, I don’t know. Let’s find out.',li:4,act:async()=>{const b=g2on('.g2-idk');spot(b,6)}},
+ {say:'And protect your own time and energy too. A mentor who burns out helps no one.',li:5,act:async()=>{const b=g2on('.g2-energy');spot(b,6);await wait(1500);spot(null)}}]},
+
+{html:()=>HEAD('When to refer','Bring in LDAH when…')+`<div class="g2-list"><h4>Referral checklist</h4>
+ <div class="g2-ck">${G2BX}A legal deadline, or a complaint, mediation or due process</div>
+ <div class="g2-ck">${G2BX}Suspension, removal from school, or services stopped</div>
+ <div class="g2-ck">${G2BX}An interpreter, or materials in another language</div>
+ <div class="g2-ck">${G2BX}Beyond what you have lived through yourself</div></div>
+ <div class="g2-sos"><svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17v.5"/></svg><div>If anyone is in danger, call 911. For a mental health crisis, call or text 988.</div></div>`+PTS([
+ 'A legal deadline is involved, or the family is considering a <b>complaint, mediation or due process</b>.',
+ 'A child is being <b>suspended or removed</b> from school, or services have stopped.',
+ 'The family needs an <b>interpreter</b>, or materials in another language.',
+ 'The situation is <b>beyond what you have lived through</b> yourself.'],140),
+ steps:[
+ {say:'Part of mentoring well is knowing when to bring in L D A H. Here is the checklist. First: a legal deadline is involved, or the family is considering a complaint, mediation, or due process. That is always a time to refer.',li:0,act:async()=>{const c=all('.g2-ck')[0];c.classList.add('on');spot(c,4)}},
+ {say:'Second: a child is being suspended or removed from school, or services have stopped.',li:1,act:async()=>{const c=all('.g2-ck')[1];c.classList.add('on');spot(c,4)}},
+ {say:'Third: the family needs an interpreter, or materials in another language.',li:2,act:async()=>{const c=all('.g2-ck')[2];c.classList.add('on');spot(c,4)}},
+ {say:'And fourth: the situation is beyond what you have lived through yourself. That is not a failure. It is good judgment.',li:3,act:async()=>{const c=all('.g2-ck')[3];c.classList.add('on');spot(c,4)}},
+ {say:'One more thing, and it comes before everything else. If anyone is in danger, call [911|9 1 1]. For a mental health crisis, call or text [988|9 8 8].',act:async()=>{const s=g2on('.g2-sos');spot(s,6);await wait(2200);spot(null)}}]},
+
+{html:()=>HEAD('A warm handoff','Help them make the call')+`
+ <div class="g2-cold"><b>LDAH</b><svg class="scr" viewBox="0 0 180 60" width="180" height="60"><path d="M4 20c14-10 24 8 38-2s20 6 34-2 22 8 36 0 22 4 30-2" fill="none" stroke="#64748B" stroke-width="3" stroke-linecap="round"/><path d="M4 48c14-8 24 6 38-2s20 4 34-2 18 6 30 0" fill="none" stroke="#64748B" stroke-width="3" stroke-linecap="round"/></svg>${G2X}<div class="lab">Just a phone number</div></div>
+ <div class="g2-warm"><h4>A warm handoff</h4><div class="g2-pair">${G2AV('t')}${G2AV('c')}<span style="font-weight:700;color:var(--soft);font-size:16px">Side by side</span></div>
+  <div class="g2-ask">“Is it okay if we call LDAH together?”</div>
+  <div class="g2-phone"><div><small>Calling</small><b>LDAH</b><div class="g2-dots"><i></i><i></i><i></i></div><small>The parent speaks</small></div></div></div>`+PTS([
+ 'A <b>warm handoff</b> works best.',
+ 'Ask the parent’s <b>permission</b> first.',
+ 'Help them <b>make the call</b> to LDAH.',
+ 'Rather than just handing over a phone number.'],170),
+ steps:[
+ {say:'When it is time to refer, how you do it matters. You could write down a number and hand it over. But a parent who is already worn out may never make that call.',act:async()=>{g2on('.g2-cold');spot(q('.g2-cold'),8)}},
+ {say:'A warm handoff works best.',li:0,act:async()=>{spot(null);q('.g2-cold').classList.add('dim');g2on('.g2-warm')}},
+ {say:'First, ask the parent’s permission. Is it okay if we call L D A H together?',li:1,act:async()=>{const a=g2on('.g2-ask');spot(a,6)}},
+ {say:'Then help them make the call. Sit with them while they dial. The parent does the talking, and you are right there beside them.',li:2,act:async()=>{spot(null);const p=g2on('.g2-phone');spot(p,8)}},
+ {say:'That is the difference between handing over a phone number and a real handoff. And it is walking beside them, one more time.',li:3,act:async()=>{await wait(1200);spot(null)}}]},
+
+QUIZ([
+ {q:'A parent you are helping asks you to sign a school form for them. What should you do?',o:['Sign it, since you know the process','Help them review it themselves; you don’t sign for another family','Tell them to sign it without reading it'],a:1,y:'A mentor never signs for another family. Help them review it themselves.',n:'Think about the boundaries list.'},
+ {q:'A family you are helping is considering mediation or due process. What is your next step?',o:['Tell them what to file','Wait and see what happens','Refer them to LDAH'],a:2,y:'Mediation and due process are on the referral checklist. That is a time to refer.',n:'Think about the referral checklist.'},
+ {q:'What does success look like for a mentor?',o:['The parent asks the question themselves next time','The parent needs you at every meeting','You speak for their child in meetings'],a:0,y:'A mentor walks beside. Success is a parent who speaks for their own child.',n:'Think about walking beside, not in front.'}]),
+
+RECAP([
+ 'A mentor walks <b>beside</b> another parent. Success is that parent speaking for their own child.',
+ '<b>Listen first</b>, and ask what they want to happen.',
+ 'Share your story as <b>one experience</b>, not a prediction. Point to <b>tools</b>, not answers.',
+ '<b>Keep confidences.</b> No legal advice, <b>no signing for another family</b>, no promised outcomes.',
+ 'Refer to LDAH for deadlines, complaints, mediation, due process, removals, language access, or anything <b>beyond your experience</b>.'],[
+ 'A mentor walks beside another parent. Success is that parent speaking for their own child.',
+ 'Listen first, and ask what they want to happen.',
+ 'Share your story as one experience, not a prediction. And point to tools, not answers.',
+ 'Keep confidences. Do not give legal advice, sign anything for another family, or promise outcomes.',
+ 'And refer to L D A H for deadlines, complaints, mediation or due process, removals, language access, or anything beyond your own experience. With a warm handoff.']),
+
+CLOSE({...L,sub:'The Gold pop quiz follows on the lesson page. Select Complete on the lesson page when you are ready.',
+ say:'Mahalo! That is Gold Lesson 2. Thank you for being willing to walk beside another family. The Gold pop quiz follows on the lesson page. When you have finished, select Complete on the lesson page.'})
+];
+</script>
+<script src="deck-engine.js?v=1"></script></body></html>

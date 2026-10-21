@@ -834,9 +834,9 @@
     <script>
     /* ═══════════════════════════════════════════════
        LESSON DATA
-       Bronze is live. Silver and Gold are kept here so the curriculum is not
-       lost, but they are LOCKED in the UI and have no video URLs yet — see
-       TIER_STATE below. Do not unlock them by editing this object alone.
+       Bronze lessons are recorded videos. Silver and Gold lessons are narrated
+       decks (deckUrl → lessons/*.html) with written content. Opening a tier
+       means flipping TIER_STATE below AND CERT_TIER_OPEN in functions/index.js.
     ═══════════════════════════════════════════════ */
     var LESSON_DATA = {
       'welcome1':{tier:'welcome',title:'Welcome to the LDAH Certification Program',duration:'5 min',noVideo:true,videoUrl:'',videoFile:'',captionsUrl:'',
@@ -895,18 +895,112 @@
 
       'bquiz':{tier:'bronze',title:'Bronze Final Quiz',isQuiz:true,body:'',takeaways:[],next:''},
 
-      's1':{tier:'silver',title:'Lesson 1: The IEP Team — Roles and Responsibilities',duration:'25 min',videoUrl:'',videoFile:'',captionsUrl:'',body:'',takeaways:[],next:'s2'},
-      's2':{tier:'silver',title:"Lesson 2: Reading Your Child's Evaluation Report",duration:'30 min',videoUrl:'',videoFile:'',captionsUrl:'',body:'',takeaways:[],next:'s2pq'},
+      's1':{tier:'silver',title:'Lesson 1: The IEP Team — Roles and Responsibilities',duration:'10 min',deckUrl:'lessons/silver-1-iep-team.html?v=1',videoUrl:'',videoFile:'',captionsUrl:'',
+        body:`<p>Bronze showed you how the special education system works. Silver is called <strong>Advocate</strong> because it is about taking your seat at the table inside that system. The table is where we start: the IEP team, who sits on it, and what each person is there to do.</p>
+        <h2>The Required Members</h2><p>Hawai&#699;i Administrative Rules &sect;8-60-45 (and IDEA at 34 CFR &sect;300.321) list who must be on every IEP team. Read the list from the top, because the order is telling.</p>
+        <h3>1. The Parent</h3><p>Listed first. Not invited, not consulted &mdash; a required member. The school must take steps to make sure a parent can attend, including scheduling the meeting at a mutually agreed time and place and offering other ways to take part, such as a phone or video call.</p>
+        <h3>2. A General Education Teacher</h3><p>At least one, if your child is (or may be) in a general education classroom. This person can speak to what your child&rsquo;s day actually looks like alongside other students, and to the supports a regular teacher will need.</p>
+        <h3>3. A Special Education Teacher</h3><p>At least one, who speaks to specially designed instruction &mdash; how teaching will be changed for your child.</p>
+        <h3>4. A Representative of the Department</h3><p>Usually an administrator. This person must be able to commit school resources. If nobody in the room can say yes to a service, the meeting cannot finish its job.</p>
+        <h3>5. Someone Who Can Interpret the Evaluation Results</h3><p>Not someone who reads the scores aloud &mdash; someone who can explain what the scores mean for <em>teaching your child</em>. One of the teachers or the department representative may fill this role. You are entitled to that explanation in plain language.</p>
+        <h3>6. Others With Knowledge or Special Expertise</h3><p>This clause belongs to you as much as to the school. You may bring a relative, a friend to take notes, an advocate, or your child&rsquo;s therapist.</p>
+        <h3>7. The Student, When Appropriate</h3><p>Once transition planning begins (the IEP in effect when your child turns 16), the school must invite your child. Many families bring their child in sooner, so they learn to speak for themselves.</p>
+        <h2>When Someone Cannot Attend</h2><p>A required member may be excused only if <strong>you agree in writing</strong>. If that person&rsquo;s area is going to be discussed or changed, they must also give written input to you and the team before the meeting. A team member simply not showing up is not an excusal &mdash; you may ask to reschedule.</p>
+        <h2>Your Information Counts</h2><p>When the team interprets evaluation data, the rules require it to draw on a <em>variety</em> of sources &mdash; not one test, one score, or one person&rsquo;s opinion. What you see at home is one of those sources. When you speak in a meeting, you are supplying evidence the team is required to consider.</p>
+        <div class="cd-callout"><svg class="ico" viewBox="0 0 24 24"><use href="#i-info"/></svg><div><strong>Remember:</strong> Before a meeting, ask who will be attending. The school must tell you in the meeting notice, along with the purpose, time and place.</div></div>`,
+        takeaways:["The parent is a required member of the IEP team, listed first in the rules.","The team must include a general education teacher, a special education teacher, a department representative who can commit resources, and someone who can explain what the evaluation means for teaching.","A required member can be excused only with the parent's written agreement, plus written input when their area is discussed.","You may bring people with knowledge of your child, and your observations at home count as evaluation information."],next:'s2'},
+      's2':{tier:'silver',title:"Lesson 2: Reading Your Child's Evaluation Report",duration:'15 min',deckUrl:'lessons/silver-2-evaluation-report.html?v=1',videoUrl:'',videoFile:'',captionsUrl:'',
+        body:`<p>An evaluation report can run to dozens of pages of scores and terms. This lesson gives you what you need to read one yourself, without waiting for someone to translate it.</p>
+        <h2>Two Names You Will See Everywhere</h2><p><strong>IDEA 2004</strong> is the federal law; citations beginning with &sect;300 come from its regulations. <strong>Chapter 60</strong> (HAR &sect;8-60) is Hawai&#699;i&rsquo;s set of rules for carrying IDEA out in our schools. Federal law sets the floor. Chapter 60 can give more, never less. Other laws worth knowing by name: FERPA (your right to see records), and Section 504 (disability discrimination, which can provide a 504 plan for a child who does not qualify under IDEA).</p>
+        <h2>What an Evaluation Is For</h2><p>An evaluation answers two separate questions:</p>
+        <h3>1. Does the student have a disability?</h3><p>This is the eligibility question &mdash; the category.</p>
+        <h3>2. What special education and related services does the student need?</h3><p>This is the question that shapes your child&rsquo;s school day. A report that names a category but says little about need has only done half its job.</p>
+        <h2>Reading the Scores</h2><p><strong>Norm-referenced tests</strong> are standardized: they compare your child with a large group of same-age children. On most of them, the <strong>average range of standard scores is 85 to 115</strong>. A <strong>percentile</strong> is a ranking, not a percentage correct: the 25th percentile means your child scored the same as or better than 25 percent of children their age.</p>
+        <p><strong>Criterion-referenced tests</strong> ask a different question: which skills has your child mastered? Both belong in a good report. <strong>Informal measures</strong> &mdash; observations, checklists, rating scales and parent interviews &mdash; count too. Your interview is data, so bring specifics: dates, examples, how long homework takes.</p>
+        <h2>The Process Around the Report</h2><p>Every evaluation, initial or re-evaluation, follows the same gates: <strong>Prior Written Notice, then your written consent</strong>, then testing. Hawai&#699;i must finish an initial evaluation within 60 days of your consent. You may request a re-evaluation; one must happen at least every three years unless you and the school agree it is not needed.</p>
+        <h2>Eligibility Categories</h2><p>IDEA names 13 categories federally. Hawai&#699;i&rsquo;s Chapter 60 list has 14 because it adds Developmental Delay, which is used for younger children. The category is an access door, not a description of your child &mdash; two children in the same category can need completely different things.</p>
+        <h2>If You Disagree</h2><p>You may ask for an <strong>Independent Educational Evaluation (IEE)</strong> by a qualified examiner who does not work for the school, at public expense. The school must either pay for it or ask for a hearing to show its own evaluation was appropriate. If your child is found <em>not eligible</em>, you receive Prior Written Notice explaining why &mdash; and that is the moment to ask about a Section 504 plan.</p>
+        <div class="cd-callout"><svg class="ico" viewBox="0 0 24 24"><use href="#i-info"/></svg><div><strong>Pro Tip:</strong> If eligibility is granted, you will be asked for a second, separate consent: this one is for starting services. You may take your time over it.</div></div>`,
+        takeaways:["An evaluation answers two questions: is there a disability, and what services does the child need. The second question shapes the school day.","On most standardized tests the average range is 85 to 115, and a percentile is a ranking, not a percentage of questions correct.","Every evaluation needs Prior Written Notice and your written consent first; you may request a re-evaluation.","If you disagree with the school's evaluation you can request an Independent Educational Evaluation (IEE) at public expense."],next:'s2pq'},
       's2pq':{tier:'silver',title:'Pop Quiz — Silver Lessons 1 and 2',duration:'',isPopQuiz:true,popTier:'silver',body:'',takeaways:[],next:'s3'},
-      's3':{tier:'silver',title:'Lesson 3: IEP Meeting Participation Skills',duration:'35 min',videoUrl:'',videoFile:'',captionsUrl:'',body:'',takeaways:[],next:'s4'},
-      's4':{tier:'silver',title:'Lesson 4: Goals, Accommodations and Services',duration:'30 min',videoUrl:'',videoFile:'',captionsUrl:'',body:'',takeaways:[],next:'squiz'},
+      's3':{tier:'silver',title:'Lesson 3: IEP Meeting Participation Skills',duration:'15 min',deckUrl:'lessons/silver-3-meeting-skills.html?v=1',videoUrl:'',videoFile:'',captionsUrl:'',
+        body:`<p>You can read a report now. This lesson is about what you do with it before, during and after the IEP meeting.</p>
+        <h2>Before the Meeting</h2>
+        <h3>1. Do the Three-Column Review</h3><p>Sit down with your child&rsquo;s most recent evaluation and sort what you read into <strong>strengths</strong>, <strong>weaknesses</strong> and <strong>questions or comments</strong>. Do not rush the strengths column: the IEP team is required to consider your child&rsquo;s strengths, and if you do not bring them, nobody else may.</p>
+        <h3>2. Highlight in Three Colors</h3><p><strong>Green</strong> for what you agree with and understand. <strong>Yellow</strong> for what you need explained. <strong>Red</strong> for what you disagree with. A long report becomes a page or two of yellow and red &mdash; and that is your agenda.</p>
+        <h3>3. Make a T-Chart</h3><p>On one side, what the report says. On the other, what you see at home. Where they agree, you have solid ground. Where they differ, you have something important to discuss.</p>
+        <h3>4. Ask for Drafts and Records Early</h3><p>Ask for any draft IEP, new evaluation or progress data a few days before the meeting, so you are not reading it for the first time at the table.</p>
+        <h3>5. Write a One-Page Parent Statement</h3><p>Who your child is, what is working, what worries you, and what you hope for this year. Ask for it to be included in the IEP&rsquo;s parent concerns section.</p>
+        <h2>During the Meeting</h2><p>Bring your highlighted copy and put it where people can see it. Then ask questions that work in almost any meeting:</p>
+        <ul><li>What does this score mean for how you will teach my child?</li><li>Can you show me where that is in the report?</li><li>What would this look like on an ordinary school day?</li><li>How will we know if it is working, and when will we look again?</li></ul>
+        <p>If an answer does not land, say so and ask again. If something important is agreed, ask for it to be written down. You may bring someone to take notes so you can listen.</p>
+        <h2>After the Meeting</h2><p>You do not have to sign at the table. Take the IEP home if you need time. Within a few days, send a short, polite email summarizing what was agreed and any next steps. That written record protects everyone, including the school.</p>
+        <div class="cd-callout"><svg class="ico" viewBox="0 0 24 24"><use href="#i-info"/></svg><div><strong>Parent Tip:</strong> &ldquo;I&rsquo;m sorry, I still don&rsquo;t follow&rdquo; is a complete and reasonable sentence. The fault is not yours.</div></div>`,
+        takeaways:["Before the meeting, sort the report into strengths, weaknesses and questions, and highlight it green, yellow and red.","A T-chart comparing the report with what you see at home turns disagreements into your agenda.","Ask what scores mean for teaching, where things are in the report, and how progress will be measured.","You do not have to sign at the table, and a follow-up email summarizing agreements creates a written record."],next:'s4'},
+      's4':{tier:'silver',title:'Lesson 4: Goals, Accommodations and Services',duration:'15 min',deckUrl:'lessons/silver-4-goals-services.html?v=1',videoUrl:'',videoFile:'',captionsUrl:'',
+        body:`<p>The evaluation gives the team information. The IEP turns that information into a plan. This lesson separates the plan into the parts you will see on the page, so you can check each one.</p>
+        <h2>Present Levels: Where Everything Starts</h2><p>The IEP begins with your child&rsquo;s <strong>present levels of academic achievement and functional performance</strong>. Every goal and every service should trace back to a need described here. If a need is in the present levels but nothing in the plan addresses it, ask why.</p>
+        <h2>Goals</h2><p>Annual goals must be <strong>measurable</strong>. &ldquo;Will improve reading&rdquo; is not measurable. A good goal says what your child will do, under what conditions, and how well &mdash; for example, <em>&ldquo;Given a passage at a second-grade level, Kai will read 70 words per minute with 95% accuracy in 4 of 5 weekly checks.&rdquo;</em> The IEP must also say how progress will be measured and when you will get reports. Progress reports must come at least as often as report cards for students without disabilities.</p>
+        <h2>Accommodations and Modifications</h2>
+        <h3>1. Accommodations change HOW</h3><p>How your child learns or shows what they know &mdash; extra time, a quiet room, text read aloud, a seat near the teacher. The expectation stays the same.</p>
+        <h3>2. Modifications change WHAT</h3><p>What your child is expected to learn &mdash; fewer or different items, an alternate standard. Both are legitimate, but they lead to different places over the years, so ask which one is being proposed and why.</p>
+        <h2>Services</h2><p><strong>Special education</strong> is the specially designed instruction itself. <strong>Related services</strong> help your child benefit from it: speech-language therapy, occupational or physical therapy, counseling, transportation and others. Supplementary aids and services help your child learn in the general classroom. For every service, the IEP should say <strong>how much, how often, where, and starting when</strong>. &ldquo;As needed&rdquo; is not a service.</p>
+        <h2>Special Factors and Placement</h2><p>The team must consider special factors where they apply: behavior that gets in the way of learning (positive behavior supports), limited English proficiency, communication needs, Braille for a child who is blind, and assistive technology. Placement comes <em>after</em> the services are decided, and must be the least restrictive environment where those services can be delivered. Extended School Year services are decided by the team too, based on your child&rsquo;s needs.</p>
+        <h2>Consent and Review</h2><p>Services begin only with your written consent, and the IEP is reviewed at least once a year. You may ask for a meeting sooner whenever something is not working.</p>
+        <div class="cd-callout"><svg class="ico" viewBox="0 0 24 24"><use href="#i-info"/></svg><div><strong>Remember:</strong> Read every service line and ask: how much, how often, where, and starting when? If those four answers are not on the page, ask for them to be added.</div></div>`,
+        takeaways:["Every goal and service should trace back to a need described in the present levels.","Annual goals must be measurable, and progress reports come at least as often as regular report cards.","Accommodations change HOW a child learns or is tested; modifications change WHAT the child is expected to learn.","Each service should state how much, how often, where and starting when. \"As needed\" is not a service."],next:'squiz'},
       'squiz':{tier:'silver',title:'Silver Final Quiz',isQuiz:true,body:'',takeaways:[],next:''},
 
-      'g1':{tier:'gold',title:'Lesson 1: Systems-Level Advocacy',duration:'35 min',videoUrl:'',videoFile:'',captionsUrl:'',body:'',takeaways:[],next:'g2'},
-      'g2':{tier:'gold',title:'Lesson 2: Mentoring Other Families',duration:'30 min',videoUrl:'',videoFile:'',captionsUrl:'',body:'',takeaways:[],next:'g2pq'},
+      'g1':{tier:'gold',title:'Lesson 1: Systems-Level Advocacy',duration:'12 min',deckUrl:'lessons/gold-1-systems-advocacy.html?v=1',videoUrl:'',videoFile:'',captionsUrl:'',
+        body:`<p>Bronze and Silver were about your own child. Gold is called <strong>Leadership</strong> because it is about families who are ready to help change things for many children. This lesson covers systems-level advocacy: what it is, and the doors Hawai&#699;i gives parents to use.</p>
+        <h2>Individual vs. Systems Advocacy</h2><p><strong>Individual advocacy</strong> solves one child&rsquo;s problem. <strong>Systems advocacy</strong> changes the policy, practice or funding that caused it, so the next family does not meet the same wall. A useful sign that something is a systems issue: you hear the same story from three different families.</p>
+        <h2>The Doors Available to Parents</h2>
+        <h3>1. A State Complaint</h3><p>Any person or organization may file a written, signed complaint with the Hawai&#699;i Department of Education alleging that a school did not follow IDEA. It must concern something within the past year. The State has 60 days to investigate and issue a decision, and can order corrective action that reaches beyond one child.</p>
+        <h3>2. The Special Education Advisory Council (SEAC)</h3><p>IDEA requires every state to have an advisory panel, and a majority of its members must be people with disabilities or parents of children with disabilities. SEAC meetings are open, and include time for public input.</p>
+        <h3>3. The Board of Education</h3><p>The State Board of Education sets policy for Hawai&#699;i public schools. Its meetings accept written and oral testimony on agenda items.</p>
+        <h3>4. The State Legislature</h3><p>During the session, roughly January through early May, anyone may submit testimony on bills through the Legislature&rsquo;s website. Short, personal testimony that describes real impact is read.</p>
+        <h3>5. Local Councils</h3><p>Community Children&rsquo;s Councils and School Community Councils bring parents and professionals together at the district and school level. They are where many problems are noticed first.</p>
+        <h2>Telling a Story That Moves Policy</h2><p>Lead with one family&rsquo;s experience, then show the pattern, then make a specific ask. Protect privacy: never share another family&rsquo;s details without their permission, and use first names only or none at all. Data you can count beats adjectives.</p>
+        <div class="cd-callout"><svg class="ico" viewBox="0 0 24 24"><use href="#i-info"/></svg><div><strong>Remember:</strong> Due process and mediation resolve disputes for one child. A state complaint, testimony and council work are the tools that change things for many.</div></div>`,
+        takeaways:["Systems advocacy changes the policy or practice behind a problem, so the next family does not face it.","Anyone can file a written, signed state complaint about an IDEA violation within the past year; the State has 60 days to decide.","SEAC, the Board of Education and the Legislature all accept public input from parents.","Effective testimony leads with a real experience, shows the pattern, makes a specific ask, and protects other families' privacy."],next:'g2'},
+      'g2':{tier:'gold',title:'Lesson 2: Mentoring Other Families',duration:'12 min',deckUrl:'lessons/gold-2-mentoring.html?v=1',videoUrl:'',videoFile:'',captionsUrl:'',
+        body:`<p>Families listen to other families. A parent who has been through an IEP can reach someone in a way no professional can. This lesson is about helping well &mdash; supporting another parent without taking over, and knowing when to bring in LDAH.</p>
+        <h2>Your Role as a Mentor</h2><p>A mentor walks <em>beside</em> another parent. The goal is a parent who can speak for their own child, not a parent who needs you in every meeting. Success looks like them asking the question themselves next time.</p>
+        <h2>Habits of a Good Mentor</h2>
+        <h3>1. Listen First</h3><p>Let them tell the whole story before you offer anything. Ask what they want to happen. Their goal may not be the one you would choose.</p>
+        <h3>2. Share Your Story Carefully</h3><p>Your experience builds trust, but every child and school is different. Say &ldquo;this is what happened for us,&rdquo; not &ldquo;this is what will happen.&rdquo;</p>
+        <h3>3. Point to Tools, Not Answers</h3><p>Show them the three-column review, the highlighting method and the questions from Silver. Help them prepare, then let them lead.</p>
+        <h3>4. Keep Confidences</h3><p>What a parent tells you stays with you. Do not share their child&rsquo;s name, diagnosis or school with anyone without their permission &mdash; including in a parent group.</p>
+        <h2>Boundaries</h2><p>You are a peer, not an attorney, therapist or school employee. Do not give legal advice, sign anything for another family, or promise outcomes. It is fine to say &ldquo;I don&rsquo;t know &mdash; let&rsquo;s find out.&rdquo; Protect your own time and energy too; a mentor who burns out helps no one.</p>
+        <h2>When to Refer to LDAH</h2><ul><li>A legal deadline is involved, or the family is considering a complaint, mediation or due process.</li><li>A child is being suspended or removed from school, or services have stopped.</li><li>The family needs an interpreter, or materials in another language.</li><li>The situation is beyond what you have lived through yourself.</li></ul>
+        <p>If anyone is in danger, call 911. For a mental health crisis, call or text 988.</p>
+        <div class="cd-callout"><svg class="ico" viewBox="0 0 24 24"><use href="#i-info"/></svg><div><strong>Tip:</strong> A warm handoff works best: with the parent&rsquo;s permission, help them make the call to LDAH, rather than just handing over a phone number.</div></div>`,
+        takeaways:["A mentor walks beside another parent; success is that parent speaking for their own child.","Listen first, share your own story as one experience rather than a prediction, and point to tools instead of giving answers.","Keep confidences, and do not give legal advice, sign for another family, or promise outcomes.","Refer to LDAH when deadlines, complaints, removals, language access or anything beyond your experience is involved."],next:'g2pq'},
       'g2pq':{tier:'gold',title:'Pop Quiz — Gold Lessons 1 and 2',duration:'',isPopQuiz:true,popTier:'gold',body:'',takeaways:[],next:'g3'},
-      'g3':{tier:'gold',title:'Lesson 3: Pacific Island Cultural Advocacy',duration:'40 min',videoUrl:'',videoFile:'',captionsUrl:'',body:'',takeaways:[],next:'g4'},
-      'g4':{tier:'gold',title:'Lesson 4: Building Advocacy Networks',duration:'35 min',videoUrl:'',videoFile:'',captionsUrl:'',body:'',takeaways:[],next:'gquiz'},
+      'g3':{tier:'gold',title:'Lesson 3: Pacific Island Cultural Advocacy',duration:'12 min',deckUrl:'lessons/gold-3-cultural-advocacy.html?v=1',videoUrl:'',videoFile:'',captionsUrl:'',
+        body:`<p>LDAH serves families across Hawai&#699;i and the Pacific. Families from Native Hawaiian, Filipino, Samoan, Chuukese, Marshallese, Palauan, Chamorro and many other backgrounds bring strengths to the IEP table &mdash; and sometimes meet barriers that have nothing to do with how much they care. This lesson is about advocating across cultures with respect.</p>
+        <h2>Start With the Family, Not the Label</h2><p>No list of cultural traits describes a real family. Use what you learn here as questions to ask, never as assumptions to make. The best question is the simplest: &ldquo;How does your family like to make decisions?&rdquo;</p>
+        <h2>Common Considerations</h2>
+        <h3>1. Decisions Are Often Made Together</h3><p>In many Pacific families, grandparents, aunties, uncles or elders share in big decisions. Parents may invite them to the IEP meeting as people with knowledge of the child, and may need time to talk with family before agreeing. That is not delay; it is how the decision gets made well.</p>
+        <h3>2. Silence Is Not Agreement</h3><p>Where respect for teachers runs deep, a parent may nod or stay quiet rather than question a professional. Check understanding with open questions, and make it clear that disagreeing is expected and welcome.</p>
+        <h3>3. Relationships Come First</h3><p>Taking time to talk story, to introduce everyone and to explain each person&rsquo;s role builds the trust that makes a meeting work.</p>
+        <h3>4. Disability May Be Understood Differently</h3><p>Some families have no word for a disability, or see it through faith, family or community. Respect that view while making sure the family understands what eligibility means for their child&rsquo;s services.</p>
+        <h2>Language Access Is a Right</h2><p>Under IDEA, the school must take whatever action is necessary to make sure a parent understands the IEP meeting, including providing an interpreter for a parent whose native language is not English, at no cost. Notices must be provided in the parent&rsquo;s native language unless that is clearly not feasible. A child should never be asked to interpret for their own IEP meeting. Ask for the interpreter in writing when the meeting is scheduled.</p>
+        <h2>Across the Pacific</h2><p>IDEA also funds special education in the U.S. territories and the freely associated states, and LDAH works alongside partners across the region. Systems, distances and resources differ from island to island. Learn how things work locally before giving advice, and connect families with the partner who knows their island.</p>
+        <div class="cd-callout"><svg class="ico" viewBox="0 0 24 24"><use href="#i-info"/></svg><div><strong>Remember:</strong> Ask, do not assume. Every family is the expert on its own culture.</div></div>`,
+        takeaways:["Use cultural knowledge as questions to ask, never assumptions; every family is the expert on its own culture.","Many Pacific families make decisions together, and may bring extended family to the IEP meeting and need time to decide.","Silence or nodding may be respect rather than agreement, so check understanding with open questions.","Parents have a right to an interpreter at no cost, and a child should never interpret for their own IEP meeting."],next:'g4'},
+      'g4':{tier:'gold',title:'Lesson 4: Building Advocacy Networks',duration:'12 min',deckUrl:'lessons/gold-4-advocacy-networks.html?v=1',videoUrl:'',videoFile:'',captionsUrl:'',
+        body:`<p>One advocate can help one family at a time. A network can help hundreds. This final Gold lesson is about connecting families to each other and to the organizations around them, so no family has to start from zero.</p>
+        <h2>Map What Already Exists</h2><p>Before building anything new, list what is already in your community: LDAH workshops and support, school-level parent groups and School Community Councils, Community Children&rsquo;s Councils, churches, cultural associations, health centers, libraries and youth programs. Most networks grow by connecting these, not by replacing them.</p>
+        <h2>Building the Network</h2>
+        <h3>1. Start Small</h3><p>Three families who meet monthly can do more than a large group that never meets. Pick a regular time and place, and keep it going.</p>
+        <h3>2. Connect With Permission</h3><p>Introduce families to each other only when both have agreed. Share contact details only with consent, and keep private details out of group chats and social media posts.</p>
+        <h3>3. Make It Easy to Join</h3><p>Offer more than one way to take part: in person, online, by phone. Think about language, childcare, transportation and timing for working parents.</p>
+        <h3>4. Share Leadership</h3><p>Invite others to host, share a story, or bring a speaker. A network that depends on one person ends when that person is tired.</p>
+        <h2>Partners Beyond Families</h2><p>Schools, health providers, cultural organizations and businesses can all help: a meeting room, a flyer on a notice board, a speaker. Be clear about what you are asking for and what the families gain. Bring LDAH in when a group wants a workshop or training on a specific topic.</p>
+        <h2>Keeping It Going</h2><p>Keep a simple record of who came and what the group asked for. Celebrate wins, large and small. Check in with families who stop coming. And plan for the next leader, so the network outlasts any one person &mdash; including you.</p>
+        <div class="cd-callout"><svg class="ico" viewBox="0 0 24 24"><use href="#i-info"/></svg><div><strong>Remember:</strong> A network is measured by what families can do for themselves and each other, not by how many people are on the list.</div></div>`,
+        takeaways:["Start by mapping the groups and organizations already in your community, and connect them rather than replacing them.","Connect families only with their permission, and keep private details out of group chats and social media.","Make joining easy across language, time, childcare and transportation, and offer more than one way to take part.","Share leadership so the network does not depend on one person and outlasts any single leader."],next:'gquiz'},
       'gquiz':{tier:'gold',title:'Gold Leadership Certification Quiz',isQuiz:true,body:'',takeaways:[],next:''}
     };
 
@@ -923,6 +1017,11 @@
         {q:'Which of these people is a REQUIRED member of your child\'s IEP team?',options:['The school principal','The parent','The child\'s pediatrician','A district attorney'],correct:1},
         {q:'On an evaluation report, your child scores at the 25th percentile. What does that mean?',options:['Your child answered 25% of the questions correctly','Your child scored the same as or better than 25% of same-age peers','Your child needs 25% more support','Your child is 25% behind grade level'],correct:1},
         {q:'You disagree with the results of the school\'s evaluation. What can you request?',options:['An Independent Educational Evaluation (IEE)','A new teacher','A different school','An immediate due process hearing'],correct:0}
+      ],
+      gold:[
+        {q:"What is the main difference between individual advocacy and systems advocacy?",options:["Systems advocacy changes the policy or practice behind a problem so other families do not face it","Systems advocacy only happens in court","Individual advocacy is done by lawyers and systems advocacy by parents","There is no difference"],correct:0},
+        {q:"A parent you are mentoring asks you to sign a consent form for them because they are busy. What should you do?",options:["Sign it to save them time","Sign it but tell the school","Explain that you cannot sign for another family, and help them review it themselves","Tell them to ignore the form"],correct:2},
+        {q:"Who may file a state complaint about an IDEA violation with the Hawai'i Department of Education?",options:["Only an attorney","Only the parent of the child involved","Only a school principal","Any person or organization, in writing and signed"],correct:3}
       ]
     };
 
@@ -942,6 +1041,14 @@
         {q:'What is the difference between an accommodation and a modification?',options:['An accommodation changes HOW a child learns or is tested; a modification changes WHAT the child is expected to learn','A modification is temporary and an accommodation is permanent','They mean the same thing','An accommodation is only used during state testing'],correct:0},
         {q:'Annual goals in an IEP must be:',options:['Written by the parent alone','Measurable, so progress can be tracked','Identical to grade-level standards','Reviewed only every three years'],correct:1},
         {q:'How often must the school report progress on your child\'s IEP goals?',options:['Only at the annual IEP meeting','Whenever the parent asks','At least as often as parents of nondisabled children receive report cards','Once at the start and once at the end of the school year'],correct:2}
+      ],
+      gold:[
+        {q:"How long does the State have to investigate and decide a state complaint?",options:["10 days","60 days","6 months","One school year"],correct:1},
+        {q:"Which advisory panel must, by law, have a majority of members who are people with disabilities or parents of children with disabilities?",options:["The Special Education Advisory Council (SEAC)","The State Legislature","The school's PTA","The Board of Education"],correct:0},
+        {q:"As a mentor, which situation should you refer to LDAH?",options:["The parent wants to practice questions for a meeting","The parent wants to know how to highlight a report","The family is considering mediation or due process","The parent wants to share their story"],correct:2},
+        {q:"During an IEP meeting, a parent nods quietly through every point. What is the best response?",options:["Assume they agree and move on","Ask the child to explain things to the parent","End the meeting early","Check understanding with open questions and make it clear that disagreeing is welcome"],correct:3},
+        {q:"A parent's native language is Chuukese. Who should interpret at their child's IEP meeting?",options:["An interpreter provided by the school at no cost","The child","Whichever staff member speaks some Chuukese","No one; the parent should bring written notes"],correct:0},
+        {q:"Which practice best keeps a family network going over time?",options:["One leader runs every meeting","Share contact details freely so everyone stays in touch","Share leadership and plan for the next leader","Meet only when there is a crisis"],correct:2}
       ]
     };
     </script>
@@ -960,7 +1067,7 @@
        no lesson bodies and no videos yet, so they are advertised as coming
        soon rather than dangled behind a fake unlock. Flipping one of these to
        'live' is NOT enough on its own — the content has to exist first. */
-    var TIER_STATE = { bronze: 'live', silver: 'soon', gold: 'soon' };
+    var TIER_STATE = { bronze: 'live', silver: 'live', gold: 'live' };
     var TIER_LABEL  = { bronze: 'Bronze', silver: 'Silver', gold: 'Gold' };
     var TIER_SUB    = { bronze: 'Foundations', silver: 'Advocate', gold: 'Leadership' };
 
@@ -988,10 +1095,10 @@
     var LESSON_META = {
       b1:{n:'1',   tag:'15 min'}, b2:{n:'2', tag:'10 min'}, b2pq:{n:'pop', tag:'Quick Check'},
       b3:{n:'3',   tag:'15 min'}, b4:{n:'4', tag:'20 min'}, bquiz:{n:'quiz', tag:'Final Assessment'},
-      s1:{n:'1',   tag:'25 min'}, s2:{n:'2', tag:'30 min'}, s2pq:{n:'pop', tag:'Quick Check'},
-      s3:{n:'3',   tag:'35 min'}, s4:{n:'4', tag:'30 min'}, squiz:{n:'quiz', tag:'Final Assessment'},
-      g1:{n:'1',   tag:'35 min'}, g2:{n:'2', tag:'30 min'}, g2pq:{n:'pop', tag:'Quick Check'},
-      g3:{n:'3',   tag:'40 min'}, g4:{n:'4', tag:'35 min'}, gquiz:{n:'quiz', tag:'Final Assessment'}
+      s1:{n:'1',   tag:'10 min'}, s2:{n:'2', tag:'15 min'}, s2pq:{n:'pop', tag:'Quick Check'},
+      s3:{n:'3',   tag:'15 min'}, s4:{n:'4', tag:'15 min'}, squiz:{n:'quiz', tag:'Final Assessment'},
+      g1:{n:'1',   tag:'12 min'}, g2:{n:'2', tag:'12 min'}, g2pq:{n:'pop', tag:'Quick Check'},
+      g3:{n:'3',   tag:'12 min'}, g4:{n:'4', tag:'12 min'}, gquiz:{n:'quiz', tag:'Final Assessment'}
     };
 
     function lessonIcon(lid) {
@@ -1009,7 +1116,7 @@
     /* ── build the course DOM (only ever runs for a signed-in member) ── */
     function buildCourse() {
       var side = '';
-      side += '<div class="cd-sidebar-header"><div class="cd-sidebar-title">LDAH Certification Program</div><div class="cd-sidebar-sub">Bronze tier &mdash; open now</div></div>';
+      side += '<div class="cd-sidebar-header"><div class="cd-sidebar-title">LDAH Certification Program</div><div class="cd-sidebar-sub">Bronze, Silver and Gold</div></div>';
       side += '<div class="cd-section open" id="sec-welcome"><div class="cd-section-header" onclick="cdToggle(\'sec-welcome\')"><span class="cd-section-title">Welcome</span><button class="cd-section-icon" aria-hidden="true">+</button></div><div class="cd-lessons">'
             + '<div class="cd-lesson" data-lesson="welcome1" onclick="cdOpenLesson(\'welcome1\',this)"><span class="cd-lesson-icon">' + ico('play') + '</span><span class="cd-lesson-text">Start Here &mdash; Welcome to LDAH</span><span class="cd-lesson-check">' + ico('check') + '</span></div>'
             + '</div></div>';
@@ -1071,7 +1178,7 @@
         +     '<div id="dashboard-home" class="cd-dash-content">'
         +       '<div class="cd-dashboard-grid"><div>'
         +         '<div class="cd-dash-heading">Welcome to the LDAH Certification Program</div>'
-        +         '<p class="cd-dash-intro">This program is designed to empower Hawai&#699;i families with the knowledge, skills, and confidence to advocate for their keiki in the special education system. The Bronze tier is open now &mdash; work through it at your own pace and earn your LDAH credential.</p>'
+        +         '<p class="cd-dash-intro">This program is designed to empower Hawai&#699;i families with the knowledge, skills, and confidence to advocate for their keiki in the special education system. Work through Bronze, then Silver, then Gold at your own pace, and earn an LDAH certificate at each level.</p>'
         +         '<div id="certHome"></div>'
         +       '</div>'
         +       '<div class="cd-action-col">'
@@ -1149,7 +1256,10 @@
       if (!embed || !zone) return;
       if (lesson.isQuiz || lesson.isPopQuiz || lesson.noVideo) { zone.style.display = 'none'; embed.innerHTML = ''; return; }
       zone.style.display = '';
-      if (lesson.videoFile) {
+      if (lesson.deckUrl) {
+        /* Silver/Gold lessons are narrated decks (lessons/*.html) instead of recorded video. */
+        embed.innerHTML = '<iframe src="' + esc(lesson.deckUrl) + '" allowfullscreen allow="autoplay; fullscreen" title="' + esc(lesson.title) + '"></iframe>';
+      } else if (lesson.videoFile) {
         var cc = lesson.captionsUrl ? '<track kind="captions" src="' + esc(lesson.captionsUrl) + '" srclang="en" label="English Captions" default>' : '';
         embed.innerHTML = '<video controls crossorigin="anonymous"><source src="' + esc(lesson.videoFile) + '" type="video/mp4">' + cc + 'Your browser does not support the video tag.</video>';
       } else if (lesson.videoUrl) {
@@ -1422,7 +1532,12 @@
       }
       return false;
     }
+    /* STAGE-only review switch: ?review=1 opens every lesson in order-free mode so
+       staff can check content without finishing earlier tiers. Never works on live,
+       and the certificate server still checks every lesson and quiz. */
+    var CD_REVIEW = /\/STAGE\//.test(location.pathname) && /[?&]review=1\b/.test(location.search);
     function cdLessonUnlocked(lid) {
+      if (CD_REVIEW) return true;
       var order = activeLessonOrder();
       var idx = order.indexOf(lid);
       if (idx <= 0) return true;                       // not in the order, or the first
@@ -1449,7 +1564,8 @@
     /* The dashboard's primary action follows the member: start the tier,
        then claim it, then print it. */
     function dashPrimaryHtml() {
-      var tier = liveTiers()[0];
+      var lt = liveTiers(), tier = lt[0];
+      for (var i = 0; i < lt.length; i++) { if (cdClaimState(lt[i]) !== 'issued') { tier = lt[i]; break; } tier = lt[i]; }
       if (!tier) return '';
       var st = cdClaimState(tier);
       if (st === 'claimable') {
@@ -1461,7 +1577,7 @@
              + 'Print my ' + TIER_LABEL[tier] + ' certificate<span class="cd-action-btn-sub">Opens the printable certificate</span></button>';
       }
       return '<button class="cd-action-btn cd-action-primary" onclick="cdOpenLesson(\'' + TIER_LESSONS[tier][0] + '\')">'
-           + 'Start ' + TIER_LABEL[tier] + '<span class="cd-action-btn-sub">Begin your foundations</span></button>';
+           + 'Start ' + TIER_LABEL[tier] + '<span class="cd-action-btn-sub">' + ({bronze:'Begin your foundations',silver:'Take your seat at the table',gold:'Lead and help other families'}[tier] || '') + '</span></button>';
     }
 
     /* Offered on the final quiz result — never on a pop quiz, which earns nothing. */
@@ -1616,7 +1732,9 @@
         +   '<div class="person d-person">' + esc(cert.memberName || '') + '</div>'
         +   '<div class="body">has completed every lesson and passed the final assessment of the '
         +     esc(TIER_LABEL[cert.tier] || cert.tier) + ' tier of the LDAH Certification Program, demonstrating a working knowledge of '
-        +     'special education, parent rights under IDEA, and the evaluation process in Hawai&#699;i.</div>'
+        +     ({silver:'the IEP team, evaluation reports, IEP meeting participation, and IEP goals, accommodations and services in Hawai&#699;i.',
+               gold:'systems-level advocacy, mentoring other families, Pacific Island cultural advocacy, and building advocacy networks.'}[cert.tier]
+               || 'special education, parent rights under IDEA, and the evaluation process in Hawai&#699;i.') + '</div>'
         +   '<div class="meta">'
         +     '<div><dt>Certificate number</dt><dd>' + esc(cert.certNumber || '') + '</dd></div>'
         +     '<div><dt>Date issued</dt><dd>' + esc(fmtCertDate(cert.issuedAt || cert.issuedAtMs)) + '</dd></div>'
@@ -1665,7 +1783,8 @@
       } catch (e) {
         console.warn('[certification] issue failed:', (e && e.message) || e);
         if (btn) { btn.disabled = false; btn.textContent = restore; }
-        cdShowToast('We could not issue your certificate just now. Your progress is saved — please try again in a moment.');
+        if (e && /tier is not open/i.test(e.message || '')) cdShowToast(TIER_LABEL[tier] + ' certificates are not being issued yet. Your progress is saved, and you can claim it later.');
+        else cdShowToast('We could not issue your certificate just now. Your progress is saved — please try again in a moment.');
       }
       _claiming = false;
     }

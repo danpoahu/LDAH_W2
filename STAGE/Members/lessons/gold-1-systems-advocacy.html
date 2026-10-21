@@ -1,0 +1,357 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gold Lesson 1: Systems-Level Advocacy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="deck-base.css">
+<link rel="stylesheet" href="lesson-theme.css?v=1">
+<style>
+/* g1- = this deck only */
+.g1-path{position:absolute;left:90px;top:220px;display:flex;gap:26px;align-items:center}
+.g1-step{width:300px;height:230px;border-radius:22px;background:#fff;border:2px solid var(--line);box-shadow:0 12px 30px rgba(15,23,42,.08);padding:26px;opacity:.45;transition:all .5s}
+.g1-step .tier{margin-bottom:14px}
+.g1-step h3{font-family:"Outfit",sans-serif;font-size:30px;margin:0 0 8px;color:var(--ink)}
+.g1-step p{margin:0;font-size:19px;color:var(--soft);line-height:1.35}
+.g1-step.done{opacity:1}
+.g1-step.on{opacity:1;transform:translateY(-10px);border-color:#D97706;box-shadow:0 18px 40px rgba(217,119,6,.22)}
+.tier.bronze{background:linear-gradient(135deg,#FED7AA,#C2410C);color:#fff}
+.g1-arrow{font-size:40px;color:#CBD5E1;font-weight:800}
+.g1-tick{display:inline-flex;align-items:center;gap:6px;margin-top:14px;font-size:15px;font-weight:800;color:#15803D}
+
+/* individual vs systems: lanes and a wall */
+.g1-lane{position:absolute;left:80px;width:680px;height:230px;border-radius:18px;background:#fff;border:1px solid var(--line);box-shadow:0 10px 26px rgba(15,23,42,.07)}
+.g1-lane .lbl{position:absolute;left:20px;top:14px;font-family:"Outfit",sans-serif;font-weight:800;font-size:20px;color:var(--teal)}
+.g1-wall{position:absolute;left:430px;top:52px;width:44px;height:160px;border-radius:6px;background:repeating-linear-gradient(0deg,#B45309 0 18px,#FEF3C7 18px 21px),#B45309;box-shadow:inset -6px 0 0 rgba(0,0,0,.12);transition:all .6s}
+.g1-wall.g1-gap{background:none;box-shadow:none}
+.g1-wall.g1-gap::before,.g1-wall.g1-gap::after{content:"";position:absolute;left:0;width:44px;height:58px;border-radius:6px;background:repeating-linear-gradient(0deg,#B45309 0 18px,#FEF3C7 18px 21px)}
+.g1-wall.g1-gap::before{top:0}.g1-wall.g1-gap::after{bottom:0}
+.g1-fam{position:absolute;width:54px;height:54px;border-radius:50%;background:#CFFAFE;color:#0E7490;border:3px solid #0891B2;display:flex;align-items:center;justify-content:center;font-family:"Outfit",sans-serif;font-weight:800;font-size:20px;opacity:0;transform:translateX(-30px);transition:all .6s}
+.g1-fam.on{opacity:1;transform:none}
+.g1-fam.next{background:#F0FDF4;border:3px dashed #16A34A;color:#15803D}
+.g1-trail{position:absolute;height:4px;border-radius:2px;background:repeating-linear-gradient(90deg,#94A3B8 0 10px,transparent 10px 18px);opacity:0;transition:opacity .5s}
+.g1-trail.on{opacity:1}
+.g1-res{position:absolute;padding:8px 14px;border-radius:12px;font-weight:800;font-size:16px;line-height:1.25;opacity:0;transform:scale(.7);transition:all .45s cubic-bezier(.3,1.3,.5,1)}
+.g1-res.on{opacity:1;transform:none}
+.g1-res.one{background:#ECFEFF;border:2px solid #A5F3FC;color:#0E7490}
+.g1-res.many{background:#F0FDF4;border:2px solid #86EFAC;color:#15803D}
+.g1-res.same{background:#FFF7ED;border:2px solid #FDBA74;color:#9A3412}
+.g1-down{position:absolute;left:430px;top:52px;width:44px;height:160px;border-radius:6px;border:3px dashed #16A34A;background:#F0FDF4;opacity:0;transition:opacity .5s}
+.g1-down.on{opacity:1}
+.g1-wall2{transition:transform .6s,opacity .6s;transform-origin:bottom}
+.g1-wall2.on{transform:scaleY(0);opacity:0}
+
+/* doors */
+.g1-doors{position:absolute;left:66px;top:200px;width:700px;display:flex;gap:14px}
+.g1-door{width:128px;text-align:center}
+.g1-frame{position:relative;height:250px;border-radius:64px 64px 6px 6px;background:#0B4F61;perspective:1100px;box-shadow:0 14px 30px rgba(15,23,42,.18)}
+.g1-frame .light{position:absolute;inset:8px 8px 0;border-radius:58px 58px 2px 2px;background:linear-gradient(180deg,#FEF3C7,#FDE68A)}
+.g1-panel{position:absolute;inset:8px 8px 0;border-radius:58px 58px 2px 2px;background:linear-gradient(135deg,#0891B2,#0E7490);transform-origin:left center;transition:transform .8s cubic-bezier(.4,0,.2,1);display:flex;align-items:center;justify-content:center;font-family:"Outfit",sans-serif;font-weight:800;font-size:44px;color:rgba(255,255,255,.9)}
+.g1-panel::after{content:"";position:absolute;right:12px;top:130px;width:12px;height:12px;border-radius:50%;background:#FDBA74}
+.g1-door.on .g1-panel{transform:rotateY(-62deg)}
+.g1-door.on .g1-frame{box-shadow:0 18px 40px rgba(217,119,6,.35)}
+.g1-door .nm2{margin-top:30px;font-weight:800;font-size:17px;line-height:1.2;color:var(--ink)}
+.g1-door .lv{font-size:14px;color:var(--soft);font-weight:600}
+.g1-floor{position:absolute;left:58px;top:451px;width:712px;height:6px;border-radius:3px;background:#E2E8F0}
+
+/* state complaint */
+.g1-form{position:absolute;left:76px;top:140px;width:380px;background:#fff;border-radius:12px;border:1px solid var(--line);box-shadow:0 16px 34px rgba(15,23,42,.13);padding:20px 22px}
+.g1-form h4{margin:0 0 2px;font-family:"Outfit",sans-serif;font-size:22px;color:var(--teal)}
+.g1-form .to{font-size:14px;color:#94A3B8;margin-bottom:10px}
+.g1-fld{padding:9px 0;border-top:1px solid #F1F5F9;font-size:16px;color:#334155;transition:background .4s}
+.g1-fld b{display:block;font-size:13px;color:#64748B;text-transform:uppercase;letter-spacing:.05em}
+.g1-fld.hit{background:#FEF9C3}
+.g1-sig{margin-top:34px;border-top:2px solid #94A3B8;padding-top:4px;font-size:13px;color:#64748B;position:relative}
+.g1-sig svg{position:absolute;left:4px;top:-34px}
+.g1-sig path{stroke-dasharray:240;stroke-dashoffset:240;transition:stroke-dashoffset 1.2s ease}
+.g1-sig.on path{stroke-dashoffset:0}
+.g1-cal{position:absolute;left:480px;top:140px;width:286px;background:#fff;border-radius:14px;border:1px solid var(--line);box-shadow:0 16px 34px rgba(15,23,42,.13);overflow:hidden}
+.g1-cal .top{background:#0E7490;color:#fff;padding:10px 16px;font-family:"Outfit",sans-serif;font-weight:700;font-size:17px}
+.g1-cal .num{font-family:"Outfit",sans-serif;font-weight:800;font-size:54px;color:#0B4F61;text-align:center;line-height:1;margin:12px 0 2px}
+.g1-cal .unit{text-align:center;font-size:15px;font-weight:700;color:#64748B;margin-bottom:10px}
+.g1-grid{display:grid;grid-template-columns:repeat(10,22px);gap:4px;justify-content:center;padding:0 0 16px}
+.g1-grid i{width:22px;height:22px;border-radius:5px;background:#F1F5F9;transition:background .25s}
+.g1-grid i.on{background:#67E8F9}
+.g1-grid i.last.on{background:#F97316}
+.g1-stamp{position:absolute;left:480px;top:480px;width:286px;padding:12px 16px;border-radius:14px;border:3px solid #16A34A;background:#F0FDF4;color:#166534;font-weight:800;font-size:17px;line-height:1.3;opacity:0;transform:rotate(-3deg) scale(.7);transition:all .5s cubic-bezier(.3,1.3,.5,1)}
+.g1-stamp.on{opacity:1;transform:rotate(-3deg)}
+.g1-stamp small{display:block;font-weight:700;font-size:14px;color:#15803D}
+
+/* SEAC */
+.g1-room{position:absolute;left:70px;top:130px;width:700px;height:540px}
+.g1-seat{position:absolute;width:58px;height:58px;border-radius:50%;background:#F1F5F9;border:3px solid #CBD5E1;display:flex;align-items:center;justify-content:center;opacity:0;transform:scale(.5);transition:all .45s cubic-bezier(.3,1.3,.5,1)}
+.g1-seat.on{opacity:1;transform:none}
+.g1-seat.maj{background:#FFF7ED;border-color:#F97316}
+.g1-tbl{position:absolute;left:170px;top:190px;width:360px;height:110px;border-radius:0 0 180px 180px;background:radial-gradient(ellipse at 50% 0%,#FDE68A,#D97706);display:flex;align-items:center;justify-content:center;font-family:"Outfit",sans-serif;font-weight:800;font-size:26px;color:#78350F;box-shadow:0 14px 26px rgba(15,23,42,.14)}
+.g1-bar{position:absolute;left:100px;top:360px;width:500px;height:26px;border-radius:13px;background:#E2E8F0;overflow:hidden}
+.g1-bar i{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,#FDBA74,#F97316);transition:width 1s ease}
+.g1-bar.on i{width:58%}
+.g1-mid{position:absolute;left:350px;top:352px;width:3px;height:42px;background:#0B4F61}
+.g1-bl{position:absolute;left:100px;top:394px;width:500px;font-size:15px;font-weight:700;color:#9A3412}
+.g1-pod{position:absolute;top:440px;width:250px;padding:12px 14px;border-radius:14px;background:#fff;border:2px solid var(--line);font-weight:800;font-size:17px;line-height:1.25;display:flex;gap:12px;align-items:center;opacity:0;transform:translateY(14px);transition:all .45s}
+.g1-pod.on{opacity:1;transform:none}
+.g1-pod i{width:42px;height:42px;border-radius:12px;background:#ECFEFF;flex:none;display:flex;align-items:center;justify-content:center}
+
+/* Board + Legislature */
+.g1-bd{position:absolute;left:76px;width:690px;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 12px 30px rgba(15,23,42,.10);padding:16px 22px;opacity:0;transform:translateY(14px);transition:all .5s}
+.g1-bd.on{opacity:1;transform:none}
+.g1-bd h4{margin:0 0 4px;font-family:"Outfit",sans-serif;font-size:23px;color:var(--teal);display:flex;gap:10px;align-items:center}
+.g1-bd p{margin:0 0 12px;font-size:17px;color:#334155}
+.g1-months{position:relative;display:grid;grid-template-columns:repeat(12,1fr);gap:4px;margin-top:6px}
+.g1-months span{text-align:center;font-size:13px;font-weight:800;color:#64748B;padding:8px 0;border-radius:6px;background:#F1F5F9}
+.g1-band{position:absolute;left:0;top:-6px;height:44px;width:0;border-radius:10px;border:3px solid #F97316;background:rgba(249,115,22,.10);transition:width 1.1s ease}
+.g1-band.on{width:38.5%}
+.g1-bl2{font-size:14px;font-weight:700;color:#9A3412;margin-top:8px}
+
+/* local councils */
+.g1-lvl{position:absolute;border-radius:18px;padding:14px 18px;opacity:0;transform:translateY(14px);transition:all .5s}
+.g1-lvl.on{opacity:1;transform:none}
+.g1-lvl h4{margin:0;font-family:"Outfit",sans-serif;font-size:21px}
+.g1-lvl p{margin:4px 0 0;font-size:16px;font-weight:600}
+.g1-ppl{display:flex;gap:6px;margin-top:10px}
+.g1-ppl i{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:12px;font-weight:800}
+.g1-ppl i.p{background:#FFEDD5;color:#C2410C}.g1-ppl i.r{background:#CFFAFE;color:#0E7490}
+.g1-up{position:absolute;left:600px;top:190px;width:150px;height:430px}
+.g1-up path{stroke-dasharray:500;stroke-dashoffset:500;transition:stroke-dashoffset 1.2s ease}
+.g1-up.on path{stroke-dashoffset:0}
+.g1-flag{position:absolute;left:96px;top:600px;padding:8px 14px;border-radius:12px;background:#FEF9C3;border:2px solid #FACC15;color:#854D0E;font-weight:800;font-size:16px;opacity:0;transition:opacity .5s}
+.g1-flag.on{opacity:1}
+
+/* testimony */
+.g1-tcard{position:absolute;left:76px;top:132px;width:690px;background:#fff;border-radius:14px;border:1px solid var(--line);box-shadow:0 16px 34px rgba(15,23,42,.13);padding:16px 22px}
+.g1-tcard .hd{font-family:"Outfit",sans-serif;font-weight:800;font-size:19px;color:var(--teal);margin-bottom:6px}
+.g1-part{display:flex;gap:14px;align-items:flex-start;padding:10px 0;border-top:1px solid #F1F5F9;opacity:.25;transition:opacity .45s}
+.g1-part.on{opacity:1}
+.g1-part .n{width:34px;height:34px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-family:"Outfit",sans-serif;font-weight:800;color:#fff;background:#0E7490}
+.g1-part .k{font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#64748B}
+.g1-part .t{font-size:17px;color:#334155;min-height:24px}
+.g1-part.ask .n{background:#F97316}
+.g1-priv{position:absolute;left:76px;top:516px;width:330px;background:#fff;border:2px solid var(--line);border-radius:14px;padding:12px 16px;font-size:15px;opacity:0;transform:translateY(14px);transition:all .5s}
+.g1-priv.on{opacity:1;transform:none}
+.g1-priv .x{color:#94A3B8;text-decoration:line-through;text-decoration-color:#DC2626;text-decoration-thickness:2px}
+.g1-priv .ok{font-weight:800;color:#15803D;margin-top:4px}
+.g1-priv b{display:block;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#64748B;margin-bottom:4px}
+.g1-data{position:absolute;left:426px;top:516px;width:340px;background:#fff;border:2px solid var(--line);border-radius:14px;padding:12px 16px;font-size:15px;opacity:0;transform:translateY(14px);transition:all .5s}
+.g1-data.on{opacity:1;transform:none}
+.g1-data b{display:block;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#64748B;margin-bottom:4px}
+.g1-data .x{color:#94A3B8;text-decoration:line-through;text-decoration-color:#DC2626;text-decoration-thickness:2px}
+.g1-data .ok{font-weight:800;color:#15803D;margin-top:4px}
+
+/* one vs many */
+.g1-col{position:absolute;top:150px;width:330px;border-radius:18px;padding:18px 20px;opacity:0;transform:translateY(16px);transition:all .5s}
+.g1-col.on{opacity:1;transform:none}
+.g1-col h4{margin:0 0 4px;font-family:"Outfit",sans-serif;font-size:24px}
+.g1-col .sm{font-size:15px;font-weight:700;margin-bottom:14px}
+.g1-tool{display:flex;gap:12px;align-items:center;background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:10px;font-weight:800;font-size:18px;color:var(--ink);box-shadow:0 6px 14px rgba(15,23,42,.06)}
+.g1-tool i{width:36px;height:36px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center}
+.g1-kids{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
+.g1-kids i{width:22px;height:22px;border-radius:50%}
+</style>
+</head><body>
+<div id="view"><div id="stage"><div id="nbar"><i></i></div>
+<div id="scenes"></div>
+<div id="spot"></div>
+<svg id="cursor" viewBox="0 0 28 32"><path d="M3 2 L3 26 L9.5 19.5 L14 29 L18.5 27 L14 17.5 L23 17.5 Z" fill="#fff" stroke="#0F172A" stroke-width="2" stroke-linejoin="round"/></svg>
+</div></div>
+<div id="cap" aria-live="polite"></div>
+<div id="bar">
+ <button id="prev">Back</button><button id="play">Start</button><button id="next">Next</button>
+ <div id="dots"></div>
+ <button id="capbtn" aria-pressed="false">Captions</button><button id="voice" aria-pressed="true">Voice on</button>
+</div>
+<script src="lesson-kit.js?v=1"></script>
+<script>
+const DECK_ID='cert-gold-1';
+const L={tier:'gold',lesson:'Gold Lesson 1',title:'Systems-Level Advocacy'};
+const G1=(d,c='#0E7490',w=24)=>`<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="${c}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const ICO={
+ doc:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>',
+ mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/>',
+ open:'<path d="M4 20V5a1 1 0 0 1 1-1h9l5 5v11"/><path d="M3 20h18"/><path d="M14 4v5h5"/>',
+ cap:'<path d="M3 21h18M5 21V10M19 21V10M9 21V10M15 21V10M2 10l10-6 10 6z"/>',
+ people:'<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.4"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M15 14.5c2.8 0 6 1.6 6 5.5"/>',
+ scale:'<path d="M12 3v18M7 21h10M4 7h16M7 7l-3 7a3 3 0 0 0 6 0zM17 7l-3 7a3 3 0 0 0 6 0z"/>',
+ hand:'<path d="M8 13V5a1.5 1.5 0 0 1 3 0v6M11 10V4a1.5 1.5 0 0 1 3 0v6M14 10V5a1.5 1.5 0 0 1 3 0v8c0 4-2.5 7-6 7s-5-2-6.5-4.5L3 12.5a1.5 1.5 0 0 1 2.6-1.5L8 14"/>'};
+const DOORS=[['1','State complaint','Department of Education'],['2','SEAC','Advisory panel'],['3','Board of Education','State policy'],['4','Legislature','Bills and laws'],['5','Local councils','District and school']];
+const door=async i=>{const d=all('.g1-door')[i];d.classList.add('on');spot(d,8)};
+
+const SC=[
+COVER({...L,
+ sub:'Changing the policy behind a problem, so the next family does not meet the same wall.',
+ say:'Aloha, and welcome to Gold, the Leadership level of the L D A H Certification Program. You finished Bronze and Silver, and that took real commitment. Gold is about something bigger than one I E P. In this first lesson, we look at systems-level advocacy: what it is, and the doors Hawaiʻi gives parents to use.'}),
+
+{html:()=>HEAD('Where you are','Bronze, Silver, Gold')+`<div class="g1-path">
+ <div class="g1-step done"><span class="tier bronze">Bronze</span><h3>Foundations</h3><p>How special education works and your rights.</p><div class="g1-tick">${G1('<path d="M5 12l5 5 9-10"/>','#15803D',18)}Finished</div></div><div class="g1-arrow">›</div>
+ <div class="g1-step done"><span class="tier silver">Silver</span><h3>Advocate</h3><p>Your seat at the table, for your own child.</p><div class="g1-tick">${G1('<path d="M5 12l5 5 9-10"/>','#15803D',18)}Finished</div></div><div class="g1-arrow">›</div>
+ <div class="g1-step g1-gold"><span class="tier gold">Gold</span><h3>Leadership</h3><p>Helping change things for many children.</p></div></div>`,
+ steps:[
+ {say:'Bronze and Silver were about your own child. You learned how the system works, and how to take your seat at the table.',act:async()=>{const s=all('.g1-step');spot(s[0],6);await wait(1400);spot(s[1],6)}},
+ {say:'Gold is called Leadership, because it is about families who are ready to help change things for many children. Not only your child. The next family, and the one after that.',act:async()=>{const g=q('.g1-gold');g.classList.add('on');spot(g,8);await wait(1600);spot(null)}}]},
+
+{html:()=>HEAD('Two kinds of advocacy','One child, or the next family too')+`
+ <div class="g1-lane" style="top:126px"><div class="lbl">Individual advocacy</div>
+  <div class="g1-trail g1-t1" style="left:100px;top:131px;width:320px"></div>
+  <div class="g1-fam g1-f1" style="left:40px;top:106px">A</div>
+  <div class="g1-wall g1-gap"></div>
+  <div class="g1-res one g1-r1" style="left:494px;top:96px;width:166px">Fixed for one child</div></div>
+ <div class="g1-lane" style="top:378px;height:290px"><div class="lbl">Systems advocacy</div>
+  <div class="g1-trail g1-t2" style="left:100px;top:96px;width:320px"></div><div class="g1-trail g1-t2" style="left:100px;top:154px;width:320px"></div><div class="g1-trail g1-t2" style="left:100px;top:212px;width:320px"></div>
+  <div class="g1-fam g1-s1" style="left:40px;top:70px">A</div><div class="g1-fam g1-s2" style="left:40px;top:128px">B</div><div class="g1-fam g1-s3" style="left:40px;top:186px">C</div>
+  <div class="g1-res same g1-r2" style="left:240px;top:10px">Same wall, three families</div>
+  <div class="g1-down" style="top:66px;height:180px"></div>
+  <div class="g1-wall g1-wall2" style="top:66px;height:180px"></div>
+  <div class="g1-fam next g1-s4" style="left:560px;top:128px">D</div>
+  <div class="g1-res many g1-r3" style="left:494px;top:206px;width:166px">Policy changed.<br>The next family walks through.</div></div>`+PTS([
+ '<b>Individual advocacy</b> solves one child’s problem.',
+ '<b>Systems advocacy</b> changes the <b>policy, practice or funding</b> that caused it.',
+ 'So the next family does not meet the same wall.',
+ 'A sign: you hear the <b>same story from three different families</b>.'],150),
+ steps:[
+ {say:'There are two kinds of advocacy. Individual advocacy solves one child’s problem. A family hits a wall, and they work through it for their own child.',li:0,act:async()=>{q('.g1-f1').classList.add('on');await wait(500);q('.g1-t1').classList.add('on');await wait(600);q('.g1-r1').classList.add('on');spot(q('.g1-lane'),4)}},
+ {say:'That matters. But the wall is still there. Now look at the second picture. One family, then another, then a third, all hitting the very same wall.',act:async()=>{spot(null);for(const c of ['.g1-s1','.g1-s2','.g1-s3']){q(c).classList.add('on');await wait(450)}for(const t of all('.g1-t2'))t.classList.add('on');await wait(500);q('.g1-r2').classList.add('on')}},
+ {say:'That is a useful sign that something is a systems issue: you hear the same story from three different families.',li:3,act:async()=>{spot(q('.g1-r2'),6)}},
+ {say:'Systems advocacy changes the policy, practice or funding that caused the problem.',li:1,act:async()=>{spot(null);q('.g1-wall2').classList.add('on');q('.g1-down').classList.add('on')}},
+ {say:'So the next family does not meet the same wall. They simply walk through.',li:2,act:async()=>{q('.g1-s4').classList.add('on');await wait(500);const r=q('.g1-r3');r.classList.add('on');spot(r,6);await wait(1800);spot(null)}}]},
+
+{html:()=>HEAD('Where change happens','Five doors open to parents')+`<div class="g1-floor"></div><div class="g1-doors">${DOORS.map(d=>`<div class="g1-door"><div class="g1-frame"><div class="light"></div><div class="g1-panel">${d[0]}</div></div><div class="nm2">${d[1]}</div><div class="lv">${d[2]}</div></div>`).join('')}</div>`+PTS([
+ 'A <b>state complaint</b>.',
+ 'The <b>Special Education Advisory Council</b>, SEAC.',
+ 'The <b>Board of Education</b>.',
+ 'The <b>State Legislature</b>.',
+ '<b>Local councils</b>, at the district and school level.'],150),
+ steps:[
+ {say:'Hawaiʻi gives parents several doors to use for systems change. We will walk through five of them.',act:async()=>{spot(q('.g1-doors'),10)}},
+ {say:'One. A state complaint.',li:0,act:()=>door(0)},
+ {say:'Two. The Special Education Advisory Council, called SEAC.',li:1,act:()=>door(1)},
+ {say:'Three. The Board of Education.',li:2,act:()=>door(2)},
+ {say:'Four. The State Legislature.',li:3,act:()=>door(3)},
+ {say:'And five. Local councils, close to home, at the district and school level. Let’s open each door.',li:4,act:async()=>{await door(4);await wait(1400);spot(null)}}]},
+
+{html:()=>HEAD('Door 1','A state complaint')+`<div class="g1-form"><h4>State Complaint</h4><div class="to">To the Hawaiʻi Department of Education</div>
+ <div class="g1-fld g1-f-a"><b>Filed by</b>Any person or organization</div>
+ <div class="g1-fld g1-f-b"><b>What happened</b>A school did not follow IDEA</div>
+ <div class="g1-fld g1-f-c"><b>When</b>Within the past year</div>
+ <div class="g1-fld g1-f-d"><b>Format</b>In writing, and signed</div>
+ <div class="g1-sig g1-sg"><svg viewBox="0 0 130 32" width="130" height="32"><path d="M4 24c10-18 16 6 24-6s10 10 18 2 12-12 20-2 14 4 22-6 10 8 36 2" fill="none" stroke="#0E7490" stroke-width="2.4" stroke-linecap="round"/></svg>Signature</div></div>
+ <div class="g1-cal"><div class="top">The State’s clock</div><div class="num g1-n">0</div><div class="unit">days to investigate and decide</div><div class="g1-grid">${Array.from({length:60},(_,i)=>`<i class="${i===59?'last':''}"></i>`).join('')}</div></div>
+ <div class="g1-stamp"><span>Decision issued</span><small>Corrective action can reach beyond one child.</small></div>`+PTS([
+ '<b>Any person or organization</b> may file.',
+ 'It must be <b>written and signed</b>, and say a school did not follow <b>IDEA</b>.',
+ 'It must concern something within the <b>past year</b>.',
+ 'The State has <b>60 days</b> to investigate and decide.',
+ 'It can order corrective action that reaches <b>beyond one child</b>.'],140),
+ steps:[
+ {say:'Door one. A state complaint. Any person or organization may file one with the Hawaiʻi Department of Education. You do not have to be the parent of the child involved.',li:0,act:async()=>{const f=q('.g1-f-a');f.classList.add('hit');spot(f,4)}},
+ {say:'The complaint says that a school did not follow IDEA, the federal special education law. It must be written, and it must be signed.',li:1,act:async()=>{q('.g1-f-b').classList.add('hit');const d=q('.g1-f-d');d.classList.add('hit');spot(d,4);await wait(500);q('.g1-sg').classList.add('on')}},
+ {say:'It must concern something that happened within the past year.',li:2,act:async()=>{const c=q('.g1-f-c');c.classList.add('hit');spot(c,4)}},
+ {say:'Then the clock starts. The State has 60 days to investigate and issue a decision.',li:3,act:async()=>{spot(q('.g1-cal'),4);const n=q('.g1-n');const g=all('.g1-grid i');const p=countTo(n,60,'',1800);for(let i=0;i<g.length;i++){g[i].classList.add('on');await wait(28)}await p}},
+ {say:'And here is why this door is a systems tool. The State can order corrective action that reaches beyond one child. So one complaint can change things for other children too.',li:4,act:async()=>{const s=q('.g1-stamp');s.classList.add('on');spot(s,6);await wait(2000);spot(null)}}]},
+
+{html:()=>HEAD('Door 2','The Special Education Advisory Council')+`<div class="g1-room"><div class="g1-tbl">SEAC</div>
+ ${Array.from({length:11},(_,i)=>{const a=Math.PI*(1-i/10),x=350+Math.cos(a)*300-29,y=210-Math.sin(a)*170-29;return `<div class="g1-seat${i<6?' maj':''}" style="left:${Math.round(x)}px;top:${Math.round(y+30)}px">${G1(i<6?ICO.people:'<circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"/>',i<6?'#C2410C':'#64748B',26)}</div>`}).join('')}
+ <div class="g1-bar"><i></i></div><div class="g1-mid"></div><div class="g1-bl">Majority: people with disabilities, or parents of children with disabilities</div>
+ <div class="g1-pod g1-p1" style="left:100px"><i>${G1(ICO.open)}</i>Meetings are open</div>
+ <div class="g1-pod g1-p2" style="left:370px"><i>${G1(ICO.mic)}</i>Time for public input</div></div>`+PTS([
+ '<b>IDEA requires</b> every state to have an advisory panel.',
+ 'A <b>majority</b> must be people with disabilities or parents of children with disabilities.',
+ 'SEAC meetings are <b>open</b>.',
+ 'They include time for <b>public input</b>.'],160),
+ steps:[
+ {say:'Door two. The Special Education Advisory Council, or SEAC. IDEA requires every state to have an advisory panel like this one.',li:0,act:async()=>{for(const s of all('.g1-seat'))if(!s.classList.contains('maj')){s.classList.add('on');await wait(110)}spot(q('.g1-tbl'),8)}},
+ {say:'Here is the part to remember. A majority of its members must be people with disabilities, or parents of children with disabilities. People like you hold most of the seats.',li:1,act:async()=>{spot(null);for(const s of all('.g1-seat.maj')){s.classList.add('on');await wait(160)}q('.g1-bar').classList.add('on');await wait(900);spot(q('.g1-bl'),6)}},
+ {say:'SEAC meetings are open. Anyone may attend.',li:2,act:async()=>{const p=q('.g1-p1');p.classList.add('on');spot(p,6)}},
+ {say:'And they include time for public input. That is a moment where a pattern you have seen can be heard by the people who advise the State.',li:3,act:async()=>{const p=q('.g1-p2');p.classList.add('on');spot(p,6);await wait(1800);spot(null)}}]},
+
+{html:()=>HEAD('Doors 3 and 4','The Board and the Legislature')+`
+ <div class="g1-bd g1-b1" style="top:136px"><h4>${G1(ICO.cap)}State Board of Education</h4><p>Sets policy for Hawaiʻi public schools.</p>
+  <div style="display:flex;gap:10px;flex-wrap:wrap"><span class="chip">${G1(ICO.doc,'#0E7490',18)}Written testimony</span><span class="chip">${G1(ICO.mic,'#0E7490',18)}Oral testimony</span><span class="chip sand">On agenda items</span></div></div>
+ <div class="g1-bd g1-b2" style="top:340px"><h4>${G1(ICO.scale)}State Legislature</h4><p>Anyone may submit testimony on bills through the Legislature’s website.</p>
+  <div class="g1-months"><div class="g1-band"></div>${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map(m=>`<span>${m}</span>`).join('')}</div>
+  <div class="g1-bl2">Session: roughly January through early May</div>
+  <div class="fade g1-short" style="margin-top:12px;background:#FFF7ED;border:2px solid #FDBA74;border-radius:12px;padding:10px 14px;font-size:17px;font-weight:700;color:#9A3412">Short, personal testimony that describes real impact is read.</div></div>`+PTS([
+ 'The <b>Board of Education</b> sets policy for Hawaiʻi public schools.',
+ 'Its meetings accept <b>written and oral testimony</b> on agenda items.',
+ 'The <b>Legislature</b> meets roughly <b>January through early May</b>.',
+ 'Anyone may submit testimony on bills <b>through its website</b>.',
+ '<b>Short, personal</b> testimony about real impact is read.'],140),
+ steps:[
+ {say:'Door three. The State Board of Education. The Board sets policy for Hawaiʻi public schools.',li:0,act:async()=>{const b=q('.g1-b1');b.classList.add('on');spot(b,6)}},
+ {say:'Its meetings accept testimony on agenda items. You can send it in writing, or speak at the meeting.',li:1,act:async()=>{spot(null)}},
+ {say:'Door four. The State Legislature. The session runs roughly January through early May.',li:2,act:async()=>{const b=q('.g1-b2');b.classList.add('on');await wait(500);q('.g1-band').classList.add('on');spot(q('.g1-months'),8)}},
+ {say:'During the session, anyone may submit testimony on bills through the Legislature’s website. You do not need to be an expert, or travel anywhere.',li:3,act:async()=>{spot(null)}},
+ {say:'And short, personal testimony that describes real impact is read. A few honest paragraphs about what happened to your family can carry real weight.',li:4,act:async()=>{const s=q('.g1-short');s.classList.add('on');spot(s,6);await wait(1800);spot(null)}}]},
+
+{html:()=>HEAD('Door 5','Local councils, close to home')+`
+ <div class="g1-lvl g1-l1" style="left:76px;top:440px;width:500px;background:#FFF7ED;border:2px solid #FDBA74;color:#9A3412"><h4>School Community Councils</h4><p>At the school level</p><div class="g1-ppl"><i class="p">P</i><i class="p">P</i><i class="r">T</i><i class="r">S</i><i class="r">A</i></div></div>
+ <div class="g1-lvl g1-l2" style="left:76px;top:250px;width:500px;background:#ECFEFF;border:2px solid #A5F3FC;color:#0E7490"><h4>Community Children’s Councils</h4><p>At the district level</p><div class="g1-ppl"><i class="p">P</i><i class="p">P</i><i class="p">P</i><i class="r">T</i><i class="r">S</i><i class="r">A</i></div></div>
+ <div class="g1-lvl g1-l3" style="left:76px;top:130px;width:500px;background:#0B4F61;border:2px solid #0B4F61;color:#fff"><h4>The state doors</h4><p style="color:#CFFAFE">State complaint, SEAC, Board of Education, Legislature</p></div>
+ <svg class="g1-up" viewBox="0 0 150 430"><path d="M30 400 C120 400 120 300 60 260 C10 220 120 180 110 90 L110 30" fill="none" stroke="#F97316" stroke-width="4" stroke-linecap="round" stroke-dasharray="500"/><path d="M98 44 L110 26 L122 44" fill="none" stroke="#F97316" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+ <div class="g1-flag">Many problems are noticed first here</div>`+PTS([
+ '<b>Community Children’s Councils</b> work at the district level.',
+ '<b>School Community Councils</b> work at the school level.',
+ 'Both bring <b>parents and professionals</b> together.',
+ 'They are where many problems are <b>noticed first</b>.'],150),
+ steps:[
+ {say:'Door five. Local councils. These are the doors closest to home.',act:async()=>{}},
+ {say:'Community Children’s Councils bring parents and professionals together at the district level.',li:0,act:async()=>{const l=q('.g1-l2');l.classList.add('on');spot(l,6)}},
+ {say:'School Community Councils do the same at the school level, right where your child spends the day.',li:1,act:async()=>{const l=q('.g1-l1');l.classList.add('on');spot(l,6)}},
+ {say:'Parents and professionals, at the same table. In these pictures, the orange circles are parents, and the blue ones are teachers, staff and administrators.',li:2,act:async()=>{spot(null)}},
+ {say:'These councils are where many problems are noticed first. Long before a pattern reaches the state level, someone at a council meeting says: that happened to us too.',li:3,act:async()=>{q('.g1-flag').classList.add('on');q('.g1-up').classList.add('on');await wait(700);q('.g1-l3').classList.add('on');spot(q('.g1-flag'),6);await wait(1800);spot(null)}}]},
+
+{html:()=>HEAD('Telling a story that moves policy','Story, pattern, ask')+`<div class="g1-tcard"><div class="hd">Testimony</div>
+ <div class="g1-part g1-pa"><div class="n">1</div><div><div class="k">One family’s experience</div><div class="t g1-ta"></div></div></div>
+ <div class="g1-part g1-pb"><div class="n">2</div><div><div class="k">The pattern</div><div class="t g1-tb"></div></div></div>
+ <div class="g1-part ask g1-pc"><div class="n">3</div><div><div class="k">A specific ask</div><div class="t g1-tc"></div></div></div></div>
+ <div class="g1-priv"><b>Protect privacy</b><div class="x">Another family’s full name, child and school</div><div class="ok">First names only, or none. With their permission.</div></div>
+ <div class="g1-data"><b>Data beats adjectives</b><div class="x">“A terribly long wait”</div><div class="ok">“Four months, three families”</div></div>`+PTS([
+ '<b>Lead with one family’s experience.</b>',
+ '<b>Then show the pattern.</b>',
+ '<b>Then make a specific ask.</b>',
+ 'Never share another family’s details without their <b>permission</b>. First names only, or none.',
+ 'Data you can count beats adjectives.'],140),
+ steps:[
+ {say:'Whichever door you choose, you will be telling a story. Here is a shape that moves policy. Lead with one family’s experience.',li:0,act:async()=>{const p=q('.g1-pa');p.classList.add('on');spot(p,4);await type(q('.g1-ta'),'My son waited four months for his speech services to start.',28)}},
+ {say:'Then show the pattern. This is not just us.',li:1,act:async()=>{const p=q('.g1-pb');p.classList.add('on');spot(p,4);await type(q('.g1-tb'),'Two other families at our school told me the same thing.',28)}},
+ {say:'Then make a specific ask. Not, please do better. Say exactly what you want changed.',li:2,act:async()=>{const p=q('.g1-pc');p.classList.add('on');spot(p,4);await type(q('.g1-tc'),'Please track how long students wait for services, and report it each year.',28)}},
+ {say:'Protect privacy. Never share another family’s details without their permission. Use first names only, or none at all.',li:3,act:async()=>{const p=q('.g1-priv');p.classList.add('on');spot(p,6)}},
+ {say:'And data you can count beats adjectives. Four months, three families, says more than, a terribly long wait.',li:4,act:async()=>{const d=q('.g1-data');d.classList.add('on');spot(d,6);await wait(1800);spot(null)}}]},
+
+{html:()=>HEAD('Remember','Tools for one, tools for many')+`
+ <div class="g1-col g1-c1" style="left:76px;background:#F1F5F9;border:2px solid #CBD5E1"><h4 style="color:#334155">For one child</h4><div class="sm" style="color:#64748B">Resolve a dispute</div>
+  <div class="g1-tool"><i style="background:#E2E8F0">${G1(ICO.scale,'#475569')}</i>Due process</div>
+  <div class="g1-tool"><i style="background:#E2E8F0">${G1(ICO.hand,'#475569')}</i>Mediation</div>
+  <div class="g1-kids"><i style="background:#0891B2"></i></div></div>
+ <div class="g1-col g1-c2" style="left:430px;background:#FFF7ED;border:2px solid #FDBA74"><h4 style="color:#9A3412">For many</h4><div class="sm" style="color:#C2410C">Change things for many children</div>
+  <div class="g1-tool"><i style="background:#FFEDD5">${G1(ICO.doc,'#C2410C')}</i>State complaint</div>
+  <div class="g1-tool"><i style="background:#FFEDD5">${G1(ICO.mic,'#C2410C')}</i>Testimony</div>
+  <div class="g1-tool"><i style="background:#FFEDD5">${G1(ICO.people,'#C2410C')}</i>Council work</div>
+  <div class="g1-kids">${Array.from({length:22},(_,i)=>`<i style="background:${['#0891B2','#F97316','#D97706','#16A34A'][i%4]}"></i>`).join('')}</div></div>`+PTS([
+ '<b>Due process</b> and <b>mediation</b> resolve disputes for one child.',
+ 'A <b>state complaint</b>, <b>testimony</b> and <b>council work</b> change things for many.'],170),
+ steps:[
+ {say:'One last thing to remember. Due process and mediation resolve disputes for one child.',li:0,act:async()=>{const c=q('.g1-c1');c.classList.add('on');spot(c,6)}},
+ {say:'A state complaint, testimony, and council work are the tools that change things for many children. That is the work of Gold.',li:1,act:async()=>{const c=q('.g1-c2');c.classList.add('on');spot(c,6);await wait(1800);spot(null)}}]},
+
+QUIZ([
+ {q:'What does systems advocacy change?',o:['One child’s IEP goals','The date of the next IEP meeting','The policy, practice or funding behind a problem'],a:2,y:'Systems advocacy changes the policy, practice or funding behind a problem, so the next family does not meet the same wall.',n:'Think about the wall that came down for the next family.'},
+ {q:'Who may file a state complaint about a school not following IDEA?',o:['Only a parent with a lawyer','Any person or organization, in a written, signed complaint','Only the school principal'],a:1,y:'Any person or organization may file a written, signed complaint.',n:'Think about the first line on the complaint form.'},
+ {q:'A majority of SEAC members must be who?',o:['People with disabilities, or parents of children with disabilities','School administrators','State legislators'],a:0,y:'IDEA requires a majority of people with disabilities or parents of children with disabilities.',n:'Think about who held most of the seats around the table.'}]),
+
+RECAP([
+ 'Systems advocacy changes the <b>policy, practice or funding</b> behind a problem.',
+ 'Same story from <b>three families</b>? It may be a systems issue.',
+ '<b>Any person or organization</b> may file a written, signed state complaint, about the past year. The State has <b>60 days</b>.',
+ 'A <b>majority</b> of SEAC members are people with disabilities or parents.',
+ 'SEAC, the <b>Board of Education</b> and the <b>Legislature</b> all accept public input.',
+ 'Testimony: <b>story, pattern, specific ask</b>. Protect privacy.'],[
+ 'Systems advocacy changes the policy, practice or funding behind a problem, so the next family does not face it.',
+ 'When you hear the same story from three different families, it may be a systems issue.',
+ 'Any person or organization may file a written, signed state complaint about an IDEA violation within the past year. The State has 60 days to decide.',
+ 'A majority of SEAC members must be people with disabilities, or parents of children with disabilities.',
+ 'SEAC, the Board of Education and the Legislature all accept public input from parents.',
+ 'And strong testimony leads with a real experience, shows the pattern, makes a specific ask, and protects other families’ privacy.']),
+
+CLOSE({...L,sub:'Select Complete on the lesson page when you are ready.',
+ say:'Mahalo! That is Gold Lesson 1. You now know the difference between solving one child’s problem and changing the system behind it, and you know five doors Hawaiʻi opens to parents. Select Complete on the lesson page when you are ready to move on.'})
+];
+</script>
+<script src="deck-engine.js?v=1"></script></body></html>

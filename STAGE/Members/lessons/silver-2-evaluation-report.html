@@ -1,0 +1,370 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Silver Lesson 2: Reading Your Child’s Evaluation Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="deck-base.css">
+<link rel="stylesheet" href="lesson-theme.css?v=1">
+<style>
+/* s2- = this deck only */
+.s2-in{opacity:0;transform:translateY(14px);transition:all .5s}
+.s2-in.on{opacity:1;transform:none}
+
+/* two names: floor and layer */
+.s2-slab{position:absolute;left:80px;width:640px;border-radius:16px;padding:16px 22px;box-shadow:0 12px 26px rgba(15,23,42,.10)}
+.s2-slab h3{margin:0 0 4px;font-family:"Outfit",sans-serif;font-size:26px}
+.s2-slab p{margin:0;font-size:17px;line-height:1.35}
+.s2-slab .tag{position:absolute;right:18px;top:16px;font-size:14px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.s2-fed{top:330px;height:118px;background:#0E7490;color:#fff}
+.s2-fed .tag{color:#A5F3FC}
+.s2-hi{top:180px;height:118px;background:#FFF7ED;border:2px solid #FDBA74;color:#7C2D12}
+.s2-hi h3{color:#C2410C}.s2-hi .tag{color:#C2410C}
+.s2-up{position:absolute;left:640px;top:296px;width:40px;height:40px}
+.s2-laws{position:absolute;left:80px;top:478px;width:640px;display:flex;gap:16px}
+.s2-laws div{flex:1;background:#fff;border:2px solid var(--line);border-radius:14px;padding:12px 16px;font-size:16px;color:#334155;line-height:1.3}
+.s2-laws b{display:block;font-family:"Outfit",sans-serif;font-size:20px;color:var(--teal);margin-bottom:2px}
+
+/* two questions */
+.s2-rep{position:absolute;left:70px;top:160px;width:250px;height:330px;background:#fff;border-radius:12px;border:1px solid var(--line);box-shadow:0 14px 30px rgba(15,23,42,.13);padding:18px}
+.s2-rep h4{margin:0 0 10px;font-family:"Outfit",sans-serif;font-size:19px;color:var(--teal)}
+.s2-rep .ln{height:9px;border-radius:5px;background:#E2E8F0;margin:8px 0}
+.s2-rep .pg{position:absolute;right:-10px;bottom:-10px;width:250px;height:330px;border-radius:12px;background:#F1F5F9;border:1px solid var(--line);z-index:-1}
+.s2-q{position:absolute;left:350px;width:390px;background:#fff;border:2px solid var(--line);border-radius:16px;padding:14px 18px;box-shadow:0 10px 24px rgba(15,23,42,.08)}
+.s2-q .n{display:inline-flex;width:34px;height:34px;border-radius:50%;background:var(--teal);color:#fff;font-family:"Outfit",sans-serif;font-weight:800;align-items:center;justify-content:center;margin-bottom:6px}
+.s2-q h4{margin:0 0 4px;font-family:"Outfit",sans-serif;font-size:21px;color:var(--ink);line-height:1.2}
+.s2-q p{margin:0;font-size:16px;color:var(--soft)}
+.s2-q.coral{border-color:#FDBA74;background:#FFF7ED}.s2-q.coral .n{background:var(--coral)}
+.s2-half{position:absolute;left:70px;top:540px;width:670px}
+.s2-half .lbl{font-size:16px;font-weight:700;color:#334155;margin-bottom:8px}
+.s2-half .bar{height:26px;border-radius:13px;background:#E2E8F0;overflow:hidden;display:flex}
+.s2-half .bar i{display:block;width:0;height:100%;background:var(--teal);transition:width .9s}
+.s2-half .bar i+i{background:#E2E8F0}
+.s2-half.on .bar i:first-child{width:50%}
+.s2-half .cap{display:flex;justify-content:space-between;font-size:15px;color:var(--soft);margin-top:6px;font-weight:700}
+
+/* bell curve */
+.s2-bell{position:absolute;left:62px;top:128px}
+.s2-curve{fill:none;stroke:#0E7490;stroke-width:4;stroke-dasharray:1500;stroke-dashoffset:1500;transition:stroke-dashoffset 1.6s ease}
+.s2-curve.on{stroke-dashoffset:0}
+.s2-band{fill:#FEF08A;opacity:0;transition:opacity .7s}
+.s2-band.on{opacity:.9}
+.s2-bandlbl{opacity:0;transition:opacity .5s}.s2-bandlbl.on{opacity:1}
+.s2-pin{opacity:0;transition:opacity .5s}.s2-pin.on{opacity:1}
+.s2-same{position:absolute;left:80px;top:556px;width:660px;display:flex;align-items:center;gap:14px;background:#fff;border:2px solid var(--line);border-radius:14px;padding:12px 18px;font-size:17px;color:#334155;font-weight:600}
+
+/* percentile */
+.s2-row{position:absolute;left:72px;top:250px;display:flex;gap:4px}
+.s2-f{width:30px;height:64px}
+.s2-f path,.s2-f circle{fill:#CBD5E1;transition:fill .4s}
+.s2-f.s2-low.on path,.s2-f.s2-low.on circle{fill:#0E7490}
+.s2-f.me path,.s2-f.me circle{fill:#F97316}
+.s2-axis{position:absolute;left:72px;top:334px;width:676px;display:flex;justify-content:space-between;font-size:15px;font-weight:700;color:var(--soft)}
+.s2-axis svg{position:absolute;left:0;top:-6px}
+.s2-brace{position:absolute;left:72px;top:368px;width:166px;border-top:4px solid #0E7490;padding-top:8px;font-size:16px;font-weight:700;color:#0E7490;line-height:1.25}
+.s2-flag{position:absolute;left:222px;top:182px;background:#F97316;color:#fff;border-radius:12px;padding:8px 14px;font-weight:800;font-size:17px;white-space:nowrap}
+.s2-flag:after{content:"";position:absolute;left:24px;bottom:-10px;border:10px solid transparent;border-bottom:0;border-top-color:#F97316}
+.s2-key{position:absolute;left:72px;top:136px;font-size:15px;color:var(--soft);font-weight:700}
+.s2-not{position:absolute;left:390px;top:440px;width:350px;background:#fff;border:2px solid #FECACA;border-radius:14px;padding:14px 18px;display:flex;gap:14px;align-items:center}
+.s2-paper{position:relative;width:70px;height:88px;flex:none;background:#F8FAFC;border:2px solid #CBD5E1;border-radius:6px;font-family:"Outfit",sans-serif;font-weight:800;font-size:20px;color:#64748B;display:flex;align-items:center;justify-content:center}
+.s2-paper:after{content:"";position:absolute;left:-8px;right:-8px;top:42px;height:5px;background:#DC2626;border-radius:3px;transform:rotate(-28deg)}
+.s2-not div{font-size:17px;color:#334155;font-weight:600;line-height:1.3}
+.s2-not b{color:#B91C1C}
+
+/* criterion + informal */
+.s2-check{position:absolute;left:70px;top:140px;width:330px}
+.s2-check h4,.s2-inf h4{margin:0 0 8px;font-family:"Outfit",sans-serif;font-size:19px;color:var(--teal)}
+.s2-sk{display:flex;align-items:center;gap:10px;font-size:16px;padding:7px 0;border-top:1px solid #F1F5F9;color:#334155}
+.s2-sk i{width:24px;height:24px;border-radius:6px;border:3px solid #0E7490;flex:none;display:flex;align-items:center;justify-content:center}
+.s2-sk i svg{opacity:0;transition:opacity .3s}
+.s2-sk.on i{background:#0E7490}.s2-sk.on i svg{opacity:1}
+.s2-inf{position:absolute;left:424px;top:140px;width:316px}
+.s2-tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.s2-tiles .s2-tile{background:#fff;border:2px solid var(--line);border-radius:12px;padding:10px;font-size:15px;font-weight:700;color:#334155;display:flex;gap:8px;align-items:center;opacity:0;transform:scale(.8);transition:all .4s}
+.s2-tiles .s2-tile.on{opacity:1;transform:none}
+.s2-tiles .s2-tile.me{border-color:#FDBA74;background:#FFF7ED;color:#9A3412}
+.s2-pad{position:absolute;left:70px;top:420px;width:670px;background:#FFFBEB;border:1px solid #FCD34D;border-radius:12px;box-shadow:0 12px 26px rgba(15,23,42,.10);padding:0 20px 8px 56px;background-image:repeating-linear-gradient(#FFFBEB 0 31px,#FDE68A 31px 32px)}
+.s2-pad:before{content:"";position:absolute;left:38px;top:0;bottom:0;width:2px;background:#FCA5A5}
+.s2-pad h4{margin:0;font-family:"Outfit",sans-serif;font-size:18px;color:#92400E;line-height:32px}
+.s2-pad div{font-size:18px;line-height:32px;color:#1E293B;min-height:32px;font-family:"Segoe Print","Bradley Hand",cursive}
+
+/* process */
+.s2-gates{position:absolute;left:70px;top:150px;display:flex;align-items:center;gap:10px}
+.s2-gate{width:200px;height:120px;border-radius:16px;background:#fff;border:2px solid var(--line);padding:14px;text-align:center;opacity:.35;transition:all .45s}
+.s2-gate.on{opacity:1;border-color:var(--teal);box-shadow:0 12px 26px rgba(14,116,144,.15)}
+.s2-gate svg{display:block;margin:0 auto 6px}
+.s2-gate b{font-family:"Outfit",sans-serif;font-size:19px;color:var(--ink);display:block;line-height:1.15}
+.s2-gate small{font-size:14px;color:var(--soft);font-weight:600}
+.s2-ar{font-size:34px;color:#CBD5E1;font-weight:800}
+.s2-days{position:absolute;left:70px;top:316px;width:670px}
+.s2-days .lbl{display:flex;justify-content:space-between;font-size:15px;font-weight:700;color:var(--soft);margin-bottom:6px}
+.s2-days .tr{height:30px;border-radius:15px;background:#E2E8F0;overflow:hidden}
+.s2-days .tr i{display:block;height:100%;width:0;background:linear-gradient(90deg,#0891B2,#0E7490);transition:width 1.6s ease}
+.s2-days.on .tr i{width:100%}
+.s2-days .num{margin-top:8px;font-size:18px;font-weight:700;color:#334155}
+.s2-days .num b{font-family:"Outfit",sans-serif;font-size:34px;color:var(--teal)}
+.s2-years{position:absolute;left:70px;top:470px;width:670px;height:150px}
+.s2-years .ln{position:absolute;left:20px;right:20px;top:50px;height:4px;background:#CBD5E1}
+.s2-yr{position:absolute;top:36px;width:32px;height:32px;border-radius:50%;background:#fff;border:4px solid #0E7490}
+.s2-ylbl{position:absolute;top:80px;font-size:15px;font-weight:700;color:var(--soft);width:140px;text-align:center}
+.s2-reev{position:absolute;left:450px;top:-6px;background:#FFF7ED;border:2px solid #FDBA74;color:#9A3412;border-radius:999px;padding:6px 14px;font-weight:800;font-size:16px}
+.s2-yhead{position:absolute;left:0;top:-6px;font-size:16px;font-weight:800;color:var(--teal)}
+
+/* categories */
+.s2-cat{position:absolute;left:70px;width:680px}
+.s2-cat .t{font-size:17px;font-weight:800;color:#334155;margin-bottom:8px}
+.s2-cat .t b{font-family:"Outfit",sans-serif;font-size:26px;color:var(--teal);margin-right:6px}
+.s2-doors{display:flex;gap:6px}
+.s2-door{width:40px;height:62px;border-radius:8px 8px 2px 2px;background:#CFFAFE;border:2px solid #0891B2;position:relative;opacity:0;transform:translateY(10px);transition:all .35s}
+.s2-door:after{content:"";position:absolute;right:6px;top:30px;width:6px;height:6px;border-radius:50%;background:#0E7490}
+.s2-door.on{opacity:1;transform:none}
+.s2-door.hi{background:#FFEDD5;border-color:#F97316}.s2-door.hi:after{background:#C2410C}
+.s2-cnote{font-size:15px;color:#9A3412;font-weight:700;margin-top:8px}
+.s2-kids{position:absolute;left:70px;top:418px;width:680px;display:flex;gap:18px;align-items:stretch}
+.s2-bigdoor{width:120px;flex:none;border-radius:14px 14px 4px 4px;background:linear-gradient(#0891B2,#0E7490);color:#fff;font-family:"Outfit",sans-serif;font-weight:800;font-size:16px;display:flex;align-items:flex-end;justify-content:center;padding:12px;text-align:center;line-height:1.2;position:relative}
+.s2-bigdoor:after{content:"";position:absolute;right:14px;top:50%;width:10px;height:10px;border-radius:50%;background:#FDE68A}
+.s2-kid{flex:1;background:#fff;border:2px solid var(--line);border-radius:14px;padding:12px 16px;font-size:16px;color:#334155;line-height:1.35}
+.s2-kid h5{margin:0 0 6px;font-family:"Outfit",sans-serif;font-size:18px;color:var(--ink)}
+.s2-kid .chip{font-size:14px;padding:3px 10px;margin:3px 4px 0 0}
+
+/* IEE */
+.s2-iee{position:absolute;left:62px;top:130px}
+.s2-box{position:absolute;background:#fff;border:2px solid var(--line);border-radius:16px;padding:12px 16px;font-size:16px;color:#334155;line-height:1.3;box-shadow:0 10px 24px rgba(15,23,42,.08)}
+.s2-box h4{margin:0 0 4px;font-family:"Outfit",sans-serif;font-size:20px;color:var(--ink)}
+.s2-box.teal{border-color:#0891B2;background:#ECFEFF}.s2-box.teal h4{color:#0E7490}
+.s2-box.coral{border-color:#FDBA74;background:#FFF7ED}.s2-box.coral h4{color:#C2410C}
+.s2-link{fill:none;stroke:#94A3B8;stroke-width:3;stroke-dasharray:6 6}
+.s2-or{position:absolute;left:375px;top:470px;font-family:"Outfit",sans-serif;font-weight:800;font-size:18px;color:var(--soft);background:#FFFBEB;padding:2px 8px}
+
+/* after eligibility */
+.s2-dec{position:absolute;left:250px;top:136px;width:270px;text-align:center}
+.s2-lane{position:absolute;top:258px;width:330px;height:380px;border-radius:18px;padding:14px;border:2px dashed #CBD5E1}
+.s2-lane .h{font-family:"Outfit",sans-serif;font-weight:800;font-size:20px;margin-bottom:10px}
+.s2-letter{background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 20px rgba(15,23,42,.10);padding:12px 14px;font-size:15px;color:#334155}
+.s2-letter h5{margin:0 0 6px;font-family:"Outfit",sans-serif;font-size:17px;color:var(--teal)}
+.s2-letter .l{height:8px;border-radius:4px;background:#E2E8F0;margin:6px 0}
+.s2-letter .sig{margin-top:10px;border-top:2px solid #94A3B8;padding-top:3px;font-size:13px;color:#64748B}
+.s2-clock{display:flex;gap:10px;align-items:center;margin-top:12px;font-size:16px;font-weight:700;color:#9A3412;background:#FFF7ED;border:2px solid #FDBA74;border-radius:12px;padding:8px 12px}
+</style>
+</head><body>
+<div id="view"><div id="stage"><div id="nbar"><i></i></div>
+<div id="scenes"></div>
+<div id="spot"></div>
+<svg id="cursor" viewBox="0 0 28 32"><path d="M3 2 L3 26 L9.5 19.5 L14 29 L18.5 27 L14 17.5 L23 17.5 Z" fill="#fff" stroke="#0F172A" stroke-width="2" stroke-linejoin="round"/></svg>
+</div></div>
+<div id="cap" aria-live="polite"></div>
+<div id="bar">
+ <button id="prev">Back</button><button id="play">Start</button><button id="next">Next</button>
+ <div id="dots"></div>
+ <button id="capbtn" aria-pressed="false">Captions</button><button id="voice" aria-pressed="true">Voice on</button>
+</div>
+<script src="lesson-kit.js?v=1"></script>
+<script>
+const DECK_ID='cert-silver-2';
+const L={tier:'silver',lesson:'Silver Lesson 2',title:'Reading Your Child’s Evaluation Report'};
+
+/* small inline icons (stroke style, like the reference deck) */
+const ICO=(d,c='#0E7490',s=26)=>`<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="${c}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const I_DOC='<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>';
+const I_PEN='<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/>';
+const I_TEST='<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9l2 2 4-4M8 16h8"/>';
+const I_EYE='<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>';
+const I_LIST='<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/>';
+const I_SCALE='<path d="M4 18h16"/><path d="M6 18v-4M10 18v-7M14 18v-10M18 18v-5"/>';
+const I_TALK='<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/>';
+const I_CLOCK='<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>';
+const I_TICK='<path d="M5 12l5 5 9-10"/>';
+
+/* bell curve: standard scores, average range 85-115 */
+const BELL=()=>{const X=s=>30+(s-55)*(620/90),Y=s=>300-200*Math.exp(-((s-100)**2)/450);
+ let line='',band='';for(let s=55;s<=145;s++)line+=(s===55?'M':'L')+X(s).toFixed(1)+' '+Y(s).toFixed(1)+' ';
+ band='M'+X(85)+' 300 ';for(let s=85;s<=115;s++)band+='L'+X(s).toFixed(1)+' '+Y(s).toFixed(1)+' ';band+='L'+X(115)+' 300 Z';
+ const ticks=[70,85,100,115,130].map(t=>`<line x1="${X(t)}" y1="300" x2="${X(t)}" y2="310" stroke="#64748B" stroke-width="2"/><text x="${X(t)}" y="332" text-anchor="middle" font-size="18" font-weight="700" fill="${t===85||t===115?'#92400E':'#64748B'}">${t}</text>`).join('');
+ return `<svg class="s2-bell" width="690" height="420" viewBox="0 0 690 420" font-family="Source Sans 3, sans-serif">
+ <path class="s2-band" d="${band}"/>
+ <line x1="20" y1="300" x2="670" y2="300" stroke="#94A3B8" stroke-width="2"/>${ticks}
+ <text x="340" y="362" text-anchor="middle" font-size="16" font-weight="700" fill="#64748B">Standard score</text>
+ <path class="s2-curve" d="${line}"/>
+ <g class="s2-bandlbl"><line x1="${X(85)}" y1="300" x2="${X(85)}" y2="70" stroke="#CA8A04" stroke-width="2" stroke-dasharray="5 5"/><line x1="${X(115)}" y1="300" x2="${X(115)}" y2="70" stroke="#CA8A04" stroke-width="2" stroke-dasharray="5 5"/>
+  <rect x="${X(85)+6}" y="14" width="${X(115)-X(85)-12}" height="40" rx="10" fill="#FEF08A" stroke="#CA8A04" stroke-width="2"/>
+  <text x="${X(100)}" y="41" text-anchor="middle" font-size="19" font-weight="800" fill="#713F12">Average range: 85 to 115</text></g>
+ <g class="s2-pin"><circle cx="${X(92)}" cy="${Y(92)}" r="9" fill="#F97316" stroke="#fff" stroke-width="3"/><line x1="${X(92)}" y1="${Y(92)+10}" x2="${X(92)}" y2="200" stroke="#F97316" stroke-width="2"/><rect x="${X(85)+12}" y="200" width="180" height="54" rx="10" fill="#fff" stroke="#F97316" stroke-width="2"/><text x="${X(85)+102}" y="223" text-anchor="middle" font-size="16" font-weight="800" fill="#C2410C">Example: 92</text><text x="${X(85)+102}" y="243" text-anchor="middle" font-size="15" font-weight="700" fill="#334155">inside the average range</text></g>
+ <g class="s2-pin s2-pin2"><circle cx="${X(76)}" cy="${Y(76)}" r="9" fill="#64748B" stroke="#fff" stroke-width="3"/><line x1="${X(76)-10}" y1="${Y(76)-8}" x2="110" y2="184" stroke="#64748B" stroke-width="2"/><rect x="24" y="130" width="150" height="54" rx="10" fill="#fff" stroke="#64748B" stroke-width="2"/><text x="99" y="153" text-anchor="middle" font-size="16" font-weight="800" fill="#334155">Example: 76</text><text x="99" y="173" text-anchor="middle" font-size="15" font-weight="700" fill="#64748B">below the range</text></g>
+ </svg>`};
+
+/* percentile: 20 figures, each stands for 5 of every 100 same-age children */
+const FIG=(cls)=>`<svg class="s2-f ${cls}" viewBox="0 0 30 64"><circle cx="15" cy="9" r="8"/><path d="M4 30a11 11 0 0 1 22 0v14h-4v18h-6V48h-2v14H8V44H4z"/></svg>`;
+const ROW=()=>`<div class="s2-row">${Array.from({length:20},(_,i)=>FIG(i<5?'s2-low':(i===5?'me':''))).join('')}</div>`;
+
+const SC=[
+COVER({...L,title:'Reading Your Child’s Evaluation Report',
+ sub:'What the scores mean, what the report must answer, and what you can do if you disagree.',
+ say:'Aloha, and welcome to Silver Lesson 2. An evaluation report can run to dozens of pages of scores and terms. In this lesson, you will learn to read one yourself, without waiting for someone to translate it for you.'}),
+
+{html:()=>HEAD('Two names you will see','The law and Hawaiʻi’s rules')+`
+ <div class="s2-slab s2-hi s2-in"><span class="tag">Hawaiʻi</span><h3>Chapter 60</h3><p>Hawaiʻi Administrative Rules, <b>HAR §8-60</b>. How Hawaiʻi carries IDEA out in our schools. It can give more, never less.</p></div>
+ <svg class="s2-up s2-in" viewBox="0 0 40 40"><path d="M20 36V6M8 18L20 6l12 12" fill="none" stroke="#F97316" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+ <div class="s2-slab s2-fed s2-in"><span class="tag">Federal · the floor</span><h3>IDEA 2004</h3><p>The federal law. Citations that begin with <b>§300</b> come from its regulations.</p></div>
+ <div class="s2-laws"><div class="s2-in s2-l1"><b>FERPA</b>Your right to see records.</div><div class="s2-in s2-l2"><b>Section 504</b>Disability discrimination. Can provide a 504 plan for a child who does not qualify under IDEA.</div></div>`+PTS([
+ '<b>IDEA 2004</b> is the federal law. <b>§300</b> citations come from its regulations.',
+ '<b>Chapter 60</b> (HAR §8-60) is Hawaiʻi’s set of rules for carrying IDEA out.',
+ 'Federal law sets the floor. Chapter 60 can give <b>more, never less</b>.',
+ 'Also know: <b>FERPA</b> and <b>Section 504</b>.']),
+ steps:[
+ {say:'Two names show up all through an evaluation report. The first is IDEA 2004. That is the federal law. When you see a citation that begins with [§300|section 300], it comes from the IDEA regulations.',li:0,act:async()=>{const f=q('.s2-fed');f.classList.add('on');spot(f,6)}},
+ {say:'The second is Chapter 60, Hawaiʻi Administrative Rules, [§8-60|section 8 dash 60]. It is Hawaiʻi’s set of rules for carrying IDEA out in our schools.',li:1,act:async()=>{const h=q('.s2-hi');h.classList.add('on');spot(h,6)}},
+ {say:'Think of it like a house. Federal law is the floor. Chapter 60 sits on top of it. It can give your child more, but never less.',li:2,act:async()=>{spot(null);q('.s2-up').classList.add('on')}},
+ {say:'Two other laws are worth knowing by name. FERPA, which is your right to see records. And Section 504, a disability discrimination law. It can provide a 504 plan for a child who does not qualify under IDEA. We will come back to 504 at the end.',li:3,act:async()=>{for(const c of ['.s2-l1','.s2-l2']){q(c).classList.add('on');await wait(400)}}}]},
+
+{html:()=>HEAD('What an evaluation is for','Two separate questions')+`
+ <div class="s2-rep"><div class="pg"></div><h4>Evaluation Report</h4><div class="ln"></div><div class="ln" style="width:85%"></div><div class="ln" style="width:70%"></div><div class="ln"></div><div class="ln" style="width:60%"></div><div class="ln" style="width:90%"></div><div class="ln" style="width:75%"></div><div class="ln"></div><div class="ln" style="width:55%"></div><div class="ln" style="width:80%"></div><div class="ln" style="width:65%"></div><div class="ln"></div></div>
+ <div class="s2-q s2-in s2-q1" style="top:160px"><span class="n">1</span><h4>Does the student have a disability?</h4><p>The eligibility question: the category.</p></div>
+ <div class="s2-q coral s2-in s2-q2" style="top:318px"><span class="n">2</span><h4>What special education and related services does the student need?</h4><p>The question that shapes your child’s school day.</p></div>
+ <div class="s2-half"><div class="lbl">A report that names a category but says little about need:</div><div class="bar"><i></i><i></i></div><div class="cap"><span>Category named</span><span>Only half its job done</span></div></div>`+PTS([
+ '<b>Question 1:</b> Does the student have a disability? This is eligibility, the category.',
+ '<b>Question 2:</b> What special education and related services does the student need?',
+ 'Question 2 shapes your child’s <b>school day</b>.',
+ 'Category but little about need? <b>Half its job.</b>']),
+ steps:[
+ {say:'Before you read a single score, know what the report is for. An evaluation answers two separate questions.',act:async()=>{spot(q('.s2-rep'),6)}},
+ {say:'Question one. Does the student have a disability? This is the eligibility question. It is where the category comes from.',li:0,act:async()=>{const e=q('.s2-q1');e.classList.add('on');spot(e,6)}},
+ {say:'Question two. What special education and related services does the student need?',li:1,act:async()=>{const e=q('.s2-q2');e.classList.add('on');spot(e,6)}},
+ {say:'This second question is the one that shapes your child’s school day. What help, how much, and from whom.',li:2},
+ {say:'So as you read, look for both answers. A report that names a category but says little about need has only done half its job. If you see that, it is fair to ask the team: what does my child need?',li:3,act:async()=>{spot(null);q('.s2-half').classList.add('on')}}]},
+
+{html:()=>HEAD('Reading the scores','Norm-referenced tests')+BELL()+`
+ <div class="s2-same s2-in">${ICO('<circle cx="7" cy="7" r="3"/><circle cx="17" cy="7" r="3"/><path d="M2 20c0-4 2-7 5-7s5 3 5 7M12 20c0-4 2-7 5-7s5 3 5 7"/>')}Your child is compared with a large group of children the same age.</div>`+PTS([
+ '<b>Norm-referenced</b> tests are standardized.',
+ 'They compare your child with a large group of <b>same-age children</b>.',
+ 'On most of them, the <b>average range</b> of standard scores is <b>85 to 115</b>.',
+ 'Find where each score sits against that range.']),
+ steps:[
+ {say:'Now the scores. Most of the numbers in a report come from norm-referenced tests. These are standardized tests.',li:0,act:async()=>{q('.s2-curve').classList.add('on')}},
+ {say:'They compare your child with a large group of children the same age. This curve shows how scores spread out across that group. Most children score near the middle. Fewer score far out at either end.',li:1,act:async()=>{q('.s2-same').classList.add('on')}},
+ {say:'Here is the number to remember. On most of these tests, the average range of standard scores is 85 to 115. Everything in this yellow band counts as average.',li:2,act:async()=>{q('.s2-band').classList.add('on');q('.s2-bandlbl').classList.add('on')}},
+ {say:'So a standard score of 92, for example, is inside the average range. A score of 76 is below it. When you read a score, ask yourself first: is it inside the 85 to 115 band, or outside it?',li:3,act:async()=>{q('.s2-pin').classList.add('on');await wait(1500);q('.s2-pin2').classList.add('on')}}]},
+
+{html:()=>HEAD('Reading the scores','What a percentile means')+`
+ <div class="s2-key">Each figure stands for 5 out of every 100 children the same age, lined up by score.</div>
+ <div class="s2-flag s2-in">Your child: 25th percentile</div>${ROW()}
+ <div class="s2-axis"><span>Lower scores</span><span>Higher scores</span></div>
+ <div class="s2-brace s2-in">25 percent of children their age</div>
+ <div class="s2-not s2-in"><div class="s2-paper">25%</div><div>A percentile is <b>not</b> a percentage of questions correct.</div></div>`+PTS([
+ 'A <b>percentile</b> is a <b>ranking</b>, not a percentage correct.',
+ '<b>25th percentile</b>: your child scored the same as or better than <b>25 percent</b> of children their age.',
+ 'It does <b>not</b> mean your child got 25 percent of the questions right.']),
+ steps:[
+ {say:'Reports also give percentiles. A percentile is a ranking. Picture one hundred children the same age as your child, lined up from the lowest score to the highest. Each figure here stands for five of them.',li:0,act:async()=>{spot(q('.s2-row'),8)}},
+ {say:'Say the report says your child is at the 25th percentile. That means your child scored the same as or better than 25 percent of children their age.',li:1,act:async()=>{spot(null);q('.s2-flag').classList.add('on');for(const f of all('.s2-low')){f.classList.add('on');await wait(220)}q('.s2-brace').classList.add('on')}},
+ {say:'What it does not mean is that your child got 25 percent of the questions right. A percentile is a ranking, not a percentage correct. That one mix-up causes a lot of worry, so it is worth getting clear.',li:2,act:async()=>{const n=q('.s2-not');n.classList.add('on');spot(n,6)}}]},
+
+{html:()=>HEAD('Other kinds of information','Skills, and what people see')+`
+ <div class="card s2-check"><h4>Criterion-referenced</h4><div style="font-size:15px;color:var(--soft);margin-bottom:6px">Which skills has your child mastered?</div>
+  <div class="s2-sk"><i>${ICO(I_TICK,'#fff',16)}</i>Counts to 100</div><div class="s2-sk"><i>${ICO(I_TICK,'#fff',16)}</i>Adds two-digit numbers</div><div class="s2-sk"><i>${ICO(I_TICK,'#fff',16)}</i>Reads a short paragraph</div><div class="s2-sk s2-no"><i>${ICO(I_TICK,'#fff',16)}</i>Writes a full sentence</div></div>
+ <div class="card s2-inf"><h4>Informal measures</h4><div class="s2-tiles">
+  <div class="s2-tile">${ICO(I_EYE,'#0E7490',22)}Observations</div><div class="s2-tile">${ICO(I_LIST,'#0E7490',22)}Checklists</div><div class="s2-tile">${ICO(I_SCALE,'#0E7490',22)}Rating scales</div><div class="s2-tile me">${ICO(I_TALK,'#C2410C',22)}Parent interview</div></div></div>
+ <div class="s2-pad"><h4>For my parent interview</h4><div class="s2-t1"></div><div class="s2-t2"></div><div class="s2-t3"></div></div>`+PTS([
+ '<b>Criterion-referenced</b> tests ask: which skills has your child <b>mastered</b>?',
+ 'Both kinds of test belong in a good report.',
+ '<b>Informal measures</b> count too: observations, checklists, rating scales, parent interviews.',
+ 'Your interview is <b>data</b>. Bring specifics.']),
+ steps:[
+ {say:'Criterion-referenced tests ask a different question. Not how your child compares with others, but which skills has your child mastered?',li:0,act:async()=>{spot(q('.s2-check'),6);for(const s of all('.s2-sk:not(.s2-no)')){s.classList.add('on');await wait(400)}}},
+ {say:'Both kinds of test belong in a good report. One shows where your child stands. The other shows which skills are there, and which are not yet.',li:1,act:async()=>{spot(null)}},
+ {say:'Informal measures count too. Observations, checklists, rating scales, and parent interviews.',li:2,act:async()=>{spot(q('.s2-inf'),6);for(const t of all('.s2-tile')){t.classList.add('on');await wait(300)}}},
+ {say:'Your interview is data. So bring specifics. Dates. Examples. How long homework takes. Write them down before you go, so you have them in front of you.',li:3,act:async()=>{spot(q('.s2-pad'),6);await type(q('.s2-t1'),'Homework takes about 2 hours most nights.',28);await type(q('.s2-t2'),'Example: skips words when reading aloud.',28);await type(q('.s2-t3'),'Since: the start of the school year.',28);spot(null)}}]},
+
+{html:()=>HEAD('The process around the report','The same gates, every time')+`
+ <div class="s2-gates"><div class="s2-gate s2-g1">${ICO(I_DOC,'#0E7490',34)}<b>Prior Written Notice</b><small>from the school</small></div><div class="s2-ar">›</div>
+ <div class="s2-gate s2-g2">${ICO(I_PEN,'#0E7490',34)}<b>Your written consent</b><small>you sign</small></div><div class="s2-ar">›</div>
+ <div class="s2-gate s2-g3">${ICO(I_TEST,'#0E7490',34)}<b>Testing</b><small>the evaluation</small></div></div>
+ <div class="s2-days"><div class="lbl"><span>Your consent</span><span>Initial evaluation finished</span></div><div class="tr"><i></i></div><div class="num">Within <b class="s2-cnt">0</b> days of your consent</div></div>
+ <div class="s2-years"><div class="s2-yhead">Re-evaluation</div><div class="s2-reev s2-in">You may request one</div><div class="ln"></div>
+  <div class="s2-yr" style="left:20px"></div><div class="s2-yr" style="left:619px;border-color:#F97316"></div>
+  <div class="s2-ylbl" style="left:-30px">Last evaluation</div><div class="s2-ylbl" style="left:540px;width:180px">At least every 3 years</div></div>`+PTS([
+ 'Initial or re-evaluation: <b>Prior Written Notice</b>, then <b>your written consent</b>, then testing.',
+ 'Hawaiʻi must finish an initial evaluation within <b>60 days</b> of your consent.',
+ 'You may <b>request</b> a re-evaluation.',
+ 'One must happen <b>at least every three years</b>, unless you and the school agree it is not needed.']),
+ steps:[
+ {say:'Every evaluation, whether it is the first one or a re-evaluation, goes through the same gates. First, the school gives you Prior Written Notice.',li:0,act:async()=>{q('.s2-g1').classList.add('on')}},
+ {say:'Then your written consent. Then, and only then, testing.',act:async()=>{q('.s2-g2').classList.add('on');await wait(900);q('.s2-g3').classList.add('on')}},
+ {say:'For a first evaluation, there is a clock. Hawaiʻi must finish an initial evaluation within 60 days of your consent. Note the date you signed.',li:1,act:async()=>{q('.s2-days').classList.add('on');await countTo(q('.s2-cnt'),60,'',1400)}},
+ {say:'You may request a re-evaluation.',li:2,act:async()=>{const r=q('.s2-reev');r.classList.add('on');spot(r,6)}},
+ {say:'And one must happen at least every three years, unless you and the school agree it is not needed.',li:3,act:async()=>{spot(q('.s2-years'),6);await wait(1800);spot(null)}}]},
+
+{html:()=>HEAD('Eligibility categories','A door, not a description')+`
+ <div class="s2-cat" style="top:136px"><div class="t"><b>13</b>categories in IDEA, federally</div><div class="s2-doors">${'<div class="s2-door s2-d13"></div>'.repeat(13)}</div></div>
+ <div class="s2-cat" style="top:250px"><div class="t"><b>14</b>categories in Hawaiʻi’s Chapter 60</div><div class="s2-doors">${'<div class="s2-door s2-d14"></div>'.repeat(13)}<div class="s2-door s2-d14 hi"></div></div><div class="s2-cnote">The same 13, plus Developmental Delay for younger children.</div></div>
+ <div class="s2-kids"><div class="s2-bigdoor s2-in">Same category</div>
+  <div class="s2-kid s2-in s2-k1"><h5>One child</h5><span class="chip">Speech therapy</span><span class="chip">Extra time</span></div>
+  <div class="s2-kid s2-in s2-k2"><h5>Another child</h5><span class="chip coral">Reading support</span><span class="chip coral">A quiet space</span><span class="chip coral">Aide support</span></div></div>`+PTS([
+ 'IDEA names <b>13</b> categories federally.',
+ 'Hawaiʻi’s Chapter 60 list has <b>14</b>: the same 13, plus <b>Developmental Delay</b> for younger children.',
+ 'The category is an <b>access door</b>, not a description of your child.',
+ 'Two children in the same category can need <b>completely different things</b>.']),
+ steps:[
+ {say:'Answering the first question gives your child a category. IDEA names 13 categories federally.',li:0,act:async()=>{for(const d of all('.s2-d13')){d.classList.add('on');await wait(90)}}},
+ {say:'Hawaiʻi’s Chapter 60 list has 14. It is the same 13, plus Developmental Delay, which is used for younger children.',li:1,act:async()=>{for(const d of all('.s2-d14')){d.classList.add('on');await wait(90)}spot(q('.s2-cnote'),6)}},
+ {say:'Here is the important part. The category is an access door. It is not a description of your child.',li:2,act:async()=>{spot(null);q('.s2-bigdoor').classList.add('on')}},
+ {say:'Two children in the same category can need completely different things. That is why the second question, about need, matters so much.',li:3,act:async()=>{q('.s2-k1').classList.add('on');await wait(600);q('.s2-k2').classList.add('on')}}]},
+
+{html:()=>HEAD('If you disagree','Independent Educational Evaluation')+`
+ <svg class="s2-iee" width="700" height="560" viewBox="0 0 700 560"><path class="s2-link" d="M140 96 V140"/><path class="s2-link" d="M353 242 V320 H148 V358"/><path class="s2-link" d="M353 320 H528 V358"/></svg>
+ <div class="s2-box" style="left:80px;top:140px;width:250px"><h4>You disagree</h4>with the school’s evaluation.</div>
+ <div class="s2-box teal s2-in s2-ask" style="left:180px;top:270px;width:470px"><h4>Ask for an IEE</h4>By a <b>qualified examiner</b> who does <b>not work for the school</b>, at <b>public expense</b>.</div>
+ <div class="s2-box s2-in s2-o1" style="left:80px;top:490px;width:260px"><h4>The school pays</h4>for the independent evaluation.</div>
+ <div class="s2-or s2-in s2-o1">or</div>
+ <div class="s2-box coral s2-in s2-o2" style="left:440px;top:490px;width:300px"><h4>The school asks for a hearing</h4>to show its own evaluation was appropriate.</div>`+PTS([
+ 'You may ask for an <b>Independent Educational Evaluation (IEE)</b>.',
+ 'Done by a <b>qualified examiner</b> who does not work for the school.',
+ 'At <b>public expense</b>.',
+ 'The school must <b>pay for it</b>, or <b>ask for a hearing</b> to show its own evaluation was appropriate.']),
+ steps:[
+ {say:'What if you read the report and you disagree with it? You may ask for an Independent Educational Evaluation. You will hear it called an I E E.',li:0,act:async()=>{const a=q('.s2-ask');a.classList.add('on');spot(a,6)}},
+ {say:'It is done by a qualified examiner who does not work for the school.',li:1},
+ {say:'And it is at public expense.',li:2},
+ {say:'When you ask, the school has two choices. It must either pay for the independent evaluation, or ask for a hearing to show that its own evaluation was appropriate.',li:3,act:async()=>{spot(null);for(const c of ['.s2-o1','.s2-o2'])for(const e of all(c)){e.classList.add('on');await wait(500)}}}]},
+
+{html:()=>HEAD('After the eligibility decision','Two paths, two things to know')+`
+ <div class="card s2-dec"><div class="big" style="font-size:20px;color:var(--teal)">Eligibility decision</div></div>
+ <svg class="abs" style="left:62px;top:200px" width="700" height="60" viewBox="0 0 700 60"><path class="s2-link" d="M323 0 V24 H173 V58 M323 24 H523 V58"/></svg>
+ <div class="s2-lane s2-in s2-ln1" style="left:70px"><div class="h" style="color:#334155">Not eligible</div>
+  <div class="s2-letter"><h5>Prior Written Notice</h5><div class="l"></div><div class="l" style="width:80%"></div><div style="font-size:14px;margin-top:6px">Explains <b>why</b> your child was found not eligible.</div></div>
+  <div class="s2-in s2-504" style="margin-top:16px;background:#ECFEFF;border:2px solid #0891B2;border-radius:12px;padding:12px 14px;font-size:17px;font-weight:700;color:#0E7490">The moment to ask about a <b>Section 504 plan</b>.</div></div>
+ <div class="s2-lane s2-in s2-ln2" style="left:420px;border-color:#FDBA74"><div class="h" style="color:#C2410C">Eligible</div>
+  <div class="s2-letter"><h5>Consent for services</h5><div class="l"></div><div class="l" style="width:75%"></div><div style="font-size:14px;margin-top:6px">A <b>second, separate</b> consent: this one is for starting services.</div><div class="sig">Parent signature</div></div>
+  <div class="s2-clock s2-in">${ICO(I_CLOCK,'#C2410C',26)}You may take your time over it.</div></div>`+PTS([
+ '<b>Not eligible?</b> You receive Prior Written Notice explaining why.',
+ 'That is the moment to ask about a <b>Section 504 plan</b>.',
+ '<b>Eligible?</b> You will be asked for a <b>second, separate consent</b>, for starting services.',
+ 'You may <b>take your time</b> over it.']),
+ steps:[
+ {say:'Last, what happens after the eligibility decision. If your child is found not eligible, you receive Prior Written Notice explaining why.',li:0,act:async()=>{const l=q('.s2-ln1');l.classList.add('on');spot(l,6)}},
+ {say:'Read it carefully. That is the moment to ask about a Section 504 plan, which can help a child who does not qualify under IDEA.',li:1,act:async()=>{const e=q('.s2-504');e.classList.add('on');spot(e,6)}},
+ {say:'And a pro tip. If eligibility is granted, you will be asked for a second, separate consent. The first consent was for testing. This one is for starting services.',li:2,act:async()=>{const l=q('.s2-ln2');l.classList.add('on');spot(l,6)}},
+ {say:'You may take your time over it. Read the plan, ask your questions, and sign when you are ready.',li:3,act:async()=>{const c=q('.s2-clock');c.classList.add('on');spot(c,6);await wait(1800);spot(null)}}]},
+
+QUIZ([
+ {q:'Your child’s report says the 25th percentile. What does that mean?',o:['Your child scored the same as or better than 25% of children their age','Your child got 25% of the questions right','Your child is in the bottom 25 students in the class'],a:0,y:'A percentile is a ranking against same-age children, not a percentage correct.',n:'Remember: a percentile is a ranking, not a score out of 100.'},
+ {q:'On most standardized tests, what is the average range of standard scores?',o:['50 to 100','0 to 100','85 to 115'],a:2,y:'The average range on most standardized tests is 85 to 115.',n:'Think about the yellow band on the bell curve.'},
+ {q:'You disagree with the school’s evaluation. What can you ask for?',o:['A new school for your child','An Independent Educational Evaluation (IEE) at public expense','Nothing: the school’s report is final'],a:1,y:'You may ask for an IEE by a qualified examiner who does not work for the school, at public expense.',n:'Think about the evaluation done by someone outside the school.'}]),
+
+RECAP([
+ 'An evaluation answers <b>two questions</b>: is there a disability, and what <b>services</b> are needed.',
+ 'On most standardized tests the <b>average range is 85 to 115</b>.',
+ 'A <b>percentile is a ranking</b>, not a percentage correct.',
+ '<b>Prior Written Notice</b> and <b>your written consent</b> come first. You may request a re-evaluation.',
+ 'Disagree? Ask for an <b>IEE</b> at public expense.',
+ 'Not eligible? Ask about <b>504</b>. Eligible? A <b>second consent</b> for services.'],[
+ 'An evaluation answers two questions: does your child have a disability, and what services does your child need. The second one shapes the school day.',
+ 'On most standardized tests, the average range of standard scores is 85 to 115.',
+ 'A percentile is a ranking. The 25th percentile means the same as or better than 25 percent of children the same age.',
+ 'Every evaluation needs Prior Written Notice and your written consent first. And you may request a re-evaluation.',
+ 'If you disagree with the school’s evaluation, you can request an Independent Educational Evaluation at public expense.',
+ 'If your child is not eligible, ask about a 504 plan. If eligible, you will give a second, separate consent for services, and you may take your time.']),
+
+CLOSE({...L,sub:'The pop quiz follows on the lesson page. Select Complete there when you are ready.',
+ say:'Mahalo! That is Lesson 2. You can now read an evaluation report yourself: the two questions, the 85 to 115 average range, what a percentile means, and what to do if you disagree. The pop quiz follows on the lesson page. Select Complete on the lesson page when you are ready to move on.'})
+];
+</script>
+<script src="deck-engine.js?v=1"></script></body></html>

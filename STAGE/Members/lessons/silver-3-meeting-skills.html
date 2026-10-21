@@ -1,0 +1,309 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Silver Lesson 3: IEP Meeting Participation Skills</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="deck-base.css">
+<link rel="stylesheet" href="lesson-theme.css?v=1">
+<style>
+/* s3- = this deck only */
+.s3-phases{position:absolute;left:70px;top:170px;width:690px;display:flex;gap:18px}
+.s3-ph{flex:1;height:330px;background:#fff;border:2px solid var(--line);border-radius:20px;padding:22px 20px;box-shadow:0 12px 30px rgba(15,23,42,.08);opacity:.4;transition:all .5s}
+.s3-ph.on{opacity:1;border-color:var(--coral);transform:translateY(-8px);box-shadow:0 18px 40px rgba(249,115,22,.18)}
+.s3-ph .s3-ic{width:64px;height:64px;border-radius:16px;background:#ECFEFF;display:flex;align-items:center;justify-content:center;margin-bottom:14px}
+.s3-ph h3{font-family:"Outfit",sans-serif;font-size:28px;margin:0 0 10px;color:var(--ink)}
+.s3-ph p{margin:0;font-size:18px;color:var(--soft);line-height:1.4}
+.s3-rep{position:absolute;left:250px;top:530px;width:330px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 16px;box-shadow:0 10px 22px rgba(15,23,42,.10);display:flex;gap:12px;align-items:center;font-size:17px;font-weight:700;color:#334155}
+
+.s3-sheet{position:absolute;left:70px;top:140px;width:690px;height:530px;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 14px 30px rgba(15,23,42,.10);padding:18px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.s3-col h4{margin:0 0 12px;font-family:"Outfit",sans-serif;font-size:20px;padding:8px 10px;border-radius:10px;text-align:center}
+.s3-col.st h4{background:#DCFCE7;color:#166534}.s3-col.wk h4{background:#FFEDD5;color:#9A3412}.s3-col.qs h4{background:#E0F2FE;color:#075985}
+.s3-col.st{background:#F0FDF4;border-radius:12px;padding:6px}
+.s3-nt{background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px;font-size:16px;line-height:1.3;color:#334155;margin-bottom:10px;opacity:0;transform:translateY(10px);transition:all .4s}
+.s3-nt.on{opacity:1;transform:none}
+.s3-col.st .s3-nt{background:#fff;border-color:#86EFAC}
+
+.s3-page{position:absolute;left:70px;top:140px;width:420px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 30px rgba(15,23,42,.12);padding:20px 22px}
+.s3-page h4{margin:0 0 4px;font-family:"Outfit",sans-serif;font-size:20px;color:var(--teal)}
+.s3-page .s3-sm{font-size:13px;color:#94A3B8;margin-bottom:10px}
+.s3-ln{font-size:16px;line-height:1.3;color:#334155;padding:5px 6px;border-radius:5px;margin:3px 0;transition:background .5s}
+.s3-leg{position:absolute;left:70px;top:530px;width:420px;display:flex;gap:8px}
+.s3-leg span{flex:1;text-align:center;font-size:14px;font-weight:700;padding:6px 4px;border-radius:8px;color:#334155}
+.s3-agenda{position:absolute;left:515px;top:180px;width:250px;background:#FFFBEB;border:2px solid #FCD34D;border-radius:14px;padding:16px;box-shadow:0 12px 26px rgba(15,23,42,.10);opacity:0;transform:translateY(14px);transition:all .5s}
+.s3-agenda.on{opacity:1;transform:none}
+.s3-agenda h4{margin:0 0 10px;font-family:"Outfit",sans-serif;font-size:21px;color:#92400E}
+.s3-agenda div{font-size:15px;line-height:1.3;padding:6px 8px;border-radius:6px;margin-bottom:6px;color:#334155}
+
+.s3-t{position:absolute;left:70px;top:150px;width:690px}
+.s3-t .s3-th{display:grid;grid-template-columns:1fr 1fr;border-bottom:4px solid var(--ink)}
+.s3-t .s3-th div{font-family:"Outfit",sans-serif;font-weight:800;font-size:23px;padding:8px 14px;color:var(--teal)}
+.s3-t .s3-th div+div{border-left:4px solid var(--ink);color:#C2410C}
+.s3-tr{display:grid;grid-template-columns:1fr 1fr;position:relative;opacity:0;transform:translateY(10px);transition:all .45s}
+.s3-tr.on{opacity:1;transform:none}
+.s3-tr div{font-size:18px;line-height:1.3;padding:14px 14px 34px;color:#334155}
+.s3-tr div+div{border-left:4px solid var(--ink)}
+.s3-tag{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);font-size:14px;font-weight:800;padding:3px 12px;border-radius:999px;white-space:nowrap}
+.s3-tag.ok{background:#DCFCE7;color:#166534}.s3-tag.dif{background:#FFEDD5;color:#9A3412}
+
+.s3-week{position:absolute;left:70px;top:160px;width:690px;display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.s3-day{height:300px;background:#fff;border:2px solid var(--line);border-radius:14px;padding:10px;position:relative}
+.s3-day b{display:block;font-family:"Outfit",sans-serif;font-size:17px;color:var(--soft);margin-bottom:8px}
+.s3-day.mt{border-color:var(--coral);background:#FFF7ED}.s3-day.mt b{color:#C2410C}
+.s3-doc{background:#ECFEFF;border:2px solid #A5F3FC;border-radius:10px;padding:8px;font-size:14px;font-weight:700;color:#0E7490;margin-bottom:8px;opacity:0;transform:translateY(-16px);transition:all .45s}
+.s3-doc.on{opacity:1;transform:none}
+.s3-tbl{position:absolute;left:10px;right:10px;bottom:12px;height:90px;border-radius:50%;background:radial-gradient(ellipse at 40% 35%,#FDE68A,#D97706);display:flex;align-items:center;justify-content:center;font-family:"Outfit",sans-serif;font-weight:800;color:#78350F;font-size:15px}
+.s3-ready{position:absolute;left:70px;top:490px;width:690px;background:#F0FDF4;border:2px solid #86EFAC;border-radius:14px;padding:14px 18px;font-size:19px;font-weight:700;color:#166534;opacity:0;transition:opacity .5s}
+.s3-ready.on{opacity:1}
+
+.s3-stmt{position:absolute;left:90px;top:136px;width:470px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 34px rgba(15,23,42,.13);padding:20px 26px}
+.s3-stmt h4{margin:0 0 2px;font-family:"Outfit",sans-serif;font-size:23px;color:var(--teal)}
+.s3-stmt .s3-sm{font-size:13px;color:#94A3B8;margin-bottom:8px}
+.s3-sec{padding:7px 0;border-top:1px solid #F1F5F9}
+.s3-sec b{display:block;font-size:15px;color:#C2410C;text-transform:uppercase;letter-spacing:.04em}
+.s3-sec span{display:block;font-size:16px;line-height:1.3;color:#334155;min-height:21px}
+.s3-into{position:absolute;left:585px;top:300px;width:175px;background:#FFF7ED;border:2px dashed #FB923C;border-radius:14px;padding:14px;text-align:center;font-size:16px;font-weight:700;color:#9A3412;opacity:0;transition:opacity .5s}
+.s3-into.on{opacity:1}
+
+.s3-room{position:absolute;left:70px;top:130px;width:690px;height:560px}
+.s3-table{position:absolute;left:150px;top:250px;width:400px;height:230px;border-radius:50%;background:radial-gradient(ellipse at 40% 35%,#FDE68A,#D97706);box-shadow:inset 0 -10px 0 rgba(0,0,0,.08),0 18px 30px rgba(15,23,42,.15)}
+.s3-seat{position:absolute;width:56px;height:56px;border-radius:50%;background:#CFFAFE;color:#0E7490;font-family:"Outfit",sans-serif;font-weight:800;font-size:16px;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 6px 14px rgba(15,23,42,.12)}
+.s3-seat.you{background:var(--coral);color:#fff;width:66px;height:66px}
+.s3-copy{position:absolute;left:300px;top:330px;width:120px;height:90px;background:#fff;border-radius:6px;box-shadow:0 6px 14px rgba(0,0,0,.18);padding:8px;transform:rotate(-6deg)}
+.s3-copy i{display:block;height:8px;border-radius:3px;margin:5px 0;background:#E2E8F0}
+.s3-copy i.g{background:#86EFAC}.s3-copy i.y{background:#FDE047}.s3-copy i.r{background:#FCA5A5}
+.s3-bub{position:absolute;left:30px;top:10px;width:630px;min-height:96px;background:#fff;border:3px solid var(--coral);border-radius:20px;padding:16px 22px;font-size:23px;font-weight:700;color:var(--ink);line-height:1.3;box-shadow:0 12px 26px rgba(249,115,22,.15)}
+.s3-bub::after{content:"";position:absolute;left:300px;bottom:-18px;width:30px;height:30px;background:#fff;border-right:3px solid var(--coral);border-bottom:3px solid var(--coral);transform:rotate(45deg)}
+.s3-bub small{display:block;font-size:13px;color:#C2410C;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+
+.s3-chat{position:absolute;left:70px;top:140px;width:690px}
+.s3-msg{max-width:470px;border-radius:18px;padding:12px 18px;font-size:19px;line-height:1.3;margin-bottom:14px;opacity:0;transform:translateY(10px);transition:all .45s}
+.s3-msg.on{opacity:1;transform:none}
+.s3-msg.sch{background:#F1F5F9;color:#334155}
+.s3-msg.me{background:#FFF7ED;border:2px solid #FDBA74;color:#9A3412;font-weight:700;margin-left:auto}
+.s3-msg small{display:block;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;opacity:.7;margin-bottom:2px}
+.s3-pad{position:absolute;left:70px;top:580px;width:690px;background:#FEFCE8;border:1px solid #FDE68A;border-radius:12px;padding:12px 18px;box-shadow:0 10px 22px rgba(15,23,42,.08);display:flex;gap:14px;align-items:center;font-size:18px;color:#713F12;opacity:0;transition:opacity .5s}
+.s3-pad.on{opacity:1}
+
+.s3-iep{position:absolute;left:70px;top:150px;width:250px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 26px rgba(15,23,42,.12);padding:16px 18px}
+.s3-iep h4{margin:0 0 8px;font-family:"Outfit",sans-serif;font-size:19px;color:var(--teal)}
+.s3-iep .s3-gl{height:9px;border-radius:5px;background:#E2E8F0;margin:7px 0}
+.s3-sig{margin-top:18px;border-top:2px dashed #94A3B8;padding-top:4px;font-size:13px;color:#64748B}
+.s3-home{margin-top:14px;font-size:15px;font-weight:800;color:#166534;background:#DCFCE7;border-radius:8px;padding:8px 10px;text-align:center;opacity:0;transition:opacity .5s}
+.s3-home.on{opacity:1}
+.s3-mail{position:absolute;left:340px;top:150px;width:420px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 34px rgba(15,23,42,.13);overflow:hidden;opacity:0;transform:translateY(14px);transition:all .5s}
+.s3-mail.on{opacity:1;transform:none}
+.s3-mail .s3-bar{background:#0E7490;color:#fff;font-weight:700;font-size:15px;padding:8px 14px}
+.s3-mail .s3-f{font-size:14px;color:#64748B;padding:6px 14px;border-bottom:1px solid #F1F5F9}
+.s3-mail .s3-f b{color:#334155}
+.s3-body{font-size:15px;line-height:1.4;color:#334155;padding:10px 14px;white-space:pre-line;min-height:230px}
+.typing::after{content:"|";color:var(--coral);font-weight:800}
+</style>
+</head><body>
+<div id="view"><div id="stage"><div id="nbar"><i></i></div>
+<div id="scenes"></div>
+<div id="spot"></div>
+<svg id="cursor" viewBox="0 0 28 32"><path d="M3 2 L3 26 L9.5 19.5 L14 29 L18.5 27 L14 17.5 L23 17.5 Z" fill="#fff" stroke="#0F172A" stroke-width="2" stroke-linejoin="round"/></svg>
+</div></div>
+<div id="cap" aria-live="polite"></div>
+<div id="bar">
+ <button id="prev">Back</button><button id="play">Start</button><button id="next">Next</button>
+ <div id="dots"></div>
+ <button id="capbtn" aria-pressed="false">Captions</button><button id="voice" aria-pressed="true">Voice on</button>
+</div>
+<script src="lesson-kit.js?v=1"></script>
+<script>
+const DECK_ID='cert-silver-3';
+const L={tier:'silver',lesson:'Silver Lesson 3',title:'IEP Meeting Participation Skills'};
+const s3I=(d,c='#0E7490')=>`<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="${c}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const s3On=async(sel,i,sp=true)=>{const e=all(sel)[i];if(!e)return;e.classList.add('on');if(sp)spot(e,6);return e};
+/* type text that is already in the HTML, so a still frame shows the finished text */
+const s3Type=async(e,ms=22)=>{if(!e)return;const t=e.dataset.t||e.textContent;e.dataset.t=t;await type(e,t,ms)};
+const s3Say=async t=>{const b=q('.s3-bub span');if(!b)return;b.dataset.t=t;await type(b,t,22)};
+
+const SC=[
+COVER({...L,title:'IEP Meeting Participation Skills',
+ sub:'What to do with the report before, during and after the IEP meeting.',
+ say:'Aloha, and welcome to Silver Lesson 3. In the last lesson you learned to read your child’s evaluation report. This lesson is about what you do with it, before, during and after the I E P meeting.'}),
+
+{html:()=>HEAD('Three parts','Before, during, after')+`<div class="s3-phases">
+ <div class="s3-ph"><div class="s3-ic">${s3I('<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 9h6M9 13h6M9 17h3"/>')}</div><h3>Before</h3><p>Sort the report, highlight it, compare it with home, get drafts early, write your statement.</p></div>
+ <div class="s3-ph"><div class="s3-ic">${s3I('<path d="M4 6h16v9H9l-5 4z"/>')}</div><h3>During</h3><p>Bring your highlighted copy. Ask questions that work in almost any meeting.</p></div>
+ <div class="s3-ph"><div class="s3-ic">${s3I('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>')}</div><h3>After</h3><p>Take time if you need it. Send a short email of what was agreed.</p></div></div>
+ <div class="s3-rep">${s3I('<path d="M5 13l4 4L19 7"/>','#16A34A')}You can read a report now.</div>`+PTS([
+ 'You can read a report now.',
+ '<b>Before</b> the meeting: get ready on paper.',
+ '<b>During</b>: bring it, and ask.',
+ '<b>After</b>: take your time, and write it down.'],170),
+ steps:[
+ {say:'You can read a report now. That was the hard part. Now let’s put that skill to work.',li:0,act:async()=>{spot(q('.s3-rep'),6)}},
+ {say:'Most of the work happens before the meeting. Five simple steps, done at your kitchen table.',li:1,act:()=>s3On('.s3-ph',0)},
+ {say:'Then, during the meeting, you bring what you prepared, and you ask questions.',li:2,act:()=>s3On('.s3-ph',1)},
+ {say:'And after the meeting, you take the time you need, and you put what was agreed in writing.',li:3,act:async()=>{await s3On('.s3-ph',2);await wait(1200);spot(null)}}]},
+
+{html:()=>HEAD('Before · Step 1','The Three-Column Review')+`<div class="s3-sheet">
+ <div class="s3-col st"><h4>Strengths</h4><div class="s3-nt">Strong spoken vocabulary</div><div class="s3-nt">Kind and patient with classmates</div><div class="s3-nt">Keeps trying on hard math</div><div class="s3-nt">Remembers what he hears</div></div>
+ <div class="s3-col wk"><h4>Weaknesses</h4><div class="s3-nt">Reading fluency below grade level</div><div class="s3-nt">Hard to start written work</div></div>
+ <div class="s3-col qs"><h4>Questions or comments</h4><div class="s3-nt">What does “below average” mean for class?</div><div class="s3-nt">Which test showed this?</div></div></div>`+PTS([
+ 'Use your child’s <b>most recent evaluation</b>.',
+ 'Sort what you read into <b>strengths</b>, <b>weaknesses</b> and <b>questions or comments</b>.',
+ 'Do not rush the strengths column.',
+ 'The IEP team is <b>required</b> to consider your child’s strengths. If you do not bring them, nobody else may.'],150),
+ steps:[
+ {say:'Step one is the three-column review. Sit down with your child’s most recent evaluation, and a blank sheet with three columns.',li:0,act:async()=>{spot(q('.s3-sheet'),6)}},
+ {say:'As you read, sort what you find. Weaknesses go in the middle column.',li:1,act:async()=>{spot(q('.s3-col.wk'),6);for(const e of all('.s3-col.wk .s3-nt')){e.classList.add('on');await wait(350)}}},
+ {say:'Questions or comments go on the right. Anything you don’t understand, or want to say back to the team.',act:async()=>{spot(q('.s3-col.qs'),6);for(const e of all('.s3-col.qs .s3-nt')){e.classList.add('on');await wait(350)}}},
+ {say:'And strengths go on the left. Do not rush this column. Reports tend to spend most of their pages on what is hard. Look for what your child does well, and write every bit of it down.',li:2,act:async()=>{spot(q('.s3-col.st'),6);for(const e of all('.s3-col.st .s3-nt')){e.classList.add('on');await wait(450)}}},
+ {say:'Here is why it matters. The I E P team is required to consider your child’s strengths. If you do not bring them to the meeting, nobody else may.',li:3,act:async()=>{await wait(1500);spot(null)}}]},
+
+{html:()=>HEAD('Before · Step 2','Highlight in three colors')+`<div class="s3-page"><h4>Psychoeducational Evaluation</h4><div class="s3-sm">Page 4 of 18 · Summary</div>
+ <div class="s3-ln" data-c="g">Enjoys reading aloud with a partner.</div>
+ <div class="s3-ln" data-c="y">Phonological processing: standard score 82.</div>
+ <div class="s3-ln" data-c="g">Responds well to a visual schedule.</div>
+ <div class="s3-ln" data-c="r">Attention appears typical for his age.</div>
+ <div class="s3-ln" data-c="y">Working memory index is in the low average range.</div>
+ <div class="s3-ln" data-c="g">Writes complete sentences with support.</div>
+ <div class="s3-ln" data-c="r">No concerns noted with homework.</div>
+ <div class="s3-ln" data-c="y">Recommend continued monitoring of fluency.</div></div>
+ <div class="s3-leg"><span class="hl-g">Agree, understand</span><span class="hl-y">Explain this</span><span class="hl-r">I disagree</span></div>
+ <div class="s3-agenda"><h4>My agenda</h4>
+ <div class="hl-y">What does a standard score of 82 mean?</div><div class="hl-r">Attention: not what I see</div><div class="hl-y">Working memory: what now?</div><div class="hl-r">Homework takes hours</div><div class="hl-y">Monitoring: how, and how often?</div></div>`+PTS([
+ '<b class="hl-g">Green</b>: you agree with it and understand it.',
+ '<b class="hl-y">Yellow</b>: you need it explained.',
+ '<b class="hl-r">Red</b>: you disagree with it.',
+ 'A long report becomes a page or two of yellow and red. That is your <b>agenda</b>.'],150),
+ steps:[
+ {say:'Step two. Get three highlighters, and go through the report line by line.',act:async()=>{spot(q('.s3-page'),6)}},
+ {say:'Green is for what you agree with, and understand.',li:0,act:async()=>{spot(null);for(const e of all('.s3-ln[data-c=g]')){e.classList.add('hl-g');await wait(400)}}},
+ {say:'Yellow is for what you need explained. A score you can’t picture. A word you have never heard.',li:1,act:async()=>{for(const e of all('.s3-ln[data-c=y]')){e.classList.add('hl-y');await wait(400)}}},
+ {say:'And red is for what you disagree with. If the report says something you just don’t see in your child, it goes red.',li:2,act:async()=>{for(const e of all('.s3-ln[data-c=r]')){e.classList.add('hl-r');await wait(400)}}},
+ {say:'Now pull out only the yellow and the red. A long report becomes a page or two. And that page is your agenda for the meeting.',li:3,act:async()=>{const a=q('.s3-agenda');a.classList.add('on');spot(a,6)}}]},
+
+{html:()=>HEAD('Before · Step 3','Make a T-chart')+`<div class="s3-t"><div class="s3-th"><div>The report says</div><div>I see at home</div></div>
+ <div class="s3-tr"><div>Enjoys building and hands-on tasks.</div><div>Builds with blocks for an hour at a time.</div><span class="s3-tag ok">Agree: solid ground</span></div>
+ <div class="s3-tr"><div>Completes homework on his own.</div><div>Needs an adult beside him for every page.</div><span class="s3-tag dif">Differ: discuss this</span></div>
+ <div class="s3-tr"><div>Calm during changes in routine.</div><div>Gets very upset when plans change.</div><span class="s3-tag dif">Differ: discuss this</span></div>
+ <div class="s3-tr"><div>Follows two-step directions.</div><div>Follows two-step directions, with a reminder.</div><span class="s3-tag ok">Agree: solid ground</span></div></div>`+PTS([
+ 'On one side, <b>what the report says</b>.',
+ 'On the other, <b>what you see at home</b>.',
+ 'Where they agree, you have <b>solid ground</b>.',
+ 'Where they differ, you have <b>something important to discuss</b>.'],160),
+ steps:[
+ {say:'Step three is a T-chart. Draw a big T on a page.',act:async()=>{spot(q('.s3-th'),6)}},
+ {say:'On the left side, write what the report says.',li:0,act:async()=>{spot(null);for(const e of all('.s3-tr')){e.classList.add('on');e.querySelector('.s3-tag').style.opacity=0;e.children[1].style.opacity=0;await wait(250)}}},
+ {say:'On the right side, write what you see at home. Homework at the kitchen table. Mornings. Weekends.',li:1,act:async()=>{for(const e of all('.s3-tr')){e.children[1].style.transition='opacity .4s';e.children[1].style.opacity=1;await wait(350)}}},
+ {say:'Where the two sides agree, you have solid ground. Nobody needs to argue about it.',li:2,act:async()=>{const r=all('.s3-tr');for(const i of[0,3]){const t=r[i].querySelector('.s3-tag');t.style.transition='opacity .4s';t.style.opacity=1;await wait(300)}spot(r[0],4)}},
+ {say:'Where they differ, you have something important to discuss. Remember, what you see at home is information too.',li:3,act:async()=>{const r=all('.s3-tr');for(const i of[1,2]){const t=r[i].querySelector('.s3-tag');t.style.transition='opacity .4s';t.style.opacity=1;await wait(300)}spot(r[1],4);await wait(1200);spot(r[2],4);await wait(1200);spot(null)}}]},
+
+{html:()=>HEAD('Before · Step 4','Ask for drafts and records early')+`<div class="s3-week">
+ <div class="s3-day"><b>Mon</b><div class="s3-doc">Draft IEP</div></div>
+ <div class="s3-day"><b>Tue</b><div class="s3-doc">New evaluation</div></div>
+ <div class="s3-day"><b>Wed</b><div class="s3-doc">Progress data</div></div>
+ <div class="s3-day"><b>Thu</b></div>
+ <div class="s3-day mt"><b>Meeting</b><div class="s3-tbl">IEP</div></div></div>
+ <div class="s3-ready">${s3I('<path d="M5 13l4 4L19 7"/>','#16A34A')} Read at home, not for the first time at the table.</div>`+PTS([
+ 'Ask for any <b>draft IEP</b>.',
+ 'Ask for any <b>new evaluation</b>.',
+ 'Ask for <b>progress data</b>.',
+ 'Ask <b>a few days before</b> the meeting, so you are not reading it for the first time at the table.'],160),
+ steps:[
+ {say:'Step four. Ask for drafts and records early.',act:async()=>{spot(q('.s3-day.mt'),6)}},
+ {say:'If there is a draft I E P, ask for it.',li:0,act:()=>s3On('.s3-doc',0)},
+ {say:'If there is a new evaluation, ask for that too.',li:1,act:()=>s3On('.s3-doc',1)},
+ {say:'And ask for progress data, so you can see how your child has been doing on the current goals.',li:2,act:()=>s3On('.s3-doc',2)},
+ {say:'Ask a few days before the meeting. That way you have time to sort it, highlight it and think about it. You are not reading it for the first time at the table, while everyone waits.',li:3,act:async()=>{spot(null);q('.s3-ready').classList.add('on')}}]},
+
+{html:()=>HEAD('Before · Step 5','A one-page parent statement')+`<div class="s3-stmt"><h4>Parent Statement</h4><div class="s3-sm">One page · for the IEP meeting</div>
+ <div class="s3-sec"><b>Who my child is</b><span class="s3-ty">Funny, curious, loves the ocean and building things.</span></div>
+ <div class="s3-sec"><b>What is working</b><span class="s3-ty">Reading with a partner. The visual schedule at home and at school.</span></div>
+ <div class="s3-sec"><b>What worries me</b><span class="s3-ty">Homework takes hours, and he is starting to say he is “dumb.”</span></div>
+ <div class="s3-sec"><b>What I hope for this year</b><span class="s3-ty">That he reads a chapter book on his own, and likes school again.</span></div></div>
+ <div class="s3-into">${s3I('<path d="M5 12h14M13 6l6 6-6 6"/>','#C2410C')}<br>Include in the IEP’s <b>parent concerns</b> section</div>`+PTS([
+ '<b>Who</b> your child is.',
+ '<b>What is working.</b>',
+ '<b>What worries you.</b>',
+ '<b>What you hope for</b> this year.',
+ 'Ask for it to be included in the IEP’s <b>parent concerns</b> section.'],150),
+ steps:[
+ {say:'Step five. Write a one-page parent statement. Just one page, in your own words.',act:async()=>{spot(q('.s3-stmt'),6);all('.s3-ty').forEach(e=>{e.dataset.t=e.dataset.t||e.textContent;e.textContent=''})}},
+ {say:'Start with who your child is. Not a diagnosis. A person.',li:0,act:async()=>{spot(null);await s3Type(all('.s3-ty')[0])}},
+ {say:'Then, what is working. Things the team should keep doing.',li:1,act:()=>s3Type(all('.s3-ty')[1])},
+ {say:'Then, what worries you. Say it plainly.',li:2,act:()=>s3Type(all('.s3-ty')[2])},
+ {say:'And what you hope for this year.',li:3,act:()=>s3Type(all('.s3-ty')[3])},
+ {say:'Bring it to the meeting, and ask for it to be included in the I E P’s parent concerns section. That way your words are part of the plan, not just something said out loud and forgotten.',li:4,act:async()=>{const e=q('.s3-into');e.classList.add('on');spot(e,6)}}]},
+
+{html:()=>HEAD('During the meeting','Bring it, and ask')+`<div class="s3-room"><div class="s3-bub"><small>You</small><span>Thank you all for coming.</span></div>
+ <div class="s3-table"></div>
+ <div class="s3-seat" style="left:120px;top:250px">T</div><div class="s3-seat" style="left:250px;top:190px">S</div><div class="s3-seat" style="left:390px;top:190px">P</div><div class="s3-seat" style="left:520px;top:250px">A</div><div class="s3-seat" style="left:530px;top:400px">E</div>
+ <div class="s3-seat you" style="left:260px;top:470px">You</div>
+ <div class="s3-copy"><i class="g"></i><i class="y" style="width:80%"></i><i class="r"></i><i class="g" style="width:60%"></i><i class="y" style="width:90%"></i><i class="r" style="width:70%"></i></div></div>`+PTS([
+ 'Bring your <b>highlighted copy</b>. Put it where people can see it.',
+ '“What does this score mean for how you will teach my child?”',
+ '“Can you show me where that is in the report?”',
+ '“What would this look like on an ordinary school day?”',
+ '“How will we know if it is working, and when will we look again?”'],140),
+ steps:[
+ {say:'Now, the meeting. Bring your highlighted copy, and put it on the table where people can see it. It tells the room you have read the report, and that you came with questions.',li:0,act:async()=>{spot(q('.s3-copy'),8)}},
+ {say:'Then ask questions that work in almost any meeting. First: what does this score mean for how you will teach my child? A number is only useful if it changes what happens in class.',li:1,act:async()=>{spot(null);await s3Say('What does this score mean for how you will teach my child?')}},
+ {say:'Second: can you show me where that is in the report? If something is said at the table, it should be on the page.',li:2,act:()=>s3Say('Can you show me where that is in the report?')},
+ {say:'Third: what would this look like on an ordinary school day? This turns a plan on paper into something you can picture.',li:3,act:()=>s3Say('What would this look like on an ordinary school day?')},
+ {say:'And fourth: how will we know if it is working, and when will we look again?',li:4,act:()=>s3Say('How will we know if it is working, and when will we look again?')}]},
+
+{html:()=>HEAD('During the meeting','When an answer does not land')+`<div class="s3-chat">
+ <div class="s3-msg sch"><small>School</small>His processing speed is a relative weakness compared to his verbal comprehension.</div>
+ <div class="s3-msg me"><small>You</small>I’m sorry, I still don’t follow. Can you say that another way?</div>
+ <div class="s3-msg sch"><small>School</small>He understands a lot, but he needs more time to get his work done. We will give him extra time on tests.</div>
+ <div class="s3-msg me"><small>You</small>Thank you. Can we write that down in the IEP?</div></div>
+ <div class="s3-pad">${s3I('<path d="M5 3h11l3 3v15H5z"/><path d="M9 9h6M9 13h6M9 17h4"/>','#A16207')}<span>Someone you bring takes notes, so you can listen.</span></div>`+PTS([
+ 'If an answer does not land, <b>say so and ask again</b>.',
+ '“I’m sorry, I still don’t follow” is a complete and reasonable sentence. The fault is not yours.',
+ 'If something important is agreed, ask for it to be <b>written down</b>.',
+ 'You may bring someone to <b>take notes</b> so you can listen.'],150),
+ steps:[
+ {say:'Sometimes an answer does not land. You hear the words, but they don’t make sense yet.',act:()=>s3On('.s3-msg',0)},
+ {say:'When that happens, say so, and ask again.',li:0,act:()=>s3On('.s3-msg',1)},
+ {say:'Here is a parent tip. I’m sorry, I still don’t follow, is a complete and reasonable sentence. The fault is not yours. It is the team’s job to explain.',li:1,act:()=>s3On('.s3-msg',2)},
+ {say:'If something important is agreed, ask for it to be written down. A promise said out loud is easy to lose.',li:2,act:()=>s3On('.s3-msg',3)},
+ {say:'And you may bring someone to take notes, so you can listen and talk, instead of writing.',li:3,act:async()=>{const p=q('.s3-pad');p.classList.add('on');spot(p,6);await wait(1500);spot(null)}}]},
+
+{html:()=>HEAD('After the meeting','Take your time, then write it down')+`<div class="s3-iep"><h4>Individualized Education Program</h4><div class="s3-gl"></div><div class="s3-gl" style="width:80%"></div><div class="s3-gl" style="width:65%"></div><div class="s3-gl" style="width:90%"></div><div class="s3-gl" style="width:55%"></div>
+ <div class="s3-sig">Parent signature</div><div class="s3-home">Taking it home to read</div></div>
+ <div class="s3-mail"><div class="s3-bar">New message</div><div class="s3-f"><b>To:</b> IEP team</div><div class="s3-f"><b>Subject:</b> Thank you, and a summary of today’s meeting</div>
+ <div class="s3-body">Thank you all for meeting today. Here is what I understood we agreed:
+ · Extra time on tests and written work.
+ · Reading support during the school week.
+ · Next steps: the team sends the updated draft, and we check progress together.
+ Please let me know if I missed anything.</div></div>`+PTS([
+ 'You <b>do not have to sign at the table</b>.',
+ 'Take the IEP home if you need time.',
+ 'Within a few days, send a <b>short, polite email</b> summarizing what was agreed and any next steps.',
+ 'That <b>written record</b> protects everyone, including the school.'],150),
+ steps:[
+ {say:'After the meeting. First, you do not have to sign at the table.',li:0,act:async()=>{spot(q('.s3-sig'),6)}},
+ {say:'If you need time, take the I E P home. Read it at your own pace, with your highlighters nearby.',li:1,act:async()=>{const h=q('.s3-home');h.classList.add('on');spot(h,6)}},
+ {say:'Then, within a few days, send a short, polite email. Thank the team, and sum up what was agreed, and any next steps.',li:2,act:async()=>{spot(null);const m=q('.s3-mail');m.classList.add('on');await s3Type(q('.s3-body'),14)}},
+ {say:'That written record protects everyone, including the school. If memories differ later, everyone can look at the same page.',li:3,act:async()=>{spot(q('.s3-mail'),6);await wait(1500);spot(null)}}]},
+
+QUIZ([
+ {q:'When you highlight a report in three colors, what does yellow mean?',o:['I agree with this and understand it','I disagree with this','I need this explained'],a:2,y:'Yellow is for what you need explained. Green is agree, red is disagree.',n:'Think about the middle color, between agree and disagree.'},
+ {q:'What goes on the two sides of a T-chart?',o:['What the report says, and what you see at home','The names of the team, and their jobs','Your child’s grades, and test scores'],a:0,y:'Where the report and home agree, you have solid ground. Where they differ, you have something to discuss.',n:'Think about comparing the report with your own home.'},
+ {q:'The meeting ends and you are handed the IEP to sign. What can you do?',o:['You must sign before you leave the room','Take it home if you need time, then send a short email of what was agreed','Leave without saying anything'],a:1,y:'You do not have to sign at the table, and a follow-up email creates a written record.',n:'Think about what we said happens after the meeting.'}]),
+
+RECAP([
+ 'Sort the report into <b>strengths</b>, <b>weaknesses</b> and <b>questions</b>. Don’t rush the strengths.',
+ 'Highlight <b class="hl-g">green</b>, <b class="hl-y">yellow</b> and <b class="hl-r">red</b>. The yellow and red are your agenda.',
+ 'A <b>T-chart</b>: the report says, and I see at home.',
+ 'Get drafts early, and bring a <b>one-page parent statement</b>.',
+ 'Ask what scores mean for teaching, where it is in the report, and <b>how progress will be measured</b>.',
+ 'No signing at the table required. Send a <b>follow-up email</b>.'],[
+ 'Before the meeting, sort the report into strengths, weaknesses and questions, and don’t rush the strengths.',
+ 'Highlight it green, yellow and red. The yellow and red become your agenda.',
+ 'A T-chart comparing the report with what you see at home shows where you agree, and what you need to discuss.',
+ 'Ask for drafts and records a few days early, and bring a one-page parent statement for the parent concerns section.',
+ 'During the meeting, ask what scores mean for teaching, where things are in the report, and how progress will be measured.',
+ 'And afterward, you do not have to sign at the table. A short follow-up email creates a written record.']),
+
+CLOSE({...L,sub:'Next: the IEP document itself. Select Complete on the lesson page when you are ready.',
+ say:'Mahalo! That is Lesson 3. You now have a plan for before, during and after the meeting. Next, we look closely at the I E P document itself. Select Complete on the lesson page when you are ready to move on.'})
+];
+</script>
+<script src="deck-engine.js?v=1"></script></body></html>
