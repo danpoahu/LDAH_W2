@@ -26064,7 +26064,7 @@ const CERT_TIER_QUIZ = { bronze: "bquiz", silver: "squiz", gold: "gquiz" };
 /* Which tiers may be certified. This MIRRORS TIER_STATE in
    Members/certification.html — opening a tier means flipping BOTH, and the
    server is the one that actually decides. */
-const CERT_TIER_OPEN = { bronze: true, silver: false, gold: false };
+const CERT_TIER_OPEN = { bronze: true, silver: true, gold: true };
 
 function _certOut(tier, d) {
   const iss = d.issuedAt;
