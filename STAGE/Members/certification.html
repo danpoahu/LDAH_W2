@@ -420,6 +420,14 @@
         /* .bg-islands above is the PAGE watermark. The certificate's own
            islands are .isl inside .cd-cert-sheet — different element, keep it. */
         .cd-cert-sheet .isl { display: block !important; }
+        /* Below 900px the mobile shell (members-mobile.js) adds its own tab bar
+           and level cards, which the list above never named, and Chrome on a Mac
+           lays the printout out narrower than that. So print by exclusion: the
+           certificate sheet is the only thing in <main> that may print, and
+           <main> is the only thing in <body>. */
+        body > *:not(main):not(svg) { display: none !important; }
+        main > *:not(#certSheet) { display: none !important; }
+        body.mm-on { padding: 0 !important; }
         .main-wrap { max-width: none; padding: 0; margin: 0; }
         .cd-cert-sheet { display: block !important; }
         .cd-cert-sheet .cert { page-break-inside: avoid; }
