@@ -1256,7 +1256,7 @@ function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eve
  * "Complete Your Registration" CTA is omitted and replaced with a plain
  * "You're all set" line. (v62.0.0)
  */
-function buildConfirmationEmailHtml({ name, eventTitle, datesPhrase, modality, inlineFlow }) {
+function buildConfirmationEmailHtml({ name, eventTitle, datesPhrase, modality, inlineFlow, learningLab }) {
   const greetingName = _emailEsc(name || "there");
   const safeTitle = _emailEsc(eventTitle || "your LDAH session");
   const datesSuffix = datesPhrase ? _emailEsc(datesPhrase) : "";
@@ -1296,6 +1296,8 @@ function buildConfirmationEmailHtml({ name, eventTitle, datesPhrase, modality, i
         ? '<p style="margin:0;font-size:16px;color:#333333;line-height:1.5;">You\'re all set — we have everything we need. We\'ll see you' + (datesSuffix || " at the event") + '.</p>'
         : '<p style="margin:0;font-size:16px;color:#333333;line-height:1.5;">We\'ll email you a reminder <strong>3 days before</strong> your session and again <strong>on the day of the session</strong>, ' + reminderTail + '.</p>'
       }
+      ${learningLab ? `<p style="margin:16px 0 0;font-size:16px;color:#333333;line-height:1.5;">After the session we'll email you the slides and handouts. The session video is not emailed: once it has been professionally edited, it is available to LDAH members in the member portal.</p>
+      ${_emailBtn(MEMBERSHIP_JOIN_URL, "Become a Member", { bg: "#0d9488", align: "left" })}` : ""}
     </td>
   </tr>
 
@@ -1762,6 +1764,7 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
       datesPhrase,
       modality,
       inlineFlow: _inlineFlow,
+      learningLab: String(event.eventType || "") === "learning_labs",
     });
 
     const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
@@ -11298,11 +11301,14 @@ exports.onRecurringEventUpdated = functions
 // 2 weeks + 1 day via pruneExpiredRecordings.
 
 const RECORDING_RETENTION_DAYS = 15;
+const MEMBERSHIP_JOIN_URL = "https://www.ldahawaii.org/volunteer.html#membership";
+const MEMBER_VIDEOS_URL = "https://www.ldahawaii.org/Members/videos.html";
 
 function buildRecordingEmailHtml({
   bodyText, eventTitle, recordingUrl, passcode, slidesDownloadUrl, slidesFileName,
   slidesFiles,
   signatureHtml, donateHtml, orgFooterHtml,
+  isMember, nextSessions,
 }) {
   // Backward-compat: callers may pass a single slidesDownloadUrl/slidesFileName
   // OR a slidesFiles array of { downloadUrl, fileName }. Normalize to an array.
@@ -11321,7 +11327,33 @@ function buildRecordingEmailHtml({
     .map(p => `<p style="margin:0 0 14px;font-size:16px;color:#333333;line-height:1.5;">${_emailEsc(p).replace(/\n/g, "<br>")}</p>`)
     .join("");
 
-  const zoomBlock = recordingUrl
+  /* Session videos are no longer emailed (2026-10-21). After professional
+     editing they go to the member portal's Video Library, so every follow-up
+     carries a membership invitation instead of a recording link. recordingUrl
+     is still accepted from older callers but never rendered. */
+  const memberBlock = isMember
+    ? `<div style="margin:16px 0;padding:16px 18px;background-color:#f0fdfa;border-left:4px solid #0d9488;border-radius:4px;">
+         <p style="margin:0 0 6px;font-size:15px;color:#0f766e;font-weight:bold;">Mahalo for being an LDAH member!</p>
+         <p style="margin:0 0 10px;font-size:14px;color:#333333;line-height:1.5;">Once this session has been professionally edited, you can watch the video in your member portal&rsquo;s Training Video Library.</p>
+         ${_emailBtn(MEMBER_VIDEOS_URL, "Go to the Video Library", { bg: "#0d9488", align: "left" })}
+       </div>`
+    : `<div style="margin:16px 0;padding:16px 18px;background-color:#f0fdfa;border-left:4px solid #0d9488;border-radius:4px;">
+         <p style="margin:0 0 6px;font-size:15px;color:#0f766e;font-weight:bold;">Looking for the session video?</p>
+         <p style="margin:0 0 10px;font-size:14px;color:#333333;line-height:1.5;">Session videos are no longer able to be sent by email. Once this session has been professionally edited, the video will be available to LDAH members in the member portal&rsquo;s Training Video Library.</p>
+         <p style="margin:0 0 10px;font-size:14px;color:#333333;line-height:1.5;">Membership also includes downloadable slide decks and AI summaries from every Learning Lab, monthly resources on IDEA and Hawai&#699;i&rsquo;s Chapter 60, and more, all in one private portal.</p>
+         ${_emailBtn(MEMBERSHIP_JOIN_URL, "Become a Member", { bg: "#0d9488", align: "left" })}
+       </div>`;
+  /* Coming up next, per recipient: a Sign up button for a session they are
+     not on yet, a plain "you're signed up" for one they are. */
+  const nextList = Array.isArray(nextSessions) ? nextSessions.filter(n => n && n.label) : [];
+  const nextBlock = nextList.length
+    ? `<div style="margin:16px 0;padding:16px 18px;background-color:#f4f8fc;border-left:4px solid #1a3c6e;border-radius:4px;">
+         <p style="margin:0 0 8px;font-size:15px;color:#1a3c6e;font-weight:bold;">Coming up next</p>
+         ${nextList.map(n => `<p style="margin:0 0 ${n.signedUp ? 8 : 4}px;font-size:14px;color:#333333;line-height:1.5;"><strong>${_emailEsc(n.label)}</strong>${n.title ? " &mdash; " + _emailEsc(n.title) : ""}${n.signedUp ? '<br><span style="color:#0f766e;">You&rsquo;re signed up. See you there!</span>' : ""}</p>`
+           + (!n.signedUp && n.signupUrl ? _emailBtn(n.signupUrl, "Sign up", { bg: "#1a3c6e", align: "left" }) : "")).join("")}
+       </div>`
+    : "";
+  const zoomBlock = false
     ? `<div style="margin:16px 0;padding:16px 18px;background-color:#f4f8fc;border-left:4px solid #1a3c6e;border-radius:4px;">
          <p style="margin:0 0 4px;font-size:15px;color:#1a3c6e;font-weight:bold;">Zoom Recording</p>
          ${_emailBtn(recordingUrl, "Watch Recording", { bg: "#1a3c6e", align: "left" })}
@@ -11342,7 +11374,8 @@ function buildRecordingEmailHtml({
   ).join("");
 
   const linkFooter = _emailLinkFooter([
-    recordingUrl ? { label: "Watch Recording", href: recordingUrl } : null,
+    ...nextList.filter(n => !n.signedUp && n.signupUrl).map(n => ({ label: "Sign up: " + n.label, href: n.signupUrl })),
+    isMember ? { label: "Video Library", href: MEMBER_VIDEOS_URL } : { label: "Become a Member", href: MEMBERSHIP_JOIN_URL },
     ...fileLinks.map((f) => ({ label: "Download " + (f.fileName || "file"), href: f.downloadUrl })),
   ]);
 
@@ -11365,6 +11398,8 @@ function buildRecordingEmailHtml({
     ${paras}
     ${zoomBlock}
     ${slidesBlock}
+    ${nextBlock}
+    ${memberBlock}
     <p style="margin:24px 0 4px;font-size:15px;color:#333333;line-height:1.5;">With gratitude,</p>
     <p style="margin:0 0 16px;font-size:15px;color:#333333;line-height:1.5;"><strong>LDAH Team</strong></p>
     ${donateHtml || ''}
@@ -11397,7 +11432,7 @@ function buildNoShowRecordingBody({ name, eventTitle, nextSessionsBlurb }) {
     "",
     `We're sorry we missed you at ${eventTitle}. We hope everything is well, and we wanted to make sure you still have what was shared during the session.`,
     "",
-    "The recording and slides are below — please take your time with them, and reach out anytime if you have questions about anything covered.",
+    "The slides and handouts are below — please take your time with them, and reach out anytime if you have questions about anything covered.",
   ];
   if (nextSessionsBlurb) {
     lines.push("");
@@ -11515,8 +11550,42 @@ exports.sendEventRecordingEmail = functions
       let sentAttended = 0, sentNoShow = 0, failed = 0, skippedDuplicate = 0;
       const errors = [];
 
+      /* Per-recipient extras (2026-10-21). nextSessions = [{eventId, label,
+         title}] from the composer: read each event's signups ONCE, then a
+         recipient already on one sees "you're signed up" instead of Sign up.
+         Members get a Video Library link instead of the membership invite. */
+      const _db = admin.firestore();
+      const _next = (Array.isArray(req.body.nextSessions) ? req.body.nextSessions : [])
+        .filter(n => n && n.eventId && n.label).slice(0, 3);
+      const _nextEmails = {};
+      for (const n of _next) {
+        const set = new Set();
+        try {
+          const ss = await _db.collection("events").doc(String(n.eventId)).collection("signups").get();
+          ss.forEach(d => { const x = d.data() || {}; if (x.archived !== true && x.status !== "cancelled" && x.email) set.add(String(x.email).trim().toLowerCase()); });
+        } catch (e) { console.warn("recording email: next-session signups read failed", n.eventId, e.message); }
+        _nextEmails[n.eventId] = set;
+      }
+      const _memberCache = {};
+      async function _isMemberEmail(email) {
+        const k = String(email || "").trim().toLowerCase();
+        if (!k) return false;
+        if (k in _memberCache) return _memberCache[k];
+        let ok = false;
+        try { const doc = await _findMemberContactByEmail(_db, k); ok = !!(doc && _membershipIsActive(doc.data() || {})); }
+        catch (e) { console.warn("recording email: member lookup failed", e.message); }
+        return (_memberCache[k] = ok);
+      }
+
       for (const r of recipients) {
         if (!r || !r.email) { failed++; continue; }
+        const _em = String(r.email).trim().toLowerCase();
+        const _isMember = await _isMemberEmail(_em);
+        const _nextForR = _next.map(n => ({
+          label: String(n.label), title: String(n.title || ""),
+          signupUrl: "https://www.ldahawaii.org/events.html?eventId=" + encodeURIComponent(n.eventId) + "&autoOpen=1",
+          signedUp: !!(_nextEmails[n.eventId] && _nextEmails[n.eventId].has(_em)),
+        }));
         const audience = r.audience === "noShow" ? "noShow" : "attended";
         const isNoShow = audience === "noShow";
         const recipSubject = isNoShow ? noShowSubject : subject;
@@ -11527,13 +11596,15 @@ exports.sendEventRecordingEmail = functions
           const nsBody = buildNoShowRecordingBody({
             name: r.name || "",
             eventTitle: eventTitle || "the session",
-            nextSessionsBlurb: nextSessionsBlurb || "",
+            // The Coming-up block replaces the sentence when sessions are supplied.
+            nextSessionsBlurb: _next.length ? "" : (nextSessionsBlurb || ""),
           });
           recipHtml = buildRecordingEmailHtml({
             bodyText: nsBody, eventTitle: eventTitle || "",
             recordingUrl: recordingUrl || "", passcode: passcode || "",
             slidesFiles: slidesFileLinks,
             signatureHtml, donateHtml, orgFooterHtml,
+            isMember: _isMember, nextSessions: _nextForR,
           });
         } else if (attendeeBodyTemplate) {
           const merged = applyRecipientNameMerge(attendeeBodyTemplate, r.name || "");
@@ -11542,6 +11613,7 @@ exports.sendEventRecordingEmail = functions
             recordingUrl: recordingUrl || "", passcode: passcode || "",
             slidesFiles: slidesFileLinks,
             signatureHtml, donateHtml, orgFooterHtml,
+            isMember: _isMember, nextSessions: _nextForR,
           });
         }
         const recipType = isNoShow ? "event-recording-noshow" : "event-recording";
