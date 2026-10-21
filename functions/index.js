@@ -2263,7 +2263,12 @@ async function createAccommodationsTask(snap, signupData, signupId, eventId, col
       const s = ev.sessionSummaries[k] || {};
       if (!s.presenterUid) continue;
       const head = String(k).split("|")[0].trim();
-      if (head === earliestDate || toHstDateKey(head) === earliestDate) {
+      // _lcSummaryDateKey reads the date out of one-time keys that carry a topic
+      // ("October 28, 2026, 5:00 PM - DOH to DOE"), which new Date() can't parse.
+      // One-time signups store selectedDates, not selectedSessions, so 5a never
+      // matches them and this is the only step that can find their presenter.
+      if (head === earliestDate || toHstDateKey(head) === earliestDate
+          || _lcSummaryDateKey(k) === earliestDate) {
         ownerUid = s.presenterUid; ownerName = s.presenter || ""; break;
       }
     }
