@@ -1,0 +1,353 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bronze Lesson 2: What Do I Need to Know About Special Education?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="deck-base.css?v=1">
+<link rel="stylesheet" href="lesson-theme.css?v=2">
+<style>
+/* b2- = this deck only */
+.scene[data-i="0"] h1{width:1060px;font-size:54px}
+.b2-in{opacity:0;transform:translateY(14px);transition:all .5s}
+.b2-in.on{opacity:1;transform:none}
+.b2-ico{width:46px;height:46px;border-radius:12px;background:#ECFEFF;flex:none;display:flex;align-items:center;justify-content:center}
+.b2-ico svg{width:26px;height:26px;fill:none;stroke:#0E7490;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+
+/* 1. definition */
+.b2-def{position:absolute;left:70px;top:140px;width:680px;background:#fff;border-radius:18px;border:1px solid var(--line);box-shadow:0 14px 30px rgba(15,23,42,.10);padding:18px 24px}
+.b2-def h3{margin:0 0 10px;font-family:"Outfit",sans-serif;font-size:26px;color:var(--teal)}
+.b2-part{display:flex;align-items:center;gap:14px;padding:10px 12px;border-radius:12px;font-size:20px;font-weight:700;color:#334155;margin-bottom:6px;border:2px solid transparent;transition:all .45s}
+.b2-part.on{background:#FFF7ED;border-color:#FDBA74;color:#9A3412}
+.b2-part .n{width:34px;height:34px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;font-family:"Outfit",sans-serif;font-weight:800;flex:none}
+.b2-part.on .n{background:var(--coral)}
+.b2-where{position:absolute;left:70px;top:430px;width:680px}
+.b2-where .lbl{font-size:17px;font-weight:800;color:var(--soft);letter-spacing:.05em;text-transform:uppercase;margin-bottom:10px}
+.b2-places{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.b2-place{background:#fff;border:2px solid var(--line);border-radius:14px;padding:14px 10px;text-align:center;font-size:17px;font-weight:700;color:#334155;line-height:1.2;opacity:0;transform:translateY(14px);transition:all .45s}
+.b2-place .b2-ico{margin:0 auto 8px}
+.b2-place.on{opacity:1;transform:none}
+.b2-place.any{border-color:var(--coral);background:#FFF7ED}
+.b2-place.any .b2-ico{background:var(--coral)}.b2-place.any .b2-ico svg{stroke:#fff}
+
+/* 2. related services */
+.b2-grp{position:absolute;left:70px;width:680px;background:#fff;border:2px solid var(--line);border-radius:16px;padding:12px 16px;opacity:0;transform:translateY(14px);transition:all .5s}
+.b2-grp.on{opacity:1;transform:none}
+.b2-grp h4{margin:0 0 8px;font-family:"Outfit",sans-serif;font-size:19px;color:var(--teal)}
+.b2-grp .chip{margin:0 6px 8px 0;font-size:16px;padding:5px 12px}
+
+/* 3. referral */
+.b2-letter{position:absolute;left:70px;top:140px;width:340px;height:270px;background:#fff;border-radius:12px;border:1px solid var(--line);box-shadow:0 14px 30px rgba(15,23,42,.13);padding:18px 20px;font-size:15px;color:#334155}
+.b2-letter h4{margin:0 0 10px;font-family:"Outfit",sans-serif;font-size:19px;color:var(--teal)}
+.b2-letter .ln{height:9px;border-radius:5px;background:#E2E8F0;margin:8px 0}
+.b2-letter .tx{min-height:66px;font-size:16px;line-height:1.35;color:#1E293B}
+.b2-letter .sig{margin-top:12px;border-top:2px solid #94A3B8;padding-top:4px;font-size:13px;color:#64748B}
+.b2-arrow{position:absolute;left:420px;top:250px;width:50px;height:40px}
+.b2-resp{position:absolute;left:480px;top:140px;width:270px}
+.b2-resp .lbl{font-size:15px;font-weight:800;color:var(--soft);letter-spacing:.05em;text-transform:uppercase;margin-bottom:8px}
+.b2-r{background:#fff;border:2px solid var(--line);border-radius:14px;padding:12px 14px;font-size:18px;font-weight:700;margin-bottom:10px;opacity:0;transform:translateX(20px);transition:all .45s;color:#334155}
+.b2-r.on{opacity:1;transform:none}
+.b2-r small{display:block;font-size:14px;font-weight:600;color:var(--soft)}
+.b2-r.yes{border-color:#86EFAC;background:#F0FDF4;color:#166534}
+.b2-r.no{border-color:#FCA5A5;background:#FEF2F2;color:#991B1B}
+.b2-r.try{border-color:#FCD34D;background:#FEF3C7;color:#92400E}
+.b2-tip{position:absolute;left:70px;top:450px;width:680px;background:#FFF7ED;border:2px solid #FDBA74;border-radius:16px;padding:14px 18px;display:flex;gap:14px;align-items:flex-start;font-size:18px;color:#7C2D12;line-height:1.35;opacity:0;transform:translateY(14px);transition:all .5s}
+.b2-tip.on{opacity:1;transform:none}
+.b2-tip b{color:#C2410C}
+.b2-tip .b2-ico{background:var(--coral)}.b2-tip .b2-ico svg{stroke:#fff}
+
+/* 4. evaluation */
+.b2-src{position:absolute;left:70px;top:150px;width:680px;display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.b2-s{background:#fff;border:2px solid var(--line);border-radius:14px;padding:12px 6px;text-align:center;font-size:15px;font-weight:700;color:#334155;line-height:1.2;opacity:0;transform:translateY(14px);transition:all .45s}
+.b2-s .b2-ico{margin:0 auto 6px}
+.b2-s.on{opacity:1;transform:none}
+.b2-fit{position:absolute;left:70px;top:330px;width:680px}
+.b2-fit .lbl{font-size:17px;font-weight:800;color:#C2410C;margin-bottom:10px}
+.b2-opts{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.b2-o{display:flex;gap:12px;align-items:center;background:#fff;border:2px solid var(--line);border-radius:14px;padding:12px 14px;font-size:18px;font-weight:700;color:#334155;opacity:0;transform:translateY(14px);transition:all .45s}
+.b2-o.on{opacity:1;transform:none}
+.b2-o .n{width:32px;height:32px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;font-family:"Outfit",sans-serif;font-weight:800;flex:none}
+.b2-o.iee{border-color:var(--coral);background:#FFF7ED}.b2-o.iee .n{background:var(--coral)}
+
+/* 5. eligibility */
+.b2-dec{position:absolute;left:200px;top:140px;width:420px;background:var(--teal);color:#fff;border-radius:18px;padding:16px 20px;text-align:center;box-shadow:0 14px 30px rgba(14,116,144,.25)}
+.b2-dec h3{margin:0 0 4px;font-family:"Outfit",sans-serif;font-size:24px}
+.b2-dec p{margin:0;font-size:16px;color:#CFFAFE}
+.b2-fork{position:absolute;left:70px;top:252px;width:680px;height:80px}
+.b2-br{position:absolute;top:340px;width:320px;border-radius:16px;padding:16px 18px;background:#fff;border:2px solid var(--line);opacity:0;transform:translateY(14px);transition:all .5s}
+.b2-br.on{opacity:1;transform:none}
+.b2-br h4{margin:0 0 8px;font-family:"Outfit",sans-serif;font-size:22px}
+.b2-br div{font-size:17px;color:#334155;padding:6px 0;border-top:1px solid #F1F5F9;display:flex;gap:10px;align-items:center}
+.b2-br div:first-of-type{border-top:0}
+.b2-br.agree{left:70px;border-color:#86EFAC}.b2-br.agree h4{color:#15803D}
+.b2-br.dis{left:430px;border-color:#FDBA74}.b2-br.dis h4{color:#C2410C}
+.b2-br .must{background:#FEF08A;border-radius:8px;padding:6px 8px;font-weight:700}
+
+/* 6. team */
+.b2-seats{position:absolute;left:70px;top:146px;width:680px;display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.b2-seat{background:#fff;border:2px solid var(--line);border-radius:14px;padding:12px 6px;text-align:center;font-size:15px;font-weight:700;line-height:1.2;color:#334155;opacity:0;transform:scale(.7);transition:all .45s cubic-bezier(.3,1.3,.5,1)}
+.b2-seat i{display:block;width:44px;height:44px;margin:0 auto 8px;border-radius:50%;background:#CFFAFE;font-style:normal;font-size:20px;line-height:44px;color:#0E7490;font-family:"Outfit",sans-serif;font-weight:800}
+.b2-seat.on{opacity:1;transform:none}
+.b2-seat.you{border-color:var(--coral);background:#FFF7ED}.b2-seat.you i{background:var(--coral);color:#fff}
+.b2-opt{position:absolute;left:70px;top:296px;width:680px;display:flex;gap:10px;align-items:center}
+.b2-opt .lbl{font-size:15px;font-weight:800;color:var(--soft);letter-spacing:.05em;text-transform:uppercase;width:120px}
+.b2-os{flex:1;border:2px dashed #94A3B8;border-radius:14px;padding:12px;text-align:center;font-size:16px;font-weight:700;color:#475569;opacity:0;transition:opacity .45s}
+.b2-os.on{opacity:1}
+.b2-notice{position:absolute;left:70px;top:390px;width:680px;background:#fff;border-radius:14px;border:1px solid var(--line);box-shadow:0 14px 30px rgba(15,23,42,.10);padding:16px 22px}
+.b2-notice h4{margin:0 0 8px;font-family:"Outfit",sans-serif;font-size:20px;color:var(--teal)}
+.b2-nr{display:flex;gap:12px;align-items:center;padding:8px 0;border-top:1px solid #F1F5F9;font-size:18px;color:#334155;opacity:.25;transition:opacity .45s}
+.b2-nr.on{opacity:1}
+.b2-nr svg{width:24px;height:24px;flex:none;fill:none;stroke:#16A34A;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+
+/* 7. developing the IEP */
+.b2-col{position:absolute;top:136px;width:332px;background:#fff;border-radius:14px;border:1px solid var(--line);box-shadow:0 14px 30px rgba(15,23,42,.10);padding:14px 16px}
+.b2-col h4{margin:0 0 8px;font-family:"Outfit",sans-serif;font-size:21px;color:var(--teal)}
+.b2-col.doc{border-top:6px solid var(--coral)}.b2-col.doc h4{color:#C2410C}
+.b2-it{display:flex;gap:10px;align-items:center;font-size:18px;color:#334155;padding:6px 0;opacity:.18;transition:opacity .35s}
+.b2-it.on{opacity:1}
+.b2-it svg{width:18px;height:18px;flex:none;fill:none;stroke:#0E7490;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.b2-col.doc .b2-it svg{stroke:#C2410C}
+
+/* 8. placement */
+.b2-order{position:absolute;left:70px;top:150px;width:680px;display:flex;align-items:center;gap:10px}
+.b2-ob{flex:1;min-height:128px;box-sizing:border-box;background:#fff;border:2px solid var(--line);border-radius:16px;padding:14px;text-align:center;opacity:0;transform:translateY(14px);transition:all .45s}
+.b2-ob.on{opacity:1;transform:none}
+.b2-ob .n{display:inline-flex;width:34px;height:34px;border-radius:50%;background:var(--teal);color:#fff;align-items:center;justify-content:center;font-family:"Outfit",sans-serif;font-weight:800;margin-bottom:6px}
+.b2-ob h4{margin:0;font-family:"Outfit",sans-serif;font-size:21px;color:var(--ink)}
+.b2-ob p{margin:4px 0 0;font-size:15px;color:var(--soft)}
+.b2-ob.last{border-color:var(--coral);background:#FFF7ED}.b2-ob.last .n{background:var(--coral)}
+.b2-chev{font-size:34px;color:#CBD5E1;font-weight:800}
+.b2-prog{position:absolute;left:70px;top:330px;width:680px;height:130px;border-radius:18px;background:linear-gradient(135deg,#0B4F61,#0891B2);color:#fff;display:flex;align-items:center;gap:22px;padding:0 28px;box-sizing:border-box;opacity:0;transition:opacity .5s}
+.b2-prog.on{opacity:1}
+.b2-prog .big{font-size:34px;line-height:1.1}
+.b2-prog small{display:block;font-size:17px;color:#A5F3FC;font-weight:600;margin-top:4px;font-family:"Source Sans 3",sans-serif}
+.b2-lre{position:absolute;left:70px;top:490px;width:680px;display:flex;gap:14px}
+.b2-lr{flex:1;background:#fff;border:2px solid var(--line);border-radius:14px;padding:12px 16px;font-size:17px;color:#334155;opacity:0;transform:translateY(14px);transition:all .45s}
+.b2-lr.on{opacity:1;transform:none}
+.b2-lre b{display:block;font-family:"Outfit",sans-serif;font-size:19px;color:var(--teal);margin-bottom:2px}
+
+/* 9. due process */
+.b2-stairs{position:absolute;left:70px;top:150px;width:680px;height:470px}
+.b2-st{position:absolute;bottom:40px;width:124px;border-radius:14px 14px 0 0;background:#ECFEFF;border:2px solid #A5F3FC;border-bottom:0;padding:12px 8px;box-sizing:border-box;text-align:center;font-size:16px;font-weight:700;color:#0B4F61;line-height:1.2;opacity:0;transform:translateY(20px);transition:all .5s}
+.b2-st.on{opacity:1;transform:none}
+.b2-st .n{display:inline-flex;width:30px;height:30px;border-radius:50%;background:var(--teal);color:#fff;align-items:center;justify-content:center;font-family:"Outfit",sans-serif;font-weight:800;margin-bottom:6px}
+.b2-st small{display:block;font-size:13px;font-weight:700;color:#C2410C;margin-top:6px}
+.b2-st.b2-top{background:#FFF7ED;border-color:#FDBA74}.b2-st.b2-top .n{background:var(--coral)}
+.b2-base{position:absolute;left:0;bottom:0;width:680px;height:40px;display:flex;justify-content:space-between;align-items:center;border-top:3px solid #CBD5E1;font-size:15px;font-weight:800;color:var(--soft);letter-spacing:.05em;text-transform:uppercase}
+</style>
+</head><body>
+<div id="view"><div id="stage"><div id="nbar"><i></i></div>
+<div id="scenes"></div>
+<div id="spot"></div>
+<svg id="cursor" viewBox="0 0 28 32"><path d="M3 2 L3 26 L9.5 19.5 L14 29 L18.5 27 L14 17.5 L23 17.5 Z" fill="#fff" stroke="#0F172A" stroke-width="2" stroke-linejoin="round"/></svg>
+</div></div>
+<div id="cap" aria-live="polite"></div>
+<div id="bar">
+ <button id="prev">Back</button><button id="play">Start</button><button id="next">Next</button>
+ <div id="dots"></div>
+ <button id="capbtn" aria-pressed="false">Captions</button><button id="voice" aria-pressed="true">Voice on</button>
+</div>
+<script src="lesson-kit.js?v=2"></script>
+<script>
+const DECK_ID='cert-bronze-2';
+const L={tier:'bronze',lesson:'Bronze Lesson 2',title:'What Do I Need to Know?'};
+
+/* inline icons (stroke paths, 24x24) */
+const B2P={
+ school:'<path d="M3 10l9-6 9 6"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/>',
+ home:'<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
+ hosp:'<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/>',
+ pin:'<path d="M12 21s-7-6.5-7-11a7 7 0 0 1 14 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>',
+ test:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 9h6M9 13h6M9 17h4"/>',
+ med:'<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/>',
+ eye:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+ work:'<path d="M4 20V4"/><path d="M4 20h16"/><path d="M7 15l4-4 3 3 5-6"/>',
+ talk:'<path d="M4 5h16v11H9l-5 4z"/>',
+ pen:'<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/>',
+ bulb:'<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/>'};
+const b2ic=k=>`<span class="b2-ico"><svg viewBox="0 0 24 24">${B2P[k]}</svg></span>`;
+const TICK='<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>';
+const b2items=(list)=>list.map(t=>`<div class="b2-it">${TICK}<span>${t}</span></div>`).join('');
+const b2on=async(sel,gap=220)=>{for(const e of all(sel)){e.classList.add('on');await wait(gap)}};
+const b2one=(sel,i)=>{const e=all(sel)[i];if(e){e.classList.add('on');spot(e,6)}return e};
+
+const SC=[
+COVER({...L,title:'What Do I Need to Know About Special Education?',
+ sub:'The essential steps, from the first written request to your due process rights.',
+ say:'Aloha, and welcome back. In Lesson 1 you built a foundation. Now we build on it. This lesson gives you the essential knowledge every I E P advocate should have: what special education means, and each step of the process, so you can advocate with confidence and purpose.'}),
+
+/* 1. what special education means */
+{html:()=>HEAD('The basics','What special education means')+`<div class="b2-def"><h3>Special education is…</h3>
+ <div class="b2-part"><span class="n">1</span>Specially designed instruction</div>
+ <div class="b2-part"><span class="n">2</span>At no cost to parents</div>
+ <div class="b2-part"><span class="n">3</span>Meeting your child’s disability-related needs</div></div>
+ <div class="b2-where"><div class="lbl">Delivered wherever your child is</div><div class="b2-places">
+ <div class="b2-place">${b2ic('school')}Classrooms</div><div class="b2-place">${b2ic('home')}Homes</div>
+ <div class="b2-place">${b2ic('hosp')}Hospitals</div><div class="b2-place any">${b2ic('pin')}Wherever your child attends school</div></div></div>`+PTS([
+ 'Teaching that is <b>specially designed</b> for your child.',
+ '<b>No cost</b> to parents.',
+ 'Built around your child’s <b>disability-related needs</b>.',
+ 'Delivered in classrooms, homes, hospitals, or wherever your child attends school.'],150),
+ steps:[
+ {say:'Let’s start with the words themselves. What does special education mean?',act:async()=>{spot(q('.b2-def'),6)}},
+ {say:'First, it is specially designed instruction. Teaching that is shaped around your child, not a one-size-fits-all lesson.',li:0,act:async()=>{b2one('.b2-part',0)}},
+ {say:'Second, it comes at no cost to parents. Special education is free to your family.',li:1,act:async()=>{b2one('.b2-part',1)}},
+ {say:'Third, it meets your child’s disability-related needs. The needs come first, and the instruction is built to meet them.',li:2,act:async()=>{b2one('.b2-part',2)}},
+ {say:'And it is not tied to one room. It can be delivered in classrooms, in homes, in hospitals, or wherever your child attends school.',li:3,act:async()=>{spot(null);await b2on('.b2-place',300);spot(q('.b2-place.any'),6)}}]},
+
+/* 2. related services */
+{html:()=>HEAD('Part 1 of 8','Related services')+`
+ <div class="b2-grp b2-g1" style="top:140px"><h4>Communication</h4><span class="chip">Speech-language</span><span class="chip">Audiology</span><span class="chip">Interpreting</span></div>
+ <div class="b2-grp b2-g2" style="top:250px"><h4>Body, movement and health</h4><span class="chip">Physical and occupational therapy (PT/OT)</span><span class="chip">Recreation</span><span class="chip">Orientation and mobility</span><span class="chip">Medical evaluation</span><span class="chip">School health and nursing</span></div>
+ <div class="b2-grp b2-g3" style="top:404px"><h4>Mind, feelings and family</h4><span class="chip">Psychological services</span><span class="chip">Counseling</span><span class="chip">Social work</span><span class="chip coral">Parent counseling and training</span><span class="chip sand">Early identification</span></div>`+PTS([
+ 'Special education can come with <b>related services</b>.',
+ 'Communication: speech-language, audiology, interpreting.',
+ 'Body and health: PT/OT, recreation, orientation and mobility, medical evaluation, school health and nursing.',
+ 'Psychological services, counseling, social work, early identification.',
+ 'Even <b>parent counseling and training</b>.'],140),
+ steps:[
+ {say:'Special education can also include related services. Here is the list. You do not need to memorize it. You need to know it exists, so you can ask.',li:0},
+ {say:'Communication services: speech-language, audiology, and interpreting.',li:1,act:async()=>{const g=q('.b2-g1');g.classList.add('on');spot(g,6)}},
+ {say:'Services for the body and health: physical and occupational therapy, recreation, orientation and mobility, medical evaluation, and school health and nursing.',li:2,act:async()=>{const g=q('.b2-g2');g.classList.add('on');spot(g,6)}},
+ {say:'Psychological services, counseling, social work, and early identification.',li:3,act:async()=>{const g=q('.b2-g3');g.classList.add('on');spot(g,6)}},
+ {say:'And look at this one. Parent counseling and training. Support for you is on the list too.',li:4,act:async()=>{spot(q('.b2-g3 .chip.coral'),6);await wait(1500);spot(null)}}]},
+
+/* 3. referral */
+{html:()=>HEAD('Part 2 of 8','Referral')+`<div class="b2-letter"><h4>Request for evaluation</h4><div class="tx b2-tx"></div><div class="ln"></div><div class="ln" style="width:75%"></div>
+ <div class="sig">Parent signature and date</div></div>
+ <svg class="b2-arrow" viewBox="0 0 50 40"><path d="M4 20h36M30 10l12 10-12 10" fill="none" stroke="#94A3B8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+ <div class="b2-resp"><div class="lbl">The district answers in writing</div>
+ <div class="b2-r yes">Yes<small>We will evaluate.</small></div>
+ <div class="b2-r no">No<small>We will not evaluate.</small></div>
+ <div class="b2-r try">Try something else first<small>A new teaching method, or accommodations.</small></div></div>
+ <div class="b2-tip">${b2ic('bulb')}<div><b>Pro Tip:</b> Put every request to the school in writing: for an evaluation, for records, or for a meeting.</div></div>`+PTS([
+ 'The <b>school or the parent</b> can request an evaluation.',
+ 'The request is made <b>in writing</b>.',
+ 'The district must respond <b>in writing</b>: yes, no, or try something else first.',
+ '<b>Pro Tip:</b> verbal requests are harder to track and don’t start the clock on the school’s response deadlines.'],140),
+ steps:[
+ {say:'Now the process itself. It often starts with a referral. Either the school or the parent can ask for an evaluation.',li:0,act:async()=>{spot(q('.b2-letter'),6)}},
+ {say:'That request is made in writing. A short, dated letter is enough to start.',li:1,act:async()=>{await type(q('.b2-tx'),'I am asking the school to evaluate my child for special education.',30)}},
+ {say:'The district must respond in writing too. The answer will be yes, or no, or let’s try something else first, such as a new teaching method or accommodations.',li:2,act:async()=>{spot(null);await b2on('.b2-r',450)}},
+ {say:'Here is a pro tip for every part of this lesson. Put every request to the school in writing. For an evaluation, for records, or for a meeting. Verbal requests are harder to track, and they don’t start the clock on the school’s response deadlines.',li:3,act:async()=>{const t=q('.b2-tip');t.classList.add('on');spot(t,6)}}]},
+
+/* 4. evaluation */
+{html:()=>HEAD('Part 3 of 8','Evaluation')+`<div class="b2-src">
+ <div class="b2-s">${b2ic('test')}Tests</div><div class="b2-s">${b2ic('med')}Medical reports</div><div class="b2-s">${b2ic('eye')}Observation</div><div class="b2-s">${b2ic('work')}Work samples</div><div class="b2-s">${b2ic('talk')}Interviews</div></div>
+ <div class="b2-fit"><div class="lbl b2-in">Results don’t fit what you know about your child?</div><div class="b2-opts">
+ <div class="b2-o"><span class="n">1</span>Say so in writing</div><div class="b2-o"><span class="n">2</span>Meet with the team</div>
+ <div class="b2-o"><span class="n">3</span>Ask for more testing</div><div class="b2-o iee"><span class="n">4</span>Request an Independent Educational Evaluation (IEE)</div></div></div>`+PTS([
+ 'Decides if your child <b>has a disability</b> and <b>needs services</b>.',
+ 'Uses tests, medical reports, observation, work samples and interviews.',
+ 'Results don’t fit? Say so <b>in writing</b>, meet, ask for more testing.',
+ 'Or request an <b>Independent Educational Evaluation</b> (IEE).'],140),
+ steps:[
+ {say:'Part three is the evaluation. It answers two questions. Does your child have a disability? And does your child need services?',li:0},
+ {say:'To answer them, the evaluation gathers information: tests, medical reports, observation, samples of your child’s work, and interviews.',li:1,act:async()=>{await b2on('.b2-s',300)}},
+ {say:'You know your child. If the results don’t fit what you know, you have options. Say so in writing. Meet with the team. Ask for more testing.',li:2,act:async()=>{q('.b2-fit .lbl').classList.add('on');const o=all('.b2-o');for(let i=0;i<3;i++){o[i].classList.add('on');await wait(500)}}},
+ {say:'Or request an Independent Educational Evaluation, called an I E E.',li:3,act:async()=>{const e=b2one('.b2-o',3);await wait(1500);spot(null)}}]},
+
+/* 5. eligibility */
+{html:()=>HEAD('Part 4 of 8','Eligibility')+`<div class="b2-dec"><h3>Is my child eligible?</h3><p>Decided by a team of parents and professionals</p></div>
+ <svg class="b2-fork" viewBox="0 0 680 80"><path d="M340 0v24M340 24H160v52M340 24H520v52" fill="none" stroke="#CBD5E1" stroke-width="4" stroke-linecap="round"/></svg>
+ <div class="b2-br agree"><h4>You agree</h4><div>${TICK.replace('<svg','<svg width="22" height="22" fill="none" stroke="#16A34A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"')}The team meets to write the IEP</div><div class="must">Parents must be invited</div></div>
+ <div class="b2-br dis"><h4>You disagree</h4><div><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#C2410C" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${B2P.pen}</svg>Put it in writing</div><div><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#C2410C" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 14-5l2 2M20 12a8 8 0 0 1-14 5l-2-2"/><path d="M20 4v5h-5M4 20v-5h5"/></svg>Follow up</div></div>`+PTS([
+ 'Eligibility is decided by a <b>team of parents and professionals</b>.',
+ 'Agree? The team meets to <b>write the IEP</b>. Parents <b>must be invited</b>.',
+ 'Disagree? Put it <b>in writing</b> and <b>follow up</b>.'],150),
+ steps:[
+ {say:'Part four is eligibility. Who decides? Not one person. A team of parents and professionals. You are part of that decision.',li:0,act:async()=>{spot(q('.b2-dec'),6)}},
+ {say:'If you agree that your child is eligible, the team meets to write the I E P. And parents must be invited to that meeting.',li:1,act:async()=>{const b=q('.b2-br.agree');b.classList.add('on');spot(b,6)}},
+ {say:'If you disagree, you put it in writing, and you follow up. Your disagreement is part of the record.',li:2,act:async()=>{const b=q('.b2-br.dis');b.classList.add('on');spot(b,6);await wait(1500);spot(null)}}]},
+
+/* 6. IEP team */
+{html:()=>HEAD('Part 5 of 8','The IEP team')+`<div class="b2-seats">
+ <div class="b2-seat you"><i>P</i>Parents</div><div class="b2-seat"><i>S</i>Special ed teacher</div><div class="b2-seat"><i>R</i>Regular ed teacher</div><div class="b2-seat"><i>D</i>District rep</div><div class="b2-seat"><i>E</i>Evaluation expert</div></div>
+ <div class="b2-opt"><div class="lbl">Optional</div><div class="b2-os">Your child</div><div class="b2-os">Others</div></div>
+ <div class="b2-notice"><h4>The school must…</h4>
+ <div class="b2-nr">${TICK}Give you advance notice of the meeting</div>
+ <div class="b2-nr">${TICK}Set a workable time and place</div>
+ <div class="b2-nr">${TICK}Explain the purpose and who will attend</div></div>`+PTS([
+ '<b>Parents</b> are a required, equal member of the team.',
+ 'Special ed teacher, regular ed teacher, district rep, evaluation expert.',
+ 'Optional: <b>your child</b>, and others.',
+ 'The school gives <b>advance notice</b>, a <b>workable time and place</b>, the <b>purpose</b> and <b>who will attend</b>.'],140),
+ steps:[
+ {say:'Part five is the I E P team. The first seat is yours. Parents are a required, equal member of this team. Not just an invited guest.',li:0,act:async()=>{b2one('.b2-seat',0)}},
+ {say:'Next to you: a special education teacher, a regular education teacher, a district representative, and someone who is an expert on the evaluation and what it means.',li:1,act:async()=>{spot(null);const s=all('.b2-seat');for(let i=1;i<5;i++){s[i].classList.add('on');await wait(350)}}},
+ {say:'Your child can join too, when it makes sense, and so can others.',li:2,act:async()=>{await b2on('.b2-os',350)}},
+ {say:'The school has duties before the meeting. It must give you advance notice. It must set a time and place that works. And it must explain the purpose of the meeting and who will attend.',li:3,act:async()=>{spot(q('.b2-notice'),6);await b2on('.b2-nr',700)}}]},
+
+/* 7. developing the IEP */
+{html:()=>HEAD('Part 6 of 8','Developing the IEP')+`
+ <div class="b2-col" style="left:70px"><h4>The team must cover</h4>${b2items(['Your child’s strengths','Parent concerns','Evaluation results','Academic and functional needs','Services','Behavior','Language needs','Braille, if needed','Assistive technology'])}</div>
+ <div class="b2-col doc" style="left:418px"><h4>The final IEP includes</h4>${b2items(['Current performance','Annual goals','Services','Least Restrictive Environment','Modifications','Service dates and locations','Transition services (age 14+)','Age of majority','How progress is measured'])}</div>`+PTS([
+ 'In the meeting, the team must cover your child’s <b>strengths</b> and <b>your concerns</b>.',
+ 'Then results, needs, services, behavior, language, Braille and assistive technology.',
+ 'The final IEP is a written plan: performance, <b>annual goals</b>, services, LRE and more.',
+ 'Transition services start at <b>age 14+</b>.'],140),
+ steps:[
+ {say:'Part six is developing the I E P. When the team meets, there is a list of things it must cover.',act:async()=>{spot(all('.b2-col')[0],6)}},
+ {say:'The list starts with your child’s strengths, and with parent concerns. Your concerns are on the list, by name.',li:0,act:async()=>{const it=all('.b2-col')[0].querySelectorAll('.b2-it');for(let i=0;i<2;i++){it[i].classList.add('on');await wait(400)}}},
+ {say:'Then the evaluation results, academic and functional needs, services, behavior, language needs, Braille if needed, and assistive technology.',li:1,act:async()=>{const it=all('.b2-col')[0].querySelectorAll('.b2-it');for(let i=2;i<it.length;i++){it[i].classList.add('on');await wait(380)}}},
+ {say:'Then the final I E P is written. It includes your child’s current performance, annual goals, services, the Least Restrictive Environment, modifications, and the dates and locations of services.',li:2,act:async()=>{const c=all('.b2-col')[1];spot(c,6);const it=c.querySelectorAll('.b2-it');for(let i=0;i<6;i++){it[i].classList.add('on');await wait(420)}}},
+ {say:'It also covers transition services from age fourteen, the age of majority, and how progress will be measured.',li:3,act:async()=>{const it=all('.b2-col')[1].querySelectorAll('.b2-it');for(let i=6;i<it.length;i++){it[i].classList.add('on');await wait(420)}await wait(800);spot(null)}}]},
+
+/* 8. placement */
+{html:()=>HEAD('Part 7 of 8','Placement')+`<div class="b2-order">
+ <div class="b2-ob"><span class="n">1</span><h4>Goals</h4><p>Your child’s targets</p></div><span class="b2-chev">›</span>
+ <div class="b2-ob"><span class="n">2</span><h4>Services</h4><p>The support to reach them</p></div><span class="b2-chev">›</span>
+ <div class="b2-ob last"><span class="n">3</span><h4>Where</h4><p>Decided last</p></div></div>
+ <div class="b2-prog"><svg viewBox="0 0 24 24" width="58" height="58" fill="none" stroke="#FDBA74" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 9h6M9 13h6M9 17h4"/></svg><div><div class="big">A program, not a place.</div><small>Placement follows your child’s needs.</small></div></div>
+ <div class="b2-lre"><div class="b2-lr"><b>Least Restrictive Environment</b>What the team aims for.</div><div class="b2-lr"><b>You help decide</b>And you can contest it in writing.</div></div>`+PTS([
+ 'Placement is <b>a program, not a place</b>.',
+ 'The team sets <b>goals and services first</b>, then decides where.',
+ 'The aim is the <b>Least Restrictive Environment</b>.',
+ 'Parents <b>help decide</b>, and can <b>contest in writing</b>.'],150),
+ steps:[
+ {say:'Part seven is placement. Here is the most important idea in this lesson. Placement is a program, not a place.',li:0,act:async()=>{const p=q('.b2-prog');p.classList.add('on');spot(p,6)}},
+ {say:'The order matters. The team sets the goals first. Then the services. Only then does it decide where.',li:1,act:async()=>{spot(null);await b2on('.b2-ob',600);spot(q('.b2-ob.last'),6)}},
+ {say:'When it decides where, the team aims for the Least Restrictive Environment.',li:2,act:async()=>{b2one('.b2-lr',0)}},
+ {say:'And parents help make this decision. If you do not agree with the placement, you can contest it in writing.',li:3,act:async()=>{b2one('.b2-lr',1);await wait(1500);spot(null)}}]},
+
+/* 9. due process */
+{html:()=>HEAD('Part 8 of 8','Due process rights')+`<div class="b2-stairs">
+ <div class="b2-st" style="left:0;height:140px"><span class="n">1</span><br>Meet with school staff</div>
+ <div class="b2-st" style="left:139px;height:195px"><span class="n">2</span><br>Mediation</div>
+ <div class="b2-st" style="left:278px;height:250px"><span class="n">3</span><br>Resolution Session<small>within 15 days of a complaint</small></div>
+ <div class="b2-st" style="left:417px;height:305px"><span class="n">4</span><br>Due Process Hearing</div>
+ <div class="b2-st b2-top" style="left:556px;height:360px"><span class="n">5</span><br>State Complaint</div>
+ <div class="b2-base"><span>Informal</span><span>Formal</span></div></div>`+PTS([
+ 'If you disagree, due process gives you a <b>clear path</b>.',
+ '<b>Meet</b> with school staff. <b>Mediation</b>.',
+ '<b>Resolution Session</b>, within 15 days of a complaint.',
+ '<b>Due Process Hearing</b>. <b>State Complaint</b>.'],150),
+ steps:[
+ {say:'Part eight is your due process rights. If you disagree with a decision, eligibility, placement, or anything else, these give you a clear path to resolve it.',li:0},
+ {say:'The most informal option is to meet with school staff. Many problems are solved right there. Next is mediation.',li:1,act:async()=>{const s=all('.b2-st');s[0].classList.add('on');spot(s[0],6);await wait(1400);s[1].classList.add('on');spot(s[1],6)}},
+ {say:'There is a resolution session, held within fifteen days of a complaint.',li:2,act:async()=>{b2one('.b2-st',2)}},
+ {say:'Then a due process hearing, and a state complaint. From an informal meeting, all the way to a formal state complaint, you have a way to be heard.',li:3,act:async()=>{const s=all('.b2-st');s[3].classList.add('on');spot(s[3],6);await wait(1300);s[4].classList.add('on');spot(s[4],6);await wait(1500);spot(null)}}]},
+
+QUIZ([
+ {q:'Where can special education be delivered?',o:['Only in a special education classroom','Only at a separate school','In classrooms, homes, hospitals, or wherever the child attends school'],a:2,y:'Special education goes wherever your child is.',n:'Think about the four places on the first slide.'},
+ {q:'The evaluation results don’t match what you know about your child. What can you do?',o:['Nothing. The results are final.','Say so in writing, meet, ask for more testing, or request an IEE','Wait a year and ask again'],a:1,y:'You have options, and an IEE is one of them.',n:'Think about the four numbered options we saw.'},
+ {q:'When deciding placement, what does the team decide first?',o:['Goals and services, then where','The school building, then the goals','The classroom, then the services'],a:0,y:'Placement is a program, not a place. Where comes last.',n:'Think about the three boxes in order.'}]),
+
+RECAP([
+ 'Special education is <b>specially designed instruction</b>, at <b>no cost</b> to parents.',
+ 'Put <b>every request in writing</b>: evaluation, records, meetings.',
+ 'You are a <b>required, equal member</b> of the IEP team.',
+ 'Placement is <b>a program, not a place</b>. Goals and services come first.',
+ 'Disagree? <b>Contest it in writing</b> and ask for further review.',
+ 'Due process runs from an <b>informal meeting</b> to a <b>formal state complaint</b>.'],[
+ 'Special education is specially designed instruction, at no cost to parents, built around your child’s needs.',
+ 'Put every request to the school in writing.',
+ 'You are a required, equal member of the I E P team, not just an invited guest.',
+ 'Placement is a program, not a place. Goals and services come first, then where.',
+ 'If you disagree with any decision, you can contest it in writing and ask for further review.',
+ 'And due process gives you a clear path, from an informal meeting all the way to a formal state complaint.']),
+
+CLOSE({...L,sub:'Next: the pop quiz on the lesson page, then select Complete.',
+ say:'Mahalo! That is Lesson 2. You now know the essential steps of special education, and the rights you have at each one. Next, take the short pop quiz that follows on the lesson page, then select Complete on the lesson page when you are ready to move on.'})
+];
+</script>
+<script src="deck-engine.js?v=1"></script></body></html>

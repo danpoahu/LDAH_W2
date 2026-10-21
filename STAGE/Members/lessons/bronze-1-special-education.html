@@ -1,0 +1,313 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bronze Lesson 1: What Is Special Education?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="deck-base.css?v=1">
+<link rel="stylesheet" href="lesson-theme.css?v=2">
+<style>
+/* b1- = this deck only */
+.b1-ico{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+
+/* FAPE tiles */
+.b1-fape{position:absolute;left:70px;top:150px;width:680px;display:flex;gap:16px}
+.b1-let{flex:1;height:200px;border-radius:20px;background:#fff;border:2px solid var(--line);box-shadow:0 12px 28px rgba(15,23,42,.08);display:flex;flex-direction:column;align-items:center;justify-content:center;transition:all .5s}
+.b1-let b{font-family:"Outfit",sans-serif;font-size:84px;font-weight:800;color:#CBD5E1;line-height:1;transition:color .4s}
+.b1-let span{font-size:21px;font-weight:700;color:var(--ink);margin-top:10px;opacity:0;transform:translateY(8px);transition:all .4s}
+.b1-let.on{border-color:var(--teal2);transform:translateY(-6px)}
+.b1-let.on b{color:var(--teal)}
+.b1-let.on span{opacity:1;transform:none}
+.b1-feed{position:absolute;left:70px;top:400px;width:680px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.b1-fc{background:#fff;border:2px solid var(--line);border-radius:16px;padding:16px 18px;display:flex;gap:14px;align-items:center;font-size:19px;font-weight:700;color:var(--ink);opacity:0;transform:translateY(14px);transition:all .45s}
+.b1-fc.on{opacity:1;transform:none}
+.b1-fc i{width:48px;height:48px;border-radius:12px;background:#ECFEFF;color:#0E7490;flex:none;display:flex;align-items:center;justify-content:center}
+.b1-fc small{display:block;font-size:15px;color:var(--soft);font-weight:600}
+.b1-law{position:absolute;left:70px;top:560px;width:680px;background:#FFF7ED;border:2px solid #FDBA74;border-radius:16px;padding:16px 20px;font-size:19px;font-weight:700;color:#9A3412;display:flex;gap:14px;align-items:center;opacity:0;transition:opacity .5s}
+.b1-law.on{opacity:1}
+
+/* definition quote */
+.b1-quote{position:absolute;left:70px;top:210px;width:670px;background:#fff;border-radius:20px;border:1px solid var(--line);box-shadow:0 16px 34px rgba(15,23,42,.12);padding:34px 36px 30px 64px;font-family:"Outfit",sans-serif;font-size:31px;font-weight:600;line-height:1.45;color:var(--ink)}
+.b1-quote:before{content:"\201C";position:absolute;left:18px;top:2px;font-size:96px;color:var(--coral);font-weight:800}
+.b1-mark{border-radius:6px;padding:0 4px;transition:background .5s,box-shadow .5s}
+.b1-mark.on.m1{background:#CFFAFE}.b1-mark.on.m2{background:#FEF08A}.b1-mark.on.m3{background:#FED7AA}
+.b1-src{position:absolute;left:70px;top:150px}
+.b1-nums{position:absolute;left:70px;top:520px;width:670px;display:flex;gap:14px}
+.b1-num{flex:1;border-radius:14px;padding:12px 14px;font-weight:700;font-size:17px;color:var(--ink);opacity:0;transform:translateY(10px);transition:all .4s}
+.b1-num.on{opacity:1;transform:none}
+.b1-num b{display:block;font-family:"Outfit",sans-serif;font-size:26px}
+.b1-num.n1{background:#CFFAFE}.b1-num.n2{background:#FEF08A}.b1-num.n3{background:#FED7AA}
+
+/* specially designed instruction */
+.b1-plan{position:absolute;left:70px;top:140px;width:660px;background:#fff;border-radius:18px;border:1px solid var(--line);box-shadow:0 14px 32px rgba(15,23,42,.11);padding:22px 26px}
+.b1-plan h4{margin:0 0 6px;font-family:"Outfit",sans-serif;font-size:24px;color:var(--teal)}
+.b1-plan .sub{font-size:15px;color:#94A3B8;margin-bottom:8px}
+.b1-row{display:flex;align-items:center;gap:16px;padding:16px 0;border-top:1px solid #F1F5F9}
+.b1-row i{width:52px;height:52px;border-radius:14px;background:#ECFEFF;color:#0E7490;flex:none;display:flex;align-items:center;justify-content:center}
+.b1-row div{flex:1;font-size:18px;color:var(--soft);line-height:1.3}
+.b1-row div b{display:block;font-size:22px;color:var(--ink)}
+.b1-tog{width:150px;flex:none;position:relative;height:40px;border-radius:999px;background:#E2E8F0;font-size:14px;font-weight:800;color:#64748B;transition:background .4s}
+.b1-tog:before{content:"";position:absolute;left:4px;top:4px;width:32px;height:32px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.2);transition:left .4s}
+.b1-tog span{position:absolute;right:16px;top:10px}
+.b1-tog.on{background:var(--coral);color:#fff}
+.b1-tog.on:before{left:114px}
+.b1-tog.on span{right:auto;left:18px}
+.b1-tog span.b{display:none}.b1-tog.on span.a{display:none}.b1-tog.on span.b{display:inline}
+
+/* no cost bill */
+.b1-bill{position:absolute;left:130px;top:140px;width:520px;background:#fff;border-radius:14px;border:1px solid var(--line);box-shadow:0 16px 34px rgba(15,23,42,.13);padding:26px 30px;font-size:19px;color:#334155}
+.b1-bill h4{margin:0 0 4px;font-family:"Outfit",sans-serif;font-size:25px;color:var(--teal)}
+.b1-bill .b1-from{font-size:15px;color:#94A3B8;margin-bottom:12px}
+.b1-li{display:flex;justify-content:space-between;padding:12px 0;border-top:1px dashed #E2E8F0;opacity:.25;transition:opacity .4s}
+.b1-li.on{opacity:1}
+.b1-li b{font-family:"Outfit",sans-serif}
+.b1-tot{display:flex;justify-content:space-between;padding:14px 0 0;border-top:3px solid var(--ink);font-weight:800;font-size:23px;color:var(--ink)}
+.b1-tot b{font-family:"Outfit",sans-serif;color:#15803D;font-size:30px}
+.b1-stamp{position:absolute;left:380px;top:505px;border:5px solid #16A34A;color:#16A34A;border-radius:14px;padding:8px 18px;font-family:"Outfit",sans-serif;font-weight:800;font-size:26px;letter-spacing:.04em;text-transform:uppercase;background:rgba(240,253,244,.92);opacity:0;transform:rotate(-8deg) scale(1.8);transition:all .45s cubic-bezier(.3,1.4,.5,1)}
+.b1-stamp.on{opacity:1;transform:rotate(-8deg) scale(1)}
+
+/* unique needs ring */
+.b1-kid{position:absolute;left:304px;top:340px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#FDBA74,#EA580C);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-family:"Outfit",sans-serif;font-weight:800;font-size:24px;text-align:center;box-shadow:0 16px 34px rgba(234,88,12,.3)}
+.b1-kid svg{width:64px;height:64px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;margin-bottom:4px}
+.b1-need{position:absolute;width:176px;padding:10px 8px;border-radius:999px;background:#fff;border:2px solid #A5F3FC;color:#0E7490;text-align:center;font-weight:800;font-size:18px;box-shadow:0 8px 18px rgba(15,23,42,.08);opacity:0;transform:scale(.6);transition:all .45s cubic-bezier(.3,1.3,.5,1)}
+.b1-need.on{opacity:1;transform:none}
+
+/* service, not a place */
+.b1-room{position:absolute;left:70px;top:170px;width:280px;height:250px;border-radius:16px;background:#F8FAFC;border:3px solid #CBD5E1;overflow:hidden}
+.b1-room .door{position:absolute;left:96px;top:80px;width:88px;height:170px;background:#E2E8F0;border:3px solid #94A3B8;border-bottom:none;border-radius:8px 8px 0 0}
+.b1-room .door:after{content:"";position:absolute;right:10px;top:84px;width:10px;height:10px;border-radius:50%;background:#94A3B8}
+.b1-room .sign{position:absolute;left:40px;top:22px;width:200px;text-align:center;background:#fff;border:2px solid #CBD5E1;border-radius:8px;padding:6px;font-weight:800;font-size:17px;color:#64748B}
+.b1-x{position:absolute;left:70px;top:170px;width:280px;height:250px;opacity:0;transition:opacity .4s}
+.b1-x.on{opacity:1}
+.b1-x line{stroke:#DC2626;stroke-width:9;stroke-linecap:round}
+.b1-lab{position:absolute;width:280px;text-align:center;font-family:"Outfit",sans-serif;font-weight:800;font-size:22px}
+.b1-pack{position:absolute;left:410px;top:150px;width:330px;display:flex;flex-direction:column;gap:12px}
+.b1-svc{background:#fff;border:2px solid #A5F3FC;border-radius:14px;padding:12px 16px;font-size:18px;font-weight:700;color:var(--ink);display:flex;gap:12px;align-items:center;opacity:0;transform:translateX(30px);transition:all .45s}
+.b1-svc.on{opacity:1;transform:none}
+.b1-svc i{width:40px;height:40px;border-radius:10px;background:#ECFEFF;color:#0E7490;flex:none;display:flex;align-items:center;justify-content:center}
+.b1-follow{position:absolute;left:70px;top:520px;width:670px;background:#ECFEFF;border:2px solid #A5F3FC;border-radius:16px;padding:16px 20px;font-size:19px;font-weight:700;color:#0B4F61;display:flex;gap:14px;align-items:center;opacity:0;transition:opacity .5s}
+.b1-follow.on{opacity:1}
+
+/* IEP document */
+.b1-doc{position:absolute;left:100px;top:140px;width:420px;background:#fff;border-radius:14px;border:1px solid var(--line);box-shadow:0 16px 34px rgba(15,23,42,.13);padding:24px 28px;font-size:18px;color:#334155}
+.b1-doc h4{margin:0 0 2px;font-family:"Outfit",sans-serif;font-size:26px;color:var(--teal)}
+.b1-doc .b1-from{font-size:14px;color:#94A3B8;margin-bottom:12px}
+.b1-sec{padding:12px 0;border-top:1px solid #F1F5F9;opacity:.3;transition:opacity .4s}
+.b1-sec.on{opacity:1}
+.b1-sec b{display:block;font-size:20px;color:var(--ink);margin-bottom:6px}
+.b1-sec .ln{height:9px;border-radius:5px;background:#E2E8F0;margin:6px 0}
+.b1-seal{position:absolute;left:545px;top:420px;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#FDE68A,#D97706);color:#451A03;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-family:"Outfit",sans-serif;font-weight:800;font-size:17px;line-height:1.15;box-shadow:0 12px 26px rgba(217,119,6,.35);opacity:0;transform:scale(.4) rotate(-20deg);transition:all .5s cubic-bezier(.3,1.4,.5,1)}
+.b1-seal.on{opacity:1;transform:none}
+.b1-seal svg{width:34px;height:34px;stroke:#451A03;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;margin-bottom:4px}
+
+/* LRE classroom */
+.b1-class{position:absolute;left:70px;top:150px;width:670px;height:370px;border-radius:20px;background:#fff;border:3px solid var(--line);box-shadow:0 14px 30px rgba(15,23,42,.08)}
+.b1-board{position:absolute;left:180px;top:20px;width:310px;height:56px;border-radius:8px;background:#0B4F61;color:#A5F3FC;font-family:"Outfit",sans-serif;font-weight:700;font-size:20px;display:flex;align-items:center;justify-content:center}
+.b1-desk{position:absolute;width:66px;height:66px;border-radius:50%;background:#CFFAFE;border:3px solid #67E8F9}
+.b1-desk:after{content:"";position:absolute;left:-10px;top:52px;width:80px;height:22px;border-radius:6px;background:#E2E8F0}
+.b1-me{position:absolute;left:660px;top:580px;width:66px;height:66px;border-radius:50%;background:var(--coral);border:3px solid #C2410C;box-shadow:0 8px 20px rgba(249,115,22,.4);transition:left 1.4s ease-in-out,top 1.4s ease-in-out;z-index:2}
+.b1-me.on{left:620px;top:400px}
+.b1-open{background:#fff;border:3px dashed #FDBA74}
+.b1-meter{position:absolute;left:70px;top:560px;width:500px}
+.b1-meter .bar{height:22px;border-radius:999px;background:#E2E8F0;overflow:hidden}
+.b1-meter .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#0891B2,#F97316);transition:width 1.6s ease-out}
+.b1-meter.on .bar i{width:100%}
+.b1-meter .t{font-size:16px;font-weight:700;color:var(--soft);margin-top:8px}
+.b1-meter .t b{color:var(--ink)}
+
+/* the team */
+.b1-tbl{position:absolute;left:230px;top:330px;width:340px;height:190px;border-radius:50%;background:radial-gradient(ellipse at 40% 35%,#A5F3FC,#0891B2);box-shadow:inset 0 -10px 0 rgba(0,0,0,.08),0 18px 30px rgba(15,23,42,.15);display:flex;align-items:center;justify-content:center;color:#fff;font-family:"Outfit",sans-serif;font-weight:800;font-size:26px}
+.b1-seat{position:absolute;width:150px;padding:10px 8px;border-radius:14px;background:#fff;border:2px solid var(--line);text-align:center;font-size:16px;font-weight:700;line-height:1.2;box-shadow:0 8px 20px rgba(15,23,42,.08);opacity:0;transform:scale(.6);transition:all .45s cubic-bezier(.3,1.3,.5,1)}
+.b1-seat i{display:block;width:44px;height:44px;margin:0 auto 6px;border-radius:50%;background:#CFFAFE;font-style:normal;font-size:20px;line-height:44px;color:#0E7490;font-family:"Outfit",sans-serif;font-weight:800}
+.b1-seat.on{opacity:1;transform:none}
+.b1-seat.you{border-color:var(--coral);background:#FFF7ED}
+.b1-seat.you i{background:var(--coral);color:#fff}
+.b1-bub{position:absolute;left:80px;top:590px;width:300px;background:#FFF7ED;border:2px solid #FDBA74;border-radius:18px;padding:12px 18px;font-family:"Outfit",sans-serif;font-weight:800;font-size:22px;color:#C2410C;opacity:0;transform:translateY(10px);transition:all .45s}
+.b1-bub.on{opacity:1;transform:none}
+</style>
+</head><body>
+<div id="view"><div id="stage"><div id="nbar"><i></i></div>
+<div id="scenes"></div>
+<div id="spot"></div>
+<svg id="cursor" viewBox="0 0 28 32"><path d="M3 2 L3 26 L9.5 19.5 L14 29 L18.5 27 L14 17.5 L23 17.5 Z" fill="#fff" stroke="#0F172A" stroke-width="2" stroke-linejoin="round"/></svg>
+</div></div>
+<div id="cap" aria-live="polite"></div>
+<div id="bar">
+ <button id="prev">Back</button><button id="play">Start</button><button id="next">Next</button>
+ <div id="dots"></div>
+ <button id="capbtn" aria-pressed="false">Captions</button><button id="voice" aria-pressed="true">Voice on</button>
+</div>
+<script src="lesson-kit.js?v=2"></script>
+<script>
+const DECK_ID='cert-bronze-1';
+const L={tier:'bronze',lesson:'Bronze Lesson 1',title:'What Is Special Education?'};
+const B1I=(d)=>`<svg class="b1-ico" viewBox="0 0 24 24">${d}</svg>`;
+const B1_BOOK='<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5"/><path d="M9 7h6"/>';
+const B1_HAND='<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/>';
+const B1_SCALE='<path d="M12 3v18"/><path d="M5 21h14"/><path d="M4 8h16"/><path d="M4 8l-2 6a3 3 0 0 0 4 0z"/><path d="M20 8l-2 6a3 3 0 0 0 4 0z"/>';
+const B1_LIST='<path d="M9 6h11"/><path d="M9 12h11"/><path d="M9 18h11"/><path d="M4 6h.01"/><path d="M4 12h.01"/><path d="M4 18h.01"/>';
+const B1_GEAR='<circle cx="12" cy="12" r="3"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M4.9 4.9l2.1 2.1"/><path d="M17 17l2.1 2.1"/><path d="M2 12h3"/><path d="M19 12h3"/><path d="M4.9 19.1L7 17"/><path d="M17 7l2.1-2.1"/>';
+const B1_SEND='<path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/>';
+const B1_CHAT='<path d="M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8 8 0 1 1 21 12z"/>';
+const B1_STAR='<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>';
+const B1_INFO='<circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><path d="M12 7.5h.01"/>';
+const B1_CHECK='<path d="M5 12l5 5 9-10"/>';
+const B1_PERSON='<circle cx="12" cy="7" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>';
+const NEEDS=['Academic','Functional','Developmental','Communication','Social','Emotional','Behavioral'];
+const B1RING=()=>NEEDS.map((n,i)=>{const a=-Math.PI/2+i*2*Math.PI/7,x=Math.round(404+Math.cos(a)*262-88),y=Math.round(440+Math.sin(a)*205-22);return `<div class="b1-need" style="left:${x}px;top:${y}px">${n}</div>`}).join('');
+const DESKS=[[70,120],[190,120],[310,120],[430,120],[550,120],[70,250],[190,250],[310,250],[430,250],[550,250,1]];
+
+const SC=[
+COVER({...L,title:'What Is Special Education?',
+ sub:'What the words mean, who pays, and why it is a service, not a place.',
+ say:'Aloha, and welcome to Bronze, the Foundations level of the L D A H Certification Program. This first lesson answers a simple question that many parents are never told directly: what is special education? By the end, you will know what the words mean, and what your child is entitled to.'}),
+
+{html:()=>HEAD('The big picture','A right, not a favor')+`<div class="b1-fape">
+ <div class="b1-let"><b>F</b><span>Free</span></div><div class="b1-let"><b>A</b><span>Appropriate</span></div><div class="b1-let"><b>P</b><span>Public</span></div><div class="b1-let"><b>E</b><span>Education</span></div></div>
+ <div class="b1-feed"><div class="b1-fc"><i>${B1I(B1_BOOK)}</i><div>Specially designed instruction</div></div><div class="b1-fc"><i>${B1I(B1_HAND)}</i><div>Related services<small>when needed</small></div></div></div>
+ <div class="b1-law"><svg class="b1-ico" viewBox="0 0 24 24" style="flex:none">${B1_SCALE}</svg>Federal law: children with disabilities are entitled to FAPE.</div>`+PTS([
+ 'Special education is a <b>system of supports and services</b>.',
+ 'It meets the <b>unique educational needs</b> of children with disabilities.',
+ 'Under federal law, they are entitled to <b>FAPE</b>: a Free Appropriate Public Education.',
+ 'Delivered through <b>specially designed instruction</b>, and <b>related services</b> when needed.'],150),
+ steps:[
+ {say:'Let’s start with the big picture. Special education is a system of supports and services.',li:0},
+ {say:'Those supports and services are designed to meet the unique educational needs of children with disabilities. Not children in general. Your child, and what your child needs to learn.',li:1},
+ {say:'And this is not a favor the school chooses to do. Under federal law, children with disabilities are entitled to receive a Free Appropriate Public Education. You will hear it called FAPE, F A P E. Free. Appropriate. Public. Education.',li:2,act:async()=>{const l=all('.b1-let');for(const e of l){e.classList.add('on');await wait(450)}q('.b1-law').classList.add('on');spot(q('.b1-law'),6)}},
+ {say:'How does a child receive that education? Through specially designed instruction, and through related services when they are needed. Hold on to the words specially designed instruction. They are the heart of this lesson.',li:3,act:async()=>{spot(null);for(const e of all('.b1-fc')){e.classList.add('on');await wait(350)}spot(all('.b1-fc')[0],6)}}]},
+
+{html:()=>HEAD('The definition','What the law actually says')+`<div class="b1-src"><span class="chip">${B1I(B1_SCALE)} IDEA · Individuals with Disabilities Education Act</span></div>
+ <div class="b1-quote"><span class="b1-mark m1">Specially designed instruction</span>, <span class="b1-mark m2">at no cost to the parents</span>, <span class="b1-mark m3">to meet the unique needs of a child with a disability</span>.”</div>
+ <div class="b1-nums"><div class="b1-num n1"><b>1</b>Specially designed</div><div class="b1-num n2"><b>2</b>No cost to parents</div><div class="b1-num n3"><b>3</b>Unique needs</div></div>`+PTS([
+ 'The federal special education law is <b>IDEA</b>.',
+ 'Its definition has <b>three parts</b>.',
+ 'We will take them one at a time.'],170),
+ steps:[
+ {say:'The main federal law for special education is called IDEA, the Individuals with Disabilities Education Act. It gives special education a definition, and it is short enough to remember.',li:0,act:async()=>{spot(q('.b1-src .chip'),6)}},
+ {say:'Here it is. Special education is specially designed instruction, at no cost to the parents, to meet the unique needs of a child with a disability.',li:1,act:async()=>{spot(q('.b1-quote'),8)}},
+ {say:'Three parts. One: specially designed instruction.',act:async()=>{spot(null);q('.b1-mark.m1').classList.add('on');all('.b1-num')[0].classList.add('on')}},
+ {say:'Two: at no cost to the parents.',act:async()=>{q('.b1-mark.m2').classList.add('on');all('.b1-num')[1].classList.add('on')}},
+ {say:'Three: to meet the unique needs of the child. Let’s take them one at a time.',li:2,act:async()=>{q('.b1-mark.m3').classList.add('on');all('.b1-num')[2].classList.add('on')}}]},
+
+{html:()=>HEAD('Part 1','Specially designed instruction')+`<div class="b1-plan"><h4>How teaching changes</h4><div class="sub">For a child with a disability, the team can adapt any of these</div>
+ <div class="b1-row"><i>${B1I(B1_LIST)}</i><div><b>Content</b>What is taught</div><span class="b1-tog"><span class="a">Standard</span><span class="b">Adapted</span></span></div>
+ <div class="b1-row"><i>${B1I(B1_GEAR)}</i><div><b>Methodology</b>How it is taught</div><span class="b1-tog"><span class="a">Standard</span><span class="b">Adapted</span></span></div>
+ <div class="b1-row"><i>${B1I(B1_SEND)}</i><div><b>Delivery</b>How the teaching reaches your child</div><span class="b1-tog"><span class="a">Standard</span><span class="b">Adapted</span></span></div></div>`+PTS([
+ 'Instruction is <b>adapted</b> for your child.',
+ 'The <b>content</b> can change.',
+ 'The <b>methodology</b> can change.',
+ 'The <b>delivery</b> can change.',
+ 'All to address your child’s <b>unique learning needs</b>.'],150),
+ steps:[
+ {say:'Part one. Specially designed instruction. It means the teaching itself is adapted for a child with a disability.',li:0,act:async()=>{spot(q('.b1-plan h4'),6)}},
+ {say:'The content can be adapted. That is what is taught.',li:1,act:async()=>{const r=all('.b1-row')[0];spot(r,4);await wait(300);r.querySelector('.b1-tog').classList.add('on')}},
+ {say:'The methodology can be adapted. That is how it is taught.',li:2,act:async()=>{const r=all('.b1-row')[1];spot(r,4);await wait(300);r.querySelector('.b1-tog').classList.add('on')}},
+ {say:'And the delivery can be adapted. That is the way the teaching reaches your child.',li:3,act:async()=>{const r=all('.b1-row')[2];spot(r,4);await wait(300);r.querySelector('.b1-tog').classList.add('on')}},
+ {say:'Every one of those changes has one purpose: to address your child’s unique learning needs. Special education is not a lower standard. It is teaching that is built to fit.',li:4,act:async()=>{spot(null)}}]},
+
+{html:()=>HEAD('Part 2','At no cost to parents')+`<div class="b1-bill"><h4>Special education services</h4><div class="b1-from">Statement for your family</div>
+ <div class="b1-li"><span>Specially designed instruction</span><b>$0</b></div>
+ <div class="b1-li"><span>Related services, when needed</span><b>$0</b></div>
+ <div class="b1-li"><span>Supports in your child’s plan</span><b>$0</b></div>
+ <div class="b1-tot"><span>Amount due from you</span><b>$0</b></div></div>
+ <div class="b1-stamp">No cost to parents</div>`+PTS([
+ 'Services are provided <b>at no cost</b> to families.',
+ 'They come through the <b>public education system</b>.',
+ 'That is the <b>“Free”</b> in FAPE.'],170),
+ steps:[
+ {say:'Part two. At no cost to parents. Special education services are provided at no cost to families.',li:0,act:async()=>{for(const e of all('.b1-li')){e.classList.add('on');await wait(400)}}},
+ {say:'They are provided through the public education system. You do not get a bill for your child’s specially designed instruction, or for the related services in the plan.',li:1,act:async()=>{spot(q('.b1-tot'),6)}},
+ {say:'This is the F in FAPE. Free.',li:2,act:async()=>{spot(null);const s=q('.b1-stamp');s.classList.add('on');const p=pos(s);confetti(p.x+p.w/2,p.y,50)}}]},
+
+{html:()=>HEAD('Part 3','Meets the unique needs of the child')+`<div class="b1-kid"><svg viewBox="0 0 24 24">${B1_PERSON}</svg>Your child</div>${B1RING()}`+PTS([
+ '<b>Every child learns differently.</b>',
+ 'Special education is <b>individualized</b>.',
+ 'It can address academic, functional, developmental, communication, social, emotional or behavioral needs.',
+ 'Two children with the same disability can need very different help.'],150),
+ steps:[
+ {say:'Part three. It meets the unique needs of the child. Every child learns differently.',li:0,act:async()=>{spot(q('.b1-kid'),8)}},
+ {say:'So special education is individualized. It is built around one student, not a label.',li:1,act:async()=>{spot(null)}},
+ {say:'Those needs can be academic, like reading or math. Functional, the skills of everyday life. Developmental. Communication. Social. Emotional. Or behavioral.',li:2,act:async()=>{for(const e of all('.b1-need')){e.classList.add('on');await wait(380)}}},
+ {say:'This is why two children with the same disability can have very different plans. The plan follows the child’s needs, not a menu.',li:3}]},
+
+{html:()=>HEAD('Remember this','A service, not a place')+`<div class="b1-room"><div class="sign">Special Ed Room</div><div class="door"></div></div>
+ <svg class="b1-x" viewBox="0 0 280 250"><line x1="30" y1="30" x2="250" y2="220"/><line x1="250" y1="30" x2="30" y2="220"/></svg>
+ <div class="b1-lab" style="left:70px;top:436px;color:#B91C1C">Not a place</div>
+ <div class="b1-pack"><div class="b1-lab" style="position:static;width:auto;text-align:left;color:var(--teal)">A set of services and supports</div>
+ <div class="b1-svc"><i>${B1I(B1_BOOK)}</i>Specially designed instruction</div>
+ <div class="b1-svc"><i>${B1I(B1_HAND)}</i>Related services</div>
+ <div class="b1-svc"><i>${B1I(B1_STAR)}</i>Supports for your child</div></div>
+ <div class="b1-follow"><svg class="b1-ico" viewBox="0 0 24 24" style="flex:none">${B1_PERSON}</svg>Where services happen is decided for each child by the IEP team.</div>`+PTS([
+ 'Under IDEA, special education is a <b>set of services and supports</b>.',
+ 'It is <b>not a place</b>: not a room, a building or a program.',
+ '<b>Placement</b> is decided individually by the <b>IEP team</b>,',
+ 'based on <b>your child’s needs</b>.'],150),
+ steps:[
+ {say:'Here is one of the most important ideas in this whole program. Under IDEA, special education is a set of services and supports.',li:0,act:async()=>{for(const e of all('.b1-svc')){e.classList.add('on');await wait(350)}}},
+ {say:'It is not a place. Many families picture a special education room down the hall. But special education is not a classroom or a location. It is the help itself.',li:1,act:async()=>{spot(q('.b1-room'),6);await wait(600);q('.b1-x').classList.add('on')}},
+ {say:'So where does your child receive those services? That is called placement, and it is decided individually, by the I E P team.',li:2,act:async()=>{spot(null);q('.b1-follow').classList.add('on');spot(q('.b1-follow'),6)}},
+ {say:'And the team decides based on your child’s needs. Not on a label, not on which room has an open seat.',li:3,act:async()=>{await wait(800);spot(null)}}]},
+
+{html:()=>HEAD('The written plan','The IEP')+`<div class="b1-doc"><h4>Individualized Education Program</h4><div class="b1-from">IEP · written for one child</div>
+ <div class="b1-sec"><b>Goals</b><div class="ln" style="width:92%"></div><div class="ln" style="width:70%"></div></div>
+ <div class="b1-sec"><b>Services</b><div class="ln" style="width:85%"></div><div class="ln" style="width:60%"></div></div>
+ <div class="b1-sec"><b>Placement</b><div class="ln" style="width:78%"></div><div class="ln" style="width:52%"></div></div></div>
+ <div class="b1-seal"><svg viewBox="0 0 24 24">${B1_CHECK}</svg>Legally<br>binding</div>`+PTS([
+ 'The plan is written down in an <b>IEP</b>.',
+ 'It outlines your child’s <b>goals</b>, <b>services</b> and <b>placement</b>.',
+ 'The IEP is a <b>legally binding</b> document.'],170),
+ steps:[
+ {say:'All of this gets written down in one document: the I E P, the Individualized Education Program.',li:0,act:async()=>{spot(q('.b1-doc h4'),6)}},
+ {say:'The I E P outlines your child’s goals, the services your child will receive, and your child’s placement.',li:1,act:async()=>{spot(null);for(const e of all('.b1-sec')){e.classList.add('on');await wait(500)}}},
+ {say:'And the I E P is a legally binding document. It is not a wish list. What is written in it is what your child is entitled to receive. You will learn much more about the I E P in the lessons ahead.',li:2,act:async()=>{const s=q('.b1-seal');s.classList.add('on');spot(s,8)}}]},
+
+{html:()=>HEAD('Least Restrictive Environment','LRE: learning alongside peers')+`<div class="b1-class"><div class="b1-board">General education classroom</div>${DESKS.map(d=>`<div class="b1-desk${d[2]?' b1-open':''}" style="left:${d[0]}px;top:${d[1]}px"></div>`).join('')}</div>
+ <div class="b1-me"></div>
+ <div class="b1-meter"><div class="bar"><i></i></div><div class="t">With nondisabled peers: <b>to the maximum extent appropriate</b></div></div>`+PTS([
+ 'IDEA requires the <b>Least Restrictive Environment</b>, or LRE.',
+ 'Students with disabilities are educated <b>with nondisabled peers</b>,',
+ 'to the <b>maximum extent appropriate</b>.',
+ 'What is appropriate is decided for <b>each child</b>.'],150),
+ steps:[
+ {say:'Because special education is a service and not a place, IDEA has a rule about where children learn. It is called the Least Restrictive Environment, or L R E.',li:0,act:async()=>{spot(q('.b1-class'),6)}},
+ {say:'IDEA requires that students with disabilities be educated with nondisabled peers.',li:1,act:async()=>{spot(null);q('.b1-me').classList.add('on');await wait(1500)}},
+ {say:'To the maximum extent appropriate. Those words matter. The starting point is learning alongside other children, with the services and supports your child needs.',li:2,act:async()=>{const m=q('.b1-meter');m.classList.add('on');spot(m,8)}},
+ {say:'And what is appropriate is decided for each child, by the I E P team, based on that child’s needs.',li:3,act:async()=>{spot(null)}}]},
+
+{html:()=>HEAD('Your place on the team','A full and equal member')+`<div class="b1-tbl">IEP Team</div>
+ <div class="b1-seat you" style="left:70px;top:350px"><i>P</i>You, the parent</div>
+ <div class="b1-seat" style="left:180px;top:170px"><i>T</i>Teachers</div>
+ <div class="b1-seat" style="left:470px;top:170px"><i>S</i>School staff</div>
+ <div class="b1-seat" style="left:580px;top:350px"><i>+</i>Others who know your child</div>
+ <div class="b1-bub">Your voice matters.</div>`+PTS([
+ 'The IEP team makes the decisions, <b>including placement</b>.',
+ 'As a parent, you are a <b>full and equal member</b> of that team.',
+ '<b>Your voice matters.</b>'],170),
+ steps:[
+ {say:'We keep coming back to the I E P team. The team writes the plan and decides placement.',li:0,act:async()=>{for(const e of all('.b1-seat:not(.you)')){e.classList.add('on');await wait(300)}}},
+ {say:'So remember this. As a parent, you are a full and equal member of your child’s I E P team. Not a visitor. Not someone who signs at the end. A full and equal member.',li:1,act:async()=>{const y=q('.b1-seat.you');y.classList.add('on');spot(y,8)}},
+ {say:'You know your child in ways no one else at that table does. Your voice matters.',li:2,act:async()=>{spot(null);q('.b1-bub').classList.add('on')}}]},
+
+QUIZ([
+ {q:'In FAPE, what does the “A” stand for?',o:['Appropriate','Annual','Approved'],a:0,y:'FAPE is a Free Appropriate Public Education.',n:'Think about the four letter tiles: Free, then the next word.'},
+ {q:'Under IDEA, which best describes special education?',o:['A separate classroom in each school','A program families pay a fee for','A set of services and supports, not a place'],a:2,y:'Special education is a service, not a place.',n:'Think about the room we crossed out.'},
+ {q:'Who decides where your child receives services?',o:['The principal, on their own','The IEP team, based on your child’s needs','The district, by type of disability'],a:1,y:'Placement is decided individually by the IEP team.',n:'Think about who wrote the plan, and the seat that is yours.'}]),
+
+RECAP([
+ 'Special education is <b>specially designed</b> to meet the <b>unique needs</b> of a child with a disability.',
+ 'It is provided <b>at no cost</b> to parents.',
+ 'It is a <b>service and support system</b>, not a classroom or a location.',
+ 'The <b>IEP</b> is a legally binding document: <b>goals, services, placement</b>.',
+ 'Every student with a disability has a right to <b>FAPE</b>, in the <b>least restrictive environment</b>.',
+ 'You are a <b>full and equal member</b> of the IEP team.'],[
+ 'Special education is specially designed instruction, built to meet the unique needs of a child with a disability.',
+ 'It is provided at no cost to parents, through the public education system.',
+ 'It is a service and support system, not a classroom or a location.',
+ 'The I E P is a legally binding document that outlines goals, services and placement.',
+ 'Every student with a disability has a right to a Free Appropriate Public Education, alongside nondisabled peers to the maximum extent appropriate.',
+ 'And you are a full and equal member of your child’s I E P team.']),
+
+CLOSE({...L,sub:'Next: What Do I Need to Know About Special Education? Select Complete on the lesson page when you are ready.',
+ say:'Mahalo! That is Bronze Lesson 1. You now know what special education is, and what it is not. Next, we look at what else you need to know about special education. Select Complete on the lesson page when you are ready to move on.'})
+];
+</script>
+<script src="deck-engine.js?v=1"></script></body></html>

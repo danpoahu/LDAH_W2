@@ -14,6 +14,7 @@ h1,h2,.kicker,.btn,.qq,.qintro,.cover .hello{font-family:"Outfit","Source Sans 3
 .tier{display:inline-block;padding:4px 12px;border-radius:999px;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;font-family:"Outfit",sans-serif}
 .tier.silver{background:linear-gradient(135deg,#E2E8F0,#94A3B8);color:#1E293B}
 .tier.gold{background:linear-gradient(135deg,#FDE68A,#D97706);color:#451A03}
+.tier.bronze{background:linear-gradient(135deg,#FED7AA,#C2410C);color:#fff}
 .cover .tier{position:absolute;left:70px;top:84px;animation:rise .6s both}
 
 /* shared drawn pieces */

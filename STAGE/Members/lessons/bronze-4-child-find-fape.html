@@ -1,0 +1,325 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bronze Lesson 4: Child Find and FAPE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="deck-base.css?v=1">
+<link rel="stylesheet" href="lesson-theme.css?v=2">
+<style>
+/* b4- = this deck only */
+.cover h1{width:1080px;font-size:56px}
+.b4-letters{position:absolute;left:70px;top:160px;display:flex;gap:18px}
+.b4-lt{width:156px;height:200px;border-radius:20px;background:#fff;border:2px solid var(--line);box-shadow:0 12px 26px rgba(15,23,42,.08);text-align:center;padding-top:18px;opacity:.35;transform:translateY(14px);transition:all .45s}
+.b4-lt b{display:block;font-family:"Outfit",sans-serif;font-size:76px;line-height:1;color:var(--teal)}
+.b4-lt span{display:block;margin-top:16px;font-size:20px;font-weight:700;color:var(--ink)}
+.b4-lt.on{opacity:1;transform:none;border-color:#A5F3FC}
+.b4-lt.b4-f{background:#FFF7ED}.b4-lt.b4-f b{color:var(--coral)}.b4-lt.b4-f.on{border-color:#FDBA74}
+.b4-find{position:absolute;left:70px;top:420px;width:678px;display:flex;align-items:center;gap:20px;background:#ECFEFF;border:2px solid #A5F3FC;border-radius:18px;padding:20px 24px;opacity:0;transform:translateY(16px);transition:all .5s}
+.b4-find.on{opacity:1;transform:none}
+.b4-find i{width:64px;height:64px;border-radius:16px;background:var(--teal);flex:none;display:flex;align-items:center;justify-content:center}
+.b4-find div{font-size:21px;color:#0B4F61;font-weight:700;line-height:1.3}
+.b4-find div small{display:block;font-size:17px;color:var(--soft);font-weight:600}
+
+.b4-verbs{position:absolute;left:66px;top:170px;display:flex;gap:20px}
+.b4-verb{width:212px;height:250px;border-radius:20px;background:#fff;border:2px solid var(--line);box-shadow:0 12px 28px rgba(15,23,42,.08);text-align:center;padding:26px 14px;opacity:0;transform:scale(.7);transition:all .45s cubic-bezier(.3,1.3,.5,1)}
+.b4-verb.on{opacity:1;transform:none}
+.b4-verb i{display:flex;width:84px;height:84px;margin:0 auto 18px;border-radius:50%;background:#ECFEFF;align-items:center;justify-content:center}
+.b4-verb h3{margin:0 0 8px;font-family:"Outfit",sans-serif;font-size:28px;color:var(--ink)}
+.b4-verb p{margin:0;font-size:17px;color:var(--soft);line-height:1.3}
+.b4-loop{position:absolute;left:66px;top:460px;width:676px;height:150px;opacity:0;transition:opacity .6s}
+.b4-loop.on{opacity:1}
+.b4-loop .b4-tag{position:absolute;left:198px;top:92px;width:280px;text-align:center;background:var(--coral);color:#fff;border-radius:999px;padding:8px 14px;font-family:"Outfit",sans-serif;font-weight:800;font-size:19px}
+
+.b4-binder{position:absolute;left:96px;top:140px;width:600px;height:440px;background:#fff;border-radius:14px;border:1px solid var(--line);box-shadow:0 16px 34px rgba(15,23,42,.13);padding:26px 32px 26px 70px;font-size:18px;color:#334155}
+.b4-binder::before{content:"";position:absolute;left:0;top:0;bottom:0;width:40px;background:linear-gradient(90deg,#0B4F61,#0E7490);border-radius:14px 0 0 14px}
+.b4-ring{position:absolute;left:28px;width:24px;height:24px;border-radius:50%;background:#E2E8F0;border:3px solid #94A3B8}
+.b4-binder h4{margin:0 0 2px;font-family:"Outfit",sans-serif;font-size:25px;color:var(--teal)}
+.b4-binder .b4-cite{font-size:15px;color:#94A3B8;font-weight:700;margin-bottom:16px}
+.b4-binder .ln{height:9px;border-radius:5px;background:#E2E8F0;margin:9px 0}
+.b4-quote{margin:18px 0;padding:14px 16px;border-left:5px solid #CBD5E1;font-size:20px;line-height:1.45;color:#1E293B;transition:border-color .4s}
+.b4-quote mark{background:transparent;transition:background .5s;padding:0 2px;border-radius:4px;color:inherit}
+.b4-quote.on{border-color:var(--coral)}
+.b4-quote mark.on{background:#FEF08A}
+.b4-all{display:inline-block;margin-top:6px;opacity:0;transition:opacity .4s}
+.b4-all.on{opacity:1}
+
+.b4-who{position:absolute;width:252px;height:92px;left:66px;border-radius:16px;background:#fff;border:2px solid var(--line);box-shadow:0 8px 20px rgba(15,23,42,.08);display:flex;align-items:center;gap:14px;padding:0 16px;font-size:19px;font-weight:700;color:var(--ink);opacity:0;transform:translateX(-20px);transition:all .45s}
+.b4-who.on{opacity:1;transform:none}
+.b4-who i{width:52px;height:52px;border-radius:14px;background:#ECFEFF;flex:none;display:flex;align-items:center;justify-content:center}
+.b4-who.b4-par{border-color:var(--coral);background:#FFF7ED}
+.b4-who.b4-par i{background:var(--coral)}
+.b4-wires{position:absolute;left:318px;top:150px;width:150px;height:450px;overflow:visible}
+.b4-wires path{fill:none;stroke:#CBD5E1;stroke-width:3;stroke-dasharray:6 6;opacity:0;transition:opacity .4s,stroke .4s}
+.b4-wires path.on{opacity:1;stroke:var(--teal2)}
+.b4-ref{position:absolute;left:468px;top:262px;width:282px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 16px 34px rgba(15,23,42,.13);padding:20px 22px;opacity:0;transform:scale(.8);transition:all .5s cubic-bezier(.3,1.3,.5,1)}
+.b4-ref.on{opacity:1;transform:none}
+.b4-ref h4{margin:0 0 10px;font-family:"Outfit",sans-serif;font-size:22px;color:var(--teal)}
+.b4-ref .ln{height:9px;border-radius:5px;background:#E2E8F0;margin:8px 0}
+
+.b4-letter{position:absolute;left:90px;top:136px;width:600px;background:#fff;border-radius:14px;border:1px solid var(--line);box-shadow:0 16px 34px rgba(15,23,42,.13);padding:24px 30px;font-size:18px;color:#334155}
+.b4-letter .b4-row{display:flex;gap:12px;padding:8px 0;border-bottom:1px solid #F1F5F9}
+.b4-letter .b4-row b{width:70px;flex:none;color:var(--ink)}
+.b4-body{margin:14px 0 6px;min-height:118px;font-size:19px;line-height:1.5;color:#1E293B}
+.b4-body.typing::after{content:"|";color:var(--teal);animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+.b4-sign{border-top:2px solid #94A3B8;padding-top:4px;font-size:14px;color:#64748B;width:240px;margin-top:20px}
+.b4-stamp{position:absolute;left:470px;top:520px;width:220px;padding:12px 10px;border:4px solid #16A34A;border-radius:12px;color:#15803D;font-family:"Outfit",sans-serif;font-weight:800;font-size:20px;text-align:center;line-height:1.2;background:rgba(240,253,244,.92);transform:rotate(-8deg) scale(1.6);opacity:0;transition:all .45s cubic-bezier(.3,1.3,.5,1)}
+.b4-stamp.on{opacity:1;transform:rotate(-8deg) scale(1)}
+.b4-stamp small{display:block;font-size:14px;font-weight:700}
+
+.b4-clip{position:absolute;left:100px;top:150px;width:580px;height:480px;background:#fff;border-radius:16px;border:1px solid var(--line);box-shadow:0 16px 34px rgba(15,23,42,.13);padding:56px 30px 20px}
+.b4-clip::before{content:"";position:absolute;left:210px;top:-14px;width:160px;height:40px;border-radius:10px;background:#94A3B8;box-shadow:inset 0 -6px 0 rgba(0,0,0,.12)}
+.b4-clip h4{position:absolute;left:30px;top:30px;margin:0;font-family:"Outfit",sans-serif;font-size:15px;color:#94A3B8;letter-spacing:.06em;text-transform:uppercase}
+.b4-chk{display:flex;align-items:center;gap:16px;padding:16px 4px;border-bottom:1px solid #F1F5F9;font-size:21px;font-weight:700;color:var(--ink)}
+.b4-chk .b4-box{width:38px;height:38px;border-radius:9px;border:3px solid var(--teal);flex:none;position:relative;transition:background .3s}
+.b4-chk .b4-box svg{position:absolute;inset:3px;stroke:#fff;stroke-width:4;fill:none;stroke-dasharray:30;stroke-dashoffset:30;transition:stroke-dashoffset .45s .1s}
+.b4-chk .b4-box.on{background:var(--teal)}
+.b4-chk .b4-box.on svg{stroke-dashoffset:0}
+.b4-chk small{display:block;font-size:16px;color:var(--soft);font-weight:600}
+.b4-tools{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;opacity:0;transition:opacity .5s}
+.b4-tools.on{opacity:1}
+
+.b4-eval{position:absolute;left:250px;top:150px;width:260px;height:110px;border-radius:18px;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;flex-direction:column;font-family:"Outfit",sans-serif;font-weight:800;font-size:26px;box-shadow:0 14px 30px rgba(14,116,144,.25)}
+.b4-eval small{font-family:"Source Sans 3",sans-serif;font-size:16px;font-weight:600;opacity:.85}
+.b4-fork{position:absolute;left:150px;top:260px;width:460px;height:70px;overflow:visible}
+.b4-fork path{fill:none;stroke:#94A3B8;stroke-width:3;stroke-dasharray:240;stroke-dashoffset:240;transition:stroke-dashoffset .7s}
+.b4-fork path.on{stroke-dashoffset:0}
+.b4-out{position:absolute;top:330px;width:320px;background:#fff;border:2px solid var(--line);border-radius:18px;padding:18px 20px;box-shadow:0 12px 26px rgba(15,23,42,.08);opacity:0;transform:translateY(16px);transition:all .45s}
+.b4-out.on{opacity:1;transform:none}
+.b4-out h3{margin:0 0 6px;font-family:"Outfit",sans-serif;font-size:26px;color:var(--teal)}
+.b4-out p{margin:0;font-size:18px;color:#334155;line-height:1.35}
+.b4-out.b4-need{border-color:#FDBA74;background:#FFF7ED}.b4-out.b4-need h3{color:#C2410C}
+.b4-cats{position:absolute;left:66px;top:540px;width:680px;display:flex;gap:14px;opacity:0;transition:opacity .5s}
+.b4-cats.on{opacity:1}
+.b4-cats div{flex:1;background:#fff;border:2px solid var(--line);border-radius:14px;padding:12px 16px;font-size:17px;color:#334155;line-height:1.3}
+.b4-cats div b{font-family:"Outfit",sans-serif;font-size:30px;color:var(--teal);display:block;line-height:1.05}
+.b4-cats div.b4-hi{border-color:#FCD34D;background:#FEF3C7}.b4-cats div.b4-hi b{color:#92400E}
+
+.b4-time{position:absolute;left:70px;top:190px;width:680px;height:220px}
+.b4-track{position:absolute;left:40px;right:40px;top:96px;height:10px;border-radius:5px;background:#E2E8F0;overflow:hidden}
+.b4-track i{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,#0891B2,#F97316);transition:width 1.6s ease-in-out}
+.b4-track i.b4-fill.on{width:100%}
+.b4-yr{position:absolute;top:70px;width:120px;margin-left:-60px;text-align:center}
+.b4-yr b{display:block;width:62px;height:62px;margin:0 auto;border-radius:50%;background:#fff;border:4px solid #CBD5E1;font-family:"Outfit",sans-serif;font-size:24px;line-height:54px;color:#64748B;transition:all .4s}
+.b4-yr span{display:block;margin-top:10px;font-size:17px;font-weight:700;color:var(--soft)}
+.b4-yr.on b{border-color:var(--teal2);color:var(--teal)}
+.b4-yr.b4-y3 b{width:78px;height:78px;line-height:70px;margin-top:-8px;font-size:28px}
+.b4-yr.b4-y3.on b{border-color:var(--coral);background:var(--coral);color:#fff}
+.b4-flag{position:absolute;left:470px;top:-6px;width:210px;background:#FFF7ED;border:2px solid #FDBA74;border-radius:14px;padding:10px 14px;font-size:17px;font-weight:700;color:#9A3412;text-align:center;opacity:0;transform:translateY(10px);transition:all .45s}
+.b4-flag.on{opacity:1;transform:none}
+.b4-why{position:absolute;left:70px;top:440px;width:680px;display:flex;gap:14px}
+.b4-why div{flex:1;background:#fff;border:2px solid var(--line);border-radius:16px;padding:16px;font-size:18px;font-weight:700;color:var(--ink);line-height:1.3;opacity:0;transform:translateY(14px);transition:all .45s}
+.b4-why div.on{opacity:1;transform:none}
+.b4-why div i{display:block;font-style:normal;font-family:"Outfit",sans-serif;font-size:28px;color:var(--teal2);margin-bottom:4px}
+
+.b4-rep{position:absolute;width:290px;background:#fff;border-radius:14px;border:1px solid var(--line);box-shadow:0 14px 30px rgba(15,23,42,.12);padding:18px 20px;font-size:15px;color:#334155}
+.b4-rep h4{margin:0 0 4px;font-family:"Outfit",sans-serif;font-size:21px;color:var(--teal)}
+.b4-rep .b4-by{font-size:14px;color:#94A3B8;font-weight:700;margin-bottom:10px}
+.b4-rep .ln{height:9px;border-radius:5px;background:#E2E8F0;margin:8px 0}
+.b4-rep.b4-iee{opacity:0;transform:translateX(30px);transition:all .5s;border:2px solid var(--coral)}
+.b4-rep.b4-iee.on{opacity:1;transform:none}
+.b4-rep.b4-iee h4{color:#C2410C}
+.b4-bub{position:absolute;left:80px;top:350px;width:290px;background:#fff;border:2px solid #FDBA74;border-radius:18px;padding:14px 18px;font-size:19px;font-weight:700;color:#9A3412;opacity:0;transform:scale(.7);transition:all .45s cubic-bezier(.3,1.3,.5,1)}
+.b4-bub.on{opacity:1;transform:none}
+.b4-bub::before{content:"";position:absolute;left:46px;top:-14px;width:22px;height:22px;background:#fff;border-left:2px solid #FDBA74;border-top:2px solid #FDBA74;transform:rotate(45deg)}
+.b4-arw{position:absolute;left:380px;top:250px;width:80px;height:40px;opacity:0;transition:opacity .4s}
+.b4-arw.on{opacity:1}
+</style>
+</head><body>
+<div id="view"><div id="stage"><div id="nbar"><i></i></div>
+<div id="scenes"></div>
+<div id="spot"></div>
+<svg id="cursor" viewBox="0 0 28 32"><path d="M3 2 L3 26 L9.5 19.5 L14 29 L18.5 27 L14 17.5 L23 17.5 Z" fill="#fff" stroke="#0F172A" stroke-width="2" stroke-linejoin="round"/></svg>
+</div></div>
+<div id="cap" aria-live="polite"></div>
+<div id="bar">
+ <button id="prev">Back</button><button id="play">Start</button><button id="next">Next</button>
+ <div id="dots"></div>
+ <button id="capbtn" aria-pressed="false">Captions</button><button id="voice" aria-pressed="true">Voice on</button>
+</div>
+<script src="lesson-kit.js?v=2"></script>
+<script>
+const DECK_ID='cert-bronze-4';
+const L={tier:'bronze',lesson:'Bronze Lesson 4',title:'Child Find and FAPE'};
+const B4I=(d,c='#0E7490',s=26)=>`<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="${c}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const B4_SEARCH='<circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5"/>';
+const B4_PIN='<path d="M12 21s-6.5-6.2-6.5-11A6.5 6.5 0 0 1 18.5 10c0 4.8-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/>';
+const B4_CLIP='<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9z"/><path d="M8.5 12l2 2 4-4"/><path d="M9 17h6"/>';
+const B4_TICK='<svg viewBox="0 0 24 24"><path d="M5 12 L10 17 L19 7"/></svg>';
+const b4on=async(sel,i,pad=6)=>{const e=typeof i==='number'?all(sel)[i]:q(sel);e.classList.add('on');spot(e,pad);return e};
+
+const SC=[
+COVER({...L,title:'Child Find and Free Appropriate Public Education (FAPE)',
+ sub:'How schools find children who may need help, and what a fair, complete evaluation looks like.',
+ say:'Aloha, and welcome to Lesson 4, the last lesson in Bronze, the Foundations level of the L D A H Certification Program. Today is about how a child gets found, referred, and evaluated, and the rights you have along the way.'}),
+
+{html:()=>HEAD('Two big ideas','FAPE starts with finding the child')+`<div class="b4-letters">
+ <div class="b4-lt b4-f"><b>F</b><span>Free</span></div><div class="b4-lt"><b>A</b><span>Appropriate</span></div><div class="b4-lt"><b>P</b><span>Public</span></div><div class="b4-lt"><b>E</b><span>Education</span></div></div>
+ <div class="b4-find"><i>${B4I(B4_SEARCH,'#fff',36)}</i><div>Child Find<small>The school’s job of finding children who may have disabilities</small></div></div>`+PTS([
+ '<b>FAPE</b> = <b>Free Appropriate Public Education</b>.',
+ 'It is what special education under <b>IDEA</b> is built to provide.',
+ 'A child can’t be served until the child is <b>found</b>. That is <b>Child Find</b>.'],170),
+ steps:[
+ {say:'This lesson’s title names two ideas. The first is FAPE. Let’s spell it out. F is for Free. A is for Appropriate. P is for Public. E is for Education. Free Appropriate Public Education.',li:0,act:async()=>{for(const e of all('.b4-lt')){e.classList.add('on');await wait(700)}}},
+ {say:'FAPE is what special education under the federal law, I D E A, is built to provide.',li:1,act:async()=>{spot(q('.b4-letters'),8)}},
+ {say:'But a child can’t receive help until someone notices the child may need it. That is the second idea, and the focus of today: Child Find.',li:2,act:async()=>{spot(null);const f=q('.b4-find');f.classList.add('on');await wait(300);spot(f,6)}}]},
+
+{html:()=>HEAD('Child Find','Identify, locate, evaluate')+`<div class="b4-verbs">
+ <div class="b4-verb"><i>${B4I(B4_SEARCH,'#0E7490',40)}</i><h3>Identify</h3><p>Notice children who may have a disability</p></div>
+ <div class="b4-verb"><i>${B4I(B4_PIN,'#0E7490',40)}</i><h3>Locate</h3><p>Reach the children, wherever they are</p></div>
+ <div class="b4-verb"><i>${B4I(B4_CLIP,'#0E7490',40)}</i><h3>Evaluate</h3><p>Look closely at what each child needs</p></div></div>
+ <div class="b4-loop"><svg viewBox="0 0 676 150" width="676" height="150"><path d="M106 6 C106 80 180 110 338 110 C496 110 570 80 570 6" fill="none" stroke="#F97316" stroke-width="4" stroke-dasharray="10 8"/><path d="M558 22 L570 4 L582 22" fill="none" stroke="#F97316" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="b4-tag">An ongoing duty</div></div>`+PTS([
+ 'Under <b>IDEA</b>, school districts must <b>identify</b>, <b>locate</b> and <b>evaluate</b> children who may have disabilities.',
+ 'This is called <b>Child Find</b>.',
+ 'It is an <b>ongoing legal obligation</b>, not a one-time event.',
+ 'It is the school’s duty. Not something you have to earn.'],160),
+ steps:[
+ {say:'Under I D E A, school districts have a legal obligation to do three things for children who may have disabilities.',li:0},
+ {say:'Identify them.',act:()=>b4on('.b4-verb',0)},
+ {say:'Locate them.',act:()=>b4on('.b4-verb',1)},
+ {say:'And evaluate them.',act:()=>b4on('.b4-verb',2)},
+ {say:'Together, these three duties are known as Child Find.',li:1,act:async()=>{spot(q('.b4-verbs'),8)}},
+ {say:'And notice the word ongoing. Child Find is not a single event, or a once-in-a-while campaign. It is a continuing legal obligation.',li:2,act:async()=>{spot(null);q('.b4-loop').classList.add('on')}},
+ {say:'That matters for you. Finding children who may need help is the school district’s duty. You do not have to prove your child deserves to be looked at.',li:3}]},
+
+{html:()=>HEAD('The rule behind it','Policies and procedures')+`<div class="b4-binder">
+ <div class="b4-ring" style="top:80px"></div><div class="b4-ring" style="top:238px"></div><div class="b4-ring" style="top:360px"></div>
+ <h4>Child Find Policies and Procedures</h4><div class="b4-cite">School district · Federal rule 34 C.F.R. §300.111</div>
+ <div class="ln"></div><div class="ln" style="width:86%"></div><div class="ln" style="width:72%"></div>
+ <div class="b4-quote">Ensure that <mark class="b4-m1">all children with disabilities</mark> needing special education are <mark class="b4-m2">identified, located, and evaluated.</mark></div>
+ <div class="ln" style="width:90%"></div><div class="ln" style="width:64%"></div>
+ <div class="b4-all"><span class="chip coral">All children</span> <span class="chip">Written policies</span> <span class="chip sand">Clear procedures</span></div></div>`+PTS([
+ 'Federal rule: <b>34 C.F.R. §300.111</b>.',
+ 'Every district must have <b>policies and procedures</b> for Child Find.',
+ 'Their goal: <b>all</b> children with disabilities needing special education are identified, located and evaluated.'],170),
+ steps:[
+ {say:'Child Find is written into the federal regulations, at [34 C.F.R. §300.111|thirty four C F R, section three hundred point one one one].',li:0,act:async()=>{spot(q('.b4-cite'),6)}},
+ {say:'That rule says school districts must have policies and procedures. Written plans for how they will do this work.',li:1,act:async()=>{spot(q('.b4-binder h4'),8)}},
+ {say:'And the purpose of those policies is to make sure that all children with disabilities who need special education are identified, located, and evaluated.',li:2,act:async()=>{spot(null);q('.b4-quote').classList.add('on');q('.b4-m1').classList.add('on');await wait(900);q('.b4-m2').classList.add('on')}},
+ {say:'All children. Not only the ones whose parents speak up the loudest.',act:async()=>{q('.b4-all').classList.add('on');spot(q('.b4-all'),6)}}]},
+
+{html:()=>HEAD('Referral for evaluation','Who can start it')+`
+ <div class="b4-who b4-par" style="top:150px"><i>${B4I('<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"/>','#fff')}</i>Parents</div>
+ <div class="b4-who" style="top:270px"><i>${B4I('<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/>')}</i>Teachers</div>
+ <div class="b4-who" style="top:390px"><i>${B4I('<path d="M3 10l9-6 9 6"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/>')}</i>Administrators</div>
+ <div class="b4-who" style="top:510px"><i>${B4I('<path d="M12 5v14M5 12h14"/>')}</i>Medical professionals</div>
+ <svg class="b4-wires" viewBox="0 0 150 450"><path class="b4-w" d="M0 46 C80 46 70 210 150 210"/><path class="b4-w" d="M0 166 C80 166 70 210 150 210"/><path class="b4-w" d="M0 286 C80 286 70 210 150 210"/><path class="b4-w" d="M0 406 C80 406 70 210 150 210"/></svg>
+ <div class="b4-ref"><h4>Referral for evaluation</h4><div class="ln"></div><div class="ln" style="width:80%"></div><div class="ln" style="width:65%"></div><div class="ln" style="width:85%"></div></div>`+PTS([
+ 'A <b>referral</b> asks the school to evaluate a child.',
+ 'It may come from <b>parents</b>, <b>teachers</b>, <b>administrators</b> or <b>medical professionals</b>.',
+ 'You do not need anyone’s permission to refer your own child.'],180),
+ steps:[
+ {say:'So how does an evaluation actually start? Usually with a referral. A referral is a request for the school to evaluate a child.',li:0,act:async()=>{const r=q('.b4-ref');r.classList.add('on');spot(r,6)}},
+ {say:'A referral may be started by parents.',li:1,act:async()=>{const w=all('.b4-wires path');const e=all('.b4-who')[0];e.classList.add('on');w[0].classList.add('on');spot(e,6)}},
+ {say:'By teachers.',act:async()=>{const e=all('.b4-who')[1];e.classList.add('on');all('.b4-wires path')[1].classList.add('on');spot(e,6)}},
+ {say:'By administrators, like a principal.',act:async()=>{const e=all('.b4-who')[2];e.classList.add('on');all('.b4-wires path')[2].classList.add('on');spot(e,6)}},
+ {say:'Or by medical professionals, like your child’s doctor.',act:async()=>{const e=all('.b4-who')[3];e.classList.add('on');all('.b4-wires path')[3].classList.add('on');spot(e,6)}},
+ {say:'Look at the top of that list. Parents. If you are worried about your child, you can start the process yourself. You do not have to wait for a teacher to bring it up.',li:2,act:async()=>{spot(all('.b4-who')[0],6)}}]},
+
+{html:()=>HEAD('Put it in writing','A request that leaves a record')+`<div class="b4-letter">
+ <div class="b4-row"><b>Date</b><span>October 21</span></div>
+ <div class="b4-row"><b>To</b><span>The principal, my child’s school</span></div>
+ <div class="b4-row"><b>Re</b><span>Request for a special education evaluation</span></div>
+ <div class="b4-body"></div>
+ <div class="b4-sign">Parent signature</div></div>
+ <div class="b4-stamp">COPY KEPT<small>with the date</small></div>`+PTS([
+ 'Parents are encouraged to submit requests <b>in writing</b>.',
+ 'Writing <b>documents</b> exactly what you asked for.',
+ 'It also gives a clear starting point for <b>timelines</b>.',
+ 'Keep a copy, with the date you sent it.'],170),
+ steps:[
+ {say:'If you decide to ask for an evaluation, here is the most useful habit you can build. Parents are encouraged to submit requests in writing.',li:0,act:async()=>{spot(q('.b4-letter'),6)}},
+ {say:'A short letter or email is enough. Say what you are asking for, and why you are concerned.',li:1,act:async()=>{spot(null);await type(q('.b4-body'),'I am writing to request a full evaluation of my child for special education. I am concerned about reading and attention at school.',28)}},
+ {say:'Writing it down establishes documentation. There is a record of what you asked, and when you asked it. And it gives a clear starting point for timelines.',li:2,act:async()=>{spot(q('.b4-row'),4)}},
+ {say:'Keep a copy for yourself, with the date you sent it. A conversation in the parking lot is easy to forget. A dated letter is not.',li:3,act:async()=>{spot(null);q('.b4-stamp').classList.add('on')}}]},
+
+{html:()=>HEAD('A fair evaluation','What the rules require')+`<div class="b4-clip"><h4>Evaluation checklist · 34 C.F.R. §300.304</h4>
+ <div class="b4-chk"><div class="b4-box">${B4_TICK}</div><div>A variety of assessment tools<small>Not one test or one score</small></div></div>
+ <div class="b4-chk"><div class="b4-box">${B4_TICK}</div><div>All suspected areas of disability<small>Every concern gets looked at</small></div></div>
+ <div class="b4-chk"><div class="b4-box">${B4_TICK}</div><div>No discriminatory testing<small>Fair to your child’s language and culture</small></div></div>
+ <div class="b4-chk"><div class="b4-box">${B4_TICK}</div><div>Qualified personnel<small>Done by people trained to do it</small></div></div>
+ <div class="b4-tools"><span class="chip">Tests</span><span class="chip">Observations</span><span class="chip">Work samples</span><span class="chip coral">What you share</span></div></div>`+PTS([
+ 'Federal rule: <b>34 C.F.R. §300.304</b>.',
+ 'Use a <b>variety</b> of assessment tools.',
+ 'Assess <b>all</b> suspected areas of disability.',
+ '<b>Avoid discriminatory</b> testing.',
+ 'Use <b>qualified personnel</b>.'],160),
+ steps:[
+ {say:'Once an evaluation happens, it has to meet a standard. That standard is in [34 C.F.R. §300.304|thirty four C F R, section three hundred point three oh four]. Four requirements.',li:0,act:async()=>{spot(q('.b4-clip h4'),6)}},
+ {say:'One. Schools must use a variety of assessment tools. Not one test, and not one score.',li:1,act:async()=>{all('.b4-box')[0].classList.add('on');spot(all('.b4-chk')[0],4);await wait(800);q('.b4-tools').classList.add('on')}},
+ {say:'Two. They must assess all suspected areas of disability. If you are worried about reading and about attention, both get looked at.',li:2,act:async()=>{all('.b4-box')[1].classList.add('on');spot(all('.b4-chk')[1],4)}},
+ {say:'Three. They must avoid discriminatory testing. The testing has to be fair to your child, including your child’s language and culture.',li:3,act:async()=>{all('.b4-box')[2].classList.add('on');spot(all('.b4-chk')[2],4)}},
+ {say:'Four. They must use qualified personnel. The people giving and scoring the tests must be trained to do it.',li:4,act:async()=>{all('.b4-box')[3].classList.add('on');spot(all('.b4-chk')[3],4)}},
+ {say:'Comprehensive and nondiscriminatory. Those are the two words to remember about a good evaluation.',act:async()=>{spot(null)}}]},
+
+{html:()=>HEAD('What an evaluation decides','Eligibility and needs')+`<div class="b4-eval">Evaluation<small>a full look at your child</small></div>
+ <svg class="b4-fork" viewBox="0 0 460 70"><path class="b4-p" d="M230 0 C230 40 76 30 76 70"/><path class="b4-p" d="M230 0 C230 40 436 30 436 70"/></svg>
+ <div class="b4-out" style="left:66px"><h3>Eligibility</h3><p>Does my child qualify for special education?</p></div>
+ <div class="b4-out b4-need" style="left:426px"><h3>Needs</h3><p>What help does my child need to learn?</p></div>
+ <div class="b4-cats"><div><b>13</b>disability categories listed in IDEA</div><div class="b4-hi"><b>14</b>in Hawaiʻi, which adds Developmental Delay</div></div>`+PTS([
+ 'Evaluations decide <b>eligibility</b>.',
+ 'They also show your child’s <b>needs</b>.',
+ 'IDEA lists <b>13</b> disability categories. Hawaiʻi lists <b>14</b>, adding <b>Developmental Delay</b>.'],170),
+ steps:[
+ {say:'Why does all this care matter? Because an evaluation answers two big questions.',act:async()=>{spot(q('.b4-eval'),6);all('.b4-fork path').forEach(p=>p.classList.add('on'))}},
+ {say:'First, eligibility. Does your child qualify for special education?',li:0,act:()=>b4on('.b4-out',0)},
+ {say:'Second, needs. What exactly does your child need help with? A good evaluation shapes the services that follow.',li:1,act:()=>b4on('.b4-out',1)},
+ {say:'Eligibility is decided using disability categories. The federal law, I D E A, lists thirteen. Hawaiʻi lists fourteen, because it adds one more: Developmental Delay.',li:2,act:async()=>{const c=q('.b4-cats');c.classList.add('on');spot(c,6)}}]},
+
+{html:()=>HEAD('Reevaluations','At least once every three years')+`<div class="b4-time">
+ <div class="b4-track"><i class="b4-fill"></i></div>
+ <div class="b4-yr" style="left:40px"><b>0</b><span>First evaluation</span></div>
+ <div class="b4-yr" style="left:240px"><b>1</b><span>Year 1</span></div>
+ <div class="b4-yr" style="left:440px"><b>2</b><span>Year 2</span></div>
+ <div class="b4-yr b4-y3" style="left:640px"><b>3</b><span>Reevaluation</span></div>
+ <div class="b4-flag">At least once every three years</div></div>
+ <div class="b4-why"><div class="b4-wy"><i>1</i>Continued eligibility</div><div class="b4-wy"><i>2</i>Review progress</div><div class="b4-wy"><i>3</i>Decide on services</div></div>`+PTS([
+ 'IDEA requires a <b>reevaluation</b> at least <b>once every three years</b>.',
+ 'It checks <b>continued eligibility</b>.',
+ 'It <b>reviews progress</b>.',
+ 'It helps decide <b>appropriate services</b>.'],170),
+ steps:[
+ {say:'Evaluation is not a one-time thing either. Children grow and change, and so do their needs.',act:async()=>{const y=all('.b4-yr');y[0].classList.add('on');q('.b4-fill').classList.add('on');for(let i=1;i<4;i++){await wait(450);y[i].classList.add('on')}}},
+ {say:'I D E A requires a reevaluation at least once every three years.',li:0,act:async()=>{const f=q('.b4-flag');f.classList.add('on');spot(q('.b4-y3'),8)}},
+ {say:'A reevaluation does three jobs. It decides whether your child is still eligible.',li:1,act:()=>b4on('.b4-why div',0)},
+ {say:'It reviews the progress your child has made.',li:2,act:()=>b4on('.b4-why div',1)},
+ {say:'And it helps decide what services are appropriate now.',li:3,act:async()=>{await b4on('.b4-why div',2);await wait(1200);spot(null)}}]},
+
+{html:()=>HEAD('Your rights','If you disagree with the results')+`<div class="b4-rep" style="left:80px;top:160px"><h4>School evaluation</h4><div class="b4-by">By school staff</div><div class="ln"></div><div class="ln" style="width:75%"></div><div class="ln" style="width:88%"></div><div class="ln" style="width:60%"></div></div>
+ <svg class="b4-arw" viewBox="0 0 80 40"><path d="M4 20h64M54 8l14 12-14 12" fill="none" stroke="#F97316" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+ <div class="b4-rep b4-iee" style="left:466px;top:160px"><h4>Independent Educational Evaluation</h4><div class="b4-by">By a qualified examiner who does not work for the school</div><div class="ln"></div><div class="ln" style="width:80%"></div><div class="ln" style="width:70%"></div></div>
+ <div class="b4-bub">“I don’t agree with these results.”</div>`+PTS([
+ 'Parents have <b>rights</b> during the evaluation process.',
+ 'If you <b>disagree</b> with the school’s results, you can request an <b>Independent Educational Evaluation (IEE)</b>.',
+ 'Independent means a <b>qualified examiner who is not employed by the school</b>.'],170),
+ steps:[
+ {say:'Last, your rights. Parents have rights during the evaluation process. Here is one every parent should know.',li:0,act:async()=>{spot(q('.b4-rep'),6)}},
+ {say:'Say the school’s evaluation comes back, and you read it, and it does not match the child you know.',act:async()=>{spot(null);q('.b4-bub').classList.add('on')}},
+ {say:'You have the right to request an Independent Educational Evaluation, an I E E, if you disagree with the school’s assessment results.',li:1,act:async()=>{q('.b4-arw').classList.add('on');const e=q('.b4-iee');e.classList.add('on');await wait(300);spot(e,6)}},
+ {say:'Independent means the evaluation is done by a qualified examiner who is not employed by the school. A second, outside look at your child.',li:2,act:async()=>{spot(q('.b4-iee .b4-by'),6)}},
+ {say:'Disagreeing is not being difficult. It is one of the rights the law gives you.',act:async()=>{spot(null)}}]},
+
+QUIZ([
+ {q:'Under Child Find, what must school districts do?',o:['Wait until a parent asks for help','Evaluate only children who are failing classes','Identify, locate, and evaluate children who may have disabilities'],a:2,y:'Child Find is the ongoing duty to identify, locate, and evaluate.',n:'Think about the three cards with the ongoing arrow.'},
+ {q:'Why are parents encouraged to put a referral request in writing?',o:['It documents the request and sets a starting point for timelines','A written request is the only kind a teacher can make','It lets the school skip the evaluation'],a:0,y:'Writing creates documentation and a clear start for timelines.',n:'Think about the dated letter and the copy you keep.'},
+ {q:'You disagree with the school’s evaluation results. What can you request?',o:['A different classroom teacher','An Independent Educational Evaluation (IEE)','A reevaluation in five years'],a:1,y:'You have the right to request an IEE if you disagree.',n:'Think about the second report, from outside the school.'}]),
+
+RECAP([
+ '<b>Child Find</b>: schools must identify, locate and evaluate children who may have disabilities.',
+ 'Parents, teachers, administrators or doctors can refer. Put requests <b>in writing</b>.',
+ 'Evaluations must be <b>comprehensive and nondiscriminatory</b>.',
+ 'Evaluations decide <b>eligibility</b> and show your child’s <b>needs</b>.',
+ 'Reevaluation at least <b>once every three years</b>.',
+ 'Disagree with the results? You can request an <b>IEE</b>.'],[
+ 'Child Find means school districts have an ongoing duty to identify, locate, and evaluate children who may have disabilities.',
+ 'Parents, teachers, administrators, and medical professionals can all refer. When you do, put it in writing.',
+ 'Evaluations must be comprehensive and nondiscriminatory: a variety of tools, all suspected areas, fair testing, and qualified people.',
+ 'An evaluation decides eligibility, and shows what your child needs.',
+ 'Reevaluations happen at least once every three years.',
+ 'And if you disagree with the school’s results, you can request an Independent Educational Evaluation.']),
+
+CLOSE({...L,sub:'That completes the Bronze lessons. The Bronze final quiz follows on the lesson page. Select Complete when you are ready.',
+ say:'Mahalo! That is Lesson 4, and the end of the Bronze lessons. You now know how special education begins: with finding the child, and with a fair, complete evaluation. The Bronze final quiz follows on the lesson page. Select Complete on the lesson page when you are ready to take it.'})
+];
+</script>
+<script src="deck-engine.js?v=1"></script></body></html>

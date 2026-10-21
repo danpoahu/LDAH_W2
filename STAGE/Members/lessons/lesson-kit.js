@@ -22,7 +22,7 @@ const QUIZ=(qs)=>({cls:'quiz',html:()=>HEAD('Check yourself','Your turn!')+`<div
   ...qs.map((Q,i)=>({say:`Question ${i+1}. ${Q.q}`,act:()=>ask(Q,i,'check')}))]});
 
 /* cover, recap and closing scenes */
-const COVER=(o)=>({cls:'cover',html:()=>`<span class="tier ${o.tier}">${o.tier==='gold'?'Gold · Leadership':'Silver · Advocate'}</span><div class="brand">Leadership in Disabilities &amp; Achievement of Hawaiʻi · Certification Program</div><div class="hello">${o.lesson}</div>
+const COVER=(o)=>({cls:'cover',html:()=>`<span class="tier ${o.tier}">${({bronze:'Bronze · Foundations',silver:'Silver · Advocate',gold:'Gold · Leadership'})[o.tier]||''}</span><div class="brand">Leadership in Disabilities &amp; Achievement of Hawaiʻi · Certification Program</div><div class="hello">${o.lesson}</div>
  <h1>${o.title}</h1><p class="sub">${o.sub}</p>${o.art||''}
  <div class="spark" style="left:1190px;top:96px">${SPARK}</div><div class="spark" style="left:770px;top:560px;animation-delay:1s">${SPARK}</div>
  <div class="gate"><button class="btn" data-go="start">Start the lesson</button><label><input type="checkbox" id="voiceChk" checked> Read it out loud to me</label></div>${WAVES}`,
@@ -30,6 +30,6 @@ const COVER=(o)=>({cls:'cover',html:()=>`<span class="tier ${o.tier}">${o.tier==
 const RECAP=(items,says)=>({html:()=>HEAD('Recap','What to remember')+`<div class="cl" style="top:126px">${items.map(t=>`<div class="ci"><div class="bx"><svg viewBox="0 0 24 24"><path d="M5 12 L10 17 L19 7"/></svg></div><div>${t}</div></div>`).join('')}</div>`,
  steps:[{say:"Let's recap.",act:async()=>{for(const c of all('.ci')){c.classList.add('on');await wait(160)}}},
   ...says.map((s,i)=>({say:s,act:async()=>{const c=all('.ci')[i];c.classList.add('done');spot(c,4)}}))]});
-const CLOSE=(o)=>({cls:'cover',html:()=>`<span class="tier ${o.tier}">${o.tier==='gold'?'Gold · Leadership':'Silver · Advocate'}</span><div class="brand">${o.lesson} · ${o.title}</div><div class="hello">Lesson finished</div><h1>Mahalo!</h1><p class="sub">${o.sub}</p>
+const CLOSE=(o)=>({cls:'cover',html:()=>`<span class="tier ${o.tier}">${({bronze:'Bronze · Foundations',silver:'Silver · Advocate',gold:'Gold · Leadership'})[o.tier]||''}</span><div class="brand">${o.lesson} · ${o.title}</div><div class="hello">Lesson finished</div><h1>Mahalo!</h1><p class="sub">${o.sub}</p>
  <div class="gate" style="top:460px"><button class="btn ghost" data-go="again">Watch again</button></div>${WAVES}`,
  steps:[{say:o.say,act:async()=>{spot(null);await wait(400);confetti(640,300,160)}}]});

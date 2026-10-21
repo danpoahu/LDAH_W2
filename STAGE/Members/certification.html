@@ -846,6 +846,11 @@
        decks (deckUrl → lessons/*.html) with written content. Opening a tier
        means flipping TIER_STATE below AND CERT_TIER_OPEN in functions/index.js.
     ═══════════════════════════════════════════════ */
+    /* Bronze can play either format. 'deck' = the narrated decks in lessons/bronze-*.html,
+       matching Silver and Gold. 'video' = the original YouTube videos, which are kept in
+       each Bronze lesson's videoUrl so switching back is this one word. */
+    var BRONZE_FORMAT = 'deck';
+
     var LESSON_DATA = {
       'welcome1':{tier:'welcome',title:'Welcome to the LDAH Certification Program',duration:'5 min',noVideo:true,videoUrl:'',videoFile:'',captionsUrl:'',
         body:`<p>Welcome! We are so glad you are here. This program was created to give Hawai'i families the knowledge, confidence, and tools they need to be strong advocates for their keiki in the special education system.</p>
@@ -854,7 +859,7 @@
         <h2>How to Use This Page</h2><p>Watch the lesson video or read the supporting content, then select <strong>Complete</strong> in the bar above when you finish. Your progress is saved to your member account, so you can stop and pick up again on any device.</p>`,
         takeaways:[],next:'b1'},
 
-      'b1':{tier:'bronze',title:'Lesson 1: What Is Special Education?',duration:'15 min',videoUrl:'https://www.youtube.com/watch?v=61KriS6dBaI',videoFile:'',captionsUrl:'',
+      'b1':{tier:'bronze',title:'Lesson 1: What Is Special Education?',duration:'10 min',deckUrl:'lessons/bronze-1-special-education.html?v=1',videoUrl:'https://www.youtube.com/watch?v=61KriS6dBaI',videoFile:'',captionsUrl:'',
         body:`<p>Special education is a system of supports and services designed to meet the unique educational needs of children with disabilities. Under federal law, children with disabilities are entitled to receive a Free Appropriate Public Education (FAPE) through specially designed instruction and related services when needed.</p>
         <h2>What does "Special Education" Actually Mean?</h2><p>Under IDEA, special education is defined as: <em>"Specially designed instruction, at no cost to the parents, to meet the unique needs of a child with a disability."</em></p>
         <h3>1. Specially Designed Instruction</h3><p>Special education involves adapting the content, methodology, or delivery of instruction to address the unique learning needs of a child with a disability.</p>
@@ -865,7 +870,7 @@
         <div class="cd-callout"><svg class="ico" viewBox="0 0 24 24"><use href="#i-info"/></svg><div><strong>Remember:</strong> As a parent, you are a full and equal member of your child's IEP team. Your voice matters.</div></div>`,
         takeaways:["Special education is specially designed to meet the unique needs of a child with a disability.","Special education is a service and support system, not a specific classroom or location.","The IEP is a legally binding document outlining goals, services, and placement.","Every student with a disability has a right to a Free Appropriate Public Education (FAPE)."],next:'b2'},
 
-      'b2':{tier:'bronze',title:'Lesson 2: What Do I Need to Know About Special Education?',duration:'10 min',videoUrl:'https://www.youtube.com/watch?v=eOMTB6J9c80',videoFile:'',captionsUrl:'',
+      'b2':{tier:'bronze',title:'Lesson 2: What Do I Need to Know About Special Education?',duration:'12 min',deckUrl:'lessons/bronze-2-need-to-know.html?v=1',videoUrl:'https://www.youtube.com/watch?v=eOMTB6J9c80',videoFile:'',captionsUrl:'',
         body:`<p>Now that you have a foundational understanding of special education, it's time to build on what you've learned. The information in this section provides the essential knowledge that every IEP advocate should have. As you continue through the course, you'll gain a deeper understanding of the special education process and develop the skills needed to advocate with confidence and purpose.</p>
         <h2>What Does Special Education Mean?</h2><p>Specially designed instruction, at no cost to parents, meeting a child's disability-related needs. Delivered in classrooms, homes, hospitals, or wherever the child attends school.</p>
         <h3>1. Related Services (PWN)</h3><p>Speech-language, audiology, interpreting, psychological services, PT/OT, recreation, early identification, counseling, orientation/mobility, medical evaluation, school health/nursing, social work, parent counseling and training.</p>
@@ -881,7 +886,7 @@
 
       'b2pq':{tier:'bronze',title:'Pop Quiz — Bronze Lessons 1 and 2',duration:'',isPopQuiz:true,popTier:'bronze',body:'',takeaways:[],next:'b3'},
 
-      'b3':{tier:'bronze',title:'Lesson 3: Your Rights As a Parent',duration:'15 min',videoUrl:'https://www.youtube.com/watch?v=iXYnbgGcYjc',videoFile:'',captionsUrl:'',
+      'b3':{tier:'bronze',title:'Lesson 3: Your Rights As a Parent',duration:'10 min',deckUrl:'lessons/bronze-3-parent-rights.html?v=1',videoUrl:'https://www.youtube.com/watch?v=iXYnbgGcYjc',videoFile:'',captionsUrl:'',
         body:`<p>One of the most powerful things you can do as a parent is <strong>know your rights</strong>. IDEA provides a robust set of procedural safeguards specifically designed to protect you and your child.</p>
         <h2>Your Key Rights Under IDEA</h2>
         <h3>1. Prior Written Notice (PWN)</h3><p>The school must give you written notice before it proposes or refuses to make any changes to your child's identification, evaluation, educational placement, or provision of FAPE.</p>
@@ -892,7 +897,7 @@
         <div class="cd-callout"><svg class="ico" viewBox="0 0 24 24"><use href="#i-info"/></svg><div><strong>Pro Tip:</strong> Always keep copies of all correspondence with the school. Documentation is your best friend as an advocate.</div></div>`,
         takeaways:["Schools must provide Prior Written Notice before making any changes to your child's program.","Your written consent is required before evaluations and initial services.","You have the right to access all of your child's school records within 45 days.","You are a required and equal member of the IEP team."],next:'b4'},
 
-      'b4':{tier:'bronze',title:'Lesson 4: Child Find and Free Appropriate Public Education (FAPE)',duration:'20 min',videoUrl:'https://www.youtube.com/watch?v=82_LBIRdFGs',videoFile:'',captionsUrl:'',
+      'b4':{tier:'bronze',title:'Lesson 4: Child Find and Free Appropriate Public Education (FAPE)',duration:'12 min',deckUrl:'lessons/bronze-4-child-find-fape.html?v=1',videoUrl:'https://www.youtube.com/watch?v=82_LBIRdFGs',videoFile:'',captionsUrl:'',
         body:`<p>Under IDEA, school districts have an ongoing legal obligation to identify, locate, and evaluate children who may have disabilities — known as <strong>Child Find</strong>.</p>
         <h2>Understanding Child Find</h2><p>Per <strong>34 C.F.R. &sect; 300.111</strong>, school districts must have policies and procedures to ensure that all children with disabilities needing special education are identified, located, and evaluated.</p>
         <h2>Referral for Evaluation</h2><p>Referrals may be initiated by parents, teachers, administrators, or medical professionals. Parents are encouraged to submit requests in writing to establish documentation and timelines.</p>
@@ -1101,8 +1106,8 @@
     var quizState = { tier:'', questions:[], current:0, score:0, answered:false, selected:-1, isPopQuiz:false };
 
     var LESSON_META = {
-      b1:{n:'1',   tag:'15 min'}, b2:{n:'2', tag:'10 min'}, b2pq:{n:'pop', tag:'Quick Check'},
-      b3:{n:'3',   tag:'15 min'}, b4:{n:'4', tag:'20 min'}, bquiz:{n:'quiz', tag:'Final Assessment'},
+      b1:{n:'1',   tag:'10 min'}, b2:{n:'2', tag:'12 min'}, b2pq:{n:'pop', tag:'Quick Check'},
+      b3:{n:'3',   tag:'10 min'}, b4:{n:'4', tag:'12 min'}, bquiz:{n:'quiz', tag:'Final Assessment'},
       s1:{n:'1',   tag:'10 min'}, s2:{n:'2', tag:'15 min'}, s2pq:{n:'pop', tag:'Quick Check'},
       s3:{n:'3',   tag:'15 min'}, s4:{n:'4', tag:'15 min'}, squiz:{n:'quiz', tag:'Final Assessment'},
       g1:{n:'1',   tag:'12 min'}, g2:{n:'2', tag:'12 min'}, g2pq:{n:'pop', tag:'Quick Check'},
@@ -1264,8 +1269,8 @@
       if (!embed || !zone) return;
       if (lesson.isQuiz || lesson.isPopQuiz || lesson.noVideo) { zone.style.display = 'none'; embed.innerHTML = ''; return; }
       zone.style.display = '';
-      if (lesson.deckUrl) {
-        /* Silver/Gold lessons are narrated decks (lessons/*.html) instead of recorded video. */
+      if (lesson.deckUrl && !(lesson.tier === 'bronze' && BRONZE_FORMAT === 'video')) {
+        /* Narrated decks (lessons/*.html) instead of recorded video. Bronze honours BRONZE_FORMAT. */
         embed.innerHTML = '<iframe src="' + esc(lesson.deckUrl) + '" allowfullscreen allow="autoplay; fullscreen" title="' + esc(lesson.title) + '"></iframe>';
       } else if (lesson.videoFile) {
         var cc = lesson.captionsUrl ? '<track kind="captions" src="' + esc(lesson.captionsUrl) + '" srclang="en" label="English Captions" default>' : '';

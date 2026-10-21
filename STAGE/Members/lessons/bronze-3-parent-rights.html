@@ -1,0 +1,267 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bronze Lesson 3: Your Rights As a Parent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="deck-base.css?v=1">
+<link rel="stylesheet" href="lesson-theme.css?v=2">
+<style>
+/* b3- = this deck only */
+.b3-shield{position:absolute;left:70px;top:230px;width:210px;height:250px}
+.b3-shield svg{width:210px;height:250px;filter:drop-shadow(0 14px 22px rgba(11,79,97,.25))}
+.b3-shield span{position:absolute;left:0;right:0;top:92px;text-align:center;font-family:"Outfit",sans-serif;font-weight:800;font-size:34px;color:#fff;letter-spacing:.04em}
+.b3-shield small{position:absolute;left:0;right:0;top:136px;text-align:center;font-size:14px;font-weight:700;color:#CFFAFE;line-height:1.2;padding:0 40px}
+.b3-rights{position:absolute;left:310px;top:150px;width:450px}
+.b3-row{display:flex;align-items:center;gap:14px;height:76px;margin-bottom:12px;background:#fff;border:2px solid var(--line);border-radius:16px;padding:0 18px;font-size:20px;font-weight:700;color:var(--ink);box-shadow:0 8px 20px rgba(15,23,42,.07);opacity:0;transform:translateX(24px);transition:all .45s cubic-bezier(.3,1.3,.5,1)}
+.b3-row.on{opacity:1;transform:none}
+.b3-row i{width:42px;height:42px;border-radius:50%;background:var(--teal);color:#fff;font-style:normal;font-family:"Outfit",sans-serif;font-weight:800;font-size:20px;display:flex;align-items:center;justify-content:center;flex:none}
+.b3-row small{display:block;font-size:14px;color:var(--soft);font-weight:600}
+
+.b3-letter{position:absolute;left:80px;top:136px;width:600px;background:#fff;border-radius:14px;border:1px solid var(--line);box-shadow:0 16px 34px rgba(15,23,42,.13);padding:22px 28px;font-size:18px;color:#334155}
+.b3-letter h4{margin:0 0 2px;font-family:"Outfit",sans-serif;font-size:25px;color:var(--teal)}
+.b3-letter .from{font-size:14px;color:#94A3B8;margin-bottom:12px}
+.b3-pr{display:flex;gap:12px;margin-bottom:12px}
+.b3-stamp{border:3px solid #CBD5E1;color:#94A3B8;border-radius:10px;padding:4px 14px;font-family:"Outfit",sans-serif;font-weight:800;font-size:17px;letter-spacing:.06em;text-transform:uppercase;transition:all .4s}
+.b3-stamp.on{border-color:var(--coral);color:#C2410C;background:#FFF7ED;transform:rotate(-3deg)}
+.b3-item{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid #F1F5F9;font-weight:700;color:var(--ink);transition:background .4s}
+.b3-item.on{background:#ECFEFF}
+.b3-box{width:24px;height:24px;border-radius:6px;border:2px solid #94A3B8;flex:none;display:flex;align-items:center;justify-content:center}
+.b3-box svg{width:18px;height:18px;opacity:0;transition:opacity .3s}
+.b3-item.on .b3-box{border-color:var(--teal);background:var(--teal)}
+.b3-item.on .b3-box svg{opacity:1}
+.b3-tl{position:absolute;left:80px;top:520px;width:656px;height:90px}
+.b3-tl .b3-n{position:absolute;top:18px;width:220px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;opacity:0;transform:scale(.7);transition:all .45s cubic-bezier(.3,1.3,.5,1)}
+.b3-tl .b3-n.on{opacity:1;transform:none}
+.b3-tl .b3-a{position:absolute;left:250px;top:30px;width:150px;height:30px}
+
+.b3-form{position:absolute;left:80px;top:140px;width:600px;background:#fff;border-radius:14px;border:1px solid var(--line);box-shadow:0 16px 34px rgba(15,23,42,.13);padding:22px 28px;font-size:18px;color:#334155}
+.b3-form h4{margin:0 0 4px;font-family:"Outfit",sans-serif;font-size:25px;color:var(--teal)}
+.b3-form .from{font-size:14px;color:#94A3B8;margin-bottom:10px}
+.b3-signline{margin-top:20px;border-top:2px solid #94A3B8;padding-top:4px;font-size:13px;color:#64748B;position:relative}
+.b3-signline svg{position:absolute;left:10px;top:-44px;width:200px;height:44px}
+.b3-sig path{stroke-dasharray:420;stroke-dashoffset:420;transition:stroke-dashoffset 1.4s ease}
+.b3-sig.on path{stroke-dashoffset:0}
+.b3-gate{position:absolute;left:80px;top:540px;width:656px;display:flex;gap:16px;align-items:center}
+.b3-lock{display:flex;align-items:center;gap:12px;background:#FFF7ED;border:2px solid #FDBA74;border-radius:14px;padding:12px 18px;font-size:19px;font-weight:800;color:#9A3412;opacity:0;transform:translateY(12px);transition:all .45s}
+.b3-lock.on{opacity:1;transform:none}
+
+.b3-folder{position:absolute;left:70px;top:190px;width:400px;height:330px}
+.b3-folder .back{position:absolute;left:0;top:30px;width:400px;height:300px;border-radius:0 18px 18px 18px;background:#F59E0B}
+.b3-folder .tab{position:absolute;left:0;top:0;width:150px;height:44px;border-radius:14px 14px 0 0;background:#F59E0B}
+.b3-folder .front{position:absolute;left:0;top:110px;width:400px;height:220px;border-radius:14px 14px 18px 18px;background:linear-gradient(180deg,#FCD34D,#FBBF24);box-shadow:0 -6px 14px rgba(120,53,15,.15);display:flex;align-items:flex-end;padding:18px 22px;font-family:"Outfit",sans-serif;font-weight:800;font-size:22px;color:#78350F}
+.b3-paper{position:absolute;width:250px;height:120px;background:#fff;border-radius:10px;border:1px solid var(--line);box-shadow:0 8px 18px rgba(15,23,42,.12);padding:12px 16px;font-size:16px;font-weight:800;color:var(--teal);transition:all .5s cubic-bezier(.3,1.3,.5,1);opacity:0}
+.b3-paper .ln{height:8px;border-radius:4px;background:#E2E8F0;margin:8px 0}
+.b3-paper.on{opacity:1}
+.b3-cal{position:absolute;left:510px;top:200px;width:230px;background:#fff;border-radius:18px;border:1px solid var(--line);box-shadow:0 14px 30px rgba(15,23,42,.13);overflow:hidden;text-align:center;opacity:0;transform:translateY(16px);transition:all .5s}
+.b3-cal.on{opacity:1;transform:none}
+.b3-cal .top{background:var(--coral);color:#fff;font-family:"Outfit",sans-serif;font-weight:800;font-size:17px;padding:10px;letter-spacing:.05em;text-transform:uppercase}
+.b3-cal .num{font-family:"Outfit",sans-serif;font-weight:800;font-size:96px;line-height:1;color:var(--ink);padding:18px 0 4px}
+.b3-cal .lab{font-size:19px;font-weight:700;color:var(--soft);padding-bottom:20px}
+
+.b3-table{position:absolute;left:220px;top:300px;width:300px;height:180px;border-radius:50%;background:radial-gradient(ellipse at 40% 35%,#FDE68A,#D97706);box-shadow:inset 0 -10px 0 rgba(0,0,0,.08),0 18px 30px rgba(15,23,42,.15)}
+.b3-table span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:"Outfit",sans-serif;font-weight:800;font-size:26px;color:#78350F}
+.b3-seat{position:absolute;width:150px;padding:10px;border-radius:14px;background:#fff;border:2px solid var(--line);text-align:center;font-size:15px;font-weight:700;line-height:1.2;box-shadow:0 8px 20px rgba(15,23,42,.08);opacity:.55;transition:all .45s cubic-bezier(.3,1.3,.5,1)}
+.b3-seat i{display:block;width:40px;height:40px;margin:0 auto 6px;border-radius:50%;background:#CFFAFE;font-style:normal;font-size:20px;line-height:40px;color:#0E7490;font-family:"Outfit",sans-serif;font-weight:800}
+.b3-seat.on{opacity:1}
+.b3-you{position:absolute;left:58px;top:330px;width:160px;padding:12px;border-radius:16px;background:#FFF7ED;border:3px solid var(--coral);text-align:center;font-size:16px;font-weight:800;color:#9A3412;line-height:1.2;opacity:0;transform:scale(.6);transition:all .5s cubic-bezier(.3,1.3,.5,1)}
+.b3-you i{display:block;width:46px;height:46px;margin:0 auto 6px;border-radius:50%;background:var(--coral);color:#fff;font-style:normal;font-size:22px;line-height:46px;font-family:"Outfit",sans-serif;font-weight:800}
+.b3-you.on{opacity:1;transform:none}
+.b3-badge{position:absolute;left:58px;top:470px;width:160px;text-align:center;background:var(--teal);color:#fff;border-radius:999px;padding:6px 0;font-size:14px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;opacity:0;transition:opacity .4s}
+.b3-badge.on{opacity:1}
+.b3-eff{position:absolute;left:80px;top:618px;width:660px;display:flex;gap:12px;flex-wrap:wrap}
+.b3-eff .chip{opacity:0;transform:translateY(10px);transition:all .4s}
+.b3-eff .chip.on,.b3-eff.on .chip{opacity:1;transform:none}
+
+.b3-start{position:absolute;left:66px;top:350px;width:190px;height:100px;border-radius:18px;background:#FFF7ED;border:3px solid var(--coral);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:"Outfit",sans-serif;font-weight:800;font-size:22px;color:#9A3412;text-align:center;line-height:1.15}
+.b3-start small{font-family:"Source Sans 3",sans-serif;font-size:14px;color:#C2410C;font-weight:700;margin-top:4px}
+.b3-lines{position:absolute;left:256px;top:150px;width:170px;height:500px}
+.b3-lines path{fill:none;stroke:#0891B2;stroke-width:4;stroke-linecap:round;stroke-dasharray:320;stroke-dashoffset:320;transition:stroke-dashoffset .8s ease}
+.b3-lines path.on{stroke-dashoffset:0}
+.b3-opt{position:absolute;left:426px;width:320px;height:120px;background:#fff;border:2px solid var(--line);border-radius:16px;box-shadow:0 10px 24px rgba(15,23,42,.08);padding:14px 18px;display:flex;gap:14px;align-items:center;opacity:0;transform:translateX(20px);transition:all .45s}
+.b3-opt.on{opacity:1;transform:none;border-color:#67E8F9}
+.b3-opt i{width:54px;height:54px;border-radius:14px;background:#ECFEFF;flex:none;display:flex;align-items:center;justify-content:center}
+.b3-opt b{display:block;font-family:"Outfit",sans-serif;font-size:22px;color:var(--ink)}
+.b3-opt span{font-size:15px;color:var(--soft);font-weight:600}
+
+.b3-bind{position:absolute;left:70px;top:140px;width:640px;height:520px}
+.b3-spine{position:absolute;left:0;top:0;width:40px;height:520px;border-radius:12px 0 0 12px;background:#0B4F61}
+.b3-pagewrap{position:absolute;left:40px;top:0;width:600px;height:520px;background:#fff;border:1px solid var(--line);border-radius:0 16px 16px 0;box-shadow:0 16px 34px rgba(15,23,42,.13);padding:20px 26px}
+.b3-pagewrap h4{margin:0 0 12px;font-family:"Outfit",sans-serif;font-size:24px;color:var(--teal)}
+.b3-log{display:flex;align-items:center;gap:14px;padding:11px 12px;margin-bottom:8px;border-radius:12px;background:#F8FAFC;border:1px solid #E2E8F0;font-size:18px;font-weight:700;color:var(--ink);opacity:0;transform:translateY(12px);transition:all .4s}
+.b3-log.on{opacity:1;transform:none}
+.b3-log .d{width:86px;flex:none;font-size:15px;color:var(--coral);font-weight:800}
+.b3-log svg{flex:none}
+.b3-best{position:absolute;left:66px;top:440px;width:508px;background:#FFF7ED;border:2px solid #FDBA74;border-radius:14px;padding:12px 16px;font-size:19px;font-weight:800;color:#9A3412;text-align:center;opacity:0;transform:scale(.8);transition:all .5s cubic-bezier(.3,1.3,.5,1)}
+.b3-best.on{opacity:1;transform:none}
+</style>
+</head><body>
+<div id="view"><div id="stage"><div id="nbar"><i></i></div>
+<div id="scenes"></div>
+<div id="spot"></div>
+<svg id="cursor" viewBox="0 0 28 32"><path d="M3 2 L3 26 L9.5 19.5 L14 29 L18.5 27 L14 17.5 L23 17.5 Z" fill="#fff" stroke="#0F172A" stroke-width="2" stroke-linejoin="round"/></svg>
+</div></div>
+<div id="cap" aria-live="polite"></div>
+<div id="bar">
+ <button id="prev">Back</button><button id="play">Start</button><button id="next">Next</button>
+ <div id="dots"></div>
+ <button id="capbtn" aria-pressed="false">Captions</button><button id="voice" aria-pressed="true">Voice on</button>
+</div>
+<script src="lesson-kit.js?v=2"></script>
+<script>
+const DECK_ID='cert-bronze-3';
+const L={tier:'bronze',lesson:'Bronze Lesson 3',title:'Your Rights As a Parent'};
+const TICK='<svg viewBox="0 0 24 24"><path d="M5 12 L10 17 L19 7" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const ICO=(d,c='#0E7490')=>`<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="${c}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const I_TALK='<path d="M4 5h11a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/><path d="M19 9h1a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-1v3l-3-3h-4"/>';
+const I_GAVEL='<path d="M3 9l9-5 9 5"/><path d="M5 9v9M9.5 9v9M14.5 9v9M19 9v9"/><path d="M3 20h18"/>';
+const I_DOC='<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>';
+const I_MAIL='<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>';
+const I_PEN='<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/>';
+const I_NOTE='<path d="M5 3h10l4 4v14H5z"/><path d="M15 3v4h4"/><path d="M8 12h8M8 16h5"/>';
+const on=(s)=>{const e=typeof s==='string'?q(s):s;e.classList.add('on');return e};
+
+const SC=[
+COVER({...L,title:'Your Rights As a Parent',
+ sub:'The protections IDEA gives you and your child, and how to use them.',
+ say:'Aloha, and welcome to Lesson 3 of Bronze, the Foundations level of the L D A H Certification Program. This lesson is about you. One of the most powerful things you can do as a parent is know your rights. Let’s go through them together, one at a time.'}),
+
+{html:()=>HEAD('Know your rights','IDEA protects you and your child')+`<div class="b3-shield"><svg viewBox="0 0 210 250"><path d="M105 8 L196 42 V118 C196 178 156 222 105 242 C54 222 14 178 14 118 V42 Z" fill="#0E7490"/><path d="M105 26 L180 54 V118 C180 168 148 204 105 222 C62 204 30 168 30 118 V54 Z" fill="none" stroke="#67E8F9" stroke-width="3"/></svg><span>IDEA</span><small>Procedural safeguards</small></div>
+ <div class="b3-rights">
+ <div class="b3-row"><i>1</i><div>Prior Written Notice<small>You are told in writing first</small></div></div>
+ <div class="b3-row"><i>2</i><div>Informed Consent<small>Your signature, before certain steps</small></div></div>
+ <div class="b3-row"><i>3</i><div>Access to Records<small>You can see your child’s file</small></div></div>
+ <div class="b3-row"><i>4</i><div>Participation in IEP Meetings<small>Your seat at the table</small></div></div>
+ <div class="b3-row"><i>5</i><div>Due Process<small>Options when you disagree</small></div></div></div>`+PTS([
+ 'Knowing your rights is one of the most <b>powerful</b> things you can do.',
+ 'IDEA gives a robust set of <b>procedural safeguards</b>.',
+ 'They are designed to protect <b>you and your child</b>.',
+ 'Five key rights. We take them one at a time.'],150),
+ steps:[
+ {say:'Here is something worth remembering. One of the most powerful things you can do as a parent is know your rights. When you know them, you can speak up with confidence.',li:0},
+ {say:'The federal special education law, I D E A, gives families a robust set of protections. They are called procedural safeguards.',li:1,act:async()=>{spot(q('.b3-shield'),8)}},
+ {say:'They are designed specifically to protect you, and your child. They are not favors the school may choose to give. They are part of the law.',li:2,act:async()=>{spot(null)}},
+ {say:'In this lesson we look at five key rights. Prior Written Notice. Informed Consent. Access to Records. Participation in I E P meetings. And Due Process.',li:3,act:async()=>{for(const r of all('.b3-row')){r.classList.add('on');await wait(450)}}}]},
+
+{html:()=>HEAD('Right 1','Prior Written Notice (PWN)')+`<div class="b3-letter"><h4>Prior Written Notice</h4><div class="from">From your child’s school</div>
+ <div class="b3-pr"><span class="b3-stamp b3-s1">Proposes</span><span class="b3-stamp b3-s2">Refuses</span><span style="align-self:center;font-weight:700;color:#64748B">a change to:</span></div>
+ <div class="b3-item"><span class="b3-box">${TICK}</span>Identification</div>
+ <div class="b3-item"><span class="b3-box">${TICK}</span>Evaluation</div>
+ <div class="b3-item"><span class="b3-box">${TICK}</span>Educational placement</div>
+ <div class="b3-item"><span class="b3-box">${TICK}</span>Provision of FAPE</div></div>
+ <div class="b3-tl"><div class="b3-n b3-n1" style="left:0;background:#ECFEFF;border:2px solid #67E8F9;color:#0E7490">1. Written notice</div>
+ <svg class="b3-a" viewBox="0 0 150 30"><path d="M6 15 H136 M124 5 L140 15 L124 25" fill="none" stroke="#94A3B8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+ <div class="b3-n b3-n2" style="left:420px;background:#F8FAFC;border:2px solid #CBD5E1;color:#334155">2. Then the change</div></div>`+PTS([
+ 'The school must give you <b>written notice</b> first.',
+ 'Whether it <b>proposes</b> a change or <b>refuses</b> one.',
+ 'Covers your child’s <b>identification, evaluation, educational placement</b>, or <b>provision of FAPE</b>.',
+ 'FAPE: a <b>Free</b> Appropriate Public Education.'],150),
+ steps:[
+ {say:'Right number one. Prior Written Notice, sometimes called P W N. The school must give you written notice before it makes changes. Notice comes first. The change comes after.',li:0,act:async()=>{on('.b3-n1');await wait(500);on('.b3-n2')}},
+ {say:'Notice the word refuses. The school owes you this notice when it proposes a change, and also when it refuses to make one. So if you ask for something and the answer is no, that no should come to you in writing too.',li:1,act:async()=>{on('.b3-s1');await wait(700);const s=on('.b3-s2');spot(q('.b3-pr'),8)}},
+ {say:'It covers four areas. Your child’s identification, meaning whether your child is found eligible. Evaluation. Educational placement. And the provision of FAPE.',li:2,act:async()=>{spot(null);for(const r of all('.b3-item')){r.classList.add('on');await wait(500)}}},
+ {say:'FAPE stands for a Free Appropriate Public Education. That F is for free. It is what special education is there to provide your child.',li:3,act:async()=>{spot(all('.b3-item')[3],4)}}]},
+
+{html:()=>HEAD('Right 2','Informed Consent')+`<div class="b3-form"><h4>Parent Consent</h4><div class="from">The school asks for your written consent before it can:</div>
+ <div class="b3-item"><span class="b3-box">${TICK}</span>Conduct an initial evaluation</div>
+ <div class="b3-item"><span class="b3-box">${TICK}</span>Provide initial special education services</div>
+ <div class="b3-item"><span class="b3-box">${TICK}</span>Reevaluate your child</div>
+ <div class="b3-signline" style="margin-top:62px"><svg class="b3-sig" viewBox="0 0 200 44"><path d="M6 34c12-26 18 8 28-8s12 14 22 2 14-18 24-4 16 6 26-8 12 12 34 2 20-10 44-4" fill="none" stroke="#0E7490" stroke-width="2.6" stroke-linecap="round"/></svg>Parent signature</div></div>
+ <div class="b3-gate"><div class="b3-lock">${ICO('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>','#C2410C')}No signature, no start</div></div>`+PTS([
+ 'The school must get your <b>written consent</b>.',
+ 'Before an <b>initial evaluation</b>.',
+ 'Before <b>initial special education services</b>.',
+ 'Before <b>reevaluating</b> your child.',
+ 'Informed means you understand what you are signing.'],150),
+ steps:[
+ {say:'Right number two. Informed Consent. For certain steps, the school must get your written consent. Not a nod in a hallway. Your signature, in writing.',li:0,act:async()=>{spot(q('.b3-form h4'),6)}},
+ {say:'Before it conducts an initial evaluation of your child.',li:1,act:async()=>{spot(null);all('.b3-item')[0].classList.add('on')}},
+ {say:'Before it provides special education services for the first time.',li:2,act:async()=>{all('.b3-item')[1].classList.add('on')}},
+ {say:'And before it reevaluates your child.',li:3,act:async()=>{all('.b3-item')[2].classList.add('on')}},
+ {say:'Informed is the key word. Before you sign, you should understand what you are agreeing to. It is fine to ask questions first, and to take the form home to read. Until you sign, those steps do not start.',li:4,act:async()=>{on('.b3-sig');await wait(1400);on('.b3-lock')}}]},
+
+{html:()=>HEAD('Right 3','Access to Records')+`<div class="b3-folder"><div class="back"></div><div class="tab"></div>
+ <div class="b3-paper b3-p1" style="left:20px;top:-10px;transform:rotate(-6deg)"><span>Evaluations</span><div class="ln"></div><div class="ln" style="width:70%"></div></div>
+ <div class="b3-paper b3-p2" style="left:130px;top:-30px;transform:rotate(3deg)"><span>IEP documents</span><div class="ln"></div><div class="ln" style="width:60%"></div></div>
+ <div class="b3-paper b3-p3" style="left:90px;top:20px;transform:rotate(-1deg)"><span>Report cards</span><div class="ln"></div><div class="ln" style="width:80%"></div></div>
+ <div class="front">Your child’s education records</div></div>
+ <div class="b3-cal"><div class="top">School responds within</div><div class="num b3-num">0</div><div class="lab">days</div></div>`+PTS([
+ 'You can <b>inspect and review</b> your child’s records.',
+ '<b>All</b> education records relating to your child.',
+ 'Schools must respond within <b>45 days</b>.'],150),
+ steps:[
+ {say:'Right number three. Access to Records. You have the right to inspect and review your child’s education records. You can look at them yourself.',li:0,act:async()=>{spot(q('.b3-folder'),8)}},
+ {say:'Not just some of them. All education records relating to your child. Evaluations, I E P documents, report cards. If it is part of your child’s education record, you can see it.',li:1,act:async()=>{spot(null);for(const p of all('.b3-paper')){p.classList.add('on');await wait(400)}}},
+ {say:'And the school cannot leave you waiting. Schools must respond within 45 days. Reviewing the file before a big meeting is a smart way to prepare.',li:2,act:async()=>{const c=on('.b3-cal');await wait(300);await countTo(q('.b3-num'),45,'',1400);spot(c,6)}}]},
+
+{html:()=>HEAD('Right 4','Participation in IEP Meetings')+`<div class="b3-table"><span>IEP Team</span></div>
+ <div class="b3-seat" style="left:250px;top:150px"><i>T</i>Teachers</div>
+ <div class="b3-seat" style="left:450px;top:190px"><i>S</i>School staff</div>
+ <div class="b3-seat" style="left:450px;top:460px"><i>E</i>Evaluators</div>
+ <div class="b3-seat" style="left:250px;top:500px"><i>+</i>Others</div>
+ <div class="b3-you"><i>P</i>You, the parent</div><div class="b3-badge">Required member</div>
+ <div class="b3-eff"><span class="chip">A time that works for you</span><span class="chip">A place you can get to</span><span class="chip coral">Reasonable efforts</span></div>`+PTS([
+ 'You are a <b>required member</b> of the IEP team.',
+ 'A required and <b>equal</b> member.',
+ 'The school must make <b>reasonable efforts</b> to make sure you can attend.'],150),
+ steps:[
+ {say:'Right number four. Participation in I E P meetings. Here is the I E P team. Teachers, school staff, the people who evaluated your child.',act:async()=>{for(const s of all('.b3-seat')){s.classList.add('on');await wait(250)}}},
+ {say:'And here is your seat. You are a required member of your child’s I E P team. Not a guest. Not someone who is told about decisions afterward. Required.',li:0,act:async()=>{const y=on('.b3-you');on('.b3-badge');spot(y,8)}},
+ {say:'You are also an equal member. You know your child in ways no one else at that table does. Your voice carries the same weight as anyone else in the room.',li:1,act:async()=>{spot(q('.b3-table'),10)}},
+ {say:'Because your seat is required, the school must make reasonable efforts to ensure you can attend. That means working with you on a time and a place that you can actually make.',li:2,act:async()=>{spot(null);for(const c of all('.b3-eff .chip')){c.classList.add('on');await wait(350)}}}]},
+
+{html:()=>HEAD('Right 5','Due Process: when you disagree')+`<div class="b3-start">You disagree<small>with the school’s decision</small></div>
+ <svg class="b3-lines" viewBox="0 0 170 500"><path class="b3-l1" d="M0 250 C70 250 90 70 170 70"/><path class="b3-l2" d="M0 250 H170"/><path class="b3-l3" d="M0 250 C70 250 90 430 170 430"/></svg>
+ <div class="b3-opt b3-o1" style="top:160px"><i>${ICO(I_TALK)}</i><div><b>Mediation</b><span>Option one</span></div></div>
+ <div class="b3-opt b3-o2" style="top:340px"><i>${ICO(I_GAVEL)}</i><div><b>Due Process Hearing</b><span>Option two</span></div></div>
+ <div class="b3-opt b3-o3" style="top:520px"><i>${ICO(I_DOC)}</i><div><b>State Complaint</b><span>To the Hawaiʻi DOE</span></div></div>`+PTS([
+ 'If you <b>disagree</b> with the school’s decisions, you have options.',
+ '<b>Mediation</b>.',
+ 'A <b>Due Process Hearing</b>.',
+ 'A <b>State Complaint</b> to the Hawaiʻi DOE.'],150),
+ steps:[
+ {say:'Right number five. Due Process. Sometimes you and the school will not agree. That happens, and it does not mean you have failed. If you disagree with the school’s decisions, you have options.',li:0,act:async()=>{spot(q('.b3-start'),8)}},
+ {say:'The first option is mediation.',li:1,act:async()=>{spot(null);on('.b3-l1');await wait(600);on('.b3-o1')}},
+ {say:'The second is a due process hearing.',li:2,act:async()=>{on('.b3-l2');await wait(600);on('.b3-o2')}},
+ {say:'And the third is a state complaint, filed with the Hawaiʻi Department of Education. For now, the important thing is simply to know that these three paths exist. Disagreeing does not leave you stuck.',li:3,act:async()=>{on('.b3-l3');await wait(600);const o=on('.b3-o3');spot(o,6)}}]},
+
+{html:()=>HEAD('Pro tip','Keep copies of everything')+`<div class="b3-bind"><div class="b3-spine"></div><div class="b3-pagewrap"><h4>My school records binder</h4>
+ <div class="b3-log"><span class="d">Sept 4</span>${ICO(I_MAIL)}Letter from the school</div>
+ <div class="b3-log"><span class="d">Sept 12</span>${ICO(I_MAIL)}My email to the teacher</div>
+ <div class="b3-log"><span class="d">Sept 20</span>${ICO(I_DOC)}Prior Written Notice</div>
+ <div class="b3-log"><span class="d">Oct 2</span>${ICO(I_PEN)}Copy of the consent I signed</div>
+ <div class="b3-log"><span class="d">Oct 15</span>${ICO(I_NOTE)}My notes from the meeting</div></div>
+ <div class="b3-best">Documentation is your best friend as an advocate.</div></div>`+PTS([
+ 'Always keep <b>copies</b> of all correspondence with the school.',
+ 'Letters, emails, notices, forms you sign.',
+ 'Add a <b>date</b> to each one.',
+ '<b>Documentation</b> is your best friend as an advocate.'],150),
+ steps:[
+ {say:'Here is a pro tip that ties all five rights together. Always keep copies of all correspondence with the school.',li:0,act:async()=>{spot(q('.b3-bind'),6)}},
+ {say:'Letters the school sends you. Emails you send to the teacher. Every Prior Written Notice. A copy of every consent form you sign.',li:1,act:async()=>{spot(null);const l=all('.b3-log');for(let i=0;i<4;i++){l[i].classList.add('on');await wait(400)}}},
+ {say:'Keep it in order, with dates. Even your own notes from a meeting belong in there. A simple binder or one folder on your phone works well.',li:2,act:async()=>{all('.b3-log')[4].classList.add('on')}},
+ {say:'Documentation is your best friend as an advocate. When a question comes up months from now, you will have the answer in your hands.',li:3,act:async()=>{const b=on('.b3-best');spot(b,6)}}]},
+
+QUIZ([
+ {q:'The school plans to change your child’s educational placement. What must it give you first?',o:['A phone call from the teacher','Prior Written Notice','An updated report card'],a:1,y:'The school must give you written notice before it proposes a change.',n:'Think about right number one.'},
+ {q:'Before the school provides special education services for the first time, what does it need from you?',o:['Your written consent','A letter from your doctor','Nothing, it can just begin'],a:0,y:'Initial services need your written consent.',n:'Think about the form with the signature line.'},
+ {q:'You ask to review your child’s education records. Within how many days must the school respond?',o:['10 days','30 days','45 days'],a:2,y:'Schools must respond within 45 days.',n:'Think about the calendar on the records slide.'}]),
+
+RECAP([
+ '<b>Prior Written Notice</b> before the school proposes or refuses a change.',
+ 'Your <b>written consent</b> before evaluations and initial services.',
+ 'You can see <b>all</b> your child’s records. Schools respond within <b>45 days</b>.',
+ 'You are a <b>required and equal member</b> of the IEP team.',
+ 'If you disagree: <b>mediation</b>, a <b>due process hearing</b>, or a <b>state complaint</b>.',
+ 'Keep <b>copies</b> of everything.'],[
+ 'The school must give you Prior Written Notice before it makes changes to your child’s program, or refuses to.',
+ 'Your written consent is required before evaluations and before initial services.',
+ 'You have the right to see all of your child’s school records, and the school must respond within 45 days.',
+ 'You are a required and equal member of the I E P team.',
+ 'If you disagree, you have options: mediation, a due process hearing, or a state complaint to the Hawaiʻi Department of Education.',
+ 'And keep copies of everything. Documentation is your best friend.']),
+
+CLOSE({...L,sub:'Select Complete on the lesson page when you are ready.',
+ say:'Mahalo! That is Lesson 3. You now know your five key rights, and that puts you in a stronger place at every meeting. Select Complete on the lesson page when you are ready to move on.'})
+];
+</script>
+<script src="deck-engine.js?v=1"></script></body></html>
