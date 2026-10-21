@@ -11559,12 +11559,20 @@ exports.sendEventRecordingEmail = functions
         .filter(n => n && n.eventId && n.label).slice(0, 3);
       const _nextEmails = {};
       for (const n of _next) {
+        // Keyed by event + date: on a multi-date event, a signup for the first
+        // date is not a signup for the second.
         const set = new Set();
         try {
           const ss = await _db.collection("events").doc(String(n.eventId)).collection("signups").get();
-          ss.forEach(d => { const x = d.data() || {}; if (x.archived !== true && x.status !== "cancelled" && x.email) set.add(String(x.email).trim().toLowerCase()); });
+          ss.forEach(d => {
+            const x = d.data() || {};
+            if (x.archived === true || x.status === "cancelled" || !x.email) return;
+            const dates = Array.isArray(x.selectedDates) ? x.selectedDates : [];
+            if (n.raw && dates.length && dates.indexOf(n.raw) < 0) return;
+            set.add(String(x.email).trim().toLowerCase());
+          });
         } catch (e) { console.warn("recording email: next-session signups read failed", n.eventId, e.message); }
-        _nextEmails[n.eventId] = set;
+        _nextEmails[n.eventId + "|" + (n.raw || "")] = set;
       }
       const _memberCache = {};
       async function _isMemberEmail(email) {
@@ -11584,7 +11592,7 @@ exports.sendEventRecordingEmail = functions
         const _nextForR = _next.map(n => ({
           label: String(n.label), title: String(n.title || ""),
           signupUrl: "https://www.ldahawaii.org/events.html?eventId=" + encodeURIComponent(n.eventId) + "&autoOpen=1",
-          signedUp: !!(_nextEmails[n.eventId] && _nextEmails[n.eventId].has(_em)),
+          signedUp: !!(_nextEmails[n.eventId + "|" + (n.raw || "")] && _nextEmails[n.eventId + "|" + (n.raw || "")].has(_em)),
         }));
         const audience = r.audience === "noShow" ? "noShow" : "attended";
         const isNoShow = audience === "noShow";
