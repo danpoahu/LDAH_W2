@@ -9901,6 +9901,68 @@ function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl, eventId, s
 // Run the combined announcement described by system/pendingCombinedAnnouncement.
 // Idempotent: the job doc's status is flipped to "sending" before the first
 // email goes out, so a repeated Pub/Sub delivery cannot send the batch twice.
+
+/* "Three ways to be part of LDAH" (2026-10-22): one family email with three
+   cards -- volunteer, become a member, get the app -- each with its flyer image,
+   three short lines and one big button. Daniel approved the mockup as drawn.
+   A current member sees a thank-you card with the Member Portal instead of the
+   join pitch. blocks give the flyer images, in volunteer/member/app order. */
+function buildThreeWaysEmailHtml({ blocks, contact, unsubscribeUrl, isMember }) {
+  const esc = (x) => String(x || '').replace(/[&<>"']/g,
+    c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
+  const displayName = (contact.displayName || '').trim();
+  const firstName = (displayName && displayName !== 'Friend') ? displayName.split(/\s+/)[0] : 'Friend';
+  const img = (i) => { const ev = (blocks[i] && blocks[i].event) || {}; return ev.imageUrl || ev.flyerUrl || ''; };
+  const VOL = 'https://www.ldahawaii.org/volunteer.html#volunteer';
+  const JOIN = MEMBERSHIP_JOIN_URL;
+  const PORTAL = 'https://www.ldahawaii.org/Members/';
+  const IOS = 'https://apps.apple.com/us/app/ldah/id6760046576';
+  const PLAY = 'https://play.google.com/store/apps/details?id=org.ldahawaii.app';
+  const INSTALL = 'https://www.ldahawaii.org/install.html';
+  const btn = (href, label, bg) => '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0 4px;"><tr><td bgcolor="' + bg + '" style="border-radius:999px;background:' + bg + ';"><a href="' + href + '" target="_blank" style="display:inline-block;padding:13px 28px;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:999px;">' + label + '</a></td></tr></table>';
+  const li = (t) => '<tr><td valign="top" style="padding:3px 8px 3px 0;color:#0891B2;font-size:16px;">&#10003;</td><td style="padding:3px 0;font-size:15px;color:#334155;line-height:1.45;">' + t + '</td></tr>';
+  const card = (kicker, kc, title, image, imgHref, body, bullets, buttons, flyerLabel) =>
+    '<tr><td style="padding:8px 24px 18px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #E2E8F0;border-radius:16px;">' +
+    (image ? '<tr><td style="padding:0;"><a href="' + esc(imgHref) + '" target="_blank"><img src="' + esc(image) + '" alt="' + esc(title) + ' flyer" width="550" style="display:block;width:100%;max-width:550px;height:230px;object-fit:cover;object-position:top;border:0;border-radius:16px 16px 0 0;"></a></td></tr>' : '') +
+    '<tr><td style="padding:20px 22px 22px;font-family:Arial,Helvetica,sans-serif;"><div style="font-size:12px;font-weight:700;letter-spacing:1.5px;color:' + kc + ';">' + kicker + '</div><div style="font-size:24px;font-weight:800;color:#0B4F61;margin:6px 0 8px;line-height:1.2;">' + title + '</div><div style="font-size:16px;color:#334155;line-height:1.55;">' + body + '</div><table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:10px;">' + bullets.map(li).join('') + '</table>' + buttons +
+    (image && flyerLabel ? '<div style="font-size:13px;margin-top:8px;"><a href="' + esc(imgHref) + '" target="_blank" style="color:#0E7490;">' + flyerLabel + '</a></div>' : '') +
+    '</td></tr></table></td></tr>';
+  const pill = (href, t) => '<td style="padding-right:8px;"><a href="' + href + '" target="_blank" style="display:inline-block;padding:7px 14px;border:1px solid rgba(255,255,255,.55);border-radius:999px;color:#fff;font-size:13px;font-weight:700;text-decoration:none;">' + t + '</a></td>';
+  const vol = card('1 &middot; VOLUNTEER WITH US', '#F97316', 'Lend a hand, lift a family', img(0), img(0),
+    'Join our crew at LDAH&#39;s booth at UH home sporting events, or help year-round at workshops, family events and in the office.',
+    ['No experience needed, and shifts are flexible', 'Come for an afternoon or stay all season', 'Service hours for students'],
+    btn(VOL, 'Sign up to volunteer', '#F97316') +
+    '<div style="margin-top:14px;font-size:13px;color:#475569;">Year-end goal: <b>$35,000 of $50,000</b> raised</div><div style="height:10px;background:#E2E8F0;border-radius:999px;margin-top:6px;"><div style="width:70%;height:10px;background:#F97316;border-radius:999px;"></div></div>',
+    'See the full volunteer flyer');
+  const mem = isMember
+    ? card('2 &middot; THANK YOU, MEMBER', '#0891B2', 'Mahalo for being a member', '', '',
+        'Your membership keeps LDAH&#39;s help free and close to home. Everything that comes with it is waiting in the Member Portal.',
+        ['The LDAH Training Video Library, with Learning Labs on demand', 'Slide decks and summaries from every Learning Lab', 'Your membership details in one place'],
+        btn(PORTAL, 'Open the Member Portal', '#0E7490'), '')
+    : card('2 &middot; BECOME A MEMBER', '#0891B2', 'E komo mai, join our &#699;ohana', img(1), img(1),
+        'Your membership keeps LDAH&#39;s help free and close to home. Memberships start at <b>$50 a year</b>.',
+        ['The LDAH Training Video Library, with a full year of Learning Labs on demand', 'Slide decks and summaries from every Learning Lab', '<b>Friend level ($100) and up:</b> case advocacy from our Special Education Consultants'],
+        btn(JOIN, 'Become a member', '#0E7490'), 'See all membership levels');
+  const app = card('3 &middot; GET THE FREE APP', '#0B4F61', 'LDAH in your pocket', img(2), img(2),
+    'Workshops, community resources, the Aloha Packet, Quick Help and the Member Portal, all on your phone.',
+    ['Sign up for workshops in a tap', 'Find local services across the islands', 'Free on iPhone and Android'],
+    '<table role="presentation" cellpadding="0" cellspacing="0" style="margin:16px 0 4px;"><tr><td style="padding-right:10px;"><a href="' + IOS + '" target="_blank" style="display:inline-block;padding:12px 20px;background:#111827;color:#fff;border-radius:12px;font-size:15px;font-weight:700;text-decoration:none;">App Store</a></td><td><a href="' + PLAY + '" target="_blank" style="display:inline-block;padding:12px 20px;background:#111827;color:#fff;border-radius:12px;font-size:15px;font-weight:700;text-decoration:none;">Google Play</a></td></tr></table>',
+    'See the full app flyer');
+  return '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Three ways to be part of LDAH</title></head>' +
+    '<body style="margin:0;padding:0;background:#F1F5F9;font-family:Arial,Helvetica,sans-serif;">' +
+    '<div style="display:none;max-height:0;overflow:hidden;">Volunteer, become a member, and get the free LDAH app.</div>' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F1F5F9;"><tr><td align="center" style="padding:14px 12px 28px;">' +
+    '<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#FFFBEB;border-radius:14px;overflow:hidden;">' +
+    '<tr><td style="background:#ffffff;padding:24px 24px 16px;text-align:center;"><img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai&#699;i" width="120" style="display:block;margin:0 auto;border:0;"></td></tr>' +
+    '<tr><td style="background:#0B4F61;background-image:linear-gradient(135deg,#0B4F61,#0891B2);padding:26px 24px;"><div style="font-size:13px;font-weight:700;letter-spacing:1.5px;color:#FDBA74;">ALOHA, LDAH FAMILIES</div><div style="font-size:28px;font-weight:800;color:#ffffff;line-height:1.2;margin-top:6px;">Three ways to be part of LDAH this season</div><div style="font-size:16px;color:#CFFAFE;margin-top:8px;line-height:1.5;">Pick one, or all three. Each takes just a few minutes.</div>' +
+    '<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:16px;"><tr>' + pill(VOL, 'Volunteer') + (isMember ? pill(PORTAL, 'Member Portal') : pill(JOIN, 'Become a member')) + pill(INSTALL, 'Get the app') + '</tr></table></td></tr>' +
+    '<tr><td style="padding:22px 24px 6px;font-size:16px;color:#334155;line-height:1.6;">Aloha ' + esc(firstName) + ',<br><br>Mahalo for being part of the LDAH &#699;ohana. Here are three easy ways to stay connected and help other families across the islands.</td></tr>' +
+    vol + mem + app +
+    '<tr><td style="padding:6px 24px 24px;font-size:16px;color:#334155;line-height:1.6;">Questions? Reply to this email or call us at <a href="tel:8085369684" style="color:#0E7490;">(808) 536-9684</a>.<br><br>Mahalo,<br><b>Parent Consultant Team</b><br>Leadership in Disabilities &amp; Achievement of Hawai&#699;i</td></tr>' +
+    '<tr><td style="background:#f0f0f0;padding:20px 24px;text-align:center;border-top:1px solid #dddddd;"><p style="margin:0 0 4px;font-size:13px;color:#777;font-weight:bold;">Leadership in Disabilities &amp; Achievement of Hawai&#699;i</p><p style="margin:0 0 8px;font-size:12px;color:#999;">245 N. Kukui St., Suite 205, Honolulu, HI 96817 &middot; (808) 536-9684</p><p style="margin:0;font-size:12px;color:#999;">You received this because you are in our contact list. <a href="' + unsubscribeUrl + '" style="color:#0891B2;">Unsubscribe</a> from future announcements.</p></td></tr>' +
+    '</table></td></tr></table></body></html>';
+}
+
 async function _runCombinedAnnouncement({ db, dryRun, testEmail }) {
   const jobRef = db.doc("system/pendingCombinedAnnouncement");
   const jobSnap = await jobRef.get();
@@ -9998,7 +10060,11 @@ async function _runCombinedAnnouncement({ db, dryRun, testEmail }) {
 
   const contactsSnap = await db.collection("contacts").where("marketingOptOut", "==", false).get();
   const recipients = [];
-  const dropped = { staff: 0, archived: 0, excluded: 0, malformed: 0 };
+  const dropped = { staff: 0, archived: 0, excluded: 0, malformed: 0, pip: 0, offIsland: 0 };
+  /* excludePip (2026-10-22): Hawaii families only. A contact owned by a Pacific
+     partner (partnerIsland) or living on a partner island is left out, and so is
+     one marked Off Island. */
+  const _pipSet = new Set(_PIP_ISLANDS);
   contactsSnap.forEach((d) => {
     const c = d.data() || {};
     const email = String(c.email || "").trim();
@@ -10009,7 +10075,12 @@ async function _runCombinedAnnouncement({ db, dryRun, testEmail }) {
     if (c.archived === true || c.mergedInto) { dropped.archived++; return; }
     if (staffEmails.has(lower)) { dropped.staff++; return; }
     if (excludeEmails.has(lower)) { dropped.excluded++; return; }
+    if (job.excludePip === true) {
+      if (c.partnerIsland || _pipSet.has(String(c.island || ""))) { dropped.pip++; return; }
+      if (String(c.island || "") === "Off Island") { dropped.offIsland++; return; }
+    }
     recipients.push({
+      isMember: _membershipIsActive(c),
       id: d.id, email,
       displayName: (c.displayName || [c.firstName, c.lastName].filter(Boolean).join(" ")).trim() || "Friend",
       unsubscribeToken: c.unsubscribeToken, secondParent: c.secondParent,
@@ -10017,6 +10088,9 @@ async function _runCombinedAnnouncement({ db, dryRun, testEmail }) {
   });
 
   const forRecipient = (r) => {
+    // The three-ways email is one piece for everyone: earlier flyer
+    // announcements do not take a card out of it.
+    if (job.template === "threeWays") return blocks;
     const lower = r.email.toLowerCase();
     return blocks.filter((b) =>
       !b.signedEmails.has(lower) && !b.signedIds.has(r.id) && !b.alreadySent.has(r.id));
@@ -10032,6 +10106,7 @@ async function _runCombinedAnnouncement({ db, dryRun, testEmail }) {
       if (mine.length === blocks.length && blocks.length > 1) both++;
       mine.forEach((b) => { tally[b.eventId]++; });
     }
+    tally.members = recipients.filter((r) => r.isMember).length;
     return { ok: true, dryRun: true, willSend: recipients.length - tally.none,
              getBoth: both, perEvent: tally,
              titles: blocks.map((b) => b.event.title || b.eventId) };
@@ -10068,9 +10143,12 @@ async function _runCombinedAnnouncement({ db, dryRun, testEmail }) {
   if (test) {
     const fake = { id: "__test__", email: test, unsubscribeToken: "test-token-noop",
                    displayName: String(job.testName || "Friend") };
-    const html = buildCombinedAnnouncementEmailHtml({
-      blocks, contact: fake, unsubscribeUrl: unsubBase + "?token=test-token-noop",
-      heading: headingOverride, lead: leadOverride, extraLinks, extraHtml });
+    const html = (job.template === "threeWays")
+      ? buildThreeWaysEmailHtml({ blocks, contact: fake, unsubscribeUrl: unsubBase + "?token=test-token-noop",
+                                  isMember: job.testAsMember === true })
+      : buildCombinedAnnouncementEmailHtml({
+          blocks, contact: fake, unsubscribeUrl: unsubBase + "?token=test-token-noop",
+          heading: headingOverride, lead: leadOverride, extraLinks, extraHtml });
     await sendEmailViaResend({
       from: "LDAH <" + fromAddress + ">",
       to: [test],
@@ -10097,9 +10175,11 @@ async function _runCombinedAnnouncement({ db, dryRun, testEmail }) {
     if (!mine.length) { skipped++; continue; }
     try {
       const unsubscribeUrl = unsubBase + "?token=" + encodeURIComponent(r.unsubscribeToken);
-      const html = buildCombinedAnnouncementEmailHtml({
-        blocks: mine, contact: r, unsubscribeUrl,
-        heading: headingOverride, lead: leadOverride, extraLinks, extraHtml });
+      const html = (job.template === "threeWays")
+        ? buildThreeWaysEmailHtml({ blocks, contact: r, unsubscribeUrl, isMember: r.isMember })
+        : buildCombinedAnnouncementEmailHtml({
+            blocks: mine, contact: r, unsubscribeUrl,
+            heading: headingOverride, lead: leadOverride, extraLinks, extraHtml });
       /* One subject for the whole mailing when the job names one. Without it the
          line silently changed for anyone suppressed from a block, so two people
          on the same send got different subjects. */
