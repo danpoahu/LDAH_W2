@@ -26745,7 +26745,19 @@ function _dupPairKey(a, b) { return [a, b].sort().join("__"); }
 // Merge `loser` into `keeper`: fill blanks only, union arrays, re-point every
 // reference, then delete the loser. Never overwrites a value the keeper already
 // has. Returns a short summary of what moved.
-async function _mergeContactPair(db, keeperId, loserId) {
+// Two first names one slip apart are the same child spelled two ways: one letter
+// added, dropped or changed, or two letters swapped ("Audrey"/"Audery").
+function _dupKidClose(a, b) {
+  if (a === b) return true;
+  if (!a || !b || Math.abs(a.length - b.length) > 1) return false;
+  let i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  if (a.length === b.length && a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2)) return true;
+  let j = 0; while (j < a.length - i && j < b.length - i && a[a.length - 1 - j] === b[b.length - 1 - j]) j++;
+  return (a.length - i - j) <= 1 && (b.length - i - j) <= 1;
+}
+
+async function _mergeContactPair(db, keeperId, loserId, opts) {
+  opts = opts || {};
   const FieldValue = admin.firestore.FieldValue;
   const [kSnap, lSnap] = await Promise.all([
     db.collection("contacts").doc(keeperId).get(),
@@ -26765,27 +26777,53 @@ async function _mergeContactPair(db, keeperId, loserId) {
     if (blank(merged[f]) && !blank(loser[f])) { merged[f] = loser[f]; moved.push(f); }
   }
   // A second, different email is real information — keep it rather than drop it.
-  if (!blank(loser.email) && !blank(keeper.email) &&
-      String(loser.email).toLowerCase() !== String(keeper.email).toLowerCase()) {
-    merged.alternateEmails = [...new Set([...(keeper.alternateEmails || []), String(loser.email)])];
-    moved.push("alternateEmails");
+  // Unless staff said it is a typo (opts.dropOtherEmail, 10-21): then it goes,
+  // including any earlier copy of it on the keeper's alternates.
+  const lowEm = v => String(v || "").trim().toLowerCase();
+  if (!blank(loser.email) && !blank(keeper.email) && lowEm(loser.email) !== lowEm(keeper.email)) {
+    if (opts.dropOtherEmail) {
+      if (Array.isArray(keeper.alternateEmails)) {
+        merged.alternateEmails = keeper.alternateEmails.filter(e => lowEm(e) !== lowEm(loser.email));
+      }
+    } else {
+      merged.alternateEmails = [...new Set([...(keeper.alternateEmails || []), String(loser.email)])];
+      moved.push("alternateEmails");
+    }
+  }
+  // Never list the main email as an alternate too.
+  if (Array.isArray(merged.alternateEmails)) {
+    merged.alternateEmails = merged.alternateEmails.filter(e => lowEm(e) && lowEm(e) !== lowEm(merged.email));
   }
   if (Array.isArray(loser.disabilityCategories)) {
     merged.disabilityCategories = [...new Set([...(merged.disabilityCategories || []), ...loser.disabilityCategories])];
   }
-  const kids = [...(keeper.children || []), ...(loser.children || [])];
-  const seen = new Map();
-  for (const c of kids) {
-    const n = String(c.name || ((c.firstName || "") + " " + (c.lastName || ""))).trim().toLowerCase();
-    const key = n || ("d:" + [c.ageRange || "", c.gender || "", c.ethnicity || ""].join("|"));
-    if (!seen.has(key)) seen.set(key, Object.assign({}, c));
-    else {
-      const ex = seen.get(key);
-      for (const [f, v] of Object.entries(c)) if (blank(ex[f]) && !blank(v)) ex[f] = v;
-    }
+  // The same child on both records is kept once (10-21). Exact full name was the
+  // only test, so a spelling difference ("Audrey Wang" / "Audrey Way") or a
+  // first-name-only entry listed the child twice. Same birthdate on both = same
+  // child. With no birthdate on one side, same first name and no clash on age
+  // range = same child. Twins share a birthdate, so two different first names
+  // with the same birthdate stay two children.
+  const kidName = c => String(c.name || ((c.firstName || "") + " " + (c.lastName || ""))).trim().toLowerCase().replace(/\s+/g, " ");
+  const kidFirst = c => kidName(c).split(" ")[0] || "";
+  const sameKid = (x, y) => {
+    const nx = kidName(x), ny = kidName(y);
+    if (nx && nx === ny) return true;
+    const fx = kidFirst(x), fy = kidFirst(y);
+    if (x.birthdate && y.birthdate) return x.birthdate === y.birthdate && (!fx || !fy || _dupKidClose(fx, fy));
+    if (!fx || !fy) return !nx && !ny && [x.ageRange || "", x.gender || ""].join("|") === [y.ageRange || "", y.gender || ""].join("|");
+    return (fx === fy || _dupKidClose(fx, fy)) && (!x.ageRange || !y.ageRange || x.ageRange === y.ageRange);
+  };
+  const kept = [];
+  for (const c of [...(keeper.children || []), ...(loser.children || [])]) {
+    const ex = kept.find(k => sameKid(k, c));
+    if (!ex) { kept.push(Object.assign({}, c)); continue; }
+    for (const [f, v] of Object.entries(c)) if (blank(ex[f]) && !blank(v)) ex[f] = v;
   }
+  const seen = new Map(kept.map((c, n) => [n, c]));
   if (seen.size) merged.children = [...seen.values()];
-  const scr = [...(keeper.screenings || []), ...(loser.screenings || [])];
+  const scrIds = new Set();
+  const scr = [...(keeper.screenings || []), ...(loser.screenings || [])]
+    .filter(x => !x || !x.id || (scrIds.has(x.id) ? false : (scrIds.add(x.id), true)));
   if (scr.length) { merged.screenings = scr; merged.hasScreenings = true; }
   if (loser.notes && loser.notes !== merged.notes) {
     merged.notes = [merged.notes, loser.notes].filter(Boolean).join("\n---\n");
@@ -26908,8 +26946,8 @@ exports.flagDuplicateContacts = functions
           status: "Open",
           notes:
             (isEmail ? "Two contact records share the same email address." : "Two contact records share the same phone number.") + " Please decide whether these are ONE person or TWO.\n\n" +
-            "RECORD A — kept if you merge\n" + line(a) + "\n" +
-            "RECORD B — folded into A and removed if you merge\n" + line(b) + "\n" +
+            "RECORD A\n" + line(a) + "\n" +
+            "RECORD B\n" + line(b) + "\n" +
             (isEmail
               ? "WHAT TO LOOK FOR\n" +
                 "· MERGE if this is one person entered twice — the usual case when the\n" +
@@ -26938,7 +26976,8 @@ exports.flagDuplicateContacts = functions
                 : "WHAT THIS PAIR LOOKS LIKE: the names are DIFFERENT and the emails do\n" +
                   "not match, which often means two people sharing one phone. Check\n" +
                   "before merging.\n\n") +
-            "Nothing is merged until you choose. If you keep them separate, this pair\n" +
+            "If you merge, you choose which record is kept: pick the one with the correct\n" +
+            "email. Nothing is merged until you choose. If you keep them separate, this pair\n" +
             "will not be raised again.",
           isDraft: false,
           owner: own ? own.name : laaName,
@@ -27356,7 +27395,7 @@ exports.resolveContactDuplicate = functions
     if (req.method === "OPTIONS") { res.status(204).send(""); return; }
     if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
     try {
-      const { action, keeperId, loserId, interactionId } = req.body || {};
+      const { action, keeperId, loserId, interactionId, dropOtherEmail } = req.body || {};
       if (!keeperId || !loserId) { res.status(400).json({ error: "missing ids" }); return; }
       const db = admin.firestore();
 
@@ -27378,7 +27417,9 @@ exports.resolveContactDuplicate = functions
         if (!interactionId) { res.status(400).json({ error: "missing task" }); return; }
         const t = await db.collection("interactions").doc(String(interactionId)).get();
         const tv = t.exists ? (t.data() || {}) : {};
-        const sameIds = tv.dupKeeperId === keeperId && tv.dupLoserId === loserId;
+        // Either record may be kept (10-21), so the pair can arrive in either order.
+        const sameIds = (tv.dupKeeperId === keeperId && tv.dupLoserId === loserId) ||
+          (tv.dupKeeperId === loserId && tv.dupLoserId === keeperId);
         if (!t.exists || tv.workflowStep !== "contactDuplicate" || !sameIds || tv.status === "Closed") {
           res.status(409).json({ error: "This duplicate task is closed or does not match" }); return;
         }
@@ -27411,7 +27452,7 @@ exports.resolveContactDuplicate = functions
       }
 
       if (action === "merge") {
-        const result = await _mergeContactPair(db, keeperId, loserId);
+        const result = await _mergeContactPair(db, keeperId, loserId, { dropOtherEmail: dropOtherEmail === true });
         await db.collection("contactDupDecisions").doc(pairKey).set({
           decision: "merged", contactIds: [keeperId, loserId].sort(), keptId: keeperId,
           decidedBy: decidedBy || "staff", decidedAt: FieldValue.serverTimestamp(),
