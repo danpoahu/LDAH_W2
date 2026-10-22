@@ -5832,23 +5832,42 @@ async function buildAdvocacyMembershipGapHtml(db) {
 async function buildBackupStatusHtml(db, readOnly) {
   var PROJECT = "ldah-932d5", LOCATION = "nam5";
   var latest = null;
+  // The schedules and point-in-time recovery are read live, so the line always
+  // says what is actually set up (10-21: daily backups + 7-day PITR added).
+  var hasDaily = false, dailyNew = false, hasWeekly = false, dailyDays = null, weeklyWeeks = null, pitr = null;
   try {
     var tokObj = await admin.credential.applicationDefault().getAccessToken();
     var tok = tokObj && tokObj.access_token;
-    var url = "https://firestore.googleapis.com/v1/projects/" + PROJECT + "/locations/" + LOCATION + "/backups";
-    var resp = await fetch(url, { headers: { Authorization: "Bearer " + tok } });
-    var data = await resp.json();
-    ((data && data.backups) || []).forEach(function (b) {
+    var H = { headers: { Authorization: "Bearer " + tok } };
+    var base = "https://firestore.googleapis.com/v1/projects/" + PROJECT;
+    var res = await Promise.all([
+      fetch(base + "/locations/" + LOCATION + "/backups", H).then(function (r) { return r.json(); }),
+      fetch(base + "/databases/(default)/backupSchedules", H).then(function (r) { return r.json(); }).catch(function () { return {}; }),
+      fetch(base + "/databases/(default)", H).then(function (r) { return r.json(); }).catch(function () { return {}; }),
+    ]);
+    ((res[0] && res[0].backups) || []).forEach(function (b) {
       var t = b.snapshotTime || b.createTime;
       if (t && (!latest || t > latest.t)) latest = { t: t, name: b.name || "", state: b.state || "" };
     });
+    ((res[1] && res[1].backupSchedules) || []).forEach(function (sc) {
+      var secs = parseInt(String(sc.retention || "0"), 10) || 0;
+      if (sc.dailyRecurrence) {
+        hasDaily = true; dailyDays = Math.round(secs / 86400);
+        dailyNew = !!sc.createTime && (Date.now() - Date.parse(sc.createTime)) < 2 * 86400000;
+      }
+      if (sc.weeklyRecurrence) { hasWeekly = true; weeklyWeeks = Math.round(secs / 604800); }
+    });
+    if (res[2] && res[2].pointInTimeRecoveryEnablement) {
+      pitr = res[2].pointInTimeRecoveryEnablement === "POINT_IN_TIME_RECOVERY_ENABLED";
+    }
   } catch (err) {
     console.warn("backup status: list failed:", err.message);
   }
 
   var lastMs = latest ? Date.parse(latest.t) : null;
   var ageDays = lastMs ? Math.floor((Date.now() - lastMs) / 86400000) : null;
-  var overdue = !!latest && ageDays !== null && ageDays > 8; // amber: a weekly run was missed
+  // amber when a run was missed: 2+ days old with a daily schedule, 8+ with weekly only
+  var overdue = !!latest && ageDays !== null && ageDays > (hasDaily && !dailyNew ? 2 : 8);   // a just-added daily schedule gets its first run before it is judged
   var pending = !latest;                                      // grey: no backup yet (schedule new)
   var stale = overdue;
 
@@ -5870,16 +5889,21 @@ async function buildBackupStatusHtml(db, readOnly) {
   var icon = overdue ? "&#9888;" : (pending ? "&#128337;" : "&#10003;"); // warning / clock / check
   var label;
   if (!latest) {
-    label = "Weekly backup scheduled &mdash; first run this Sunday";
+    label = hasDaily ? "Daily backup scheduled &mdash; first run tonight" : "Weekly backup scheduled &mdash; first run this Sunday";
   } else {
     var dt = new Date(lastMs);
     var dateStr = dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "Pacific/Honolulu" });
     var ageStr = ageDays <= 0 ? "today" : (ageDays === 1 ? "1 day ago" : ageDays + " days ago");
     label = "Last backup: " + dateStr + " (" + ageStr + ")" + (stale ? " &mdash; CHECK" : "");
   }
+  var plan = [];
+  if (hasDaily) plan.push("daily, kept " + (dailyDays || 14) + " days");
+  if (hasWeekly || (!hasDaily && !hasWeekly)) plan.push("weekly, kept " + (weeklyWeeks || 14) + " wks");
+  if (pitr === true) plan.push("7-day rewind on");
+  if (pitr === false) plan.push("rewind off");
   return '<div style="background:' + bg + ';border:1px solid ' + bd + ';border-radius:8px;padding:10px 14px;font-size:13px;color:' + accent + ';font-weight:600;">'
     + '&#128451; Data backup ' + icon + ' &nbsp;' + label
-    + ' <span style="font-weight:400;color:#6b7280;">&middot; weekly &middot; 14-wk retention</span></div>';
+    + ' <span style="font-weight:400;color:#6b7280;">&middot; ' + plan.join(" &middot; ") + '</span></div>';
 }
 
 async function runDailyReport(overrideRecipients, opts) {
