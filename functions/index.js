@@ -26951,8 +26951,8 @@ exports.flagDuplicateContacts = functions
           "  added " + when(r) + " by " + (r.v.createdByName || "unknown") + "\n";
 
         const sameName = nm(a).toLowerCase() === nm(b).toLowerCase();
-        // A shared email beats a shared name. Daisha-Ann Malagamaa / Daisha Aea
-        // share daisha@mauihui.org — different surnames, plainly one person who
+        // A shared email beats a shared name. Two records with different surnames
+        // shared one email address, plainly one person who
         // changed her name. Judging on the name alone would have pointed the
         // wrong way, so say which signal is actually present.
         const emA = String(a.v.email || "").trim().toLowerCase();
