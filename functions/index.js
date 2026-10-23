@@ -5745,20 +5745,29 @@ async function buildAdvocacyMembershipGapHtml(db) {
     if (x.serviceLevel !== "advocacy" && x.caseAdvocacySource === "lions-screening") return;
     const cid = x.contactId;
     if (!cid) return;
-    let ms = null;
-    try {
-      const c = x.createdAt;
-      if (c && typeof c.toMillis === "function") ms = c.toMillis();
-      else if (c) ms = new Date(c).getTime();
-    } catch (_) {}
+    const _ms = (c) => {
+      try {
+        if (c && typeof c.toMillis === "function") return c.toMillis();
+        if (c) { const t = new Date(c).getTime(); return isNaN(t) ? null : t; }
+      } catch (_) {}
+      return null;
+    };
+    const ms = _ms(x.createdAt);
     if (ms === null) return;
+    // caseAdvocacyStartedAt is stamped when staff start advocacy (on the note
+    // they started it from), and is the field to correct when a start was
+    // entered wrong (10-23). The newest record still decides Open/Closed.
+    const st = _ms(x.caseAdvocacyStartedAt);
     const prev = byContact.get(cid);
-    if (!prev || ms > prev.ms) byContact.set(cid, { ms, status: x.status || "" });
+    const startMs = Math.max(st || 0, (prev && prev.startMs) || 0) || null;
+    if (!prev || ms > prev.ms) byContact.set(cid, { ms, status: x.status || "", startMs });
+    else prev.startMs = startMs;
   });
 
   const rows = [];
   for (const [cid, info] of byContact) {
-    if (info.ms < cutoffMs) continue;                 // legacy — predates the requirement
+    const startedMs = info.startMs || info.ms;
+    if (startedMs < cutoffMs) continue;               // legacy — predates the requirement
     // Closed cases are out (2026-08-13, Daniel). This box exists to chase a
     // membership before or during the work; once the case is closed the service
     // has been delivered and there is nothing actionable left, so listing it is
@@ -5798,33 +5807,32 @@ async function buildAdvocacyMembershipGapHtml(db) {
 
     rows.push({
       name: c.name || c.displayName || "(no name)",
-      email: c.email || "",
       state: state,
-      started: new Date(info.ms).toLocaleDateString("en-US",
+      started: new Date(startedMs).toLocaleDateString("en-US",
         { month: "short", day: "numeric", year: "numeric", timeZone: "Pacific/Honolulu" }),
     });
   }
   if (!rows.length) return "";
   rows.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
+  // Compact on purpose (2026-10-23, Daniel): one line per family, no email.
+  const td = 'padding:2px 8px;border-bottom:1px solid #F5D0D0;font-size:12px;line-height:1.3;';
   const cells = rows.map((r) =>
     '<tr>' +
-      '<td style="padding:6px 10px;border-bottom:1px solid #eee;font-size:13px;">' +
-        lifecycleEsc(r.name) +
-        (r.email ? '<br><span style="color:#64748b;font-size:12px;">' + lifecycleEsc(r.email) + '</span>' : '') +
-      '</td>' +
-      '<td style="padding:6px 10px;border-bottom:1px solid #eee;font-size:13px;color:#B91C1C;">' + lifecycleEsc(r.state) + '</td>' +
-      '<td style="padding:6px 10px;border-bottom:1px solid #eee;font-size:13px;color:#475569;">' + lifecycleEsc(r.started) + '</td>' +
+      '<td style="' + td + '">' + lifecycleEsc(r.name) + '</td>' +
+      '<td style="' + td + 'color:#B91C1C;">' + lifecycleEsc(r.state) + '</td>' +
+      '<td style="' + td + 'color:#475569;white-space:nowrap;">' + lifecycleEsc(r.started) + '</td>' +
     '</tr>').join("");
 
-  return '<div style="border:1px solid #FECACA;background:#FEF2F2;border-radius:10px;padding:16px 18px;">' +
-    '<h3 style="margin:0 0 4px;font-size:15px;color:#991B1B;">Case advocacy without a paid membership (' + rows.length + ')</h3>' +
-    '<p style="margin:0 0 12px;font-size:13px;color:#7F1D1D;">Advocacy is a Friend-level member benefit. Open cases only. ' +
-      'Families whose advocacy began before ' + CASE_ADVOCACY_MEMBERSHIP_REQUIRED_FROM + ' are not listed.</p>' +
+  const th = 'padding:2px 8px;font-size:11px;color:#7F1D1D;';
+  return '<div style="border:1px solid #FECACA;background:#FEF2F2;border-radius:8px;padding:8px 12px;">' +
+    '<h3 style="margin:0 0 2px;font-size:14px;color:#991B1B;">Case advocacy without a paid membership (' + rows.length + ')</h3>' +
+    '<p style="margin:0 0 4px;font-size:11px;color:#7F1D1D;">Friend-level member benefit. Open cases only; advocacy begun before ' +
+      CASE_ADVOCACY_MEMBERSHIP_REQUIRED_FROM + ' (legacy) is not listed.</p>' +
     '<table style="width:100%;border-collapse:collapse;">' +
-      '<tr><th align="left" style="padding:6px 10px;font-size:12px;color:#7F1D1D;">Family</th>' +
-      '<th align="left" style="padding:6px 10px;font-size:12px;color:#7F1D1D;">Membership</th>' +
-      '<th align="left" style="padding:6px 10px;font-size:12px;color:#7F1D1D;">Advocacy started</th></tr>' +
+      '<tr><th align="left" style="' + th + '">Family</th>' +
+      '<th align="left" style="' + th + '">Membership</th>' +
+      '<th align="left" style="' + th + '">Advocacy started</th></tr>' +
       cells +
     '</table></div>';
 }
@@ -6799,20 +6807,28 @@ async function runDailyReport(overrideRecipients, opts) {
 
     if (IS_PIP) formSections.length = 0;
     let formsHtml = "";
+    const ADVOCACY_SLOT = "<!--ADVOCACY_SLOT-->";
+    let volunteerTop = false, volunteerTopHtml = "";
     if (formSections.length === 0) {
       formsHtml = `<p style="color:#666;font-style:italic;">No pending submissions.</p>`;
     } else {
       for (const fs of formSections) {
+        // Volunteer Applications and the advocacy box swap places
+        // (2026-10-23, Daniel): volunteers go to the top slot, the advocacy box
+        // drops into the spot volunteers had here.
+        if (fs.title === "Volunteer Applications") { volunteerTop = true; formsHtml += ADVOCACY_SLOT; }
         const headerCells = fs.headers.split("|").map((h) =>
           `<th style="padding:5px 8px;text-align:left;font-size:11px;color:#666;font-weight:800;">${h}</th>`
         ).join("");
-        formsHtml += `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px;border:1px solid #ddd;border-radius:8px;overflow:hidden;">`
+        const _tbl = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px;border:1px solid #ddd;border-radius:8px;overflow:hidden;">`
           + `<tr><td style="padding:10px 14px;background:${fs.color}10;border-left:4px solid ${fs.color};">`
           + `<span style="font-size:14px;font-weight:800;color:${fs.color};">${esc(fs.title)}</span>`
           + `&nbsp;&nbsp;<span style="background:${fs.color};color:white;padding:2px 10px;border-radius:10px;font-size:12px;font-weight:800;">${fs.count} pending</span>`
           + `</td></tr>`
           + `<tr><td style="padding:0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">`
           + `<tr style="background:#f8f9fa;">${headerCells}</tr>${fs.rows}</table></td></tr></table>`;
+        if (fs.title === "Volunteer Applications") volunteerTopHtml = _tbl.replace("margin-bottom:12px;", "margin-bottom:0;");
+        else formsHtml += _tbl;
       }
     }
 
@@ -6921,6 +6937,13 @@ async function runDailyReport(overrideRecipients, opts) {
       try { advocacyGapHtml = await buildAdvocacyMembershipGapHtml(db); }
       catch (err) { console.warn("advocacy/membership gap build failed:", err.message); }
     }
+    // Advocacy box sits where Volunteer Applications would have been; with no
+    // pending volunteers it closes the submissions section instead.
+    {
+      const _adv = advocacyGapHtml ? `<div style="margin-bottom:12px;">${advocacyGapHtml}</div>` : "";
+      if (volunteerTop) formsHtml = formsHtml.replace(ADVOCACY_SLOT, _adv);
+      else if (_adv) formsHtml = (formSections.length === 0 ? "" : formsHtml) + _adv;
+    }
     const REPORT_NAME = IS_PIP ? "Pacific Island Partners Daily Report" : "LDAH Daily Report";
     const emailHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -6945,7 +6968,7 @@ async function runDailyReport(overrideRecipients, opts) {
 
   ${backupStatusHtml ? `<tr><td style="padding:16px 28px 0;">${backupStatusHtml}</td></tr>` : ""}
 
-  ${advocacyGapHtml ? `<tr><td style="padding:16px 28px 0;">${advocacyGapHtml}</td></tr>` : ""}
+  ${volunteerTopHtml ? `<tr><td style="padding:16px 28px 0;">${volunteerTopHtml}</td></tr>` : ""}
 
   <!-- Section 1: All Active Events & Programs -->
   <tr>
