@@ -5914,6 +5914,185 @@ async function buildBackupStatusHtml(db, readOnly) {
     + ' <span style="font-weight:400;color:#6b7280;">&middot; ' + plan.join(" &middot; ") + '</span></div>';
 }
 
+/* Top-level 6am report layout (Daniel, 2026-10-25).
+   Staff get the shape of the day (Tue-Fri) or the week (Monday) instead of
+   every attendee: KPI tiles for what needs attention, one card per session
+   with counts, program totals with a comparison, and the full "What happened"
+   detail. Every tile and card links into DAN (#go=... deep links), where the
+   people are listed. Seasonal look by date: Halloween to Oct 31, Thanksgiving
+   in November. Pure renderer: runDailyReport gathers everything and passes it
+   in, so the layout can be previewed without sending. */
+const DAILY_REPORT_DAN_URL = "https://danpoahu.github.io/LDAH-Int/";
+const DAILY_REPORT_THEMES = {
+  normal:       { head: "#1a3c6e", headPip: "#5B21B6", sub: "#b0c4de", accent: "#1a3c6e", line: "#1a3c6e", card: "#0E7490", num: "#0E7490", band: "" },
+  halloween:    { head: "#3B1A78", headPip: "#3B1A78", sub: "#FDBA74", accent: "#5B21B6", line: "#F97316", card: "#F97316", num: "#7C3AED", band: "https://www.ldahawaii.org/email-assets/band-halloween.png" },
+  thanksgiving: { head: "#8A3412", headPip: "#8A3412", sub: "#FDE68A", accent: "#9A3412", line: "#D97706", card: "#D97706", num: "#B45309", band: "https://www.ldahawaii.org/email-assets/band-thanksgiving.png" },
+};
+function dailyReportTheme(hawaiiNow, override) {
+  if (override && DAILY_REPORT_THEMES[override]) return override;
+  const m = hawaiiNow.getMonth() + 1, d = hawaiiNow.getDate();
+  if (m === 10 && d >= 15) return "halloween";
+  if (m === 11) return "thanksgiving";
+  return "normal";
+}
+function danLink(go, params) {
+  const q = new URLSearchParams(Object.assign({ go: go }, params || {}));
+  return DAILY_REPORT_DAN_URL + "#" + q.toString();
+}
+
+function renderTopLevelDailyReport(c) {
+  const esc = c.esc;
+  const T = DAILY_REPORT_THEMES[c.theme] || DAILY_REPORT_THEMES.normal;
+  const headBg = c.isPip ? T.headPip : T.head;
+  const TONES = {
+    red: ["#FEF2F2", "#FECACA", "#991B1B"], amber: ["#FFFBEB", "#FDE68A", "#92400E"],
+    green: ["#ECFDF5", "#A7F3D0", "#065F46"], blue: ["#EFF6FF", "#BFDBFE", "#1E40AF"],
+  };
+  const sec = (title, note, body) =>
+    `<tr><td style="padding:18px 24px 4px;">`
+    + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-bottom:2px solid ${T.line};margin-bottom:10px;"><tr>`
+    + `<td style="font-size:16px;font-weight:bold;color:${T.accent};padding-bottom:5px;">${title}</td>`
+    + `<td style="font-size:11px;color:#64748b;text-align:right;padding-bottom:5px;">${note || ""}</td></tr></table>`
+    + body + `</td></tr>`;
+  const pill = (txt, tone) => {
+    const P = { g: ["#DCFCE7", "#166534"], y: ["#FEF3C7", "#92400E"], r: ["#FEE2E2", "#991B1B"], b: ["#E0F2FE", "#075985"], n: ["#F1F5F9", "#334155"] }[tone || "n"];
+    return `<span style="display:inline-block;font-size:11px;font-weight:bold;border-radius:999px;padding:2px 9px;background:${P[0]};color:${P[1]};margin:0 4px 4px 0;white-space:nowrap;">${txt}</span>`;
+  };
+
+  // Needs attention tiles, 4 to a row.
+  let tilesHtml = "";
+  const tiles = c.tiles.length ? c.tiles : [{ n: "0", label: "Nothing needs attention", sub: "all clear", tone: "green", href: danLink("myday") }];
+  for (let i = 0; i < tiles.length; i += 4) {
+    const row = tiles.slice(i, i + 4);
+    tilesHtml += `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:6px 0;margin:0 -6px 8px;"><tr>`
+      + row.map((t) => {
+        const C = TONES[t.tone] || TONES.blue;
+        return `<td width="25%" valign="top" style="background:${C[0]};border:1px solid ${C[1]};border-radius:8px;padding:9px 10px;">`
+          + `<a href="${t.href}" style="text-decoration:none;color:${C[2]};display:block;">`
+          + `<span style="display:block;font-size:24px;font-weight:bold;line-height:1.1;">${esc(String(t.n))}</span>`
+          + `<span style="display:block;font-size:12px;font-weight:bold;margin-top:2px;">${esc(t.label)}</span>`
+          + (t.sub ? `<span style="display:block;font-size:11px;margin-top:3px;opacity:.85;">${esc(t.sub)}</span>` : "")
+          + `</a></td>`;
+      }).join("")
+      + (row.length < 4 ? `<td width="${(4 - row.length) * 25}%" colspan="${4 - row.length}"></td>` : "")
+      + `</tr></table>`;
+  }
+
+  // Session cards.
+  const card = (s, muted) =>
+    `<a href="${s.href}" style="display:block;text-decoration:none;color:inherit;">`
+    + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-left:4px solid ${muted ? "#94a3b8" : T.card};border-radius:8px;margin-bottom:8px;"><tr>`
+    + `<td style="padding:9px 12px;" valign="top">`
+    + `<div style="font-size:14px;font-weight:bold;color:#0f172a;">${esc(s.name)}</div>`
+    + `<div style="font-size:12px;color:#64748b;margin-top:1px;">${esc(s.sub)}</div>`
+    + `<div style="margin-top:7px;">${s.pills.join("")}<span style="font-size:11px;color:${T.num};font-weight:bold;white-space:nowrap;">${esc(s.linkText || "View signups")} &rsaquo;</span></div>`
+    + `</td><td width="70" valign="top" style="padding:9px 12px;text-align:right;">`
+    + `<div style="font-size:22px;font-weight:bold;color:${muted ? "#64748b" : T.num};line-height:1;">${esc(String(s.big))}</div>`
+    + `<div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;">${esc(s.bigLabel)}</div>`
+    + `</td></tr></table></a>`;
+  const dayHead = (t) => `<div style="font-size:11px;font-weight:bold;color:${T.num};text-transform:uppercase;letter-spacing:.06em;margin:10px 0 5px;">${esc(t)}</div>`;
+
+  let sessHtml = "";
+  if (!c.windowDays.length && !c.upcoming.length) {
+    sessHtml = `<p style="color:#666;font-style:italic;font-size:13px;margin:0 0 6px;">No sessions ${c.isMonday ? "this week" : "today"}.</p>`;
+  }
+  c.windowDays.forEach((d) => {
+    if (c.isMonday) sessHtml += dayHead(d.label);
+    d.cards.forEach((s) => { sessHtml += card(s, false); });
+  });
+  if (!c.isMonday && !c.windowDays.length) sessHtml = `<p style="color:#666;font-style:italic;font-size:13px;margin:0 0 6px;">No sessions today.</p>`;
+  if (c.upcoming.length) {
+    sessHtml += dayHead(c.isMonday ? "Next on the calendar" : "Coming up");
+    c.upcoming.forEach((s) => { sessHtml += card(s, true); });
+  }
+  if (c.laterCount > 0) {
+    sessHtml += `<p style="font-size:11px;color:#64748b;margin:2px 0 6px;">+ ${c.laterCount} more session${c.laterCount === 1 ? "" : "s"} with signups later on. <a href="${danLink("signups")}" style="color:${T.num};">Events Dashboard</a></p>`;
+  }
+
+  // Partner resource update cycle: only while a cycle is running and unfinished.
+  let cycleHtml = "";
+  if (c.cycle && c.cycle.show) {
+    const cy = c.cycle, tot = cy.total || 1;
+    const seg = (n, color) => n > 0 ? `<td width="${Math.max(1, Math.round(n / tot * 100))}%" style="background:${color};font-size:0;line-height:0;height:8px;">&nbsp;</td>` : "";
+    const cell = (n, label, color) => `<td width="25%" valign="top" style="border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;">`
+      + `<a href="${danLink("resource-cycle")}" style="text-decoration:none;"><span style="display:block;font-size:20px;font-weight:bold;color:${color};line-height:1.1;">${n}</span>`
+      + `<span style="display:block;font-size:11.5px;color:#475569;">${label}</span></a></td>`;
+    cycleHtml = sec("Partner resource update", `cycle started ${esc(cy.startLabel)} &middot; ${cy.total} partners`,
+      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-radius:99px;overflow:hidden;background:#e5e7eb;margin-bottom:8px;"><tr>`
+      + seg(cy.confirmed, "#16a34a") + seg(cy.pendingReview, "#f59e0b") + seg(cy.awaiting, "#93c5fd") + seg(cy.noEmail, "#ef4444") + `</tr></table>`
+      + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:6px 0;margin:0 -6px;"><tr>`
+      + cell(cy.confirmed, "Confirmed", "#166534") + cell(cy.pendingReview, "Sent back, needs review", "#92400E")
+      + cell(cy.awaiting, "Sent, awaiting reply", "#1E40AF") + cell(cy.noEmail, "No email on file", "#991B1B")
+      + `</tr></table>`);
+  }
+
+  // Programs at a glance, 3 to a row.
+  let progHtml = "";
+  for (let i = 0; i < c.programs.length; i += 3) {
+    const row = c.programs.slice(i, i + 3);
+    progHtml += `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:6px 0;margin:0 -6px 8px;"><tr>`
+      + row.map((p) => `<td width="33%" valign="top" style="border:1px solid #e5e7eb;border-radius:8px;padding:9px 10px;">`
+        + `<a href="${p.href}" style="text-decoration:none;color:#0f172a;display:block;">`
+        + `<span style="display:block;font-size:20px;font-weight:bold;color:${T.accent};line-height:1.1;">${esc(String(p.n))}</span>`
+        + `<span style="display:block;font-size:12px;color:#475569;">${esc(p.label)}</span>`
+        + (p.delta ? `<span style="display:block;font-size:11px;font-weight:bold;color:${p.deltaBad ? "#b91c1c" : "#16a34a"};">${esc(p.delta)}</span>` : "")
+        + `</a></td>`).join("")
+      + (row.length < 3 ? `<td colspan="${3 - row.length}" width="${(3 - row.length) * 33}%"></td>` : "")
+      + `</tr></table>`;
+  }
+  if (c.staffLine) progHtml += `<p style="font-size:12px;color:#475569;margin:2px 0 0;">${c.staffLine} &nbsp;<a href="${danLink("myday")}" style="color:${T.num};font-weight:bold;text-decoration:none;">My Day &rsaquo;</a></p>`;
+
+  // What happened: every line, as before. Monday groups the weekend by day.
+  let chgHtml = "";
+  if (!c.changeLines.length) {
+    chgHtml = `<p style="color:#666;font-style:italic;font-size:13px;">No changes ${c.isMonday ? "since Friday's report" : "in the last 24 hours"}.</p>`;
+  } else {
+    let lastDay = null, rows = "";
+    c.changeLines.forEach((l) => {
+      if (c.isMonday) {
+        const day = l.sort ? new Date(l.sort * 1000).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "Pacific/Honolulu" }) : "Earlier";
+        if (day !== lastDay) {
+          lastDay = day;
+          rows += `<tr><td colspan="3" style="padding:9px 6px 3px;font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">${esc(day)}</td></tr>`;
+        }
+      }
+      rows += `<tr><td style="padding:5px 6px;font-size:14px;width:26px;text-align:center;border-bottom:1px solid #f1f5f9;" valign="top">${l.icon}</td>`
+        + `<td style="padding:5px 6px;font-size:12.5px;color:#333;border-bottom:1px solid #f1f5f9;">${l.text}</td>`
+        + `<td style="padding:5px 6px;font-size:11px;color:#94a3b8;white-space:nowrap;text-align:right;border-bottom:1px solid #f1f5f9;" valign="top">${l.time}</td></tr>`;
+    });
+    chgHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${rows}</table>`;
+  }
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;">
+<tr><td align="center" style="padding:24px 16px;">
+<table role="presentation" width="800" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;max-width:800px;width:100%;">
+  <tr><td style="background-color:${headBg};padding:0 0 20px;text-align:center;">
+    ${T.band ? `<img src="${T.band}" width="800" height="46" alt="" style="display:block;width:100%;max-width:800px;height:auto;border:0;">` : ""}
+    <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="170" style="display:block;margin:${T.band ? "8px" : "22px"} auto 10px;border:0;background-color:#ffffff;padding:12px 18px;border-radius:10px;">
+    <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:bold;">${esc(c.reportName)}</h1>
+    <p style="margin:4px 0 0;color:${T.sub};font-size:14px;">${esc(c.dateLine)}</p>
+  </td></tr>
+  ${c.backupHtml ? `<tr><td style="padding:14px 24px 0;">${c.backupHtml}</td></tr>` : ""}
+  ${sec("Needs attention", "tap a tile to see who", tilesHtml)}
+  ${sec(c.isMonday ? "This week" : "Today", esc(c.sessNote), sessHtml)}
+  ${cycleHtml}
+  ${sec("Programs at a glance", c.compareNote, progHtml)}
+  ${sec(c.isMonday ? "What happened since Friday" : "What happened in the last 24 hours", `${c.changeLines.length} change${c.changeLines.length === 1 ? "" : "s"} &middot; full detail`, chgHtml)}
+  ${c.analyticsSummaryHtml ? `
+  <tr><td style="padding:0;"><div style="page-break-before:always;line-height:0;font-size:0;">&nbsp;</div></td></tr>
+  ${sec("Website &amp; App Analytics &mdash; Executive Summary", "", c.analyticsSummaryHtml)}` : ""}
+  <tr><td style="padding:12px 0 0;">${c.orgFooterHtml || ""}</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
 async function runDailyReport(overrideRecipients, opts) {
     const db = admin.firestore();
     const now = new Date();
@@ -5996,7 +6175,9 @@ async function runDailyReport(overrideRecipients, opts) {
     function esc(str) { return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
 
     const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-    const cutoffTimestamp = admin.firestore.Timestamp.fromDate(new Date(now.getTime() - 24 * 60 * 60 * 1000));
+    // Monday covers everything since Friday's 6am report (2026-10-25).
+    const IS_MONDAY = _scopeOpts.forceMonday === true || hawaiiNow.getDay() === 1;
+    const cutoffTimestamp = admin.firestore.Timestamp.fromDate(new Date(now.getTime() - (IS_MONDAY ? 72 : 24) * 60 * 60 * 1000));
 
     // ═══════════════════════════════════════════════════
     // SECTION 1: All Active Events & Programs with signups
@@ -6062,6 +6243,9 @@ async function runDailyReport(overrideRecipients, opts) {
               type: "event",
               id: doc.id,
               sessionKey: dateStr,
+              name: reportEventPrefix(data.title || "Untitled Event"),
+              when: dateStr,
+              dayISO: parseEventDateKey(dateStr) || "",
             });
           }
           // Orphan check uses FULL sigDates (not just future) so signups whose
@@ -6083,6 +6267,9 @@ async function runDailyReport(overrideRecipients, opts) {
               signups: orphans,
               type: "event",
               id: doc.id,
+              name: reportEventPrefix(data.title || "Untitled Event"),
+              when: "Signups not matched to a date",
+              dayISO: "",
             });
           }
           continue;
@@ -6112,6 +6299,9 @@ async function runDailyReport(overrideRecipients, opts) {
           type: "event",
           id: doc.id,
           sessionKey: (typeof rawDate === "string" ? rawDate : ""),
+          name: data.title || "Untitled Event",
+          when: [dateDisplay, data.time || data.startTime || ""].filter(Boolean).join(" · "),
+          dayISO: (typeof rawDate === "string" ? parseEventDateKey(rawDate) : (rawDate && rawDate.toDate ? toHstDateKey(rawDate) : "")) || "",
         });
       }
     } catch (err) {
@@ -6219,6 +6409,9 @@ async function runDailyReport(overrideRecipients, opts) {
               type: "recurring",
               id: doc.id,
               sessionKey: sg.key,
+              name: reportEventPrefix(data.title),
+              when: [sg.timeLabel, sg.location].filter(Boolean).join(" · "),
+              dayISO: sg.key.slice(0, 10),
             });
           }
         }
@@ -6613,6 +6806,7 @@ async function runDailyReport(overrideRecipients, opts) {
     // SECTION 2.5: Overdue / Due Today Interactions
     // ═══════════════════════════════════════════════════
     const overdueInt = [], dueTodayInt = [], openPipCases = [];
+    const caseFiles = { advocacy: new Set(), management: new Set() };
     openPipCases.byFamily = {};
     try {
       const oiSnap = await db.collection("interactions").where("status", "==", "Open").get();
@@ -6620,6 +6814,11 @@ async function runDailyReport(overrideRecipients, opts) {
         const x = d.data();
         if (x.isDraft === true) return;
         if (!inScopePip(x.partnerIsland)) return;
+        // Open case files, one per family, for "Programs at a glance".
+        if (x.workflowStep === "caseAdvocacy") {
+          const _mg = x.serviceLevel === "management" || (x.serviceLevel !== "advocacy" && x.caseAdvocacySource === "lions-screening");
+          caseFiles[_mg ? "management" : "advocacy"].add(x.contactId || d.id);
+        }
         if (IS_PIP && _isCaseAdvocacyIx(x)) {
           let _startMs = 0;
           try { _startMs = x.createdAt && x.createdAt.toMillis ? x.createdAt.toMillis() : (x.createdAt ? new Date(x.createdAt).getTime() : 0); } catch (_) {}
@@ -6838,6 +7037,7 @@ async function runDailyReport(overrideRecipients, opts) {
     // Mirrors the LDAH-Int dashboard panel (cmsRenderResourceCyclePanel).
     // Cycle starts every May 1 / Nov 1 with a 7-day grace window.
     let cycleHtml = "";
+    let cycleData = null;
     if (!IS_PIP) try {
       const _yr = hawaiiNow.getFullYear();
       const _may1 = new Date(_yr, 4, 1).getTime();
@@ -6882,6 +7082,10 @@ async function runDailyReport(overrideRecipients, opts) {
         const cycleDate = new Date(cycleStartMs).toLocaleDateString("en-US", {
           month: "long", day: "numeric", year: "numeric", timeZone: "Pacific/Honolulu",
         });
+        // The new layout shows the cycle only while it runs: from May 1 / Nov 1
+        // until every partner is confirmed (Daniel, 2026-10-25).
+        cycleData = { show: confirmed < resTotal && _nowMs >= cycleStartMs, total: resTotal, confirmed, pendingReview, awaiting, noEmail,
+          startLabel: new Date(cycleStartMs).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "Pacific/Honolulu" }) };
 
         const chip = (color, label, n, p) =>
           `<td style="padding:0 6px 6px 0;"><table role="presentation" cellpadding="0" cellspacing="0" style="border:1px solid #E2E8F0;border-radius:999px;background:#fff;">`
@@ -6945,121 +7149,177 @@ async function runDailyReport(overrideRecipients, opts) {
       else if (_adv) formsHtml = (formSections.length === 0 ? "" : formsHtml) + _adv;
     }
     const REPORT_NAME = IS_PIP ? "Pacific Island Partners Daily Report" : "LDAH Daily Report";
-    const emailHtml = `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;">
-<tr><td align="center" style="padding:24px 16px;">
-<table role="presentation" width="800" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;max-width:800px;width:100%;">
+    // ═══════════════════════════════════════════════════
+    // TOP-LEVEL LAYOUT (Daniel, 2026-10-25) — see renderTopLevelDailyReport
+    // ═══════════════════════════════════════════════════
+    const _addDays = (iso, n) => { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+    const _dayLabel = (iso) => new Date(iso + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+    const windowEndISO = IS_MONDAY ? _addDays(todayISO, 6) : todayISO;
+    const cutoffMs = cutoffTimestamp.toMillis();
+    const _tsMs = (t) => (t && t.toMillis) ? t.toMillis() : (t && t.seconds ? t.seconds * 1000 : 0);
+    const CG_ID = "CmkPXEpPwfAQ5sR377K2";
 
-  <!-- Header -->
-  <tr>
-    <td style="background-color:${IS_PIP ? "#5B21B6" : "#1a3c6e"};padding:24px 32px;text-align:center;">
-      <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="180" style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;background-color:#ffffff;padding:14px 20px;border-radius:10px;">
-      <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:bold;letter-spacing:0.5px;">
-        ${REPORT_NAME}
-      </h1>
-      <p style="margin:4px 0 0;color:#b0c4de;font-size:14px;">${todayStr}</p>
-    </td>
-  </tr>
+    function sessionCard(s) {
+      const act = s.signups.filter((su) => su.status !== "cancelled" && su.archived !== true);
+      const conf = act.filter((su) => su.status === "confirmed").length;
+      const pend = act.length - conf;
+      const notDone = act.filter((su) => !su.registrationCompletedAt).length;
+      const fresh = act.filter((su) => _tsMs(su.timestamp || su.createdAt) >= cutoffMs).length;
+      const pills = [];
+      if (conf) pills.push(pillTxt(conf + " confirmed", "g"));
+      if (pend) pills.push(pillTxt(pend + " pending", "y"));
+      if (notDone && s.dayISO && s.dayISO <= windowEndISO) pills.push(pillTxt(notDone + " registration not finished", "r"));
+      if (fresh) pills.push(pillTxt("+" + fresh + (IS_MONDAY ? " since Friday" : " since yesterday"), "b"));
+      if (s.id === CG_ID) {
+        const cons = act.filter((su) => su.consentSignedAt).length;
+        if (act.length) pills.push(pillTxt(cons + " of " + act.length + " consent signed", cons === act.length ? "g" : "y"));
+      }
+      if (IS_PIP && s.island) pills.push(pillTxt(s.island, "n"));
+      return {
+        name: s.name || s.title, sub: s.when || s.location || "",
+        big: act.length, bigLabel: "signed up", pills,
+        href: danLink("signups", Object.assign({ c: s.type === "recurring" ? "recurringEvents" : "events", e: s.id }, s.sessionKey ? { k: s.sessionKey } : {})),
+        dayISO: s.dayISO || "", active: act.length, notDone,
+      };
+    }
+    function pillTxt(txt, tone) {
+      const P = { g: ["#DCFCE7", "#166534"], y: ["#FEF3C7", "#92400E"], r: ["#FEE2E2", "#991B1B"], b: ["#E0F2FE", "#075985"], n: ["#F1F5F9", "#334155"] }[tone || "n"];
+      return `<span style="display:inline-block;font-size:11px;font-weight:bold;border-radius:999px;padding:2px 9px;background:${P[0]};color:${P[1]};margin:0 4px 4px 0;white-space:nowrap;">${esc(txt)}</span>`;
+    }
 
-  ${cycleHtml ? `<tr><td style="padding:20px 28px 0;">${cycleHtml}</td></tr>` : ""}
+    const cards = allSessions.map(sessionCard).filter((x) => x.active > 0);
+    // Screenings are flyers without signups: one card from the children on file.
+    if (!IS_PIP) try {
+      const evSnap = await db.collection("events").get();
+      const scr = [];
+      evSnap.forEach((d) => {
+        const v = d.data() || {};
+        if (v.archived === true || v.partnerIsland || !/screening/i.test(v.title || "")) return;
+        const start = typeof v.eventDate === "string" ? v.eventDate.slice(0, 10) : "";
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return;
+        const past = /^\d{4}-\d{2}-\d{2}$/.test(v.moveToPastDate || "") ? v.moveToPastDate : _addDays(start, 1);
+        const last = _addDays(past, -1) < start ? start : _addDays(past, -1);
+        if (last < todayISO || start > _addDays(todayISO, 30)) return;
+        scr.push({ id: d.id, title: v.title, start, last });
+      });
+      if (scr.length) {
+        const kids = {};
+        const cSnap = await db.collection("contacts").where("hasScreenings", "==", true).get();
+        cSnap.forEach((d) => (d.data().screenings || []).forEach((x) => {
+          const k = String(x.eventDate || "").slice(0, 10);
+          if (!k) return;
+          const g = kids[k] = kids[k] || { n: 0, signed: 0, loc: {} };
+          g.n++; if (x.signedAt || x.signedAtDate) g.signed++;
+          if (x.location) g.loc[x.location] = (g.loc[x.location] || 0) + 1;
+        }));
+        scr.forEach((e) => {
+          const g = kids[e.start] || { n: 0, signed: 0, loc: {} };
+          // DAN's Screenings report opens a school by its exact location name.
+          const school = Object.keys(g.loc).sort((a, b) => g.loc[b] - g.loc[a])[0] || "";
+          const days = Math.round((new Date(e.last + "T12:00:00Z") - new Date(e.start + "T12:00:00Z")) / 86400000) + 1;
+          const showDay = e.start >= todayISO ? e.start : todayISO;
+          cards.push({
+            name: e.title, sub: days > 1 ? `${_dayLabel(e.start)} – ${_dayLabel(e.last)} · ${days} days` : _dayLabel(e.start),
+            big: g.n, bigLabel: "children", linkText: "View children",
+            pills: [pillTxt(g.signed + " consents on file", g.signed === g.n ? "g" : "y")],
+            href: school ? danLink("screenings", { school: school }) : danLink("screenings"), dayISO: showDay, active: g.n, notDone: 0,
+          });
+        });
+      }
+    } catch (err) { console.warn("daily report screenings:", err.message); }
 
-  ${backupStatusHtml ? `<tr><td style="padding:16px 28px 0;">${backupStatusHtml}</td></tr>` : ""}
+    cards.sort((a, b) => (a.dayISO || "9999").localeCompare(b.dayISO || "9999"));
+    const inWindow = cards.filter((x) => x.dayISO && x.dayISO >= todayISO && x.dayISO <= windowEndISO);
+    const after = cards.filter((x) => !x.dayISO || x.dayISO > windowEndISO);
+    const windowDays = [];
+    inWindow.forEach((x) => {
+      let g = windowDays[windowDays.length - 1];
+      if (!g || g.iso !== x.dayISO) { g = { iso: x.dayISO, label: _dayLabel(x.dayISO), cards: [] }; windowDays.push(g); }
+      g.cards.push(x);
+    });
+    const upcoming = after.slice(0, IS_MONDAY ? 2 : 3);
+    const laterCount = after.length - upcoming.length;
+    const peopleInWindow = inWindow.reduce((n, x) => n + (x.bigLabel === "signed up" ? x.active : 0), 0);
 
-  ${volunteerTopHtml ? `<tr><td style="padding:16px 28px 0;">${volunteerTopHtml}</td></tr>` : ""}
+    // Needs attention.
+    const tiles = [];
+    const oldestOver = overdueInt.length ? overdueInt[0].fu : "";
+    tiles.push({ n: overdueInt.length, label: "Overdue follow-ups", sub: oldestOver ? "oldest " + _dayLabel(oldestOver) : "none overdue", tone: overdueInt.length ? "red" : "green", href: danLink("myday") });
+    const notDoneToday = inWindow.filter((x) => x.dayISO === todayISO).reduce((n, x) => n + (x.notDone || 0), 0);
+    if (notDoneToday) tiles.push({ n: notDoneToday, label: "Registration not finished", sub: "for today's sessions", tone: "red", href: (inWindow.find((x) => x.dayISO === todayISO && x.notDone) || {}).href || danLink("signups") });
+    const _advM = advocacyGapHtml && advocacyGapHtml.match(/without a paid membership \((\d+)\)/);
+    if (_advM) tiles.push({ n: Number(_advM[1]), label: "Advocacy, no membership", sub: "open cases", tone: "amber", href: danLink("advocacy-membership") });
+    if (!IS_PIP) {
+      let cgPending = 0, cgNext = "";
+      allSessions.filter((x) => x.id === CG_ID && x.dayISO && x.dayISO >= todayISO && x.dayISO <= _addDays(todayISO, 14)).forEach((x) => {
+        const p = x.signups.filter((su) => su.status !== "cancelled" && su.archived !== true && su.status !== "confirmed").length;
+        if (p) { cgPending += p; if (!cgNext) cgNext = _dayLabel(x.dayISO); }
+      });
+      if (cgPending) tiles.push({ n: cgPending, label: "Connect-Gen not ready", sub: "next 2 weeks · first " + cgNext, tone: "amber", href: danLink("connectgen") });
+      if (returningCGRows.length) tiles.push({ n: returningCGRows.length, label: "Returning Connect-Gen", sub: "pre-call 2 days before", tone: "blue", href: danLink("connectgen") });
+    }
+    const _vol = formSections.find((f) => f.title === "Volunteer Applications");
+    if (_vol) tiles.push({ n: _vol.count, label: "Volunteer application" + (_vol.count === 1 ? "" : "s"), sub: "pending", tone: "blue", href: danLink("volunteers") });
+    const _forms = formSections.filter((f) => f.title !== "Volunteer Applications");
+    const _formsN = _forms.reduce((n, f) => n + f.count, 0);
+    if (_formsN) tiles.push({ n: _formsN, label: "Pending web forms", sub: _forms.map((f) => f.count + " " + f.title.toLowerCase()).join(", ").slice(0, 60), tone: "blue", href: danLink("webforms") });
+    if (IS_PIP) {
+      Object.keys(openPipCases.byFamily || {}).length;
+      const _pc = Object.keys(openPipCases.byFamily || {}).length;
+      if (_pc) tiles.push({ n: _pc, label: "Open PIP cases", sub: "do not close until advocacy is done", tone: "amber", href: danLink("myday") });
+    }
 
-  <!-- Section 1: All Active Events & Programs -->
-  <tr>
-    <td style="padding:24px 28px 8px;">
-      <h2 style="margin:0;font-size:17px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:6px;">
-        All Active Events &amp; Programs
-      </h2>
-      <p style="margin:4px 0 12px;font-size:12px;color:#666;">${allSessions.length} active</p>
-    </td>
-  </tr>
-  <tr><td style="padding:0 28px 16px;">${sessionsHtml}</td></tr>
+    // Programs at a glance, compared with yesterday (Tue-Fri) or last Monday.
+    const newContactsN = clientChanges.filter((x) => x.kind === "newContact").length;
+    const snap = {
+      advocacy: caseFiles.advocacy.size, management: caseFiles.management.size,
+      overdue: overdueInt.length, dueToday: dueTodayInt.length,
+      people: peopleInWindow,
+    };
+    let prevSnap = null;
+    const snapId = (iso) => SCOPE + "_" + iso;
+    try {
+      const ps = await db.collection("dailyReportSnapshots").doc(snapId(_addDays(todayISO, IS_MONDAY ? -7 : -1))).get();
+      if (ps.exists) prevSnap = ps.data();
+    } catch (_) {}
+    const delta = (k, lowerIsGood) => {
+      if (!prevSnap || typeof prevSnap[k] !== "number") return { delta: "" };
+      const d = snap[k] - prevSnap[k];
+      if (!d) return { delta: "no change" };
+      return { delta: (d > 0 ? "+" : "") + d, deltaBad: lowerIsGood ? d > 0 : false };
+    };
+    const programs = [];
+    if (!IS_PIP) {
+      programs.push(Object.assign({ n: snap.advocacy, label: "Open advocacy cases", href: danLink("advocacy-membership") }, delta("advocacy")));
+      programs.push(Object.assign({ n: snap.management, label: "Case management", href: danLink("case-mgmt") }, delta("management")));
+    } else {
+      programs.push({ n: Object.keys(openPipCases.byFamily || {}).length, label: "Open PIP cases", href: danLink("myday") });
+    }
+    programs.push(Object.assign({ n: dueTodayInt.length, label: "Follow-ups due today", href: danLink("myday") }, delta("dueToday", true)));
+    if (IS_MONDAY) {
+      programs.push({ n: newContactsN, label: "New contacts since Friday", href: danLink("contacts") });
+      programs.push({ n: inWindow.length, label: "Sessions this week", href: danLink("signups") });
+      programs.push({ n: peopleInWindow, label: "People signed up this week", href: danLink("signups") });
+    }
+    const _byStaff = {};
+    overdueInt.forEach((r) => { const k = String(r.owner || "").trim() || "No owner"; _byStaff[k] = (_byStaff[k] || 0) + 1; });
+    const _sn = Object.keys(_byStaff).sort((a, b) => _byStaff[b] - _byStaff[a]);
+    const staffLine = _sn.length ? "Overdue by staff: " + _sn.map((k, i) => `<b style="color:#0f172a;">${esc(k.split(/\s+/)[0])}</b> ${_byStaff[k]}${i === 0 ? " overdue" : ""}`).join(" &middot; ") : "";
 
-  ${returningCGRows.length > 0 ? `
-  <!-- Section 1B: Returning Connect-Gen Families -->
-  <tr>
-    <td style="padding:24px 28px 8px;">
-      <h2 style="margin:0;font-size:17px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:6px;">
-        Returning Connect-Gen Families
-      </h2>
-      <p style="margin:4px 0 12px;font-size:12px;color:#666;">${returningCGRows.length} flagged in last 24 hours &mdash; pre-call 2 days before session</p>
-    </td>
-  </tr>
-  <tr><td style="padding:0 28px 16px;">${returningCGHtml}</td></tr>
-  ` : ""}
-
-  <!-- Section 2: What Changed (Last 24 Hours) -->
-  <tr>
-    <td style="padding:24px 28px 8px;">
-      <h2 style="margin:0;font-size:17px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:6px;">
-        What Changed (Last 24 Hours)
-      </h2>
-      <p style="margin:4px 0 12px;font-size:12px;color:#666;">${changeLines.length} change(s)</p>
-    </td>
-  </tr>
-  <tr><td style="padding:0 28px 16px;">${changelogHtml}</td></tr>
-
-  <!-- Section 2.5: Overdue / Due Today Interactions -->
-  <tr>
-    <td style="padding:24px 28px 8px;">
-      <h2 style="margin:0;font-size:17px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:6px;">
-        Overdue / Due Today Interactions
-      </h2>
-      <p style="margin:4px 0 12px;font-size:12px;color:#666;">${overdueCountTotal} follow-up(s)</p>
-    </td>
-  </tr>
-  <tr><td style="padding:0 28px 16px;">${overdueHtml}</td></tr>
-
-  ${IS_PIP ? `
-  <!-- PIP: Open PIP Cases -->
-  <tr>
-    <td style="padding:24px 28px 8px;">
-      <h2 style="margin:0;font-size:17px;color:#5B21B6;border-bottom:2px solid #5B21B6;padding-bottom:6px;">
-        Open PIP Cases
-      </h2>
-      <p style="margin:4px 0 12px;font-size:12px;color:#666;">${openPipCases.length} open &mdash; do not close until case advocacy is done</p>
-    </td>
-  </tr>
-  <tr><td style="padding:0 28px 16px;">${openPipCasesHtml}</td></tr>
-  ` : `
-  <!-- Section 3: Pending/New Public Submissions -->
-  <tr>
-    <td style="padding:24px 28px 8px;">
-      <h2 style="margin:0;font-size:17px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:6px;">
-        Pending Public Submissions
-      </h2>
-    </td>
-  </tr>
-  <tr><td style="padding:0 28px 16px;">${formsHtml}</td></tr>
-  `}
-
-  ${analyticsSummaryHtml ? `
-  <!-- Page 2 (1st of month): Website & App Analytics — Executive Summary -->
-  <tr><td style="padding:0;"><div style="page-break-before:always;line-height:0;font-size:0;">&nbsp;</div></td></tr>
-  <tr>
-    <td style="padding:24px 28px 8px;">
-      <h2 style="margin:0;font-size:17px;color:#1a3c6e;border-bottom:2px solid #1a3c6e;padding-bottom:6px;">
-        Website &amp; App Analytics &mdash; Executive Summary
-      </h2>
-    </td>
-  </tr>
-  <tr><td style="padding:0 28px 24px;">${analyticsSummaryHtml}</td></tr>
-  ` : ''}
-
-  <!-- Footer -->
-  ${orgFooterHtml || ''}
-
-</table>
-</td></tr>
-</table>
-</body>
-</html>`;
+    const dateLine = IS_MONDAY
+      ? todayStr + " · week of " + _dayLabel(todayISO) + " – " + _dayLabel(windowEndISO)
+      : todayStr;
+    const emailHtml = renderTopLevelDailyReport({
+      esc, isPip: IS_PIP, isMonday: IS_MONDAY,
+      theme: dailyReportTheme(hawaiiNow, _scopeOpts.theme),
+      reportName: REPORT_NAME, dateLine,
+      backupHtml: backupStatusHtml, tiles,
+      windowDays, upcoming, laterCount,
+      sessNote: inWindow.length + " session" + (inWindow.length === 1 ? "" : "s") + (peopleInWindow ? " · " + peopleInWindow + " people" : ""),
+      cycle: cycleData, programs, staffLine,
+      compareNote: prevSnap ? (IS_MONDAY ? "vs. last Monday" : "vs. yesterday") : "",
+      changeLines, analyticsSummaryHtml, orgFooterHtml,
+    });
 
     // ── 6. Send to each active recipient ──
     const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
@@ -7084,6 +7344,11 @@ async function runDailyReport(overrideRecipients, opts) {
       }
     }
 
+    // Today's totals, so tomorrow (and next Monday) can show what changed.
+    if (sentCount > 0) {
+      try { await db.collection("dailyReportSnapshots").doc(snapId(todayISO)).set(Object.assign({ scope: SCOPE, date: todayISO, at: admin.firestore.FieldValue.serverTimestamp() }, snap)); }
+      catch (err) { console.warn("daily report snapshot:", err.message); }
+    }
     console.log(`sendDailySessionSheet[${SCOPE}]: complete. Sent to ${sentCount}/${recipients.length} recipients. Sessions: ${allSessions.length}`);
     return null;
 }
