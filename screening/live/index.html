@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Screening progress</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap">
+<style>
+/* Layout: one column clipboard — summary strip, screener tally, filters, then classroom groups of child rows */
+:root{
+  --bg:#f3f6f8; --card:#ffffff; --ink:#14232f; --mute:#5b6b78; --line:#dde5eb;
+  --sea:#0f5e7a; --sea-soft:#e1eff4;
+  --pass:#1f7a4d; --pass-bg:#e3f3ea; --refer:#b3412b; --refer-bg:#fbe7e2; --abs:#94620b; --abs-bg:#fbf0d9; --part:#5b4aa8; --part-bg:#ece9fa;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif; --body:"Atkinson Hyperlegible",ui-sans-serif,system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e171d;--card:#16232c;--ink:#e6eef3;--mute:#93a6b3;--line:#263844;--sea:#6cc3df;--sea-soft:#17323d;--pass:#6fd39f;--pass-bg:#173528;--refer:#f19a86;--refer-bg:#3b1f19;--abs:#e9be6a;--abs-bg:#3a2e14;--part:#b7aaf3;--part-bg:#2a2547;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e171d;--card:#16232c;--ink:#e6eef3;--mute:#93a6b3;--line:#263844;--sea:#6cc3df;--sea-soft:#17323d;--pass:#6fd39f;--pass-bg:#173528;--refer:#f19a86;--refer-bg:#3b1f19;--abs:#e9be6a;--abs-bg:#3a2e14;--part:#b7aaf3;--part-bg:#2a2547;color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--body)}
+.wrap{max-width:980px;margin:0 auto;padding-inline:16px;padding-block:20px 48px;display:grid;gap:18px}
+header h1{font:800 clamp(1.5rem,4vw,2.1rem)/1.1 var(--display);margin:0;text-wrap:balance}
+header p{margin:4px 0 0;color:var(--mute)}
+.asof{display:inline-flex;gap:6px;align-items:center;background:var(--sea-soft);color:var(--sea);border-radius:999px;padding:3px 10px;font-weight:700;font-size:.82rem;margin-top:8px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;gap:6px}
+.stat b{font:800 1.7rem/1 var(--display);font-variant-numeric:tabular-nums}
+.stat span{color:var(--mute);font-size:.85rem}
+.bar{height:6px;border-radius:6px;background:var(--line);overflow:hidden}.bar i{display:block;height:100%;background:var(--sea)}
+.stat.refer b{color:var(--refer)}
+.who{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.who h2,.sec h2{font:600 1rem/1.2 var(--display);margin:0}
+.chip{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:4px 10px;font-size:.84rem;color:var(--ink)}
+.chip em{font-style:normal;color:var(--mute)}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);padding-block:8px;z-index:2}
+.seg{display:flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card)}
+.seg button{border:0;background:none;color:var(--ink);font:inherit;font-size:.86rem;padding:7px 11px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--sea);color:var(--card);font-weight:700}
+select,input[type=search]{font:inherit;font-size:.88rem;padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);min-width:0}
+input[type=search]{flex:1 1 160px}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--sea);outline-offset:2px}
+.sec{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.sec>header{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.sec>header small{color:var(--mute);font-variant-numeric:tabular-nums}
+.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,.9fr);gap:10px;padding:9px 14px;border-bottom:1px solid var(--line);align-items:start}
+.row:last-child{border-bottom:0}
+.row .nm{font-weight:700}.row .nm small{display:block;font-weight:400;color:var(--mute);font-size:.78rem}
+.cell{display:grid;gap:2px}
+.tag{justify-self:start;border-radius:6px;padding:2px 8px;font-size:.8rem;font-weight:700}
+.tag.pass{background:var(--pass-bg);color:var(--pass)}.tag.refer{background:var(--refer-bg);color:var(--refer)}.tag.abs{background:var(--abs-bg);color:var(--abs)}.tag.part{background:var(--part-bg);color:var(--part)}.tag.none{color:var(--mute);font-weight:400;padding-left:0}
+.cell small{color:var(--mute);font-size:.76rem}.byc span{display:block;font-size:.86rem}.byc em{font-style:normal;color:var(--mute);font-size:.76rem}
+.lbl{display:none;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
+.colhd{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,.9fr);gap:10px;padding:6px 14px;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);border-bottom:1px solid var(--line)}
+.rooms{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}.rm{display:grid;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:.86rem}.rm div{display:flex;justify-content:space-between;gap:8px}.rm small{color:var(--mute);font-variant-numeric:tabular-nums}.dot{width:8px;height:8px;border-radius:50%;background:var(--pass);display:inline-block;margin-right:6px;animation:pulse 2s infinite}@keyframes pulse{50%{opacity:.35}}@media (prefers-reduced-motion:reduce){.dot{animation:none}}.flash{animation:fl 1.6s}@keyframes fl{from{background:var(--sea-soft)}}
+.empty{padding:28px;text-align:center;color:var(--mute)}
+.note{color:var(--mute);font-size:.82rem}
+@media (max-width:560px){.row{grid-template-columns:1fr 1fr}.row .byc{grid-column:1/-1}.row .nm{grid-column:1/-1}.colhd{display:none}.lbl{display:block}}
+</style>
+<style>body{margin:0}[hidden]{display:none!important}*{box-sizing:border-box}</style>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+</head><body>
+<div class="wrap" id="gate">
+  <header><h1>Screening progress</h1><p>LDAH staff only. Sign in with your DAN email and password.</p></header>
+  <form id="lf" class="sec" style="padding:16px;display:grid;gap:10px;max-width:380px">
+    <label for="em">Email</label><input id="em" type="email" autocomplete="username" required style="font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)">
+    <label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required style="font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)">
+    <button id="lb" type="submit" style="font:inherit;font-weight:700;padding:9px;border:0;border-radius:8px;background:var(--sea);color:var(--card);cursor:pointer">Sign in</button>
+    <p id="lm" class="note" role="status"></p>
+  </form>
+</div>
+<div class="wrap" id="app" hidden>
+  <header>
+    <h1 id="school">Screening</h1>
+    <p id="sub">Vision &amp; hearing screening</p>
+    <div class="asof" id="asof"></div>
+  </header>
+  <section class="stats" id="stats" aria-label="Progress"></section>
+  <section class="who" id="who" aria-label="Who screened"></section>
+  <section aria-label="Classrooms"><div class="who" style="margin-bottom:8px"><h2>Classrooms</h2></div><div class="rooms" id="rooms"></div></section>
+  <div class="filters">
+    <div class="seg" role="group" aria-label="Show">
+      <button id="f-all" data-f="all" aria-pressed="true">All</button>
+      <button id="f-nv" data-f="nv" aria-pressed="false">Vision done</button>
+      <button id="f-nh" data-f="nh" aria-pressed="false">Hearing done</button>
+      <button id="f-both" data-f="both" aria-pressed="false">Both done</button>
+      <button id="f-ref" data-f="ref" aria-pressed="false">Refer</button>
+    </div>
+    <select id="room" aria-label="Classroom"></select>
+    <input id="q" type="search" placeholder="Find a child" aria-label="Find a child">
+  </div>
+  <main id="list"></main>
+  <p class="note">Only children with a result saved (or marked absent) are listed. A result counts once a screener saves it in DAN; "Screened by" is the staff account that saved each result, with the time. Hearing shows OAE by ear, with tympanometry or otoscopy when that is all that was entered.</p>
+</div>
+<script>
+
+let DATA = {asof:"",total:0,rooms:[],kids:[]};
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const isRef = x => /refer|fail|unable/i.test(x || '');
+function visState(k){ if(k.v){ return [k.v.r,k.v.l,k.v.lea].some(isRef)?'refer':'pass'; } return k.absV?'abs':'none'; }
+function hearState(k){ if(k.h){ const o=[k.h.oR,k.h.oL,k.h.tR,k.h.tL]; if(o.some(isRef)) return 'refer'; if(o.some(Boolean)) return 'pass'; return 'part'; } return k.absH?'abs':'none'; }
+const done = s => s==='pass'||s==='refer';
+let F='all', live=false, seenKeys=null;
+const sel=document.getElementById('room');
+try{ const s=JSON.parse(localStorage.getItem('cu-f')||'{}'); if(s.f) F=s.f; if(s.r!=null) sel.dataset.want=s.r; }catch(e){}
+function eyes(r,l){ return `R ${esc(r||'–')} · L ${esc(l||'–')}`; }
+function vCell(k){ const s=visState(k); if(s==='none') return '<span class="tag none">Not yet</span>'; if(s==='abs') return `<span class="tag abs">Absent</span><small>${esc(k.absV)}</small>`;
+  return `<span class="tag ${s}">${s==='refer'?'Refer':'Pass'}</span><small>${eyes(k.v.r,k.v.l)}${k.v.lea?' · LEA '+esc(k.v.lea):''}</small>`; }
+function hCell(k){ const s=hearState(k); if(s==='none') return '<span class="tag none">Not yet</span>'; if(s==='abs') return `<span class="tag abs">Absent</span><small>${esc(k.absH)}</small>`;
+  const h=k.h; const d=(h.oR||h.oL)?'OAE '+eyes(h.oR,h.oL):(h.tR||h.tL)?'Tymp '+eyes(h.tR,h.tL):'Otoscopy only, no OAE yet';
+  return `<span class="tag ${s}">${s==='refer'?'Refer':s==='pass'?'Pass':'Started'}</span><small>${d}</small>`; }
+const key=k=>k.room+'|'+k.name+'|'+JSON.stringify([k.v,k.h,k.absV,k.absH]);
+function byCell(k){
+  const out=[];
+  if(k.v) out.push(`<span>${esc(k.v.by||'Not recorded')} <em>vision${k.v.t?' · '+esc(k.v.t):''}</em></span>`);
+  if(k.h) out.push(`<span>${esc(k.h.by||'Not recorded')} <em>hearing${k.h.t?' · '+esc(k.h.t):''}</em></span>`);
+  return out.join('')||'<em>Marked absent</em>';
+}
+function renderTop(){
+  const K=DATA.kids, n=DATA.total||0;
+  document.getElementById('asof').innerHTML=(live?'<span class="dot" aria-hidden="true"></span>Live · ':'Connecting · ')+'Last change '+esc(DATA.asof);
+  const vD=K.filter(k=>done(visState(k))).length, hD=K.filter(k=>done(hearState(k))).length, bD=K.filter(k=>done(visState(k))&&done(hearState(k))).length, rf=K.filter(k=>visState(k)==='refer'||hearState(k)==='refer').length;
+  const st=(b,label,pct,cls='')=>`<div class="stat ${cls}"><b>${b}</b><span>${label}</span>${pct!=null?`<div class="bar"><i style="width:${pct}%"></i></div>`:''}</div>`;
+  const of=x=>`${x}<small style="font-size:.9rem;color:var(--mute)"> / ${n}</small>`;
+  document.getElementById('stats').innerHTML=st(of(vD),'vision done',Math.round(vD/(n||1)*100))+st(of(hD),'hearing done',Math.round(hD/(n||1)*100))+st(of(bD),'both done',Math.round(bD/(n||1)*100))+st(rf,'need a referral',null,'refer');
+  const tally={}; K.forEach(k=>{ if(k.v&&k.v.by){(tally[k.v.by]=tally[k.v.by]||{v:0,h:0}).v++;} if(k.h&&k.h.by){(tally[k.h.by]=tally[k.h.by]||{v:0,h:0}).h++;} });
+  const tn=Object.keys(tally).sort();
+  document.getElementById('who').innerHTML='<h2>Screened by</h2>'+(tn.length?tn.map(t=>`<span class="chip">${esc(t)} <em>${[tally[t].v?tally[t].v+' vision':'',tally[t].h?tally[t].h+' hearing':''].filter(Boolean).join(' · ')}</em></span>`).join(''):'<span class="note">No results saved yet.</span>');
+  document.getElementById('rooms').innerHTML=DATA.rooms.map(r=>`<div class="rm"><div><b>${esc(r.name)}</b><small>${r.seen} of ${r.total}</small></div><div class="bar"><i style="width:${Math.round(r.seen/r.total*100)}%"></i></div></div>`).join('');
+  const cur=sel.value||sel.dataset.want||'';
+  sel.innerHTML='<option value="">All classrooms</option>'+DATA.rooms.filter(r=>r.seen).map(r=>`<option${r.name===cur?' selected':''}>${esc(r.name)}</option>`).join('');
+}
+function render(){
+  const K=DATA.kids;
+  document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.f===F)));
+  const q=document.getElementById('q').value.trim().toLowerCase(), r=sel.value;
+  try{ localStorage.setItem('cu-f',JSON.stringify({f:F,r})); }catch(e){}
+  const keep=k=>{ const v=visState(k),h=hearState(k);
+    if(r&&k.room!==r) return false; if(q&&!k.name.toLowerCase().includes(q)) return false;
+    if(F==='nv') return done(v); if(F==='nh') return done(h); if(F==='both') return done(v)&&done(h); if(F==='ref') return v==='refer'||h==='refer'; return true; };
+  let html='';
+  DATA.rooms.forEach(rm=>{ const list=K.filter(k=>k.room===rm.name&&keep(k)); if(!list.length) return;
+    html+=`<section class="sec"><header><h2>${esc(rm.name)}</h2><small>${rm.seen} of ${rm.total} seen</small></header><div class="colhd"><span>Child</span><span>Vision</span><span>Hearing</span><span>Screened by</span></div>`+
+      list.map(k=>`<div class="row${seenKeys&&!seenKeys.has(key(k))?' flash':''}"><div class="nm">${esc(k.name)}<small>${esc(k.grade)}</small></div><div class="cell"><span class="lbl">Vision</span>${vCell(k)}</div><div class="cell"><span class="lbl">Hearing</span>${hCell(k)}</div><div class="cell byc"><span class="lbl">Screened by</span>${byCell(k)}</div></div>`).join('')+'</section>'; });
+  document.getElementById('list').innerHTML=html||'<div class="sec empty">'+(K.length?'No children match this view.':'No results saved yet. Children appear here as soon as a screener saves a result.')+'</div>';
+  seenKeys=new Set(K.map(key));
+}
+function all(){ renderTop(); render(); }
+document.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>{F=b.dataset.f;render();}));
+sel.addEventListener('change',render); document.getElementById('q').addEventListener('input',render);
+
+const SCHOOL = (new URLSearchParams(location.search).get('school') || 'Central Union Church Preschool').trim();
+document.getElementById('school').textContent = SCHOOL;
+document.title = SCHOOL + ' screening';
+firebase.initializeApp({apiKey:"AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk",authDomain:"ldah-932d5.firebaseapp.com",projectId:"ldah-932d5",storageBucket:"ldah-932d5.firebasestorage.app",messagingSenderId:"662130454003",appId:"1:662130454003:web:437576d5a5811ecd8df686"});
+const fauth=firebase.auth(), fdb=firebase.firestore();
+const STAFF={};
+const hst=iso=>{ try{ const d=new Date(iso); return d.toLocaleTimeString('en-US',{timeZone:'Pacific/Honolulu',hour:'numeric',minute:'2-digit'}).toLowerCase(); }catch(e){ return ''; } };
+const hstDay=iso=>{ try{ return new Date(iso).toLocaleDateString('en-US',{timeZone:'Pacific/Honolulu',weekday:'short',month:'short',day:'numeric'}); }catch(e){ return ''; } };
+function roomName(c){ c=String(c||'').trim(); if(!c||c==='0') return 'Classroom not set'; if(/^\d+$/.test(c)) return 'Room '+c; if(c==='Toddler') return 'Toddler (number not set)'; return c; }
+const tsIso=v=>v&&v.toDate?v.toDate().toISOString():(v||'');
+function shape(snap){
+  const kids=[]; let latest='';
+  const want=SCHOOL.toLowerCase();
+  snap.forEach(doc=>{ const c=doc.data()||{};
+    (c.screenings||[]).forEach(s=>{
+      if(String(s.location||'').trim().toLowerCase()!==want) return;
+      const ch=s.child||{}, res=s.results||{}, ab=s.absent||{};
+      const v=res.vision||{}, vd=v.distance||{}; let vis=null;
+      if(vd.right||vd.left||v.leaSymbols){ const at=tsIso(res.visionAt); vis={r:vd.right||'',l:vd.left||'',lea:v.leaSymbols||'',by:STAFF[res.visionByUid]||res.visionBy||res.screenedBy||'',t:at?hst(at):''}; if(at>latest) latest=at; }
+      const h=res.hearing||{}, o=h.oae||{}, ty=h.tympanometry||{}, ot=h.otoscopy||{}; let hear=null;
+      if(o.right||o.left||ty.right||ty.left||ot.right||ot.left){ const at=tsIso(res.hearingAt); hear={oR:o.right||'',oL:o.left||'',tR:ty.right||'',tL:ty.left||'',by:STAFF[res.hearingByUid]||res.hearingBy||res.screenedBy||'',t:at?hst(at):''}; if(at>latest) latest=at; }
+      kids.push({name:[(ch.firstName||'').trim(),(ch.lastName||'').trim()].filter(Boolean).join(' ')||'(no name)',room:roomName(s.classroom),grade:ch.gradeLevel||'',v:vis,h:hear,absV:ab.vision||'',absH:ab.hearing||''});
+      if(s.scheduled&&s.scheduled.dates&&!DATA._sub){ DATA._sub=s.scheduled.dates.map(d=>new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})).join(' & ')+(s.scheduled.time?' · '+s.scheduled.time:''); }
+    }); });
+  const tot={}, seen={};
+  kids.forEach(k=>{ tot[k.room]=(tot[k.room]||0)+1; if(k.v||k.h||k.absV||k.absH) seen[k.room]=(seen[k.room]||0)+1; });
+  const rooms=Object.keys(tot).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).map(r=>({name:r,total:tot[r],seen:seen[r]||0}));
+  const upd=kids.filter(k=>k.v||k.h||k.absV||k.absH).sort((a,b)=>a.room.localeCompare(b.room,undefined,{numeric:true})||a.name.localeCompare(b.name));
+  DATA={asof:latest?hstDay(latest)+', '+hst(latest):'none yet',total:kids.length,rooms,kids:upd,_sub:DATA._sub};
+  if(DATA._sub) document.getElementById('sub').textContent='Vision & hearing screening · '+DATA._sub;
+}
+let unsub=null;
+async function start(user){
+  const lm=document.getElementById('lm');
+  try{
+    const me=await fdb.collection('userRoles').doc(user.uid).get();
+    const role=me.exists?(me.data().role||''):'';
+    if(!me.exists||me.data().archived===true||role==='partner'||role==='superPartner'){ lm.textContent='This page is for LDAH staff. Your account does not have access.'; await fauth.signOut(); return; }
+    const rs=await fdb.collection('userRoles').get();
+    rs.forEach(d=>{ const n=(d.data().displayName||'').trim(); STAFF[d.id]=n?n.split(/\s+/)[0]:''; });
+  }catch(e){ lm.textContent='Could not check your access: '+(e.message||e); return; }
+  document.getElementById('gate').hidden=true; document.getElementById('app').hidden=false;
+  all();
+  unsub=fdb.collection('contacts').where('hasScreenings','==',true).onSnapshot(snap=>{ shape(snap); live=true; all(); },err=>{ live=false; renderTop(); console.warn(err); });
+}
+fauth.onAuthStateChanged(u=>{ if(u) start(u); else { if(unsub){unsub();unsub=null;} document.getElementById('gate').hidden=false; document.getElementById('app').hidden=true; } });
+document.getElementById('lf').addEventListener('submit',async e=>{ e.preventDefault(); const lm=document.getElementById('lm'), lb=document.getElementById('lb'); lb.disabled=true; lm.textContent='Signing in…';
+  try{ await fauth.signInWithEmailAndPassword(document.getElementById('em').value.trim(),document.getElementById('pw').value); lm.textContent=''; }
+  catch(err){ lm.textContent=/password|credential|user-not-found/i.test(err.code||'')?'That email and password did not match. Use the same ones you use for DAN.':'Sign-in failed: '+(err.message||err); }
+  lb.disabled=false; });
+</script>
+</body></html>
