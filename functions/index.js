@@ -14405,7 +14405,8 @@ exports.getScreeningResults = functions
           vision: r.vision || null,
           site: r.site || "",
           screenedAt: asIso(r.screenedAt),
-          screenedBy: r.screenedBy || "",
+          // screenedBy left out on purpose (10-27): staff names and entry times are
+          // internal; the family results page never showed them.
         },
       });
     } catch (err) {
