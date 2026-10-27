@@ -290,9 +290,54 @@
     RESULT_PATHS.forEach(p => { if (_getPath(out, p) === undefined) out = _setPath(out, p, ''); });  // same shape as before
     ['site','screenedAt','screenedBy'].forEach(k => { if (out[k] === undefined) out[k] = ''; });
     const st = patch && patch.stamp;
-    if (st) Object.keys(secs).forEach(s => { out[s+'At'] = st.at; out[s+'By'] = st.by || ''; if (st.uid) out[s+'ByUid'] = st.uid; });
+    if (st) Object.keys(secs).forEach(s => { out[s+'At'] = st.at; out[s+'By'] = st.by || ''; if (st.uid) out[s+'ByUid'] = st.uid; if (st.name) out[s+'ByName'] = st.name; });
     return out;
   }
+  /* SCREENEDBY-BEGIN (10-27) Screened by line, built from the per-part stamps.
+     Same text on the phone page and in DAN; the 10-27 backfill used the same rules.
+       "V: <first> 9:39 AM · H: <first> 9:45 AM"   vision first, HST clock
+       "V: <first> 10/26 9:16 AM · H: <first> 10/27 10:08 AM"  parts on different HST days
+     Only parts that have results AND a stamp (<part>At plus <part>By or <part>ByUid).
+     First name: <part>ByName, else staff[<part>ByUid] (first word of
+     userRoles.displayName), else first word of <part>By (an email gives its
+     local part, capitalised). */
+  function sbFirstName(r, part, staff){
+    var n = r[part + 'ByName'] || (staff && r[part + 'ByUid'] ? staff[r[part + 'ByUid']] : '') || '';
+    if (String(n).trim()) return String(n).trim().split(/\s+/)[0];
+    var by = String(r[part + 'By'] || '').trim();
+    if (by.indexOf('@') > -1){ by = by.split('@')[0]; return by.charAt(0).toUpperCase() + by.slice(1); }
+    return by ? by.split(/\s+/)[0] : '';
+  }
+  function sbHst(at){
+    if (!at) return null;
+    var ms = (typeof at.toMillis === 'function') ? at.toMillis()
+      : (typeof at.toDate === 'function') ? at.toDate().getTime()
+      : (at.seconds != null) ? Number(at.seconds) * 1000
+      : (at instanceof Date) ? at.getTime() : new Date(at).getTime();
+    if (isNaN(ms)) return null;
+    var d = new Date(ms - 36e6);   /* HST = UTC-10, no daylight saving */
+    var h = d.getUTCHours(), m = d.getUTCMinutes();
+    return { key: d.getUTCFullYear() + '-' + d.getUTCMonth() + '-' + d.getUTCDate(),
+             day: (d.getUTCMonth() + 1) + '/' + d.getUTCDate(),
+             time: ((h % 12) || 12) + ':' + (m < 10 ? '0' : '') + m + ' ' + (h < 12 ? 'AM' : 'PM') };
+  }
+  function sbHasPart(r, part){
+    var x = r[part] || {};
+    if (part === 'vision'){ var d = x.distance || {}; return !!(d.right || d.left || x.leaSymbols); }
+    return ['otoscopy', 'oae', 'tympanometry'].some(function(k){ var o = x[k] || {}; return !!(o.right || o.left); });
+  }
+  function screenedByLine(r, staff){
+    r = r || {};
+    var parts = [];
+    [['V', 'vision'], ['H', 'hearing']].forEach(function(p){
+      var t = sbHst(r[p[1] + 'At']);
+      if (!t || !sbHasPart(r, p[1]) || !(r[p[1] + 'By'] || r[p[1] + 'ByUid'])) return;
+      parts.push({ tag: p[0], name: sbFirstName(r, p[1], staff), t: t });
+    });
+    var two = parts.length === 2 && parts[0].t.key !== parts[1].t.key;
+    return parts.map(function(p){ return (p.tag + ': ' + p.name + ' ' + (two ? p.t.day + ' ' : '') + p.t.time).replace(/\s+/g, ' '); }).join(' · ');
+  }
+  /* SCREENEDBY-END */
   // Replace the screening with this id inside a contact's screenings array.
   function applyToScreening(list, screeningId, fn){
     let found = false, item = null;
@@ -305,15 +350,24 @@
   let rows = [];
   let current = null; // { contactId, screeningId, child }
   let unsub = null;   // Firestore realtime listener
-  // Day defaults for Site + Screened by. Once entered on any screening, they
-  // auto-fill the rest of the day — and persist across browsers/devices via a
-  // Firestore doc (not localStorage), keyed to today's date.
-  let dayDefaults = { site:'', screenedBy:'' };
+  // Day default for Site. Once entered on any screening, it auto-fills the
+  // rest of the day — and persists across browsers/devices via a Firestore doc
+  // (not localStorage), keyed to today's date. Screened by is NOT carried over
+  // any more (10-27): a day default put one screener's name on other people's
+  // children. It is built from the vision / hearing stamps instead.
+  let dayDefaults = { site:'' };
+  // Staff first names by uid (first word of userRoles.displayName), like the
+  // live page. myFirst = the signed-in screener's own first name.
+  let STAFF = {}, myFirst = '';
+  function loadStaff(){
+    if (Object.keys(STAFF).length) return;
+    db.collection('userRoles').get().then(rs => { const m = {}; rs.forEach(d => { const n = ((d.data()||{}).displayName || '').trim(); m[d.id] = n ? n.split(/\s+/)[0] : ''; }); STAFF = m; refreshBy(); }).catch(()=>{});
+  }
   function todayKey(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
   function loadDayDefaults(){
     db.collection('screeningDefaults').doc('current').get().then(d=>{
       const v = d.exists ? (d.data()||{}) : {};
-      if (v.dateKey === todayKey()) dayDefaults = { site:v.site||'', screenedBy:v.screenedBy||'' };
+      if (v.dateKey === todayKey()) dayDefaults = { site:v.site||'' };
     }).catch(()=>{});
   }
 
@@ -324,7 +378,8 @@
     // admin/superAdmin can write results — if the signed-in account isn't one of
     // those, say so clearly instead of loading the form and failing on every save.
     let role = '';
-    try { const rs = await db.collection('userRoles').doc(u.uid).get(); role = rs.exists ? (rs.data().role || '') : ''; } catch (e) {}
+    try { const rs = await db.collection('userRoles').doc(u.uid).get(); role = rs.exists ? (rs.data().role || '') : ''; const dn = rs.exists ? String(rs.data().displayName || '').trim() : ''; myFirst = dn ? dn.split(/\s+/)[0] : ''; } catch (e) {}
+    if (!myFirst){ const dn = String(u.displayName || '').trim(); myFirst = dn ? dn.split(/\s+/)[0] : ''; }
     if (role === 'admin' || role === 'superAdmin'){ startReport(); }
     else {
       if (unsub){ unsub(); unsub=null; }
@@ -368,6 +423,7 @@
   function startReport(){
     view('report');
     loadDayDefaults();
+    loadStaff();
     if (!unsub) $('list').innerHTML = '<div class="empty"><div class="spinner" style="margin:0 auto 12px;"></div>Loading screenings…</div>';
     if (unsub) return;
     unsub = db.collection('contacts').where('hasScreenings','==',true).onSnapshot(
@@ -482,11 +538,24 @@
     { id:'eTympR', path:'hearing.tympanometry.right' }, { id:'eTympL', path:'hearing.tympanometry.left' },
     { id:'eDistR', path:'vision.distance.right' }, { id:'eDistL', path:'vision.distance.left' },
     { id:'eLea', path:'vision.leaSymbols' },
-    { id:'eDate', path:'screenedAt', common:true }, { id:'eSite', path:'site', common:true }, { id:'eBy', path:'screenedBy', common:true }
+    { id:'eDate', path:'screenedAt', common:true }, { id:'eSite', path:'site', common:true }
   ];
   let saving = false;
   function storedVal(base, path){ const v=_getPath(base||{}, path); if (path==='screenedAt' && v && v.toDate){ const d=v.toDate(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); } return v==null ? '' : String(v).trim(); }
-  function markTouched(id){ if (current){ current.touched[id] = true; updateLock(); } }
+  function markTouched(id){ if (current){ current.touched[id] = true; refreshBy(); updateLock(); } }
+  /* Screened by (10-27). Filled automatically from the stamps the save will
+     write: this screener's first name + now for each part they change, the
+     saved stamp for the other part. Not a tab stop; typing in it on purpose
+     (current.byEdited) saves that text instead (screenedByAuto false). A
+     record whose saved text was typed by hand keeps it until a part changes. */
+  function computedBy(){
+    if (!current) return '';
+    const p = buildPatch(true), b = current.base || {};
+    const changed = Object.keys(p.fields).some(k => /^(vision|hearing)\./.test(k));
+    if (!changed && b.screenedByAuto === false && b.screenedBy) return String(b.screenedBy);
+    return screenedByLine(mergeResults(b, p), STAFF) || (changed ? '' : String(b.screenedBy || ''));
+  }
+  function refreshBy(){ if (!current || current.byEdited) return; const el = $('eBy'); if (el) el.value = computedBy(); }
   // The fields to save: changed by this screener since the form opened (or
   // since the last live refresh). Site / date / screened-by are pre-filled
   // from the day's defaults, so they are also saved when nothing is stored yet.
@@ -499,7 +568,7 @@
       if (current.touched[f.id] || (f.common && v !== '' && storedVal(current.base, f.path) === '')) fields[f.path] = v;
     });
     const u = auth.currentUser || {};
-    return withStamp ? { fields, stamp:{ at: firebase.firestore.Timestamp.now(), by: u.displayName || u.email || '', uid: u.uid || '' } } : { fields };
+    return withStamp ? { fields, stamp:{ at: firebase.firestore.Timestamp.now(), by: u.displayName || u.email || '', uid: u.uid || '', name: myFirst } } : { fields };
   }
   function updateLock(){
     if (!current) return;
@@ -539,16 +608,16 @@
     });
     if (JSON.stringify(r.printouts||[]) !== JSON.stringify(current.printouts)){ current.printouts = (r.printouts||[]).slice(); renderSlots(); }
     const ob = $('eOther'); if (ob) ob.innerHTML = otherHtml(current.base);
+    refreshBy();
     updateLock();
   }
 
   window.openEntry = function(i){
     const r = window._view[i]; if(!r) return;
-    current = { contactId:r.contactId, screeningId:r.screeningId, printouts:(r.printouts||[]).slice(), base:(r.results||{}), touched:{}, initial:{} };
+    current = { contactId:r.contactId, screeningId:r.screeningId, printouts:(r.printouts||[]).slice(), base:(r.results||{}), touched:{}, initial:{}, byEdited:false };
     Object.keys(_fresh).forEach(k=>delete _fresh[k]);
     $('entryTitle').textContent = r.childName || 'Results';
     const res = r.results||{}, hd=res.hearing||{}, vs=res.vision||{};
-    const by = res.screenedBy || dayDefaults.screenedBy || (auth.currentUser && auth.currentUser.displayName) || '';
     const site = res.site || (r.location ? r.location + (r.classroom ? ' \u2014 ' + r.classroom : '') : '') || dayDefaults.site || '';
     let when = '';
     if (res.screenedAt){ if(res.screenedAt.toDate){const d=res.screenedAt.toDate();when=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');} else if(typeof res.screenedAt==='string'){when=res.screenedAt.slice(0,10);} }
@@ -558,7 +627,7 @@
     f += '<div class="otherBox" id="eOther">'+otherHtml(current.base)+'</div>';
     f += '<div class="grid2"><div><label class="l">Date of Screening</label><input type="date" id="eDate" value="'+when+'"></div>'+
          '<div><label class="l">Site</label><input id="eSite" value="'+esc(site)+'"></div></div>';
-    f += '<label class="l">Screened by</label><input id="eBy" value="'+esc(by)+'">';
+    f += '<label class="l">Screened by</label><input id="eBy" tabindex="-1" autocomplete="off" value="">';
     f += '<div class="sec">Hearing</div>';
     f += rlRow('Otoscopy','eOtoR','eOtoL',OTO,hd.otoscopy,'Clear or minimal earwax','Both<br>Clear');
     f += rlRow('OAE','eOaeR','eOaeL',PF,hd.oae,'Pass','Both<br>Pass');
@@ -577,7 +646,9 @@
     // "initial" = what is SAVED, not what is pre-filled, so a pre-filled site /
     // date / screened-by still counts as new on the first save.
     FORM_FIELDS.forEach(fd => { current.initial[fd.id] = storedVal(current.base, fd.path); });
-    ['eDate','eSite','eBy','eLea'].forEach(id => { const el=$(id); if (el){ el.addEventListener('input', () => markTouched(id)); el.addEventListener('change', () => markTouched(id)); } });
+    ['eDate','eSite','eLea'].forEach(id => { const el=$(id); if (el){ el.addEventListener('input', () => markTouched(id)); el.addEventListener('change', () => markTouched(id)); } });
+    $('eBy').addEventListener('input', () => { if (current) current.byEdited = true; });
+    refreshBy();
     $('entryMsg').textContent = '';
     saving = false;
     $('btnSave').disabled=false; $('btnEmail').disabled=false; $('btnSave').textContent='Save'; $('btnEmail').textContent='Save & email family';
@@ -723,10 +794,10 @@
     msg.style.color='#64748b'; msg.textContent = sendEmail?'Saving & emailing…':'Saving…';
     saving = true; $('btnSave').disabled=true; $('btnEmail').disabled=true;
     const patch = buildPatch(true);
-    const site = val('eSite'), screenedBy = val('eBy');
+    const site = val('eSite'), byText = val('eBy'), byManual = !!cur.byEdited;
     try {
       let merged = cur.base;
-      if (Object.keys(patch.fields).length){
+      if (Object.keys(patch.fields).length || byManual){
         // TRANSACTION (2026-10-05): two stations can save the same child seconds
         // apart. Re-read the contact inside the transaction and merge ONLY the
         // fields this screener changed into the latest results; Firestore
@@ -739,6 +810,9 @@
           const secs = {}; Object.keys(patch.fields).forEach(k => { const sec = k.split('.')[0]; if (sec==='vision'||sec==='hearing') secs[sec] = 1; });
           const out = applyToScreening(((snap.data()||{}).screenings)||[], cur.screeningId, s => {
             const nx = Object.assign({}, s, { results: mergeResults(s.results, patch) });
+            // Screened by from the FINAL stamps (the other station may have just saved).
+            if (byManual){ nx.results.screenedBy = byText; nx.results.screenedByAuto = false; }
+            else if (Object.keys(secs).length){ nx.results.screenedBy = screenedByLine(nx.results, STAFF); nx.results.screenedByAuto = true; }
             if (s.absent) nx.absent = clearAbsent(s.absent, secs);   // results entered = no longer absent for that part
             return nx; });
           if (!out.found) throw new Error('This child\u2019s screening was not found');
@@ -747,7 +821,7 @@
         });
         merged = await Promise.race([ doWrite, new Promise((_,rej)=>setTimeout(()=>rej({ code:'timeout' }), 15000)) ]);
         // Saved: what is on screen is now the baseline.
-        cur.base = merged; cur.touched = {};
+        cur.base = merged; cur.touched = {}; cur.byEdited = false;
         FORM_FIELDS.forEach(fd => { cur.initial[fd.id] = storedVal(merged, fd.path); });
         // Show it now (2026-10-11). A transaction does not echo into the live
         // listener until the server confirms, and a phone's listener can stall
@@ -757,10 +831,11 @@
         rows.forEach(r => { if (r.contactId===cur.contactId && r.screeningId===cur.screeningId){ r.results = merged; r.resultsSent = !!(merged && merged.resultsSentAt); r.absent = clearAbsent(r.absent, _secs); } });
         try { fillPickers(); renderList(); } catch(_){}
       }
-      // Remember Site + Screened by as today's defaults so they auto-fill on the
-      // next child, on any browser (persisted server-side).
-      dayDefaults = { site: site, screenedBy: screenedBy };
-      db.collection('screeningDefaults').doc('current').set({ site: site, screenedBy: screenedBy, dateKey: todayKey(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(()=>{});
+      // Remember Site as today's default so it auto-fills on the next child, on
+      // any browser (persisted server-side). merge:true leaves the doc's old
+      // screenedBy field alone; nothing reads it any more.
+      dayDefaults = { site: site };
+      db.collection('screeningDefaults').doc('current').set({ site: site, dateKey: todayKey(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true }).catch(()=>{});
       if (sendEmail && !isComplete(merged)){
         saving = false; msg.style.color='#b45309'; msg.textContent='Saved, but not emailed: vision and hearing are not both done yet.';
         $('btnSave').disabled=false; updateLock(); return;
