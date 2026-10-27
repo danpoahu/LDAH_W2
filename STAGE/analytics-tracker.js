@@ -279,12 +279,61 @@
     flushEvents();
   }
 
+  // --- Donate buttons -> donate.html (donation funnel) ---
+  /* Every donate button goes through donate.html, which counts the click
+     (events.donation_click, as before) and the donation funnel itself, then
+     forwards to PayPal. So this tracker no longer counts donate clicks; it
+     only names where the click came from. ?src=page_<page> is added at click
+     time because header.html and footer.html are shared by every page and
+     cannot say which page they are on. page_<page> is the same key this
+     tracker used to write into events.donation_click_src, so per-page
+     history carries on. A link that already carries ?src= keeps it. */
+  var DONATE_PAGE_RE = /(^|\/)donate\.html(\?|#|$)/;
+
+  function _donatePageUrl() {
+    var m = window.location.pathname.match(/^(\/LDAH_W2)?(\/STAGE)?\//);
+    return (m ? m[0] : '/') + 'donate.html';
+  }
+
+  function _donateSrc() {
+    return 'page_' + getPageName();
+  }
+
+  function _routeDonateLink(link, href) {
+    try {
+      var u = new URL(href, window.location.href);
+      if (u.searchParams.get('src')) return;
+      u.searchParams.set('src', _donateSrc());
+      link.setAttribute('href', u.toString());
+    } catch (e) { /* leave the link as it is; donate.html still counts it */ }
+  }
+
+  function _routeDonateForm(form) {
+    if (form.querySelector('input[name="src"]')) return;
+    var input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'src';
+    input.value = _donateSrc();
+    form.appendChild(input);
+  }
+
   // --- Auto-attach click listeners via event delegation ---
   document.addEventListener('click', function(e) {
-    // PayPal donate button (input type="image" inside a PayPal form)
+    // Donate form (the footer's PayPal image button) -> donate.html
+    var donateForm = e.target.closest('form[action*="donate.html"]');
+    if (donateForm) {
+      _routeDonateForm(donateForm);
+      return;
+    }
+
+    // Safety net: a donate form still pointing straight at PayPal (e.g. one
+    // injected by CMS content) is sent through donate.html too, so it shows
+    // in the funnel. Same tab/target as the form already had.
     var paypalForm = e.target.closest('form[action*="paypal.com/donate"]');
     if (paypalForm) {
-      trackDonationClick(paypalForm.getAttribute('action'));
+      paypalForm.setAttribute('action', _donatePageUrl());
+      paypalForm.setAttribute('method', 'get');
+      _routeDonateForm(paypalForm);
       return;
     }
 
@@ -293,9 +342,15 @@
 
     var href = link.getAttribute('href') || '';
 
-    // PayPal donation links
+    // Donate links -> donate.html, tagged with the page they came from
+    if (DONATE_PAGE_RE.test(href)) {
+      _routeDonateLink(link, href);
+      return;
+    }
+
+    // Safety net: a PayPal donate link still pointing straight at PayPal
     if (href.indexOf('paypal.com/donate') !== -1) {
-      trackDonationClick(href);
+      link.setAttribute('href', _donatePageUrl() + '?src=' + encodeURIComponent(_donateSrc()));
       return;
     }
 

@@ -4,13 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>Redirecting to PayPal — LDAH</title>
+<title>Donate to LDAH</title>
 
-<!-- LAST-RESORT REDIRECT. Fires even if JavaScript is blocked, which some
-     email clients and corporate proxies do. The donation must never depend on
-     the tracking working: 2.5s is long enough for the beacon below to land and
-     short enough that nobody gives up. (2026-08-31) -->
-<meta http-equiv="refresh" content="2.5;url=https://www.paypal.com/donate?hosted_button_id=F6F2DPC4D6RSA">
+<!-- LAST-RESORT REDIRECT for browsers with JavaScript switched off. It sits in
+     <noscript> (it used to be a bare meta refresh) because this page now also
+     receives donors PayPal sends back after cancelling (?cancelled=1), and a
+     bare refresh would bounce them straight back to PayPal. With JavaScript
+     on, the hard timer in the first script below does the same job, and it
+     runs BEFORE the Firebase scripts load, so a slow or blocked gstatic.com
+     can never hold a donation up. (2026-08-31, reworked 2026-10-27) -->
+<noscript><meta http-equiv="refresh" content="2.5;url=https://www.paypal.com/donate?hosted_button_id=F6F2DPC4D6RSA&amp;return=https%3A%2F%2Fwww.ldahawaii.org%2FSTAGE%2Fdonate-thanks.html%3Fsrc%3Dsrc_link&amp;cancel_return=https%3A%2F%2Fwww.ldahawaii.org%2FSTAGE%2Fdonate.html%3Fcancelled%3D1%26src%3Dsrc_link"></noscript>
 
 <style>
   body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
@@ -23,44 +26,162 @@
   h1{font-size:1.1rem;margin:0 0 6px;color:#004E7C}
   p{margin:0;font-size:.9rem;color:#5b6b7a}
   a{color:#004E7C;font-weight:700}
+  .btn{display:inline-block;margin-top:18px;padding:11px 22px;border-radius:50px;
+       background:#004E7C;color:#fff;text-decoration:none;font-weight:700}
+  .btn.ghost{background:transparent;color:#004E7C;border:2px solid #cfe0eb;margin-left:8px}
+  #cancelBox{display:none}
+  html.cancelled #goingBox{display:none}
+  html.cancelled #cancelBox{display:block}
 </style>
+
+<script>
+/* Donation funnel, step 1 (page) and step 2 (to_paypal).
+
+   Every donate button on the site, and the donate button in our system
+   emails, comes through here carrying ?src=. The funnel is counted in three
+   steps on the day-doc siteAnalytics/{YYYY-MM-DD}:
+
+     1. events.donation_funnel.page        this page loaded
+     2. events.donation_funnel.to_paypal   the visitor actually left for PayPal
+     3. events.donation_funnel.completed   PayPal sent them back to
+                                           donate-thanks.html (see that page)
+        events.donation_funnel.cancelled   PayPal sent them back here with
+                                           ?cancelled=1
+
+   Each step is also counted per source under
+   events.donation_funnel_src.<key>.<step>.
+
+   events.donation_click and events.donation_click_src.<key> are still
+   written on step 1 exactly as before: donation_click is a plain number on
+   160+ day-docs that the Web/App Analytics report reads, and writing a
+   sub-field onto a number fails, so the funnel lives in NEW maps and the old
+   fields are left alone.
+
+   Source keys: an email link arrives as ?src=<name> and is keyed src_<name>,
+   the same as before. A website button arrives as ?src=page_<page> (the
+   site tracker adds it at click time) and is kept as page_<page>, the key the
+   tracker used to write itself, so per-page history carries on. A key that
+   already starts with src_ or page_ is used as is, which is what lets
+   PayPal's return URL carry the key back unchanged.
+
+   The trip to PayPal NEVER waits on a write: it goes as soon as Firestore
+   acknowledges, or after a short deadline, or via the hard timer below,
+   whichever comes first. Losing a donation to save a statistic would be a
+   bad trade. */
+(function () {
+  var DEFAULT_PAYPAL = 'https://www.paypal.com/donate?hosted_button_id=F6F2DPC4D6RSA';
+  var SITE = 'https://www.ldahawaii.org/STAGE/';
+
+  var params = new URLSearchParams(window.location.search);
+  var rawSrc = params.get('src') || params.get('utm_source') || 'link';
+  var key = /^(src|page)_/i.test(rawSrc) ? rawSrc : ('src_' + rawSrc);
+  key = key.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase().slice(0, 60) || 'src_link';
+
+  /* return / cancel_return: PayPal's donate links take these as query
+     parameters and send the donor back to them (an automatic hop only when
+     Auto Return is on for the PayPal account; otherwise PayPal shows a
+     "return to merchant" link). If PayPal ever ignores them, nothing breaks:
+     the donation still goes through and only the completed/cancelled counts
+     stay at zero. */
+  function paypalUrl(base) {
+    try {
+      var u = new URL(base);
+      u.searchParams.set('return', SITE + 'donate-thanks.html?src=' + encodeURIComponent(key));
+      u.searchParams.set('cancel_return', SITE + 'donate.html?cancelled=1&src=' + encodeURIComponent(key));
+      return u.toString();
+    } catch (e) { return base; }
+  }
+
+  var state = {
+    key: key,
+    cancelled: params.get('cancelled') === '1',
+    base: DEFAULT_PAYPAL,
+    left: false,
+    paypalUrl: function () { return paypalUrl(state.base); },
+    // Navigate now, without counting. Used by the hard timer and as the
+    // fallback when the count cannot be written.
+    hardGo: function () {
+      if (state.left) return;
+      state.left = true;
+      window.location.replace(state.paypalUrl());
+    }
+  };
+  window.__ldahDonate = state;
+  if (state.cancelled) document.documentElement.className += ' cancelled';
+
+  // Hard deadline: a first-time visitor (not a cancelled return) reaches
+  // PayPal within 3 seconds no matter what the scripts below are doing.
+  if (!state.cancelled) setTimeout(state.hardGo, 3000);
+})();
+</script>
 </head>
 <body>
-<div class="box">
+<div class="box" id="goingBox">
   <div class="sp"></div>
-  <h1>Taking you to PayPal…</h1>
+  <h1>Taking you to PayPal&hellip;</h1>
   <p>If nothing happens,
      <a id="go" href="https://www.paypal.com/donate?hosted_button_id=F6F2DPC4D6RSA">continue to PayPal</a>.</p>
+</div>
+
+<div class="box" id="cancelBox">
+  <h1>Your donation was not completed</h1>
+  <p>No payment was taken. If you meant to give, you can go back to PayPal
+     and try again. Mahalo for thinking of us.</p>
+  <a class="btn" id="retry" href="https://www.paypal.com/donate?hosted_button_id=F6F2DPC4D6RSA">Return to PayPal</a>
+  <a class="btn ghost" href="https://www.ldahawaii.org/STAGE/">LDAH website</a>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script>
-/* Donate redirect + attribution.
-
-   The donate button in our system emails used to link straight at PayPal, so
-   those clicks were invisible: the analytics tracker only runs on the website,
-   and an email click never touches it. Every donate click now comes through
-   here carrying ?src=, which is recorded before the hop.
-
-   Structure matters: events.donation_click stays the plain counter the Web/App
-   Analytics report already reads, and the breakdown goes in the separate
-   events.donation_click_src map -- the scalar is a number on 160+ existing
-   day-docs and writing a sub-field onto a number fails. Same shape the site
-   tracker writes, so email and website clicks land in one place.
-
-   The redirect NEVER waits on the write: it goes as soon as Firestore
-   acknowledges, or after 900ms, or via the meta refresh above, whichever comes
-   first. Losing a donation to save a statistic would be a bad trade. */
 (function () {
-  var PAYPAL = 'https://www.paypal.com/donate?hosted_button_id=F6F2DPC4D6RSA';
-  var params = new URLSearchParams(window.location.search);
-  var src = params.get('src') || params.get('utm_source') || 'link';
-  var key = ('src_' + src).replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase().slice(0, 60);
+  var S = window.__ldahDonate;
+  var db = null;
+  var dateKey = '';
 
-  var jumped = false;
-  function go() { if (jumped) return; jumped = true; window.location.replace(PAYPAL); }
-  setTimeout(go, 900);
+  // Point both PayPal links at the full URL, so a
+  // right-click / long-press copy still carries the return addresses.
+  var go = document.getElementById('go');
+  var retry = document.getElementById('retry');
+  function refreshLinks() { go.href = S.paypalUrl(); retry.href = S.paypalUrl(); }
+  refreshLinks();
+
+  /* Same shape as the site tracker: day-doc in siteAnalytics keyed by the
+     visitor's local date, `date` stamped on every write (the analytics
+     report filters on it, and where() drops docs without it), counters via
+     FieldValue.increment, set with merge so the first write of the day
+     creates the doc. */
+  function count(step, extra) {
+    if (!db) return Promise.reject(new Error('no db'));
+    var inc = firebase.firestore.FieldValue.increment(1);
+    var events = { donation_funnel: {}, donation_funnel_src: {} };
+    events.donation_funnel[step] = inc;
+    events.donation_funnel_src[S.key] = {};
+    events.donation_funnel_src[S.key][step] = inc;
+    if (extra) extra(events, inc);
+    return db.collection('siteAnalytics').doc(dateKey)
+      .set({ date: dateKey, events: events }, { merge: true });
+  }
+
+  // Step 2: the visitor is actually leaving for PayPal. Count it, then go on
+  // the acknowledgement or after 700ms, whichever is first.
+  function leave() {
+    if (S.left) return;
+    S.left = true;
+    var url = S.paypalUrl();
+    var done = false;
+    function nav() { if (done) return; done = true; window.location.replace(url); }
+    setTimeout(nav, 700);
+    count('to_paypal').then(nav, nav);
+  }
+
+  function onPaypalClick(e) {
+    if (S.left) return;
+    e.preventDefault();
+    leave();
+  }
+  go.addEventListener('click', onPaypalClick);
+  retry.addEventListener('click', onPaypalClick);
 
   try {
     firebase.initializeApp({
@@ -71,20 +192,45 @@
       messagingSenderId: "662130454003",
       appId: "1:662130454003:web:437576d5a5811ecd8df686"
     });
-    var db = firebase.firestore();
+    db = firebase.firestore();
     var d = new Date();
-    var dateKey = d.getFullYear() + '-' +
+    dateKey = d.getFullYear() + '-' +
       String(d.getMonth() + 1).padStart(2, '0') + '-' +
       String(d.getDate()).padStart(2, '0');
-    var inc = firebase.firestore.FieldValue.increment(1);
-    var payload = { date: dateKey, events: {} };
-    payload.events['donation_click'] = inc;
-    payload.events['donation_click_src'] = {};
-    payload.events['donation_click_src'][key] = inc;
-    db.collection('siteAnalytics').doc(dateKey)
-      .set(payload, { merge: true })
-      .then(go).catch(go);
-  } catch (e) { go(); }
+  } catch (e) { db = null; }
+
+  // The CMS donate URL (LDAH-Int > Admin > List Management > Donate Block)
+  // wins over the hardcoded button when a visitor is allowed to read it.
+  // Best effort only: today's rules keep /system staff-only, so for the
+  // public this read fails quietly and the hardcoded button stands.
+  if (db) {
+    try {
+      db.collection('system').doc('donateBlocks').get().then(function (snap) {
+        var u = snap && snap.exists && snap.data() && snap.data().donateUrl;
+        if (typeof u === 'string' && /^https:\/\/www\.paypal\.com\//.test(u) && !S.left) {
+          S.base = u;
+          refreshLinks();
+        }
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
+  if (S.cancelled) {
+    // PayPal sent the donor back after they cancelled. Count it and stay put:
+    // they choose whether to try again.
+    if (db) count('cancelled').catch(function () {});
+    return;
+  }
+
+  // Step 1, plus the back-compat donation_click counters, in one write. Then
+  // move on to step 2 on the acknowledgement or after 900ms.
+  if (!db) { S.hardGo(); return; }
+  setTimeout(leave, 900);
+  count('page', function (events, inc) {
+    events.donation_click = inc;
+    events.donation_click_src = {};
+    events.donation_click_src[S.key] = inc;
+  }).then(leave, leave);
 })();
 </script>
 </body>

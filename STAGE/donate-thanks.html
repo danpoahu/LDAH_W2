@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex,nofollow">
+    <title>Mahalo for Your Gift — LDAH</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Look copied from privacy.html (stand-alone page, no shared header):
+         the shared header carries a Donate button, and a donor who has just
+         given should not be one click from being counted again. -->
+    <style>
+    :root {
+        --ocean-deep: #0891B2;
+        --ocean-mid: #06B6D4;
+        --white: #FFFFFF;
+        --text-dark: #1E293B;
+        --text-soft: #64748B;
+        --bg-warm: #FEFDFB;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+        font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        color: var(--text-dark);
+        line-height: 1.7;
+        background: var(--bg-warm);
+    }
+
+    h1, h2 {
+        font-family: 'Outfit', sans-serif;
+        font-weight: 600;
+        line-height: 1.3;
+    }
+
+    .thanks-hero {
+        background: linear-gradient(135deg, #004E7C 0%, var(--ocean-deep) 50%, var(--ocean-mid) 100%);
+        color: white;
+        padding: 72px 24px 60px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .thanks-hero::after {
+        content: '';
+        position: absolute;
+        bottom: -2px;
+        left: 0;
+        right: 0;
+        height: 60px;
+        background: var(--bg-warm);
+        clip-path: ellipse(55% 100% at 50% 100%);
+    }
+
+    .thanks-hero img {
+        width: 120px;
+        height: auto;
+        margin-bottom: 18px;
+    }
+
+    .thanks-hero h1 {
+        font-size: clamp(1.8rem, 4vw, 2.5rem);
+        margin-bottom: 8px;
+    }
+
+    .thanks-hero p {
+        font-size: 1.05rem;
+        opacity: 0.9;
+    }
+
+    .thanks-content {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 40px 24px 80px;
+    }
+
+    .thanks-intro {
+        font-size: 1.1rem;
+        color: var(--text-soft);
+        line-height: 1.8;
+        margin-bottom: 2rem;
+    }
+
+    .info-card {
+        background: linear-gradient(135deg, rgba(8, 145, 178, 0.06), rgba(6, 182, 212, 0.1));
+        border: 1px solid rgba(8, 145, 178, 0.15);
+        border-radius: 16px;
+        padding: 24px 28px;
+        margin-bottom: 1.5rem;
+    }
+
+    .info-card h2 {
+        font-size: 1.15rem;
+        color: #004E7C;
+        margin-bottom: 0.5rem;
+    }
+
+    .info-card p {
+        color: var(--text-soft);
+    }
+
+    .info-card a {
+        color: var(--ocean-deep);
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .info-card a:hover { text-decoration: underline; }
+
+    .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 2rem;
+    }
+
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        padding: 12px 24px;
+        background: linear-gradient(135deg, #004E7C, var(--ocean-deep));
+        color: white;
+        text-decoration: none;
+        border-radius: 50px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .back-link.ghost {
+        background: transparent;
+        color: #004E7C;
+        border: 2px solid rgba(8, 145, 178, 0.3);
+    }
+
+    .back-link:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(8, 145, 178, 0.3);
+    }
+
+    .thanks-footer {
+        text-align: center;
+        padding: 24px;
+        color: var(--text-soft);
+        font-size: 0.85rem;
+        border-top: 1px solid rgba(0,0,0,0.06);
+    }
+    </style>
+</head>
+<body>
+
+    <div class="thanks-hero">
+        <img src="https://danpoahu.github.io/LDAH/logo_transparent.png" alt="LDAH logo">
+        <h1>Mahalo for your gift</h1>
+        <p>Your generosity helps Hawai&#x02BB;i families of children with disabilities.</p>
+    </div>
+
+    <div class="thanks-content">
+        <p class="thanks-intro">
+            Thank you for supporting Leadership in Disabilities and Achievement of
+            Hawai&#x02BB;i. As the Hawai&#x02BB;i &amp; Pacific Island Parent Training &amp;
+            Information Center, we use every gift to empower families and children
+            with disabilities across the islands.
+        </p>
+
+        <div class="info-card">
+            <h2>Your receipt</h2>
+            <p>PayPal emails your receipt to the address on your PayPal account.
+               Please keep it for your tax records. If you do not see it, check your
+               spam folder or <a href="https://www.ldahawaii.org/STAGE/contact.html">contact us</a>.</p>
+        </div>
+
+        <div class="actions">
+            <a class="back-link" href="https://www.ldahawaii.org/STAGE/">Back to the LDAH website</a>
+            <a class="back-link ghost" href="https://www.ldahawaii.org/STAGE/events.html">See upcoming events</a>
+        </div>
+    </div>
+
+    <div class="thanks-footer">
+        <p>&copy; <span id="yr"></span> Leadership in Disabilities and Achievement of Hawai&#x02BB;i. All rights reserved.</p>
+    </div>
+
+<script>document.getElementById('yr').textContent = new Date().getFullYear();</script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script>
+/* Donation funnel, step 3 (completed).
+
+   PayPal sends the donor here through the `return` address donate.html puts
+   on the PayPal link (return=.../donate-thanks.html?src=<key>). Counted as
+   events.donation_funnel.completed plus
+   events.donation_funnel_src.<key>.completed on the day-doc, the same shape
+   donate.html writes for steps 1 and 2.
+
+   A STRONG SIGNAL, NOT PROOF OF PAYMENT. Anyone can open this URL (a reload,
+   a bookmark, a shared link), PayPal only returns the donor here when Auto
+   Return is on or they click its "return to merchant" link, and nothing here
+   is checked against PayPal. The PayPal account's transaction history is the
+   record of money received; this count is for seeing how far donors get.
+
+   One count per browser tab: a reload of this page is not a second gift. */
+(function () {
+  try {
+    var params = new URLSearchParams(window.location.search);
+    var rawSrc = params.get('src') || params.get('utm_source') || 'link';
+    var key = /^(src|page)_/i.test(rawSrc) ? rawSrc : ('src_' + rawSrc);
+    key = key.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase().slice(0, 60) || 'src_link';
+
+    var seenKey = 'ldahDonateThanksCounted';
+    try { if (sessionStorage.getItem(seenKey)) return; } catch (e) {}
+
+    firebase.initializeApp({
+      apiKey: "AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk",
+      authDomain: "ldah-932d5.firebaseapp.com",
+      projectId: "ldah-932d5",
+      storageBucket: "ldah-932d5.firebasestorage.app",
+      messagingSenderId: "662130454003",
+      appId: "1:662130454003:web:437576d5a5811ecd8df686"
+    });
+    var db = firebase.firestore();
+    var d = new Date();
+    var dateKey = d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0');
+    var inc = firebase.firestore.FieldValue.increment(1);
+    var events = { donation_funnel: { completed: inc }, donation_funnel_src: {} };
+    events.donation_funnel_src[key] = { completed: inc };
+    db.collection('siteAnalytics').doc(dateKey)
+      .set({ date: dateKey, events: events }, { merge: true })
+      .then(function () {
+        try { sessionStorage.setItem(seenKey, '1'); } catch (e) {}
+      })
+      .catch(function () {});
+  } catch (e) { /* the thank-you page never depends on the count */ }
+})();
+</script>
+</body>
+</html>
