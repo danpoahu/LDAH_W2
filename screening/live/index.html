@@ -48,6 +48,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 .lbl{display:none;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
 .colhd{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,.9fr);gap:10px;padding:6px 14px;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);border-bottom:1px solid var(--line)}
 .rooms{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}.rm{display:grid;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:.86rem}.rm div{display:flex;justify-content:space-between;gap:8px}.rm small{color:var(--mute);font-variant-numeric:tabular-nums}.dot{width:8px;height:8px;border-radius:50%;background:var(--pass);display:inline-block;margin-right:6px;animation:pulse 2s infinite}@keyframes pulse{50%{opacity:.35}}@media (prefers-reduced-motion:reduce){.dot{animation:none}}.flash{animation:fl 1.6s}@keyframes fl{from{background:var(--sea-soft)}}
+.pick{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}.pick label{font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}#schoolSel{flex:0 1 auto;max-width:100%;font-weight:700}
 .empty{padding:28px;text-align:center;color:var(--mute)}
 .note{color:var(--mute);font-size:.82rem}
 @media (max-width:560px){.row{grid-template-columns:1fr 1fr}.row .byc{grid-column:1/-1}.row .nm{grid-column:1/-1}.colhd{display:none}.lbl{display:block}}
@@ -68,8 +69,9 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 </div>
 <div class="wrap" id="app" hidden>
   <header>
-    <h1 id="school">Screening</h1>
+    <h1 id="school">Screening progress</h1>
     <p id="sub">Vision &amp; hearing screening</p>
+    <div class="pick"><label for="schoolSel">School</label><select id="schoolSel" aria-label="School"><option value="">Loading schools…</option></select></div>
     <div class="asof" id="asof"></div>
   </header>
   <section class="stats" id="stats" aria-label="Progress"></section>
@@ -146,9 +148,109 @@ function all(){ renderTop(); render(); }
 document.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>{F=b.dataset.f;render();}));
 sel.addEventListener('change',render); document.getElementById('q').addEventListener('input',render);
 
-const SCHOOL = (new URLSearchParams(location.search).get('school') || 'Central Union Church Preschool').trim();
-document.getElementById('school').textContent = SCHOOL;
-document.title = SCHOOL + ' screening';
+// School picker. ?school= pins a school; with no ?school= the page picks one once the data is in (pickDefault).
+const FALLBACK_SCHOOL = 'Central Union Church Preschool';
+let SCHOOL = (new URLSearchParams(location.search).get('school') || '').trim();
+let picked = !!SCHOOL, lastSnap = null, LOCS = {}, EVENTS = [], EV_BY_ID = {};
+const schoolSel = document.getElementById('schoolSel');
+const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
+const lk = s => String(s || '').trim().toLowerCase();
+const todayHST = () => new Date().toLocaleDateString('en-CA', {timeZone:'Pacific/Honolulu'});
+const addDays = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const dayOf = v => { const x = String((v && v.toDate) ? v.toDate().toISOString() : (v || '')).slice(0, 10); return ISO_RE.test(x) ? x : ''; };
+function showSchool(){
+  document.getElementById('school').textContent = SCHOOL || 'Screening progress';
+  document.title = (SCHOOL ? SCHOOL + ' screening' : 'Screening progress');
+}
+showSchool();
+// Range label: "Oct 26–27, 2026", "Sep 30 – Oct 2, 2026", "Oct 15, 2026".
+function rangeLabel(a, b){
+  if(!a) return '';
+  const D = iso => new Date(iso + 'T12:00:00Z'), o = {timeZone:'UTC'};
+  const da = D(a), db = D(b || a);
+  const md = d => d.toLocaleDateString('en-US', {...o, month:'short', day:'numeric'});
+  const yr = d => d.getUTCFullYear();
+  if(a === (b || a)) return md(da) + ', ' + yr(da);
+  if(yr(da) !== yr(db)) return md(da) + ', ' + yr(da) + ' – ' + md(db) + ', ' + yr(db);
+  if(da.getUTCMonth() === db.getUTCMonth()) return md(da) + '–' + db.getUTCDate() + ', ' + yr(db);
+  return md(da) + ' – ' + md(db) + ', ' + yr(db);
+}
+// One entry per location (case-insensitive). planned = contact scheduled.dates / eventDate + screening events;
+// done = days results were saved (results.screenedAt, Lions screeningDate). Days shown = planned, else done.
+function locEntry(name){
+  const k = lk(name); if(!k) return null;
+  const L = LOCS[k] = LOCS[k] || {key:k, spell:{}, n:0, planned:new Set(), done:new Set()};
+  L.spell[name.trim()] = (L.spell[name.trim()] || 0) + 1;
+  return L;
+}
+function locDays(L){ const src = L.planned.size ? L.planned : L.done; return [...src].sort(); }
+function locName(L){ return Object.keys(L.spell).sort((a, b) => L.spell[b] - L.spell[a])[0] || L.key; }
+function screeningLoc(s){ const loc = String(s.location || '').trim(); if(loc) return loc; const ev = s.eventId && EV_BY_ID[s.eventId]; return ev ? ev.location : ''; }
+function indexLocations(snap){
+  LOCS = {};
+  snap.forEach(doc => { ((doc.data() || {}).screenings || []).forEach(s => {
+    if(!s) return; const L = locEntry(screeningLoc(s)); if(!L) return; L.n++;
+    ((s.scheduled && s.scheduled.dates) || []).forEach(d => { d = dayOf(d); if(d) L.planned.add(d); });
+    const ed = dayOf(s.eventDate); if(ed) L.planned.add(ed);
+    const sd = dayOf((s.results || {}).screenedAt) || dayOf(s.screeningDate); if(sd) L.done.add(sd);
+  }); });
+  // Screening events (events collection) add their days to the matching location. An event-only location
+  // (no children yet) is listed only when it is today or coming up, so walk-up screenings can be followed.
+  const today = todayHST();
+  EVENTS.forEach(ev => {
+    const k = lk(ev.location); if(!k) return;
+    if(!LOCS[k] && ev.last < today) return;
+    const L = LOCS[k] || locEntry(ev.location);
+    for(let d = ev.start; d <= ev.last; d = addDays(d, 1)) L.planned.add(d);
+  });
+}
+// Default: a school screening today (most children wins a tie), else the soonest within 7 days, else the most recent past one.
+function pickDefault(){
+  const today = todayHST(), soon = addDays(today, 7);
+  const all = Object.values(LOCS).map(L => ({L, days:locDays(L)})).filter(x => x.days.length);
+  const todays = all.filter(x => x.L.planned.has(today) || x.L.done.has(today)).sort((a, b) => b.L.n - a.L.n);
+  if(todays.length) return locName(todays[0].L);
+  const up = all.map(x => ({L:x.L, d:x.days.find(d => d > today && d <= soon)})).filter(x => x.d).sort((a, b) => a.d < b.d ? -1 : a.d > b.d ? 1 : b.L.n - a.L.n);
+  if(up.length) return locName(up[0].L);
+  const past = all.map(x => ({L:x.L, d:x.days.filter(d => d < today).pop()})).filter(x => x.d).sort((a, b) => a.d > b.d ? -1 : a.d < b.d ? 1 : b.L.n - a.L.n);
+  if(past.length) return locName(past[0].L);
+  return FALLBACK_SCHOOL;
+}
+function renderSchools(){
+  const want = lk(SCHOOL);
+  const rows = Object.values(LOCS).map(L => { const d = locDays(L); return {L, name:locName(L), first:d[0] || '', last:d[d.length - 1] || ''}; })
+    .sort((a, b) => (b.last > a.last ? 1 : b.last < a.last ? -1 : a.name.localeCompare(b.name)));
+  let html = rows.map(r => `<option value="${esc(r.name)}"${r.L.key === want ? ' selected' : ''}>${esc(r.name)}${r.first ? ' · ' + esc(rangeLabel(r.first, r.last)) : ''}</option>`).join('');
+  if(SCHOOL && !LOCS[want]) html = `<option value="${esc(SCHOOL)}" selected>${esc(SCHOOL)} · no screenings found</option>` + html;
+  schoolSel.innerHTML = html || '<option value="">No schools with screenings yet</option>';
+}
+function setSchool(name, fromPicker){
+  SCHOOL = String(name || '').trim(); picked = true;
+  DATA._sub = undefined; document.getElementById('sub').textContent = 'Vision & hearing screening';
+  seenKeys = null; sel.value = ''; delete sel.dataset.want;
+  showSchool();
+  if(fromPicker){ try{ const u = new URL(location.href); u.searchParams.set('school', SCHOOL); history.replaceState(null, '', u); }catch(e){} }
+  if(lastSnap) shape(lastSnap);
+  renderSchools(); all();
+}
+schoolSel.addEventListener('change', () => { if(schoolSel.value) setSchool(schoolSel.value, true); });
+async function loadScreeningEvents(){
+  // Read-only: screening events from ~6 months back (title contains "screening", like the daily report's rule).
+  try{
+    const qs = await fdb.collection('events').where('eventDate', '>=', addDays(todayHST(), -183)).get();
+    const list = [];
+    qs.forEach(d => { const v = d.data() || {};
+      const start = dayOf(v.eventDate); if(!start || v.partnerIsland || !/screening/i.test(v.title || '')) return;
+      const loc = String(v.location || '').trim();
+      EV_BY_ID[d.id] = {location:loc};
+      if(v.archived === true || !loc) return;
+      let last = ISO_RE.test(v.moveToPastDate || '') ? addDays(v.moveToPastDate, -1) : start;
+      if(last < start) last = start; if(last > addDays(start, 13)) last = addDays(start, 13);
+      list.push({id:d.id, location:loc, start, last});
+    });
+    EVENTS = list;
+  }catch(e){ console.warn('screening events:', e); }
+}
 firebase.initializeApp({apiKey:"AIzaSyAU3CQ07bCVKlJ1qGak-150kaJEyPKldLk",authDomain:"ldah-932d5.firebaseapp.com",projectId:"ldah-932d5",storageBucket:"ldah-932d5.firebasestorage.app",messagingSenderId:"662130454003",appId:"1:662130454003:web:437576d5a5811ecd8df686"});
 const fauth=firebase.auth(), fdb=firebase.firestore();
 const STAFF={};
@@ -161,7 +263,7 @@ function shape(snap){
   const want=SCHOOL.toLowerCase();
   snap.forEach(doc=>{ const c=doc.data()||{};
     (c.screenings||[]).forEach(s=>{
-      if(String(s.location||'').trim().toLowerCase()!==want) return;
+      if(!s||lk(screeningLoc(s))!==want) return;
       const ch=s.child||{}, res=s.results||{}, ab=s.absent||{};
       const v=res.vision||{}, vd=v.distance||{}; let vis=null;
       if(vd.right||vd.left||v.leaSymbols){ const at=tsIso(res.visionAt); vis={r:vd.right||'',l:vd.left||'',lea:v.leaSymbols||'',by:STAFF[res.visionByUid]||res.visionBy||res.screenedBy||'',t:at?hst(at):''}; if(at>latest) latest=at; }
@@ -189,7 +291,12 @@ async function start(user){
   }catch(e){ lm.textContent='Could not check your access: '+(e.message||e); return; }
   document.getElementById('gate').hidden=true; document.getElementById('app').hidden=false;
   all();
-  unsub=fdb.collection('contacts').where('hasScreenings','==',true).onSnapshot(snap=>{ shape(snap); live=true; all(); },err=>{ live=false; renderTop(); console.warn(err); });
+  await loadScreeningEvents();
+  if(unsub){ unsub(); unsub=null; }
+  unsub=fdb.collection('contacts').where('hasScreenings','==',true).onSnapshot(snap=>{
+    lastSnap=snap; indexLocations(snap);
+    if(!picked){ SCHOOL=pickDefault(); picked=true; showSchool(); }
+    shape(snap); renderSchools(); live=true; all(); },err=>{ live=false; renderTop(); console.warn(err); });
 }
 fauth.onAuthStateChanged(u=>{ if(u) start(u); else { if(unsub){unsub();unsub=null;} document.getElementById('gate').hidden=false; document.getElementById('app').hidden=true; } });
 document.getElementById('lf').addEventListener('submit',async e=>{ e.preventDefault(); const lm=document.getElementById('lm'), lb=document.getElementById('lb'); lb.disabled=true; lm.textContent='Signing in…';
