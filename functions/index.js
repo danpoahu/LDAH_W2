@@ -3502,7 +3502,13 @@ exports.onCalendarRequestCreated = functions
       const requesterName = (data.name || "").trim() || "Unknown requester";
       const preferredDate = (data.preferredDate || "").trim();
       const preferredTime = (data.preferredTime || "").trim();
-      const followUpDate = addDaysHst(toHstDateKey(new Date()), 3);
+      const todayKey = toHstDateKey(new Date());
+      // Title says when the event is; inside a week it is urgent and due today.
+      const task = require("./calendarRequestTitle").calendarRequestTask({
+        requesterName, preferredDate, preferredTime, todayKey,
+        defaultFollowUp: addDaysHst(todayKey, 3),
+      });
+      const followUpDate = task.followUpDate;
       const notesParts = [];
       if (data.email) notesParts.push(data.email);
       if (data.phone) notesParts.push(data.phone);
@@ -3513,8 +3519,7 @@ exports.onCalendarRequestCreated = functions
       const notesHead = notesParts.join(" -- ");
       const notes = notesHead + (data.eventInfo ? "\n\n" + data.eventInfo : "");
 
-      const summary = "New calendar request from " + requesterName
-        + (preferredDate ? " for " + preferredDate : "");
+      const summary = task.summary;
 
       // Attach to an existing contact when we already know this person, so the
       // request shows on their card instead of floating unattached. Email is
@@ -3564,6 +3569,7 @@ exports.onCalendarRequestCreated = functions
         grantProgram: "",
         summary: summary,
         followUpDate: followUpDate,
+        urgent: task.urgent,
         status: "Open",
         notes: notes,
         isDraft: false,
