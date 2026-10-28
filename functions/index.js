@@ -31866,6 +31866,13 @@ const LIONS_PARENT_CONTACT_STEP = "lionsParentContact";
 async function _syncLionsParentContactTasks() {
   const db = admin.firestore();
   const FV = admin.firestore.FieldValue;
+  /* Paused (2026-10-27, Daniel): Rosie is getting the missing parent phones and
+     emails from the Lions Club, so no Find Parent Contact tasks are made while
+     settings/lionsParentContactTasks.paused is true. The families wait in the
+     Case Management report's "No phone or email on file" list, and whoever gets
+     the details adds them there. Set paused:false to turn the tasks back on. */
+  const _pause = await db.collection("settings").doc("lionsParentContactTasks").get();
+  if (_pause.exists && (_pause.data() || {}).paused === true) return { made: 0, moved: 0, closed: 0, paused: true };
   const todayHst = new Date().toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
   const [cases, tasks] = await Promise.all([
     db.collection("interactions").where("caseAdvocacySource", "==", "lions-screening").get(),
