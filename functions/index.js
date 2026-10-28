@@ -31939,6 +31939,84 @@ exports.sweepLionsParentContactTasks = functions
   .pubsub.schedule("every 30 minutes").timeZone("Pacific/Honolulu")
   .onRun(async () => { try { await _syncLionsParentContactTasks(); } catch (e) { console.error("sweepLionsParentContactTasks:", e.message); } return null; });
 
+/* Missing screening consent -> task for the school's lead (Daniel 2026-10-28).
+   A child at a screening location (school paper, kiosk, online) with no signed
+   consent and no results yet gets one task, owned by the Staff Trainer on that
+   location's Workshop & Presentation form (workshopForms.location matched to
+   screenings[].location; rows[].trainer, then screening.activities[].trainer).
+   No form or no trainer -> the admin (settings/screeningConsentTasks.fallbackUid,
+   else userRoles displayName "Justin Banaga"). The task id is fixed per
+   screening so it is made once; it closes itself when the consent is signed or
+   results are entered. Lions screenings are DOE referrals and are skipped. */
+function _scConsentSigned(s) {
+  if (String(s.signedName || "").trim()) return true;
+  if (String(s.source || "") === "lions-screening") return s.consentSigned === true;
+  return s.paperConsent === true || !!s.consentConfirmedAt;
+}
+async function _syncScreeningConsentTasks() {
+  const db = admin.firestore();
+  const cfg = await db.collection("settings").doc("screeningConsentTasks").get();
+  const conf = cfg.exists ? (cfg.data() || {}) : {};
+  if (conf.paused === true) return { made: 0, closed: 0, paused: true };
+  const roles = await db.collection("userRoles").get();
+  const byName = {};
+  roles.forEach((r) => { const n = String((r.data() || {}).displayName || "").trim().toLowerCase(); if (n) byName[n] = r.id; });
+  const fallbackUid = conf.fallbackUid || byName["justin banaga"] || DAN_PELLEGRINI_UID;
+  const leadByLoc = {};
+  (await db.collection("workshopForms").get()).forEach((w) => {
+    const x = w.data() || {};
+    const loc = String(x.location || "").trim();
+    if (!loc || leadByLoc[loc]) return;
+    const names = [].concat((x.rows || []).map((r) => r && r.trainer), ((x.screening || {}).activities || []).map((a) => a && a.trainer));
+    for (const n of names) { const uid = byName[String(n || "").trim().toLowerCase()]; if (uid) { leadByLoc[loc] = uid; break; } }
+  });
+  const today = toHstDateKey(new Date());
+  let made = 0, closed = 0;
+  const cs = await db.collection("contacts").where("hasScreenings", "==", true).get();
+  for (const d of cs.docs) {
+    const c = d.data() || {};
+    if (c.archived === true || c.sandbox === true || c.partnerIsland) continue;
+    for (const s of (Array.isArray(c.screenings) ? c.screenings : [])) {
+      if (!s || !s.id || String(s.source || "") === "lions-screening") continue;
+      const loc = String(s.location || "").trim();
+      if (!loc) continue;
+      const ref = db.collection("interactions").doc("screeningConsent__" + d.id + "__" + s.id);
+      const need = !_scConsentSigned(s) && !s.results;
+      const t = await ref.get();
+      if (need && !t.exists) {
+        const ownerUid = leadByLoc[loc] || fallbackUid;
+        const ownerName = (await _lcResolveStaffName(db, ownerUid)) || "";
+        const child = ((((s.child || {}).firstName || "") + " " + ((s.child || {}).lastName || "")).trim()) || "this child";
+        const parent = c.displayName || (((c.firstName || "") + " " + (c.lastName || "")).trim());
+        await ref.set({
+          channel: "Screening", interactionType: "Follow-up", workflowStep: "screeningConsentMissing",
+          contactId: d.id, contactName: parent, contactType: c.type || "",
+          screeningId: s.id, screeningLocation: loc,
+          summary: "Get a signed consent for " + child + " (" + loc + (s.classroom ? ", " + s.classroom : "") + ")",
+          notes: child + " is on the " + loc + " screening list but has no signed consent on file, so the screening phone shows the card in red.\n\n" +
+            "Get the signed Informed Consent from the family or the school, then upload it on the contact card. This task closes itself once the consent is recorded or results are entered." +
+            (leadByLoc[loc] ? "" : "\n\nIt came to you because " + loc + " has no Staff Trainer on its Workshop & Presentation form yet."),
+          followUpDate: today, status: "Open", isDraft: false, urgent: true,
+          owner: ownerName, ownerUid: ownerUid, createdBy: "System",
+          createdAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        made++;
+      } else if (!need && t.exists && (t.data() || {}).status !== "Closed") {
+        await ref.update({ status: "Closed", closedReason: _scConsentSigned(s) ? "consent-signed" : "results-entered", closedBy: "System",
+          closedAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+        closed++;
+      }
+    }
+  }
+  if (made || closed) console.log("screeningConsentTasks: made", made, "closed", closed);
+  return { made, closed };
+}
+
+exports.sweepScreeningConsentTasks = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 1 })
+  .pubsub.schedule("every 30 minutes").timeZone("Pacific/Honolulu")
+  .onRun(async () => { try { await _syncScreeningConsentTasks(); } catch (e) { console.error("sweepScreeningConsentTasks:", e.message); } return null; });
+
 exports.onLionsCaseOwnerChanged = functions
   .runWith({ timeoutSeconds: 60, maxInstances: 3 })
   .firestore.document("interactions/{interactionId}")
