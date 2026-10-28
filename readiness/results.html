@@ -56,6 +56,19 @@
   .badges { display:flex; gap:8px; margin:12px 0 14px; flex-wrap:wrap; }
   .badge { font-size:.8rem; font-weight:700; padding:5px 11px; border-radius:20px; }
   .b-consent { background:#DCFCE7; color:var(--pass); }
+  /* Health flags from the consent form (STAGE 2026-10-28). No signed consent =
+     red card; ear tubes = violet card (OAE hearing reads differently); sick in
+     the two weeks before signing = amber note. */
+  .b-noconsent { background:#B91C1C; color:#fff; }
+  .b-tubes { background:#EDE9FE; color:#5B21B6; }
+  .b-sick { background:#FEF3C7; color:#92400E; }
+  .card.tubes { background:#F5F3FF; box-shadow:inset 6px 0 0 #7C3AED, 0 1px 8px rgba(15,40,70,.06); }
+  .card.noconsent { background:#FEF2F2; box-shadow:inset 0 0 0 2px #DC2626, 0 1px 8px rgba(15,40,70,.06); }
+  .card.noconsent.tubes { box-shadow:inset 6px 0 0 #7C3AED, inset 0 0 0 2px #DC2626, 0 1px 8px rgba(15,40,70,.06); }
+  .card .flag { font-size:.86rem; margin-top:6px; padding:7px 10px; border-radius:10px; }
+  .card .flag.red { background:#FEE2E2; color:#991B1B; font-weight:700; }
+  .card .flag.tubes { background:#EDE9FE; color:#4C1D95; }
+  .card .flag.sick { background:#FEF3C7; color:#78350F; }
   .b-done { background:#DCFCE7; color:var(--pass); }
   .b-pend { background:#FEF3C7; color:var(--pend); }
   .card .act { width:100%; padding:13px; border:none; border-radius:12px; background:var(--blue); color:#fff; font-weight:700; font-size:1rem; }
@@ -415,10 +428,19 @@
       list.forEach(s => { if(!s) return; rows.push({ contactId:doc.id, screeningId:s.id||'', child:s.child||{},
         childName:(((s.child&&s.child.firstName)||'')+' '+((s.child&&s.child.lastName)||'')).trim(),
         parentName:c.displayName||(((c.firstName||'')+' '+(c.lastName||'')).trim()), email:c.email||'',
-        signedAt:s.signedAt, results:s.results||null, absent:s.absent||{}, resultsSent:!!(s.results&&s.results.resultsSentAt),
+        signedAt:s.signedAt, consentOK:_consentSigned(s), health:s.health||{}, results:s.results||null, absent:s.absent||{}, resultsSent:!!(s.results&&s.results.resultsSentAt),
         location:s.location||'', classroom:s.classroom||'', printouts:Array.isArray(s.printouts)?s.printouts:[] }); });
     });
   }
+  /* Consent is on file when the parent signed online/at the kiosk/on the school
+     paper (signedName), the Lions form says so (consentSigned), or staff
+     confirmed a paper consent. Anything else is shown red. */
+  function _consentSigned(s){
+    if (String(s.signedName||'').trim()) return true;
+    if (String(s.source||'') === 'lions-screening') return s.consentSigned === true;
+    return s.paperConsent === true || !!s.consentConfirmedAt;
+  }
+  function _yes(v){ return /^\s*yes\b/i.test(String(v||'')); }
   // Realtime listener — new consents & results appear live, on any device, no refresh.
   function startReport(){
     view('report');
@@ -490,11 +512,16 @@
       const absRow = done ? '' : '<div class="absrow">'+absBtn('vision','Vision')+absBtn('hearing','Hearing')+'</div>';
       const resBadge = done ? '<span class="badge b-done">Results '+(r.resultsSent?'sent':'done')+'</span>'
         : partBadge('Vision', parts.vision) + partBadge('Hearing', parts.hearing) + (r.resultsSent?'<span class="badge b-done">Results sent</span>':'');
-      h += '<div class="card">'+
+      const hl = r.health||{}, tubes = _yes(hl.tubes), sick = _yes(hl.sick2wk);
+      const signedDay = (r.signedAt&&r.signedAt.toDate)?r.signedAt.toDate().toLocaleDateString('en-US',{month:'short',day:'numeric'}):'';
+      const flags = (r.consentOK ? '' : '<div class="flag red">No signed consent on file. Check with the school lead before screening.</div>') +
+        (tubes ? '<div class="flag tubes"><b>Ear tubes</b>'+(hl.tubesDetail&&!/^n\/?a$/i.test(hl.tubesDetail)?' \u00b7 '+esc(hl.tubesDetail):'')+'</div>' : '') +
+        (sick ? '<div class="flag sick"><b>Sick in the 2 weeks before signing</b>'+(signedDay?' ('+esc(signedDay)+')':'')+(hl.sickDetail?' \u00b7 '+esc(hl.sickDetail):'')+'</div>' : '');
+      h += '<div class="card'+(r.consentOK?'':' noconsent')+(tubes?' tubes':'')+'">'+
         '<div class="child">'+esc(r.childName||'Child')+'</div>'+
         '<div class="parent">'+esc(r.parentName||'')+'</div>'+
-        '<div class="when">Signed '+esc(when)+'</div>'+
-        '<div class="badges">'+(r.classroom?'<span class="badge b-class">'+esc(r.classroom)+'</span>':'')+'<span class="badge b-consent">Consent ✓</span>'+resBadge+'</div>'+absRow+
+        '<div class="when">'+(r.consentOK?'Signed '+esc(when):'Added '+esc(when))+'</div>'+flags+
+        '<div class="badges">'+(r.classroom?'<span class="badge b-class">'+esc(r.classroom)+'</span>':'')+(r.consentOK?'<span class="badge b-consent">Consent ✓</span>':'<span class="badge b-noconsent">No signed consent</span>')+(tubes?'<span class="badge b-tubes">Tubes</span>':'')+(sick?'<span class="badge b-sick">Was sick</span>':'')+resBadge+'</div>'+absRow+
         '<button class="act'+(done?' edit':((parts.vision==='done')!==(parts.hearing==='done')?' half':''))+'" onclick="openEntry('+i+')">'+(done?'Edit results':'Add results')+'</button>'+
       '</div>';
     });
