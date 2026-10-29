@@ -27237,6 +27237,40 @@ async function _mergeContactPair(db, keeperId, loserId, opts) {
   if (loser.notes && loser.notes !== merged.notes) {
     merged.notes = [merged.notes, loser.notes].filter(Boolean).join("\n---\n");
   }
+  // Screening files live in a folder per card (screeningConsents/{contactId}/),
+  // and the viewers only open a file inside the card's own folder. So the
+  // loser's consent forms and vision printouts are copied into the keeper's
+  // folder and their paths rewritten. Before 10-29 the consent list was not
+  // carried at all: Leina'ala Santos-Enfield's signed consent stayed behind on
+  // the deleted card. Files are copied, never moved, so nothing is lost.
+  const _bkt = admin.storage().bucket("ldah-932d5.firebasestorage.app");
+  const _fromPfx = SCREENING_CONSENT_PREFIX + loserId + "/";
+  const _toPfx = SCREENING_CONSENT_PREFIX + keeperId + "/";
+  const _carry = async (p) => {
+    if (!p || String(p).indexOf(_fromPfx) !== 0) return p;
+    const np = _toPfx + String(p).slice(_fromPfx.length);
+    try { await _bkt.file(p).copy(_bkt.file(np)); return np; } catch (e) { console.warn("merge: could not copy " + p + ": " + e.message); return p; }
+  };
+  const _lDocs = Array.isArray(loser.screeningConsentDocs) ? loser.screeningConsentDocs : [];
+  if (_lDocs.length) {
+    const _kDocs = Array.isArray(keeper.screeningConsentDocs) ? keeper.screeningConsentDocs : [];
+    const _have = new Set(_kDocs.map(d => d && d.storagePath));
+    const _add = [];
+    for (const d of _lDocs) {
+      if (!d) continue;
+      const np = await _carry(d.storagePath);
+      if (_have.has(np)) continue;
+      _have.add(np);
+      _add.push(Object.assign({}, d, { storagePath: np }));
+    }
+    if (_add.length) { merged.screeningConsentDocs = [..._kDocs, ..._add]; moved.push("screeningConsentDocs"); }
+  }
+  if (Array.isArray(merged.screenings)) {
+    for (const sc of merged.screenings) {
+      if (!sc || !Array.isArray(sc.printouts)) continue;
+      for (const pr of sc.printouts) if (pr && pr.storagePath) pr.storagePath = await _carry(pr.storagePath);
+    }
+  }
   merged.mergedFromContactIds = [...new Set([...(keeper.mergedFromContactIds || []), loserId])];
   merged.mergedAt = FieldValue.serverTimestamp();
 
