@@ -4439,9 +4439,34 @@ exports.onEventSignupUpdated = functions
       maybeSendFeedbackEmailOnAttendance(change, context, "events"),
       handleSignupLifecycleEmails(change, context, "events"),
       _cgOnConfirmedGenerateCaseReview(change, context, "events"),
+      _cgExtendUploadOnMove(change),
     ]);
     return null;
   });
+
+// A family who moves to a later session keeps a working upload link (10-29).
+// The link runs to the day after the family's session (_cgUploadExpiryMillis),
+// but it was only worked out when the link was made. Natalie Jardine moved from
+// October to 9 Nov and her link died on 27 Oct, so staff could not even resend
+// it. When the sessions change, the expiry is pushed out to match; it is never
+// shortened, and nothing is sent.
+async function _cgExtendUploadOnMove(change) {
+  try {
+    const before = change.before.data() || {}, after = change.after.data() || {};
+    if (!after.uploadAuthToken || after.archived === true) return;
+    if (after.connectGenDocumentsDestroyedAt || after.connectGenDisposition) return;
+    const keysOf = (x) => JSON.stringify((extractSignupSessionKeys(x) || []).slice().sort());
+    if (keysOf(before) === keysOf(after)) return;
+    const cur = (after.uploadAuthExpiresAt && typeof after.uploadAuthExpiresAt.toMillis === "function")
+      ? after.uploadAuthExpiresAt.toMillis() : 0;
+    const want = _cgUploadExpiryMillis(after);
+    if (want <= cur + 60 * 60 * 1000) return;   // already long enough; also stops a loop
+    await change.after.ref.update({ uploadAuthExpiresAt: admin.firestore.Timestamp.fromMillis(want) });
+    console.log("Connect-Gen upload link extended after a session move", change.after.ref.path, new Date(want).toISOString());
+  } catch (e) {
+    console.error("_cgExtendUploadOnMove failed (non-fatal):", e.message);
+  }
+}
 
 exports.onRecurringEventSignupUpdated = functions
   // ANTHROPIC_API_KEY + room to work: this trigger now generates the Case
@@ -4462,6 +4487,7 @@ exports.onRecurringEventSignupUpdated = functions
       maybeSendFeedbackEmailOnAttendance(change, context, "recurringEvents"),
       handleSignupLifecycleEmails(change, context, "recurringEvents"),
       _cgOnConfirmedGenerateCaseReview(change, context, "recurringEvents"),
+      _cgExtendUploadOnMove(change),
     ]);
     return null;
   });
