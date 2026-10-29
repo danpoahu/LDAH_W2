@@ -2053,7 +2053,11 @@ async function handleSignupCreated(snap, context, collectionName) {
   // catch-up reminder when a session is within 3 days — but that reminder is
   // itself onUpdate-only, so a created-confirmed signup inside the 3-day window
   // still gets nothing; not fixed here (rare, separate follow-up).
-  if (signupData.status === 'confirmed' && signupData.registration) {
+  // Connect-Gen siblings are born 'pending' (consent not yet signed), and the
+  // consent-required email lives in this same function. Before 10-29 they were
+  // skipped, so the second twin never got a consent form. For a pending signup
+  // maybeSendRegistrationConfirmation only proceeds when the event is Connect-Gen.
+  if ((signupData.status === 'confirmed' || signupData.status === 'pending') && signupData.registration) {
     try {
       const freshSnap = await snap.ref.get();
       await maybeSendRegistrationConfirmation(

@@ -3429,7 +3429,12 @@
           const data = doc.data();
 
           // Store signup info for potential "Register Another Child" flow
-          window._lastSignupInfo = { name: data.name || '', email: data.email || '', phone: data.phone || '', selectedDates: Array.isArray(data.selectedDates) ? data.selectedDates.slice() : [], eventId: eventId, type: type, signupId: token };
+          window._lastSignupInfo = { name: data.name || '', email: data.email || '', phone: data.phone || '', selectedDates: Array.isArray(data.selectedDates) ? data.selectedDates.slice() : [],
+            /* Connect-Gen keeps its session in selectedSessions, not selectedDates (10-29: a twin's
+               signup was born with no session, "Not matched to current schedule"). */
+            selectedSessions: Array.isArray(data.selectedSessions) ? data.selectedSessions.slice() : [],
+            participationType: data.participationType || '', preferredContact: data.preferredContact || '', linkedContactId: data.linkedContactId || '',
+            eventId: eventId, type: type, signupId: token };
 
           // Inline-flow dead-end (v62.0.0): this signup was already fully registered
           // at signup time. No form needed — show a clean "you're all set" state.
@@ -3830,6 +3835,11 @@
             email: draft.email || '',
             phone: draft.phone || '',
             selectedDates: Array.isArray(draft.selectedDates) ? draft.selectedDates : [],
+            // The brother or sister goes to the same Connect-Gen session (10-29).
+            ...(Array.isArray(draft.selectedSessions) && draft.selectedSessions.length ? { selectedSessions: draft.selectedSessions } : {}),
+            ...(draft.participationType ? { participationType: draft.participationType } : {}),
+            ...(draft.preferredContact ? { preferredContact: draft.preferredContact } : {}),
+            ...(draft.linkedContactId ? { linkedContactId: draft.linkedContactId } : {}),
             status: _regStatus,
             registration: registration,
             ...(_sp ? { secondParent: _sp } : {}),
@@ -3928,6 +3938,8 @@
         email: info.email || '',
         phone: info.phone || '',
         selectedDates: Array.isArray(info.selectedDates) ? info.selectedDates.slice() : [],
+        selectedSessions: Array.isArray(info.selectedSessions) ? info.selectedSessions.slice() : [],
+        participationType: info.participationType || '', preferredContact: info.preferredContact || '', linkedContactId: info.linkedContactId || '',
         // The signup this sibling belongs to. Outside Connect-Gen the sibling is
         // recorded ON this signup instead of getting one of their own.
         primarySignupId: info.signupId || '',
