@@ -1932,7 +1932,7 @@ async function handleSignupCreated(snap, context, collectionName) {
     // Write linkedContactId on the signup doc (null if no email/phone)
     await snap.ref.update({ linkedContactId });
 
-    // Created-confirmed enrichment: a signup written already status:'confirmed'
+    // Created-with-registration enrichment: a signup written (any status but cancelled)
     // WITH a registration object (single .add(), e.g. the "register another
     // child" sibling flow, or any inline-at-signup completion) never trips the
     // onUpdate enrichment guard, so its child/demographics were never applied
@@ -1941,7 +1941,8 @@ async function handleSignupCreated(snap, context, collectionName) {
     // there before.status==='confirmed' AND before.registration is present, so
     // the onUpdate guard returns null. preferredContact is a top-level signup
     // field, folded into registration so the helper's read is exact.
-    if (signupData.status === 'confirmed' && signupData.registration && linkedContactId) {
+    // Any status but cancelled (2026-10-29): the card is the source of truth.
+    if (signupData.status !== 'cancelled' && signupData.registration && linkedContactId) {
       try {
         await applyRegistrationToContact(
           linkedContactId,
@@ -4376,11 +4377,20 @@ async function handleSignupUpdated(change, context) {
     // (2026-08-04), so neither of the first two gates would ever see it and the
     // sibling's demographics would never reach the contact.
     const statusJustConfirmed = before.status !== "confirmed" && after.status === "confirmed";
-    const registrationJustAdded = !before.registration && after.registration;
+    // Any change to the registration counts, not only its first write, so a
+    // staff correction to the child or address also reaches the contact.
+    const _regKey = v => JSON.stringify((v || {}).registration || null);
+    const registrationChanged = !!after.registration && _regKey(before) !== _regKey(after);
     const _acLen = v => (Array.isArray((v || {}).additionalChildren) ? v.additionalChildren.length : 0);
     const siblingJustAdded = _acLen(after) > _acLen(before);
-    if (!statusJustConfirmed && !registrationJustAdded && !siblingJustAdded) return null;
-    if (after.status !== "confirmed") return null;
+    if (!statusJustConfirmed && !registrationChanged && !siblingJustAdded) return null;
+    // The contact card is the source of truth, so the registration is copied
+    // the moment it exists, whatever the status (2026-10-29). Waiting for
+    // "confirmed" left Connect-Gen families Pending on documents with no child
+    // or address on their card for weeks. Only a cancelled signup is skipped.
+    // Safe to re-run: the helper fills empty fields only and keys each child
+    // by sourceSignupId.
+    if (after.status === "cancelled") return null;
 
     // Must have registration data and a linked contact
     const registration = after.registration;
