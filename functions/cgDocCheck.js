@@ -21,6 +21,11 @@
 const crypto = require("crypto");
 
 const CG_DOC_CHECK_VERSION = 1;
+// Sonnet, not Haiku (2026-10-30 dry run on a real family's 7 files): Haiku took
+// a DOE report's mistyped header year (2022) over the body's 2023 testing dates
+// and would have failed a current evaluation. Sonnet read the body correctly.
+// Sonnet 5.5 refuses a forced tool_choice, so the call asks for the tool and a
+// reply without it throws -> check.error -> counts for its slot (fail open).
 const CG_DOC_CHECK_MODEL = "claude-sonnet-5-5";
 const CG_DOC_IEP_WINDOW_DAYS = 365;
 const CG_DOC_EVAL_WINDOW_DAYS = 3 * 365 + 1;
@@ -109,13 +114,13 @@ async function classifyDocument({ client, block, filename, slot, cachedSystem })
       description: "Record what this document is and its date.",
       input_schema: CG_DOC_CHECK_SCHEMA,
     }],
-    tool_choice: { type: "tool", name: "record_document_check" },
+    tool_choice: { type: "auto" },
     messages: [{
       role: "user",
       content: [block, {
         type: "text",
         text: "The parent uploaded this as their child's " + (slot === "iep" ? "IEP" : "evaluation") +
-          (filename ? " (file name: " + filename + ")" : "") + ". What is it, and what is its date?",
+          (filename ? " (file name: " + filename + ")" : "") + ". What is it, and what is its date? Answer only by calling record_document_check.",
       }],
     }],
   });
