@@ -1990,7 +1990,7 @@ async function handleSignupCreated(snap, context, collectionName) {
   // For the Connect-Gen recurring program, flag signups where the family
   // has done a Connect-Gen before (either by the form question they just
   // answered OR by a prior signup row under the same email). When a flag
-  // fires, auto-create an Open interaction so La'a can pre-call them.
+  // fires, auto-create an Open interaction for the Resource Coordinator persona.
   try {
     if (collectionName === "recurringEvents" && eventId === "CmkPXEpPwfAQ5sR377K2") {
       await detectAndFlagReturningCG(snap, signupData, signupId);
@@ -2092,18 +2092,25 @@ async function detectAndFlagReturningCG(snap, signupData, signupId) {
   // Signal B: any prior signup row under recurringEvents/<CG>/signups
   // with the same email (case-insensitive) AND status !== "cancelled"
   // AND a different doc id.
+  // A sibling (twin) signup is its own row under the same email, made the
+  // same day for the same session (10-29), so it is not a past visit: skip
+  // rows that share a session or were made within the last 24 hours.
   let backendSignal = false;
   const email = (signupData.email || "").trim().toLowerCase();
+  const mySessions = new Set([].concat(signupData.selectedSessions || [], signupData.selectedDates || []));
   if (email) {
     try {
       const sigSnap = await db.collection("recurringEvents")
         .doc("CmkPXEpPwfAQ5sR377K2").collection("signups").get();
+      const recentCutoff = Date.now() - 24 * 60 * 60 * 1000;
       for (const d of sigSnap.docs) {
         if (d.id === signupId) continue;
         const sd = d.data() || {};
         const other = (sd.email || "").trim().toLowerCase();
         if (!other || other !== email) continue;
         if (sd.status === "cancelled") continue;
+        if (d.createTime && d.createTime.toMillis() >= recentCutoff) continue;
+        if ([].concat(sd.selectedSessions || [], sd.selectedDates || []).some((k) => mySessions.has(k))) continue;
         backendSignal = true;
         break;
       }
