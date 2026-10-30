@@ -31895,14 +31895,37 @@ exports.onUserRoleRevoked = functions
    them. Recounted whenever a referral is saved or a case's assignment changes;
    closed automatically when nothing is left to assign. */
 const CASE_MGMT_ASSIGN_STEP = "assignCaseMgmt";
+const CASE_MGMT_ASSIGN_SCHOOL_STEP = "assignCaseMgmtSchool";
 async function _syncCaseMgmtAssignTask() {
   const db = admin.firestore();
   const cases = await db.collection("interactions").where("workflowStep", "==", "caseAdvocacy").get();
   let n = 0;
+  const waiting = new Set();
   cases.forEach((d) => {
     const x = d.data() || {};
-    if (x.status === "Open" && x.serviceLevel === "management" && x.needsAdvocateAssignment === true && !x.partnerIsland) n++;
+    if (x.status === "Open" && x.serviceLevel === "management" && x.needsAdvocateAssignment === true && !x.partnerIsland) {
+      waiting.add(d.id);
+      // A school batch has its own task (below), so it is not counted twice.
+      if (!x.assignBatch) n++;
+    }
   });
+  /* School screening batches (Daniel 2026-10-29): one task per school, holding
+     its case ids. Recounted with the main task; closed when none wait. */
+  const FV0 = admin.firestore.FieldValue;
+  const today0 = new Date().toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
+  const batches = await db.collection("interactions").where("workflowStep", "==", CASE_MGMT_ASSIGN_SCHOOL_STEP).get();
+  for (const t of batches.docs) {
+    const y = t.data() || {};
+    if (y.status !== "Open") continue;
+    const left = (y.caseIds || []).filter((id) => waiting.has(id)).length;
+    if (left === 0) {
+      await t.ref.update({ status: "Closed", assignCount: 0, closedAt: FV0.serverTimestamp(),
+        notes: String(y.notes || "") + "\n---\n[" + today0 + "] Every family is assigned. Closed automatically.",
+        updatedAt: FV0.serverTimestamp() });
+    } else if (y.assignCount !== left) {
+      await t.ref.update({ assignCount: left, summary: "Assign " + left + " " + (y.assignSchool || "school") + " screening " + (left === 1 ? "family" : "families") + " to case management staff", updatedAt: FV0.serverTimestamp() });
+    }
+  }
   const tasks = await db.collection("interactions").where("workflowStep", "==", CASE_MGMT_ASSIGN_STEP).get();
   const open = tasks.docs.filter((d) => (d.data() || {}).status === "Open");
   const todayHst = new Date().toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
