@@ -20229,6 +20229,14 @@ function _cgUploadedMillis(rec) {
 async function _cgOnDocsChangedCheck(change, context, collection) {
   try {
     const after = change.after.data() || {};
+    const before = (change.before && change.before.data()) || {};
+    /* Staff pressed "Documents accepted" in DAN: confirm now, not on the next
+       15-minute sweep. _cgRequirements honours cgDocsAcceptedAt, so this only
+       flips the family if consent and worksheet are in too. */
+    if (after.cgDocsAcceptedAt && !before.cgDocsAcceptedAt && after.status === "pending") {
+      await _cgMaybeConfirm(change.after.ref, after);
+      return;
+    }
     if (!after.cgDocCheckVersion || after.cgDocsAcceptedAt) return;
     if (after.status === "cancelled" || after.status === "confirmed" || after.archived === true) return;
     if (after.connectGenDocumentsDestroyedAt || after.connectGenDisposition) return;
@@ -20436,7 +20444,7 @@ async function _cgDocCheckTask({ db, ref, signup, collection, eventId, presenter
       : (((await db.collection("userRoles").doc(ownerUid).get()).data() || {}).displayName || "");
     const who = signup.name || signup.firstName || "a Connect-Gen family";
     const when = sessionDateKey ? _formatSessionLongLabel(sessionDateKey) : "their session";
-    const link = danLink("signups", { c: collection, e: eventId });
+    const link = danLink("signups", { c: collection, e: eventId, s: ref.id });
     const notCurrent = kind === "not-current";
     await db.collection("interactions").add({
       channel: "Internal",
