@@ -3,6 +3,7 @@ const admin = require("firebase-admin");
 const Anthropic = require("@anthropic-ai/sdk");
 const { FLYER_TOOL_SCHEMA, sessionsToSignupDates } = require("./flyerExtraction");
 const screeningReferral = require("./screeningReferralExtraction");
+const cgDocCheck = require("./cgDocCheck");
 const crypto = require("crypto");
 const heicConvert = require("heic-convert");
 // nodemailer removed — Firebase 1st Gen blocks outbound SMTP (port 465/587).
@@ -4447,6 +4448,7 @@ exports.onEventSignupUpdated = functions
       handleSignupLifecycleEmails(change, context, "events"),
       _cgOnConfirmedGenerateCaseReview(change, context, "events"),
       _cgExtendUploadOnMove(change),
+      _cgOnDocsChangedCheck(change, context, "events"),
     ]);
     return null;
   });
@@ -4495,6 +4497,7 @@ exports.onRecurringEventSignupUpdated = functions
       handleSignupLifecycleEmails(change, context, "recurringEvents"),
       _cgOnConfirmedGenerateCaseReview(change, context, "recurringEvents"),
       _cgExtendUploadOnMove(change),
+      _cgOnDocsChangedCheck(change, context, "recurringEvents"),
     ]);
     return null;
   });
@@ -14600,7 +14603,7 @@ function _cgIsMondayVirtual(signup, event) {
 // worksheet and signed consent on arrival. One procedure now covers everyone.
 //
 // Returns what is required, what is done, and what is still outstanding.
-function _cgRequirements(signup, event) {
+function _cgRequirements(signup, event, nowMs) {
   const isConnectGen = !!(event && event.zoomMode === "program");
   if (!isConnectGen || !signup) {
     return { isConnectGen: false, required: [], done: [], outstanding: [], ready: true };
@@ -14614,8 +14617,19 @@ function _cgRequirements(signup, event) {
   const required = ["consent", "documents", "worksheet"];
 
   const hasConsent = !!signup.consentSignedAt;
-  const hasDocs = _cgDocList(signup.connectGenDocuments, "iep").length > 0
+  const anyDocs = _cgDocList(signup.connectGenDocuments, "iep").length > 0
                && _cgDocList(signup.connectGenDocuments, "evaluation").length > 0;
+  // Document check (2026-10-30). Only signups stamped cgDocCheckVersion are
+  // held to it — the stamp is written at upload time while the feature flag is
+  // on, so families confirmed before this shipped are never re-judged. Staff
+  // can accept the documents as they are (cgDocsAcceptedAt, set from DAN).
+  let docCheck = null;
+  let hasDocs = anyDocs;
+  if (signup.cgDocCheckVersion && !signup.cgDocsAcceptedAt) {
+    const firstSessionDateKey = (extractSignupSessionKeys(signup) || []).slice().sort()[0] || "";
+    docCheck = cgDocCheck.evaluateDocuments(signup, { firstSessionDateKey, nowMs });
+    hasDocs = anyDocs && docCheck.ok;
+  }
   const ws = signup.parentWorksheet || {};
   const hasWorksheet = _isWorksheetComplete(ws.concerns);
 
@@ -14633,6 +14647,7 @@ function _cgRequirements(signup, event) {
     hasConsent,
     hasDocs,
     hasWorksheet,
+    docCheck,
   };
 }
 
@@ -15278,12 +15293,24 @@ exports.confirmConnectGenUpload = functions
          Lance Kahiamoe-Terukina: documents destroyed 15 Sep 22:27 ("uploaded old
          IEP"), re-consented and re-uploaded eight files an hour later, and his
          case review was skipped silently every night after. */
-      await doc.ref.update({
+      const uploadUpdate = {
         connectGenDocuments: updatedDocs,
         connectGenDocumentsDestroyedAt: admin.firestore.FieldValue.delete(),
         connectGenDocumentsDestroyedBy: admin.firestore.FieldValue.delete(),
         connectGenDocumentsDestroyedReason: admin.firestore.FieldValue.delete(),
-      });
+      };
+      /* Document check (2026-10-30): while settings/featureFlags.cgDocCheckEnabled
+         is on, a family who is not yet confirmed is held to the check from this
+         upload on. Stamped HERE, in the same write as the file, so there is no
+         moment where the old "any file will do" rule could confirm them before
+         the check has looked. Never stamped on a confirmed family. */
+      if (signup.status !== "confirmed" && !signup.cgDocCheckVersion) {
+        try {
+          const flags = (await db.doc("settings/featureFlags").get()).data() || {};
+          if (flags.cgDocCheckEnabled === true) uploadUpdate.cgDocCheckVersion = cgDocCheck.CG_DOC_CHECK_VERSION;
+        } catch (e) { console.warn("cgDocCheck flag read failed (check not applied):", e.message); }
+      }
+      await doc.ref.update(uploadUpdate);
 
       // Audit log — matches the existing pattern (auditLog.add with action +
       // details + performedBy + timestamp), so the daily-report changelog
@@ -20084,6 +20111,403 @@ async function _cgCreateCaseReviewTask({ db, collection, eventId, signupRef, sig
     console.error("_cgCreateCaseReviewTask failed (non-fatal):", e.message);
   }
 }
+
+// ══ Connect-Gen document check (2026-10-30) ═════════════════════════════════
+// Daniel, 10-30: a family whose documents are not an IEP or an evaluation, or
+// are not current, is not marked complete; they get an email signed by their
+// session presenter with a number to call, and the presenter gets a task.
+//
+// Shape:
+//   upload       confirmConnectGenUpload stamps cgDocCheckVersion (flag on, not
+//                yet confirmed) in the same write as the file
+//   trigger      _cgOnDocsChangedCheck — a file with no check is claimed and read
+//                (never inside the family's own upload request)
+//   requirement  _cgRequirements -> cgDocCheck.evaluateDocuments
+//   email+task   _cgAfterDocCheck, once nothing has arrived for 20 minutes;
+//                the 15-minute sweep is what comes back for it
+//   override     cgDocsAcceptedAt / cgDocsAcceptedBy, written from DAN
+//
+// Stored per file in cgDocChecks.<sha1(storagePath)[0:16]>:
+//   { status: pending|done|error|skipped, storagePath, slot, originalFilename,
+//     docType, otherKind, documentDate, dateBasis, confidence, reason,
+//     contentHash, duplicateOf, model, error, claimedAtMs, checkedAt }
+
+// The staff consultant line (9685 is NOT a typo of the 9684 main line).
+const CG_DOC_CHECK_FALLBACK_PHONE = "(808) 536-9685";
+
+// Signed by the presenter: name, title, THEIR phone, else the consultant line.
+// No presenter yet -> "Parent Consultant Team" on the consultant line.
+function _cgPresenterSignatureHtml(staff) {
+  const st = staff || {};
+  const name = String(st.displayName || "").trim();
+  const phone = _formatFamilyPhone(st.phone) || CG_DOC_CHECK_FALLBACK_PHONE;
+  const who = name
+    ? "<strong>" + lifecycleEsc(name) + "</strong><br>" + (st.title ? lifecycleEsc(st.title) + "<br>" : "")
+    : "<strong>Parent Consultant Team</strong><br>";
+  return '<p style="margin:16px 0 2px;font-size:14px;color:#555555;line-height:1.5;">' +
+    who +
+    'Leadership in Disabilities &amp; Achievement of Hawai\'i<br>' +
+    '245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>' +
+    'Phone: ' + lifecycleEsc(phone) + '<br>' +
+    'Email: <a href="mailto:registration@ldahawaii.org" style="color:#1a73e8;text-decoration:none;">registration@ldahawaii.org</a><br>' +
+    '<a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>' +
+  '</p>';
+}
+
+function _cgPresenterCallLine(staff) {
+  const st = staff || {};
+  const name = String(st.displayName || "").trim();
+  const first = name.split(/\s+/)[0] || "";
+  const phone = _formatFamilyPhone(st.phone) || CG_DOC_CHECK_FALLBACK_PHONE;
+  return (first ? "please call " + first : "please call our Parent Consultant Team") + " at " + phone;
+}
+
+// Family email. Never mentions how the documents were checked, never says
+// "cancelled". Plural-friendly: one or many files, one or both needs.
+function buildConnectGenDocsNotCurrentEmailHtml({
+  name, eventTitle, datesPhrase, missing, problems, uploadUrl, signatureHtml, callLine,
+}) {
+  const safeName = lifecycleEsc(name || "there");
+  const safeTitle = lifecycleEsc(eventTitle || "Connect-Gen");
+  const safeDates = lifecycleEsc(datesPhrase || "");
+  const probs = problems || [];
+  const need = missing || [];
+
+  let fileList = "";
+  if (probs.length) {
+    fileList = '<div style="font-weight:700;color:#0F172A;margin:20px 0 10px;">' +
+      (probs.length === 1 ? "The document that does not work yet" : "The documents that do not work yet") + '</div>' +
+      '<ul style="margin:0 0 8px;padding-left:20px;font-size:15px;color:#334155;line-height:1.6">' +
+      probs.map((p) => '<li style="margin:0 0 10px"><strong>' + lifecycleEsc(p.originalFilename || "Untitled file") +
+        '</strong><br>' + lifecycleEsc(cgDocCheck.problemSentence(p)) + '</li>').join("") +
+      '</ul>';
+  }
+
+  let needList = '<ul style="margin:0 0 8px;padding-left:20px;font-size:15px;color:#334155;line-height:1.7">';
+  if (need.indexOf("iep") > -1) {
+    needList += '<li style="margin:0 0 8px">Your child’s most current <strong>IEP</strong>, from an IEP meeting in the last 12 months.</li>';
+  }
+  if (need.indexOf("evaluation") > -1) {
+    needList += '<li style="margin:0 0 8px">Your child’s <strong>evaluations</strong> from the last 3 years. There is usually one for each area of need, for example speech, cognitive or occupational therapy.</li>';
+  }
+  needList += '</ul>';
+
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"></head>' +
+    '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
+    '<div style="max-width:600px;margin:0 auto;background:#fff">' +
+    '<div style="background-color:#0e7490;background:linear-gradient(135deg,#0e7490,#0891B2);padding:18px 24px 22px;text-align:center;color:#fff">' +
+    '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;">' +
+    '<h1 style="margin:0;font-size:22px;font-weight:700">About Your Documents</h1></div>' +
+    '<div style="padding:32px 24px">' +
+    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + safeName + ',</p>' +
+    '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Mahalo for sending your documents for <strong>' + safeTitle + '</strong>' + (safeDates ? '<strong>' + safeDates + '</strong>' : '') + '. We read through everything before your session, and some of what we need is not here yet.</p>' +
+    fileList +
+    (need.length ? '<div style="font-weight:700;color:#0F172A;margin:20px 0 10px;">What we still need</div>' + needList : '') +
+    '<div style="background:#FFFBEB;border:2px solid #F59E0B;border-radius:10px;padding:14px 18px;margin:18px 0;">' +
+      '<div style="font-weight:700;color:#92400E;font-size:1rem;margin-bottom:6px;">Your appointment is not confirmed yet</div>' +
+      '<div style="font-size:.95rem;color:#78350F;line-height:1.5;">As soon as these are in, we will send your confirmation with the prep documents and session details. You do not need to send again anything that was fine.</div>' +
+    '</div>' +
+    // _emailBtn escapes its label, so the ampersand goes in raw.
+    (uploadUrl ? '<div style="text-align:center;margin:26px 0">' + _emailBtn(uploadUrl, "Upload IEP & Evaluations", { bg: "#0891B2", align: "center" }) +
+      '<p style="text-align:center;margin:6px 0 0;font-size:13px;color:#64748B;">Prefer email? Just reply to this message with the documents attached.</p></div>' : '') +
+    '<p style="margin:20px 0 16px;font-size:15px;color:#475569;line-height:1.6">If you do not have a newer IEP or evaluation, or you are not sure which documents to send, ' + lifecycleEsc(callLine || "please call us at " + CG_DOC_CHECK_FALLBACK_PHONE) + '. We are happy to help you work it out.</p>' +
+    '<p style="margin:0 0 4px;font-size:15px;color:#333;line-height:1.5;">With gratitude,</p>' +
+    (signatureHtml || '') +
+    '</div></div></body></html>';
+}
+
+function _cgUploadedMillis(rec) {
+  const u = rec && rec.uploadedAt;
+  if (u && typeof u.toMillis === "function") return u.toMillis();
+  if (u && typeof u._seconds === "number") return u._seconds * 1000;
+  const t = Date.parse(u || "");
+  return isNaN(t) ? 0 : t;
+}
+
+// onUpdate entry. Our own writes come back through here, so it returns at once
+// unless a stored file has no check entry at all.
+async function _cgOnDocsChangedCheck(change, context, collection) {
+  try {
+    const after = change.after.data() || {};
+    if (!after.cgDocCheckVersion || after.cgDocsAcceptedAt) return;
+    if (after.status === "cancelled" || after.status === "confirmed" || after.archived === true) return;
+    if (after.connectGenDocumentsDestroyedAt || after.connectGenDisposition) return;
+    const unchecked = cgDocCheck.filesWithChecks(after).filter((f) => !f.rec.uploadedByStaff && !f.check);
+    if (!unchecked.length) return;
+    await _cgRunDocChecks(change.after.ref, collection, context.params.eventId);
+  } catch (e) {
+    console.error("_cgOnDocsChangedCheck failed (non-fatal):", e.message);
+  }
+}
+
+// Claim, read and record every file that has no result (or a stale claim).
+async function _cgRunDocChecks(ref, collection, eventId) {
+  const db = admin.firestore();
+  const now = Date.now();
+  const claimed = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const s = snap.data() || {};
+    const out = [];
+    const upd = {};
+    for (const f of cgDocCheck.filesWithChecks(s)) {
+      if (f.rec.uploadedByStaff) continue;
+      const c = f.check;
+      const stale = c && c.status === "pending" && (now - (c.claimedAtMs || 0)) > cgDocCheck.CG_DOC_CHECK_STALE_MS;
+      if (c && !stale) continue;
+      upd["cgDocChecks." + f.key] = {
+        status: "pending", storagePath: f.rec.storagePath, slot: f.slot,
+        originalFilename: f.rec.originalFilename || "", claimedAtMs: now,
+      };
+      out.push(f);
+    }
+    if (out.length) tx.update(ref, upd);
+    return out;
+  });
+  if (!claimed.length) return;
+
+  let enabled = false;
+  try { enabled = ((await db.doc("settings/featureFlags").get()).data() || {}).cgDocCheckEnabled === true; } catch (_) { enabled = false; }
+
+  const s = (await ref.get()).data() || {};
+  const knownByHash = {};
+  for (const c of Object.values(s.cgDocChecks || {})) {
+    if (c && c.status === "done" && c.contentHash) knownByHash[c.contentHash] = c;
+  }
+  const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
+  const client = enabled ? new Anthropic({ apiKey: _anthropicKey("ANTHROPIC_API_KEY") }) : null;
+  const upd = {};
+  for (const f of claimed) {
+    const base = {
+      storagePath: f.rec.storagePath, slot: f.slot, originalFilename: f.rec.originalFilename || "",
+      version: cgDocCheck.CG_DOC_CHECK_VERSION, checkedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    // Switched off after this family was stamped: count their files as given,
+    // so turning the feature off can never strand anyone.
+    if (!enabled) { upd["cgDocChecks." + f.key] = Object.assign(base, { status: "skipped" }); continue; }
+    try {
+      const [buf] = await bucket.file(f.rec.storagePath).download();
+      if (buf.length > cgDocCheck.CG_DOC_CHECK_MAX_BYTES) throw new Error("file too large to check");
+      const hash = cgDocCheck.contentHash(buf);
+      // The same file sent twice (one family sent one speech evaluation three
+      // times): reuse the first result, do not pay to read it again.
+      const twin = knownByHash[hash];
+      if (twin) {
+        upd["cgDocChecks." + f.key] = Object.assign(base, {
+          status: "done", docType: twin.docType, otherKind: twin.otherKind || "",
+          documentDate: twin.documentDate || "", dateBasis: twin.dateBasis || "",
+          confidence: twin.confidence || "", reason: twin.reason || "",
+          contentHash: hash, duplicateOf: twin.storagePath || "", model: twin.model || "",
+        });
+        continue;
+      }
+      const mime = String(f.rec.mimeType || "").toLowerCase();
+      let block;
+      if (mime === "application/pdf") {
+        if (buf.indexOf("/Encrypt") !== -1) throw new Error("password-protected PDF");
+        block = { type: "document", source: { type: "base64", media_type: "application/pdf", data: buf.toString("base64") } };
+      } else if (["image/jpeg", "image/png", "image/webp", "image/gif"].indexOf(mime) > -1) {
+        block = { type: "image", source: { type: "base64", media_type: mime, data: buf.toString("base64") } };
+      } else {
+        throw new Error("unsupported file type " + (mime || "unknown"));
+      }
+      const r = await cgDocCheck.classifyDocument({
+        client, block, filename: f.rec.originalFilename || "", slot: f.slot,
+        cachedSystem: screeningReferral.cachedSystem,
+      });
+      const entry = Object.assign(base, r, { status: "done", contentHash: hash, model: cgDocCheck.CG_DOC_CHECK_MODEL });
+      upd["cgDocChecks." + f.key] = entry;
+      knownByHash[hash] = entry;
+    } catch (e) {
+      // Fail OPEN: the file counts for its slot and the presenter is told it
+      // could not be checked. Never log e.cause.message (it can carry the key).
+      console.error("_cgRunDocChecks: could not check " + f.rec.storagePath + ":", e.message,
+        "| status=" + (e && e.status));
+      upd["cgDocChecks." + f.key] = Object.assign(base, { status: "error", error: String(e.message || "error").slice(0, 200) });
+    }
+  }
+  await ref.update(upd);
+  await _cgAfterDocCheck(ref, collection, eventId);
+}
+
+// Results are in: confirm, or (once the family has stopped uploading) email and task.
+async function _cgAfterDocCheck(ref, collection, eventId, nowMs) {
+  const db = admin.firestore();
+  const now = typeof nowMs === "number" ? nowMs : Date.now();
+  const s = (await ref.get()).data() || {};
+  if (!s.cgDocCheckVersion || s.status === "cancelled" || s.status === "confirmed") return;
+  const evSnap = await ref.parent.parent.get();
+  const ev = evSnap.exists ? (evSnap.data() || {}) : {};
+  if (s.cgDocsAcceptedAt) { await _cgMaybeConfirm(ref, null, ev); return; }
+  const reqs = _cgRequirements(s, ev, now);
+  const dc = reqs.docCheck;
+  if (!dc) return;
+
+  const sessions = getSignupSessions(s, ev) || [];
+  const first = sessions[0] || {};
+  const pres = first.dateKey ? _cgResolveCaseReviewPresenter(ev, sessions, first) : {};
+  const presenterUid = pres.presenterUid || "";
+  const staff = presenterUid ? ((await db.collection("userRoles").doc(presenterUid).get()).data() || {}) : {};
+
+  if (dc.failOpen.length) {
+    await _cgDocCheckTask({
+      db, ref, signup: s, collection, eventId, presenterUid, staff, sessionDateKey: first.dateKey || "",
+      kind: "could-not-check",
+      key: "err:" + dc.failOpen.map((x) => x.key).sort().join(","),
+      lines: dc.failOpen.map((x) => "- " + (x.originalFilename || "Untitled file") + " (" + (x.error || "unreadable") + ")"),
+    });
+  }
+
+  if (dc.ok) { await _cgMaybeConfirm(ref, null, ev); return; }
+  if (dc.pending) return;
+  // Only speak up about what they SENT: a family with nothing wrong in what is
+  // here and a slot still empty is the ordinary reminder ladder's job.
+  const bothSlots = _cgDocList(s.connectGenDocuments, "iep").length > 0 &&
+                    _cgDocList(s.connectGenDocuments, "evaluation").length > 0;
+  if (!dc.problems.length && !bothSlots) return;
+  // Families send files one at a time; wait until they have stopped.
+  const lastUpload = Math.max(0, ...cgDocCheck.filesWithChecks(s).map((f) => _cgUploadedMillis(f.rec)));
+  if (now - lastUpload < cgDocCheck.CG_DOC_EMAIL_QUIET_MS) return;
+
+  const key = cgDocCheck.problemsKey(dc);
+  const go = await db.runTransaction(async (tx) => {
+    const x = (await tx.get(ref)).data() || {};
+    if (x.cgDocsNotCurrentEmailKey === key) return false;
+    tx.update(ref, { cgDocsNotCurrentEmailKey: key, cgDocsNotCurrentEmailClaimedAt: admin.firestore.FieldValue.serverTimestamp() });
+    return true;
+  });
+  if (!go) return;
+
+  const reasonLines = dc.problems.map((p) => "- " + (p.originalFilename || "Untitled file") + ": " + cgDocCheck.problemSentence(p));
+  if (dc.missing.indexOf("iep") > -1) reasonLines.push("- Still needed: a current IEP (meeting in the last 12 months)");
+  if (dc.missing.indexOf("evaluation") > -1) reasonLines.push("- Still needed: current evaluations (last 3 years)");
+
+  let emailed = false;
+  if (familyEmails(s).length) {
+    try {
+      const sessionKeys = sessions.map((x) => x && x.dateKey).filter(Boolean);
+      const html = buildConnectGenDocsNotCurrentEmailHtml({
+        name: s.name || "there",
+        eventTitle: ev.title || "Connect-Gen",
+        datesPhrase: formatDatesPhrase(sessionKeys),
+        missing: dc.missing,
+        problems: dc.problems,
+        uploadUrl: _cgUploadUrl(s),
+        signatureHtml: _cgPresenterSignatureHtml(staff),
+        callLine: _cgPresenterCallLine(staff),
+      });
+      await sendEmailViaResend({
+        from: lifecycleFromAddress(),
+        to: familyEmails(s),
+        subject: "Connect-Gen -- About the documents you sent",
+        html,
+        type: "connect-gen-docs-not-current",
+        relatedEventId: eventId,
+        relatedSignupId: ref.id,
+        recipientName: s.name || "",
+        relatedContactId: s.linkedContactId || "",
+      });
+      await ref.update({ cgDocsNotCurrentEmailSentAt: admin.firestore.FieldValue.serverTimestamp() });
+      emailed = true;
+    } catch (e) {
+      // Release the key so the sweep tries again.
+      console.error("_cgAfterDocCheck: email failed for " + ref.path + ":", e.message);
+      await ref.update({ cgDocsNotCurrentEmailKey: admin.firestore.FieldValue.delete() }).catch(() => {});
+      return;
+    }
+  }
+
+  await _cgDocCheckTask({
+    db, ref, signup: s, collection, eventId, presenterUid, staff, sessionDateKey: first.dateKey || "",
+    kind: "not-current", key, lines: reasonLines, emailed,
+  });
+}
+
+// Presenter task. Idempotent per signup + key: the same findings never stack a
+// second task; new findings (another old file) raise a fresh one.
+async function _cgDocCheckTask({ db, ref, signup, collection, eventId, presenterUid, staff, sessionDateKey, kind, key, lines, emailed }) {
+  try {
+    const existing = await db.collection("interactions")
+      .where("cgDocCheckSignupPath", "==", ref.path)
+      .where("cgDocCheckKey", "==", key)
+      .limit(1).get();
+    if (!existing.empty) return;
+    const ownerUid = presenterUid || CONNECT_GEN_ALERT_CC_UID;
+    const owner = presenterUid ? (staff.displayName || "")
+      : (((await db.collection("userRoles").doc(ownerUid).get()).data() || {}).displayName || "");
+    const who = signup.name || signup.firstName || "a Connect-Gen family";
+    const when = sessionDateKey ? _formatSessionLongLabel(sessionDateKey) : "their session";
+    const link = danLink("signups", { c: collection, e: eventId });
+    const notCurrent = kind === "not-current";
+    await db.collection("interactions").add({
+      channel: "Internal",
+      interactionType: "Connect-Gen",
+      contactId: signup.linkedContactId || "",
+      contactName: who,
+      contactType: "Parent/Guardian",
+      grantProgram: "",
+      summary: (notCurrent ? "Documents not current or wrong type — " : "Documents could not be checked — ") + who + ", " + when,
+      followUpDate: toHstDateKey(new Date()),
+      status: "Open",
+      notes: notCurrent
+        ? (who + "'s documents for " + when + " do not cover what the session needs, so Documents stays outstanding and the family is not confirmed.\n\n" +
+           lines.join("\n") + "\n\n" +
+           (emailed ? "The family has been emailed, signed with your name and phone number, with their upload link.\n\n"
+                    : "There is no email address on the signup, so the family has NOT been told. Please call them.\n\n") +
+           "If the documents are in fact fine (for example the family has no newer IEP), use Documents accepted on the signup to confirm them as they are.\n\n" +
+           "Open the signup: " + link)
+        : (who + " sent files for " + when + " that the system could not read:\n\n" + lines.join("\n") + "\n\n" +
+           "They have been counted as received so the family is not held up. Please open them and check they are a current IEP (last 12 months) and evaluations (last 3 years).\n\n" +
+           "Open the signup: " + link),
+      isDraft: false,
+      owner,
+      ownerUid,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdBy: "System",
+      createdByUid: "system",
+      cgDocCheckSignupPath: ref.path,
+      cgDocCheckKey: key,
+      cgDocCheckKind: kind,
+      cgDocCheckCollection: collection,
+      cgDocCheckEventId: eventId,
+    });
+  } catch (e) {
+    console.error("_cgDocCheckTask failed (non-fatal):", e.message);
+  }
+}
+
+// Comes back for families whose email waited on the quiet period, and re-runs
+// any check whose instance died mid-read.
+async function _cgSweepDocChecks() {
+  const db = admin.firestore();
+  const progs = await db.collection("recurringEvents").where("zoomMode", "==", "program").get();
+  let seen = 0;
+  for (const p of progs.docs) {
+    const snap = await p.ref.collection("signups").where("status", "==", "pending").get();
+    for (const d of snap.docs) {
+      const s = d.data() || {};
+      if (!s.cgDocCheckVersion || s.archived === true) continue;
+      if (s.connectGenDocumentsDestroyedAt || s.connectGenDisposition) continue;
+      seen++;
+      try {
+        const now = Date.now();
+        const needsRun = cgDocCheck.filesWithChecks(s).some((f) => !f.rec.uploadedByStaff &&
+          (!f.check || (f.check.status === "pending" && now - (f.check.claimedAtMs || 0) > cgDocCheck.CG_DOC_CHECK_STALE_MS)));
+        if (needsRun) await _cgRunDocChecks(d.ref, "recurringEvents", p.id);
+        else await _cgAfterDocCheck(d.ref, "recurringEvents", p.id);
+      } catch (e) {
+        console.error("_cgSweepDocChecks: " + d.ref.path + ":", e.message);
+      }
+    }
+  }
+  console.log("_cgSweepDocChecks: looked at " + seen + " pending signup(s) under the check");
+}
+
+exports.sweepConnectGenDocChecks = functions
+  .runWith({ timeoutSeconds: 540, memory: "1GB", maxInstances: 1,
+             secrets: EMAIL_SECRETS.concat(["ANTHROPIC_API_KEY"]) })
+  .pubsub.schedule("every 15 minutes").timeZone("Pacific/Honolulu")
+  .onRun(async () => { try { await _cgSweepDocChecks(); } catch (e) { console.error("sweepConnectGenDocChecks:", e.message); } return null; });
 
 // "Wednesday, September 16 at 11:00 AM" — the moment a family's preparation has
 // to be complete, being the registration cut-off before their session start.
@@ -31606,6 +32030,11 @@ exports.onChatHelpRequest = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  _cgPresenterSignatureHtml,
+  _cgPresenterCallLine,
+  buildConnectGenDocsNotCurrentEmailHtml,
+  _cgAfterDocCheck,
+  CG_DOC_CHECK_FALLBACK_PHONE,
   PLEDGE_RESOURCES,
   resolvePledgeResources,
   loadPledgeResources,
