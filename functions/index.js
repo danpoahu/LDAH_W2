@@ -32116,6 +32116,115 @@ async function _syncScreeningConsentTasks() {
   return { made, closed };
 }
 
+/* School screening failures -> case management (Daniel 2026-10-29: "make it
+   automatic"). A child screened at a school (a screening with a location,
+   not Lions) whose hearing or vision result is Fail or Refer gets the family
+   an unassigned management case for the coordinator, like a Lions referral.
+   A family with an open case gets the referral added to it instead. Each
+   case joins its school's open "Assign N <school> screening families" task
+   (workflowStep assignCaseMgmtSchool), made if none is open; the case sync
+   counts it down and closes it. A screening id already on any case's
+   screeningReferrals is never opened twice, even after that case closed. */
+function _schoolShortName(loc) {
+  return String(loc || "").split(/\s+[\u2014-]\s+/)[0]
+    .replace(/\b(Church|Preschool|School|Elementary)\b/gi, "").replace(/\s+/g, " ").trim() || String(loc || "").trim();
+}
+function _schoolScreeningFails(res) {
+  const out = [];
+  const t = (x) => JSON.stringify(x || {}).toLowerCase();
+  if (/fail|refer/.test(t(res && res.hearing))) out.push("hearing");
+  if (/fail|refer/.test(t(res && res.vision))) out.push("vision");
+  return out;
+}
+async function _syncSchoolScreeningCases() {
+  const db = admin.firestore();
+  const FV = admin.firestore.FieldValue;
+  const cfg = await db.collection("settings").doc("schoolScreeningCases").get();
+  if (cfg.exists && (cfg.data() || {}).paused === true) return { opened: 0, attached: 0, paused: true };
+  const today = toHstDateKey(new Date());
+  const cases = await db.collection("interactions").where("workflowStep", "==", "caseAdvocacy").get();
+  const done = new Set();
+  const openByContact = {};
+  cases.forEach((d) => {
+    const x = d.data() || {};
+    (x.screeningReferrals || []).forEach((r) => { if (r && r.screeningId) done.add(r.screeningId); });
+    if (x.status === "Open" && x.contactId && !openByContact[x.contactId]) openByContact[x.contactId] = d.ref;
+  });
+  let opened = 0, attached = 0;
+  const cs = await db.collection("contacts").where("hasScreenings", "==", true).get();
+  for (const d of cs.docs) {
+    const c = d.data() || {};
+    if (c.archived === true || c.sandbox === true || c.partnerIsland) continue;
+    for (const s of (Array.isArray(c.screenings) ? c.screenings : [])) {
+      if (!s || !s.id || done.has(s.id) || String(s.source || "") === "lions-screening") continue;
+      const loc = String(s.location || "").trim();
+      if (!loc || !s.results) continue;
+      const types = _schoolScreeningFails(s.results);
+      if (!types.length) continue;
+      done.add(s.id);
+      const what = types.join(" and ");
+      const day = String(s.results.screenedAt || today).slice(0, 10);
+      const due = addDaysHst(day, SCREENING_REFERRAL_CONTACT_DUE_DAYS);
+      const kid = ((((s.child || {}).firstName || "") + " " + ((s.child || {}).lastName || "")).trim()) || "the child";
+      const parent = c.displayName || (((c.firstName || "") + " " + (c.lastName || "")).trim()) || ("Parent of " + kid);
+      const school = _schoolShortName(loc);
+      const prov = "School " + what + " screening referral for " + kid + " at " + loc + ", screened " + day +
+        ". The child did not pass, so the family goes to case management." +
+        "\nInitial contact is due by " + due + " (21 days from the screening)." +
+        "\nOpened automatically on " + today + ".";
+      const ref1 = { screeningId: s.id, type: what, screeningDate: day, contactDueDate: due };
+      if (openByContact[d.id]) {
+        const cur = (await openByContact[d.id].get()).data() || {};
+        await openByContact[d.id].update({ notes: String(cur.notes || "") + "\n\n" + prov,
+          screeningReferrals: FV.arrayUnion(ref1), updatedAt: FV.serverTimestamp() });
+        attached++;
+        continue;
+      }
+      const caseRef = await db.collection("interactions").add({
+        channel: "Mail", interactionType: "Case Advocacy", workflowStep: "caseAdvocacy",
+        contactId: d.id, contactName: parent, contactType: "Parent/Guardian",
+        summary: "Case management \u2014 assign a parent consultant for " + parent + " (" + school + " " + what + " screening)",
+        notes: prov, followUpDate: today, status: "Open",
+        owner: CASE_ADVOCACY_COORDINATOR_NAME, ownerUid: CONNECT_GEN_ALERT_CC_UID,
+        needsAdvocateAssignment: true, source: "school-paper", caseAdvocacySource: "school-screening",
+        serviceLevel: "management", assignBatch: school,
+        caseAdvocacyScreeningDate: day, caseAdvocacyContactDueDate: due, screeningReferrals: [ref1],
+        createdBy: "System (auto)", createdAt: FV.serverTimestamp(), updatedAt: FV.serverTimestamp(),
+      });
+      openByContact[d.id] = caseRef;
+      opened++;
+      const tasks = await db.collection("interactions").where("workflowStep", "==", CASE_MGMT_ASSIGN_SCHOOL_STEP).get();
+      const open = tasks.docs.find((t) => { const y = t.data() || {}; return y.status === "Open" && y.assignSchool === school; });
+      if (open) {
+        await open.ref.update({ caseIds: FV.arrayUnion(caseRef.id),
+          notes: String((open.data() || {}).notes || "") + "\n---\n[" + today + "] Added " + kid + " (" + what + ").",
+          updatedAt: FV.serverTimestamp() });
+      } else {
+        await db.collection("interactions").add({
+          channel: "Office", interactionType: "Case Management Assignment",
+          contactId: "", contactName: "", contactType: "",
+          summary: "Assign 1 " + school + " screening family to case management staff",
+          assignCount: 1, assignSchool: school, caseIds: [caseRef.id],
+          notes: "A " + school + " child did not pass their screening, so the family now has an open case management case: " + kid + " (" + what + ").\n\n" +
+            "Open the Case Management report and pick a staff member for each family under Needs attention. This task counts down as you go and closes itself when every family is assigned.",
+          owner: CASE_ADVOCACY_COORDINATOR_NAME, ownerUid: CONNECT_GEN_ALERT_CC_UID,
+          status: "Open", isDraft: false, urgent: true, followUpDate: today,
+          workflowStep: CASE_MGMT_ASSIGN_SCHOOL_STEP, source: "school-paper",
+          createdBy: "System (auto)", createdAt: FV.serverTimestamp(), updatedAt: FV.serverTimestamp(),
+        });
+      }
+    }
+  }
+  if (opened) await _syncCaseMgmtAssignTask();
+  if (opened || attached) console.log("schoolScreeningCases: opened", opened, "attached", attached);
+  return { opened, attached };
+}
+
+exports.sweepSchoolScreeningCases = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 1 })
+  .pubsub.schedule("every 30 minutes").timeZone("Pacific/Honolulu")
+  .onRun(async () => { try { await _syncSchoolScreeningCases(); } catch (e) { console.error("sweepSchoolScreeningCases:", e.message); } return null; });
+
 exports.sweepScreeningConsentTasks = functions
   .runWith({ timeoutSeconds: 120, maxInstances: 1 })
   .pubsub.schedule("every 30 minutes").timeZone("Pacific/Honolulu")
