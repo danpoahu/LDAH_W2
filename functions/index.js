@@ -20398,7 +20398,7 @@ async function _cgAfterDocCheck(ref, collection, eventId, nowMs) {
       await sendEmailViaResend({
         from: lifecycleFromAddress(),
         to: familyEmails(s),
-        subject: "Connect-Gen -- About the documents you sent",
+        subject: "Connect-Gen: About the documents you sent",
         html,
         type: "connect-gen-docs-not-current",
         relatedEventId: eventId,
