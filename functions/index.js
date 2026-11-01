@@ -7251,6 +7251,10 @@ async function runDailyReport(overrideRecipients, opts) {
       evSnap.forEach((d) => {
         const v = d.data() || {};
         if (v.archived === true || v.partnerIsland || !/screening/i.test(v.title || "")) return;
+        // Same rule as DAN's ldahEventState: a one-off record, a paused event, or
+        // one past its remove date is hidden in DAN, so it stays off the report.
+        if (v.isOneOff === true || v.active === false) return;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(v.removeDate || "") && v.removeDate <= todayISO) return;
         const start = typeof v.eventDate === "string" ? v.eventDate.slice(0, 10) : "";
         if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return;
         const past = /^\d{4}-\d{2}-\d{2}$/.test(v.moveToPastDate || "") ? v.moveToPastDate : _addDays(start, 1);
@@ -7277,7 +7281,7 @@ async function runDailyReport(overrideRecipients, opts) {
           cards.push({
             name: e.title, sub: days > 1 ? `${_dayLabel(e.start)} – ${_dayLabel(e.last)} · ${days} days` : _dayLabel(e.start),
             big: g.n, bigLabel: "children", linkText: "View children",
-            pills: [pillTxt(g.signed + " consents on file", g.signed === g.n ? "g" : "y")],
+            pills: [pillTxt(g.signed + " consents on file", !g.n ? "n" : g.signed === g.n ? "g" : "y")],
             href: school ? danLink("screenings", { school: school }) : danLink("screenings"), dayISO: showDay, active: g.n, notDone: 0,
           });
         });
