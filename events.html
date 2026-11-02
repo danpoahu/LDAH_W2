@@ -1293,6 +1293,10 @@
       if (!ev) return false;
       if (ev.archived === true) return false;
       if (ev.isOneOff === true) return false;
+      // Paused, or past its remove date: hidden in LDAH-Int, so hidden here (11-02).
+      if (ev.active === false) return false;
+      if (typeof ev.removeDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(ev.removeDate) &&
+          new Date() >= new Date(ev.removeDate + 'T00:00:00')) return false;
       var pi = ev.partnerIsland;
       if (typeof pi === 'string' && pi.trim() !== '') return false;
       if (Array.isArray(pi) && pi.length > 0) return false;
