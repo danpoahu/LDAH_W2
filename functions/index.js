@@ -24418,9 +24418,12 @@ exports.onEventCreatedLifecycle = functions
       // produced a task that could not even be closed honestly, because the
       // chain engine re-opens an Assign Presenter closed with no name. (2026-08-31)
       if (_lcCan(ev, "presenter")) {
+        // Whoever put the event in assigns its presenter, same as Verify Display
+        // and Send Announcements, and same as the deferred later dates below
+        // (Daniel 11-03). The seat (Justin) only covers an event with no creator.
         await _lcCreateIfMissing(db, {
           eventId, eventTitle: title, step: "assignPresenter", sessionKey: firstKey,
-          ownerUid: LIFECYCLE_ADMIN_UID, ownerName: laaName, dueDate
+          ownerUid: creatorUid || LIFECYCLE_ADMIN_UID, ownerName: creatorUid ? creatorName : laaName, dueDate
         });
       }
       // One-off gatherings (hand-keyed into the Event Attendance Report after
