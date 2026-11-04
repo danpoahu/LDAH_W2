@@ -27641,6 +27641,30 @@ function _dupKidClose(a, b) {
   return (a.length - i - j) <= 1 && (b.length - i - j) <= 1;
 }
 
+// Union two contacts' grants for a merge. grantPrograms is the truth and
+// grantProgram mirrors its first value; older records may only carry the scalar.
+// Keeper's grants come first, duplicates dropped case-insensitively. Returns the
+// new list, or null when the keeper already holds exactly this (nothing to write).
+function _mergeGrantPrograms(keeper, loser) {
+  const listOf = c => {
+    const arr = (Array.isArray(c.grantPrograms) ? c.grantPrograms : [])
+      .map(g => String(g == null ? "" : g).trim()).filter(Boolean);
+    if (arr.length) return arr;
+    const one = String(c.grantProgram == null ? "" : c.grantProgram).trim();
+    return one ? [one] : [];
+  };
+  const seen = new Set(), union = [];
+  for (const g of [...listOf(keeper || {}), ...listOf(loser || {})]) {
+    const k = g.toLowerCase();
+    if (!seen.has(k)) { seen.add(k); union.push(g); }
+  }
+  if (!union.length) return null;
+  const cur = Array.isArray(keeper && keeper.grantPrograms) ? keeper.grantPrograms : [];
+  const same = cur.length === union.length && cur.every((g, i) => g === union[i]) &&
+    (keeper && keeper.grantProgram) === union[0];
+  return same ? null : union;
+}
+
 async function _mergeContactPair(db, keeperId, loserId, opts) {
   opts = opts || {};
   const FieldValue = admin.firestore.FieldValue;
@@ -27656,10 +27680,18 @@ async function _mergeContactPair(db, keeperId, loserId, opts) {
 
   const SCALARS = ["email","phone","streetAddress","city","zipCode","location","type","ethnicity",
     "militaryStatus","militaryBranch","childAgeRange","childGender","priorTraining","priorTrainingDate",
-    "howHeard","accommodations","preferredContact","organization","grantProgram","unsubscribeToken"];
+    "howHeard","accommodations","preferredContact","organization","unsubscribeToken"];
   const blank = v => v === undefined || v === null || v === "";
   for (const f of SCALARS) {
     if (blank(merged[f]) && !blank(loser[f])) { merged[f] = loser[f]; moved.push(f); }
+  }
+  // Grants are a list, not a scalar: union both, keeper's first, and keep the
+  // grantProgram mirror in step with grantPrograms[0].
+  const grants = _mergeGrantPrograms(keeper, loser);
+  if (grants) {
+    merged.grantPrograms = grants;
+    merged.grantProgram = grants[0];
+    moved.push("grantPrograms");
   }
   // A second, different email is real information — keep it rather than drop it.
   // Unless staff said it is a typo (opts.dropOtherEmail, 10-21): then it goes,
@@ -32045,6 +32077,7 @@ exports.onChatHelpRequest = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  _mergeGrantPrograms,
   _cgPresenterSignatureHtml,
   _cgPresenterCallLine,
   buildConnectGenDocsNotCurrentEmailHtml,
