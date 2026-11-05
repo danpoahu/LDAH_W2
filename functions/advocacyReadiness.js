@@ -304,6 +304,17 @@ function isAdvocacyRecord(d) {
          d.interactionType === "Case Advocacy" || d.workflowStep === "caseAdvocacy";
 }
 
+// Which service the family is receiving: twin of the Case Advocacy report's
+// _svc (cmsBuildCaseAdvocacyReport), read from the case file, then the contact's
+// signed advocacy authorization. Screening case management ('management') is
+// not advocacy and is not scored (Daniel 2026-11-05).
+function serviceLevelOf(file, contact) {
+  if (file && file.serviceLevel === "management") return "management";
+  if (file && file.serviceLevel === "advocacy") return "advocacy";
+  if (contact && contact.caseAdvocacyAuthorization) return "advocacy";
+  return (file && file.caseAdvocacySource === "lions-screening") ? "management" : "advocacy";
+}
+
 // interactions: [{ id, ...data }]. One entry per contactId, built the way the
 // report builds its rows: the anchor is the OLDEST caseAdvocacy case file (else
 // the first advocacy record), the family is OPEN when any advocacy record has
@@ -331,6 +342,7 @@ function groupAdvocacyFamilies(interactions) {
     return {
       contactId: cid,
       caseInteractionId: f.id || "",
+      file: f,
       contactName: f.contactName || firstNamed("contactName") || "",
       advocateName: (g.file && g.file.caseAdvocateName) || firstNamed("caseAdvocateName"),
       advocateUid: (g.file && g.file.caseAdvocateUid) || firstNamed("caseAdvocateUid"),
@@ -1155,15 +1167,21 @@ async function runReadiness({ contactId, force, mode }) {
      A family is PIP if any of its advocacy records, or its contact, carries a
      partnerIsland stamp. */
   const families = [];
+  let management = 0;
   for (const f of listed.families) {
     let pip = (byContact[f.contactId] || []).some((r) => !!r.partnerIsland);
-    if (!pip) {
-      try {
-        const cs = await db.collection("contacts").doc(f.contactId).get();
-        pip = !!(cs.exists && (cs.data() || {}).partnerIsland);
-      } catch (e) { /* unknown: score it, as before */ }
-    }
-    if (!pip) families.push(f);
+    if (pip) continue;
+    let contact = null;
+    try {
+      const cs = await db.collection("contacts").doc(f.contactId).get();
+      contact = cs.exists ? (cs.data() || {}) : null;
+      pip = !!(contact && contact.partnerIsland);
+    } catch (e) { /* unknown: score it, as before */ }
+    if (pip) continue;
+    /* Screening case management is not advocacy (Daniel 2026-11-05): the
+       Case Advocacy report leaves it out, so the sweep does too. */
+    if (serviceLevelOf(f.file, contact) === "management") { management++; continue; }
+    families.push(f);
   }
 
   // Order: stale first (by existing doc lastRunAt), new families before that.
@@ -1208,12 +1226,13 @@ async function runReadiness({ contactId, force, mode }) {
     errors: count("error"),
     deferred,
     orphanRecords,
+    management,
     ms: Date.now() - started,
     results,
   };
   console.log("advocacyReadiness " + mode + ": families=" + summary.families + " created=" + summary.created +
     " checked=" + summary.checked + " closed=" + summary.closed + " skipped=" + summary.skipped +
-    " errors=" + summary.errors + " deferred=" + deferred + " orphanRecords=" + orphanRecords);
+    " errors=" + summary.errors + " deferred=" + deferred + " orphanRecords=" + orphanRecords + " caseManagementSkipped=" + management);
   return summary;
 }
 
@@ -1263,6 +1282,7 @@ module.exports = {
   CERT_TIER_LESSONS,
   CHECK_INTERVAL_HOURS,
   roundHalf,
+  serviceLevelOf,
   tsMs,
   ymd,
   effectiveStart,
