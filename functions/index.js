@@ -10700,6 +10700,7 @@ exports.getContactForPrefill = functions
     }
   });
 
+const ANNOUNCE_REPEAT_WINDOW_MS = 12 * 60 * 60 * 1000;
 exports.sendEventAnnouncement = functions
   .runWith({ timeoutSeconds: 540, maxInstances: 1, secrets: EMAIL_SECRETS })
   .https.onRequest(async (req, res) => {
@@ -10722,7 +10723,7 @@ exports.sendEventAnnouncement = functions
       return;
     }
 
-    const { eventId, collection, testMode, testEmail, dryRun, audienceFilter, recipientIds, sessionDate } = req.body || {};
+    const { eventId, collection, testMode, testEmail, dryRun, audienceFilter, recipientIds, sessionDate, allowRepeat } = req.body || {};
     // Date-targeted announcement (multi-date events): when present, skip only
     // people signed up FOR this date, show this date in the email, and track
     // sent state per date. Absent => event-wide (original behavior).
@@ -10796,12 +10797,21 @@ exports.sendEventAnnouncement = functions
       const recipientColl = eventRef.collection('announcementRecipients');
       const priorSnap = await recipientColl.get();
       const alreadySent = new Set();
+      const recentSent = new Map();
       priorSnap.forEach(d => {
         const rd = d.data() || {};
         // Per-date "already emailed": only count prior sends for the SAME date
         // (event-wide sends have sessionDate null). Legacy docs have no
         // recipientId/sessionDate — they read as event-wide (null) keyed by id.
         if ((rd.sessionDate || null) === _sessionDate) alreadySent.add(rd.recipientId || d.id);
+        /* Sent in the last 12 hours (2026-11-04): a hand-picked list skips the
+           already-sent check on purpose (reminders), so a second press of Send
+           after a dropped connection re-emailed 469 families. Those people are
+           now left out unless the sender confirms a repeat (allowRepeat). */
+        const _at = rd.sentAt && rd.sentAt.toMillis ? rd.sentAt.toMillis() : 0;
+        if ((rd.sessionDate || null) === _sessionDate && _at > Date.now() - ANNOUNCE_REPEAT_WINDOW_MS) {
+          recentSent.set(rd.recipientId || d.id, Math.max(_at, recentSent.get(rd.recipientId || d.id) || 0));
+        }
       });
 
       // Skip anyone with an active signup — they already know about it. Match by
@@ -10902,6 +10912,36 @@ exports.sendEventAnnouncement = functions
       } else {
         sendList = newRecipients;
       }
+      let skippedRecent = 0, lastSentAt = 0;
+      if (!testMode && allowRepeat !== true) {
+        sendList = sendList.filter(r => {
+          const at = recentSent.get(r.id);
+          if (!at) return true;
+          skippedRecent++; lastSentAt = Math.max(lastSentAt, at);
+          return false;
+        });
+        if (!sendList.length && skippedRecent) {
+          res.status(409).json({ error: 'Already sent: these ' + skippedRecent + ' people got this announcement in the last 12 hours.',
+            alreadySentRecently: skippedRecent, lastSentAt: new Date(lastSentAt).toISOString() });
+          return;
+        }
+      }
+      /* One send at a time per event: a second request while one is still
+         going out is refused, so a retry can never overlap the first. */
+      const lockKey = _sessionDate ? ('announcementSendingUntil_' + _sessionDate.replace(/[^A-Za-z0-9]+/g, '_')) : 'announcementSendingUntil';
+      if (!testMode) {
+        const gotLock = await db.runTransaction(async (tx) => {
+          const cur = ((await tx.get(eventRef)).data() || {})[lockKey];
+          const until = cur && cur.toMillis ? cur.toMillis() : 0;
+          if (until > Date.now()) return false;
+          tx.update(eventRef, { [lockKey]: admin.firestore.Timestamp.fromMillis(Date.now() + 9.5 * 60 * 1000) });
+          return true;
+        });
+        if (!gotLock) {
+          res.status(409).json({ error: 'This announcement is already being sent. Wait a few minutes, then reopen Announce to see who was emailed.', inProgress: true });
+          return;
+        }
+      }
       const batch = testMode ? sendList : sendList.slice(0, remaining);
       const fromAddress = process.env.SMTP_FROM || 'onboarding@resend.dev';
       const unsubscribeBaseUrl = 'https://us-central1-ldah-932d5.cloudfunctions.net/handleUnsubscribe';
@@ -10968,7 +11008,9 @@ exports.sendEventAnnouncement = functions
         queued: sendList.length - batch.length,
         sentToday: sentToday + sent,
         cap: ANNOUNCEMENT_DAILY_CAP,
+        skippedRecent,
       });
+      if (!testMode) await eventRef.update({ [lockKey]: admin.firestore.FieldValue.delete() }).catch(() => {});
     } catch (err) {
       console.error('sendEventAnnouncement error:', err);
       res.status(500).json({ error: err.message });
