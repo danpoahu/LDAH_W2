@@ -28437,18 +28437,31 @@ function _asqLionsTodoKeys(contacts, recs, today) {
       const gnum = parseInt(String(e.grade || ch.gradeLevel || "").trim(), 10);
       const over = (months !== null && months > ASQ_MAX_MONTHS) || (months === null && gnum >= 1);
       if (over && rec.sendAnyway !== true) continue;
-      out.push(key);
+      // Exact string, because the DAN report's School filter matches it exactly.
+      out.push({ key, school: String(e.school || e.location || ch.school || "").trim() });
     }
   }
   return out;
 }
-const ASQ_LIONS_NOTES = (n) =>
-  "Enter the " + n + " Lions vision " + (n === 1 ? "child" : "children") + " in ASQ Online.\n\n" +
-  "1. Press Open ASQ report: Lions vision. It opens filtered to the Lions children.\n" +
+function _asqLionsLabel(school) {
+  const t = String(school || "").replace(/\b(Baptist|Church|Preschool|Pre-School|School|Elementary|Elem|Academy|Public Charter|PCS)\b\.?/gi, "").replace(/\s+/g, " ").trim();
+  const name = (t || String(school || "").trim()).toLowerCase().replace(/(^|[\s-])[a-z]/g, (m) => m.toUpperCase());
+  return name ? name + " (Lions)" : "Lions vision";
+}
+// One group per school, largest first (Daniel 2026-11-05: a bunch is split by
+// school so no single task is too long).
+function _asqGroupBySchool(todo) {
+  const by = {};
+  for (const t of todo) (by[t.school] = by[t.school] || []).push(t.key);
+  return Object.keys(by).sort((a, b) => by[b].length - by[a].length || a.localeCompare(b)).map((school) => ({ school, keys: by[school] }));
+}
+const ASQ_LIONS_NOTES = (n, label) =>
+  "Enter the " + n + " " + label + " " + (n === 1 ? "child" : "children") + " in ASQ Online.\n\n" +
+  "1. Press Open ASQ report: " + label + ". It opens showing just these children.\n" +
   "2. Enter each child in ASQ Online, then press Mark entered on their row (or Not needed if one doesn't need it).\n" +
-  "3. This task counts your entries and closes itself when all are done. New Lions children are added here each weekday morning as their forms arrive.";
+  "3. This task counts your entries and closes itself when all are done. Any new children from this school are added here as their forms arrive.";
 
-// Keeps ONE open Lions ASQ batch for Dustin, topped up with new children.
+// Keeps one open Lions ASQ task per school for Dustin, topped up as forms arrive.
 async function _asqSyncLionsBatch(db) {
   const today = toHstDateKey(new Date());
   const [cs, rs] = await Promise.all([
@@ -28459,25 +28472,39 @@ async function _asqSyncLionsBatch(db) {
   rs.forEach((d) => { recs[d.id] = d.data() || {}; });
   const todo = _asqLionsTodoKeys(cs.docs.map((d) => Object.assign({ id: d.id }, d.data() || {})), recs, today);
   const tq = await db.collection("interactions").where("ownerUid", "==", ASQ_DAILY_UID).where("workflowStep", "==", "asqBatch").get();
-  const open = tq.docs.find((d) => { const x = d.data() || {}; return x.status !== "Closed" && x.asqSource === "lions-screening"; });
-  if (!open) {
-    if (!todo.length) return { lions: 0 };
-    const id = await _asqCreateSchoolBatch(db, { keys: todo, school: "", source: "lions-screening", label: "Lions vision", notes: ASQ_LIONS_NOTES(todo.length), urgent: false }, ASQ_DAILY_UID);
-    return { lions: todo.length, created: id };
+  const open = tq.docs.filter((d) => { const x = d.data() || {}; return x.status !== "Closed" && x.asqSource === "lions-screening"; });
+  const inOpen = new Set();
+  open.forEach((d) => ((d.data() || {}).asqKeys || []).forEach((k) => inOpen.add(k)));
+  const out = { waiting: todo.length, created: [], added: 0 };
+  for (const g of _asqGroupBySchool(todo.filter((t) => !inOpen.has(t.key)))) {
+    const label = _asqLionsLabel(g.school);
+    const task = open.find((d) => ((d.data() || {}).asqSchool || "") === g.school);
+    if (!task) {
+      out.created.push(await _asqCreateSchoolBatch(db, { keys: g.keys, school: g.school, source: "lions-screening", label, notes: ASQ_LIONS_NOTES(g.keys.length, label), urgent: false }, ASQ_DAILY_UID));
+      continue;
+    }
+    const all = ((task.data() || {}).asqKeys || []).concat(g.keys);
+    await task.ref.update({
+      asqKeys: all, summary: "Enter the " + all.length + " " + label + " children in ASQ Online",
+      notes: ASQ_LIONS_NOTES(all.length, label), followUpDate: today,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    await _asqBatchRecount(db, g.keys[0]);
+    out.added += g.keys.length;
   }
-  const x = open.data() || {};
-  const keys = Array.isArray(x.asqKeys) ? x.asqKeys.slice() : [];
-  const added = todo.filter((k) => keys.indexOf(k) === -1);
-  if (!added.length) return { lions: keys.length, added: 0 };
-  const all = keys.concat(added);
-  await open.ref.update({
-    asqKeys: all, summary: "Enter the " + all.length + " Lions vision children in ASQ Online",
-    notes: ASQ_LIONS_NOTES(all.length) + "\n---\n[System — " + today + "]\n" + added.length + " new Lions " + (added.length === 1 ? "child" : "children") + " added.",
-    followUpDate: today, updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
-  await _asqBatchRecount(db, added[0]);
-  return { lions: all.length, added: added.length };
+  return out;
 }
+
+/* New Lions forms reach Dustin within the half hour on workdays (Daniel
+   2026-11-05: one-off arrivals go to him straight away). */
+exports.asqLionsSync = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 1 })
+  .pubsub.schedule("*/30 7-16 * * 1-5").timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    try { console.log("asqLionsSync:", JSON.stringify(await _asqSyncLionsBatch(admin.firestore()))); }
+    catch (e) { console.error("asqLionsSync failed:", e.message); }
+    return null;
+  });
 
 exports.onAsqRecordWritten = functions
   .runWith({ timeoutSeconds: 60, maxInstances: 5 })
@@ -32375,6 +32402,8 @@ exports.onChatHelpRequest = functions
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
   _asqLionsTodoKeys,
+  _asqGroupBySchool,
+  _asqLionsLabel,
   _mergeGrantPrograms,
   _isSelfScreening,
   _schoolScreeningFails,
