@@ -18681,7 +18681,11 @@ exports.sendAlohaPacketEmail = functions
       const recipientName = contact.displayName || contact.name ||
         [contact.firstName, contact.lastName].filter(Boolean).join(" ") || "";
       const html = _buildAlohaPacketEmailHtml({
-        firstName, signatureHtml: _cgPresenterSignatureHtml(signer),
+        firstName,
+        // Signed by the logged-in sender: their name, title, phone and THEIR email.
+        signatureHtml: _cgPresenterSignatureHtml(signer).replace(
+          /Email: <a href="mailto:registration@ldahawaii\.org"[^>]*>registration@ldahawaii\.org<\/a>/,
+          staff.email ? 'Email: <a href="mailto:' + lifecycleEsc(staff.email) + '" style="color:#1a73e8;text-decoration:none;">' + lifecycleEsc(staff.email) + '</a>' : "$&"),
       });
 
       if (previewOnly) {
