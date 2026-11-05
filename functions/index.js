@@ -28411,6 +28411,74 @@ async function _asqBatchRecount(db, key) {
   }
 }
 
+/* Lions children waiting for ASQ entry (Daniel 2026-11-05). Pali View and
+   Central Union each got a one-off batch task, but Lions forms keep arriving,
+   so nothing told Dustin about the 86 that came in after the 10-15 batch.
+   Same rule as the DAN ASQ report: a Lions child who is not entered, not marked
+   not needed, and not held back as over ASQ age (>66 months, or grade 1+ with no
+   birthdate) unless someone pressed Send anyway. Pure, tested. */
+const ASQ_MAX_MONTHS = 66;
+function _asqMonthsAt(bd, today) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(bd || "")) return null;
+  const a = bd.split("-").map(Number), t = today.split("-").map(Number);
+  const m = (t[0] - a[0]) * 12 + (t[1] - a[1]) - (t[2] < a[2] ? 1 : 0);
+  return m >= 0 ? m : null;
+}
+function _asqLionsTodoKeys(contacts, recs, today) {
+  const out = [];
+  for (const c of contacts || []) {
+    if (!c || c.archived === true || c.partnerIsland || c.sandbox === true) continue;
+    for (const e of (Array.isArray(c.screenings) ? c.screenings : [])) {
+      if (!e || !e.id || e.source !== "lions-screening") continue;
+      const key = c.id + "__" + e.id, rec = (recs && recs[key]) || {};
+      if (rec.status === "entered" || rec.status === "notNeeded") continue;
+      const ch = e.child || {};
+      const months = _asqMonthsAt(ch.birthdate || "", today);
+      const gnum = parseInt(String(e.grade || ch.gradeLevel || "").trim(), 10);
+      const over = (months !== null && months > ASQ_MAX_MONTHS) || (months === null && gnum >= 1);
+      if (over && rec.sendAnyway !== true) continue;
+      out.push(key);
+    }
+  }
+  return out;
+}
+const ASQ_LIONS_NOTES = (n) =>
+  "Enter the " + n + " Lions vision " + (n === 1 ? "child" : "children") + " in ASQ Online.\n\n" +
+  "1. Press Open ASQ report: Lions vision. It opens filtered to the Lions children.\n" +
+  "2. Enter each child in ASQ Online, then press Mark entered on their row (or Not needed if one doesn't need it).\n" +
+  "3. This task counts your entries and closes itself when all are done. New Lions children are added here each weekday morning as their forms arrive.";
+
+// Keeps ONE open Lions ASQ batch for Dustin, topped up with new children.
+async function _asqSyncLionsBatch(db) {
+  const today = toHstDateKey(new Date());
+  const [cs, rs] = await Promise.all([
+    db.collection("contacts").where("hasScreenings", "==", true).get(),
+    db.collection("asqRecords").get(),
+  ]);
+  const recs = {};
+  rs.forEach((d) => { recs[d.id] = d.data() || {}; });
+  const todo = _asqLionsTodoKeys(cs.docs.map((d) => Object.assign({ id: d.id }, d.data() || {})), recs, today);
+  const tq = await db.collection("interactions").where("ownerUid", "==", ASQ_DAILY_UID).where("workflowStep", "==", "asqBatch").get();
+  const open = tq.docs.find((d) => { const x = d.data() || {}; return x.status !== "Closed" && x.asqSource === "lions-screening"; });
+  if (!open) {
+    if (!todo.length) return { lions: 0 };
+    const id = await _asqCreateSchoolBatch(db, { keys: todo, school: "", source: "lions-screening", label: "Lions vision", notes: ASQ_LIONS_NOTES(todo.length), urgent: false }, ASQ_DAILY_UID);
+    return { lions: todo.length, created: id };
+  }
+  const x = open.data() || {};
+  const keys = Array.isArray(x.asqKeys) ? x.asqKeys.slice() : [];
+  const added = todo.filter((k) => keys.indexOf(k) === -1);
+  if (!added.length) return { lions: keys.length, added: 0 };
+  const all = keys.concat(added);
+  await open.ref.update({
+    asqKeys: all, summary: "Enter the " + all.length + " Lions vision children in ASQ Online",
+    notes: ASQ_LIONS_NOTES(all.length) + "\n---\n[System — " + today + "]\n" + added.length + " new Lions " + (added.length === 1 ? "child" : "children") + " added.",
+    followUpDate: today, updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  await _asqBatchRecount(db, added[0]);
+  return { lions: all.length, added: added.length };
+}
+
 exports.onAsqRecordWritten = functions
   .runWith({ timeoutSeconds: 60, maxInstances: 5 })
   .firestore.document("asqRecords/{key}")
@@ -28514,6 +28582,8 @@ exports.asqDailyCheck = functions
     const db = admin.firestore();
     const FV = admin.firestore.FieldValue;
     const today = toHstDateKey(new Date());
+    try { console.log("asqDailyCheck: lions batch", JSON.stringify(await _asqSyncLionsBatch(db))); }
+    catch (e) { console.error("asqDailyCheck: lions batch failed:", e.message); }
     let waiting = 0, toSend = 0;
     const recs = await db.collection("asqRecords").get();
     recs.forEach((d) => {
@@ -32304,6 +32374,7 @@ exports.onChatHelpRequest = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  _asqLionsTodoKeys,
   _mergeGrantPrograms,
   _isSelfScreening,
   _schoolScreeningFails,
