@@ -18592,6 +18592,21 @@ const ALOHA_PACKET_APP_URL = "https://ldahawaii.org/app/";
 const ALOHA_PACKET_SUBJECT = "Your LDAH Aloha Packet";
 // A second press within this window asks first (force:true sends anyway).
 const ALOHA_PACKET_REPEAT_MS = 24 * 60 * 60 * 1000;
+// The 7 brochures in the packet, as named in lookupLists/materials (Daniel 11-04:
+// "mark the proper brochures sent in the materials distributed section").
+// Keys are LDAHFormat.materialSlug(label) — change a label there, change it here.
+const ALOHA_PACKET_MATERIALS = [
+  "Agency Brochure",                          // About LDAH & Membership
+  "School Readiness Brochure",
+  "Education & Training Brochure",            // Workshops & Training
+  "Understanding ADHD Brochure",
+  "Understanding Autism",
+  "Understanding Dyslexia Brochure",
+  "What is a Learning Disability Brochure",
+];
+function _materialSlug(label) {
+  return String(label == null ? "" : label).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
 
 function _buildAlohaPacketEmailHtml({ firstName, signatureHtml }) {
   const safeFirst = lifecycleEsc(firstName || "there");
@@ -18709,11 +18724,25 @@ exports.sendAlohaPacketEmail = functions
         alohaPacketEmailSentBy: signer.displayName || performedBy,
         alohaPacketEmailTo: to.join(", "),
       });
+      let materialsRecorded = false;
       if (interactionId) {
         try {
-          await db.collection("interactions").doc(interactionId).update({
-            alohaPacketSentAt: FieldValue.serverTimestamp(),
-            alohaPacketSentBy: signer.displayName || performedBy,
+          // One of each brochure; at least 1, never added again on a re-send.
+          const ixRef = db.collection("interactions").doc(interactionId);
+          await db.runTransaction(async (tx) => {
+            const ix = await tx.get(ixRef);
+            if (!ix.exists) return;
+            const md = Object.assign({}, (ix.data() || {}).materialsDistributed || {});
+            ALOHA_PACKET_MATERIALS.forEach((label) => {
+              const k = _materialSlug(label);
+              md[k] = Math.max(Number(md[k]) || 0, 1);
+            });
+            tx.update(ixRef, {
+              materialsDistributed: md,
+              alohaPacketSentAt: FieldValue.serverTimestamp(),
+              alohaPacketSentBy: signer.displayName || performedBy,
+            });
+            materialsRecorded = true;
           });
         } catch (e) { console.warn("interaction stamp failed:", e.message); }
       }
@@ -18730,7 +18759,7 @@ exports.sendAlohaPacketEmail = functions
         });
       } catch (e) { console.warn("auditLog write failed:", e.message); }
 
-      res.status(200).json({ ok: true, sentTo: to });
+      res.status(200).json({ ok: true, sentTo: to, materials: ALOHA_PACKET_MATERIALS, materialsRecorded });
     } catch (err) {
       console.error("sendAlohaPacketEmail error:", err.message);
       res.status(500).json({ error: err.message });
