@@ -32305,6 +32305,8 @@ exports.onChatHelpRequest = functions
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
   _mergeGrantPrograms,
+  _isSelfScreening,
+  _schoolScreeningFails,
   _cgPresenterSignatureHtml,
   _cgPresenterCallLine,
   buildConnectGenDocsNotCurrentEmailHtml,
@@ -32840,6 +32842,20 @@ function _schoolScreeningFails(res) {
   if (/fail|refer/.test(t(res && res.vision))) out.push("vision");
   return out;
 }
+function _isSelfScreening(s) {
+  const rel = String((s && s.relationship) || "").toLowerCase();
+  const first = String(((s && s.child) || {}).firstName || "").trim().toLowerCase();
+  return /\bself\b/.test(rel) || first === "self";
+}
+const _screeningEventTitles = {};
+async function _screeningEventTitle(db, eventId) {
+  if (!(eventId in _screeningEventTitles)) {
+    let t = "";
+    try { const e = await db.collection("events").doc(eventId).get(); t = e.exists ? String((e.data() || {}).title || "").trim() : ""; } catch (_) {}
+    _screeningEventTitles[eventId] = t || "an outreach screening event";
+  }
+  return _screeningEventTitles[eventId];
+}
 async function _syncSchoolScreeningCases() {
   const db = admin.firestore();
   const FV = admin.firestore.FieldValue;
@@ -32861,7 +32877,18 @@ async function _syncSchoolScreeningCases() {
     if (c.archived === true || c.sandbox === true || c.partnerIsland) continue;
     for (const s of (Array.isArray(c.screenings) ? c.screenings : [])) {
       if (!s || !s.id || done.has(s.id) || String(s.source || "") === "lions-screening") continue;
-      const loc = String(s.location || "").trim();
+      /* Outreach events (Daniel 2026-11-04): a kiosk screening at an event has
+         no location, only eventId, so a child who failed at e.g. the North Shore
+         Food Drop never reached case management. Children only: a parent who
+         screened themselves ("Self") is not a case. Event cases are not batched
+         by school; they count toward the main assign task. */
+      let loc = String(s.location || "").trim();
+      let outreach = false;
+      if (!loc && s.eventId) {
+        if (_isSelfScreening(s)) continue;
+        loc = await _screeningEventTitle(db, s.eventId);
+        outreach = true;
+      }
       if (!loc || !s.results) continue;
       const types = _schoolScreeningFails(s.results);
       if (!types.length) continue;
@@ -32872,7 +32899,7 @@ async function _syncSchoolScreeningCases() {
       const kid = ((((s.child || {}).firstName || "") + " " + ((s.child || {}).lastName || "")).trim()) || "the child";
       const parent = c.displayName || (((c.firstName || "") + " " + (c.lastName || "")).trim()) || ("Parent of " + kid);
       const school = _schoolShortName(loc);
-      const prov = "School " + what + " screening referral for " + kid + " at " + loc + ", screened " + day +
+      const prov = (outreach ? "Outreach " : "School ") + what + " screening referral for " + kid + " at " + loc + ", screened " + day +
         ". The child did not pass, so the family goes to case management." +
         "\nInitial contact is due by " + due + " (21 days from the screening)." +
         "\nOpened automatically on " + today + ".";
@@ -32890,13 +32917,16 @@ async function _syncSchoolScreeningCases() {
         summary: "Case management \u2014 assign a parent consultant for " + parent + " (" + school + " " + what + " screening)",
         notes: prov, followUpDate: today, status: "Open",
         owner: CASE_ADVOCACY_COORDINATOR_NAME, ownerUid: CONNECT_GEN_ALERT_CC_UID,
-        needsAdvocateAssignment: true, source: "school-paper", caseAdvocacySource: "school-screening",
-        serviceLevel: "management", assignBatch: school,
+        needsAdvocateAssignment: true,
+        source: outreach ? "outreach-screening" : "school-paper",
+        caseAdvocacySource: outreach ? "outreach-screening" : "school-screening",
+        serviceLevel: "management", ...(outreach ? {} : { assignBatch: school }),
         caseAdvocacyScreeningDate: day, caseAdvocacyContactDueDate: due, screeningReferrals: [ref1],
         createdBy: "System (auto)", createdAt: FV.serverTimestamp(), updatedAt: FV.serverTimestamp(),
       });
       openByContact[d.id] = caseRef;
       opened++;
+      if (outreach) continue;
       const tasks = await db.collection("interactions").where("workflowStep", "==", CASE_MGMT_ASSIGN_SCHOOL_STEP).get();
       const open = tasks.docs.find((t) => { const y = t.data() || {}; return y.status === "Open" && y.assignSchool === school; });
       if (open) {
