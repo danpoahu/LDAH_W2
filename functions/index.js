@@ -18581,6 +18581,158 @@ exports.sendCaseAdvocacyAuthorizationLink = functions
     }
   });
 
+// ══ Email the Aloha Packet to a family (2026-11-04) ═════════════════════════
+// Daniel, 11-04: "a button in interaction to email family aloha packet."
+// Staff-triggered from an interaction in DAN. Links to the Packet page rather
+// than attaching the 7 MB PDF. Signed by the staff member who pressed it, with
+// their phone, else the consultant line. sendEmailViaResend writes emailLog,
+// so it shows in the contact's Emails panel.
+const ALOHA_PACKET_URL = "https://www.ldahawaii.org/Packet/?src=email";
+const ALOHA_PACKET_APP_URL = "https://ldahawaii.org/app/";
+const ALOHA_PACKET_SUBJECT = "Your LDAH Aloha Packet";
+// A second press within this window asks first (force:true sends anyway).
+const ALOHA_PACKET_REPEAT_MS = 24 * 60 * 60 * 1000;
+
+function _buildAlohaPacketEmailHtml({ firstName, signatureHtml }) {
+  const safeFirst = lifecycleEsc(firstName || "there");
+  const p = '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">';
+  return [
+    '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f7;">',
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f4f4f7;padding:24px 0;">',
+    '<tr><td align="center">',
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">',
+    '<tr><td style="background:#1F6874;padding:18px 24px;">',
+    '<p style="margin:0;font-size:18px;color:#ffffff;font-weight:700;">Your Aloha Packet</p>',
+    '</td></tr>',
+    '<tr><td style="padding:24px;">',
+    p + 'Aloha ' + safeFirst + ',</p>',
+    p + 'Mahalo for connecting with us. Here is our Aloha Packet, a collection of our brochures about LDAH, our workshops and programs, and information on AD/HD, autism, dyslexia and learning disabilities.</p>',
+    _emailBtn(ALOHA_PACKET_URL, "Open the Aloha Packet", { bg: "#1F6874" }),
+    p + 'Our services for families are free. You can also find our upcoming workshops and resources in the LDAH app:</p>',
+    _emailBtn(ALOHA_PACKET_APP_URL, "Get the LDAH App", { bg: "#B45309" }),
+    p + 'If you have any questions, just reply to this email.</p>',
+    '<p style="margin:18px 0 4px;font-size:15px;color:#333;line-height:1.55;">Mahalo,</p>',
+    (signatureHtml || ""),
+    _emailLinkFooter([
+      { label: "Aloha Packet", href: ALOHA_PACKET_URL },
+      { label: "LDAH App", href: ALOHA_PACKET_APP_URL },
+    ]),
+    '</td></tr>',
+    '</table>',
+    '</td></tr></table></body></html>',
+  ].join("");
+}
+
+exports.sendAlohaPacketEmail = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 10, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+
+    const body = req.body || {};
+    const contactId = String(body.contactId || "").trim();
+    const interactionId = String(body.interactionId || "").trim();
+    const force = body.force === true;
+    const previewOnly = body.previewOnly === true;
+    if (!contactId) { res.status(400).json({ error: "Missing contactId" }); return; }
+
+    let staff;
+    try {
+      // LDAH office staff, not partner accounts.
+      staff = await _verifyStaffIdToken(body.idToken, ["webAdmin", "dailyUser", "dataUser"]);
+    } catch (err) {
+      res.status(err.statusCode || 401).json({ error: err.message }); return;
+    }
+
+    try {
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const contactRef = db.collection("contacts").doc(contactId);
+      const contactSnap = await contactRef.get();
+      if (!contactSnap.exists) { res.status(404).json({ error: "Contact not found" }); return; }
+      const contact = contactSnap.data() || {};
+      const to = familyEmails(contact);
+      if (!to.length) { res.status(400).json({ error: "This contact has no email address on file." }); return; }
+
+      if (!previewOnly && !force && contact.alohaPacketEmailSentAt) {
+        let ms = 0;
+        try { ms = contact.alohaPacketEmailSentAt.toMillis(); } catch (e) {}
+        if (ms && Date.now() - ms < ALOHA_PACKET_REPEAT_MS) {
+          res.status(200).json({
+            ok: true, skipped: "recently-sent",
+            sentAt: new Date(ms).toISOString(),
+            sentBy: contact.alohaPacketEmailSentBy || "",
+          });
+          return;
+        }
+      }
+
+      const sender = (await db.collection("userRoles").doc(staff.uid).get()).data() || {};
+      const signer = {
+        displayName: sender.displayName || sender.name || staff.name || "",
+        title: sender.title || "",
+        phone: sender.phone || "",
+      };
+      const firstName = contact.firstName ||
+        String(contact.displayName || contact.name || "").trim().split(/\s+/)[0] || "there";
+      const recipientName = contact.displayName || contact.name ||
+        [contact.firstName, contact.lastName].filter(Boolean).join(" ") || "";
+      const html = _buildAlohaPacketEmailHtml({
+        firstName, signatureHtml: _cgPresenterSignatureHtml(signer),
+      });
+
+      if (previewOnly) {
+        res.status(200).json({ ok: true, previewOnly: true, to, subject: ALOHA_PACKET_SUBJECT, html });
+        return;
+      }
+
+      await sendEmailViaResend({
+        from: lifecycleFromAddress(),
+        to,
+        subject: ALOHA_PACKET_SUBJECT,
+        html,
+        type: "aloha-packet",
+        relatedContactId: contactId,
+        recipientName,
+      });
+
+      const performedBy = staff.email || staff.name || staff.uid;
+      await contactRef.update({
+        alohaPacketEmailSentAt: FieldValue.serverTimestamp(),
+        alohaPacketEmailSentBy: signer.displayName || performedBy,
+        alohaPacketEmailTo: to.join(", "),
+      });
+      if (interactionId) {
+        try {
+          await db.collection("interactions").doc(interactionId).update({
+            alohaPacketSentAt: FieldValue.serverTimestamp(),
+            alohaPacketSentBy: signer.displayName || performedBy,
+          });
+        } catch (e) { console.warn("interaction stamp failed:", e.message); }
+      }
+      try {
+        await db.collection("auditLog").add({
+          action: "Aloha Packet emailed",
+          details: (recipientName || "(unknown)") + " — contact " + contactId +
+            " — email: " + to.join(", ") + (interactionId ? " — interaction " + interactionId : "") +
+            (force ? " (resend)" : ""),
+          performedBy,
+          performedByRole: staff.role,
+          timestamp: FieldValue.serverTimestamp(),
+          contactId,
+        });
+      } catch (e) { console.warn("auditLog write failed:", e.message); }
+
+      res.status(200).json({ ok: true, sentTo: to });
+    } catch (err) {
+      console.error("sendAlohaPacketEmail error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
 // (2) Public GET — the authorization form fetches contact info to pre-render.
 exports.getCaseAdvocacyAuthorization = functions
   .runWith({ timeoutSeconds: 20, maxInstances: 10 })
