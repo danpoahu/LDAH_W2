@@ -57,8 +57,22 @@ service cloud.firestore {
     /* Staff Calendar only entries (2026-11-06, Daniel): meetings, trainings and
        days off for the DAN calendars. LDAH staff only; Pacific partners, members
        and the public never read them, which is why they are not event docs. */
+    /* A meeting's agenda is private to the meeting (2026-11-06): only the
+       ticked participants and the finished-agenda person, whatever their role.
+       A super admin who is not invited cannot read it, and cannot change or
+       delete the meeting to add themselves. */
+    function inStaffMeeting(d) {
+      return request.auth.uid in d.get('participantUids', [])
+        || request.auth.uid == d.get('agendaToUid', '');
+    }
     match /staffCalendar/{entryId} {
-      allow read, write: if isStaff() && !isPartnerRole();
+      allow read, create: if isStaff() && !isPartnerRole();
+      allow update, delete: if isStaff() && !isPartnerRole()
+        && (resource.data.get('agendaOn', false) != true || inStaffMeeting(resource.data));
+      match /agendas/{date} {
+        allow read, write: if isStaff() && !isPartnerRole()
+          && inStaffMeeting(get(/databases/$(database)/documents/staffCalendar/$(entryId)).data);
+      }
     }
     /* Office Screenings (2026-11-06). Days are set up by staff in DAN; bookings
        and slot locks are written only by Cloud Functions (Admin SDK). */
