@@ -23,8 +23,25 @@ service cloud.firestore {
        'Palau'); LDAH-Int stamps the same label onto records they create as
        `partnerIsland`. Staff locations are Hawaiian island labels, so they
        never collide with a partnerIsland value. */
+    function _publicSignupHasContact() {
+      return request.resource.data.name is string
+        && request.resource.data.name.trim().size() >= 2
+        && request.resource.data.email is string
+        && request.resource.data.email.trim().matches('^[^@ ]+@[^@ ]+[.][^@ ]+$');
+    }
     function myRole() {
       return get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role;
+    }
+    /* Super Partner (2026-09-25): a partner of all six Pacific islands. These
+       are the exact partnerIsland stamps LDAH-Int writes (PARTNER_ISLANDS).
+       An unstamped record is LDAH/Hawaiʻi and never matches. */
+    function isPipIsland(v) {
+      return v in ['American Samoa', 'Guam', 'CNMI', 'Micronesia', 'Marshall Islands', 'Palau'];
+    }
+    /* Pacific partner roles (2026-09-25). The spec says "No" to Membership,
+       KOM and the Audit Log for both; isStaff() alone let them in. */
+    function isPartnerRole() {
+      return myRole() in ['partner', 'superPartner'];
     }
     function myPartnerIsland() {
       return get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.location;
@@ -37,6 +54,12 @@ service cloud.firestore {
       allow read: if true;
       allow write: if request.auth != null;
     }
+    /* Staff Calendar only entries (2026-11-06, Daniel): meetings, trainings and
+       days off for the DAN calendars. LDAH staff only; Pacific partners, members
+       and the public never read them, which is why they are not event docs. */
+    match /staffCalendar/{entryId} {
+      allow read, write: if isStaff() && !isPartnerRole();
+    }
     match /events/{eventId} {
       allow read: if true;
       allow write: if request.auth != null;
@@ -44,7 +67,13 @@ service cloud.firestore {
         // Authenticated staff can read all; unauthenticated can read individual docs (for registration form)
         allow get: if true;
         allow list: if request.auth != null;
-        allow create: if true;
+        /* 2026-09-24: a public signup must carry a name and a real email. At
+           9:43 AM HST something drove the Connect-Gen form's submit handler
+           directly and wrote 11 signups with neither. Every public form
+           (website, app, booth page) already requires both in its own code, so
+           this refuses only what skipped the form. Staff and partners are
+           exempt: their one-off check-ins legitimately have no email. */
+        allow create: if isStaff() || _publicSignupHasContact();
         // Authenticated staff can update any signup
         allow update: if request.auth != null;
         // Unauthenticated registration: only pending→confirmed with registration data
@@ -70,7 +99,13 @@ service cloud.firestore {
         // Authenticated staff can read all; unauthenticated can read individual docs (for registration form)
         allow get: if true;
         allow list: if request.auth != null;
-        allow create: if true;
+        /* 2026-09-24: a public signup must carry a name and a real email. At
+           9:43 AM HST something drove the Connect-Gen form's submit handler
+           directly and wrote 11 signups with neither. Every public form
+           (website, app, booth page) already requires both in its own code, so
+           this refuses only what skipped the form. Staff and partners are
+           exempt: their one-off check-ins legitimately have no email. */
+        allow create: if isStaff() || _publicSignupHasContact();
         // Authenticated staff can update any signup
         allow update: if request.auth != null;
         // Unauthenticated registration: only pending→confirmed with registration data
@@ -103,7 +138,7 @@ service cloud.firestore {
       // depends on this: the member portal reads through Cloud Functions on the
       // admin SDK, and no public page reads members at all (checked across
       // volunteer.html, Members/*, and the app's howtohelp.html).
-      allow read: if isStaff();
+      allow read: if isStaff() && !isPartnerRole();
       // Anyone may start a membership — the checkout is public and unauthenticated.
       // But an injected doc must not be able to arrive already "due": the follow-up
       // sweep reads createdAt/checkoutAbandonedAt to decide when to email, so a
@@ -126,7 +161,7 @@ service cloud.firestore {
       // Staff may edit a membership but may NOT flip it to paid — that emails
       // the member and opens their portal login. Mirrors the dashboard, which
       // asks "are you sure they paid?" and shows the button to superAdmins only.
-      allow update: if isStaff()
+      allow update: if isStaff() && !isPartnerRole()
         && !(request.resource.data.status == 'paid' && resource.data.status != 'paid');
       // Marking paid: Super Admin only.
       allow update: if isSuperAdmin();
@@ -159,6 +194,47 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create: if true;
       allow update, delete: if request.auth != null;
+    }
+    /* Full volunteer application (2026-10-02). Written ONCE by the public
+       volunteer.html Step 2, which does not sign in, so create is open the
+       same way volunteers create is. The record holds DOB, license/insurance
+       numbers and criminal-history answers, so it is never publicly readable
+       or changeable, and only superAdmin/admin read it (never partners,
+       never other staff roles). doc id == the volunteers doc id. */
+    match /volunteerApplicationDetails/{volId} {
+      allow read: if isStaff() && myRole() == 'superAdmin';   // Super Admin only (Daniel 10-02)
+      allow create: if request.resource.data.volunteerId == volId
+        && exists(/databases/$(database)/documents/volunteers/$(volId))
+        && request.resource.data.keys().hasOnly(['volunteerId', 'opportunityId',
+             'opportunityTitle', 'formVersion', 'source', 'submittedAt',
+             'applicant', 'experience', 'availability', 'employment',
+             'references', 'emergencyContacts', 'driving', 'criminalHistory',
+             'isMinor', 'parentalConsent', 'signatureName', 'certified', 'signedAt'])
+        && request.resource.data.keys().hasAll(['volunteerId', 'applicant',
+             'signatureName', 'certified', 'signedAt', 'submittedAt'])
+        && request.resource.data.submittedAt == request.time
+        && request.resource.data.signedAt == request.time
+        && request.resource.data.certified == true
+        && request.resource.data.signatureName is string
+        && request.resource.data.signatureName.size() >= 2
+        && request.resource.data.signatureName.size() <= 200
+        && request.resource.data.applicant is map
+        && request.resource.data.references is list
+        && request.resource.data.references.size() <= 3
+        && request.resource.data.emergencyContacts is list
+        && request.resource.data.emergencyContacts.size() <= 2;
+      allow update, delete: if false;
+    }
+    /* The small public flag the dashboard cards read. Same path as the
+       existing volunteers block (rules are OR-ed, so this only ADDS one
+       narrow unauthenticated update): set fullApplicationAt once, nothing
+       else, and only after the private record exists. The onUpdate trigger
+       ignores it (it acts on status changes only). */
+    match /volunteers/{volId} {
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fullApplicationAt'])
+        && !('fullApplicationAt' in resource.data)
+        && request.resource.data.fullApplicationAt == request.time
+        && exists(/databases/$(database)/documents/volunteerApplicationDetails/$(volId));
     }
     /* Pacific Partners "Getting Started" deck at ldahawaii.org/PIP/.
        The deck has no login -- people type their name and email on the first
@@ -267,10 +343,32 @@ service cloud.firestore {
       allow read: if request.auth != null && request.auth.uid == userId;
       allow read: if request.auth != null
         && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin', 'admin'];
+      /* IT_Help (break-glass support account) lists the roster so the LDAH-Int
+         "Viewing as" picker can offer the partner accounts. Read only, and by
+         uid — the account sits at role `partner` while partner permissions are
+         being tested, so a role test would hand this to every partner. */
+      allow read: if request.auth != null
+        && request.auth.uid == 'Lwz0SNVIRAcC68tVQdzE2BBCapt1';
+      /* Super Partner (2026-09-25) reads the PARTNER accounts only, for the
+         "assign to" and "Viewing as" pickers. A list query must filter
+         where('role','in',['partner','superPartner']) to satisfy this. */
+      allow read: if isStaff() && myRole() == 'superPartner'
+        && resource.data.role in ['partner', 'superPartner'];
       allow update: if request.auth != null && request.auth.uid == userId
         && request.resource.data.role == resource.data.role;
       allow write: if request.auth != null
         && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role == 'superAdmin';
+    }
+
+    /* Full issue reports from the LDAH-Int "Report a problem" flow. Written
+       only by the onChatHelpRequest function on the Admin SDK, which bypasses
+       these rules. superAdmins read them so a My Day task can open the report
+       behind it. They carry a screenshot reference and a redacted error trail,
+       so no client may ever write one. (2026-09-06) */
+    match /issueReports/{docId} {
+      allow read: if request.auth != null
+        && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role == 'superAdmin';
+      allow write: if false;
     }
 
     match /partners/{document=**} {
@@ -296,6 +394,8 @@ service cloud.firestore {
            myRole() in ['superAdmin','admin']
         || (myRole() == 'partner'
             && request.resource.data.partnerIsland == myPartnerIsland())
+        || (myRole() == 'superPartner'
+            && isPipIsland(request.resource.data.partnerIsland))
       );
       /* On update, request.resource.data is the MERGED result, so partnerIsland
          survives a partial update() and the equality below still holds. */
@@ -304,11 +404,16 @@ service cloud.firestore {
         || (myRole() == 'partner'
             && resource.data.partnerIsland == myPartnerIsland()
             && request.resource.data.partnerIsland == resource.data.partnerIsland)
+        || (myRole() == 'superPartner'
+            && isPipIsland(resource.data.partnerIsland)
+            && isPipIsland(request.resource.data.partnerIsland))
       );
       allow delete: if isStaff() && (
            myRole() in ['superAdmin','admin']
         || (myRole() == 'partner'
             && resource.data.partnerIsland == myPartnerIsland())
+        || (myRole() == 'superPartner'
+            && isPipIsland(resource.data.partnerIsland))
       );
     }
 
@@ -401,6 +506,20 @@ service cloud.firestore {
       allow read, write: if false;   // Admin SDK only
     }
 
+    /* Volunteer onboarding documents (2026-10-02). Written only by Cloud
+       Functions (Admin SDK). Super Admin / Admin read it on the Roster popup. */
+    match /volunteerOnboarding/{volunteerId} {
+      allow read: if isStaff() && myRole() in ['superAdmin', 'admin'];
+      allow write: if false;
+      match /logs/{entryId} {
+        allow read: if isStaff() && myRole() in ['superAdmin', 'admin'];
+        allow write: if false;
+      }
+    }
+    match /volunteerOnboardingTokens/{tokenHash} {
+      allow read, write: if false;   // Admin SDK only; holds the raw link token
+    }
+
     match /photoReleases/{docId} {
       allow read: if request.auth != null;
       allow write: if false; // Cloud Functions (Admin SDK) only
@@ -474,9 +593,15 @@ service cloud.firestore {
     }
 
     match /chatConversations/{convId} {
-      allow read, write: if request.auth != null;
+      /* Delete is Super Admin / Admin only (2026-10-03): the only client
+         delete is the Chat Logs purge (Admin tab, superAdmin/admin). Any
+         signed-in account could delete any conversation before. Read, create
+         and update are unchanged so chat sending is not affected. */
+      allow read, create, update: if request.auth != null;
+      allow delete: if isStaff() && myRole() in ['superAdmin', 'admin'];
       match /messages/{msgId} {
-        allow read, write: if request.auth != null;
+        allow read, create, update: if request.auth != null;
+        allow delete: if isStaff() && myRole() in ['superAdmin', 'admin'];
       }
       match /webrtcSignals/{signalId} {
         allow read, write: if request.auth != null;
@@ -486,6 +611,15 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow write: if request.auth != null
         && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin', 'admin'];
+      /* Super Partner (2026-10-05): manages the 6 AM Pacific Island Partners
+         report list only. Every row they create, change or remove must be
+         scope 'pip' before and after; LDAH and 'both' rows stay admin-only. */
+      allow create: if isStaff() && myRole() == 'superPartner'
+        && request.resource.data.scope == 'pip';
+      allow update: if isStaff() && myRole() == 'superPartner'
+        && resource.data.scope == 'pip' && request.resource.data.scope == 'pip';
+      allow delete: if isStaff() && myRole() == 'superPartner'
+        && resource.data.scope == 'pip';
     }
     // Presenter staff list - source of the Event Summary Presenter dropdown.
     match /presenterStaff/{docId} {
@@ -506,6 +640,7 @@ service cloud.firestore {
       allow read: if request.auth != null && (
         resource.data.recipientUid == request.auth.uid
         || request.auth.uid == 'YmGV2TlBGqR01dVdxZ0rtFLEFCG3'
+        || request.auth.uid == 'Lwz0SNVIRAcC68tVQdzE2BBCapt1'
       );
       allow create: if request.auth != null;
       allow update: if request.auth != null && resource.data.recipientUid == request.auth.uid;
@@ -519,8 +654,29 @@ service cloud.firestore {
       allow read, create: if true;
       allow update, delete: if request.auth != null;
     }
+    /* Advocacy readiness score (2026-09-23, LDAH-Int STAGE v150.40).
+       One doc per case-advocacy family, written by the sweepAdvocacyReadiness
+       Cloud Function (admin SDK, bypasses rules). Staff-only, never partners:
+       partners are island-scoped and these docs name families from every island.
+       Staff may only confirm/change the starting score; every other field is
+       server-owned. The checks subcollection is read-only to clients. */
+    match /advocacyReadiness/{contactId} {
+      allow read: if isStaff() && !(myRole() in ['partner', 'superPartner']);
+      allow update: if isStaff() && !(myRole() in ['partner', 'superPartner'])
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['startScore','startConfirmedAt','startConfirmedBy','startConfirmedByUid'])
+        && request.resource.data.startScore is number
+        && request.resource.data.startScore >= 0
+        && request.resource.data.startScore <= 6;
+      match /checks/{checkId} {
+        allow read: if isStaff() && !(myRole() in ['partner', 'superPartner']);
+      }
+    }
+    match /advocacyReadinessConfig/{docId} {
+      allow read: if isSuperAdmin();
+    }
     match /auditLog/{document=**} {
-      allow read: if request.auth != null;
+      allow read: if isStaff() && !isPartnerRole();
       allow create: if request.auth != null;
     }
     // Record of every confidential document taken OFF the platform — backs the
@@ -534,10 +690,14 @@ service cloud.firestore {
       allow update, delete: if false;
     }
     match /emailLog/{document=**} {
-      // Only superAdmin and admin can read the email log. Cloud Functions
-      // write via admin SDK (bypasses rules); clients cannot write.
-      allow read: if request.auth != null
-        && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin', 'admin'];
+      // superAdmin and admin read the whole email log. Cloud Functions write
+      // via admin SDK (bypasses rules); clients cannot write.
+      // Super Partner (2026-10-03, Int v152.10): reads only rows stamped
+      // pip == true, i.e. email SENT AS Pacific Island Partners (logEmailSend
+      // pipStampFor). The dashboard queries where('pip','==',true), which this
+      // rule can prove. Plain partners read nothing.
+      allow read: if isStaff() && (myRole() in ['superAdmin', 'admin']
+        || (myRole() == 'superPartner' && resource.data.pip == true));
       allow write: if false;
     }
     match /eventFeedback/{document=**} {
@@ -562,6 +722,32 @@ service cloud.firestore {
     match /screeningDefaults/{docId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null
+        && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin', 'admin'];
+    }
+
+    /* ASQ Management report (2026-10-07, LDAH-Int v152.58). One doc per child,
+       id {contactId}__{screeningId}, recording whether the child has been
+       entered in ASQ Online. LDAH staff read; admins and the Daily User (data
+       entry) write. No delete from the client: the history is the record. */
+    match /asqRecords/{docId} {
+      allow read: if isStaff() && !isPartnerRole();
+      allow create, update: if isStaff() && myRole() in ['superAdmin', 'admin', 'dailyUser'];
+      allow delete: if isSuperAdmin();
+    }
+
+    /* Ke Ola Mamo monthly program report (2026-09-19). Three of the nine
+       performance measures in the KOM agreement have no home in the system --
+       CHWs trained, outreach contacts, and outbound referrals -- so they are
+       typed in per month and stored here, one doc per YYYY-MM.
+
+       No delete: this is what the monthly invoice is filed against, and a
+       month that has been reported should not be removable from the client. */
+    match /komMonthlyReports/{month} {
+      allow read: if isStaff() && !isPartnerRole();
+      /* create+update, never write: `allow write` covers delete too, and allow
+         rules are OR'd -- a following `allow delete: if false` would not take it
+         back. Naming the two operations is what actually blocks deletion. */
+      allow create, update: if isStaff()
         && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role in ['superAdmin', 'admin'];
     }
 
@@ -647,6 +833,8 @@ service cloud.firestore {
     }
   }
 }
+
+
 
 
 
