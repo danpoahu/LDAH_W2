@@ -1194,6 +1194,9 @@
         S.booked.push(rec);
         renderBooked(); holdNote(''); updateBook();
         if (S.hooks.step) S.hooks.step('booked', rec);
+        /* The booked screen clears itself after 2 minutes (Daniel 2026-11-06), so
+           the next person never sees this family's booking. */
+        clearTimeout(S.doneT); S.doneT = setTimeout(finishBooking, 120000);
       });
     }
     function bookedHtml(rec) {
@@ -1203,7 +1206,14 @@
         '<ul class="ob-bring"><li>Your child&rsquo;s glasses, if they wear them</li><li>Hearing aids, if they use them</li></ul>' +
         (others.length ? '<p class="ob-p ob-also">Also booked: ' + others.map(function (o) { return esc(o.childFirstName) + ', ' + esc(shortDate(o.date)) + ' at ' + esc(o.timeLabel); }).join('; ') + '</p>' : '') +
         '<button type="button" class="ob-cta ob-cta-light" id="ob_sib">Add a brother or sister</button>' +
-        '<button type="button" class="ob-cta ob-cta-plain" id="ob_ics">Add to my calendar</button>';
+        '<button type="button" class="ob-cta ob-cta-plain" id="ob_ics">Add to my calendar</button>' +
+        '<button type="button" class="ob-cta" id="ob_done">Done</button>';
+    }
+    /* Done (or 2 minutes after booking): start over with a clean form. */
+    function finishBooking() {
+      clearTimeout(S.doneT);
+      if (S.hooks.finished) { S.hooks.finished(); return; }
+      location.replace(location.pathname + location.search);
     }
     function renderBooked() { var el = $('ob_booked'); if (el) el.innerHTML = bookedHtml(S.booked[S.booked.length - 1]); }
 
@@ -1211,6 +1221,7 @@
        answers and the signature (each consent is signed on purpose), take a
        new hold. */
     function sibling() {
+      clearTimeout(S.doneT);
       clearChild(); S.kid = '';
       ['ob_earWhen', 'ob_sickDesc', 'ob_sign'].forEach(function (id) { $(id).value = ''; });
       document.querySelectorAll('input[name=ob_ear],input[name=ob_sick]').forEach(function (r) { r.checked = false; });
@@ -1266,6 +1277,7 @@
         if (t.id === 'ob_book') { book(); return; }
         if (t.id === 'ob_sib') { sibling(); return; }
         if (t.id === 'ob_ics') { downloadIcs(); return; }
+        if (t.id === 'ob_done') { finishBooking(); return; }
       });
       if (!$('ob_email')) return;
       $('ob_today').textContent = todayLong();
@@ -1318,9 +1330,15 @@
     }
     function err(m) { var e = $('ob_err'); if (e) { e.textContent = m || ''; e.hidden = !m; } }
 
-    function render(note) {
+    function render(note, done) {
       var b = B, s = String(b.status || '').toLowerCase(), h = '';
-      if (s === 'booked') {
+      if (s === 'booked' && done) {
+        /* After Change my time: a clear finish, so nobody is left wondering (Daniel 2026-11-06). */
+        h += '<h3>You&rsquo;re all set</h3><div class="ob-sub">' + kid(b) + '&rsquo;s screening is now:</div>' + card(b);
+        h += '<div class="ob-hold"><b>Your time is changed.</b> We emailed you the new details.</div>';
+        h += '<button type="button" class="ob-cta ob-cta-plain" id="mg_ics">Add to my calendar</button>';
+        h += '<a class="ob-cta" id="mg_done" href="../readiness.html" style="display:block;text-align:center;text-decoration:none;">Done</a>';
+      } else if (s === 'booked') {
         h += '<h3>Your screening is booked</h3><div class="ob-sub">A free vision and hearing screening for ' + kid(b) + '.</div>' + card(b);
         if (note) h += '<div class="ob-hold">' + note + '</div>';
         h += '<p class="ob-p">Please bring:</p><ul class="ob-bring"><li>Your child&rsquo;s glasses, if they wear them</li><li>Hearing aids, if they use them</li><li>Any past eye or hearing reports, if you have them</li></ul>';
@@ -1383,7 +1401,7 @@
           return;
         }
         B = Object.assign({}, B, { date: j.date || pick.date, time: j.time || pick.time, timeLabel: j.timeLabel || OB.fmtTime(j.time || pick.time), dateLabel: j.dateLabel || '', status: 'booked' });
-        render('<b>Your time is changed.</b> We emailed you the new details.');
+        render('', true);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       });
     }

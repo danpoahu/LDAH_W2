@@ -1527,6 +1527,9 @@
         S.booked.push(rec);
         renderBooked(); holdNote(''); updateBook();
         if (S.hooks.step) S.hooks.step('booked', rec);
+        /* The booked screen clears itself after 2 minutes (Daniel 2026-11-06), so
+           the next person never sees this family's booking. */
+        clearTimeout(S.doneT); S.doneT = setTimeout(finishBooking, 120000);
       });
     }
     function bookedHtml(rec) {
@@ -1536,7 +1539,14 @@
         '<ul class="ob-bring"><li>Your child&rsquo;s glasses, if they wear them</li><li>Hearing aids, if they use them</li></ul>' +
         (others.length ? '<p class="ob-p ob-also">Also booked: ' + others.map(function (o) { return esc(o.childFirstName) + ', ' + esc(shortDate(o.date)) + ' at ' + esc(o.timeLabel); }).join('; ') + '</p>' : '') +
         '<button type="button" class="ob-cta ob-cta-light" id="ob_sib">Add a brother or sister</button>' +
-        '<button type="button" class="ob-cta ob-cta-plain" id="ob_ics">Add to my calendar</button>';
+        '<button type="button" class="ob-cta ob-cta-plain" id="ob_ics">Add to my calendar</button>' +
+        '<button type="button" class="ob-cta" id="ob_done">Done</button>';
+    }
+    /* Done (or 2 minutes after booking): start over with a clean form. */
+    function finishBooking() {
+      clearTimeout(S.doneT);
+      if (S.hooks.finished) { S.hooks.finished(); return; }
+      location.replace(location.pathname + location.search);
     }
     function renderBooked() { var el = $('ob_booked'); if (el) el.innerHTML = bookedHtml(S.booked[S.booked.length - 1]); }
 
@@ -1544,6 +1554,7 @@
        answers and the signature (each consent is signed on purpose), take a
        new hold. */
     function sibling() {
+      clearTimeout(S.doneT);
       clearChild(); S.kid = '';
       ['ob_earWhen', 'ob_sickDesc', 'ob_sign'].forEach(function (id) { $(id).value = ''; });
       document.querySelectorAll('input[name=ob_ear],input[name=ob_sick]').forEach(function (r) { r.checked = false; });
@@ -1599,6 +1610,7 @@
         if (t.id === 'ob_book') { book(); return; }
         if (t.id === 'ob_sib') { sibling(); return; }
         if (t.id === 'ob_ics') { downloadIcs(); return; }
+        if (t.id === 'ob_done') { finishBooking(); return; }
       });
       if (!$('ob_email')) return;
       $('ob_today').textContent = todayLong();
