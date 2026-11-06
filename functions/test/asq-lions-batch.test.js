@@ -37,3 +37,13 @@ test("labels read plainly", () => {
   assert.strictEqual(_asqLionsLabel("WAI'ALAE ELEMENTARY PCS"), "Wai'alae (Lions)");
   assert.strictEqual(_asqLionsLabel(""), "Lions vision");
 });
+
+test("a child needs a mailing address before going to Dustin", () => {
+  const { _asqHasAddress } = require("../index.js").__test;
+  assert.strictEqual(_asqHasAddress({}, kid("a", {})), false);
+  assert.strictEqual(_asqHasAddress({ streetAddress: "  " }, kid("a", {})), false);
+  assert.strictEqual(_asqHasAddress({ streetAddress: "1 Main St" }, kid("a", {})), true);
+  assert.strictEqual(_asqHasAddress({}, kid("a", {}, { parent: { address: "2 Kukui St" } })), true);
+  const r = _raw([{ id: "c1", screenings: [kid("a", {})] }, { id: "c2", streetAddress: "1 Main St", screenings: [kid("b", {})] }], {}, T);
+  assert.deepStrictEqual(r.map((x) => [x.key, x.ready]), [["c1__a", false], ["c2__b", true]]);
+});

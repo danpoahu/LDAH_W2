@@ -28424,6 +28424,13 @@ function _asqMonthsAt(bd, today) {
   const m = (t[0] - a[0]) * 12 + (t[1] - a[1]) - (t[2] < a[2] ? 1 : 0);
   return m >= 0 ? m : null;
 }
+// ASQ Online needs a mailing address, so a child only goes to Dustin once the
+// family has a street address on the card or on the screening form (Daniel
+// 2026-11-05: 83 of the first 86 had none).
+function _asqHasAddress(c, e) {
+  const p = (e && e.parent) || {};
+  return !!(String((c && c.streetAddress) || "").trim() || String(p.address || "").trim());
+}
 function _asqLionsTodoKeys(contacts, recs, today) {
   const out = [];
   for (const c of contacts || []) {
@@ -28438,7 +28445,7 @@ function _asqLionsTodoKeys(contacts, recs, today) {
       const over = (months !== null && months > ASQ_MAX_MONTHS) || (months === null && gnum >= 1);
       if (over && rec.sendAnyway !== true) continue;
       // Exact string, because the DAN report's School filter matches it exactly.
-      out.push({ key, school: String(e.school || e.location || ch.school || "").trim() });
+      out.push({ key, school: String(e.school || e.location || ch.school || "").trim(), ready: _asqHasAddress(c, e) });
     }
   }
   return out;
@@ -28470,12 +28477,35 @@ async function _asqSyncLionsBatch(db) {
   ]);
   const recs = {};
   rs.forEach((d) => { recs[d.id] = d.data() || {}; });
-  const todo = _asqLionsTodoKeys(cs.docs.map((d) => Object.assign({ id: d.id }, d.data() || {})), recs, today);
+  const all0 = _asqLionsTodoKeys(cs.docs.map((d) => Object.assign({ id: d.id }, d.data() || {})), recs, today);
+  const todo = all0.filter((t) => t.ready);
+  const noAddr = new Set(all0.filter((t) => !t.ready).map((t) => t.key));
   const tq = await db.collection("interactions").where("ownerUid", "==", ASQ_DAILY_UID).where("workflowStep", "==", "asqBatch").get();
-  const open = tq.docs.filter((d) => { const x = d.data() || {}; return x.status !== "Closed" && x.asqSource === "lions-screening"; });
+  let open = tq.docs.filter((d) => { const x = d.data() || {}; return x.status !== "Closed" && x.asqSource === "lions-screening"; });
+  const out = { waiting: todo.length, noAddress: noAddr.size, created: [], added: 0, removed: 0 };
+  // A child whose address is missing comes off an open task; they come back
+  // as soon as an address is added.
+  const cur = new Map();
+  for (const d of open) {
+    const x = d.data() || {}, keys = x.asqKeys || [], keep = keys.filter((k) => !noAddr.has(k));
+    cur.set(d.id, keep);
+    if (keep.length === keys.length) continue;
+    out.removed += keys.length - keep.length;
+    const label = x.asqSchoolLabel || _asqLionsLabel(x.asqSchool);
+    const upd = { asqKeys: keep, updatedAt: admin.firestore.FieldValue.serverTimestamp() };
+    if (!keep.length) {
+      upd.status = "Closed";
+      upd.notes = (x.notes || "") + "\n---\n[System — " + today + "]\nNone of these children have a mailing address yet. Closed automatically; each child comes back once an address is added.";
+    } else {
+      upd.summary = "Enter the " + keep.length + " " + label + " " + (keep.length === 1 ? "child" : "children") + " in ASQ Online";
+      upd.notes = ASQ_LIONS_NOTES(keep.length, label);
+    }
+    await d.ref.update(upd);
+    if (keep.length) await _asqBatchRecount(db, keep[0]);
+  }
+  open = open.filter((d) => cur.get(d.id).length);
   const inOpen = new Set();
-  open.forEach((d) => ((d.data() || {}).asqKeys || []).forEach((k) => inOpen.add(k)));
-  const out = { waiting: todo.length, created: [], added: 0 };
+  open.forEach((d) => cur.get(d.id).forEach((k) => inOpen.add(k)));
   for (const g of _asqGroupBySchool(todo.filter((t) => !inOpen.has(t.key)))) {
     const label = _asqLionsLabel(g.school);
     const task = open.find((d) => ((d.data() || {}).asqSchool || "") === g.school);
@@ -28483,7 +28513,7 @@ async function _asqSyncLionsBatch(db) {
       out.created.push(await _asqCreateSchoolBatch(db, { keys: g.keys, school: g.school, source: "lions-screening", label, notes: ASQ_LIONS_NOTES(g.keys.length, label), urgent: false }, ASQ_DAILY_UID));
       continue;
     }
-    const all = ((task.data() || {}).asqKeys || []).concat(g.keys);
+    const all = cur.get(task.id).concat(g.keys);
     await task.ref.update({
       asqKeys: all, summary: "Enter the " + all.length + " " + label + " children in ASQ Online",
       notes: ASQ_LIONS_NOTES(all.length, label), followUpDate: today,
@@ -32402,6 +32432,7 @@ exports.onChatHelpRequest = functions
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
   _asqLionsTodoKeys,
+  _asqHasAddress,
   _asqGroupBySchool,
   _asqLionsLabel,
   _mergeGrantPrograms,
