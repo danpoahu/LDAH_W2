@@ -60,6 +60,19 @@ service cloud.firestore {
     match /staffCalendar/{entryId} {
       allow read, write: if isStaff() && !isPartnerRole();
     }
+    /* Office Screenings (2026-11-06). Days are set up by staff in DAN; bookings
+       and slot locks are written only by Cloud Functions (Admin SDK). */
+    match /officeScreeningDays/{date} {
+      allow read, write: if isStaff() && !isPartnerRole();
+    }
+    match /officeScreeningBookings/{bookingId} {
+      allow read: if isStaff() && !isPartnerRole();
+      allow write: if false;
+    }
+    match /officeScreeningSlots/{slotId} {
+      allow read: if isStaff() && !isPartnerRole();
+      allow write: if false;
+    }
     match /events/{eventId} {
       allow read: if true;
       allow write: if request.auth != null;
