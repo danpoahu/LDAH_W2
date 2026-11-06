@@ -62,6 +62,12 @@
   .yn-detail[hidden] { display: none; }
   .lookup-note { background:#ECFDF5; border:1px solid #A7F3D0; color:#065F46; border-radius:10px; padding:.7rem 1rem; margin-top:.5rem; font-size:.9rem; display:none; }
   .lookup-note.show { display:block; }
+  .kid-chips { display:flex; flex-wrap:wrap; gap:.5rem; }
+  .kid-chip { border:1.5px solid #cbd5e1; border-radius:999px; padding:.5rem 1rem; font-family:inherit; font-size:1rem; background:#fff; color:var(--text-dark); cursor:pointer; }
+  .kid-chip.on { background:var(--primary-blue); border-color:var(--primary-blue); color:#fff; font-weight:600; }
+  input.fill, select.fill { background:#F0FDF4; border-color:#BBF7D0; }
+  input.fill::placeholder { color:#166534; opacity:1; }
+  .keep-hint[hidden] { display:none; }
   .childbox { background:#F0F9FF; border:1px solid #BAE6FD; border-radius:14px; padding:1.3rem 1.4rem; }
   .consent-statement { background:#F0F9FF; border:1px solid #BAE6FD; border-radius:12px; padding:1.1rem 1.3rem; margin:1.5rem 0; font-size:.96rem; line-height:1.6; color:#0C4A6E; font-style: italic; }
   .btn { width: 100%; padding: 1rem 1.5rem; font-family: inherit; font-size: 1.1rem; font-weight: 600; border-radius: 12px; cursor: pointer; border: 2px solid transparent; color: #fff; background: linear-gradient(135deg,var(--ocean-mid),var(--accent-teal)); }
@@ -406,15 +412,133 @@
     }
   }
 
+  /* ── Welcome back (STAGE 2026-11-06) ─────────────────────────────────────
+     Same prefill as the office booking form: email first; when the family is
+     on file, fill parent names + relationship, show the phone and address only
+     as "on file" hints (kept on the server unless they type new ones), and
+     offer the children on file as chips that fill that child's details.
+     Health questions are never filled in. */
+  const ENDPOINT_FAMILY = 'https://us-central1-ldah-932d5.cloudfunctions.net/lookupOfficeScreeningFamily';
+  const WB = { look: null, lookedUp: '', kid: '' };
+  function wbEsc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+  function wbVal(id){ const el = $(id); return el ? String(el.value || '').trim() : ''; }
+  function wbFill(id, on){ const el = $(id); if (el) el.classList.toggle('fill', !!on); }
+  function wbSetRadio(name, val){
+    if (!val) return false;
+    const lc = String(val).trim().toLowerCase();
+    const hit = Array.from(document.querySelectorAll('input[name="'+name+'"]')).find(r => r.value.toLowerCase() === lc);
+    if (hit) { hit.checked = true; hit.dispatchEvent(new Event('change', { bubbles: true })); }
+    return !!hit;
+  }
+  function wbSetEth(val){
+    const sel = $('ethnicity'), oth = $('ethnicityOther'); if (!sel) return;
+    sel.value = ''; if (oth) { oth.value = ''; oth.hidden = true; }
+    if (!val) return;
+    const k = s => String(s).toLowerCase().replace(/[^a-z]/g, '');
+    const opt = Array.from(sel.options).find(o => o.value && k(o.text) === k(val));
+    if (opt) sel.value = opt.value; else if (oth) { sel.value = 'Other'; oth.hidden = false; oth.value = val; }
+  }
+  const WB_ADDR = ['s_streetAddress', 's_city', 's_zipCode'];
+  function wbKeepPhone(){ return !!(WB.look && WB.look.hasPhone && !wbVal('phone')); }
+  function wbKeepAddress(){ return !!(WB.look && WB.look.hasAddress && !WB_ADDR.some(id => wbVal(id))); }
+  function wbReset(){
+    WB.look = null; WB.kid = '';
+    if (window.ldahOnFileReset) ldahOnFileReset();
+    const p = $('phone'); if (p) { p.placeholder = '(808) 555-0123'; wbFill('phone', false); }
+    const a = $('s_streetAddress'); if (a) { a.placeholder = ''; wbFill('s_streetAddress', false); }
+    ['phoneKeepHint', 'addrKeepHint'].forEach(id => { const h = $(id); if (h) h.hidden = true; });
+    const n = $('lookupNote'); if (n) n.classList.remove('show');
+    const w = $('kidsWrap'); if (w) w.hidden = true;
+  }
+  function wbKids(){ return (WB.look && Array.isArray(WB.look.children)) ? WB.look.children.filter(c => c && c.firstName) : []; }
+  function wbRenderKids(){
+    const kids = wbKids(), w = $('kidsWrap'); if (!w) return;
+    if (!kids.length) { w.hidden = true; return; }
+    const names = kids.map(c => c.firstName);
+    $('kids').innerHTML = kids.map((c, i) => {
+      const key = c.key || ('k' + i);
+      const dup = names.filter(n => n === c.firstName).length > 1;
+      return '<button type="button" class="kid-chip' + (WB.kid === key ? ' on' : '') + '" data-kid="' + wbEsc(key) + '">' +
+        wbEsc(c.firstName + (dup && c.lastName ? ' ' + c.lastName.charAt(0) + '.' : '')) + '</button>';
+    }).join('') + '<button type="button" class="kid-chip' + (WB.kid === 'new' ? ' on' : '') + '" data-kid="new">Someone else</button>';
+    w.hidden = false;
+  }
+  function wbClearChild(){
+    ['cFirst', 'cMiddle', 'cLast', 'cBirthday'].forEach(id => { const el = $(id); if (el) { el.value = ''; wbFill(id, false); } });
+    document.querySelectorAll('input[name=cGender],input[name=nh]').forEach(r => { r.checked = false; });
+    wbSetEth(''); wbFill('ethnicity', false);
+  }
+  function wbPickKid(key){
+    WB.kid = key; wbClearChild();
+    const kids = wbKids();
+    const c = key === 'new' ? null : kids.find((k, i) => (k.key || ('k' + i)) === key);
+    if (c) {
+      [['cFirst', c.firstName], ['cMiddle', c.middleName], ['cLast', c.lastName]].forEach(([id, val]) => { const el = $(id); if (el && val) { el.value = val; wbFill(id, true); } });
+      if (c.birthday && /^\d{4}-\d{2}-\d{2}$/.test(c.birthday) && $('cBirthday')) { $('cBirthday').value = c.birthday; wbFill('cBirthday', true); }
+      wbSetRadio('cGender', c.gender); wbSetRadio('nh', c.nativeHawaiian);
+      wbSetEth(c.ethnicity); wbFill('ethnicity', !!c.ethnicity);
+    }
+    wbRenderKids();
+    document.querySelectorAll('.missing').forEach(el => el.classList.remove('missing'));
+  }
+  async function wbLookup(){
+    const email = wbVal('email').toLowerCase();
+    if (!email || email.indexOf('@') < 1 || email === WB.lookedUp) return;
+    WB.lookedUp = email;
+    let j = null;
+    try {
+      const res = await fetch(ENDPOINT_FAMILY, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email }) });
+      if (!res.ok) return;
+      j = await res.json();
+    } catch (_) { return; }
+    if (wbVal('email').toLowerCase() !== email) return;
+    wbReset();
+    if (!j || !j.found) return;
+    WB.look = j;
+    if (j.parentFirstName && !wbVal('pFirst')) { $('pFirst').value = j.parentFirstName; wbFill('pFirst', true); }
+    if (j.parentLastName && !wbVal('pLast')) { $('pLast').value = j.parentLastName; wbFill('pLast', true); }
+    if (j.relationship && !radioVal('rel')) {
+      const rel = String(j.relationship);
+      if (/^other:/i.test(rel)) { wbSetRadio('rel', 'Other'); $('relOtherText').value = rel.replace(/^other:\s*/i, ''); }
+      else if (!wbSetRadio('rel', rel)) { wbSetRadio('rel', 'Other'); $('relOtherText').value = rel; }
+    }
+    const p = $('phone');
+    if (p && j.hasPhone && j.phoneMasked) {
+      p.placeholder = j.phoneMasked + ' on file';
+      if (window.ldahOnFile) ldahOnFile('phone', ['phone'], 'Phone', j.phoneMasked + ' on file', 'Use a different number');
+    }
+    const a = $('s_streetAddress');
+    if (a && j.hasAddress) {
+      a.placeholder = 'On file' + (j.addressHint ? ' · ' + j.addressHint : '');
+      if (window.ldahOnFile) ldahOnFile('addr', WB_ADDR, 'Address', 'On file' + (j.addressHint ? ' · ' + j.addressHint : ''), 'Use a different address');
+    }
+    wbRenderKids();
+    const note = $('lookupNote');
+    if (note) {
+      note.innerHTML = '<b>Welcome back' + (j.parentFirstName ? ', ' + wbEsc(j.parentFirstName) : '') + '!</b> We found you on file and filled in what we have. Check it and change anything that&rsquo;s wrong.';
+      note.classList.add('show');
+    }
+  }
+  function wbWire(){
+    const e = $('email'); if (!e) return;
+    e.addEventListener('blur', wbLookup);
+    e.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); wbLookup(); } });
+    const p = $('phone'); if (p) p.addEventListener('input', () => wbFill('phone', false));
+    WB_ADDR.forEach(id => { const el = $(id); if (el) el.addEventListener('input', () => wbFill('s_streetAddress', false)); });
+    ['pFirst', 'pLast', 'cFirst', 'cMiddle', 'cLast', 'cBirthday', 'ethnicity'].forEach(id => { const el = $(id); if (el) el.addEventListener('input', () => wbFill(id, false)); });
+    const k = $('kids'); if (k) k.addEventListener('click', ev => { const b = ev.target.closest('.kid-chip'); if (b) wbPickKid(b.getAttribute('data-kid')); });
+  }
+
   // ══ SCREENING MODE — full consent form ported VERBATIM from readiness/index.html ══
   function screeningFieldsHtml(){
     return ''
     + '<div class="section">'
     +   '<div class="section-title">Parent / Guardian</div>'
     +   '<div class="fg">'
-    +     '<label class="lbl" for="email">Email <span style="font-weight:400;color:var(--text-light);">(optional)</span></label>'
-    +     '<span class="hint">If you have one, we’ll check if you’re already on file and can email your results. Leave blank if you don’t have email.</span>'
+    +     '<label class="lbl" for="email">Email</label>'
+    +     '<span class="hint">If you have one, we’ll check if you’re already on file, fill in what we have, and can email your results. Leave it blank if you don’t have email.</span>'
     +     '<input type="email" id="email" autocomplete="email" inputmode="email">'
+    +     '<div id="lookupNote" class="lookup-note"></div>'
     +   '</div>'
     +   '<div class="grid2">'
     +     '<div class="fg"><label class="lbl" for="pFirst">Your First Name <span class="req">*</span></label><input type="text" id="pFirst" autocomplete="given-name"></div>'
@@ -436,13 +560,13 @@
     +     '</div>'
     +     '<input type="text" id="relOtherText" placeholder="Please specify" style="margin-top:.6rem;" hidden>'
     +   '</div>'
-    +   '<div class="fg"><label class="lbl" for="s_streetAddress">Address</label><input type="text" id="s_streetAddress" autocomplete="street-address"></div>'
+    +   '<div class="fg"><label class="lbl" for="s_streetAddress">Address</label><input type="text" id="s_streetAddress" autocomplete="street-address"><span class="hint keep-hint" id="addrKeepHint" hidden style="margin-top:.35rem;">Keep it, or type a new one.</span></div>'
     +   '<div class="grid2">'
     +     '<div class="fg"><label class="lbl" for="s_city">City</label><input type="text" id="s_city" autocomplete="address-level2"></div>'
     +     '<div class="fg"><label class="lbl" for="s_zipCode">Zip Code</label><input type="text" id="s_zipCode" inputmode="numeric" autocomplete="postal-code"></div>'
     +   '</div>'
     +   '<div class="second-parent-block" style="margin-top:10px;">'
-    +     '<a href="#" id="addSecondParentLink" onclick="toggleSecondParent(event)" style="font-size:.9rem;color:#0891B2;text-decoration:none;font-weight:600;">+ Add a second parent/guardian (optional)</a>'
+    +     '<a href="#" id="addSecondParentLink" onclick="toggleSecondParent(event)" style="font-size:.9rem;color:#0891B2;text-decoration:none;font-weight:600;">+ Add a second parent/guardian</a>'
     +     '<div id="secondParentFields" style="display:none;margin-top:10px;">'
     +       '<div style="font-weight:600;margin-bottom:6px;">Second parent / guardian</div>'
     +       '<div class="fg"><label class="lbl" for="secondParentFirst">First name</label><input type="text" id="secondParentFirst" autocomplete="given-name"></div>'
@@ -453,11 +577,13 @@
     + '</div>'
     + '<div class="section">'
     +   '<div class="section-title">Child</div>'
+    +   '<div class="fg" id="kidsWrap" hidden><label class="lbl">Which child is this for?</label><div class="kid-chips" id="kids"></div></div>'
     +   '<div class="grid3">'
     +     '<div class="fg"><label class="lbl" for="cFirst">First <span class="req">*</span></label><input type="text" id="cFirst"></div>'
     +     '<div class="fg"><label class="lbl" for="cMiddle">Middle</label><input type="text" id="cMiddle"></div>'
     +     '<div class="fg"><label class="lbl" for="cLast">Last <span class="req">*</span></label><input type="text" id="cLast"></div>'
     +   '</div>'
+    +   '<div class="fg"><label class="lbl" for="cBirthday">Child’s birthday</label><input type="date" id="cBirthday"></div>'
     +   '<div class="fg">'
     +     '<label class="lbl">Child’s Gender</label>'
     +     '<div class="choices">'
@@ -551,6 +677,7 @@
     $('ethnicity').addEventListener('change', () => { $('ethnicityOther').hidden = ($('ethnicity').value !== 'Other'); });
     form.addEventListener('input', e => { if (e.target.classList) e.target.classList.remove('missing'); });
     form.addEventListener('change', e => { const g = e.target.closest('.choices'); if (g) g.classList.remove('missing'); });
+    wbWire();
     form.addEventListener('submit', submitScreening);
   }
 
@@ -561,7 +688,7 @@
     return {
       parent: { email: v('email'), firstName: v('pFirst'), lastName: v('pLast'), relationship: rel,
         streetAddress: v('s_streetAddress'), city: v('s_city'), zipCode: v('s_zipCode') },
-      child: { firstName: v('cFirst'), middleName: v('cMiddle'), lastName: v('cLast'),
+      child: { firstName: v('cFirst'), middleName: v('cMiddle'), lastName: v('cLast'), birthday: v('cBirthday'),
         gender: radioVal('cGender'), nativeHawaiian: radioVal('nh'), ethnicity: eth },
       health: { chronicEar: radioVal('ear'), lastEarInfection: v('earWhen'),
         sickRecently: radioVal('sick'), illnessDescribe: v('sickDesc') },
@@ -578,6 +705,7 @@
     if (!radioVal('rel')) { $('relGroup').classList.add('missing'); miss.push('your relationship'); }
     if (!d.child.firstName) { mark('cFirst'); miss.push("child's first name"); }
     if (!d.child.lastName) { mark('cLast'); miss.push("child's last name"); }
+    if (d.child.birthday && (d.child.birthday > new Date().toISOString().slice(0,10) || d.child.birthday < '1900-01-01')) { mark('cBirthday'); miss.push("a real birthday (or leave it blank)"); }
     if (!d.signedName || d.signedName.indexOf(' ') === -1) { mark('sign'); miss.push('your first AND last name to sign'); }
     return miss;
   }
@@ -597,7 +725,7 @@
     try {
       // SAME payload shape as the kiosk, plus eventId (harmless if ignored)
       const _sp = _collectSecondParent();
-      const res = await fetch(ENDPOINT_SUBMIT, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(Object.assign({ form: data, eventId: eventId }, _sp ? { secondParent: _sp } : {})) });
+      const res = await fetch(ENDPOINT_SUBMIT, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(Object.assign({ form: data, eventId: eventId, keepPhone: wbKeepPhone(), keepAddress: wbKeepAddress() }, _sp ? { secondParent: _sp } : {})) });
       if (!res.ok) {
         let dd=''; try { const j = await res.json(); dd = j && j.error ? ' ('+j.error+')' : ''; } catch(_){}
         showErr("We couldn't save the consent" + dd + '. Please try again.');
@@ -615,5 +743,53 @@
   }
 </script>
 <script>/* SPEED — DO NOT REMOVE (2026-09-26): wakes the Submit function and its database connection while the family reads the form, so Submit does not wait ~5 s. */try{fetch('https://us-central1-ldah-932d5.cloudfunctions.net/submitReadinessConsent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({warm:true})}).catch(function(){});}catch(_){}</script>
+<script>/* One-tap signature (Daniel 2026-11-06): the parent's name is already on the
+   form, so offer "Sign as <name>". Tapping it types the name into the signature
+   box; typing a name by hand still works. The form is drawn by script, so this
+   attaches itself once the signature box exists. */
+(function(){var SIGN='sign',FIRST='pFirst',LAST='pLast';
+function wire(){var s=document.getElementById(SIGN),f=document.getElementById(FIRST),l=document.getElementById(LAST);
+ if(!s||!f||!l||s._signAs)return;s._signAs=1;
+ var b=document.createElement('button');b.type='button';b.hidden=true;
+ b.style.cssText='display:block;margin-top:6px;border:1px solid #0891B2;background:#ECFEFF;color:#0E7490;border-radius:999px;padding:6px 14px;font:700 .85rem Outfit,system-ui,sans-serif;cursor:pointer;';
+ s.insertAdjacentElement('afterend',b);
+ function nm(){return (f.value.trim()+' '+l.value.trim()).trim();}
+ function upd(){var n=nm();var show=!!(f.value.trim()&&l.value.trim())&&s.value.trim()!==n;if(b.hidden===show)b.hidden=!show;if(show)b.textContent='Tap to sign as '+n;}
+ b.addEventListener('click',function(){s.value=nm();s.dispatchEvent(new Event('input',{bubbles:true}));s.dispatchEvent(new Event('change',{bubbles:true}));s.classList.remove('ob-missing','missing','err');upd();});
+ [f,l,s].forEach(function(e){e.addEventListener('input',upd);});setInterval(upd,700);}
+setInterval(wire,500);})();</script>
+<script>/* "On file" for a returning family (Daniel 2026-11-06). The phone and address
+   are never shown. Their boxes are hidden (and anything the browser autofilled
+   into them is cleared) behind one line: "(707) •••-••80 on file · Use a
+   different number". The link opens the boxes empty. Empty boxes = keep what
+   is on file. */
+window.ldahOnFile = function (key, ids, label, text, linkText) {
+  window.ldahOnFileReset(key);
+  var els = ids.map(function (id) { return document.getElementById(id); }).filter(Boolean);
+  if (!els.length) return;
+  var wraps = [];
+  els.forEach(function (el) {
+    el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true }));
+    var w = el.closest('.ob-fg, .fg') || el; if (wraps.indexOf(w) === -1) wraps.push(w);
+  });
+  wraps.forEach(function (w) { w.style.display = 'none'; w.setAttribute('data-onfile', key); });
+  var box = document.createElement('div');
+  box.className = 'ldah-onfile'; box.setAttribute('data-onfile-box', key);
+  box.style.cssText = 'grid-column:1/-1;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:9px 12px;margin:6px 0;font-size:.92rem;color:#166534;';
+  box.innerHTML = '<b></b> <span></span> &middot; <a href="#" style="color:#0E7490;font-weight:700;"></a>';
+  box.querySelector('b').textContent = label + ':';
+  box.querySelector('span').textContent = text;
+  var a = box.querySelector('a'); a.textContent = linkText;
+  a.addEventListener('click', function (e) {
+    e.preventDefault(); window.ldahOnFileReset(key);
+    var first = els[0]; if (first) first.focus();
+  });
+  wraps[0].parentNode.insertBefore(box, wraps[0]);
+};
+window.ldahOnFileReset = function (key) {
+  document.querySelectorAll(key ? '[data-onfile-box="' + key + '"]' : '[data-onfile-box]').forEach(function (b) { b.remove(); });
+  document.querySelectorAll(key ? '[data-onfile="' + key + '"]' : '[data-onfile]').forEach(function (w) { w.style.display = ''; w.removeAttribute('data-onfile'); });
+};
+</script>
 </body>
 </html>
