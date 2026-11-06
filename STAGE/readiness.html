@@ -694,6 +694,75 @@
             text-align: center;
         }
     }
+
+    /* Office screening booking (STAGE 2026-11-06) */
+    .ob-card { background: white; border-radius: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 26px; margin: 10px 0 20px; border-top: 5px solid var(--sunset-coral); scroll-margin-top: 120px; min-width: 0; }
+    .ob-card [hidden] { display: none !important; }
+    .ob-card h3 { font-family: 'Outfit', sans-serif; color: #1a3c6e; font-size: 1.3rem; margin-bottom: 2px; }
+    .ob-sub { font-size: .92rem; color: var(--text-light); line-height: 1.5; }
+    .ob-title { margin-top: 18px; font: 700 1.05rem 'Outfit', sans-serif; color: #1a3c6e; }
+    .ob-days { display: flex; gap: 8px; overflow-x: auto; margin: 14px 0 4px; padding-bottom: 6px; -webkit-overflow-scrolling: touch; }
+    .ob-day { flex: none; width: 88px; border: 1px solid #E2E8F0; border-radius: 12px; text-align: center; padding: 8px 4px; background: #fff; cursor: pointer; font-family: inherit; color: inherit; }
+    .ob-day small { display: block; font: 700 .72rem 'Outfit', sans-serif; color: var(--text-light); text-transform: uppercase; }
+    .ob-day b { display: block; font: 800 1.5rem 'Outfit', sans-serif; color: #1a3c6e; line-height: 1.1; }
+    .ob-day em { display: block; font-style: normal; font-size: .74rem; color: #0E7490; font-weight: 700; margin-top: 2px; }
+    .ob-day.full em { color: #94A3B8; }
+    .ob-day.on { border: 2px solid var(--ocean-deep); background: #ECFEFF; }
+    .ob-times { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; margin-top: 10px; }
+    .ob-tm { border: 1px solid #BAE6FD; border-radius: 10px; padding: 10px 4px; text-align: center; font: 800 .95rem 'Outfit', sans-serif; color: #0E7490; background: #fff; cursor: pointer; }
+    .ob-tm:hover:not(:disabled) { border-color: var(--ocean-deep); }
+    .ob-tm.taken { background: #F1F5F9; color: #94A3B8; border-color: #E2E8F0; text-decoration: line-through; cursor: not-allowed; }
+    .ob-tm.on { background: var(--ocean-deep); color: #fff; border-color: var(--ocean-deep); }
+    .ob-day:focus-visible, .ob-tm:focus-visible, .ob-chip:focus-visible, .ob-cta:focus-visible { outline: 3px solid var(--ocean-light); outline-offset: 2px; }
+    .ob-hold { margin-top: 12px; background: #ECFEFF; border: 1px solid #A5F3FC; border-radius: 10px; padding: 10px 12px; font-size: .92rem; color: #0E7490; line-height: 1.5; }
+    .ob-hold.warn { background: #FFFBEB; border-color: #FDE68A; color: #92400E; }
+    .ob-count { display: inline-block; font: 700 .82rem 'Outfit', sans-serif; background: #fff; border-radius: 99px; padding: 1px 9px; margin-left: 4px; }
+    .ob-sec { margin-top: 20px; font: 800 .8rem 'Outfit', sans-serif; color: #0E7490; text-transform: uppercase; letter-spacing: .06em; border-bottom: 1px solid #E0F2FE; padding-bottom: 4px; margin-bottom: 10px; }
+    .ob-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+    .ob-grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 14px; }
+    .ob-grid > *, .ob-grid3 > * { min-width: 0; }
+    .ob-fg { margin-bottom: 12px; }
+    .ob-lbl { display: block; font-weight: 600; font-size: .92rem; color: #334155; margin-bottom: 4px; }
+    .ob-req { color: var(--sunset-coral); }
+    .ob-hint { display: block; font-size: .82rem; color: var(--text-light); margin-top: 4px; line-height: 1.45; }
+    .ob-in { width: 100%; padding: .7rem .8rem; font-family: inherit; font-size: 1rem; color: var(--text-dark); background: #fff; border: 1.5px solid #cbd5e1; border-radius: 10px; }
+    .ob-in:focus { outline: none; border-color: var(--ocean-deep); box-shadow: 0 0 0 3px rgba(8,145,178,.15); }
+    .ob-in.fill { background: #F0FDF4; border-color: #BBF7D0; }
+    .ob-in.fill::placeholder { color: #166534; opacity: 1; }
+    .ob-in.ob-missing, .ob-choices.ob-missing .ob-choice { border-color: #EF4444; background: #FEF2F2; }
+    .ob-static { color: var(--text-light); }
+    .ob-sign { font-family: 'Outfit', cursive; font-size: 1.15rem; font-style: italic; }
+    .ob-choices, .ob-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ob-choice { display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid #cbd5e1; border-radius: 999px; padding: 5px 12px; cursor: pointer; font-size: .92rem; background: #fff; }
+    .ob-choice input { width: 16px; height: 16px; accent-color: var(--ocean-deep); }
+    .ob-choice:has(input:checked) { border-color: var(--ocean-deep); background: #F0F9FF; font-weight: 700; }
+    .ob-q { font-size: .92rem; color: #334155; margin: 2px 0 6px; }
+    .ob-chip { border: 1.5px solid #cbd5e1; border-radius: 999px; padding: 6px 14px; font: 600 .92rem 'Source Sans 3', sans-serif; background: #fff; color: #334155; cursor: pointer; }
+    .ob-chip.on { background: var(--ocean-deep); border-color: var(--ocean-deep); color: #fff; }
+    #ob_kidsWrap { margin-bottom: 12px; }
+    .ob-found { margin: 0 0 12px; background: #ECFDF5; border: 1px solid #A7F3D0; color: #065F46; border-radius: 10px; padding: 10px 12px; font-size: .92rem; line-height: 1.5; }
+    .ob-link { font: 700 .9rem 'Outfit', sans-serif; color: #0E7490; text-decoration: none; }
+    .ob-sp { margin-bottom: 4px; }
+    .ob-consent { background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 12px; padding: 12px 14px; margin: 4px 0 14px; font-size: .94rem; line-height: 1.6; color: #0C4A6E; font-style: italic; }
+    .ob-cta { display: block; width: 100%; margin-top: 14px; background: linear-gradient(90deg, var(--sunset-coral), var(--sunset-warm)); color: #fff; border: none; border-radius: 10px; padding: 13px; font: 800 1.02rem 'Outfit', sans-serif; text-align: center; cursor: pointer; }
+    .ob-cta:disabled { opacity: .55; cursor: not-allowed; }
+    .ob-cta-light { background: #fff; color: #0E7490; border: 1px solid #A5F3FC; }
+    .ob-cta-plain { background: #fff; color: var(--text-light); border: 1px solid #E2E8F0; margin-top: 8px; }
+    .ob-err { background: #FEE2E2; border: 1px solid #FCA5A5; color: #991B1B; border-radius: 10px; padding: 10px 12px; margin-top: 10px; font-size: .94rem; }
+    .ob-when { background: #ECFEFF; border: 1px solid #A5F3FC; border-radius: 12px; padding: 14px 16px; margin: 12px 0; color: #334155; }
+    .ob-when b { display: block; font: 800 1.15rem 'Outfit', sans-serif; color: #0E7490; }
+    .ob-p { margin: 6px 0 0; color: var(--text-dark); }
+    .ob-also { color: var(--text-light); font-size: .9rem; }
+    .ob-bring { margin: 6px 0 0; padding-left: 20px; }
+    .ob-bring li { margin: 3px 0; }
+    .ob-msg { margin-top: 12px; color: var(--text-light); }
+    .ob-msg a { color: var(--ocean-deep); font-weight: 600; }
+    @media (max-width: 600px) {
+        .ob-card { padding: 18px 16px; }
+        .ob-grid, .ob-grid3 { grid-template-columns: 1fr; }
+        .ob-times { grid-template-columns: repeat(3, 1fr); }
+        .ob-day { width: 72px; }
+    }
     </style>
 
     <!-- Hawaii Islands SVG Definition -->
@@ -762,6 +831,26 @@
                 <h3 id="readiness-devTitle">Developmental Screening</h3>
                 <p id="readiness-devText">Our qualified personnel use the Ages & Stages Questionnaire (ASQ-3) and ASQ-SE (Social-Emotional) screening tools. When developmental concerns are detected, children will be screened for autism using the Modified Checklist for Autism in Toddlers (M-CHAT).</p>
             </div>
+        </div>
+
+        <!-- Office screening booking (STAGE 2026-11-06). Filled by OfficeBooking below. -->
+        <div class="ob-card" id="book">
+            <h3>Book a free screening at our office</h3>
+            <div class="ob-sub">245 N Kukui St, Suite 205, Honolulu &middot; each screening takes about 15 minutes</div>
+            <div id="ob_loading" class="ob-msg">Loading open times&hellip;</div>
+            <div id="ob_none" class="ob-msg" hidden>There are no open times at our office right now. <a href="contact.html">Contact us</a> and we will help you find a time.</div>
+            <div id="ob_flow" hidden>
+                <div id="ob_pick"></div>
+                <div id="ob_hold" class="ob-hold" hidden></div>
+                <div id="ob_formWrap" hidden>
+                    <div class="ob-title">LDAH Screening Consent</div>
+                    <div class="ob-sub">The same Outreach Screening Consent we use at our screenings. Your time is booked when you sign.</div>
+                    <div id="ob_form"></div>
+                    <div id="ob_bookBar"></div>
+                    <div class="ob-sub" style="margin-top:10px">Booking more than one child? After booking, press &ldquo;Add a brother or sister&rdquo; to take the next open time.</div>
+                </div>
+            </div>
+            <div id="ob_booked" hidden></div>
         </div>
 
         <!-- Services Grid -->
@@ -1045,6 +1134,519 @@
             wireFormatters();
           }
         })();
+    </script>
+
+
+    <!-- Office screening booking engine (shared with readiness/booking.html and the app) -->
+    <script>
+  /* Office screening booking (STAGE, 2026-11-06). One engine shared by the
+     website School Readiness page, its booking manager page and the app.
+     Every call goes to the public Cloud Functions; nothing here reads or
+     writes Firestore directly. A picked time is HELD for 10 minutes while the
+     family signs the same LDAH Screening Consent as the outreach forms; signed
+     = booked. The page supplies the containers and a hooks object. */
+  window.OfficeBooking = (function () {
+    'use strict';
+    var BASE = 'https://us-central1-ldah-932d5.cloudfunctions.net/';
+    var PLACE = 'LDAH office, 245 N Kukui St, Suite 205, Honolulu';
+    var ADDRESS = '245 N Kukui St, Suite 205, Honolulu, HI 96817';
+    var WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    var WDL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    var MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var MOL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    var REL = ['Mother', 'Step-mother', 'Grandmother', 'Aunty', 'Guardian', 'Father', 'Step-father', 'Grandfather', 'Uncle', 'Other'];
+    var ETH = ['Hawaiian / Part Hawaiian', 'Filipino', 'Japanese', 'Chinese', 'Korean', 'Samoan', 'Chuukese', 'Marshallese', 'Tongan', 'Other Pacific Islander', 'Caucasian / White', 'Portuguese', 'Hispanic / Latino', 'Black / African American', 'Mixed / Two or more'];
+
+    function $(id) { return document.getElementById(id); }
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+    function radioVal(name) { var el = document.querySelector('input[name="' + name + '"]:checked'); return el ? el.value : ''; }
+    function v(id) { var el = $(id); return el ? String(el.value || '').trim() : ''; }
+
+    /* POST JSON. Works whether the function answers 200 {ok:false,error}
+       or a 4xx with {error}. Never throws. */
+    function api(name, body) {
+      return fetch(BASE + name, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })
+        .then(function (r) {
+          return r.json().catch(function () { return {}; }).then(function (j) {
+            j = j || {};
+            if (!r.ok || j.ok === false) { j.ok = false; if (!j.error) j.error = 'http_' + r.status; }
+            else if (j.ok === undefined) j.ok = true;
+            return j;
+          });
+        })
+        .catch(function () { return { ok: false, error: 'network' }; });
+    }
+
+    /* Dates are 'YYYY-MM-DD' strings for Hawaiʻi days; read them as UTC so the
+       viewer's own time zone can never shift the day. */
+    function ymd(s) { var p = String(s || '').split('-'); return { y: +p[0], m: +p[1], d: +p[2], wd: new Date(Date.UTC(+p[0], +p[1] - 1, +p[2])).getUTCDay() }; }
+    function shortDate(s) { var x = ymd(s); return WD[x.wd] + ', ' + MO[x.m - 1] + ' ' + x.d; }
+    function longDate(s) { var x = ymd(s); return WDL[x.wd] + ', ' + MOL[x.m - 1] + ' ' + x.d; }
+    function hm(t) { var p = String(t || '').split(':'); return { h: +p[0], m: +p[1] || 0 }; }
+    function clock(t) { var x = hm(t); var h = x.h % 12 || 12; return h + ':' + (x.m < 10 ? '0' : '') + x.m; }
+    function fmtTime(t) { return clock(t) + ' ' + (hm(t).h < 12 ? 'AM' : 'PM'); }
+    function todayLong() { return new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }); }
+
+    /* ── Pieces of markup the pages place ─────────────────────────────── */
+    function pickerHtml() {
+      return '<div class="ob-days" id="ob_days" role="group" aria-label="Pick a day"></div>' +
+             '<div class="ob-times" id="ob_times" role="group" aria-label="Pick a time"></div>';
+    }
+    function choice(name, val, label, extra) {
+      return '<label class="ob-choice"><input type="radio" name="' + name + '" value="' + esc(val) + '"' + (extra || '') + '><span>' + esc(label) + '</span></label>';
+    }
+    function fg(id, label, req, control, hint) {
+      return '<div class="ob-fg"><label class="ob-lbl"' + (id ? ' for="' + id + '"' : '') + '>' + label + (req ? ' <span class="ob-req">*</span>' : '') + '</label>' +
+        control + (hint ? '<span class="ob-hint" id="' + (id || 'x') + '_hint">' + hint + '</span>' : '') + '</div>';
+    }
+    /* The LDAH Screening Consent — labels, options and the statement are the
+       outreach form's (W2 special.html screeningFieldsHtml / readiness/index.html),
+       email first, plus the child's birthday. */
+    function formHtml() {
+      var h = '';
+      h += '<div class="ob-sec">Parent / Guardian</div>';
+      h += fg('ob_email', 'Email', true, '<input class="ob-in" type="email" id="ob_email" autocomplete="email" inputmode="email">',
+        'Start here. If you&rsquo;ve been to us before, we fill in the rest for you.');
+      h += '<div class="ob-found" id="ob_found" hidden></div>';
+      h += '<div class="ob-grid">';
+      h += fg('ob_pFirst', 'Your first name', true, '<input class="ob-in" type="text" id="ob_pFirst" autocomplete="given-name">');
+      h += fg('ob_pLast', 'Your last name', true, '<input class="ob-in" type="text" id="ob_pLast" autocomplete="family-name">');
+      h += '</div>';
+      h += '<div class="ob-fg"><label class="ob-lbl" for="ob_phone">Phone <span class="ob-req">*</span></label>' +
+           '<input class="ob-in" type="tel" id="ob_phone" autocomplete="tel" inputmode="tel" placeholder="(808) 555-0123">' +
+           '<span class="ob-hint" id="ob_phoneHint" hidden>Keep it, or type a new number.</span></div>';
+      h += '<div class="ob-fg"><label class="ob-lbl">What is your relationship to your child? <span class="ob-req">*</span></label>' +
+           '<div class="ob-choices" id="ob_relGroup">' + REL.map(function (r) { return choice('ob_rel', r, r); }).join('') + '</div>' +
+           '<input class="ob-in" type="text" id="ob_relOther" placeholder="Please specify" style="margin-top:.5rem" hidden></div>';
+      h += '<div class="ob-fg"><label class="ob-lbl" for="ob_street">Address</label>' +
+           '<input class="ob-in" type="text" id="ob_street" autocomplete="street-address">' +
+           '<span class="ob-hint" id="ob_addrHint" hidden>Keep it, or type a new one.</span></div>';
+      h += '<div class="ob-grid">';
+      h += fg('ob_city', 'City', false, '<input class="ob-in" type="text" id="ob_city" autocomplete="address-level2">');
+      h += fg('ob_zip', 'Zip Code', false, '<input class="ob-in" type="text" id="ob_zip" inputmode="numeric" autocomplete="postal-code">');
+      h += '</div>';
+      h += '<div class="ob-sp"><a href="javascript:void(0)" id="ob_spLink" class="ob-link">+ Add a second parent/guardian</a>' +
+           '<div id="ob_spFields" hidden><div class="ob-lbl" style="margin:.4rem 0">Second parent / guardian</div><div class="ob-grid">' +
+           fg('ob_spFirst', 'First name', false, '<input class="ob-in" type="text" id="ob_spFirst" autocomplete="off">') +
+           fg('ob_spLast', 'Last name', false, '<input class="ob-in" type="text" id="ob_spLast" autocomplete="off">') +
+           '</div>' + fg('ob_spEmail', 'Email', false, '<input class="ob-in" type="email" id="ob_spEmail" inputmode="email" autocomplete="off">') + '</div></div>';
+
+      h += '<div class="ob-sec">Child</div>';
+      h += '<div id="ob_kidsWrap" hidden><div class="ob-q">Which child is this booking for?</div><div class="ob-chips" id="ob_kids"></div></div>';
+      h += '<div class="ob-grid3">';
+      h += fg('ob_cFirst', 'First', true, '<input class="ob-in" type="text" id="ob_cFirst">');
+      h += fg('ob_cMiddle', 'Middle', false, '<input class="ob-in" type="text" id="ob_cMiddle">');
+      h += fg('ob_cLast', 'Last', true, '<input class="ob-in" type="text" id="ob_cLast">');
+      h += '</div>';
+      h += fg('ob_bday', 'Child&rsquo;s birthday', true, '<input class="ob-in" type="date" id="ob_bday">');
+      h += '<div class="ob-fg"><label class="ob-lbl">Child&rsquo;s Gender</label><div class="ob-choices">' +
+           choice('ob_gender', 'Male', 'Male') + choice('ob_gender', 'Female', 'Female') + choice('ob_gender', 'Other', 'Other') + '</div></div>';
+      h += '<div class="ob-fg"><label class="ob-lbl">Does your child identify as Native Hawaiian?</label><div class="ob-choices">' +
+           choice('ob_nh', 'Yes', 'Yes') + choice('ob_nh', 'No', 'No') + '</div></div>';
+      h += '<div class="ob-fg"><label class="ob-lbl" for="ob_eth">Child&rsquo;s Ethnicity</label><select class="ob-in" id="ob_eth">' +
+           '<option value="">— Select —</option>' + ETH.map(function (e) { return '<option>' + esc(e) + '</option>'; }).join('') +
+           '<option value="Other">Other (specify)</option></select>' +
+           '<input class="ob-in" type="text" id="ob_ethOther" placeholder="Please specify" style="margin-top:.5rem" hidden></div>';
+
+      h += '<div class="ob-sec">A Few Health Questions</div>';
+      h += '<div class="ob-fg"><label class="ob-lbl">Does your child have a history of chronic ear infections?</label><div class="ob-choices">' +
+           choice('ob_ear', 'Yes', 'Yes', ' data-detail="ob_earDetail"') + choice('ob_ear', 'No', 'No', ' data-detail="ob_earDetail"') + '</div>' +
+           '<div class="ob-fg ob-detail" id="ob_earDetail" hidden><label class="ob-lbl" for="ob_earWhen">If yes, when was the last ear infection?</label>' +
+           '<input class="ob-in" type="text" id="ob_earWhen" placeholder="e.g. March 2026"></div></div>';
+      h += '<div class="ob-fg"><label class="ob-lbl">Has your child been sick within the last 2 weeks?</label><div class="ob-choices">' +
+           choice('ob_sick', 'Yes', 'Yes', ' data-detail="ob_sickDetail"') + choice('ob_sick', 'No', 'No', ' data-detail="ob_sickDetail"') + '</div>' +
+           '<div class="ob-fg ob-detail" id="ob_sickDetail" hidden><label class="ob-lbl" for="ob_sickDesc">If yes, please describe (e.g. runny nose, fever, coughing)</label>' +
+           '<input class="ob-in" type="text" id="ob_sickDesc"></div></div>';
+
+      h += '<div class="ob-sec">Consent</div>';
+      h += '<div class="ob-consent">I understand this consent is valid for one (1) year from the date below, unless revoked by me in writing to an LDAH staff member. By my signature below, I, the parent / legal guardian of the child identified above, give my informed consent to have my child screened by LDAH staff.</div>';
+      h += '<div class="ob-grid">';
+      h += fg('ob_sign', 'Type your first and last name to sign', true, '<input class="ob-in ob-sign" type="text" id="ob_sign" autocomplete="off">',
+        'By printing your name here, you give your informed consent. This is a legally binding electronic signature.');
+      h += '<div class="ob-fg"><label class="ob-lbl">Date</label><div class="ob-in ob-static" id="ob_today"></div></div>';
+      h += '</div>';
+      return h;
+    }
+    function bookBarHtml() {
+      return '<button type="button" class="ob-cta" id="ob_book" disabled>Pick a time above to book</button>' +
+             '<div class="ob-err" id="ob_err" role="alert" hidden></div>';
+    }
+
+    /* ── State ───────────────────────────────────────────────────────── */
+    var S = { days: [], viewDate: '', hold: null, timer: null, busy: false, look: null, lookedUp: '',
+              keepPhone: false, keepAddress: false, kid: '', booked: [], source: 'web', hooks: {},
+              heldTail: 'Fill in the screening consent below to book it.', site: '' };
+
+    function dayOf(date) { for (var i = 0; i < S.days.length; i++) if (S.days[i].date === date) return S.days[i]; return null; }
+    function loadTimes() {
+      return api('getOfficeScreeningTimes', {}).then(function (j) {
+        S.days = (j && j.ok && Array.isArray(j.days)) ? j.days : [];
+        if (!dayOf(S.viewDate)) {
+          var first = S.days.filter(function (d) { return (d.openCount || 0) > 0; })[0] || S.days[0];
+          S.viewDate = first ? first.date : '';
+        }
+        renderPicker();
+        return j && j.ok ? S.days : null;
+      });
+    }
+    function isMine(date, time) { return !!(S.hold && S.hold.date === date && S.hold.time === time); }
+    function renderPicker() {
+      var dEl = $('ob_days'), tEl = $('ob_times');
+      if (!dEl || !tEl) return;
+      dEl.innerHTML = S.days.map(function (d) {
+        var x = ymd(d.date), n = d.openCount || 0;
+        if (S.hold && S.hold.date === d.date) n = Math.max(n, 1);
+        return '<button type="button" class="ob-day' + (d.date === S.viewDate ? ' on' : '') + (n ? '' : ' full') + '" data-date="' + esc(d.date) + '" aria-pressed="' + (d.date === S.viewDate) + '">' +
+          '<small>' + WD[x.wd] + '</small><b>' + x.d + '</b><small>' + MO[x.m - 1] + '</small><em>' + (n ? n + ' open' : 'Full') + '</em></button>';
+      }).join('');
+      var day = dayOf(S.viewDate);
+      tEl.innerHTML = (day && day.times || []).map(function (t) {
+        var mine = isMine(day.date, t.time), open = t.open || mine;
+        return '<button type="button" class="ob-tm' + (mine ? ' on' : '') + (open ? '' : ' taken') + '" data-time="' + esc(t.time) + '"' +
+          (open ? '' : ' disabled aria-label="' + esc(fmtTime(t.time)) + ' taken"') + (mine ? ' aria-pressed="true"' : '') + '>' + esc(t.label || clock(t.time)) + '</button>';
+      }).join('');
+    }
+    function pickDay(date) { S.viewDate = date; renderPicker(); if (S.hooks.picked) S.hooks.picked(); }
+
+    function holdNote(html, cls) {
+      var n = $('ob_hold'); if (!n) return;
+      n.className = 'ob-hold' + (cls ? ' ' + cls : '');
+      n.innerHTML = html; n.hidden = !html;
+    }
+    function left() { return S.hold ? Math.max(0, Math.round((S.hold.expiresAt - Date.now()) / 1000)) : 0; }
+    function mmss(s) { return Math.floor(s / 60) + ':' + (s % 60 < 10 ? '0' : '') + (s % 60); }
+    function tick() {
+      if (!S.hold) return;
+      var s = left();
+      var c = $('ob_count'); if (c) c.textContent = mmss(s) + ' left';
+      if (S.hooks.tick) S.hooks.tick(s, S.hold);
+      if (s <= 0) expire();
+    }
+    function startTimer() { clearInterval(S.timer); S.timer = setInterval(tick, 1000); tick(); }
+    function expire() {
+      var t = S.hold ? fmtTime(S.hold.time) : 'Your time';
+      clearInterval(S.timer); S.hold = null;
+      holdNote('<b>Your hold on ' + esc(t) + ' ran out, so the time was released.</b> Please pick a time again. What you typed below is still here.', 'warn');
+      updateBook(); loadTimes();
+      if (S.hooks.expired) S.hooks.expired();
+    }
+    function pickTime(time) {
+      if (S.busy || isMine(S.viewDate, time)) return;
+      S.busy = true;
+      var date = S.viewDate, body = { date: date, time: time };
+      if (S.hold && S.hold.id) body.holdId = S.hold.id;
+      if (S.site) body.site = S.site;
+      holdNote('Holding ' + esc(fmtTime(time)) + '&hellip;');
+      api('holdOfficeScreeningTime', body).then(function (j) {
+        S.busy = false;
+        if (j.ok && j.holdId) {
+          S.hold = { id: j.holdId, date: date, time: time, expiresAt: +j.expiresAt || (Date.now() + 600000) };
+          holdNote('<b>' + esc(fmtTime(time)) + ' is held for you for 10 minutes.</b> ' + S.heldTail + ' <span class="ob-count" id="ob_count"></span>');
+          renderPicker(); updateBook(); startTimer();
+          if (S.hooks.held) S.hooks.held(S.hold);
+          return;
+        }
+        var still = S.hold ? ' You still have ' + esc(fmtTime(S.hold.time)) + ' on ' + esc(shortDate(S.hold.date)) + '. <span class="ob-count" id="ob_count"></span>' : '';
+        if (j.error === 'taken') holdNote('<b>Someone just took ' + esc(fmtTime(time)) + '.</b> Please pick another time.' + still, 'warn');
+        else if (j.error === 'closed') holdNote('<b>That time can no longer be booked.</b> Please pick another day or time.' + still, 'warn');
+        else holdNote('<b>We couldn&rsquo;t hold that time.</b> Please check your connection and try again.' + still, 'warn');
+        tick(); loadTimes();
+      });
+    }
+
+    /* ── Welcome back ───────────────────────────────────────────────── */
+    function setRadio(name, val) {
+      if (!val) return false;
+      var lc = String(val).trim().toLowerCase(), hit = null;
+      document.querySelectorAll('input[name="' + name + '"]').forEach(function (r) { if (r.value.toLowerCase() === lc) hit = r; });
+      if (hit) { hit.checked = true; hit.dispatchEvent(new Event('change', { bubbles: true })); }
+      return !!hit;
+    }
+    function setEth(val) {
+      var sel = $('ob_eth'); if (!sel) return;
+      sel.value = ''; $('ob_ethOther').value = ''; $('ob_ethOther').hidden = true;
+      if (!val) return;
+      var k = function (s) { return String(s).toLowerCase().replace(/[^a-z]/g, ''); }, want = k(val), hit = '';
+      Array.prototype.forEach.call(sel.options, function (o) { if (o.value && k(o.text) === want) hit = o.value; });
+      if (hit) sel.value = hit; else { sel.value = 'Other'; $('ob_ethOther').hidden = false; $('ob_ethOther').value = val; }
+    }
+    function mark(id, on) { var el = $(id); if (el) el.classList.toggle('fill', !!on); }
+    function resetOnFile() {
+      S.keepPhone = false; S.keepAddress = false; S.look = null; S.kid = '';
+      var p = $('ob_phone'); p.placeholder = '(808) 555-0123'; $('ob_phoneHint').hidden = true; mark('ob_phone', false);
+      var a = $('ob_street'); a.placeholder = ''; $('ob_addrHint').hidden = true; mark('ob_street', false);
+      $('ob_found').hidden = true; $('ob_kidsWrap').hidden = true; $('ob_kids').innerHTML = '';
+    }
+    function lookup() {
+      var email = v('ob_email').toLowerCase();
+      if (!email || email.indexOf('@') < 1 || email === S.lookedUp) return;
+      S.lookedUp = email;
+      api('lookupOfficeScreeningFamily', { email: email }).then(function (j) {
+        if (v('ob_email').toLowerCase() !== email) return;
+        resetOnFile();
+        if (!j.ok || !j.found) return;
+        S.look = j;
+        if (j.parentFirstName && !v('ob_pFirst')) { $('ob_pFirst').value = j.parentFirstName; mark('ob_pFirst', true); }
+        if (j.parentLastName && !v('ob_pLast')) { $('ob_pLast').value = j.parentLastName; mark('ob_pLast', true); }
+        if (j.relationship && !radioVal('ob_rel')) {
+          var rel = String(j.relationship);
+          if (/^other:/i.test(rel)) { setRadio('ob_rel', 'Other'); $('ob_relOther').value = rel.replace(/^other:\s*/i, ''); }
+          else if (!setRadio('ob_rel', rel)) { setRadio('ob_rel', 'Other'); $('ob_relOther').value = rel; }
+        }
+        if (j.hasPhone && j.phoneMasked) {
+          var p = $('ob_phone');
+          if (!v('ob_phone')) { S.keepPhone = true; mark('ob_phone', true); }
+          p.placeholder = j.phoneMasked + ' on file'; $('ob_phoneHint').hidden = false;
+        }
+        if (j.hasAddress) {
+          var a = $('ob_street');
+          if (!v('ob_street') && !v('ob_city') && !v('ob_zip')) { S.keepAddress = true; mark('ob_street', true); }
+          a.placeholder = 'On file' + (j.addressHint ? ' · ' + j.addressHint : ''); $('ob_addrHint').hidden = false;
+        }
+        renderKids();
+        var f = $('ob_found');
+        f.innerHTML = '<b>Welcome back' + (j.parentFirstName ? ', ' + esc(j.parentFirstName) : '') + '!</b> We found you on file and filled in what we have. Check it and change anything that&rsquo;s wrong.';
+        f.hidden = false;
+      });
+    }
+    function kidsList() { return (S.look && Array.isArray(S.look.children)) ? S.look.children.filter(function (c) { return c && c.firstName; }) : []; }
+    function renderKids() {
+      var kids = kidsList(), wrap = $('ob_kidsWrap');
+      if (!kids.length) { wrap.hidden = true; return; }
+      var names = kids.map(function (c) { return c.firstName; });
+      $('ob_kids').innerHTML = kids.map(function (c, i) {
+        var dup = names.filter(function (n) { return n === c.firstName; }).length > 1;
+        var label = c.firstName + (dup && c.lastName ? ' ' + c.lastName.charAt(0) + '.' : '');
+        var done = S.booked.some(function (b) { return b.kidKey && b.kidKey === (c.key || 'k' + i); });
+        return '<button type="button" class="ob-chip' + (S.kid === (c.key || 'k' + i) ? ' on' : '') + '" data-kid="' + esc(c.key || 'k' + i) + '">' + esc(label) + (done ? ' (booked)' : '') + '</button>';
+      }).join('') + '<button type="button" class="ob-chip' + (S.kid === 'new' ? ' on' : '') + '" data-kid="new">Someone else</button>';
+      wrap.hidden = false;
+    }
+    function clearChild() {
+      ['ob_cFirst', 'ob_cMiddle', 'ob_cLast', 'ob_bday'].forEach(function (id) { $(id).value = ''; mark(id, false); });
+      document.querySelectorAll('input[name=ob_gender],input[name=ob_nh]').forEach(function (r) { r.checked = false; });
+      setEth(''); mark('ob_eth', false);
+    }
+    function pickKid(key) {
+      S.kid = key; clearChild();
+      if (key !== 'new') {
+        var kids = kidsList(), c = null;
+        kids.forEach(function (k, i) { if ((k.key || 'k' + i) === key) c = k; });
+        if (c) {
+          $('ob_cFirst').value = c.firstName || ''; mark('ob_cFirst', !!c.firstName);
+          $('ob_cMiddle').value = c.middleName || ''; mark('ob_cMiddle', !!c.middleName);
+          $('ob_cLast').value = c.lastName || ''; mark('ob_cLast', !!c.lastName);
+          if (c.birthday && /^\d{4}-\d{2}-\d{2}$/.test(c.birthday)) { $('ob_bday').value = c.birthday; mark('ob_bday', true); }
+          setRadio('ob_gender', c.gender); setRadio('ob_nh', c.nativeHawaiian);
+          setEth(c.ethnicity); mark('ob_eth', !!c.ethnicity);
+        }
+      }
+      renderKids();
+      document.querySelectorAll('.ob-missing').forEach(function (el) { el.classList.remove('ob-missing'); });
+    }
+
+    /* ── Collect / validate / book ─────────────────────────────────── */
+    function secondParent() {
+      var em = v('ob_spEmail'); if (!em) return null;
+      return { firstName: v('ob_spFirst'), lastName: v('ob_spLast'), email: em };
+    }
+    function collect() {
+      var rel = radioVal('ob_rel'); if (rel === 'Other') rel = 'Other: ' + v('ob_relOther');
+      var eth = $('ob_eth').value; if (eth === 'Other') eth = v('ob_ethOther');
+      var addr = { streetAddress: v('ob_street'), city: v('ob_city'), zipCode: v('ob_zip') };
+      var form = {
+        parent: { email: v('ob_email'), phone: v('ob_phone'), firstName: v('ob_pFirst'), lastName: v('ob_pLast'), relationship: rel,
+          streetAddress: addr.streetAddress, city: addr.city, zipCode: addr.zipCode },
+        child: { firstName: v('ob_cFirst'), middleName: v('ob_cMiddle'), lastName: v('ob_cLast'), birthday: v('ob_bday'),
+          gender: radioVal('ob_gender'), nativeHawaiian: radioVal('ob_nh'), ethnicity: eth },
+        health: { chronicEar: radioVal('ob_ear'), lastEarInfection: v('ob_earWhen'), sickRecently: radioVal('ob_sick'), illnessDescribe: v('ob_sickDesc') },
+        address: addr,
+        signedName: v('ob_sign')
+      };
+      var sp = secondParent(); if (sp) form.secondParent = sp;
+      return form;
+    }
+    function keepPhone() { return !!(S.look && S.look.hasPhone && !v('ob_phone')); }
+    function keepAddress() { return !!(S.look && S.look.hasAddress && !v('ob_street') && !v('ob_city') && !v('ob_zip')); }
+    function validate(d) {
+      var miss = [], m = function (id) { var el = $(id); if (el) el.classList.add('ob-missing'); };
+      var e = d.parent.email;
+      if (!e || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) { m('ob_email'); miss.push('your email'); }
+      if (!d.parent.firstName) { m('ob_pFirst'); miss.push('your first name'); }
+      if (!d.parent.lastName) { m('ob_pLast'); miss.push('your last name'); }
+      if (!keepPhone() && d.parent.phone.replace(/\D/g, '').length < 10) { m('ob_phone'); miss.push('a 10-digit phone number'); }
+      if (!radioVal('ob_rel')) { m('ob_relGroup'); miss.push('your relationship'); }
+      if (!d.child.firstName) { m('ob_cFirst'); miss.push("child's first name"); }
+      if (!d.child.lastName) { m('ob_cLast'); miss.push("child's last name"); }
+      if (!d.child.birthday) { m('ob_bday'); miss.push("child's birthday"); }
+      else if (d.child.birthday > new Date().toISOString().slice(0, 10) || d.child.birthday < '1900-01-01') { m('ob_bday'); miss.push("a real birthday"); }
+      if (!d.signedName || d.signedName.indexOf(' ') === -1) { m('ob_sign'); miss.push('your first AND last name to sign'); }
+      return miss;
+    }
+    function err(msg) { var e = $('ob_err'); if (!e) return; e.textContent = msg || ''; e.hidden = !msg; }
+    function updateBook() {
+      var b = $('ob_book'); if (!b) return;
+      b.disabled = !S.hold || S.busy;
+      b.textContent = S.hold ? 'Sign and book ' + shortDate(S.hold.date) + ' at ' + fmtTime(S.hold.time) : 'Pick a time above to book';
+    }
+    function book() {
+      err('');
+      if (!S.hold) { err('Please pick a time first.'); return; }
+      var data = collect(), miss = validate(data);
+      if (miss.length) {
+        err('Please provide ' + miss.slice(0, 3).join(', ') + (miss.length > 3 ? ', and more.' : '.'));
+        var bad = document.querySelector('.ob-missing'); if (bad && bad.scrollIntoView) bad.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      var hold = S.hold, b = $('ob_book');
+      S.busy = true; b.disabled = true; b.textContent = 'Booking…';
+      var bb = { holdId: hold.id, form: data, keepPhone: keepPhone(), keepAddress: keepAddress(), source: S.source };
+      if (S.site) bb.site = S.site;
+      api('bookOfficeScreening', bb).then(function (j) {
+        S.busy = false;
+        if (!j.ok) {
+          var e = String(j.error || '');
+          if (/expired|hold|taken|closed/i.test(e)) {
+            clearInterval(S.timer); S.hold = null; updateBook(); loadTimes();
+            holdNote('<b>Your hold on ' + esc(fmtTime(hold.time)) + ' is no longer valid.</b> Please pick a time again. What you typed is still here.', 'warn');
+            err('That time could not be booked. Please pick a time again.');
+            if (S.hooks.expired) S.hooks.expired();
+          } else {
+            err('We couldn’t book that time' + (e && !/^http_|network/.test(e) ? ' (' + e + ')' : '') + '. Please try again.');
+            updateBook();
+          }
+          return;
+        }
+        clearInterval(S.timer); S.hold = null;
+        var rec = { date: j.date || hold.date, time: j.time || hold.time, childFirstName: j.childFirstName || data.child.firstName,
+          childLastName: data.child.lastName, dateLabel: j.dateLabel || longDate(j.date || hold.date), timeLabel: j.timeLabel || fmtTime(j.time || hold.time),
+          kidKey: S.kid && S.kid !== 'new' ? S.kid : '' };
+        S.booked.push(rec);
+        renderBooked(); holdNote(''); updateBook();
+        if (S.hooks.step) S.hooks.step('booked', rec);
+      });
+    }
+    function bookedHtml(rec) {
+      var others = S.booked.slice(0, -1);
+      return '<div class="ob-when"><b>' + esc(shortDate(rec.date)) + ' at ' + esc(rec.timeLabel) + '</b>' + esc(PLACE) + '</div>' +
+        '<p class="ob-p">' + esc(rec.childFirstName || 'Your child') + ' is booked. We emailed you the details. Please bring:</p>' +
+        '<ul class="ob-bring"><li>Your child&rsquo;s glasses, if they wear them</li><li>Hearing aids, if they use them</li></ul>' +
+        (others.length ? '<p class="ob-p ob-also">Also booked: ' + others.map(function (o) { return esc(o.childFirstName) + ', ' + esc(shortDate(o.date)) + ' at ' + esc(o.timeLabel); }).join('; ') + '</p>' : '') +
+        '<button type="button" class="ob-cta ob-cta-light" id="ob_sib">Add a brother or sister</button>' +
+        '<button type="button" class="ob-cta ob-cta-plain" id="ob_ics">Add to my calendar</button>';
+    }
+    function renderBooked() { var el = $('ob_booked'); if (el) el.innerHTML = bookedHtml(S.booked[S.booked.length - 1]); }
+
+    /* Another child: keep every parent field, clear the child, the health
+       answers and the signature (each consent is signed on purpose), take a
+       new hold. */
+    function sibling() {
+      clearChild(); S.kid = '';
+      ['ob_earWhen', 'ob_sickDesc', 'ob_sign'].forEach(function (id) { $(id).value = ''; });
+      document.querySelectorAll('input[name=ob_ear],input[name=ob_sick]').forEach(function (r) { r.checked = false; });
+      ['ob_earDetail', 'ob_sickDetail'].forEach(function (id) { $(id).hidden = true; });
+      document.querySelectorAll('.ob-missing').forEach(function (el) { el.classList.remove('ob-missing'); });
+      err(''); renderKids();
+      holdNote('<b>Pick a time for the next child.</b> Your details are kept; only the child&rsquo;s part is new.');
+      updateBook(); loadTimes();
+      if (S.hooks.step) S.hooks.step('sibling');
+    }
+
+    /* .ics for the last booking; Hawaiʻi has no daylight saving, so UTC = HST + 10 h. */
+    function icsStamp(date, time, addMin) {
+      var x = ymd(date), t = hm(time);
+      var d = new Date(Date.UTC(x.y, x.m - 1, x.d, t.h + 10, t.m + (addMin || 0)));
+      return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    }
+    function downloadIcs(rec) {
+      rec = rec || S.booked[S.booked.length - 1]; if (!rec) return;
+      var who = rec.childFirstName ? ' for ' + rec.childFirstName : '';
+      var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//LDAH//Office Screening//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT',
+        'UID:office-' + rec.date + '-' + String(rec.time).replace(':', '') + '-' + Math.random().toString(36).slice(2, 10) + '@ldahawaii.org',
+        'DTSTAMP:' + new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''),
+        'DTSTART:' + icsStamp(rec.date, rec.time, 0), 'DTEND:' + icsStamp(rec.date, rec.time, 15),
+        'SUMMARY:LDAH vision and hearing screening' + who,
+        'LOCATION:' + ADDRESS.replace(/,/g, '\\,'),
+        'DESCRIPTION:Free vision and hearing screening at the LDAH office. It takes about 15 minutes. Please bring glasses or hearing aids if your child uses them. Questions? Call (808) 536-9684.'.replace(/,/g, '\\,'),
+        'BEGIN:VALARM', 'TRIGGER:-PT1H', 'ACTION:DISPLAY', 'DESCRIPTION:LDAH screening', 'END:VALARM',
+        'END:VEVENT', 'END:VCALENDAR'];
+      var blob = new Blob([lines.join('\r\n') + '\r\n'], { type: 'text/calendar;charset=utf-8' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'LDAH-screening-' + rec.date + '.ics';
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+    }
+
+    /* Wire everything inside the page's booking root. */
+    function init(opts) {
+      S.source = opts.source || 'web';
+      S.hooks = opts.hooks || {};
+      if (opts.heldTail) S.heldTail = opts.heldTail;
+      /* site:'stage' makes the emails link to the STAGE pages; live copies leave it out. */
+      if (opts.site) S.site = opts.site;
+      /* Wakes the booking function while the family reads, so Sign and book doesn't wait on a cold start. */
+      if (opts.warm) api('bookOfficeScreening', { warm: true });
+      var root = opts.root || document;
+      root.addEventListener('click', function (e) {
+        var t = e.target.closest('button, a'); if (!t || !root.contains(t)) return;
+        if (t.classList.contains('ob-day')) { pickDay(t.getAttribute('data-date')); return; }
+        if (t.classList.contains('ob-tm') && !t.disabled) { if (opts.onTime) opts.onTime(S.viewDate, t.getAttribute('data-time')); else pickTime(t.getAttribute('data-time')); return; }
+        if (t.classList.contains('ob-chip')) { pickKid(t.getAttribute('data-kid')); return; }
+        if (t.id === 'ob_spLink') { e.preventDefault(); $('ob_spFields').hidden = false; t.hidden = true; return; }
+        if (t.id === 'ob_book') { book(); return; }
+        if (t.id === 'ob_sib') { sibling(); return; }
+        if (t.id === 'ob_ics') { downloadIcs(); return; }
+      });
+      if (!$('ob_email')) return;
+      $('ob_today').textContent = todayLong();
+      $('ob_email').addEventListener('blur', lookup);
+      $('ob_email').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); lookup(); } });
+      $('ob_phone').addEventListener('input', function () { mark('ob_phone', false); });
+      ['ob_street', 'ob_city', 'ob_zip'].forEach(function (id) { $(id).addEventListener('input', function () { mark('ob_street', false); }); });
+      root.addEventListener('input', function (e) { if (e.target.classList) { e.target.classList.remove('ob-missing'); if (e.target.id !== 'ob_phone' && e.target.id !== 'ob_street') e.target.classList.remove('fill'); } });
+      root.addEventListener('change', function (e) {
+        var g = e.target.closest('.ob-choices'); if (g) g.classList.remove('ob-missing');
+        if (e.target.name === 'ob_rel') $('ob_relOther').hidden = radioVal('ob_rel') !== 'Other';
+        if (e.target.id === 'ob_eth') $('ob_ethOther').hidden = $('ob_eth').value !== 'Other';
+        if (e.target.getAttribute && e.target.getAttribute('data-detail')) { var d = $(e.target.getAttribute('data-detail')); if (d) d.hidden = e.target.value !== 'Yes'; }
+      });
+    }
+
+    return { api: api, init: init, loadTimes: loadTimes, renderPicker: renderPicker, pickerHtml: pickerHtml, formHtml: formHtml,
+      bookBarHtml: bookBarHtml, state: S, shortDate: shortDate, longDate: longDate, fmtTime: fmtTime, clock: clock, esc: esc,
+      downloadIcs: downloadIcs, holdNote: holdNote, PLACE: PLACE };
+  })();
+
+  /* School Readiness: office booking card. With open days the card takes over
+     the "Schedule a Screening" band's job and the band hides; with none (or if
+     the times can't load) the band stays exactly as before. */
+  (function () {
+    var OB = window.OfficeBooking, $ = function (id) { return document.getElementById(id); };
+    var card = $('book'); if (!card || !OB) return;
+    $('ob_pick').innerHTML = OB.pickerHtml();
+    $('ob_form').innerHTML = OB.formHtml();
+    $('ob_bookBar').innerHTML = OB.bookBarHtml();
+    var band = document.querySelector('.support-section');
+    function show(step) {
+      var booked = step === 'booked';
+      $('ob_flow').hidden = booked; $('ob_booked').hidden = !booked;
+      if (booked || step === 'sibling') card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    OB.init({ root: card, source: 'web', site: 'stage', warm: true, hooks: {
+      held: function () { var first = $('ob_formWrap').hidden; $('ob_formWrap').hidden = false; if (first) setTimeout(function () { $('ob_email').focus({ preventScroll: true }); }, 50); },
+      step: show
+    } });
+    OB.loadTimes().then(function (days) {
+      $('ob_loading').hidden = true;
+      if (days && days.length) {
+        $('ob_flow').hidden = false;
+        if (band) band.style.display = 'none';
+      } else {
+        $('ob_none').hidden = false;
+      }
+      if (location.hash === '#book') card.scrollIntoView({ block: 'start' });
+    });
+  })();
     </script>
 
     <!-- Header/Footer Loader -->
