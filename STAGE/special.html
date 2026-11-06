@@ -742,5 +742,20 @@
   }
 </script>
 <script>/* SPEED — DO NOT REMOVE (2026-09-26): wakes the Submit function and its database connection while the family reads the form, so Submit does not wait ~5 s. */try{fetch('https://us-central1-ldah-932d5.cloudfunctions.net/submitReadinessConsent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({warm:true})}).catch(function(){});}catch(_){}</script>
+<script>/* One-tap signature (Daniel 2026-11-06): the parent's name is already on the
+   form, so offer "Sign as <name>". Tapping it types the name into the signature
+   box; typing a name by hand still works. The form is drawn by script, so this
+   attaches itself once the signature box exists. */
+(function(){var SIGN='sign',FIRST='pFirst',LAST='pLast';
+function wire(){var s=document.getElementById(SIGN),f=document.getElementById(FIRST),l=document.getElementById(LAST);
+ if(!s||!f||!l||s._signAs)return;s._signAs=1;
+ var b=document.createElement('button');b.type='button';b.hidden=true;
+ b.style.cssText='display:block;margin-top:6px;border:1px solid #0891B2;background:#ECFEFF;color:#0E7490;border-radius:999px;padding:6px 14px;font:700 .85rem Outfit,system-ui,sans-serif;cursor:pointer;';
+ s.insertAdjacentElement('afterend',b);
+ function nm(){return (f.value.trim()+' '+l.value.trim()).trim();}
+ function upd(){var n=nm();var show=!!(f.value.trim()&&l.value.trim())&&s.value.trim()!==n;if(b.hidden===show)b.hidden=!show;if(show)b.textContent='Tap to sign as '+n;}
+ b.addEventListener('click',function(){s.value=nm();s.dispatchEvent(new Event('input',{bubbles:true}));s.dispatchEvent(new Event('change',{bubbles:true}));s.classList.remove('ob-missing','missing','err');upd();});
+ [f,l,s].forEach(function(e){e.addEventListener('input',upd);});setInterval(upd,700);}
+setInterval(wire,500);})();</script>
 </body>
 </html>
