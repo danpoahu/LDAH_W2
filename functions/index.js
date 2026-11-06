@@ -13837,6 +13837,48 @@ function _buildReadinessScreening(p, kept, opts) {
 // Find-or-create the contact, save the consent screening, log the Screening
 // interaction (and, for special.html, the attended signup).
 // Returns { contactId, screening, phone }.
+// Age band (the canonical children[] bands) from a YYYY-MM-DD birthday.
+function _ageBandFromBirthday(bday, onIso) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(bday || ""))) return "";
+  const [y, m, d] = bday.split("-").map(Number);
+  const on = /^\d{4}-\d{2}-\d{2}$/.test(String(onIso || "")) ? onIso : toHstDateKey(new Date());
+  const [oy, om, od] = on.split("-").map(Number);
+  let a = oy - y; if (om < m || (om === m && od < d)) a--;
+  if (a < 0) return "";
+  if (a <= 2) return "0-2"; if (a <= 5) return "3-5"; if (a <= 12) return "6-12"; if (a <= 17) return "13-17";
+  return "Adult";
+}
+// Pure: the children[] entry for a screening's child, or null when it names nobody.
+function _childEntryFromScreening(screening) {
+  const ch = (screening && screening.child) || {};
+  const name = [ch.firstName, ch.middleName, ch.lastName].map((x) => String(x || "").trim()).filter(Boolean).join(" ");
+  if (!name) return null;
+  const e = { name };
+  if (ch.gender) e.gender = String(ch.gender);
+  if (ch.ethnicity) e.ethnicity = String(ch.ethnicity);
+  if (ch.nativeHawaiian) e.nativeHawaiian = String(ch.nativeHawaiian);
+  if (ch.birthday) { e.birthday = String(ch.birthday); const band = _ageBandFromBirthday(ch.birthday); if (band) e.ageRange = band; }
+  return e;
+}
+async function _addScreenedChildToContact(contactId, screening) {
+  const entry = _childEntryFromScreening(screening);
+  if (!entry || !contactId) return;
+  const key = "screening#" + String((screening && screening.id) || "");
+  const ref = admin.firestore().collection("contacts").doc(contactId);
+  await admin.firestore().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return;
+    const kids = Array.isArray((snap.data() || {}).children) ? snap.data().children.slice() : [];
+    if (_childHasSourceKey(kids, key)) return;
+    entry.addedAt = admin.firestore.Timestamp.now();
+    entry.sourceSignupId = key; entry.sourceSignupIds = [key];
+    const idx = _placeChildEntry(kids, entry);
+    if (idx === null) return;
+    if (idx === -1) kids.push(entry); else kids[idx] = _mergeChildEntries(kids[idx], entry);
+    tx.update(ref, { children: kids });
+  });
+}
+
 async function _saveReadinessConsent(db, p, opts) {
   const o = opts || {};
   const FieldValue = admin.firestore.FieldValue;
@@ -13922,6 +13964,12 @@ async function _saveReadinessConsent(db, p, opts) {
 
   const screening = _buildReadinessScreening(p, kept, o);
   await db.collection("contacts").doc(contactId).update({ screenings: FieldValue.arrayUnion(screening) });
+  // The screened child also goes on the family's children[] (Daniel 2026-11-06:
+  // the contact card showed an unnamed "Child" built from old top-level fields).
+  // Same placement rule as event signups, so a returning child is merged, never
+  // doubled. Best effort: a failure here never fails the consent.
+  try { await _addScreenedChildToContact(contactId, screening); }
+  catch (e) { console.error("screened child -> children[] failed for " + contactId + ":", e.message); }
 
   // Auto-log a "Screening" interaction (in-person; no email sent).
   const childName = ((child.firstName || "") + " " + (child.lastName || "")).trim();
@@ -32511,6 +32559,7 @@ exports.onChatHelpRequest = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  _ageBandFromBirthday, _childEntryFromScreening,
   _parseReadinessConsent,
   _readinessKeptFields,
   _buildReadinessScreening,

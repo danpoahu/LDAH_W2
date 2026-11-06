@@ -229,3 +229,15 @@ test("reminder and no-show emails", () => {
   assert.match(n, /ldahawaii\.org\/STAGE\/readiness\.html#book/);
   assert.doesNotMatch(n, /booking\.html/);
 });
+
+test("screened child entry for children[] (11-06)", () => {
+  const T = require("../index.js").__test;
+  assert.strictEqual(T._childEntryFromScreening({ child: {} }), null);
+  const e = T._childEntryFromScreening({ child: { firstName: "Kai", middleName: "M", lastName: "Akana", gender: "Male", ethnicity: "Filipino", birthday: "2021-05-04" } });
+  assert.strictEqual(e.name, "Kai M Akana");
+  assert.strictEqual(e.gender, "Male");
+  assert.strictEqual(e.ethnicity, "Filipino");
+  assert.strictEqual(T._ageBandFromBirthday("2021-05-04", "2026-11-06"), "3-5");
+  assert.strictEqual(T._ageBandFromBirthday("1992-07-22", "2026-11-06"), "Adult");
+  assert.strictEqual(T._ageBandFromBirthday("2014-11-07", "2026-11-06"), "6-12");
+});
