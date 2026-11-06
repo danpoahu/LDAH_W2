@@ -80,6 +80,15 @@ function agendaToOf(entry) {
   return { uid: entry.agendaToUid || ROSIE_UID, name: entry.agendaToName || "Rosie Rowe" };
 }
 
+// Who may open a meeting's agenda: the ticked participants and the
+// finished-agenda person. Nobody else, whatever their role (2026-11-06).
+function isMember(entry, uid) {
+  if (!uid || !entry) return false;
+  if (entry.agendaToUid === uid) return true;
+  if (Array.isArray(entry.participantUids) && entry.participantUids.indexOf(uid) !== -1) return true;
+  return (Array.isArray(entry.participants) ? entry.participants : []).some((p) => p && p.uid === uid);
+}
+
 const askTaskId = (entryId, date, uid) => "agendaAsk__" + entryId + "__" + date + "__" + uid;
 const finalTaskId = (entryId, date) => "agendaFinal__" + entryId + "__" + date;
 
@@ -122,7 +131,10 @@ function finalTask(entryId, entry, date, agenda) {
   const n = ((agenda && agenda.items) || []).length;
   return Object.assign(baseTask(entryId, date), {
     summary: "Agenda for " + (entry.title || "the meeting") + " (" + niceDate(date) + "): " + n + (n === 1 ? " item" : " items"),
-    notes: agendaText(agenda) + "\n\nPress Open agenda to see it, open the base agenda and take meeting notes.",
+    // No item text in the task: tasks can be seen by other staff, the agenda
+    // is private to the meeting (2026-11-06).
+    notes: (n ? n + (n === 1 ? " item is" : " items are") + " on the agenda." : "Nobody has added an item yet.") +
+           "\n\nPress Open agenda to read them, build the master agenda, upload it there for everyone in the meeting, and take meeting notes.",
     followUpDate: date, owner: to.name, ownerUid: to.uid,
   });
 }
@@ -130,5 +142,5 @@ function finalTask(entryId, entry, date, agenda) {
 module.exports = {
   ROSIE_UID, AGENDA_MIME_EXT, AGENDA_MAX_BYTES,
   isIso, addDaysIso, entryDates, niceDate, participantsOf, agendaToOf,
-  askTaskId, finalTaskId, askTask, finalTask, agendaText,
+  askTaskId, finalTaskId, askTask, finalTask, agendaText, isMember,
 };

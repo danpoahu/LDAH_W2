@@ -22,14 +22,22 @@ test("ask task is due the day before and opens the agenda", () => {
   assert.match(t.summary, /Leadership \(Wednesday, November 11\)/);
   assert.match(t.notes, /3pm on Tuesday, November 10/);
 });
-test("final task lists items with who added them, to Rosie by default", () => {
+test("final task gives the count, never the item text, to Rosie by default", () => {
   const t = A.finalTask("abcdefghij12", { title: "Leadership" }, "2026-11-11",
     { items: [{ text: "Budget", byName: "Dan" }, { text: "Hiring", byName: "Noe" }], files: [{ name: "base.pdf" }] });
   assert.strictEqual(t.ownerUid, A.ROSIE_UID);
-  assert.match(t.notes, /^1\. Budget \(Dan\)\n2\. Hiring \(Noe\)/);
-  assert.match(t.notes, /Base agenda: base.pdf/);
+  assert.match(t.notes, /^2 items are on the agenda\./);
+  assert.doesNotMatch(t.notes, /Budget|Hiring/);   // item text never goes in a task
   assert.match(t.summary, /2 items$/);
 });
 test("participants are de-duplicated", () => {
   assert.strictEqual(A.participantsOf({ participants: [{ uid: "a" }, { uid: "a" }, { uid: "" }, { uid: "b" }] }).length, 2);
+});
+
+test("agenda members: participants and the finished-agenda person only", () => {
+  const e = { participants: [{ uid: "a" }], participantUids: ["a"], agendaToUid: "r" };
+  assert.strictEqual(A.isMember(e, "a"), true);
+  assert.strictEqual(A.isMember(e, "r"), true);
+  assert.strictEqual(A.isMember(e, "superadmin-not-invited"), false);
+  assert.strictEqual(A.isMember({ participants: [{ uid: "b" }] }, "b"), true);
 });

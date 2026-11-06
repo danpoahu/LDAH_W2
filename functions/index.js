@@ -33800,7 +33800,8 @@ async function _runStaffAgendaAsks(todayIso) {
   for (const doc of snap.docs) {
     const entry = doc.data() || {};
     for (const date of staffAgenda.entryDates(entry, todayIso, to)) {
-      if (((entry.agendas || {})[date] || {}).sentAt) continue;
+      const _ag = await doc.ref.collection("agendas").doc(date).get();
+      if ((_ag.exists && (_ag.data() || {}).sentAt) || ((entry.agendas || {})[date] || {}).sentAt) continue;
       for (const p of staffAgenda.participantsOf(entry)) {
         const ref = db.collection("interactions").doc(staffAgenda.askTaskId(doc.id, date, p.uid));
         const ex = await ref.get();
@@ -33825,7 +33826,10 @@ async function _runStaffAgendaFinals(todayIso) {
   for (const doc of snap.docs) {
     const entry = doc.data() || {};
     for (const date of staffAgenda.entryDates(entry, todayIso, tomorrow)) {
-      const agenda = (entry.agendas || {})[date] || {};
+      // The agenda is private to the meeting (2026-11-06): it lives in
+      // staffCalendar/{id}/agendas/{date}, readable only by the members.
+      const _agSnap = await doc.ref.collection("agendas").doc(date).get();
+      const agenda = _agSnap.exists ? (_agSnap.data() || {}) : ((entry.agendas || {})[date] || {});
       if (agenda.sentAt) continue;
       // Today's meeting only when it was added too late for yesterday's run.
       if (date === todayIso && !(agenda.items || []).length) continue;
@@ -33833,7 +33837,7 @@ async function _runStaffAgendaFinals(todayIso) {
       await ref.set(Object.assign(staffAgenda.finalTask(doc.id, entry, date, agenda), {
         createdAt: FV.serverTimestamp(), updatedAt: FV.serverTimestamp(),
       }), { merge: true });
-      await doc.ref.update(new admin.firestore.FieldPath("agendas", date, "sentAt"), FV.serverTimestamp());
+      await doc.ref.collection("agendas").doc(date).set({ date, sentAt: FV.serverTimestamp() }, { merge: true });
       for (const p of staffAgenda.participantsOf(entry)) {
         const ask = db.collection("interactions").doc(staffAgenda.askTaskId(doc.id, date, p.uid));
         const a = await ask.get();
@@ -33899,6 +33903,7 @@ exports.requestStaffAgendaUploadUrl = functions
     try {
       const entry = await admin.firestore().collection("staffCalendar").doc(entryId).get();
       if (!entry.exists) { res.status(404).json({ error: "Meeting not found" }); return; }
+      if (!staffAgenda.isMember(entry.data() || {}, staff.uid)) { res.status(403).json({ error: "This agenda is only for the people in the meeting." }); return; }
       const safe = (name.replace(/\.[^.]*$/, "").replace(/[^A-Za-z0-9._-]+/g, "_").slice(0, 60) || "agenda");
       const storagePath = "staffCalendar/" + entryId + "/" + date + "/" + Date.now() + "-" + safe + "." + ext;
       const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
@@ -33929,9 +33934,13 @@ exports.getStaffAgendaFileUrl = functions
     if (!/^staffCalendar\/[A-Za-z0-9]{10,40}\/\d{4}-\d{2}-\d{2}\/[^/]+$/.test(path) || path.indexOf("..") !== -1) {
       res.status(400).json({ error: "Bad file path" }); return;
     }
-    try { await _verifyAgendaStaff(body.idToken); }
+    let staff;
+    try { staff = await _verifyAgendaStaff(body.idToken); }
     catch (err) { res.status(err.statusCode || 401).json({ error: err.message }); return; }
     try {
+      const _eid = path.split("/")[1];
+      const _ent = await admin.firestore().collection("staffCalendar").doc(_eid).get();
+      if (!_ent.exists || !staffAgenda.isMember(_ent.data() || {}, staff.uid)) { res.status(403).json({ error: "This agenda is only for the people in the meeting." }); return; }
       const file = admin.storage().bucket("ldah-932d5.firebasestorage.app").file(path);
       const [exists] = await file.exists();
       if (!exists) { res.status(404).json({ error: "That file is no longer there." }); return; }
