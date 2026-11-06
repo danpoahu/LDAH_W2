@@ -257,7 +257,7 @@ COVER({...L,title:'Pacific Island Cultural Advocacy',
  '<b>Notices</b> must be in the parent’s native language, unless that is clearly not feasible.',
  'Ask for the interpreter <b>in writing</b> when the meeting is scheduled.'],140),
  steps:[
- {say:'Now, something that is not a cultural question at all. It is a right. Under I D E A, the school must take whatever action is necessary to make sure a parent understands the I E P meeting.',li:0},
+ {say:'Now, something that is not a cultural question at all. It is a right. Under IDEA, the school must take whatever action is necessary to make sure a parent understands the I E P meeting.',li:0},
  {say:'That includes providing an interpreter for a parent whose native language is not English. At no cost to the family.',li:1,act:async()=>{const c=g3on('.g3-card.yes');spot(c,6)}},
  {say:'And here is a line to hold firmly. A child should never be asked to interpret for their own I E P meeting. Not even a capable older child. The interpreter comes from the school.',li:2,act:async()=>{const c=g3on('.g3-card.no');spot(c,6)}},
  {say:'Notices must also be provided in the parent’s native language, unless that is clearly not feasible.',li:3,act:async()=>{const n=g3on('.g3-notice');spot(n,6)}},
@@ -278,7 +278,7 @@ COVER({...L,title:'Pacific Island Cultural Advocacy',
  '<b>Learn how things work locally</b> before giving advice.',
  'Connect families with the partner who <b>knows their island</b>.'],140),
  steps:[
- {say:'Across the Pacific. I D E A also funds special education in the U.S. territories, and in the freely associated states.',li:0,act:async()=>{g3on('.g3-idea');const c=all('.g3-chips .chip');c[0].classList.add('on');await wait(300);c[1].classList.add('on')}},
+ {say:'Across the Pacific. IDEA also funds special education in the U.S. territories, and in the freely associated states.',li:0,act:async()=>{g3on('.g3-idea');const c=all('.g3-chips .chip');c[0].classList.add('on');await wait(300);c[1].classList.add('on')}},
  {say:'And L D A H works alongside partners across the region.',li:1,act:async()=>{await g3reveal('.g3-route',250);await g3reveal('.g3-pin',250)}},
  {say:'But systems, distances and resources differ from island to island. What works on Oʻahu may not exist somewhere else.',li:2,act:async()=>{const c=g3on(all('.g3-chips .chip')[2]);spot(c,6)}},
  {say:'So learn how things work locally, before giving advice.',li:3,act:async()=>{spot(null)}},
@@ -315,4 +315,4 @@ CLOSE({...L,sub:'Select Complete on the lesson page when you are ready.',
  say:'Mahalo! That is Gold Lesson 3. Thank you for the care you bring to every family you walk beside. Select Complete on the lesson page when you are ready to move on.'})
 ];
 </script>
-<script src="deck-engine.js?v=1"></script></body></html>
+<script src="deck-engine.js?v=2"></script></body></html>

@@ -161,7 +161,7 @@ COVER({...L,title:'Child Find and Free Appropriate Public Education (FAPE)',
  'A child can’t be served until the child is <b>found</b>. That is <b>Child Find</b>.'],170),
  steps:[
  {say:'This lesson’s title names two ideas. The first is FAPE. Let’s spell it out. F is for Free. A is for Appropriate. P is for Public. E is for Education. Free Appropriate Public Education.',li:0,act:async()=>{for(const e of all('.b4-lt')){e.classList.add('on');await wait(700)}}},
- {say:'FAPE is what special education under the federal law, I D E A, is built to provide.',li:1,act:async()=>{spot(q('.b4-letters'),8)}},
+ {say:'FAPE is what special education under the federal law, IDEA, is built to provide.',li:1,act:async()=>{spot(q('.b4-letters'),8)}},
  {say:'But a child can’t receive help until someone notices the child may need it. That is the second idea, and the focus of today: Child Find.',li:2,act:async()=>{spot(null);const f=q('.b4-find');f.classList.add('on');await wait(300);spot(f,6)}}]},
 
 {html:()=>HEAD('Child Find','Identify, locate, evaluate')+`<div class="b4-verbs">
@@ -174,7 +174,7 @@ COVER({...L,title:'Child Find and Free Appropriate Public Education (FAPE)',
  'It is an <b>ongoing legal obligation</b>, not a one-time event.',
  'It is the school’s duty. Not something you have to earn.'],160),
  steps:[
- {say:'Under I D E A, school districts have a legal obligation to do three things for children who may have disabilities.',li:0},
+ {say:'Under IDEA, school districts have a legal obligation to do three things for children who may have disabilities.',li:0},
  {say:'Identify them.',act:()=>b4on('.b4-verb',0)},
  {say:'Locate them.',act:()=>b4on('.b4-verb',1)},
  {say:'And evaluate them.',act:()=>b4on('.b4-verb',2)},
@@ -264,7 +264,7 @@ COVER({...L,title:'Child Find and Free Appropriate Public Education (FAPE)',
  {say:'Why does all this care matter? Because an evaluation answers two big questions.',act:async()=>{spot(q('.b4-eval'),6);all('.b4-fork path').forEach(p=>p.classList.add('on'))}},
  {say:'First, eligibility. Does your child qualify for special education?',li:0,act:()=>b4on('.b4-out',0)},
  {say:'Second, needs. What exactly does your child need help with? A good evaluation shapes the services that follow.',li:1,act:()=>b4on('.b4-out',1)},
- {say:'Eligibility is decided using disability categories. The federal law, I D E A, lists thirteen. Hawaiʻi lists fourteen, because it adds one more: Developmental Delay.',li:2,act:async()=>{const c=q('.b4-cats');c.classList.add('on');spot(c,6)}}]},
+ {say:'Eligibility is decided using disability categories. The federal law, IDEA, lists thirteen. Hawaiʻi lists fourteen, because it adds one more: Developmental Delay.',li:2,act:async()=>{const c=q('.b4-cats');c.classList.add('on');spot(c,6)}}]},
 
 {html:()=>HEAD('Reevaluations','At least once every three years')+`<div class="b4-time">
  <div class="b4-track"><i class="b4-fill"></i></div>
@@ -280,7 +280,7 @@ COVER({...L,title:'Child Find and Free Appropriate Public Education (FAPE)',
  'It helps decide <b>appropriate services</b>.'],170),
  steps:[
  {say:'Evaluation is not a one-time thing either. Children grow and change, and so do their needs.',act:async()=>{const y=all('.b4-yr');y[0].classList.add('on');q('.b4-fill').classList.add('on');for(let i=1;i<4;i++){await wait(450);y[i].classList.add('on')}}},
- {say:'I D E A requires a reevaluation at least once every three years.',li:0,act:async()=>{const f=q('.b4-flag');f.classList.add('on');spot(q('.b4-y3'),8)}},
+ {say:'IDEA requires a reevaluation at least once every three years.',li:0,act:async()=>{const f=q('.b4-flag');f.classList.add('on');spot(q('.b4-y3'),8)}},
  {say:'A reevaluation does three jobs. It decides whether your child is still eligible.',li:1,act:()=>b4on('.b4-why div',0)},
  {say:'It reviews the progress your child has made.',li:2,act:()=>b4on('.b4-why div',1)},
  {say:'And it helps decide what services are appropriate now.',li:3,act:async()=>{await b4on('.b4-why div',2);await wait(1200);spot(null)}}]},
@@ -322,4 +322,4 @@ CLOSE({...L,sub:'That completes the Bronze lessons. The Bronze final quiz follow
  say:'Mahalo! That is Lesson 4, and the end of the Bronze lessons. You now know how special education begins: with finding the child, and with a fair, complete evaluation. The Bronze final quiz follows on the lesson page. Select Complete on the lesson page when you are ready to take it.'})
 ];
 </script>
-<script src="deck-engine.js?v=1"></script></body></html>
+<script src="deck-engine.js?v=2"></script></body></html>
