@@ -4,6 +4,7 @@ const Anthropic = require("@anthropic-ai/sdk");
 const { FLYER_TOOL_SCHEMA, sessionsToSignupDates } = require("./flyerExtraction");
 const screeningReferral = require("./screeningReferralExtraction");
 const cgDocCheck = require("./cgDocCheck");
+const staffAgenda = require("./staffAgenda");
 const crypto = require("crypto");
 const heicConvert = require("heic-convert");
 // nodemailer removed — Firebase 1st Gen blocks outbound SMTP (port 465/587).
@@ -33628,5 +33629,179 @@ exports.sendStaffPasswordReset = functions
     } catch (e) {
       console.error("sendStaffPasswordReset:", e.message);
       res.status(500).json({ error: "Could not send the email. Try again in a minute." });
+    }
+  });
+
+
+// ───────────────────────────────────────────────────────────────────────
+// Meeting agendas on Staff Calendar only entries (Daniel 2026-11-06).
+// Helpers and the data shape: functions/staffAgenda.js.
+// ───────────────────────────────────────────────────────────────────────
+
+// Any staff role except partners (the same people the staffCalendar rule lets in).
+async function _verifyAgendaStaff(idToken) {
+  const raw = String(idToken || "").trim();
+  if (!raw) { const e = new Error("Missing idToken"); e.statusCode = 401; throw e; }
+  let decoded;
+  try { decoded = await admin.auth().verifyIdToken(raw); }
+  catch (_) { const e = new Error("Invalid or expired idToken"); e.statusCode = 401; throw e; }
+  const snap = await admin.firestore().collection("userRoles").doc(decoded.uid).get();
+  const role = snap.exists ? String((snap.data() || {}).role || "") : "";
+  if (!snap.exists || role === "partner" || role === "superPartner") {
+    const e = new Error("LDAH staff only"); e.statusCode = 403; throw e;
+  }
+  const d = snap.data() || {};
+  return { uid: decoded.uid, role, name: d.displayName || d.name || decoded.email || decoded.uid, email: decoded.email || d.email || "" };
+}
+
+async function _runStaffAgendaAsks(todayIso) {
+  const db = admin.firestore();
+  const to = staffAgenda.addDaysIso(todayIso, 6);
+  const snap = await db.collection("staffCalendar").where("agendaOn", "==", true).get();
+  const made = [];
+  for (const doc of snap.docs) {
+    const entry = doc.data() || {};
+    for (const date of staffAgenda.entryDates(entry, todayIso, to)) {
+      if (((entry.agendas || {})[date] || {}).sentAt) continue;
+      for (const p of staffAgenda.participantsOf(entry)) {
+        const ref = db.collection("interactions").doc(staffAgenda.askTaskId(doc.id, date, p.uid));
+        const ex = await ref.get();
+        if (ex.exists) continue;
+        await ref.set(Object.assign(staffAgenda.askTask(doc.id, entry, date, p, todayIso), {
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }));
+        made.push(ref.id);
+      }
+    }
+  }
+  return made;
+}
+
+async function _runStaffAgendaFinals(todayIso) {
+  const db = admin.firestore();
+  const FV = admin.firestore.FieldValue;
+  const tomorrow = staffAgenda.addDaysIso(todayIso, 1);
+  const snap = await db.collection("staffCalendar").where("agendaOn", "==", true).get();
+  const sent = [];
+  for (const doc of snap.docs) {
+    const entry = doc.data() || {};
+    for (const date of staffAgenda.entryDates(entry, todayIso, tomorrow)) {
+      const agenda = (entry.agendas || {})[date] || {};
+      if (agenda.sentAt) continue;
+      // Today's meeting only when it was added too late for yesterday's run.
+      if (date === todayIso && !(agenda.items || []).length) continue;
+      const ref = db.collection("interactions").doc(staffAgenda.finalTaskId(doc.id, date));
+      await ref.set(Object.assign(staffAgenda.finalTask(doc.id, entry, date, agenda), {
+        createdAt: FV.serverTimestamp(), updatedAt: FV.serverTimestamp(),
+      }), { merge: true });
+      await doc.ref.update(new admin.firestore.FieldPath("agendas", date, "sentAt"), FV.serverTimestamp());
+      for (const p of staffAgenda.participantsOf(entry)) {
+        const ask = db.collection("interactions").doc(staffAgenda.askTaskId(doc.id, date, p.uid));
+        const a = await ask.get();
+        if (!a.exists || (a.data() || {}).status !== "Open") continue;
+        await ask.update({
+          status: "Closed", updatedAt: FV.serverTimestamp(),
+          notes: String((a.data() || {}).notes || "") + "\n---\n[System — " + todayIso + "]\nThe agenda went to " +
+                 staffAgenda.agendaToOf(entry).name + ". Closed automatically. Items can still be added on the calendar card.",
+        });
+      }
+      sent.push(ref.id);
+    }
+  }
+  return sent;
+}
+
+exports.staffAgendaAskMonday = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 1 })
+  .pubsub.schedule("0 8 * * 1")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    try { const m = await _runStaffAgendaAsks(toHstDateKey(new Date())); console.log("staffAgendaAskMonday:", m.length, m.join(",")); }
+    catch (e) { console.error("staffAgendaAskMonday:", e.message); }
+    return null;
+  });
+
+exports.staffAgendaToOwner = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 1 })
+  .pubsub.schedule("0 15 * * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    try { const s = await _runStaffAgendaFinals(toHstDateKey(new Date())); console.log("staffAgendaToOwner:", s.length, s.join(",")); }
+    catch (e) { console.error("staffAgendaToOwner:", e.message); }
+    return null;
+  });
+
+// Upload a base agenda file. staffCalendar/ has no Storage rule (deny), so the
+// browser PUTs to a resumable URL minted here and then records the file on the
+// entry itself.
+exports.requestStaffAgendaUploadUrl = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    const body = req.body || {};
+    const entryId = String(body.entryId || "").trim();
+    const date = String(body.date || "").trim();
+    const mimeType = String(body.mimeType || "").trim();
+    const sizeBytes = Number(body.sizeBytes);
+    const name = String(body.originalFilename || "").trim();
+    if (!/^[A-Za-z0-9]{10,40}$/.test(entryId) || !staffAgenda.isIso(date)) { res.status(400).json({ error: "Missing meeting or date" }); return; }
+    const ext = staffAgenda.AGENDA_MIME_EXT[mimeType];
+    if (!ext) { res.status(400).json({ error: "Please use a PDF, Word file, JPG or PNG." }); return; }
+    if (!Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > staffAgenda.AGENDA_MAX_BYTES) {
+      res.status(400).json({ error: "The file must be smaller than 25 MB." }); return;
+    }
+    let staff;
+    try { staff = await _verifyAgendaStaff(body.idToken); }
+    catch (err) { res.status(err.statusCode || 401).json({ error: err.message }); return; }
+    try {
+      const entry = await admin.firestore().collection("staffCalendar").doc(entryId).get();
+      if (!entry.exists) { res.status(404).json({ error: "Meeting not found" }); return; }
+      const safe = (name.replace(/\.[^.]*$/, "").replace(/[^A-Za-z0-9._-]+/g, "_").slice(0, 60) || "agenda");
+      const storagePath = "staffCalendar/" + entryId + "/" + date + "/" + Date.now() + "-" + safe + "." + ext;
+      const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
+      const [uploadUrl] = await bucket.file(storagePath).createResumableUpload({
+        origin: req.headers.origin || "https://danpoahu.github.io",
+        metadata: { contentType: mimeType },
+      });
+      console.log("requestStaffAgendaUploadUrl:", storagePath, "by", staff.email || staff.uid);
+      res.status(200).json({ ok: true, uploadUrl, storagePath });
+    } catch (err) {
+      console.error("requestStaffAgendaUploadUrl:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+// Open a base agenda file (a 10-minute signed link), or remove it with
+// action 'delete'. Staff only.
+exports.getStaffAgendaFileUrl = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    const body = req.body || {};
+    const path = String(body.path || "").trim();
+    if (!/^staffCalendar\/[A-Za-z0-9]{10,40}\/\d{4}-\d{2}-\d{2}\/[^/]+$/.test(path) || path.indexOf("..") !== -1) {
+      res.status(400).json({ error: "Bad file path" }); return;
+    }
+    try { await _verifyAgendaStaff(body.idToken); }
+    catch (err) { res.status(err.statusCode || 401).json({ error: err.message }); return; }
+    try {
+      const file = admin.storage().bucket("ldah-932d5.firebasestorage.app").file(path);
+      const [exists] = await file.exists();
+      if (!exists) { res.status(404).json({ error: "That file is no longer there." }); return; }
+      if (body.action === "delete") { await file.delete(); res.status(200).json({ ok: true, deleted: true }); return; }
+      const [url] = await file.getSignedUrl({ version: "v4", action: "read", expires: Date.now() + 10 * 60 * 1000 });
+      res.status(200).json({ ok: true, url });
+    } catch (err) {
+      console.error("getStaffAgendaFileUrl:", err.message);
+      res.status(500).json({ error: err.message });
     }
   });
