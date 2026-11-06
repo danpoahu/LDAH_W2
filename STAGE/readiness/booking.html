@@ -1040,6 +1040,7 @@
     function mark(id, on) { var el = $(id); if (el) el.classList.toggle('fill', !!on); }
     function resetOnFile() {
       S.keepPhone = false; S.keepAddress = false; S.look = null; S.kid = '';
+      if (window.ldahOnFileReset) ldahOnFileReset();
       var p = $('ob_phone'); p.placeholder = '(808) 555-0123'; $('ob_phoneHint').hidden = true; mark('ob_phone', false);
       var a = $('ob_street'); a.placeholder = ''; $('ob_addrHint').hidden = true; mark('ob_street', false);
       $('ob_found').hidden = true; $('ob_kidsWrap').hidden = true; $('ob_kids').innerHTML = '';
@@ -1063,12 +1064,14 @@
         if (j.hasPhone && j.phoneMasked) {
           var p = $('ob_phone');
           if (!v('ob_phone')) { S.keepPhone = true; mark('ob_phone', true); }
-          p.placeholder = j.phoneMasked + ' on file'; $('ob_phoneHint').hidden = false;
+          p.placeholder = j.phoneMasked + ' on file'; $('ob_phoneHint').hidden = true; S.keepPhone = true;
+          if (window.ldahOnFile) ldahOnFile('phone', ['ob_phone'], 'Phone', j.phoneMasked + ' on file', 'Use a different number');
         }
         if (j.hasAddress) {
           var a = $('ob_street');
           if (!v('ob_street') && !v('ob_city') && !v('ob_zip')) { S.keepAddress = true; mark('ob_street', true); }
-          a.placeholder = 'On file' + (j.addressHint ? ' · ' + j.addressHint : ''); $('ob_addrHint').hidden = false;
+          a.placeholder = 'On file' + (j.addressHint ? ' · ' + j.addressHint : ''); $('ob_addrHint').hidden = true; S.keepAddress = true;
+          if (window.ldahOnFile) ldahOnFile('addr', ['ob_street', 'ob_city', 'ob_zip'], 'Address', 'On file' + (j.addressHint ? ' · ' + j.addressHint : ''), 'Use a different address');
         }
         renderKids();
         var f = $('ob_found');
@@ -1513,5 +1516,38 @@ function wire(){var s=document.getElementById(SIGN),f=document.getElementById(FI
  b.addEventListener('click',function(){s.value=nm();s.dispatchEvent(new Event('input',{bubbles:true}));s.dispatchEvent(new Event('change',{bubbles:true}));s.classList.remove('ob-missing','missing','err');upd();});
  [f,l,s].forEach(function(e){e.addEventListener('input',upd);});setInterval(upd,700);}
 setInterval(wire,500);})();</script>
+<script>/* "On file" for a returning family (Daniel 2026-11-06). The phone and address
+   are never shown. Their boxes are hidden (and anything the browser autofilled
+   into them is cleared) behind one line: "(707) •••-••80 on file · Use a
+   different number". The link opens the boxes empty. Empty boxes = keep what
+   is on file. */
+window.ldahOnFile = function (key, ids, label, text, linkText) {
+  window.ldahOnFileReset(key);
+  var els = ids.map(function (id) { return document.getElementById(id); }).filter(Boolean);
+  if (!els.length) return;
+  var wraps = [];
+  els.forEach(function (el) {
+    el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true }));
+    var w = el.closest('.ob-fg, .fg') || el; if (wraps.indexOf(w) === -1) wraps.push(w);
+  });
+  wraps.forEach(function (w) { w.style.display = 'none'; w.setAttribute('data-onfile', key); });
+  var box = document.createElement('div');
+  box.className = 'ldah-onfile'; box.setAttribute('data-onfile-box', key);
+  box.style.cssText = 'grid-column:1/-1;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:9px 12px;margin:6px 0;font-size:.92rem;color:#166534;';
+  box.innerHTML = '<b></b> <span></span> &middot; <a href="#" style="color:#0E7490;font-weight:700;"></a>';
+  box.querySelector('b').textContent = label + ':';
+  box.querySelector('span').textContent = text;
+  var a = box.querySelector('a'); a.textContent = linkText;
+  a.addEventListener('click', function (e) {
+    e.preventDefault(); window.ldahOnFileReset(key);
+    var first = els[0]; if (first) first.focus();
+  });
+  wraps[0].parentNode.insertBefore(box, wraps[0]);
+};
+window.ldahOnFileReset = function (key) {
+  document.querySelectorAll(key ? '[data-onfile-box="' + key + '"]' : '[data-onfile-box]').forEach(function (b) { b.remove(); });
+  document.querySelectorAll(key ? '[data-onfile="' + key + '"]' : '[data-onfile]').forEach(function (w) { w.style.display = ''; w.removeAttribute('data-onfile'); });
+};
+</script>
 </body>
 </html>
