@@ -5,6 +5,7 @@ const { FLYER_TOOL_SCHEMA, sessionsToSignupDates } = require("./flyerExtraction"
 const screeningReferral = require("./screeningReferralExtraction");
 const cgDocCheck = require("./cgDocCheck");
 const staffAgenda = require("./staffAgenda");
+const officeScreenings = require("./officeScreenings");
 const crypto = require("crypto");
 const heicConvert = require("heic-convert");
 // nodemailer removed — Firebase 1st Gen blocks outbound SMTP (port 465/587).
@@ -13727,6 +13728,245 @@ exports.sendSrpConsentToken = functions
 // against internet abuse. Consent is stored on contacts/{id}.srpScreeningConsent
 // so it shows in the existing contact-detail "Screening consent" panel.
 // ═══════════════════════════════════════════════════════════════════════════
+// ─── Shared consent core (2026-11-06) ──────────────────────────────────────
+// The kiosk (submitReadinessConsent) and office screening booking
+// (bookOfficeScreening, staffBookOfficeScreening) save the same Outreach
+// Screening Consent. Lifted out of submitReadinessConsent unchanged; a kiosk
+// request without the new optional fields (keepPhone, keepAddress,
+// child.birthday) saves exactly what it saved before.
+//   keepPhone   — the family saw "(808) •••-••23 on file" and typed nothing:
+//                 the phone on the contact is used (it is never blanked).
+//   keepAddress — "On file · Kaneohe 96744" and nothing typed: the contact's
+//                 address is copied onto the screening.
+//   child.birthday — 'YYYY-MM-DD', saved on the screening's child. Optional,
+//                 no age limit.
+// Returns { error } or the parsed input.
+function _parseReadinessConsent(body, opts) {
+  const o = opts || {};
+  const form = (body && body.form) || {};
+  const parent = form.parent || {};
+  const child = form.child || {};
+  const health = form.health || {};
+  const email = (parent.email || "").toString().trim();
+  const signedName = (form.signedName || "").toString().trim();
+  // Special-event context (present only when special.html posts screening
+  // mode): the event to mark 'attended' on, plus Option-B full mailing
+  // address. All optional — read defensively from a few plausible spots so
+  // the existing kiosk flow (which sends none of these) is untouched.
+  const eventId = ((body && body.eventId) || "").toString().trim();
+  const _addr = form.address || {};
+  const streetAddress = (parent.streetAddress || _addr.streetAddress || form.streetAddress || "").toString().trim();
+  const city = (parent.city || _addr.city || form.city || "").toString().trim();
+  const zipCode = (parent.zipCode || _addr.zipCode || form.zipCode || "").toString().trim();
+  // Phone is the other half of the identity key. A walk-up family may have no
+  // email, but with NEITHER email nor phone there is nothing to recognise them
+  // by later — and nothing to send results to.
+  const phone = (parent.phone || form.phone || (body && body.phone) || "").toString().trim();
+  const phoneDigits = phone.replace(/\D/g, "");
+  const birthday = (child.birthday || "").toString().trim();
+
+  // Email is OPTIONAL on the in-person kiosk (walk-up families may not have one)
+  // but one of email / phone is required.
+  if (email && email.indexOf("@") === -1) return { error: "That email doesn't look right — fix it or leave it blank" };
+  if (o.requireEmail && !email) return { error: "Please give your email address" };
+  if (!email && phoneDigits.length < 7) return { error: "Please give either an email address or a phone number" };
+  if (!parent.firstName || !parent.lastName) return { error: "Parent/guardian name is required" };
+  if (!child.firstName || !child.lastName) return { error: "Child name is required" };
+  if (birthday && !/^\d{4}-\d{2}-\d{2}$/.test(birthday)) return { error: "Please give the child's birthday as a date" };
+  if (!(o.paperConsent && !signedName) && (!signedName || signedName.indexOf(" ") === -1)) {
+    return { error: "Please type your first and last name to sign" };
+  }
+  return {
+    form, parent, child, health, email, signedName, eventId, streetAddress, city, zipCode, phone, birthday,
+    keepPhone: !!(body && body.keepPhone === true),
+    keepAddress: !!(body && body.keepAddress === true),
+  };
+}
+
+// Phone and address to use, given what is on the contact (onFile, may be null).
+function _readinessKeptFields(p, onFile) {
+  const c = onFile || {};
+  let phone = p.phone;
+  if (!phone && p.keepPhone) phone = String(c.phone || "").trim();
+  let address = null;
+  if (p.streetAddress || p.city || p.zipCode) {
+    address = { streetAddress: p.streetAddress, city: p.city, zipCode: p.zipCode };
+  } else if (p.keepAddress) {
+    const a = { streetAddress: String(c.streetAddress || "").trim(), city: String(c.city || "").trim(),
+      zipCode: String(c.zipCode || c.zip || "").trim() };
+    if (a.streetAddress || a.city || a.zipCode) address = a;
+  }
+  return { phone, address };
+}
+
+// The screening entry appended to contacts/{id}.screenings[].
+function _buildReadinessScreening(p, kept, opts) {
+  const o = opts || {};
+  const { parent, child, health, signedName } = p;
+  const emailLc = p.email ? p.email.toLowerCase() : "";
+  // One screening entry per child, appended to the contact's screenings[]
+  // (Timestamp.now, not serverTimestamp — serverTimestamp is illegal inside arrays).
+  const screening = {
+    id: o.id || crypto.randomBytes(8).toString("hex"),
+    source: o.screeningSource || "outreach-kiosk",
+    signedAt: admin.firestore.Timestamp.now(),
+    signedName,
+    consentVersion: "02/19/2025; HF",
+    signedIp: o.ip || "",
+    relationship: parent.relationship || "",
+    parent: { firstName: parent.firstName || "", lastName: parent.lastName || "", email: emailLc },
+    child: {
+      firstName: child.firstName || "", middleName: child.middleName || "", lastName: child.lastName || "",
+      gender: child.gender || "", nativeHawaiian: child.nativeHawaiian || "", ethnicity: child.ethnicity || "",
+    },
+    health: {
+      chronicEar: health.chronicEar || "", lastEarInfection: health.lastEarInfection || "",
+      sickRecently: health.sickRecently || "", illnessDescribe: health.illnessDescribe || "",
+    },
+  };
+  if (p.birthday) screening.child.birthday = p.birthday;
+  // Option B: carry full mailing address on the screening record when the
+  // form supplied one (or the family kept the one on file). Omitted entirely
+  // when absent — never fabricated.
+  if (kept && kept.address) screening.address = kept.address;
+  // Tie the screening to its Special event when posted from special.html.
+  if (o.eventId) screening.eventId = o.eventId;
+  return Object.assign(screening, o.screeningExtra || {});
+}
+
+// Find-or-create the contact, save the consent screening, log the Screening
+// interaction (and, for special.html, the attended signup).
+// Returns { contactId, screening, phone }.
+async function _saveReadinessConsent(db, p, opts) {
+  const o = opts || {};
+  const FieldValue = admin.firestore.FieldValue;
+  const { parent, child, email, phone } = p;
+  const emailLc = email ? email.toLowerCase() : "";
+
+  // Find-or-create the contact.
+  //
+  // 1. An explicit contactId wins. The kiosk asks "another child to screen
+  //    today?" and posts the id it got back from the first child, so a
+  //    parent with three children ends up as ONE contact with three
+  //    screenings. This replaced guessing: matching a no-email walk-up by
+  //    name would eventually fuse two different families, and at a booth
+  //    nobody can check. Deria Arlo got two records this way on 2026-08-03.
+  // 2. Otherwise match on email when one was given.
+  // 3. Otherwise create. A no-email family is still reachable by phone.
+  let contactId = null;
+  let created = false;
+  const claimedId = String(o.claimedContactId || "").trim();
+  if (claimedId) {
+    const claimed = await db.collection("contacts").doc(claimedId).get();
+    if (claimed.exists) contactId = claimed.id;
+  }
+  if (!contactId && emailLc && emailLc.indexOf("@") > -1) {
+    const snap = await db.collection("contacts").where("email", "==", emailLc).limit(1).get();
+    if (!snap.empty) contactId = snap.docs[0].id;
+  }
+  if (!contactId) {
+    const src = o.contactSource || "readiness-kiosk";
+    const ref = await db.collection("contacts").add({
+      displayName: (parent.firstName + " " + parent.lastName).trim(),
+      firstName: parent.firstName || "",
+      lastName: parent.lastName || "",
+      email: emailLc,
+      phone: phone,
+      type: "Parent/Guardian",
+      source: src,
+      createdBy: src,
+      // Screening families are not opted in to LDAH email (Daniel 2026-10-14);
+      // a contact that already existed keeps whatever it had.
+      marketingOptOut: true,
+      createdByName: o.contactCreatedByName || "Readiness Screening Kiosk",
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    contactId = ref.id;
+    created = true;
+  } else if (phone) {
+    // Fill a blank phone on the matched contact; never overwrite one.
+    try {
+      const cur = await db.collection("contacts").doc(contactId).get();
+      if (cur.exists && !String((cur.data() || {}).phone || "").trim()) {
+        await db.collection("contacts").doc(contactId).update({ phone });
+      }
+    } catch (e) { console.warn("kiosk phone fill failed:", e.message); }
+  }
+
+  // "Keep what is on file" — only read the contact when the family asked for it.
+  let onFile = null;
+  const needAddr = p.keepAddress && !(p.streetAddress || p.city || p.zipCode);
+  if (!created && ((p.keepPhone && !phone) || needAddr)) {
+    const cur = await db.collection("contacts").doc(contactId).get();
+    onFile = cur.exists ? (cur.data() || {}) : null;
+  }
+  const kept = _readinessKeptFields(p, onFile);
+
+  // Second parent / guardian (optional): merge-safe enrichment. Only writes
+  // when a valid second-parent email is supplied AND the contact has no
+  // existing second-parent email — never overwrite one staff already set.
+  const _sp = o.secondParent;
+  const _spEmail = _sp ? String(_sp.email || "").trim() : "";
+  if (_spEmail && RESEND_EMAIL_RE.test(_spEmail)) {
+    const _cRef = db.collection("contacts").doc(contactId);
+    const _cSnap = await _cRef.get();
+    const _existing = _cSnap.exists && _cSnap.data().secondParent
+      ? String(_cSnap.data().secondParent.email || "").trim() : "";
+    if (!_existing) {
+      await _cRef.update({ secondParent: {
+        firstName: String(_sp.firstName || "").trim(),
+        lastName: String(_sp.lastName || "").trim(),
+        email: _spEmail } });
+    }
+  }
+
+  const screening = _buildReadinessScreening(p, kept, o);
+  await db.collection("contacts").doc(contactId).update({ screenings: FieldValue.arrayUnion(screening) });
+
+  // Auto-log a "Screening" interaction (in-person; no email sent).
+  const childName = ((child.firstName || "") + " " + (child.lastName || "")).trim();
+  const parentName = ((parent.firstName || "") + " " + (parent.lastName || "")).trim();
+  await db.collection("interactions").add({
+    channel: "Office",
+    interactionType: "Screening",
+    contactId,
+    contactName: parentName,
+    contactType: "Parent/Guardian",
+    summary: o.interactionSummary || ("Outreach screening consent captured" + (childName ? " for " + childName : "")),
+    status: "Open",
+    owner: o.interactionOwner || "Readiness Screening Kiosk",
+    ownerUid: "",
+    source: o.interactionSource || "readiness-kiosk",
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  // Special screening: mark this attendee 'attended' on the Special event
+  // so the Int Event Summary counts them. Load-bearing shape:
+  // attendanceStatus:'attended' + status:'confirmed' (not cancelled/archived).
+  // source:'special-screening' (NOT 'special-outreach') so onEventSignupCreated
+  // does NOT set partialProfile — screening captures are rich, not partial.
+  // The trigger will link this signup to the contact just created/matched by
+  // email. Own try/catch so a signup failure never fails the consent save.
+  // Fully inert for the existing kiosk flow, which sends no eventId.
+  if (o.eventId) {
+    try {
+      await db.collection("events").doc(o.eventId).collection("signups").add({
+        name: parentName,
+        email: emailLc,
+        status: "confirmed",
+        attendanceStatus: "attended",
+        attendanceMarkedAt: FieldValue.serverTimestamp(),
+        attendanceMarkedBy: "special-screening",
+        source: "special-screening",
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    } catch (sErr) {
+      console.error("submitReadinessConsent attendance signup failed:", sErr.message);
+    }
+  }
+  return { contactId, screening, phone: kept.phone };
+}
+
 exports.lookupReadinessContact = functions
   .runWith({ timeoutSeconds: 15, maxInstances: 10 })
   .https.onRequest(async (req, res) => {
@@ -13780,180 +14020,19 @@ exports.submitReadinessConsent = functions
       res.status(200).json({ warm: true });
       return;
     }
-    const form = body.form || {};
-    const parent = form.parent || {};
-    const child = form.child || {};
-    const health = form.health || {};
-    const email = (parent.email || "").toString().trim();
-    const signedName = (form.signedName || "").toString().trim();
-    // Special-event context (present only when special.html posts screening
-    // mode): the event to mark 'attended' on, plus Option-B full mailing
-    // address. All optional — read defensively from a few plausible spots so
-    // the existing kiosk flow (which sends none of these) is untouched.
-    const eventId = (body.eventId || "").toString().trim();
-    const _addr = form.address || {};
-    const streetAddress = (parent.streetAddress || _addr.streetAddress || form.streetAddress || "").toString().trim();
-    const city = (parent.city || _addr.city || form.city || "").toString().trim();
-    const zipCode = (parent.zipCode || _addr.zipCode || form.zipCode || "").toString().trim();
-    // Phone is the other half of the identity key. A walk-up family may have no
-    // email, but with NEITHER email nor phone there is nothing to recognise them
-    // by later — and nothing to send results to.
-    const phone = (parent.phone || form.phone || body.phone || "").toString().trim();
-    const phoneDigits = phone.replace(/\D/g, "");
-
-    // Email is OPTIONAL on the in-person kiosk (walk-up families may not have one)
-    // but one of email / phone is required.
-    if (email && email.indexOf("@") === -1) { res.status(400).json({ error: "That email doesn't look right — fix it or leave it blank" }); return; }
-    if (!email && phoneDigits.length < 7) {
-      res.status(400).json({ error: "Please give either an email address or a phone number" });
-      return;
-    }
-    if (!parent.firstName || !parent.lastName) { res.status(400).json({ error: "Parent/guardian name is required" }); return; }
-    if (!child.firstName || !child.lastName) { res.status(400).json({ error: "Child name is required" }); return; }
-    if (!signedName || signedName.indexOf(" ") === -1) { res.status(400).json({ error: "Please type your first and last name to sign" }); return; }
+    const parsed = _parseReadinessConsent(body);
+    if (parsed.error) { res.status(400).json({ error: parsed.error }); return; }
 
     try {
       const db = admin.firestore();
-      const FieldValue = admin.firestore.FieldValue;
-      const emailLc = email ? email.toLowerCase() : "";
-
-      // Find-or-create the contact.
-      //
-      // 1. An explicit contactId wins. The kiosk asks "another child to screen
-      //    today?" and posts the id it got back from the first child, so a
-      //    parent with three children ends up as ONE contact with three
-      //    screenings. This replaced guessing: matching a no-email walk-up by
-      //    name would eventually fuse two different families, and at a booth
-      //    nobody can check. Deria Arlo got two records this way on 2026-08-03.
-      // 2. Otherwise match on email when one was given.
-      // 3. Otherwise create. A no-email family is still reachable by phone.
-      let contactId = null;
-      const claimedId = (body.contactId || "").toString().trim();
-      if (claimedId) {
-        const claimed = await db.collection("contacts").doc(claimedId).get();
-        if (claimed.exists) contactId = claimed.id;
-      }
-      if (!contactId && emailLc && emailLc.indexOf("@") > -1) {
-        const snap = await db.collection("contacts").where("email", "==", emailLc).limit(1).get();
-        if (!snap.empty) contactId = snap.docs[0].id;
-      }
-      if (!contactId) {
-        const ref = await db.collection("contacts").add({
-          displayName: (parent.firstName + " " + parent.lastName).trim(),
-          firstName: parent.firstName || "",
-          lastName: parent.lastName || "",
-          email: emailLc,
-          phone: phone,
-          type: "Parent/Guardian",
-          source: "readiness-kiosk",
-          createdBy: "readiness-kiosk",
-          // Screening families are not opted in to LDAH email (Daniel 2026-10-14);
-          // a contact that already existed keeps whatever it had.
-          marketingOptOut: true,
-          createdByName: "Readiness Screening Kiosk",
-          createdAt: FieldValue.serverTimestamp(),
-        });
-        contactId = ref.id;
-      } else if (phone) {
-        // Fill a blank phone on the matched contact; never overwrite one.
-        try {
-          const cur = await db.collection("contacts").doc(contactId).get();
-          if (cur.exists && !String((cur.data() || {}).phone || "").trim()) {
-            await db.collection("contacts").doc(contactId).update({ phone });
-          }
-        } catch (e) { console.warn("kiosk phone fill failed:", e.message); }
-      }
-
-      // Second parent / guardian (optional): merge-safe enrichment. Only writes
-      // when a valid second-parent email is supplied AND the contact has no
-      // existing second-parent email — never overwrite one staff already set.
-      const _sp = body && body.secondParent;
-      const _spEmail = _sp ? String(_sp.email || "").trim() : "";
-      if (_spEmail && RESEND_EMAIL_RE.test(_spEmail)) {
-        const _cRef = db.collection("contacts").doc(contactId);
-        const _cSnap = await _cRef.get();
-        const _existing = _cSnap.exists && _cSnap.data().secondParent
-          ? String(_cSnap.data().secondParent.email || "").trim() : "";
-        if (!_existing) {
-          await _cRef.update({ secondParent: {
-            firstName: String(_sp.firstName || "").trim(),
-            lastName: String(_sp.lastName || "").trim(),
-            email: _spEmail } });
-        }
-      }
-
       const ip = (req.headers["x-forwarded-for"] || req.ip || "").toString().split(",")[0].trim();
-      // One screening entry per child, appended to the contact's screenings[]
-      // (Timestamp.now, not serverTimestamp — serverTimestamp is illegal inside arrays).
-      const screening = {
-        id: crypto.randomBytes(8).toString("hex"),
-        source: "outreach-kiosk",
-        signedAt: admin.firestore.Timestamp.now(),
-        signedName,
-        consentVersion: "02/19/2025; HF",
-        signedIp: ip,
-        relationship: parent.relationship || "",
-        parent: { firstName: parent.firstName || "", lastName: parent.lastName || "", email: emailLc },
-        child: {
-          firstName: child.firstName || "", middleName: child.middleName || "", lastName: child.lastName || "",
-          gender: child.gender || "", nativeHawaiian: child.nativeHawaiian || "", ethnicity: child.ethnicity || "",
-        },
-        health: {
-          chronicEar: health.chronicEar || "", lastEarInfection: health.lastEarInfection || "",
-          sickRecently: health.sickRecently || "", illnessDescribe: health.illnessDescribe || "",
-        },
-      };
-      // Option B: carry full mailing address on the screening record when the
-      // form supplied one. Omitted entirely when absent — never fabricated.
-      if (streetAddress || city || zipCode) {
-        screening.address = { streetAddress, city, zipCode };
-      }
-      // Tie the screening to its Special event when posted from special.html.
-      if (eventId) screening.eventId = eventId;
-      await db.collection("contacts").doc(contactId).update({ screenings: FieldValue.arrayUnion(screening) });
-
-      // Auto-log a "Screening" interaction (in-person; no email sent).
-      const childName = ((child.firstName || "") + " " + (child.lastName || "")).trim();
-      const parentName = ((parent.firstName || "") + " " + (parent.lastName || "")).trim();
-      await db.collection("interactions").add({
-        channel: "Office",
-        interactionType: "Screening",
-        contactId,
-        contactName: parentName,
-        contactType: "Parent/Guardian",
-        summary: "Outreach screening consent captured" + (childName ? " for " + childName : ""),
-        status: "Open",
-        owner: "Readiness Screening Kiosk",
-        ownerUid: "",
-        source: "readiness-kiosk",
-        createdAt: FieldValue.serverTimestamp(),
+      const out = await _saveReadinessConsent(db, parsed, {
+        claimedContactId: (body.contactId || "").toString().trim(),
+        secondParent: body && body.secondParent,
+        eventId: parsed.eventId,
+        ip,
       });
-
-      // Special screening: mark this attendee 'attended' on the Special event
-      // so the Int Event Summary counts them. Load-bearing shape:
-      // attendanceStatus:'attended' + status:'confirmed' (not cancelled/archived).
-      // source:'special-screening' (NOT 'special-outreach') so onEventSignupCreated
-      // does NOT set partialProfile — screening captures are rich, not partial.
-      // The trigger will link this signup to the contact just created/matched by
-      // email. Own try/catch so a signup failure never fails the consent save.
-      // Fully inert for the existing kiosk flow, which sends no eventId.
-      if (eventId) {
-        try {
-          await db.collection("events").doc(eventId).collection("signups").add({
-            name: parentName,
-            email: emailLc,
-            status: "confirmed",
-            attendanceStatus: "attended",
-            attendanceMarkedAt: FieldValue.serverTimestamp(),
-            attendanceMarkedBy: "special-screening",
-            source: "special-screening",
-            createdAt: FieldValue.serverTimestamp(),
-          });
-        } catch (sErr) {
-          console.error("submitReadinessConsent attendance signup failed:", sErr.message);
-        }
-      }
-
+      const contactId = out.contactId;
       res.status(200).json({ ok: true, contactId });
     } catch (err) {
       console.error("submitReadinessConsent error:", err.message);
@@ -32432,6 +32511,12 @@ exports.onChatHelpRequest = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  _parseReadinessConsent,
+  _readinessKeptFields,
+  _buildReadinessScreening,
+  buildOfficeScreeningEmailHtml,
+  _osEmailSubject,
+  _runOfficeScreeningSweep,
   _asqLionsTodoKeys,
   _asqHasAddress,
   _asqGroupBySchool,
@@ -33016,6 +33101,10 @@ async function _syncSchoolScreeningCases() {
          by school; they count toward the main assign task. */
       let loc = String(s.location || "").trim();
       let outreach = false;
+      /* Office screenings (Daniel 2026-11-06): a child booked at the LDAH office
+         follows the school flow, labelled office, with no school batch task
+         (the case counts in the main assign task). */
+      const office = String(s.source || "") === "office-screening" || loc === officeScreenings.OFFICE_LOCATION;
       if (!loc && s.eventId) {
         if (_isSelfScreening(s)) continue;
         loc = await _screeningEventTitle(db, s.eventId);
@@ -33031,7 +33120,7 @@ async function _syncSchoolScreeningCases() {
       const kid = ((((s.child || {}).firstName || "") + " " + ((s.child || {}).lastName || "")).trim()) || "the child";
       const parent = c.displayName || (((c.firstName || "") + " " + (c.lastName || "")).trim()) || ("Parent of " + kid);
       const school = _schoolShortName(loc);
-      const prov = (outreach ? "Outreach " : "School ") + what + " screening referral for " + kid + " at " + loc + ", screened " + day +
+      const prov = (office ? "Office " : outreach ? "Outreach " : "School ") + what + " screening referral for " + kid + " at " + loc + ", screened " + day +
         ". The child did not pass, so the family goes to case management." +
         "\nInitial contact is due by " + due + " (21 days from the screening)." +
         "\nOpened automatically on " + today + ".";
@@ -33046,19 +33135,19 @@ async function _syncSchoolScreeningCases() {
       const caseRef = await db.collection("interactions").add({
         channel: "Mail", interactionType: "Case Advocacy", workflowStep: "caseAdvocacy",
         contactId: d.id, contactName: parent, contactType: "Parent/Guardian",
-        summary: "Case management \u2014 assign a parent consultant for " + parent + " (" + school + " " + what + " screening)",
+        summary: "Case management \u2014 assign a parent consultant for " + parent + " (" + (office ? "Office " + what : school + " " + what) + " screening)",
         notes: prov, followUpDate: today, status: "Open",
         owner: CASE_ADVOCACY_COORDINATOR_NAME, ownerUid: CONNECT_GEN_ALERT_CC_UID,
         needsAdvocateAssignment: true,
-        source: outreach ? "outreach-screening" : "school-paper",
-        caseAdvocacySource: outreach ? "outreach-screening" : "school-screening",
-        serviceLevel: "management", ...(outreach ? {} : { assignBatch: school }),
+        source: office ? "office-screening" : outreach ? "outreach-screening" : "school-paper",
+        caseAdvocacySource: office ? "office-screening" : outreach ? "outreach-screening" : "school-screening",
+        serviceLevel: "management", ...((outreach || office) ? {} : { assignBatch: school }),
         caseAdvocacyScreeningDate: day, caseAdvocacyContactDueDate: due, screeningReferrals: [ref1],
         createdBy: "System (auto)", createdAt: FV.serverTimestamp(), updatedAt: FV.serverTimestamp(),
       });
       openByContact[d.id] = caseRef;
       opened++;
-      if (outreach) continue;
+      if (outreach || office) continue;
       const tasks = await db.collection("interactions").where("workflowStep", "==", CASE_MGMT_ASSIGN_SCHOOL_STEP).get();
       const open = tasks.docs.find((t) => { const y = t.data() || {}; return y.status === "Open" && y.assignSchool === school; });
       if (open) {
@@ -33804,4 +33893,738 @@ exports.getStaffAgendaFileUrl = functions
       console.error("getStaffAgendaFileUrl:", err.message);
       res.status(500).json({ error: err.message });
     }
+  });
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Office Screenings (Daniel 2026-11-06). Spec: office-screening-spec.md.
+// Staff open a day in DAN (officeScreeningDays/{YYYY-MM-DD}); families book a
+// 15-minute time on School Readiness (website + app) by signing the Outreach
+// Screening Consent. Bookings (officeScreeningBookings) and slot locks
+// (officeScreeningSlots/{date}_{time}) are written ONLY here, in transactions.
+// Pure helpers: functions/officeScreenings.js.
+//
+// Links: a page being tested on www.ldahawaii.org/STAGE/ posts site:'stage';
+// the booking keeps it (booking.site) so its confirmation, reminder and
+// no-show emails link to the STAGE booking pages. Anything else is live.
+// The email "Cancel" button is the manage page with &action=cancel.
+// ═══════════════════════════════════════════════════════════════════════════
+const OS = officeScreenings;
+const OS_TOKEN_RE = /^[a-f0-9]{32}$/;
+const OS_ID_RE = /^[A-Za-z0-9]{15,40}$/;
+
+function _osCors(req, res) {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") { res.status(204).send(""); return true; }
+  if (req.method !== "POST") { res.status(405).json({ ok: false, error: "Method not allowed" }); return true; }
+  return false;
+}
+function _osNow(ms) { const t = ms == null ? Date.now() : ms; return Object.assign(OS.hstNow(t), { ms: t }); }
+function _osErr(code, status) { const e = new Error(code); e.osCode = code; e.statusCode = status || 200; return e; }
+function _osSend(res, err, where) {
+  if (err && err.osCode) { res.status(err.statusCode || 200).json({ ok: false, error: err.osCode }); return; }
+  console.error(where + ":", err && err.message);
+  res.status(err && err.statusCode ? err.statusCode : 500).json({ ok: false, error: (err && err.message) || "server" });
+}
+function _osSummary(id, b) {
+  return {
+    ok: true, bookingId: id, date: b.date, time: b.time,
+    timeLabel: OS.timeLabelFull(b.time), dateLabel: OS.dayLabelLong(b.date),
+    childFirstName: b.childFirstName || "",
+  };
+}
+const _osSlots = (db) => db.collection("officeScreeningSlots");
+const _osBookings = (db) => db.collection("officeScreeningBookings");
+const _osDays = (db) => db.collection("officeScreeningDays");
+
+async function _osBookingByToken(db, token) {
+  if (!OS_TOKEN_RE.test(String(token || ""))) return null;
+  const snap = await _osBookings(db).where("manageToken", "==", String(token)).limit(1).get();
+  return snap.empty ? null : snap.docs[0];
+}
+
+// ─── Emails (confirmation / reminder / no-show) ────────────────────────────
+// Same branded shell as buildConfirmationEmailHtml (logo header), the shared
+// _emailBtn buttons, the School Readiness sign-off and the copy/paste link footer.
+function _osEmailShell(title, innerHtml) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;">
+<tr><td align="center" style="padding:24px 16px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;max-width:600px;width:100%;">
+  <tr>
+    <td style="background-color:#ffffff;padding:28px 32px 20px;text-align:center;border-bottom:3px solid #1a3c6e;">
+      <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="150" style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;">
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:32px;">
+      <h1 style="margin:0 0 18px;font-size:22px;color:#1a3c6e;">${_emailEsc(title)}</h1>
+      ${innerHtml}
+    </td>
+  </tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+function _osEmailButtons(btns) {
+  return '<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:18px auto 4px;"><tr>' +
+    btns.map((b) => '<td style="padding:0 6px;">' + _emailBtn(b.href, b.label, { bg: b.bg || "#1a3c6e", fg: b.fg, align: "left" }) + "</td>").join("") +
+    "</tr></table>";
+}
+// kind: 'confirmation' | 'reminder' | 'noshow'. b = the booking.
+function buildOfficeScreeningEmailHtml(kind, b) {
+  const esc = _emailEsc;
+  const kid = esc(b.childFirstName || "your child");
+  const kidPos = b.childFirstName ? esc(b.childFirstName) + "&rsquo;s" : "your child&rsquo;s";
+  const when = esc(OS.dayLabelLong(b.date) + " at " + OS.timeLabelFull(b.time));
+  const p = (html, style) => '<p style="margin:0 0 14px;font-size:16px;color:#333333;line-height:1.55;' + (style || "") + '">' + html + "</p>";
+  const h = (t) => '<p style="margin:18px 0 6px;font-size:15px;font-weight:700;color:#1a3c6e;">' + t + "</p>";
+  const hi = p("Hi " + esc(b.parentFirstName || "there") + ",");
+  const questions = p("Questions? Call us at " + OS.OFFICE_PHONE + ".", "font-size:15px;color:#555555;");
+  if (kind === "noshow") {
+    const book = OS.bookUrl(b.site);
+    return _osEmailShell("We missed you", hi +
+      p("We missed " + kid + " at the free vision and hearing screening on <strong>" + when + "</strong>.") +
+      p("You can book another time at our office. It takes about 15 minutes.") +
+      _osEmailButtons([{ href: book, label: "Book another time" }]) +
+      '<div style="height:12px;"></div>' + questions + _srpSignOffHtml() +
+      _emailLinkFooter([{ label: "Book another time", href: book }]));
+  }
+  const change = OS.manageUrl(b.site, b.manageToken);
+  const cancel = OS.manageUrl(b.site, b.manageToken, "cancel");
+  const intro = kind === "reminder"
+    ? p("This is a reminder that " + kidPos + " free vision and hearing screening is <strong>tomorrow</strong>.")
+    : p("Thank you for booking a free vision and hearing screening for <strong>" + kid + "</strong>.");
+  const box = '<div style="background:#F5F3FF;border-left:4px solid #7C3AED;border-radius:6px;padding:14px 16px;margin:0 0 16px;font-size:15px;color:#333333;line-height:1.6;">' +
+    "<strong>" + when + "</strong><br>LDAH office &middot; " + esc(OS.OFFICE_ADDRESS) + "<br>" +
+    "It takes about 15 minutes. Please arrive 5 minutes early.</div>";
+  const li = (t) => '<li style="margin:0 0 4px;">' + t + "</li>";
+  const bring = h("Please bring") + '<ul style="margin:0 0 8px;padding-left:20px;font-size:15px;color:#333333;line-height:1.55;">' +
+    li(kidPos + " glasses, if " + kid + " wears them") + li("Hearing aids, if " + kid + " uses them") +
+    li("Any past eye or hearing reports, if you have them") + "</ul>";
+  const good = h("Good to know") + p("Nothing hurts and there are no eye drops. You stay with " + kid +
+    " the whole time. We&rsquo;ll email the results after the screening.", "font-size:15px;");
+  const parking = h("Parking") + p("There is ample parking in the lot at the building.", "font-size:15px;");
+  return _osEmailShell(kind === "reminder" ? "Your screening is tomorrow" : "Your screening is booked",
+    hi + intro + box + bring + good + parking +
+    _osEmailButtons([{ href: change, label: "Change my time" }, { href: cancel, label: "Cancel", bg: "#ffffff", fg: "#1a3c6e" }]) +
+    '<div style="height:12px;"></div>' + questions + _srpSignOffHtml() +
+    _emailLinkFooter([{ label: "Change my time", href: change }, { label: "Cancel", href: cancel }]));
+}
+function _osEmailSubject(kind, b) {
+  const kid = b.childFirstName || "your child";
+  if (kind === "noshow") return "We missed you: book another time for " + kid + "'s screening";
+  if (kind === "reminder") return "Reminder: " + kid + "'s screening is tomorrow at " + OS.timeLabelFull(b.time);
+  return "Your screening is booked: " + OS.dayLabelLong(b.date) + " at " + OS.timeLabelFull(b.time);
+}
+const _OS_EMAIL_STAMP = { confirmation: "confirmationSentAt", reminder: "reminderSentAt", noshow: "noShowEmailSentAt" };
+// Sends and stamps the booking. Never throws; returns true when sent.
+async function _osSendFamilyEmail(db, kind, bookingId, b) {
+  if (!b || !b.email || !RESEND_EMAIL_RE.test(b.email)) return false;
+  try {
+    await sendEmailViaResend({
+      from: lifecycleFromAddress(),
+      to: b.email,
+      subject: _osEmailSubject(kind, b),
+      html: buildOfficeScreeningEmailHtml(kind, b),
+      type: "office-screening-" + kind,
+      recipientName: b.parentFirstName || undefined,
+      relatedContactId: b.contactId || undefined,
+    });
+    await _osBookings(db).doc(bookingId).update({ [_OS_EMAIL_STAMP[kind]]: admin.firestore.FieldValue.serverTimestamp() });
+    return true;
+  } catch (e) {
+    console.error("officeScreening " + kind + " email failed for", bookingId, ":", e.message);
+    return false;
+  }
+}
+
+// ─── Screening on the contact ───────────────────────────────────────────────
+// Rewrites one screening in contacts/{id}.screenings[] on a fresh read.
+async function _osPatchScreening(db, contactId, screeningId, patch) {
+  if (!contactId || !screeningId) return false;
+  const ref = db.collection("contacts").doc(contactId);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return false;
+    const list = Array.isArray((snap.data() || {}).screenings) ? snap.data().screenings : [];
+    let hit = false;
+    const next = list.map((s) => {
+      if (!s || s.id !== screeningId) return s;
+      hit = true;
+      return Object.assign({}, s, typeof patch === "function" ? patch(s) : patch);
+    });
+    if (hit) tx.update(ref, { screenings: next });
+    return hit;
+  });
+}
+
+// ─── Holding, booking, moving, cancelling ──────────────────────────────────
+// Hold a time for 10 minutes (moves an existing hold when holdId is given).
+async function _osHold(db, { date, time, holdId, source, site }) {
+  const now = _osNow();
+  const FV = admin.firestore.FieldValue;
+  return db.runTransaction(async (tx) => {
+    const daySnap = await tx.get(_osDays(db).doc(date));
+    const day = daySnap.exists ? Object.assign({}, daySnap.data(), { date }) : null;
+    if (!day || day.published !== true || OS.daySlots(day).indexOf(time) === -1) return { ok: false, error: "closed" };
+    const dayBookings = await tx.get(_osBookings(db).where("date", "==", date));
+    const bookedCount = dayBookings.docs.filter((d) => (d.data() || {}).status === "booked").length;
+    if (!OS.canBook({ date, time, today: now.date, nowMin: now.minutes, bookedCount })) return { ok: false, error: "closed" };
+    const lockRef = _osSlots(db).doc(OS.slotId(date, time));
+    const lockSnap = await tx.get(lockRef);
+    let prev = null, prevRef = null, oldLockRef = null, oldLock = null;
+    if (holdId && OS_ID_RE.test(holdId)) {
+      const ps = await tx.get(_osBookings(db).doc(holdId));
+      if (ps.exists && (ps.data() || {}).status === "held") {
+        prevRef = ps.ref; prev = ps.data() || {};
+        if (prev.date !== date || prev.time !== time) {
+          oldLockRef = _osSlots(db).doc(OS.slotId(prev.date, prev.time));
+          const ol = await tx.get(oldLockRef);
+          oldLock = ol.exists ? ol.data() : null;
+        }
+      }
+    }
+    if (OS.slotTaken(lockSnap.exists ? lockSnap.data() : null, now.ms, prevRef ? holdId : null)) return { ok: false, error: "taken" };
+    const ref = prevRef || _osBookings(db).doc();
+    const expires = admin.firestore.Timestamp.fromMillis(now.ms + OS.HOLD_MINUTES * 60000);
+    if (oldLockRef && oldLock && oldLock.bookingId === ref.id) tx.delete(oldLockRef);
+    tx.set(lockRef, { bookingId: ref.id, status: "held", holdExpiresAt: expires, date, time });
+    if (prevRef) tx.update(ref, { date, time, holdExpiresAt: expires, updatedAt: FV.serverTimestamp() });
+    else {
+      tx.set(ref, { date, time, status: "held", holdExpiresAt: expires,
+        source: source === "app" ? "app" : "web", site: OS.siteOf(site), createdAt: FV.serverTimestamp() });
+    }
+    return { ok: true, holdId: ref.id, expiresAt: expires.toMillis() };
+  });
+}
+
+// Turn a live hold into a booking (inside a transaction). Returns the booking
+// data, or { already } when it was booked by an earlier press of the button.
+async function _osConfirmHold(db, holdId, { source, site }) {
+  const now = _osNow();
+  const FV = admin.firestore.FieldValue;
+  const ref = _osBookings(db).doc(holdId);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw _osErr("expired");
+    const b = snap.data() || {};
+    if (b.status === "booked") return { already: true, booking: b };
+    if (b.status !== "held" || OS.tsMs(b.holdExpiresAt) <= now.ms) throw _osErr("expired");
+    const lockRef = _osSlots(db).doc(OS.slotId(b.date, b.time));
+    const lock = await tx.get(lockRef);
+    if (!lock.exists || (lock.data() || {}).bookingId !== holdId) throw _osErr("expired");
+    const token = crypto.randomBytes(16).toString("hex");
+    const patch = { status: "booked", bookedAt: FV.serverTimestamp(), holdExpiresAt: FV.delete(), manageToken: token,
+      source: source || b.source || "web", site: OS.siteOf(site || b.site), updatedAt: FV.serverTimestamp() };
+    tx.update(ref, patch);
+    tx.set(lockRef, { bookingId: holdId, status: "booked", date: b.date, time: b.time });
+    return { booking: Object.assign({}, b, patch, { manageToken: token, site: patch.site, source: patch.source }) };
+  });
+}
+
+// Staff: claim a free time and book it in one step (no hold, no cutoff).
+async function _osStaffClaim(db, { date, time, staff, site }) {
+  const now = _osNow();
+  const FV = admin.firestore.FieldValue;
+  return db.runTransaction(async (tx) => {
+    const daySnap = await tx.get(_osDays(db).doc(date));
+    const day = daySnap.exists ? Object.assign({}, daySnap.data(), { date }) : null;
+    if (!day || OS.daySlots(day).indexOf(time) === -1) throw _osErr("closed");
+    if (!OS.canBook({ date, time, today: now.date, nowMin: now.minutes, bookedCount: 0, staff: true })) throw _osErr("closed");
+    const lockRef = _osSlots(db).doc(OS.slotId(date, time));
+    const lock = await tx.get(lockRef);
+    if (OS.slotTaken(lock.exists ? lock.data() : null, now.ms, null)) throw _osErr("taken");
+    const ref = _osBookings(db).doc();
+    const token = crypto.randomBytes(16).toString("hex");
+    const b = { date, time, status: "booked", source: "staff", site: OS.siteOf(site), manageToken: token,
+      bookedByUid: staff.uid, bookedByName: staff.name || "", createdAt: FV.serverTimestamp(), bookedAt: FV.serverTimestamp() };
+    tx.set(ref, b);
+    tx.set(lockRef, { bookingId: ref.id, status: "booked", date, time });
+    return { id: ref.id, booking: b };
+  });
+}
+
+// Undo a booking whose consent could not be saved, so the time frees up.
+async function _osRelease(db, bookingId, reason) {
+  const FV = admin.firestore.FieldValue;
+  const ref = _osBookings(db).doc(bookingId);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return;
+    const b = snap.data() || {};
+    const lockRef = _osSlots(db).doc(OS.slotId(b.date, b.time));
+    const lock = await tx.get(lockRef);
+    if (lock.exists && (lock.data() || {}).bookingId === bookingId) tx.delete(lockRef);
+    tx.update(ref, { status: "cancelled", cancelledAt: FV.serverTimestamp(), cancelReason: reason });
+  });
+}
+
+// After the time is ours: save the consent, fill in the booking, email.
+async function _osFinishBooking(db, bookingId, booking, parsed, opts) {
+  const o = opts || {};
+  const FV = admin.firestore.FieldValue;
+  const label = OS.dayLabel(booking.date) + " at " + OS.timeLabelFull(booking.time);
+  const childFirst = String(parsed.child.firstName || "").trim();
+  let saved;
+  try {
+    saved = await _saveReadinessConsent(db, parsed, {
+      secondParent: o.secondParent,
+      ip: o.ip || "",
+      screeningSource: "office-screening",
+      contactSource: "office-screening",
+      contactCreatedByName: o.staff ? ("Office Screening Booking (" + (o.staff.name || "staff") + ")") : "Office Screening Booking",
+      interactionSource: "office-screening",
+      interactionOwner: "Office Screening Booking",
+      interactionSummary: "Office screening booked for " + (childFirst + " " + String(parsed.child.lastName || "").trim()).trim() +
+        ": " + label + (o.staff ? " (booked by " + (o.staff.name || "staff") + ")" : ""),
+      screeningExtra: Object.assign(OS.screeningExtras({ date: booking.date, time: booking.time, bookingId }),
+        o.paperConsent && !parsed.signedName ? { consentOnTheDay: true } : {}),
+    });
+  } catch (e) {
+    console.error("officeScreening consent save failed for", bookingId, ":", e.message);
+    await _osRelease(db, bookingId, "consent-save-failed").catch(() => {});
+    throw e;
+  }
+  const fill = {
+    contactId: saved.contactId, screeningId: saved.screening.id,
+    parentFirstName: String(parsed.parent.firstName || "").trim(), parentLastName: String(parsed.parent.lastName || "").trim(),
+    childFirstName: childFirst, childLastName: String(parsed.child.lastName || "").trim(),
+    email: parsed.email ? parsed.email.toLowerCase() : "", phone: saved.phone || "",
+    consent: parsed.signedName ? "signed" : "on-the-day", updatedAt: FV.serverTimestamp(),
+  };
+  await _osBookings(db).doc(bookingId).update(fill);
+  const b = Object.assign({}, booking, fill);
+  await _osSendFamilyEmail(db, "confirmation", bookingId, b);
+  return b;
+}
+
+// Move a booked time. Family (staff:false): cutoff rules apply and the booked
+// time must not have started yet.
+async function _osMove(db, bookingId, { date, time, staff }) {
+  const now = _osNow();
+  const FV = admin.firestore.FieldValue;
+  const ref = _osBookings(db).doc(bookingId);
+  const out = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw _osErr("not-found");
+    const b = snap.data() || {};
+    if (b.status !== "booked") throw _osErr("not-booked");
+    if (!staff && OS.hstMs(b.date, b.time) <= now.ms) throw _osErr("too-late");
+    if (b.date === date && b.time === time) return { b, same: true };
+    const daySnap = await tx.get(_osDays(db).doc(date));
+    const day = daySnap.exists ? Object.assign({}, daySnap.data(), { date }) : null;
+    if (!day || (!staff && day.published !== true) || OS.daySlots(day).indexOf(time) === -1) throw _osErr("closed");
+    const dayBookings = await tx.get(_osBookings(db).where("date", "==", date));
+    const bookedCount = dayBookings.docs.filter((d) => (d.data() || {}).status === "booked").length;
+    if (!OS.canBook({ date, time, today: now.date, nowMin: now.minutes, bookedCount, staff: !!staff })) throw _osErr("closed");
+    const newLockRef = _osSlots(db).doc(OS.slotId(date, time));
+    const newLock = await tx.get(newLockRef);
+    if (OS.slotTaken(newLock.exists ? newLock.data() : null, now.ms, bookingId)) throw _osErr("taken");
+    const oldLockRef = _osSlots(db).doc(OS.slotId(b.date, b.time));
+    const oldLock = await tx.get(oldLockRef);
+    if (oldLock.exists && (oldLock.data() || {}).bookingId === bookingId) tx.delete(oldLockRef);
+    tx.set(newLockRef, { bookingId, status: "booked", date, time });
+    tx.update(ref, { date, time, movedFrom: { date: b.date, time: b.time }, movedAt: FV.serverTimestamp(),
+      reminderSentAt: FV.delete(), updatedAt: FV.serverTimestamp() });
+    return { b: Object.assign({}, b, { date, time }) };
+  });
+  if (out.same) return out.b;
+  await _osPatchScreening(db, out.b.contactId, out.b.screeningId, Object.assign(
+    OS.screeningExtras({ date, time, bookingId }), { source: "office-screening" }))
+    .catch((e) => console.error("officeScreening move: screening patch failed:", e.message));
+  await _osSendFamilyEmail(db, "confirmation", bookingId, out.b);
+  return out.b;
+}
+
+// Cancel: status cancelled, the time is freed, and the child leaves the
+// LDAH Office list on the results page (location cleared on the screening;
+// the signed consent stays on the contact).
+async function _osCancel(db, bookingId, { staff, by }) {
+  const now = _osNow();
+  const FV = admin.firestore.FieldValue;
+  const ref = _osBookings(db).doc(bookingId);
+  const b = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw _osErr("not-found");
+    const x = snap.data() || {};
+    if (x.status === "cancelled") return x;
+    if (x.status !== "booked" && x.status !== "held") throw _osErr("not-booked");
+    if (!staff && OS.hstMs(x.date, x.time) <= now.ms) throw _osErr("too-late");
+    const lockRef = _osSlots(db).doc(OS.slotId(x.date, x.time));
+    const lock = await tx.get(lockRef);
+    if (lock.exists && (lock.data() || {}).bookingId === bookingId) tx.delete(lockRef);
+    tx.update(ref, Object.assign({ status: "cancelled", cancelledAt: FV.serverTimestamp(), updatedAt: FV.serverTimestamp() },
+      by ? { cancelledByUid: by.uid, cancelledByName: by.name || "" } : { cancelledBy: "family" }));
+    return Object.assign({}, x, { status: "cancelled" });
+  });
+  await _osPatchScreening(db, b.contactId, b.screeningId, (s) => ({
+    location: "", classroom: "", officeBookingStatus: "cancelled",
+    cancelledOfficeBooking: { date: b.date, time: b.time, location: s.location || OS.OFFICE_LOCATION },
+  })).catch((e) => console.error("officeScreening cancel: screening patch failed:", e.message));
+  return b;
+}
+
+// No-show: status noshow, the "book another time" email, and a line in the
+// contact's Contact Notes (contacts.notes, which no report counts).
+async function _osMarkNoShow(db, bookingId, { by, today }) {
+  const FV = admin.firestore.FieldValue;
+  const ref = _osBookings(db).doc(bookingId);
+  const b = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw _osErr("not-found");
+    const x = snap.data() || {};
+    if (x.status !== "booked") throw _osErr("not-booked");
+    tx.update(ref, Object.assign({ status: "noshow", noShowAt: FV.serverTimestamp(), updatedAt: FV.serverTimestamp() },
+      by ? { noShowByUid: by.uid, noShowByName: by.name || "" } : { noShowBy: "System" }));
+    return Object.assign({}, x, { status: "noshow" });
+  });
+  await _osPatchScreening(db, b.contactId, b.screeningId, { officeBookingStatus: "noshow" })
+    .catch((e) => console.error("officeScreening no-show: screening patch failed:", e.message));
+  if (b.contactId) {
+    const cRef = db.collection("contacts").doc(b.contactId);
+    await db.runTransaction(async (tx) => {
+      const c = await tx.get(cRef);
+      if (!c.exists) return;
+      tx.update(cRef, { notes: OS.appendNote((c.data() || {}).notes, today || _osNow().date, OS.noShowLine(b)) });
+    }).catch((e) => console.error("officeScreening no-show note failed:", e.message));
+  }
+  if (!b.noShowEmailSentAt) await _osSendFamilyEmail(db, "noshow", bookingId, b);
+  return b;
+}
+
+// ─── Public endpoints ──────────────────────────────────────────────────────
+exports.getOfficeScreeningTimes = functions
+  .runWith({ timeoutSeconds: 20, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    if (_osCors(req, res)) return;
+    try {
+      const db = admin.firestore();
+      const now = _osNow();
+      const [daySnap, lockSnap] = await Promise.all([
+        _osDays(db).where("published", "==", true).get(),
+        _osSlots(db).where("date", ">=", now.date).get(),
+      ]);
+      const locks = {};
+      lockSnap.forEach((d) => { const l = d.data() || {}; (locks[l.date] = locks[l.date] || []).push(l); });
+      const days = [];
+      daySnap.forEach((d) => {
+        const day = Object.assign({}, d.data(), { date: d.id });
+        if (!OS.isIso(day.date) || day.date < now.date) return;
+        const t = OS.dayTimes(day, locks[day.date] || [], now);
+        if (!t.times.length) return; // e.g. today with nobody booked: closed for same-day booking
+        days.push({ date: t.date, label: t.label, times: t.times, openCount: t.openCount });
+      });
+      days.sort((a, b) => a.date.localeCompare(b.date));
+      res.status(200).json({ ok: true, days });
+    } catch (err) { _osSend(res, err, "getOfficeScreeningTimes"); }
+  });
+
+exports.holdOfficeScreeningTime = functions
+  .runWith({ timeoutSeconds: 20, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    if (_osCors(req, res)) return;
+    const body = req.body || {};
+    const date = String(body.date || "").trim(), time = String(body.time || "").trim();
+    if (!OS.isIso(date) || !OS.isTime(time)) { res.status(400).json({ ok: false, error: "closed" }); return; }
+    try {
+      const out = await _osHold(admin.firestore(), { date, time, holdId: String(body.holdId || "").trim(), source: body.source, site: body.site });
+      res.status(200).json(out);
+    } catch (err) { _osSend(res, err, "holdOfficeScreeningTime"); }
+  });
+
+// Email-first "Welcome back". Also used by the outreach screening forms
+// (special.html screening mode, readiness/index.html). Phone and street never
+// leave the server: only a mask and "city zip".
+exports.lookupOfficeScreeningFamily = functions
+  .runWith({ timeoutSeconds: 15, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    if (_osCors(req, res)) return;
+    const email = String((req.body || {}).email || "").trim().toLowerCase();
+    if (!email || !RESEND_EMAIL_RE.test(email)) { res.status(400).json({ error: "Valid email required" }); return; }
+    try {
+      const snap = await admin.firestore().collection("contacts").where("email", "==", email).limit(1).get();
+      if (snap.empty) { res.status(200).json({ found: false }); return; }
+      const c = snap.docs[0].data() || {};
+      if (c.archived === true) { res.status(200).json({ found: false }); return; }
+      const scr = Array.isArray(c.screenings) ? c.screenings : [];
+      const last = scr.length ? (scr[scr.length - 1] || {}) : {};
+      const masked = OS.maskPhone(c.phone);
+      res.status(200).json({
+        found: true,
+        parentFirstName: c.firstName || "", parentLastName: c.lastName || "",
+        relationship: last.relationship || "",
+        phoneMasked: masked, hasPhone: !!masked,
+        addressHint: OS.hasAddress(c) ? OS.addressHint(c) : "", hasAddress: OS.hasAddress(c),
+        children: OS.familyChildren(c),
+      });
+    } catch (err) {
+      console.error("lookupOfficeScreeningFamily error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+exports.bookOfficeScreening = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 10, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    if (_osCors(req, res)) return;
+    const body = req.body || {};
+    if (body.warm === true) {
+      try { await _osDays(admin.firestore()).limit(1).get(); } catch (e) { /* warming only */ }
+      res.status(200).json({ warm: true });
+      return;
+    }
+    const holdId = String(body.holdId || "").trim();
+    if (!OS_ID_RE.test(holdId)) { res.status(400).json({ ok: false, error: "expired" }); return; }
+    const parsed = _parseReadinessConsent(body, { requireEmail: true });
+    if (parsed.error) { res.status(400).json({ ok: false, error: parsed.error }); return; }
+    try {
+      const db = admin.firestore();
+      const source = body.source === "app" ? "app" : "web";
+      const conf = await _osConfirmHold(db, holdId, { source, site: body.site });
+      if (conf.already) { res.status(200).json(_osSummary(holdId, conf.booking)); return; }
+      const ip = (req.headers["x-forwarded-for"] || req.ip || "").toString().split(",")[0].trim();
+      const b = await _osFinishBooking(db, holdId, conf.booking, parsed, {
+        ip, secondParent: body.secondParent || (body.form || {}).secondParent,
+      });
+      res.status(200).json(_osSummary(holdId, b));
+    } catch (err) { _osSend(res, err, "bookOfficeScreening"); }
+  });
+
+exports.getOfficeScreeningBooking = functions
+  .runWith({ timeoutSeconds: 15, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    if (_osCors(req, res)) return;
+    try {
+      const doc = await _osBookingByToken(admin.firestore(), (req.body || {}).token);
+      if (!doc) { res.status(404).json({ ok: false, error: "not-found" }); return; }
+      const b = doc.data() || {};
+      const now = _osNow();
+      res.status(200).json({
+        ok: true, status: b.status, date: b.date, time: b.time,
+        dateLabel: OS.dayLabelLong(b.date), timeLabel: OS.timeLabelFull(b.time),
+        childFirstName: b.childFirstName || "", location: OS.OFFICE_LOCATION, address: OS.OFFICE_ADDRESS,
+        canChange: b.status === "booked" && OS.hstMs(b.date, b.time) > now.ms,
+        bookUrl: OS.bookUrl(b.site),
+      });
+    } catch (err) { _osSend(res, err, "getOfficeScreeningBooking"); }
+  });
+
+exports.changeOfficeScreening = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    if (_osCors(req, res)) return;
+    const body = req.body || {};
+    const date = String(body.date || "").trim(), time = String(body.time || "").trim();
+    if (!OS.isIso(date) || !OS.isTime(time)) { res.status(400).json({ ok: false, error: "closed" }); return; }
+    try {
+      const db = admin.firestore();
+      const doc = await _osBookingByToken(db, body.token);
+      if (!doc) { res.status(404).json({ ok: false, error: "not-found" }); return; }
+      const b = await _osMove(db, doc.id, { date, time, staff: false });
+      res.status(200).json(_osSummary(doc.id, b));
+    } catch (err) { _osSend(res, err, "changeOfficeScreening"); }
+  });
+
+exports.cancelOfficeScreening = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    if (_osCors(req, res)) return;
+    try {
+      const db = admin.firestore();
+      const doc = await _osBookingByToken(db, (req.body || {}).token);
+      if (!doc) { res.status(404).json({ ok: false, error: "not-found" }); return; }
+      await _osCancel(db, doc.id, { staff: false });
+      res.status(200).json({ ok: true, status: "cancelled" });
+    } catch (err) { _osSend(res, err, "cancelOfficeScreening"); }
+  });
+
+// ─── Staff endpoints (idToken in body; any staff role except partners) ─────
+async function _osStaff(req, res) {
+  if (_osCors(req, res)) return null;
+  try { return await _verifyAgendaStaff((req.body || {}).idToken); }
+  catch (err) { res.status(err.statusCode || 401).json({ ok: false, error: err.message }); return null; }
+}
+
+// Body: { idToken, date, time, source:'staff', consentOnTheDay, form, keepPhone, keepAddress, site }.
+// consentOnTheDay:true (only when form.signedName is empty) books with the
+// consent to be signed on paper on the day: the screening is saved without
+// signedName (red on the phone page) and carries consentOnTheDay:true.
+// One of email or phone is required; the confirmation goes when there is an email.
+exports.staffBookOfficeScreening = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 5, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    const staff = await _osStaff(req, res);
+    if (!staff) return;
+    const body = req.body || {};
+    const date = String(body.date || "").trim(), time = String(body.time || "").trim();
+    if (!OS.isIso(date) || !OS.isTime(time)) { res.status(400).json({ ok: false, error: "closed" }); return; }
+    const paperConsent = body.consentOnTheDay === true || body.paperConsent === true;
+    const parsed = _parseReadinessConsent(body, { paperConsent });
+    if (parsed.error) { res.status(400).json({ ok: false, error: parsed.error }); return; }
+    try {
+      const db = admin.firestore();
+      const claim = await _osStaffClaim(db, { date, time, staff, site: body.site });
+      const b = await _osFinishBooking(db, claim.id, claim.booking, parsed, {
+        staff, paperConsent, secondParent: body.secondParent || (body.form || {}).secondParent,
+      });
+      res.status(200).json(Object.assign(_osSummary(claim.id, b), { contactId: b.contactId, consent: b.consent }));
+    } catch (err) { _osSend(res, err, "staffBookOfficeScreening"); }
+  });
+
+// Body: { idToken, bookingId }.
+exports.staffCancelOfficeScreening = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 5 })
+  .https.onRequest(async (req, res) => {
+    const staff = await _osStaff(req, res);
+    if (!staff) return;
+    const id = String((req.body || {}).bookingId || "").trim();
+    if (!OS_ID_RE.test(id)) { res.status(400).json({ ok: false, error: "not-found" }); return; }
+    try {
+      await _osCancel(admin.firestore(), id, { staff: true, by: staff });
+      res.status(200).json({ ok: true, status: "cancelled" });
+    } catch (err) { _osSend(res, err, "staffCancelOfficeScreening"); }
+  });
+
+// Body: { idToken, bookingId, date, time }. Emails the family the new time.
+exports.staffMoveOfficeScreening = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 5, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    const staff = await _osStaff(req, res);
+    if (!staff) return;
+    const body = req.body || {};
+    const id = String(body.bookingId || "").trim();
+    const date = String(body.date || "").trim(), time = String(body.time || "").trim();
+    if (!OS_ID_RE.test(id) || !OS.isIso(date) || !OS.isTime(time)) { res.status(400).json({ ok: false, error: "closed" }); return; }
+    try {
+      const b = await _osMove(admin.firestore(), id, { date, time, staff: true });
+      res.status(200).json(_osSummary(id, b));
+    } catch (err) { _osSend(res, err, "staffMoveOfficeScreening"); }
+  });
+
+// Body: { idToken, bookingId }. Same as the sweep's no-show: email + contact note.
+exports.staffMarkOfficeScreeningNoShow = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 5, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    const staff = await _osStaff(req, res);
+    if (!staff) return;
+    const id = String((req.body || {}).bookingId || "").trim();
+    if (!OS_ID_RE.test(id)) { res.status(400).json({ ok: false, error: "not-found" }); return; }
+    try {
+      await _osMarkNoShow(admin.firestore(), id, { by: staff });
+      res.status(200).json({ ok: true, status: "noshow" });
+    } catch (err) { _osSend(res, err, "staffMarkOfficeScreeningNoShow"); }
+  });
+
+// ─── Sweep (every 15 minutes) ──────────────────────────────────────────────
+async function _runOfficeScreeningSweep(nowMs) {
+  const db = admin.firestore();
+  const FV = admin.firestore.FieldValue;
+  const now = _osNow(nowMs);
+  const stats = { holdsFreed: 0, leadMade: 0, leadUpdated: 0, leadClosed: 0, reminders: 0, noShows: 0, screened: 0 };
+
+  const active = await _osBookings(db).where("status", "in", ["held", "booked"]).get();
+  const booked = [];
+  // 1. Expired holds: free the time, drop the hold.
+  for (const d of active.docs) {
+    const b = d.data() || {};
+    if (b.status === "booked") { booked.push({ id: d.id, b }); continue; }
+    if (OS.tsMs(b.holdExpiresAt) > now.ms) continue;
+    try {
+      await db.runTransaction(async (tx) => {
+        const fresh = await tx.get(d.ref);
+        const x = fresh.exists ? (fresh.data() || {}) : null;
+        if (!x || x.status !== "held" || OS.tsMs(x.holdExpiresAt) > now.ms) return;
+        const lockRef = _osSlots(db).doc(OS.slotId(x.date, x.time));
+        const lock = await tx.get(lockRef);
+        if (lock.exists && (lock.data() || {}).bookingId === d.id && (lock.data() || {}).status === "held") tx.delete(lockRef);
+        tx.delete(d.ref);
+      });
+      stats.holdsFreed++;
+    } catch (e) { console.error("officeScreeningSweep hold", d.id, e.message); }
+  }
+
+  // 2. Lead screener tasks.
+  const countByDate = {};
+  booked.forEach(({ b }) => { countByDate[b.date] = (countByDate[b.date] || 0) + 1; });
+  const days = await _osDays(db).where("date", ">=", OS.addDaysIso(now.date, -14)).get();
+  for (const d of days.docs) {
+    const day = Object.assign({}, d.data(), { date: d.id });
+    if (!OS.isIso(day.date)) continue;
+    const ref = db.collection("interactions").doc(OS.leadTaskId(day.date));
+    try {
+      const snap = await ref.get();
+      const cur = snap.exists ? (snap.data() || {}) : null;
+      if (OS.leadTaskWanted(day, now.date)) {
+        const t = OS.leadTask(day, countByDate[day.date] || 0, now.date);
+        if (!cur) {
+          await ref.set(Object.assign(t, { createdAt: FV.serverTimestamp(), updatedAt: FV.serverTimestamp() }));
+          stats.leadMade++;
+        } else if (cur.ownerUid !== t.ownerUid) {
+          // New lead: the task moves to them, open again.
+          await ref.set(Object.assign(t, { reassignedFromUid: cur.ownerUid || "", reassignedFromName: cur.owner || "",
+            updatedAt: FV.serverTimestamp() }), { merge: true });
+          stats.leadUpdated++;
+        } else if (cur.summary !== t.summary || cur.notes !== t.notes || cur.followUpDate !== t.followUpDate ||
+                   cur.officeScreeningBookedCount !== t.officeScreeningBookedCount || cur.owner !== t.owner) {
+          await ref.update({ summary: t.summary, notes: t.notes, followUpDate: t.followUpDate, owner: t.owner,
+            officeScreeningBookedCount: t.officeScreeningBookedCount, updatedAt: FV.serverTimestamp() });
+          stats.leadUpdated++;
+        }
+      } else if (cur && cur.status === "Open" && (day.date < now.date || day.published !== true || !day.leadUid)) {
+        await ref.update({ status: "Closed", closedBy: "System", closedAt: FV.serverTimestamp(), updatedAt: FV.serverTimestamp(),
+          closedReason: day.date < now.date ? "day-passed" : "day-unpublished" });
+        stats.leadClosed++;
+      }
+    } catch (e) { console.error("officeScreeningSweep lead task", day.date, e.message); }
+  }
+
+  // 3. Reminders the day before.
+  for (const { id, b } of booked) {
+    if (OS.reminderDue(b, now) && await _osSendFamilyEmail(db, "reminder", id, b)) stats.reminders++;
+  }
+
+  // 4. Screened / no-show, for days that have come.
+  const contactCache = {};
+  for (const { id, b } of booked) {
+    if (!OS.isIso(b.date) || b.date > now.date || !b.contactId) continue;
+    try {
+      if (!(b.contactId in contactCache)) {
+        const c = await db.collection("contacts").doc(b.contactId).get();
+        contactCache[b.contactId] = c.exists ? (c.data() || {}) : null;
+      }
+      const c = contactCache[b.contactId];
+      const s = c && Array.isArray(c.screenings) ? c.screenings.find((x) => x && x.id === b.screeningId) : null;
+      if (s && OS.screeningOutcome(s, _screeningParts) === "screened") {
+        await _osBookings(db).doc(id).update({ status: "screened", screenedAt: FV.serverTimestamp(), updatedAt: FV.serverTimestamp() });
+        await _osPatchScreening(db, b.contactId, b.screeningId, { officeBookingStatus: "screened" });
+        stats.screened++;
+      } else if (s && OS.noShowDue(b, now)) {
+        await _osMarkNoShow(db, id, { today: now.date });
+        stats.noShows++;
+      } else if (!s && OS.noShowDue(b, now)) {
+        console.warn("officeScreeningSweep: booking", id, "has no screening on its contact; left as booked");
+      }
+    } catch (e) { console.error("officeScreeningSweep outcome", id, e.message); }
+  }
+  return stats;
+}
+
+exports.officeScreeningSweep = functions
+  .runWith({ timeoutSeconds: 300, maxInstances: 1, secrets: EMAIL_SECRETS })
+  .pubsub.schedule("every 15 minutes")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    try {
+      const s = await _runOfficeScreeningSweep(Date.now());
+      if (Object.values(s).some(Boolean)) console.log("officeScreeningSweep:", JSON.stringify(s));
+    } catch (e) { console.error("officeScreeningSweep:", e.message); }
+    return null;
   });
