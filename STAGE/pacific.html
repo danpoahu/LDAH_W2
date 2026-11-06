@@ -26,6 +26,16 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <style>
+        .veb-strip{margin:0 0 22px;padding:16px;border-radius:14px;background:#f0f9ff;border:1px solid #bae6fd}
+        .veb-strip h3{margin:0 0 12px;font-size:1.15rem;color:#0c4a6e}
+        .veb-card{display:flex;gap:14px;align-items:flex-start;background:#fff;border-radius:12px;padding:12px;border:1px solid #e0f2fe;margin-top:10px}
+        .veb-thumb{flex:0 0 110px}.veb-thumb img{width:110px;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.15);display:block}
+        .veb-info{flex:1;min-width:0}.veb-info h4{margin:0 0 4px;font-size:1rem;color:#0f172a}
+        .veb-zoom{font-size:.8rem;color:#64748b;margin-bottom:6px}
+        .veb-info ul{margin:0 0 10px;padding-left:18px;font-size:.88rem;color:#1e293b}.veb-info li{margin:4px 0}.veb-info li span{display:block;color:#0369a1}
+        .veb-reg{display:inline-block;background:#0e7490;color:#fff!important;text-decoration:none;font-weight:700;border-radius:8px;padding:8px 18px}
+        .veb-draft{display:inline-block;font-size:.72rem;font-weight:700;background:#fef3c7;color:#92400e;border-radius:12px;padding:2px 8px;margin-bottom:4px}
+        @media (max-width:520px){.veb-card{flex-direction:column}.veb-thumb{flex-basis:auto}}
     :root {
       --ocean-deep: #0891B2;
       --ocean-mid: #06B6D4;
@@ -1117,8 +1127,68 @@
             // Re-apply CMS data to newly created modal elements
             if (Object.keys(cmsData).length) applyCmsToElements(cmsData);
 
+            // Upcoming LDAH virtual events for this island (Virtual Event Builder)
+            renderVebStrip(islandKey, body);
+
             modal.classList.add('active');
             document.body.style.overflow = 'hidden';
+        }
+
+        /* Upcoming virtual events strip. Events opt in with partnerPages[] (set by DAN's
+           Virtual Event Builder); never partnerIsland, which marks a partner's own work.
+           Times are shown in the island's local time. ?vebpreview=1 also shows hidden drafts. */
+        var VEB_ISLANDS = {
+            samoa:    { label: 'American Samoa',   zones: [['American Samoa', -11]], src: 'samoa' },
+            guam:     { label: 'Guam',             zones: [['Guam', 10]], src: 'guam' },
+            cnmi:     { label: 'CNMI',             zones: [['CNMI', 10]], src: 'cnmi' },
+            fsm:      { label: 'Micronesia',       zones: [['Yap & Chuuk', 10], ['Pohnpei & Kosrae', 11]], src: 'fsm' },
+            marshall: { label: 'Marshall Islands', zones: [['Marshall Islands', 12]], src: 'marshall' },
+            palau:    { label: 'Palau',            zones: [['Palau', 9]], src: 'palau' }
+        };
+        function _vebEsc(t) { return String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+        function _vebLocal(dateStr, hhmm, off) {
+            var p = dateStr.split('-').map(Number), t = hhmm.split(':').map(Number);
+            return new Date(Date.UTC(p[0], p[1]-1, p[2], t[0], t[1]) + (10 + off) * 3600e3);
+        }
+        function _vebWhen(s, off) {
+            var a = _vebLocal(s.date, s.start, off), b = _vebLocal(s.date, s.end, off);
+            var day = a.toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'long', month: 'short', day: 'numeric' });
+            var f = function (d) { return d.toLocaleTimeString('en-US', { timeZone: 'UTC', hour: 'numeric', minute: '2-digit' }); };
+            return day + ', ' + f(a) + ' to ' + f(b);
+        }
+        async function renderVebStrip(islandKey, body) {
+            var isl = VEB_ISLANDS[islandKey]; if (!isl || !body) return;
+            var preview = /[?&]vebpreview=1/.test(location.search);
+            body.dataset.vebKey = islandKey;   // the modal body is reused; drop results for an island no longer open
+            try {
+                var snap = await db.collection('events').where('partnerPages', 'array-contains', isl.label).get();
+                var today = new Date(); var todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+                var rows = snap.docs.map(function (d) { var x = d.data(); x.id = d.id; return x; }).filter(function (x) {
+                    if (x.archived || x.isOneOff || x.infoOnly) return false;
+                    if (x.active === false && !preview) return false;
+                    var ss = (x.vebSpec && x.vebSpec.sessions) || [];
+                    var last = ss.length ? ss.map(function (s) { return s.date; }).sort().pop() : (x.eventDate || '');
+                    return last >= todayStr;
+                }).sort(function (a, b) { return (a.eventDate || '') < (b.eventDate || '') ? -1 : 1; });
+                if (!rows.length || body.dataset.vebKey !== islandKey || body.querySelector('.veb-strip')) return;
+                var cards = rows.map(function (x) {
+                    var ss = (x.vebSpec && x.vebSpec.sessions) || [];
+                    var times = ss.map(function (s) {
+                        return '<li><b>' + _vebEsc(s.lesson) + '</b>' + isl.zones.map(function (z) {
+                            return '<span>' + (isl.zones.length > 1 ? _vebEsc(z[0]) + ': ' : '') + _vebEsc(_vebWhen(s, z[1])) + '</span>'; }).join('') + '</li>';
+                    }).join('');
+                    var img = x.partnerFlyerUrl || x.imageUrl || '';
+                    var reg = 'events.html?eventId=' + encodeURIComponent(x.id) + '&autoOpen=1&src=pacific-' + isl.src;
+                    return '<div class="veb-card">' + (img ? '<a href="' + _vebEsc(img) + '" target="_blank" rel="noopener" class="veb-thumb" title="Open the full flyer"><img src="' + _vebEsc(img) + '" alt="Flyer for ' + _vebEsc(x.title) + '"></a>' : '')
+                        + '<div class="veb-info">' + (x.active === false ? '<div class="veb-draft">Hidden draft (preview only)</div>' : '')
+                        + '<h4>' + _vebEsc(x.title) + '</h4><div class="veb-zoom">On Zoom · times shown in your local time</div><ul>' + times + '</ul>'
+                        + '<a class="veb-reg" href="' + reg + '">Register</a></div></div>';
+                }).join('');
+                var strip = document.createElement('div');
+                strip.className = 'veb-strip';
+                strip.innerHTML = '<h3>Upcoming virtual events</h3>' + cards;
+                body.insertBefore(strip, body.firstChild);
+            } catch (e) { console.warn('[veb] partner events strip', e); }
         }
 
         function closeIslandModal(event) {
