@@ -381,8 +381,11 @@ service cloud.firestore {
          where('role','in',['partner','superPartner']) to satisfy this. */
       allow read: if isStaff() && myRole() == 'superPartner'
         && resource.data.role in ['partner', 'superPartner'];
+      /* Your own record: anything except your role and the Screener tick
+         (Office Screenings lead list), which only a Super Admin changes. */
       allow update: if request.auth != null && request.auth.uid == userId
-        && request.resource.data.role == resource.data.role;
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.get('screener', false) == resource.data.get('screener', false);
       allow write: if request.auth != null
         && get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role == 'superAdmin';
     }
