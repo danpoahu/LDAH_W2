@@ -429,7 +429,8 @@
         childName:(((s.child&&s.child.firstName)||'')+' '+((s.child&&s.child.lastName)||'')).trim(),
         parentName:c.displayName||(((c.firstName||'')+' '+(c.lastName||'')).trim()), email:c.email||'',
         signedAt:s.signedAt, consentOK:_consentSigned(s), health:s.health||{}, results:s.results||null, absent:s.absent||{}, resultsSent:!!(s.results&&s.results.resultsSentAt),
-        location:s.location||'', classroom:s.classroom||'', printouts:Array.isArray(s.printouts)?s.printouts:[] }); });
+        location:s.location||'', classroom:s.classroom||'', printouts:Array.isArray(s.printouts)?s.printouts:[],
+        scheduledDates:(s.scheduled&&Array.isArray(s.scheduled.dates))?s.scheduled.dates:[], officeBookingStatus:s.officeBookingStatus||'' }); });
     });
   }
   /* Consent is on file when the parent signed online/at the kiosk/on the school
@@ -465,13 +466,25 @@
   let pick = { loc:'', cls:'', date:'' };
   try { pick = Object.assign(pick, JSON.parse(localStorage.getItem('srpPick')||'{}')); } catch(e){}
   function savePick(){ try { localStorage.setItem('srpPick', JSON.stringify(pick)); } catch(e){} }
+  /* LDAH Office (office screening bookings, STAGE 2026-11-06): every past
+     booking sits under the same location, so for it only list the children
+     booked for the picked screening date (cancelled bookings left out), in
+     time order. The classroom holds the 'HH:MM' time, shown as 2:30 PM. */
+  const OFFICE_LOC = 'LDAH Office';
+  function officeOn(r, day){ return r.location !== OFFICE_LOC || (r.officeBookingStatus !== 'cancelled' && r.scheduledDates.indexOf(day) !== -1); }
+  function classLabel(loc, k){
+    if (loc !== OFFICE_LOC || !/^\d{1,2}:\d{2}$/.test(k||'')) return k;
+    const h = +k.split(':')[0], m = k.split(':')[1];
+    return (h % 12 || 12) + ':' + m + ' ' + (h < 12 ? 'AM' : 'PM');
+  }
   function fillPickers(){
-    const locs = {}; rows.forEach(r=>{ if(r.location){ const L = locs[r.location] = locs[r.location] || { n:0, pend:0, cls:{} }; L.n++; if(!isHandled(r.results, r.absent, screenDay())) L.pend++; if(r.classroom) L.cls[r.classroom]=(L.cls[r.classroom]||0)+1; } });
-    if (pick.loc && !locs[pick.loc]) { pick.loc=''; pick.cls=''; }
+    const locs = {}; rows.forEach(r=>{ if(r.location && officeOn(r, screenDay())){ const L = locs[r.location] = locs[r.location] || { n:0, pend:0, cls:{} }; L.n++; if(!isHandled(r.results, r.absent, screenDay())) L.pend++; if(r.classroom) L.cls[r.classroom]=(L.cls[r.classroom]||0)+1; } });
+    if (pick.loc && !locs[pick.loc] && pick.loc !== OFFICE_LOC) { pick.loc=''; pick.cls=''; }
+    if (pick.loc === OFFICE_LOC && !locs[OFFICE_LOC]) locs[OFFICE_LOC] = { n:0, pend:0, cls:{} };
     const ls = $('fLoc'); if (ls) ls.innerHTML = '<option value="">Signed today / all</option>' + Object.keys(locs).sort().map(k=>'<option value="'+esc(k)+'"'+(k===pick.loc?' selected':'')+'>'+esc(k)+' ('+locs[k].pend+' to screen)</option>').join('');
     const cl = pick.loc && locs[pick.loc] ? Object.keys(locs[pick.loc].cls).sort() : [];
     if (pick.cls && cl.indexOf(pick.cls)===-1) pick.cls='';
-    const cs = $('fClass'); if (cs){ cs.innerHTML = '<option value="">All classrooms</option>' + cl.map(k=>'<option value="'+esc(k)+'"'+(k===pick.cls?' selected':'')+'>'+esc(k)+' ('+locs[pick.loc].cls[k]+')</option>').join(''); cs.disabled = !pick.loc; }
+    const cs = $('fClass'); if (cs){ cs.innerHTML = '<option value="">All classrooms</option>' + cl.map(k=>'<option value="'+esc(k)+'"'+(k===pick.cls?' selected':'')+'>'+esc(classLabel(pick.loc,k))+' ('+locs[pick.loc].cls[k]+')</option>').join(''); cs.disabled = !pick.loc; }
     const fd = $('fDate'); if (fd && !fd.value) fd.value = pick.date || todayKey();
   }
   window.setLoc = function(v){ pick.loc=v||''; pick.cls=''; savePick(); fillPickers(); renderList(); };
@@ -482,12 +495,14 @@
   function renderList(){
     const byLoc = !!pick.loc;
     $('cToday').style.opacity = byLoc ? '.45' : ''; $('cAll').style.opacity = byLoc ? '.45' : '';
-    let list = byLoc ? rows.filter(r=>r.location===pick.loc && (!pick.cls || r.classroom===pick.cls))
+    let list = byLoc ? rows.filter(r=>r.location===pick.loc && (!pick.cls || r.classroom===pick.cls) && officeOn(r, screenDay()))
                      : (filter==='today' ? rows.filter(r=>isToday(r.signedAt)) : rows.slice());
     // Not complete (vision or hearing still to do) float to the TOP so Chassidy
     // sees who's next; within each group, most recently signed first.
     const day = screenDay();
+    const office = pick.loc === OFFICE_LOC;
     list.sort((a,b)=>{
+      if(office){ const c=(a.classroom||'').localeCompare(b.classroom||''); if(c) return c; return (a.childName||'').localeCompare(b.childName||''); }
       const ap=isHandled(a.results,a.absent,day)?1:0, bp=isHandled(b.results,b.absent,day)?1:0;
       if(ap!==bp) return ap-bp;
       if(byLoc){ const c=(a.classroom||'').localeCompare(b.classroom||''); if(c) return c; return (a.childName||'').localeCompare(b.childName||''); }
@@ -521,7 +536,7 @@
         '<div class="child">'+esc(r.childName||'Child')+'</div>'+
         '<div class="parent">'+esc(r.parentName||'')+'</div>'+
         '<div class="when">'+(r.consentOK?'Signed '+esc(when):'Added '+esc(when))+'</div>'+flags+
-        '<div class="badges">'+(r.classroom?'<span class="badge b-class">'+esc(r.classroom)+'</span>':'')+(r.consentOK?'<span class="badge b-consent">Consent ✓</span>':'<span class="badge b-noconsent">No signed consent</span>')+(tubes?'<span class="badge b-tubes">Tubes</span>':'')+(sick?'<span class="badge b-sick">Was sick</span>':'')+resBadge+'</div>'+absRow+
+        '<div class="badges">'+(r.classroom?'<span class="badge b-class">'+esc(classLabel(r.location,r.classroom))+'</span>':'')+(r.consentOK?'<span class="badge b-consent">Consent ✓</span>':'<span class="badge b-noconsent">No signed consent</span>')+(tubes?'<span class="badge b-tubes">Tubes</span>':'')+(sick?'<span class="badge b-sick">Was sick</span>':'')+resBadge+'</div>'+absRow+
         '<button class="act'+(done?' edit':((parts.vision==='done')!==(parts.hearing==='done')?' half':''))+'" onclick="openEntry('+i+')">'+(done?'Edit results':'Add results')+'</button>'+
       '</div>';
     });
