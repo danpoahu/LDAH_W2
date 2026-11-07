@@ -26878,6 +26878,15 @@ exports.getMemberBrowseEvents = functions
         // and string forms of every flag the event form might set.
         const infoFlag = function (v) { return v === true || v === "true"; };
         if (infoFlag(e.infoOnly) || infoFlag(e.flyerOnly) || infoFlag(e.informationOnly) || infoFlag(e.isInfoOnly)) return;
+        // Only events a member can actually sign up for (Daniel 2026-11-06), the
+        // same rule as the public Events page: outreach booths and screenings at
+        // someone else's event (specialEvent) take no online signup, one-off
+        // gatherings are records of the past, and paused or removed events are
+        // hidden everywhere.
+        if (infoFlag(e.specialEvent) || infoFlag(e.isOneOff)) return;
+        if (e.active === false || e.active === "false") return;
+        if (e.removeDate && /^\d{4}-\d{2}-\d{2}$/.test(String(e.removeDate)) && String(e.removeDate) <= todayStr) return;
+        if (!recurring && !(Array.isArray(e.signupDates) && e.signupDates.length) && !(Array.isArray(e.sessions) && e.sessions.length)) return;
         const img = String(e.imageUrl || "");
         if (!img) return;
         let dateStr = "";
