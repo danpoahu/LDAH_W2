@@ -55,7 +55,7 @@ const fillName=t=>t.replace(/\{name\}/g,name||'there');
 /* Words the voice gets wrong. Only what is SPOKEN changes; the caption keeps the
    real spelling. IDEA is the law, said as four letters. Hawaiʻi is said one way
    everywhere (the ʻokina made it vary). "live" as in "goes live" rhymes with five. */
-const SAY_FIX=[[/\bI ?D ?E ?A\b/g,'I.D.E.A.'],[/\bHawai[ʻ'’]?i\b/g,'Ha why ee'],
+const SAY_FIX=[[/\bI ?D ?E ?A\b/g,'I.D.E.A.'],[/\bHawai[ʻ'’]?i\b/g,'Hugwhyee'],
  [/\b(the|a|is|are|was|were|be|been|go|goes|going|went|gone|now|it's|real) live\b/gi,'$1 lyve'],[/\bLIVE\b/g,'lyve']];
 const sayFix=t=>SAY_FIX.reduce((a,[re,to])=>a.replace(re,to),t);
 function speak(text,token){return new Promise(res=>{const t0s=fillName(text),t=sayFix(t0s.replace(/\[([^\]|]+)\|([^\]]+)\]/g,'$2'));const c=$('cap');c.textContent=t0s.replace(/\[([^\]|]+)\|([^\]]+)\]/g,'$1');c.classList.add('has');
