@@ -427,11 +427,16 @@
                     ? '<div class="vlib-flyer"><img src="' + esc(r.flyerUrl) + '" alt="' + esc(r.eventTitle || '') + ' flyer" loading="lazy"></div>'
                     : '<div class="vlib-flyer ph"><span class="play"></span></div>';
                 var files = (Array.isArray(r.files) && r.files.length) ? r.files : (r.slidesUrl ? [{ url: r.slidesUrl, name: 'Slides' }] : []);
+                /* A summary PDF uploaded as a file duplicates the AI Summary button,
+                   so it is left off when that button shows (Daniel 2026-11-06), and
+                   is called "Summary", never "Slides", when it is the only summary. */
+                var isSumFile = function (f) { return /summary/i.test(String((f && f.name) || '')); };
+                if (_summaryByRecId[r.id]) files = files.filter(function (f) { return !isSumFile(f); });
                 var single = files.length === 1;
                 var slides = files.map(function (f) {
                     if (!f || !f.url) return '';
                     var raw = String(f.name || 'Slides').replace(/\.[^.]+$/, '').trim();
-                    var label = (single || !raw) ? 'Slides' : raw;
+                    var label = isSumFile(f) ? 'Summary' : ((single || !raw) ? 'Slides' : raw);
                     return '<a class="btn btn-outline rec-pill" href="' + esc(f.url) + '" target="_blank" rel="noopener">' + esc(label) + '</a>';
                 }).join('');
                 return '<div class="vlib-rec">'
