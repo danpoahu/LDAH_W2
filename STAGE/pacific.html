@@ -1192,7 +1192,7 @@
                     var reg = 'events.html?eventId=' + encodeURIComponent(x.id) + '&autoOpen=1&src=pacific-' + isl.src;
                     return '<div class="veb-card">' + (img ? '<a href="' + _vebEsc(img) + '" target="_blank" rel="noopener" class="veb-thumb" title="Open the full flyer"><img src="' + _vebEsc(img) + '" alt="Flyer for ' + _vebEsc(x.title) + '"></a>' : '')
                         + '<div class="veb-info">' + (x.active === false ? '<div class="veb-draft">Hidden draft (preview only)</div>' : '')
-                        + '<h4>' + _vebEsc(x.title) + '</h4><div class="veb-zoom">On Zoom · times shown in your local time</div><ul>' + times + '</ul>'
+                        + '<h4>' + _vebEsc(x.title) + '</h4><div class="veb-zoom">' + (/parent talk|facebook/i.test((x.location || '') + ' ' + (x.title || '')) ? 'Recorded and posted on Facebook @ Parent Talk Café' : 'On Zoom') + ' · times shown in your local time</div><ul>' + times + '</ul>'
                         + '<a class="veb-reg" href="' + reg + '">Register</a></div></div>';
                 }).join('');
                 var strip = document.createElement('div');
