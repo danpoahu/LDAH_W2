@@ -10201,7 +10201,37 @@ function buildCombinedAnnouncementEmailHtml({ blocks, contact, unsubscribeUrl,
     '</div></div></body></html>';
 }
 
+/* Partner families (2026-11-06, Daniel): whoever an announcement goes to, each family
+   gets the flyer for where they live. A contact on one of the six partner islands gets
+   the Partner flyer (local-time table, Pacific Island Partners logo), plain English
+   ("Hi", not "Aloha"), and the session times in their own island's time when the event
+   came from DAN's Virtual Event Builder (vebSpec). Everyone else gets the HST flyer. */
+const _ANN_PIP_ZONES = {
+  'American Samoa': [['American Samoa time', -11]], 'Guam': [['Guam time', 10]], 'CNMI': [['CNMI time', 10]],
+  'Micronesia': [['Yap & Chuuk time', 10], ['Pohnpei & Kosrae time', 11]], 'Marshall Islands': [['Marshall Islands time', 12]], 'Palau': [['Palau time', 9]]
+};
+function _annIsPip(contact) { return Object.prototype.hasOwnProperty.call(_ANN_PIP_ZONES, String((contact && contact.island) || '').trim()); }
+function _annLocalWhen(event, island, sessionDate) {
+  const zones = _ANN_PIP_ZONES[island]; const spec = event && event.vebSpec;
+  if (!zones || !spec || !Array.isArray(spec.sessions) || !spec.sessions.length) return '';
+  let sessions = spec.sessions.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+  if (sessionDate && Array.isArray(event.signupDates)) {
+    const i = event.signupDates.indexOf(sessionDate);
+    if (i >= 0 && sessions[i]) sessions = [sessions[i]];
+  }
+  const fmt = (dateStr, hhmm, off) => {
+    const p = String(dateStr).split('-').map(Number), t = String(hhmm).split(':').map(Number);
+    return new Date(Date.UTC(p[0], p[1] - 1, p[2], t[0], t[1]) + (10 + off) * 3600e3);
+  };
+  const day = (d) => d.toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric' });
+  const tm = (d) => d.toLocaleTimeString('en-US', { timeZone: 'UTC', hour: 'numeric', minute: '2-digit' });
+  return sessions.map(s => zones.map(z => {
+    const a = fmt(s.date, s.start, z[1]), b = fmt(s.date, s.end, z[1]);
+    return day(a) + ', ' + tm(a) + ' to ' + tm(b) + ' (' + z[0] + ')' + (s.lesson ? ': ' + s.lesson : '');
+  }).join(' | ')).join(' | ');
+}
 function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl, eventId, sessionDate }) {
+  const _pip = _annIsPip(contact);
   const displayName = (contact.displayName || '').trim();
   const firstName = displayName ? displayName.split(/\s+/)[0] : 'Friend';
   const title = event.title || 'Upcoming LDAH Event';
@@ -10211,19 +10241,25 @@ function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl, eventId, s
   else if (Array.isArray(event.signupDates) && event.signupDates[0]) dateStr = event.signupDates[0];
   else if (event.eventDate) dateStr = formatEventDate(event.eventDate);
   else if (event.date) dateStr = formatEventDate(event.date);
+  const _localWhen = _pip ? _annLocalWhen(event, String(contact.island || '').trim(), sessionDate) : '';
+  if (_localWhen) dateStr = _localWhen;
   const location = event.location || '';
-  const rawDescription = event.description || event.details || '';
+  // The builder's description lists HST times; a partner family gets the lesson list instead.
+  const rawDescription = (_pip && _localWhen) ? '' : (event.description || event.details || '');
   const descTrim = rawDescription.slice(0, 400);
   const descMore = rawDescription.length > 400 ? '...' : '';
-  const flyerUrl = event.flyerUrl || event.imageUrl || event.flyer || '';
+  const flyerUrl = (_pip && event.partnerFlyerUrl) ? event.partnerFlyerUrl : (event.flyerUrl || event.imageUrl || event.flyer || '');
   // Deep-link straight into the signup modal with name/email/phone pre-filled
   // from the recipient's contact doc (events.html reads these params).
   const signupUrl = 'https://www.ldahawaii.org/events.html' +
     '?eventId=' + encodeURIComponent(eventId || '') +
     '&prefill=' + encodeURIComponent(contact.unsubscribeToken || '') +
-    '&autoOpen=1';
+    '&autoOpen=1' + (_pip ? '&src=announcement-pip' : '');
 
   const esc = (s) => String(s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
+  const _whenHtml = _localWhen
+    ? '<p style="margin:0 0 8px;color:#475569"><strong>When (your local time):</strong><br>' + _localWhen.split(' | ').map(esc).join('<br>') + '</p>'
+    : (dateStr ? '<p style="margin:0 0 8px;color:#475569"><strong>When:</strong> ' + esc(dateStr) + '</p>' : '');
 
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(title) + '</title></head>' +
     '<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#1f2937">' +
@@ -10232,9 +10268,9 @@ function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl, eventId, s
     '<h1 style="margin:0;font-size:22px;font-weight:700">New LDAH Event</h1></div>' +
     (flyerUrl ? '<img src="' + esc(flyerUrl) + '" alt="' + esc(title) + '" style="width:100%;display:block">' : '') +
     '<div style="padding:32px 24px">' +
-    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + esc(firstName) + ',</p>' +
+    '<p style="margin:0 0 16px;font-size:16px">' + (_pip ? 'Hi ' : 'Aloha ') + esc(firstName) + ',</p>' +
     '<h2 style="margin:0 0 12px;color:#004E7C;font-size:24px">' + esc(title) + '</h2>' +
-    (dateStr ? '<p style="margin:0 0 8px;color:#475569"><strong>When:</strong> ' + esc(dateStr) + '</p>' : '') +
+    _whenHtml +
     (location ? '<p style="margin:0 0 16px;color:#475569"><strong>Where:</strong> ' + esc(location) + '</p>' : '') +
     (descTrim ? '<p style="margin:0 0 24px;color:#334155;line-height:1.6">' + esc(descTrim) + esc(descMore) + '</p>' : '') +
     '<p style="text-align:center;margin:32px 0">' +
@@ -10725,7 +10761,11 @@ exports.sendEventAnnouncement = functions
       return;
     }
 
-    const { eventId, collection, testMode, testEmail, dryRun, audienceFilter, recipientIds, sessionDate, allowRepeat } = req.body || {};
+    const { eventId, collection, testMode, testEmail, dryRun, audienceFilter, recipientIds, sessionDate, allowRepeat, audienceRegion } = req.body || {};
+    // audienceRegion (2026-11-06): 'ldah' = Hawaii and everyone not on a partner island,
+    // 'pip' = the six partner islands, absent = everyone (back-compat). Each family still
+    // gets the flyer for their own island (buildAnnouncementEmailHtml).
+    const _region = (audienceRegion === 'ldah' || audienceRegion === 'pip') ? audienceRegion : null;
     // Date-targeted announcement (multi-date events): when present, skip only
     // people signed up FOR this date, show this date in the email, and track
     // sent state per date. Absent => event-wide (original behavior).
@@ -10761,6 +10801,8 @@ exports.sendEventAnnouncement = functions
           displayName: 'Test Recipient',
           email: String(testEmail).trim(),
           unsubscribeToken: 'test-token-noop',
+          // A PIP test previews the partner version (Guam as the sample island).
+          island: _region === 'pip' ? 'Guam' : '',
         }];
       } else {
         const contactsSnap = await db.collection('contacts')
@@ -10777,6 +10819,8 @@ exports.sendEventAnnouncement = functions
           // Parents-only filter: STRICT match on canonical 'Parent/Guardian'.
           // Legacy/empty/other types are excluded by design — no backfill.
           if (_audience === 'parents' && (c.type || '').trim() !== 'Parent/Guardian') return;
+          if (_region === 'pip' && !_annIsPip(c)) return;
+          if (_region === 'ldah' && _annIsPip(c)) return;
           const displayName = (c.displayName || [c.firstName, c.lastName].filter(Boolean).join(' ')).trim() || 'Friend';
           recipients.push({ id: d.id, displayName, email, secondParent: c.secondParent, unsubscribeToken: c.unsubscribeToken,
         // Location, so the modal can offer "just the Big Island" and similar.
@@ -10862,6 +10906,7 @@ exports.sendEventAnnouncement = functions
           alreadySignedUp,
           willSendTo: newRecipients.length,
           audienceFilter: _audience,
+          audienceRegion: _region,
           // The real cap, so the modal can state it instead of carrying a
           // hardcoded number. It said "Daily cap: 50" for four weeks after the
           // constant was raised to 5000 on the Resend paid upgrade (3 Jul).
