@@ -1932,6 +1932,17 @@ async function handleSignupCreated(snap, context, collectionName) {
       console.error(`partialProfile flag failed for signup ${signupId}:`, partialErr.message);
     }
 
+    // A booth (special-outreach) form can capture street, city and zip in
+    // specialCapture. Nothing read it, so the address was lost (2026-11-06).
+    // Fill the contact's blank address and island from it.
+    try {
+      if (linkedContactId && signupData.specialCapture) {
+        await _fillContactAddress(linkedContactId, signupData.specialCapture, "signup address");
+      }
+    } catch (capErr) {
+      console.error(`booth address fill failed for signup ${signupId}:`, capErr.message);
+    }
+
     // Write linkedContactId on the signup doc (null if no email/phone)
     await snap.ref.update({ linkedContactId });
 
@@ -4759,8 +4770,14 @@ exports.onContactCreated = functions
       // membership — and expecting every one of them to remember would break
       // the moment a sixth appears. Only fills a BLANK; never overrides a
       // caller that already decided.
-      if (!c.island) {
-        const r = ldahResolveIsland(c);
+      // Re-read first (2026-11-06): a signup or consent writes the address a
+      // moment after creating the contact, and onContactUpdated may already
+      // have set the island from it. Working from the creation snapshot here
+      // overwrote that good island with "Unknown".
+      let fresh = c;
+      try { const fs = await snap.ref.get(); if (fs.exists) fresh = fs.data() || c; } catch (_) { /* keep the snapshot */ }
+      if (!fresh.island) {
+        const r = ldahResolveIsland(fresh);
         updates.island = r.island;
         updates.islandSource = r.islandSource;
       }
@@ -4773,6 +4790,95 @@ exports.onContactCreated = functions
       return null;
     }
   });
+
+// Fill a contact's BLANK address fields from a form that captured an address
+// (booth signup, screening consent, pledge), and set the island from it when
+// the island is blank or "Unknown" and nobody picked it by hand (2026-11-06).
+// Never overwrites an address or island that is already there.
+async function _fillContactAddress(contactId, addr, source) {
+  if (!contactId || !addr) return null;
+  const a = {
+    streetAddress: String(addr.streetAddress || addr.street || "").trim(),
+    city: String(addr.city || "").trim(),
+    zipCode: String(addr.zipCode || addr.zip || "").trim(),
+  };
+  if (!a.streetAddress && !a.city && !a.zipCode) return null;
+  const db = admin.firestore();
+  const ref = db.collection("contacts").doc(contactId);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return null;
+    const c = snap.data() || {};
+    const up = {};
+    ["streetAddress", "city", "zipCode"].forEach((k) => { if (a[k] && !String(c[k] || "").trim()) up[k] = a[k]; });
+    const isl = String(c.island || "").trim();
+    if (c.islandSource !== "manual" && (!isl || isl === "Unknown")) {
+      const r = ldahResolveIsland(Object.assign({}, c, up, { partnerIsland: "" }));
+      if (r.island !== "Unknown") { up.island = r.island; up.islandSource = source; }
+    }
+    if (Object.keys(up).length) tx.update(ref, up);
+    return up;
+  });
+}
+
+// ── Nightly island sweep (Daniel 2026-11-06) ─────────────────────────────
+// The triggers set an island when a contact is created and when its zipCode
+// changes. An address can still arrive another way: a screening's address, an
+// event signup's registration address, or a city typed in later. Every night
+// this re-checks contacts whose island is "Unknown" against all of those, with
+// the same zip table and the same "unambiguous names only" rule as
+// ldahResolveIsland. A staff pick (islandSource 'manual') is never touched, and
+// a partner stamp or a phone number is never used on its own (ownership and
+// portable numbers are not where a family lives).
+function _islandFromPlaces(c, signups) {
+  const base = ldahResolveIsland(Object.assign({}, c, { partnerIsland: "" }));
+  if (base.island !== "Unknown") return base;
+  const tries = [];
+  (Array.isArray(c.screenings) ? c.screenings : []).forEach((s) => {
+    const a = (s && s.address) || {};
+    if (a.zipCode || a.city) tries.push({ src: "screening address", zipCode: a.zipCode, city: a.city, streetAddress: a.streetAddress || "" });
+  });
+  (Array.isArray(signups) ? signups : []).forEach((g) => {
+    const r = (g && g.registration) || {}, sc = (g && g.specialCapture) || {};
+    const z = r.zipCode || sc.zipCode || g.zipCode, ci = r.city || sc.city || g.city;
+    if (z || ci) tries.push({ src: "signup address", zipCode: z, city: ci, streetAddress: r.streetAddress || sc.streetAddress || "" });
+  });
+  for (const t of tries) {
+    const r = ldahResolveIsland({ zipCode: t.zipCode || "", city: t.city || "" });
+    if (r.island !== "Unknown") return { island: r.island, islandSource: t.src, address: { zipCode: t.zipCode || "", city: t.city || "", streetAddress: t.streetAddress || "" } };
+  }
+  return base;
+}
+
+async function _runIslandSweep() {
+  const db = admin.firestore();
+  const snap = await db.collection("contacts").where("island", "==", "Unknown").get();
+  let fixed = 0, left = 0;
+  for (const doc of snap.docs) {
+    const c = doc.data() || {};
+    if (c.islandSource === "manual") { left++; continue; }
+    let signups = [];
+    try {
+      const sg = await db.collectionGroup("signups").where("linkedContactId", "==", doc.id).limit(20).get();
+      signups = sg.docs.map((d) => d.data() || {});
+    } catch (_) { /* index or permission: contact fields and screenings still count */ }
+    const r = _islandFromPlaces(c, signups);
+    if (r.island === "Unknown") { left++; continue; }
+    const up = { island: r.island, islandSource: r.islandSource, islandSweptAt: admin.firestore.FieldValue.serverTimestamp() };
+    // Also put the address it came from on the card, filling blanks only.
+    if (r.address) ["streetAddress", "city", "zipCode"].forEach((k) => { if (r.address[k] && !String(c[k] || "").trim()) up[k] = String(r.address[k]).trim(); });
+    await doc.ref.update(up);
+    fixed++;
+  }
+  console.log("sweepContactIslands: checked " + snap.size + ", set " + fixed + ", still unknown " + left);
+  return { checked: snap.size, fixed, left };
+}
+
+exports.sweepContactIslands = functions
+  .runWith({ timeoutSeconds: 300, memory: "512MB", maxInstances: 1 })
+  .pubsub.schedule("15 2 * * *")
+  .timeZone("Pacific/Honolulu")
+  .onRun(async () => { try { await _runIslandSweep(); } catch (e) { console.error("sweepContactIslands:", e.message); } return null; });
 
 exports.onContactUpdated = functions
   .runWith({ timeoutSeconds: 120, maxInstances: 5 })
@@ -4787,7 +4893,10 @@ exports.onContactUpdated = functions
       // a wrong island. Two guards: a staff member's explicit pick
       // (islandSource 'manual') always wins, and we never overwrite a good
       // island with "Unknown", so clearing a zip cannot destroy known data.
-      if (String(before.zipCode || "") !== String(after.zipCode || "") &&
+      // Also when only the city, location or street changes (2026-11-06): a
+      // member profile or a registration can fill a city with no zip.
+      const _placeChanged = ["zipCode", "city", "location", "streetAddress"].some((k) => String(before[k] || "") !== String(after[k] || ""));
+      if (_placeChanged &&
           after.islandSource !== "manual") {
         const r = ldahResolveIsland(after);
         if (r.island !== after.island && r.island !== "Unknown") {
@@ -14013,6 +14122,10 @@ async function _saveReadinessConsent(db, p, opts) {
   // the contact card showed an unnamed "Child" built from old top-level fields).
   // Same placement rule as event signups, so a returning child is merged, never
   // doubled. Best effort: a failure here never fails the consent.
+  // The screening's address also fills the family's card when it is blank, so
+  // the next booking can say "on file" and the island is known (2026-11-06).
+  try { if (screening.address) await _fillContactAddress(contactId, screening.address, "screening address"); }
+  catch (e) { console.error("screening address -> contact failed for " + contactId + ":", e.message); }
   try { await _addScreenedChildToContact(contactId, screening); }
   catch (e) { console.error("screened child -> children[] failed for " + contactId + ":", e.message); }
 
@@ -16538,6 +16651,12 @@ async function ensurePledgeContact(db, pledgeRef, pledge) {
     });
     contactId = ref.id;
     created = true;
+  }
+  // A family already in DAN keeps everything it has; a blank zip is filled from
+  // the pledge so the island can be worked out (2026-11-06).
+  if (!created && pledge.zip) {
+    try { await _fillContactAddress(contactId, { zipCode: pledge.zip }, "zip"); }
+    catch (e) { console.error("pledge zip fill failed for " + contactId + ":", e.message); }
   }
   await pledgeRef.update({ contactId, contactCreated: created });
   return { contactId, created };
@@ -32604,6 +32723,7 @@ exports.onChatHelpRequest = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  _islandFromPlaces,
   _ageBandFromBirthday, _childEntryFromScreening,
   _parseReadinessConsent,
   _readinessKeptFields,
