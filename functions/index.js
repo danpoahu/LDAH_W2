@@ -6,6 +6,7 @@ const screeningReferral = require("./screeningReferralExtraction");
 const cgDocCheck = require("./cgDocCheck");
 const staffAgenda = require("./staffAgenda");
 const officeScreenings = require("./officeScreenings");
+const eventTimes = require("./eventTimes");
 const crypto = require("crypto");
 const heicConvert = require("heic-convert");
 // nodemailer removed — Firebase 1st Gen blocks outbound SMTP (port 465/587).
@@ -1334,11 +1335,15 @@ function buildConfirmationEmailHtml({ name, eventTitle, datesPhrase, modality, i
  * Includes the Facebook group button, the "join Facebook + PTC ahead of
  * time" nudge, and a Donate button.
  */
-function buildParentTalkCafeConfirmationEmailHtml({ name, eventTitle, datesPhrase, eventTime, donateHtml }) {
+function buildParentTalkCafeConfirmationEmailHtml({ name, eventTitle, datesPhrase, eventTime, sessionWhen, donateHtml }) {
   const greetingName = _emailEsc(name || "there");
   const safeTitle = _emailEsc(eventTitle || "Parent Talk Cafe");
   const datesSuffix = datesPhrase ? _emailEsc(datesPhrase) : "";
-  const timeLine = eventTime
+  // sessionWhen (2026-11-06): each session with its own time, in the family's
+  // local time — "on Friday, January 15th, 1:00–2:00 PM Guam time (...)".
+  const timeLine = sessionWhen
+    ? `<p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">We'll see you <strong>${_emailEsc(sessionWhen)}</strong>.</p>`
+    : eventTime
     ? `<p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">We'll see you at <strong>${_emailEsc(eventTime)}</strong>${datesSuffix ? ` ${_emailEsc(datesPhrase)}` : ""}.</p>`
     : (datesSuffix
         ? `<p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">We'll see you${datesSuffix}.</p>`
@@ -1470,6 +1475,106 @@ function formatDatesPhrase(sessionKeys) {
   return `, on ${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}`;
 }
 
+// ── Pacific Island Partner local times (2026-11-06) ─────────────────
+// Every LDAH session is scheduled in Hawaiʻi time. Family email now states it
+// in the recipient's OWN local time when they live on a partner island (with
+// the Hawaiʻi time kept alongside), and labels it "Hawaiʻi time" for everyone
+// else. The single zone table and the formatting live in eventTimes.js.
+
+/** The recipient's island for a signup (contact first, then event.partnerIsland). Never throws. */
+async function _tzIsland(signup, event, cache) {
+  try { return await eventTimes.recipientIsland(admin.firestore(), signup, event, cache); }
+  catch (_) { return ""; }
+}
+
+/**
+ * Start/end ("HH:MM", HST) of the session on dateKey: the Virtual Event
+ * Builder spec, the session's own string, the signup's and event's session
+ * strings for that date, the event's sessions or projected schedule, then the
+ * event-level time fields.
+ */
+function _tzTimesFor(event, signup, dateKey, raw) {
+  let projected = null;
+  try {
+    if (event && dateKey) projected = getEventSessions(event, { fromDateKey: dateKey, toDateKey: dateKey });
+  } catch (_) { projected = null; }
+  return eventTimes.resolveSessionTimes(event, signup, dateKey, raw, projected);
+}
+
+/** [{ dateKey, start, end }] for a signup's sessions, each with its OWN time, in order. */
+function _tzSessionTimes(sessions, event, signup) {
+  const seen = new Set();
+  const out = [];
+  for (const s of (sessions || [])) {
+    if (!s || !s.dateKey) continue;
+    const r = _tzTimesFor(event, signup, s.dateKey, s.rawString);
+    const k = s.dateKey + "|" + r.start;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({ dateKey: s.dateKey, start: r.start, end: r.end });
+  }
+  out.sort((a, b) => (a.dateKey !== b.dateKey ? (a.dateKey < b.dateKey ? -1 : 1) : (a.start < b.start ? -1 : 1)));
+  return out;
+}
+
+/**
+ * formatDatesPhrase for a recipient: unchanged for a Hawaiʻi family; for a
+ * partner family each date is their own local date, with the Hawaiʻi date
+ * alongside when it differs (", on Friday, January 15th (Thursday, January
+ * 14th in Hawaiʻi)").
+ */
+function _tzDatesPhrase(island, sessions, event, signup) {
+  const keys = (sessions || []).map((x) => x && x.dateKey).filter(Boolean);
+  if (!eventTimes.isPartnerIsland(island)) return formatDatesPhrase(keys);
+  const labels = [];
+  for (const x of _tzSessionTimes(sessions, event, signup)) {
+    const l = eventTimes.partnerDateLine(island, x.dateKey, x.start, { ordinal: true }).text;
+    if (labels.indexOf(l) === -1) labels.push(l);
+  }
+  if (labels.length === 0) return "";
+  if (labels.length === 1) return ", on " + labels[0];
+  if (labels.length === 2) return ", on " + labels[0] + " and " + labels[1];
+  return ", on " + labels.slice(0, -1).join("; ") + "; and " + labels[labels.length - 1];
+}
+
+/**
+ * Parent Talk Cafe "We'll see you ..." wording, with each session's OWN time.
+ * Returns { time } when every session shares one time and the family is in
+ * Hawaiʻi (the old "at <time>" sentence, labelled), { when } otherwise
+ * ("on <local line> and <local line>"), or null when no time is known.
+ */
+function _tzPtcWhen(island, sessions, event, signup) {
+  const list = _tzSessionTimes(sessions, event, signup).filter((x) => x.start);
+  if (!list.length) return null;
+  const partner = eventTimes.isPartnerIsland(island);
+  const same = list.every((x) => x.start === list[0].start && x.end === list[0].end);
+  if (!partner && same) {
+    return { time: eventTimes.formatTime12(list[0].start) +
+      (list[0].end ? " - " + eventTimes.formatTime12(list[0].end) : "") + " " + eventTimes.HAWAII_LABEL };
+  }
+  const lines = list.map((x) => eventTimes.partnerTimeLine(island, x.dateKey, x.start, x.end, { ordinal: true }).text);
+  const joined = lines.length === 1 ? lines[0]
+    : lines.length === 2 ? lines[0] + " and " + lines[1]
+    : lines.slice(0, -1).join("; ") + "; and " + lines[lines.length - 1];
+  return { when: "on " + joined };
+}
+
+/**
+ * A raw session string (signupDates / selectedDates entry) for a recipient:
+ * labelled "Hawaiʻi time" for a Hawaiʻi family, their own local date and time
+ * for a partner family. The time comes from the event when the string has none.
+ */
+function _tzRawWhen(island, raw, event, signup) {
+  const s = String(raw == null ? "" : raw);
+  if (!s) return "";
+  if (!eventTimes.isPartnerIsland(island)) return eventTimes.labelHawaiiTimes(s);
+  let key = s.indexOf("|") !== -1 ? toHstDateKey(s.split("|")[0].trim()) : parseEventDateKey(s);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(key || "")) key = eventTimes.parseDateKey(s);
+  if (!key) return eventTimes.labelHawaiiTimes(s);
+  const t = _tzTimesFor(event, signup, key, s);
+  return eventTimes.rawWhenFor(island, s, { start: t.start, end: t.end, year: /\d{4}/.test(s) });
+}
+
 // ── One-off event email suppression ────────────────────────────────
 //
 // A "one-off" event (`isOneOff: true`) is an activity that ALREADY HAPPENED,
@@ -1590,7 +1695,11 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
 
     const recipientName = after.name || "there";
     const eventTitle = event.title || "your LDAH session";
-    const datesPhrase = formatDatesPhrase(sessionKeys);
+    // Partner families read their own local dates (2026-11-06).
+    const _island = await _tzIsland(after, event);
+    const datesPhrase = (_sessions && _sessions.length)
+      ? _tzDatesPhrase(_island, _sessions, event, after)
+      : formatDatesPhrase(sessionKeys);
     const modality = detectSignupModality(after, event);
 
     // Connect-Gen branch — MUST run BEFORE the 3-day window skip below.
@@ -1623,11 +1732,16 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
     // catch-up email applies — sendEventReminders skips PTC entirely).
     if (isParentTalkCafe) {
       const donateHtml = await buildDonateBlock("universal");
+      // Each session's own time (event.time is only the FIRST session's), in
+      // the family's local time for a partner island, labelled Hawaiʻi time otherwise.
+      const _ptcWhen = _tzPtcWhen(_island, _sessions, event, after);
       const html = buildParentTalkCafeConfirmationEmailHtml({
         name: recipientName,
         eventTitle,
         datesPhrase,
-        eventTime: (event && (event.time || event.startTime)) || "",
+        eventTime: (_ptcWhen && _ptcWhen.time) ||
+          eventTimes.labelHawaiiTimes((event && (event.time || event.startTime)) || ""),
+        sessionWhen: (_ptcWhen && _ptcWhen.when) || "",
         donateHtml,
       });
       const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
@@ -1678,7 +1792,7 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
         datesPhrase,
         consentUrl,
         worksheetUrl: _cgWorksheetUrl(after),
-        deadlineLabel: _cgPrepDeadlineLabel(after, event),
+        deadlineLabel: _cgPrepDeadlineLabel(after, event, undefined, _island),
         signatureHtml,
         donateHtml,
       });
@@ -2534,6 +2648,8 @@ exports.sendDeferredRegistrationEmails = functions
           try {
             const picked = Array.isArray(data.selectedDates) && data.selectedDates[0];
             eventDate = picked || formatEventDate(event.eventDate || event.date);
+            // Labelled Hawaiʻi time / the family's own local time (2026-11-06).
+            eventDate = _tzRawWhen(await _tzIsland(data, event), eventDate, event, data);
           } catch (_) {}
           const type = collection === "recurringEvents" ? "recurring" : "event";
 
@@ -2723,7 +2839,8 @@ exports.processPendingParentRegistrations = functions
         if (lastMs && (nowMs - lastMs) < TWO_DAYS) continue;   // not yet 2 days
         try {
           const orgFooterHtml = await getOrgFooterHtml();
-          const eventDate = (Array.isArray(data.selectedDates) && data.selectedDates[0]) || "";
+          const eventDate = _tzRawWhen(await _tzIsland(data, event),
+            (Array.isArray(data.selectedDates) && data.selectedDates[0]) || "", event, data);
           const htmlBody = buildRegistrationEmailHtml({ name: data.name || "there", eventTitle: event.title || "an LDAH Event", eventDate, signupId: s.id, eventId, type: "event", orgFooterHtml });
           const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
           await sendEmailViaResend({
@@ -2781,6 +2898,8 @@ exports.resendRegistrationEmail = functions
           eventTitle = eventData.title || eventTitle;
           const picked = Array.isArray(signupData.selectedDates) && signupData.selectedDates[0];
           eventDate = picked || formatEventDate(eventData.eventDate || eventData.date);
+          // Labelled Hawaiʻi time / the family's own local time (2026-11-06).
+          eventDate = _tzRawWhen(await _tzIsland(signupData, eventData), eventDate, eventData, signupData);
         }
       } catch (_) { /* use defaults */ }
 
@@ -4561,6 +4680,7 @@ async function handleCancelledFromSessionEmails(change, context) {
     const fromAddr = lifecycleFromAddress();
     const signupName = after.name || after.displayName || "";
     const eventTitle = after.eventTitle || "your LDAH program";
+    const _tzCache = new Map();
 
     for (const escapedKey of newKeys) {
       const entry = afterMap[escapedKey];
@@ -4578,8 +4698,16 @@ async function handleCancelledFromSessionEmails(change, context) {
         // Extract the date prefix from the original composite key (before first "|").
         const datePart = fromKey.split("|")[0].trim();
         if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
-          const d = new Date(datePart + "T00:00:00");
-          if (!isNaN(d.getTime())) {
+          // HST midnight. A bare "T00:00:00" is UTC midnight on the server,
+          // which is the PREVIOUS day in Pacific/Honolulu — every one of these
+          // emails named the day before the cancelled session (fixed 2026-11-06).
+          const d = new Date(datePart + "T00:00:00-10:00");
+          const _isl = await _tzIsland(after, null, _tzCache);
+          if (!isNaN(d.getTime()) && eventTimes.isPartnerIsland(_isl)) {
+            // The family's own date for the session (its start time decides it).
+            const _t = eventTimes.parseTimeRange(fromKey.split("|")[2] || "");
+            sessionDateDisplay = eventTimes.partnerDateLine(_isl, datePart, _t.start, { year: true }).text;
+          } else if (!isNaN(d.getTime())) {
             sessionDateDisplay = d.toLocaleDateString("en-US", {
               weekday: "long", month: "long", day: "numeric", year: "numeric",
               timeZone: "Pacific/Honolulu",
@@ -5111,6 +5239,7 @@ exports.sendNoShowReInvites = functions
       // Find next future event (one-time events only)
       let nextEventTitle = "";
       let nextEventDate = "";
+      let nextEventDoc = null;   // for the partner-island local date (2026-11-06)
       const nextEventUrl = "https://ldahawaii.org/events.html";
       const now = new Date();
       try {
@@ -5130,6 +5259,7 @@ exports.sendNoShowReInvites = functions
           if (eventDateObj && eventDateObj > now) {
             nextEventTitle = d.title || "";
             nextEventDate = formatEventDate(d.date);
+            nextEventDoc = d;
             break;
           }
         }
@@ -5144,13 +5274,24 @@ exports.sendNoShowReInvites = functions
       let skipped = 0;
 
       const orgFooterHtml = await getOrgFooterHtml();
+      const _tzCache = new Map();
+      const _thisEvent = eventDoc.exists ? (eventDoc.data() || {}) : null;
       for (const signup of noShows) {
         const name = signup.name || signup.firstName || "there";
+        // A partner-island family reads the next event's date on their own clock.
+        let _nextDate = nextEventDate || "";
+        if (nextEventDoc && _nextDate) {
+          const _isl = await _tzIsland(signup, _thisEvent, _tzCache);
+          const _ymd = toHstDateKey(nextEventDoc.date);
+          if (eventTimes.isPartnerIsland(_isl) && _ymd) {
+            _nextDate = eventTimes.partnerDateLine(_isl, _ymd, _tzTimesFor(nextEventDoc, null, _ymd).start, { year: true }).text;
+          }
+        }
         const htmlBody = buildNoShowEmailHtml({
           name,
           eventTitle,
           nextEventTitle: nextEventTitle || "",
-          nextEventDate: nextEventDate || "",
+          nextEventDate: _nextDate,
           nextEventUrl,
           orgFooterHtml,
         });
@@ -7623,6 +7764,7 @@ exports.sendCgWorksheetReminders = functions
     const toMillis = (v) => (v && v.toMillis ? v.toMillis() : (v && v.seconds ? v.seconds * 1000 : 0));
 
     let scanned = 0, sent = 0, skippedDone = 0, skippedCadence = 0, skippedPast = 0, skippedNoToken = 0, failed = 0;
+    const _tzCache = new Map();   // local-time lookup, one contact read per family
 
     for (const coll of ["recurringEvents", "events"]) {
       let evs;
@@ -7763,10 +7905,11 @@ exports.sendCgWorksheetReminders = functions
           try {
             const signatureHtml = await buildSignatureBlock("eventCoordinator");
             const donateHtml = await buildDonateBlock("universal");
+            const _island = await _tzIsland(s, event, _tzCache);
             const html = buildConnectGenWorksheetRequestEmailHtml({
               name: s.name || s.firstName || "there",
               eventTitle: s.eventTitle || event.title || "Connect-Gen",
-              datesPhrase: formatDatesPhrase(sessions.map(function (x) { return x && x.dateKey; }).filter(Boolean)),
+              datesPhrase: _tzDatesPhrase(_island, sessions, event, s),
               locationLine: _cgLocationLine(sessions),
               worksheetUrl: _cgWorksheetUrl(s),
               signatureHtml,
@@ -7855,12 +7998,13 @@ exports.resendCgWorksheetRequest = functions
       }
 
       const sessions = getSignupSessions(s, event) || [];
+      const _island = await _tzIsland(s, event);
       const signatureHtml = await buildSignatureBlock("eventCoordinator");
       const donateHtml = await buildDonateBlock("universal");
       const html = buildConnectGenWorksheetRequestEmailHtml({
         name: s.name || s.firstName || "there",
         eventTitle: s.eventTitle || event.title || "Connect-Gen",
-        datesPhrase: formatDatesPhrase(sessions.map(x => x && x.dateKey).filter(Boolean)),
+        datesPhrase: _tzDatesPhrase(_island, sessions, event, s),
         locationLine: _cgLocationLine(sessions),
         worksheetUrl: _cgWorksheetUrl(s),
         signatureHtml,
@@ -7948,15 +8092,16 @@ exports.resendCgConsentRequest = functions
 
       const sessions = getSignupSessions(s, event) || [];
       const eventTitle = s.eventTitle || event.title || "Connect-Gen";
+      const _island = await _tzIsland(s, event);
       const signatureHtml = await buildSignatureBlock("eventCoordinator");
       const donateHtml = await buildDonateBlock("universal");
       const html = buildConsentRequiredEmailHtml({
         name: s.name || s.firstName || "there",
         eventTitle,
-        datesPhrase: formatDatesPhrase(sessions.map((x) => x && x.dateKey).filter(Boolean)),
+        datesPhrase: _tzDatesPhrase(_island, sessions, event, s),
         consentUrl,
         worksheetUrl: _cgWorksheetUrl(s),
-        deadlineLabel: _cgPrepDeadlineLabel(s, event),
+        deadlineLabel: _cgPrepDeadlineLabel(s, event, undefined, _island),
         signatureHtml,
         donateHtml,
       });
@@ -8320,16 +8465,40 @@ function getSessionLocationForDate(signup, sessionDateKey) {
  * Returns { startTime, endTime } ("" when unknown).
  */
 function getSessionTimeForDate(signup, sessionDateKey, event) {
-  const evStart = String((event && (event.startTime || event.time)) || "").trim();
-  const evEnd = String((event && event.endTime) || "").trim();
-  const fallback = { startTime: evStart, endTime: evEnd };
-  if (!signup || !sessionDateKey) return fallback;
+  // A trailing "HST" is dropped: every caller labels the time itself, and
+  // keeping it printed "HST HST" in the day-of email.
+  const _noHst = (t) => String(t || "").replace(/\s*\(?\s*HST\s*\)?\s*$/i, "").trim();
+  // Virtual Event Builder events carry each session's own 24h times (2026-11-06).
+  const _spec = event && event.vebSpec;
+  if (sessionDateKey && _spec && Array.isArray(_spec.sessions)) {
+    const hit = _spec.sessions.find((x) => x && x.date === sessionDateKey && x.start);
+    if (hit) return { startTime: eventTimes.formatTime12(hit.start), endTime: eventTimes.formatTime12(hit.end) };
+  }
+  let evStart = String((event && (event.startTime || event.time)) || "").trim();
+  let evEnd = String((event && event.endTime) || "").trim();
+  // event.time is often the whole range ("5:00 PM - 6:00 PM HST"); split it
+  // rather than printing the range as the start time.
+  if (!(event && event.startTime) && /[-–—]/.test(evStart)) {
+    const parts = evStart.split(/\s*[-–—]\s*/);
+    evStart = parts[0] || evStart;
+    if (!evEnd) evEnd = parts[1] || "";
+  }
+  const fallback = { startTime: _noHst(evStart), endTime: _noHst(evEnd) };
+  if (!sessionDateKey) return fallback;
+  // One-time / Virtual Event Builder signups store the raw signupDates string
+  // ("January 14, 2027, 5:00 PM - 6:00 PM - Topic"), which has no YYYY-MM-DD in
+  // it, so match on the parsed date too, and read the event's own signupDates
+  // entry for that date before falling back to the first session's time.
   const entries = []
-    .concat(Array.isArray(signup.selectedSessions) ? signup.selectedSessions : [])
-    .concat(Array.isArray(signup.selectedDates) ? signup.selectedDates : []);
+    .concat(signup && Array.isArray(signup.selectedSessions) ? signup.selectedSessions : [])
+    .concat(signup && Array.isArray(signup.selectedDates) ? signup.selectedDates : [])
+    .concat(event && Array.isArray(event.signupDates) ? event.signupDates : []);
   for (const raw of entries) {
     const s = String(raw || "");
-    if (s.indexOf(sessionDateKey) === -1) continue;
+    if (s.indexOf(sessionDateKey) === -1) {
+      const k = s.indexOf("|") !== -1 ? toHstDateKey(s.split("|")[0].trim()) : parseEventDateKey(s);
+      if (k !== sessionDateKey) continue;
+    }
     let timeStr = "";
     if (s.indexOf("|") !== -1) {
       // "YYYY-MM-DD|Venue|5:00 pm-6:00 pm" — time range is parts[2].
@@ -8343,9 +8512,9 @@ function getSessionTimeForDate(signup, sessionDateKey, event) {
     }
     if (!timeStr) continue;
     const splitMatch = timeStr.split(/\s*[-–—]\s*/);
-    const startTime = (splitMatch[0] || "").trim();
-    const endTime = (splitMatch[1] || "").trim();
-    if (startTime) return { startTime, endTime: endTime || evEnd };
+    const startTime = _noHst(splitMatch[0]);
+    const endTime = _noHst(splitMatch[1]);
+    if (startTime) return { startTime, endTime: endTime || fallback.endTime };
   }
   return fallback;
 }
@@ -8982,12 +9151,17 @@ function buildEventReminderEmailHtml({
   startTime, endTime, isVirtual, zoomUrl, meetingId, passcode,
   locationLabel, surveyUrl, mode,
   signatureHtml, donateHtml, orgFooterHtml,
+  whenText,
 }) {
   const virt = !!isVirtual;
   const locLbl = String(locationLabel || "").trim();
+  // Session times are Hawaiʻi time and say so (2026-11-06). A partner-island
+  // family gets whenText instead: the date and time on their own clock, with
+  // the Hawaiʻi time alongside.
   const timeLine = (startTime || endTime)
-    ? ` from ${startTime || ""}${endTime ? " to " + endTime : ""}`
+    ? ` from ${startTime || ""}${endTime ? " to " + endTime : ""} ${eventTimes.HAWAII_LABEL}`
     : "";
+  const whenPhrase = whenText ? String(whenText) : `${dayName}, ${dateFormatted}${timeLine}`;
 
   const zoomEarlyLine = virt
     ? `<p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
@@ -8996,7 +9170,7 @@ function buildEventReminderEmailHtml({
     : "";
 
   const seeYouLine = `<p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
-      We are looking forward to seeing you${virt ? " virtually" : ""} on ${dayName}, ${dateFormatted}${timeLine}${!virt && locLbl ? " at " + locLbl : ""}.
+      We are looking forward to seeing you${virt ? " virtually" : ""} on ${whenPhrase}${!virt && locLbl ? " at " + locLbl : ""}.
     </p>`;
 
   const belowIsLine = `<p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
@@ -9157,6 +9331,7 @@ function pickZoomForEvent(zoomDoc, event, collection) {
  */
 async function sendOneReminderEmail({
   collection, eventId, signupId, signup, event, sessionDateKey, sessionDateRaw, mode, zoomDefault, skipBcc, cc,
+  tzCache,
 }) {
   const type = collection === "recurringEvents" ? "recurring" : "event";
   const { dayName, formatted } = formatHstDateParts(sessionDateKey);
@@ -9165,6 +9340,18 @@ async function sendOneReminderEmail({
   // Per-session time: Connect-Gen / recurring programs carry each session's
   // time on the signup, not the event doc — read it the same way location is.
   const { startTime, endTime } = getSessionTimeForDate(signup, sessionDateKey, event);
+
+  // Partner-island families read the date and time on their own clock, and the
+  // subject names their local day (2026-11-06).
+  const _island = await _tzIsland(signup, event, tzCache);
+  let whenText = "";
+  let subjectDate = `${dayName}, ${formatted}`;
+  if (eventTimes.isPartnerIsland(_island)) {
+    const _st = eventTimes.toHHMM(startTime);
+    const _tl = eventTimes.partnerTimeLine(_island, sessionDateKey, _st, eventTimes.toHHMM(endTime), { year: true });
+    whenText = _tl.text;
+    if (_st) subjectDate = _tl.localDayName + ", " + eventTimes.formatDateLabel(_tl.localYmd, { weekday: false, year: true });
+  }
 
   // Per-session virtual detection: parse the signup's own session key for
   // this date (recurring programs have Virtual vs Oahu/Hilo/Kona schedules
@@ -9231,9 +9418,10 @@ async function sendOneReminderEmail({
     startTime, endTime, isVirtual, zoomUrl, meetingId, passcode,
     locationLabel, surveyUrl, mode,
     signatureHtml, donateHtml, orgFooterHtml,
+    whenText,
   });
 
-  const subject = `Reminder: ${eventTitle} -- ${dayName}, ${formatted}`;
+  const subject = `Reminder: ${eventTitle} -- ${subjectDate}`;
 
   const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
   const emailType = "event-reminder-3day";
@@ -9390,6 +9578,8 @@ exports.sendEventReminders = functions
     targetSet[target3d] = "threeDay";
 
     console.log(`sendEventReminders: today=${todayKey} target3d=${target3d}`);
+    // One contact read per family per run for the local-time lookup.
+    const _tzCache = new Map();
 
     let candidates = 0;
     let viaAccessor = 0;
@@ -9482,7 +9672,7 @@ exports.sendEventReminders = functions
             // shape that matches event.signupDates (not ISO). 2026-05-14 fix
             // (mirrors d6b0b24 day-of fix).
             sessionDateRaw: (session && session.rawString) || "",
-            mode, zoomDefault,
+            mode, zoomDefault, tzCache: _tzCache,
           });
           // Dedupe write — merge so other session keys + the other flag survive.
           await signupDoc.ref.set({
@@ -9601,12 +9791,19 @@ function buildDayOfEmail({
   name, eventTitle, startTime, endTime, isVirtual, locationLabel,
   zoomUrl, meetingId, passcode,
   feedbackUrl, donateHtml, signatureHtml, orgFooterHtml,
+  whenHtml,
 }) {
   const greetingName = _emailEsc(name || "there");
   const safeTitle = _emailEsc(eventTitle || "your LDAH session");
-  const timeRange = startTime
-    ? (endTime ? `${_emailEsc(startTime)} – ${_emailEsc(endTime)} HST` : `${_emailEsc(startTime)} HST`)
+  // Labelled Hawaiʻi time; the strings never carry their own "HST" any more,
+  // so it cannot print twice (2026-11-06).
+  const _st = String(startTime || "").replace(/\s*\(?\s*HST\s*\)?\s*$/i, "");
+  const _en = String(endTime || "").replace(/\s*\(?\s*HST\s*\)?\s*$/i, "");
+  const timeRange = _st
+    ? (_en ? `${_emailEsc(_st)} – ${_emailEsc(_en)} ${eventTimes.HAWAII_LABEL}` : `${_emailEsc(_st)} ${eventTimes.HAWAII_LABEL}`)
     : "";
+  // whenHtml (partner families): ", today at <strong>1:00–2:00 PM Guam time</strong> (Thursday, ... Hawaiʻi time)".
+  const whenBit = whenHtml ? whenHtml : (timeRange ? `, today at <strong>${timeRange}</strong>` : "");
   const virt = !!isVirtual && !!zoomUrl;
 
   // Virtual: Zoom button + meeting details block. In-person: location block.
@@ -9655,7 +9852,7 @@ function buildDayOfEmail({
       <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha ${greetingName},</p>
 
       <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
-        We are so excited to see you in just a little while at <strong>${safeTitle}</strong>${timeRange ? `, today at <strong>${timeRange}</strong>` : ""}!
+        We are so excited to see you in just a little while at <strong>${safeTitle}</strong>${whenBit}!
       </p>
 
       <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
@@ -9714,6 +9911,7 @@ function buildDayOfEmail({
  */
 async function sendOneDayOfReminderEmail({
   collection, eventId, signupId, signup, event, sessionDateKey, sessionDateRaw, startHst, zoomDefault, skipBcc, cc,
+  tzCache,
 }) {
   const type = collection === "recurringEvents" ? "recurring" : "event";
   const recipientName = resolveReminderRecipientName(signup);
@@ -9721,6 +9919,21 @@ async function sendOneDayOfReminderEmail({
   // Per-session time: Connect-Gen / recurring programs carry each session's
   // time on the signup, not the event doc — read it the same way location is.
   const { startTime, endTime } = getSessionTimeForDate(signup, sessionDateKey, event);
+
+  // Partner-island families (2026-11-06): "today"/"tomorrow", the time, and the
+  // subject's morning/afternoon/tonight all on the family's own clock.
+  const _island = await _tzIsland(signup, event, tzCache);
+  let whenHtml = "";
+  let _partnerPhrase = "";
+  if (eventTimes.isPartnerIsland(_island) && eventTimes.toHHMM(startTime)) {
+    const _tl = eventTimes.partnerTimeLine(_island, sessionDateKey,
+      eventTimes.toHHMM(startTime), eventTimes.toHHMM(endTime));
+    const _word = eventTimes.dayWord(_tl.localYmd, eventTimes.localNow(_island).ymd);
+    const _localTimes = _tl.zones.map((z) => z.timeText + " " + z.label).join(" / ");
+    whenHtml = ", " + (_word || "on " + _emailEsc(_tl.localDateLabel)) + " at <strong>" +
+      _emailEsc(_localTimes) + "</strong> (" + _emailEsc(_tl.hawaiiLine) + ")";
+    _partnerPhrase = eventTimes.partOfDayPhrase(_tl.localHour, _word);
+  }
 
   // CRITICAL: per-session virtual/in-person check. Connect-Gen has mixed
   // schedules (Thursdays in-person, other days Zoom) — without this gate,
@@ -9762,9 +9975,10 @@ async function sendOneDayOfReminderEmail({
     zoomUrl, meetingId, passcode,
     feedbackUrl: surveyUrl,
     donateHtml, signatureHtml, orgFooterHtml,
+    whenHtml,
   });
 
-  const phrase = _dayOfSubjectPhrase(startHst);
+  const phrase = _partnerPhrase || _dayOfSubjectPhrase(startHst);
   const subject = isVirtual
     ? `${phrase} -- ${eventTitle} Zoom link inside`
     : `${phrase} -- ${eventTitle}`;
@@ -9847,6 +10061,7 @@ exports.sendDayOfReminders = functions
   .timeZone("Pacific/Honolulu")
   .onRun(async (context) => {
     const db = admin.firestore();
+    const _tzCache = new Map();   // one contact read per family per run (local-time lookup)
 
     let zoomDoc = null;
     try {
@@ -9962,7 +10177,7 @@ exports.sendDayOfReminders = functions
             // Pass verbatim rawString so the feedback URL embeds the canonical
             // shape that matches event.signupDates (not ISO). 2026-05-14 fix.
             sessionDateRaw: (session && session.rawString) || "",
-            startHst, zoomDefault,
+            startHst, zoomDefault, tzCache: _tzCache,
           });
           await signupDoc.ref.set({
             sessionReminders: {
@@ -10270,10 +10485,18 @@ function buildCombinedAnnouncementEmailHtml({ blocks, contact, unsubscribeUrl,
        words for them. (2026-09-15) */
     const isFlyer = (ev.infoOnly === true || ev.flyerOnly === true ||
                      String(ev.eventType || '') === 'flyer');
-    const dateStr = (typeof b.whenText === 'string') ? b.whenText
+    let dateStr = (typeof b.whenText === 'string') ? b.whenText
       : (isFlyer ? '' : (b.sessionDate ||
         (Array.isArray(ev.signupDates) && ev.signupDates[0]) ||
         (ev.eventDate ? formatEventDate(ev.eventDate) : '')));
+    // Times on the family's own clock for a partner island, else labelled
+    // Hawaiʻi time (2026-11-06). Staff-written whenText is left exactly as typed.
+    let localWhen = '';
+    if (dateStr && typeof b.whenText !== 'string') {
+      const isl = String(contact.island || '');
+      localWhen = eventTimes.isPartnerIsland(isl) ? _annLocalWhen(ev, isl, b.sessionDate || '') : '';
+      if (!localWhen) dateStr = _tzRawWhen(isl, dateStr, ev, null);
+    }
     const location = (typeof b.whereText === 'string') ? b.whereText
       : (isFlyer ? '' : (ev.location || ''));
     const raw = ev.description || ev.details || '';
@@ -10293,8 +10516,11 @@ function buildCombinedAnnouncementEmailHtml({ blocks, contact, unsubscribeUrl,
                   '" style="width:100%;display:block">' : '') +
       '<div style="padding:28px 24px 8px">' +
       '<h2 style="margin:0 0 12px;color:#004E7C;font-size:22px">' + esc(title) + '</h2>' +
-      (dateStr ? '<p style="margin:0 0 8px;color:#475569"><strong>When:</strong> ' +
-                 esc(dateStr) + '</p>' : '') +
+      (localWhen
+        ? '<p style="margin:0 0 8px;color:#475569"><strong>When (your local time):</strong><br>' +
+          localWhen.split(' | ').map(esc).join('<br>') + '</p>'
+        : (dateStr ? '<p style="margin:0 0 8px;color:#475569"><strong>When:</strong> ' +
+                 esc(dateStr) + '</p>' : '')) +
       (location ? '<p style="margin:0 0 16px;color:#475569"><strong>Where:</strong> ' +
                   esc(location) + '</p>' : '') +
       (desc ? '<p style="margin:0 0 20px;color:#334155;line-height:1.6">' + esc(desc) + '</p>' : '') +
@@ -10344,29 +10570,54 @@ function buildCombinedAnnouncementEmailHtml({ blocks, contact, unsubscribeUrl,
    the Partner flyer (local-time table, Pacific Island Partners logo), plain English
    ("Hi", not "Aloha"), and the session times in their own island's time when the event
    came from DAN's Virtual Event Builder (vebSpec). Everyone else gets the HST flyer. */
-const _ANN_PIP_ZONES = {
-  'American Samoa': [['American Samoa time', -11]], 'Guam': [['Guam time', 10]], 'CNMI': [['CNMI time', 10]],
-  'Micronesia': [['Yap & Chuuk time', 10], ['Pohnpei & Kosrae time', 11]], 'Marshall Islands': [['Marshall Islands time', 12]], 'Palau': [['Palau time', 9]]
-};
-function _annIsPip(contact) { return Object.prototype.hasOwnProperty.call(_ANN_PIP_ZONES, String((contact && contact.island) || '').trim()); }
-function _annLocalWhen(event, island, sessionDate) {
-  const zones = _ANN_PIP_ZONES[island]; const spec = event && event.vebSpec;
-  if (!zones || !spec || !Array.isArray(spec.sessions) || !spec.sessions.length) return '';
-  let sessions = spec.sessions.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
-  if (sessionDate && Array.isArray(event.signupDates)) {
-    const i = event.signupDates.indexOf(sessionDate);
-    if (i >= 0 && sessions[i]) sessions = [sessions[i]];
+// The zone table is the ONE shared table in eventTimes.js (2026-11-06).
+function _annIsPip(contact) { return eventTimes.isPartnerIsland(String((contact && contact.island) || '').trim()); }
+// Sessions with HST date/start/end: the builder's vebSpec, else (2026-11-06) the
+// event's own signupDates / dates, so a partner family gets local times for
+// every event, not only Virtual Event Builder ones.
+function _annSessions(event, sessionDate) {
+  const spec = event && event.vebSpec;
+  if (spec && Array.isArray(spec.sessions) && spec.sessions.length) {
+    let sessions = spec.sessions.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+    if (sessionDate && Array.isArray(event.signupDates)) {
+      const i = event.signupDates.indexOf(sessionDate);
+      if (i >= 0 && sessions[i]) sessions = [sessions[i]];
+    }
+    return sessions;
   }
+  if (!event) return [];
+  const raws = sessionDate ? [sessionDate]
+    : (Array.isArray(event.signupDates) && event.signupDates.length ? event.signupDates : [event.eventDate || event.date]);
+  const out = [];
+  for (const raw of raws) {
+    if (!raw) continue;
+    let ymd = typeof raw === 'string' ? parseEventDateKey(raw) : toHstDateKey(raw);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd || '') && typeof raw === 'string') ymd = eventTimes.parseDateKey(raw);
+    if (!ymd) continue;
+    const t = _tzTimesFor(event, null, ymd, typeof raw === 'string' ? raw : '');
+    if (!t.start) continue;
+    out.push({ date: ymd, start: t.start, end: t.end || t.start, lesson: '' });
+  }
+  return out;
+}
+function _annLocalWhen(event, island, sessionDate) {
+  const zones = eventTimes.zonesFor(island);
+  if (!zones.length || !event) return '';
+  const sessions = _annSessions(event, sessionDate);
+  if (!sessions.length) return '';
   const fmt = (dateStr, hhmm, off) => {
     const p = String(dateStr).split('-').map(Number), t = String(hhmm).split(':').map(Number);
     return new Date(Date.UTC(p[0], p[1] - 1, p[2], t[0], t[1]) + (10 + off) * 3600e3);
   };
   const day = (d) => d.toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric' });
   const tm = (d) => d.toLocaleTimeString('en-US', { timeZone: 'UTC', hour: 'numeric', minute: '2-digit' });
-  return sessions.map(s => zones.map(z => {
-    const a = fmt(s.date, s.start, z[1]), b = fmt(s.date, s.end, z[1]);
-    return day(a) + ', ' + tm(a) + ' to ' + tm(b) + ' (' + z[0] + ')' + (s.lesson ? ': ' + s.lesson : '');
-  }).join(' | ')).join(' | ');
+  const line = (s, off, label, lesson) => {
+    const a = fmt(s.date, s.start, off), b = fmt(s.date, s.end, off);
+    return day(a) + ', ' + tm(a) + ' to ' + tm(b) + ' (' + label + ')' + (lesson ? ': ' + lesson : '');
+  };
+  // Each session: the family's local line(s), then the Hawaiʻi time for reference.
+  return sessions.map(s => zones.map(z => line(s, z.offset, z.label, s.lesson))
+    .concat([line(s, eventTimes.HAWAII_OFFSET, eventTimes.HAWAII_LABEL, '')]).join(' | ')).join(' | ');
 }
 function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl, eventId, sessionDate }) {
   const _pip = _annIsPip(contact);
@@ -10379,11 +10630,14 @@ function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl, eventId, s
   else if (Array.isArray(event.signupDates) && event.signupDates[0]) dateStr = event.signupDates[0];
   else if (event.eventDate) dateStr = formatEventDate(event.eventDate);
   else if (event.date) dateStr = formatEventDate(event.date);
-  const _localWhen = _pip ? _annLocalWhen(event, String(contact.island || '').trim(), sessionDate) : '';
+  // Micronesia narrowed to Yap & Chuuk or Pohnpei & Kosrae by zip/city when known.
+  const _island = eventTimes.islandForContact(contact) || String(contact.island || '').trim();
+  const _localWhen = _pip ? _annLocalWhen(event, _island, sessionDate) : '';
   if (_localWhen) dateStr = _localWhen;
+  else dateStr = eventTimes.labelHawaiiTimes(dateStr);   // "Hawaiʻi time" on any stated time
   const location = event.location || '';
   // The builder's description lists HST times; a partner family gets the lesson list instead.
-  const rawDescription = (_pip && _localWhen) ? '' : (event.description || event.details || '');
+  const rawDescription = (_pip && _localWhen && event.vebSpec) ? '' : (event.description || event.details || '');
   const descTrim = rawDescription.slice(0, 400);
   const descMore = rawDescription.length > 400 ? '...' : '';
   const flyerUrl = (_pip && event.partnerFlyerUrl) ? event.partnerFlyerUrl : (event.flyerUrl || event.imageUrl || event.flyer || '');
@@ -10608,6 +10862,8 @@ async function _runCombinedAnnouncement({ db, dryRun, testEmail }) {
       id: d.id, email,
       displayName: (c.displayName || [c.firstName, c.lastName].filter(Boolean).join(" ")).trim() || "Friend",
       unsubscribeToken: c.unsubscribeToken, secondParent: c.secondParent,
+      // For local session times (2026-11-06); Micronesia narrowed by zip/city.
+      island: eventTimes.islandForContact(c),
     });
   });
 
@@ -11258,19 +11514,23 @@ function lifecycleReason(eventData) {
   return s || "unforeseen circumstances";
 }
 
-function lifecycleFormatDateList(dates) {
+// island/event/signup (2026-11-06): times are labelled "Hawaiʻi time", or put on
+// a partner-island family's own clock.
+function lifecycleFormatDateList(dates, island, event, signup) {
   if (!dates) return "";
-  if (Array.isArray(dates)) return dates.filter(Boolean).map(lifecycleFormatSessionEntry).join(", ");
-  return lifecycleFormatSessionEntry(dates);
+  const one = (d) => lifecycleFormatSessionEntry(d, island, event, signup);
+  if (Array.isArray(dates)) return dates.filter(Boolean).map(one).join(", ");
+  return one(dates);
 }
 
 // Convert a Connect-Gen pipe-delimited session key
 // ("2026-05-04|Hilo – Venue|10:00 AM – 12:00 PM") into a friendlier
 // "Mon, May 4 — 10:00 AM – 12:00 PM @ Hilo – Venue". Plain date strings
 // (e.g., Learning Labs / one-time selectedDates) pass through unchanged.
-function lifecycleFormatSessionEntry(s) {
+function lifecycleFormatSessionEntry(s, island, event, signup) {
   const str = String(s == null ? "" : s).trim();
-  if (!str || str.indexOf("|") === -1) return str;
+  if (!str) return str;
+  if (str.indexOf("|") === -1) return _tzRawWhen(island || "", str, event || null, signup || null);
   const parts = str.split("|").map((p) => p.trim());
   const datePart = parts[0] || "";
   const locPart = parts[1] || "";
@@ -11282,7 +11542,12 @@ function lifecycleFormatSessionEntry(s) {
     if (!isNaN(d.getTime())) nice = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   }
   let out = nice;
-  if (timePart) out += " — " + timePart;
+  const _t = timePart ? eventTimes.parseTimeRange(timePart) : { start: "" };
+  if (m && _t.start && eventTimes.isPartnerIsland(island)) {
+    out = eventTimes.partnerTimeLine(island, m[1] + "-" + m[2] + "-" + m[3], _t.start, _t.end).text;
+  } else if (timePart) {
+    out += " — " + eventTimes.labelHawaiiTimes(timePart);
+  }
   if (locPart) out += " @ " + locPart;
   return out;
 }
@@ -11290,11 +11555,12 @@ function lifecycleFormatSessionEntry(s) {
 // ── Template helpers ────────────────────────────────────────────
 
 // F-1: signup-scoped (cancellation OR reschedule)
-function buildLifecycleEmailHtml({ kind, name, eventTitle, oldDates, newDates, signatureHtml, donateHtml, eventId }) {
+function buildLifecycleEmailHtml({ kind, name, eventTitle, oldDates, newDates, signatureHtml, donateHtml, eventId,
+  island, event, signup }) {
   const firstName = lifecycleFirstName(name);
   const title = lifecycleEsc(eventTitle || "your LDAH event");
-  const oldStr = lifecycleEsc(lifecycleFormatDateList(oldDates));
-  const newStr = lifecycleEsc(lifecycleFormatDateList(newDates));
+  const oldStr = lifecycleEsc(lifecycleFormatDateList(oldDates, island, event, signup));
+  const newStr = lifecycleEsc(lifecycleFormatDateList(newDates, island, event, signup));
 
   let headerLabel, headerGradient, headerColor, bodyHtml, heading;
   if (kind === "cancellation") {
@@ -11590,6 +11856,9 @@ async function handleSignupLifecycleEmails(change, context, collectionName) {
       signatureHtml,
       donateHtml,
       eventId,
+      island: await _tzIsland(after, _evForGuard),
+      event: _evForGuard,
+      signup: after,
     });
 
     try {
@@ -11793,6 +12062,7 @@ async function handleEventLifecycleEmails(change, context, collectionName) {
 
     const markerColl = eventRef.collection("eventLifecycleNotifications");
     const fromAddr = lifecycleFromAddress();
+    const _tzCache = new Map();   // local-time lookup, one contact read per family
 
     if (mode === "event-cancelled" || mode === "event-rescheduled") {
       // Fleet send: one email per recipient.
@@ -11805,11 +12075,14 @@ async function handleEventLifecycleEmails(change, context, collectionName) {
         } catch (_) { /* proceed */ }
 
         let html, subject, typeTag;
+        // Labelled Hawaiʻi time / the family's own local time (2026-11-06).
+        const _island = await _tzIsland(r.data, after, _tzCache);
         if (mode === "event-cancelled") {
           html = buildEventCancelledEmailHtml({
             name: r.data.name || r.data.displayName || "",
             eventTitle,
-            eventDate: oldDateStr || newDateStr,
+            eventDate: oldDateStr ? _tzRawWhen(_island, oldDateStr, before, r.data)
+              : _tzRawWhen(_island, newDateStr, after, r.data),
             reason,
           });
           subject = "Event cancelled: " + eventTitle;
@@ -11818,8 +12091,8 @@ async function handleEventLifecycleEmails(change, context, collectionName) {
           html = buildEventRescheduledEmailHtml({
             name: r.data.name || r.data.displayName || "",
             eventTitle,
-            oldDate: oldDateStr,
-            newDate: newDateStr,
+            oldDate: _tzRawWhen(_island, oldDateStr, before, null),
+            newDate: _tzRawWhen(_island, newDateStr, after, null),
             reason,
           });
           subject = eventTitle + " has a new date";
@@ -11926,13 +12199,22 @@ async function handleEventLifecycleEmails(change, context, collectionName) {
             if (markerSnap.exists) continue;
           } catch (_) { /* proceed */ }
 
+          // A partner-island family reads the date on their own clock (2026-11-06).
+          let _cdShown = _cdLabel;
+          const _isl = await _tzIsland(r.data, after, _tzCache);
+          if (_m && eventTimes.isPartnerIsland(_isl)) {
+            const _raw = _selSess.find((sk) => sk.startsWith(_cdDateKey + "|")) || "";
+            const _t = _tzTimesFor(after, r.data, _m[1], _raw);
+            _cdShown = [eventTimes.partnerDateLine(_isl, _m[1], _t.start, { year: true }).text,
+              _cdIsObj ? cdEntry.location : "", _cdIsObj ? cdEntry.venue : ""].filter(Boolean).join(" – ");
+          }
           const html = buildSessionCancelledEmailHtml({
             name: r.data.name || r.data.displayName || "",
             eventTitle,
-            sessionDate: _cdLabel,
+            sessionDate: _cdShown,
             reason,
           });
-          const subject = "Session cancelled on " + _cdLabel + " — " + eventTitle;
+          const subject = "Session cancelled on " + _cdShown + " — " + eventTitle;
 
           try {
             await sendEmailViaResend({
@@ -12264,12 +12546,40 @@ exports.sendEventRecordingEmail = functions
         return (_memberCache[k] = ok);
       }
 
+      // Partner-island families see the next session's date on their own clock
+      // (2026-11-06). The island comes from the recipient's signup.
+      const _tzCache = new Map();
+      let _thisEv = null;
+      try { const _es = await _db.collection(collection).doc(eventId).get(); _thisEv = _es.exists ? (_es.data() || {}) : null; } catch (_) { _thisEv = null; }
+      const _nextEvs = {};
+      for (const n of _next) {
+        try { const _ns = await _db.collection("events").doc(String(n.eventId)).get(); _nextEvs[n.eventId] = _ns.exists ? (_ns.data() || {}) : null; }
+        catch (_) { _nextEvs[n.eventId] = null; }
+      }
+      const _nextLabelFor = (n, isl) => {
+        if (!eventTimes.isPartnerIsland(isl) || !n.raw) return String(n.label);
+        const ev = _nextEvs[n.eventId] || null;
+        let ymd = parseEventDateKey(String(n.raw));
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd || "")) ymd = eventTimes.parseDateKey(String(n.raw));
+        if (!ymd) return String(n.label);
+        return eventTimes.partnerDateLine(isl, ymd, _tzTimesFor(ev, null, ymd, String(n.raw)).start).text;
+      };
+
       for (const r of recipients) {
         if (!r || !r.email) { failed++; continue; }
         const _em = String(r.email).trim().toLowerCase();
         const _isMember = await _isMemberEmail(_em);
+        let _isl = "";
+        if (_next.length) {
+          let _sg = null;
+          if (r.signupId) {
+            try { const _ss = await _db.collection(collection).doc(eventId).collection("signups").doc(String(r.signupId)).get(); _sg = _ss.exists ? (_ss.data() || {}) : null; }
+            catch (_) { _sg = null; }
+          }
+          _isl = await _tzIsland(_sg || {}, _thisEv, _tzCache);
+        }
         const _nextForR = _next.map(n => ({
-          label: String(n.label), title: String(n.title || ""),
+          label: _nextLabelFor(n, _isl), title: String(n.title || ""),
           signupUrl: "https://www.ldahawaii.org/events.html?eventId=" + encodeURIComponent(n.eventId) + "&autoOpen=1",
           signedUp: !!(_nextEmails[n.eventId + "|" + (n.raw || "")] && _nextEmails[n.eventId + "|" + (n.raw || "")].has(_em)),
         }));
@@ -13570,10 +13880,11 @@ exports.submitConnectGenConsent = functions
             // Team signature, not a named person (Daniel 2026-10-13).
             const signatureHtml = PARENT_CONSULTANT_TEAM_SIGNATURE;
             const donateHtml = await buildDonateBlock("universal");
+            const _island = await _tzIsland(fresh, event);
             const html = buildConnectGenConsentReceivedEmailHtml({
               name: fresh.name || typedName,
               eventTitle: event.title || "Connect-Gen",
-              datesPhrase: formatDatesPhrase(sessionKeys),
+              datesPhrase: (sessions && sessions.length) ? _tzDatesPhrase(_island, sessions, event, fresh) : formatDatesPhrase(sessionKeys),
               outstanding: reqs.outstanding,
               outstandingPhrase: _cgOutstandingPhrase(reqs.outstanding),
               uploadUrl: _cgUploadUrl(fresh),
@@ -15158,10 +15469,11 @@ async function _cgSendConfirmedEmail(ref, signup, event) {
   const recipientName = signup.name || "there";
   const signatureHtml = await buildSignatureBlock("eventCoordinator");
   const donateHtml = await buildDonateBlock("universal");
+  const _island = await _tzIsland(signup, event);
   const html = buildConnectGenPrepEmailHtml({
     name: recipientName,
     eventTitle: event.title || "Connect-Gen",
-    datesPhrase: formatDatesPhrase(sessionKeys),
+    datesPhrase: (sessions && sessions.length) ? _tzDatesPhrase(_island, sessions, event, signup) : formatDatesPhrase(sessionKeys),
     prepDocs,
     signatureHtml,
     donateHtml,
@@ -20955,11 +21267,11 @@ async function _cgAfterDocCheck(ref, collection, eventId, nowMs) {
   let emailed = false;
   if (familyEmails(s).length) {
     try {
-      const sessionKeys = sessions.map((x) => x && x.dateKey).filter(Boolean);
+      const _island = await _tzIsland(s, ev);
       const html = buildConnectGenDocsNotCurrentEmailHtml({
         name: s.name || "there",
         eventTitle: ev.title || "Connect-Gen",
-        datesPhrase: formatDatesPhrase(sessionKeys),
+        datesPhrase: _tzDatesPhrase(_island, sessions, ev, s),
         missing: dc.missing,
         problems: dc.problems,
         uploadUrl: _cgUploadUrl(s),
@@ -21084,21 +21396,16 @@ exports.sweepConnectGenDocChecks = functions
 // to be complete, being the registration cut-off before their session start.
 // Returns "" when the session or its start time is unknown, so callers can drop
 // the sentence rather than print a half-empty one.
-function _cgPrepDeadlineLabel(signup, event, cutoffHours) {
+// Labelled "Hawaiʻi time"; a partner-island family (island) gets their own
+// local deadline first, with the Hawaiʻi one alongside (2026-11-06).
+function _cgPrepDeadlineLabel(signup, event, cutoffHours, island) {
   try {
     const sessions = getSignupSessions(signup, event) || [];
     const first = sessions[0];
     if (!first || !first.dateKey) return "";
     const ms = _cgSessionCutoffMillis(first, first.dateKey, cutoffHours);
     if (ms === null) return "";
-    const d = new Date(ms);
-    const day = d.toLocaleDateString("en-US", {
-      weekday: "long", month: "long", day: "numeric", timeZone: "Pacific/Honolulu",
-    });
-    const time = d.toLocaleTimeString("en-US", {
-      hour: "numeric", minute: "2-digit", timeZone: "Pacific/Honolulu",
-    });
-    return day + " at " + time;
+    return eventTimes.instantLabel(ms, island || "");
   } catch (e) {
     console.warn("_cgPrepDeadlineLabel failed:", e.message);
     return "";
@@ -21408,9 +21715,12 @@ function _cgFindRescheduleOptions(event, signup, opts) {
 function _buildCgRescheduleEmailHtml({
   mode, firstName, sessionDateLabel, sessionLocation, sessionModality,
   outstanding, actionUrls, options, signatureHtml,
-  moveDestinationLabel, newDeadlineLabel,
+  moveDestinationLabel, newDeadlineLabel, dayWord,
 }) {
   const safeFirst = lifecycleEsc(firstName || "there");
+  // "tomorrow" on the family's own clock; a partner-island family can already
+  // be on the session's day when the T-1 email goes out (2026-11-06).
+  const _day = dayWord || "tomorrow";
   const safeDate = lifecycleEsc(sessionDateLabel || "your Connect-Gen session");
   const isVirtual = sessionModality === "virtual";
   const locBit = sessionLocation ? " at " + lifecycleEsc(sessionLocation) : "";
@@ -21459,7 +21769,7 @@ function _buildCgRescheduleEmailHtml({
       (safeDest ? "<strong>" + safeDest + "</strong>" : "the next session at your location") +
       ".");
   } else if (mode === "final") {
-    intro = p("Your Connect-Gen session is tomorrow &mdash; " + safeDate + locBit +
+    intro = p("Your Connect-Gen session is " + _day + " &mdash; " + safeDate + locBit +
       ". We still do not have " + phrase + ".");
   } else if (mode === "reminder") {
     intro = p("This is a friendly reminder that we still have not received " + phrase +
@@ -21491,7 +21801,7 @@ function _buildCgRescheduleEmailHtml({
   const optionLead = !optionBtns ? "" : (mode === "moved"
     ? p("If that date does not suit, you are welcome to pick one of these instead:", "18px")
     : mode === "final"
-    ? p("If tomorrow is too soon, you are welcome to move to one of these instead:", "18px")
+    ? p("If " + _day + " is too soon, you are welcome to move to one of these instead:", "18px")
     : (mode === "reminder"
         ? p("Or if this date no longer works, you can move to one of these:", "18px")
         : p("If you need more time, you are welcome to move to one of these instead:", "18px")));
@@ -21809,6 +22119,14 @@ async function _sendCgRescheduleEmail({
   // LOCATION as well as the date, because a date alone does not identify a
   // session on the days that run two.
   const exp = Math.floor(Date.now() / 1000) + 14 * 24 * 60 * 60;
+  // Partner-island families read dates on their own clock (2026-11-06).
+  const _island = await _tzIsland(signupData || {}, event);
+  const _isPartner = eventTimes.isPartnerIsland(_island);
+  const _localDate = (dateKey, session, opts2) => {
+    if (!_isPartner || !dateKey) return null;
+    const st = eventTimes.toHHMM(session && session.startTime) || _tzTimesFor(event, signupData, dateKey).start;
+    return eventTimes.partnerDateLine(_island, dateKey, st, opts2).text;
+  };
   const options = (upcoming || []).map((opt) => {
     const token = _signRescheduleToken({
       signupId: signupRef.id,
@@ -21824,7 +22142,7 @@ async function _sendCgRescheduleEmail({
       modality: opt.modality || "",
       // Keep the weekday. _formatMondayLabel already renders the right one for
       // any day; the old code stripped it and pasted "Monday, " back on.
-      label: _formatMondayLabel(opt.dateKey),
+      label: _localDate(opt.dateKey, opt) || _formatMondayLabel(opt.dateKey),
       url: CONNECT_GEN_RESCHEDULE_BASE_URL + "?token=" + encodeURIComponent(token),
     };
   });
@@ -21845,27 +22163,33 @@ async function _sendCgRescheduleEmail({
       ? opts.destination
       : _cgAutoMoveDestination(event, signupData, sessionKey, toHstDateKey(new Date()));
     if (dest) {
-      moveDestinationLabel = _formatMondayLabel(dest.dateKey) +
+      moveDestinationLabel = (_localDate(dest.dateKey, dest.session || dest) || _formatMondayLabel(dest.dateKey)) +
         (dest.location ? " at " + dest.location : "");
       const cut = _cgSessionCutoffMillis(dest.session || dest, dest.dateKey);
       if (cut !== null) {
-        const d = new Date(cut);
-        newDeadlineLabel = d.toLocaleDateString("en-US", {
-          weekday: "long", month: "long", day: "numeric", timeZone: "Pacific/Honolulu",
-        }) + " at " + d.toLocaleTimeString("en-US", {
-          hour: "numeric", minute: "2-digit", timeZone: "Pacific/Honolulu",
-        });
+        // Labelled Hawaiʻi time, or the family's own deadline first for a partner island.
+        newDeadlineLabel = eventTimes.instantLabel(cut, _island);
       }
+    }
+  }
+
+  // The session's day on the family's clock, for "tomorrow" in the T-1 email.
+  let _dayWord = "tomorrow";
+  if (_isPartner && sessionKey) {
+    const _t = _tzTimesFor(event, signupData, sessionKey);
+    if (_t.start) {
+      const _tl = eventTimes.partnerTimeLine(_island, sessionKey, _t.start, _t.end);
+      _dayWord = eventTimes.dayWord(_tl.localYmd, eventTimes.localNow(_island).ymd) || "tomorrow";
     }
   }
 
   const signatureHtml = await buildSignatureBlock("eventCoordinator");
   const html = _buildCgRescheduleEmailHtml({
     mode, firstName,
-    sessionDateLabel: _formatSessionLongLabel(sessionKey),
+    sessionDateLabel: _localDate(sessionKey, null, { year: true }) || _formatSessionLongLabel(sessionKey),
     sessionLocation, sessionModality,
     outstanding, actionUrls, options, signatureHtml,
-    moveDestinationLabel, newDeadlineLabel,
+    moveDestinationLabel, newDeadlineLabel, dayWord: _dayWord,
   });
 
   const phrase = _cgOutstandingPhrase(outstanding);
@@ -21876,7 +22200,7 @@ async function _sendCgRescheduleEmail({
         ? "Today's Connect-Gen session \u2014 moved to " + moveDestinationLabel
         : "We have moved your Connect-Gen session")
     : mode === "final"
-    ? "Your Connect-Gen session is tomorrow"
+    ? "Your Connect-Gen session is " + _dayWord
     : (mode === "reminder"
         ? "Connect-Gen reminder \u2014 we still need " + phrase
         : "Before your Connect-Gen session \u2014 we still need " + phrase);
@@ -32787,6 +33111,13 @@ exports.onChatHelpRequest = functions
 // Test hook — lets the scratchpad verification scripts exercise pure helpers
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
+  // Pacific Island Partner local times (2026-11-06)
+  getSessionTimeForDate, buildEventReminderEmailHtml, buildDayOfEmail,
+  buildConfirmationEmailHtml, buildParentTalkCafeConfirmationEmailHtml,
+  _tzDatesPhrase, _tzPtcWhen, _tzRawWhen, _tzTimesFor, _tzSessionTimes,
+  lifecycleFormatSessionEntry, _annLocalWhen, buildAnnouncementEmailHtml,
+  buildCombinedAnnouncementEmailHtml, formatDatesPhrase,
+  sendOneReminderEmail, sendOneDayOfReminderEmail, maybeSendRegistrationConfirmation,
   _islandFromPlaces,
   _zip5,
   _signupTopLevelAddress,
@@ -34272,7 +34603,8 @@ function buildOfficeScreeningEmailHtml(kind, b) {
   const esc = _emailEsc;
   const kid = esc(b.childFirstName || "your child");
   const kidPos = b.childFirstName ? esc(b.childFirstName) + "&rsquo;s" : "your child&rsquo;s";
-  const when = esc(OS.dayLabelLong(b.date) + " at " + OS.timeLabelFull(b.time));
+  // In person at the Honolulu office, so plain Hawaiʻi time (2026-11-06).
+  const when = esc(OS.dayLabelLong(b.date) + " at " + OS.timeLabelFull(b.time) + " " + eventTimes.HAWAII_LABEL);
   const p = (html, style) => '<p style="margin:0 0 14px;font-size:16px;color:#333333;line-height:1.55;' + (style || "") + '">' + html + "</p>";
   const h = (t) => '<p style="margin:18px 0 6px;font-size:15px;font-weight:700;color:#1a3c6e;">' + t + "</p>";
   const hi = p("Hi " + esc(b.parentFirstName || "there") + ",");
