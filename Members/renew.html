@@ -337,6 +337,7 @@
                 + '  <div class="form-group"><label class="fld-label" for="renewName">Full name</label><input type="text" id="renewName" autocomplete="name" value="' + esc(fullName) + '"></div>'
                 + '  <div class="form-group"><label class="fld-label" for="renewEmail">Email</label><input type="email" id="renewEmail" autocomplete="email" value="' + esc(p.email) + '"></div>'
                 + '  <div class="form-group"><label class="fld-label" for="renewPhone">Phone</label><input type="tel" id="renewPhone" autocomplete="tel" value="' + esc(p.phone) + '"></div>'
+                + '  <div class="form-group"><label class="fld-label" for="renewZip">Zip code</label><input type="text" id="renewZip" required inputmode="numeric" maxlength="5" autocomplete="postal-code" placeholder="96XXX" style="max-width:180px;" value="' + esc(((String(p.zipCode || '').match(/\d{5}/) || [])[0]) || '') + '"></div>'
                 + '  <div class="form-group"><label class="fld-label" for="renewLevel">Membership level</label><select id="renewLevel">' + options + '</select></div>'
                 + '  <div class="btn-row"><button class="btn btn-primary btn-block" id="renewSubmit">Continue to payment</button></div>'
                 + '</div>'
@@ -367,9 +368,11 @@
             renewName = val('renewName').trim();
             var email = val('renewEmail').trim();
             var phone = val('renewPhone').trim();
+            var zipCode = val('renewZip').trim();
             var levelSel = val('renewLevel');
             var tier = TIERS.filter(function (t) { return t.level === levelSel; })[0];
             if (!renewName || !email) { renewError('Please enter your name and email.'); return; }
+            if (!/^\d{5}$/.test(zipCode)) { renewError('Please enter your 5-digit zip code.'); return; }
             if (!tier) { renewError('Please choose a membership level.'); return; }
             renewLevel = tier.level; renewAmount = tier.amount;
 
@@ -380,13 +383,13 @@
                    every time; now the one already started is updated. */
                 if (renewDocId) {
                     await db.collection('members').doc(renewDocId).update({
-                        name: renewName, email: email, phone: phone,
+                        name: renewName, email: email, phone: phone, zipCode: zipCode,
                         level: renewLevel, amount: renewAmount,
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
                 } else {
                     var ref = await db.collection('members').add({
-                        name: renewName, email: email, phone: phone,
+                        name: renewName, email: email, phone: phone, zipCode: zipCode,
                         level: renewLevel, amount: renewAmount,
                         status: 'pending', source: 'member-portal-renewal',
                         linkedContactId: (memberProfile && memberProfile.id) || null,

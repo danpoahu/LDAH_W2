@@ -1021,6 +1021,8 @@
         <input id="mm-name" required autocomplete="name" style="width:100%;padding:11px;border:1px solid #CBD5E1;border-radius:10px;margin-bottom:12px;font-size:1rem;">
         <label style="font-weight:600;display:block;margin-bottom:4px;">Email *</label>
         <input id="mm-email" type="email" required autocomplete="email" style="width:100%;padding:11px;border:1px solid #CBD5E1;border-radius:10px;margin-bottom:12px;font-size:1rem;">
+        <label for="mm-zip" style="font-weight:600;display:block;margin-bottom:4px;">Zip Code *</label>
+        <input id="mm-zip" type="text" required inputmode="numeric" maxlength="5" autocomplete="postal-code" placeholder="96XXX" style="width:100%;max-width:180px;padding:11px;border:1px solid #CBD5E1;border-radius:10px;margin-bottom:12px;font-size:1rem;display:block;">
         <label style="font-weight:600;display:block;margin-bottom:4px;">Phone <span style="font-weight:400;color:var(--text-soft);">(optional)</span></label>
         <input id="mm-phone" type="tel" autocomplete="tel" style="width:100%;padding:11px;border:1px solid #CBD5E1;border-radius:10px;margin-bottom:16px;font-size:1rem;">
         <div class="second-parent-block" style="margin-bottom:16px;">
@@ -1112,11 +1114,18 @@
         var email = el('mm-email').value.trim();
         var phone = el('mm-phone').value.trim();
         if (!_mmName || !email) return;
+        // Zip (2026-11-06): lets the server set the member's island on their card.
+        var zipCode = (el('mm-zip').value || '').trim();
+        if (!/^\d{5}$/.test(zipCode)) {
+          msg.textContent = 'Please enter your 5-digit zip code.';
+          try { el('mm-zip').focus(); } catch (_) {}
+          return;
+        }
         var _sp = _collectSecondParent();
         msg.textContent = '';
         btn.disabled = true; btn.textContent = 'Saving…';
         var payload = Object.assign({
-          name: _mmName, email: email, phone: phone,
+          name: _mmName, email: email, phone: phone, zipCode: zipCode,
           level: _mmLevel, amount: _mmAmount,
           status: 'pending', source: 'web-howtohelp'
         }, _sp ? { secondParent: _sp } : {});

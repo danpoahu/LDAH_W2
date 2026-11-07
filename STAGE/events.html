@@ -2783,6 +2783,24 @@
                   </div>
                 </div>
 
+                <!-- Parent zip (2026-11-06): parents give their address only in the later
+                     registration step, which many never finish, so ask the zip here.
+                     Shown + required ONLY for Parent/Guardian (ldahToggleInlineRegBlock);
+                     never required while hidden. 5-digit check is in submitSignup. -->
+                <div id="parentZipWrap" style="display: none; margin-bottom: 20px;">
+                  <label for="parentZip" style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
+                    Zip Code *
+                  </label>
+                  <input type="text" id="parentZip" inputmode="numeric" maxlength="5" autocomplete="postal-code" placeholder="96XXX" style="
+                    width: 100%;
+                    max-width: 180px;
+                    padding: 12px;
+                    border: 1px solid #D1D5DB;
+                    border-radius: 8px;
+                    font-size: 14px;
+                  ">
+                </div>
+
                 <div style="margin-bottom: 20px;">
                   <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">
                     Phone Number (for calls or texts) *
@@ -3151,6 +3169,15 @@
     // Values are NOT cleared on hide so the user can switch roles without data loss.
     function ldahToggleInlineRegBlock() {
       var role = (document.querySelector('input[name="registrantType"]:checked') || {}).value || '';
+      // Parent zip: visible + required for Parent/Guardian only (a required field
+      // that is display:none makes Submit silently do nothing).
+      var pzWrap = document.getElementById('parentZipWrap');
+      var pzEl = document.getElementById('parentZip');
+      if (pzWrap && pzEl) {
+        var isParentRole = roleNeedsRegistration(role);
+        pzWrap.style.display = isParentRole ? 'block' : 'none';
+        if (isParentRole) pzEl.setAttribute('required', ''); else pzEl.removeAttribute('required');
+      }
       var block = document.getElementById('inlineRegBlock');
       if (!block) return;
       var show = role && !roleNeedsRegistration(role);
@@ -3279,7 +3306,9 @@
         // Pre-fill inline reg block fields (may not be visible yet)
         setIfEmpty('inlineStreet', c.streetAddress || '');
         setIfEmpty('inlineCity', c.city || '');
-        setIfEmpty('inlineZip', c.zipCode || '');
+        var _zip5 = (String(c.zipCode || '').match(/\d{5}/) || [''])[0];
+        setIfEmpty('inlineZip', _zip5 || c.zipCode || '');
+        setIfEmpty('parentZip', _zip5);
         setIfEmpty('inlineReason', c.reasonForAttending || '');
         setIfEmpty('inlineAccommodations', c.accommodations || '');
         setIfEmpty('inlinePriorDate', c.priorTrainingDate || '');
@@ -3486,6 +3515,8 @@
           // Bridge the child/student name from signup so registration doesn't
           // re-ask it (v61.19). CG signup collects studentName inline.
           if (data.studentName && !regPrefill.childName) regPrefill.childName = data.studentName;
+          // Bridge the zip given on the first form (2026-11-06).
+          if (data.zipCode && !regPrefill.zipCode) regPrefill.zipCode = data.zipCode;
 
           contentEl.innerHTML = buildRegistrationForm(registrantName, token, eventId, type, regPrefill);
           toggleParentSections();
@@ -4174,6 +4205,27 @@
        minute, and wrote eleven signups with no name, email or phone onto the
        1 Oct Oahu session. Checking here too means a submit that skips the
        browser's own validation is still refused. */
+    /* Zip checks (2026-11-06). Parent/Guardian: the short zip box on the first
+       form, written on the signup as top-level zipCode so the server can set the
+       family's island straight away. Non-parents: the inline block's zip must be
+       5 digits. Returns false (after telling the person) when it is not right. */
+    function _ldahSignupZipOK(fd) {
+      var isParent = roleNeedsRegistration(fd.role);
+      var id = isParent ? 'parentZip' : 'inlineZip';
+      var el = document.getElementById(id);
+      if (!el) return true;
+      var z = String(el.value || '').trim();
+      if (!isParent && !z) return true;   // empty inline zip is caught by the "Tell us a bit more" check
+      if (!/^\d{5}$/.test(z)) {
+        alert('Please enter your 5-digit zip code.');
+        if (!isParent) { var _b = document.getElementById('inlineRegBlock'); if (_b) _b.style.display = 'block'; }
+        try { el.focus(); } catch (e) {}
+        return false;
+      }
+      if (isParent) fd.zipCode = z;
+      return true;
+    }
+
     function _ldahSignupContactOK(fd) {
       var nm = String(fd.name || '').trim();
       var em = String(fd.email || '').trim();
@@ -4272,6 +4324,7 @@
       }
 
       if (!_ldahSignupContactOK(formData)) return;   // the enclosing try/finally releases the submit lock
+      if (!_ldahSignupZipOK(formData)) return;
 
       // Get selected dates
       const dateCheckboxes = document.querySelectorAll('.signup-date-checkbox:checked');
@@ -4730,6 +4783,11 @@
                     </label>
                   </div>
                 </div>
+                <!-- Parent zip (2026-11-06) — see the one-time form. Required only while shown. -->
+                <div id="parentZipWrap" style="display:none;margin-bottom:20px;">
+                  <label for="parentZip" style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Zip Code *</label>
+                  <input type="text" id="parentZip" inputmode="numeric" maxlength="5" autocomplete="postal-code" placeholder="96XXX" style="width:100%;max-width:180px;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
+                </div>
                 <div style="margin-bottom:20px;">
                   <label style="display:block;color:#004E7C;font-weight:bold;margin-bottom:8px;font-size:14px;">Phone Number (for calls or texts) *</label>
                   <input type="tel" required id="signupPhone" placeholder="(808) 555-1234" pattern="[\\(]?\\d{3}[\\)]?[\\s.\\-]?\\d{3}[\\s.\\-]?\\d{4}" title="Please enter a valid 10-digit phone number, e.g. (808) 555-1234" style="width:100%;padding:12px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;">
@@ -5118,6 +5176,7 @@
       }
 
       if (!_ldahSignupContactOK(formData)) return;   // the enclosing try/finally releases the submit lock
+      if (!_ldahSignupZipOK(formData)) return;
 
       const checked = document.querySelectorAll('.signup-date-checkbox:checked');
       formData.selectedSessions = Array.from(checked).map(cb => cb.value);

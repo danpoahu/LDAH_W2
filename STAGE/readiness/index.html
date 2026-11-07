@@ -131,6 +131,11 @@
           </div>
           <input type="text" id="relOtherText" placeholder="Please specify" style="margin-top:.6rem;" hidden>
         </div>
+        <div class="fg"><label class="lbl" for="s_streetAddress">Address</label><input type="text" id="s_streetAddress" autocomplete="street-address"><span class="hint keep-hint" id="addrKeepHint" hidden style="margin-top:.35rem;">Keep it, or type a new one.</span></div>
+        <div class="grid2">
+          <div class="fg"><label class="lbl" for="s_city">City</label><input type="text" id="s_city" autocomplete="address-level2"></div>
+          <div class="fg"><label class="lbl" for="s_zipCode">Zip Code</label><input type="text" id="s_zipCode" inputmode="numeric" autocomplete="postal-code" maxlength="10" placeholder="96XXX"></div>
+        </div>
       </div>
 
       <div class="section">
@@ -399,7 +404,8 @@
     let rel = radioVal('rel'); if (rel === 'Other') rel = 'Other: ' + v('relOtherText');
     let eth = $('ethnicity').value; if (eth === 'Other') eth = v('ethnicityOther');
     return {
-      parent: { email: v('email'), phone: v('phone'), firstName: v('pFirst'), lastName: v('pLast'), relationship: rel },
+      parent: { email: v('email'), phone: v('phone'), firstName: v('pFirst'), lastName: v('pLast'), relationship: rel,
+        streetAddress: v('s_streetAddress'), city: v('s_city'), zipCode: v('s_zipCode') },
       child: { firstName: v('cFirst'), middleName: v('cMiddle'), lastName: v('cLast'), birthday: v('cBirthday'),
         gender: radioVal('cGender'), nativeHawaiian: radioVal('nh'), ethnicity: eth },
       health: { chronicEar: radioVal('ear'), lastEarInfection: v('earWhen'),
@@ -420,6 +426,7 @@
     if (!d.parent.firstName) { mark('pFirst'); miss.push('your first name'); }
     if (!d.parent.lastName) { mark('pLast'); miss.push('your last name'); }
     if (!radioVal('rel')) { $('relGroup').classList.add('missing'); miss.push('your relationship'); }
+    if (d.parent.zipCode && !/^\d{5}(-\d{4})?$/.test(d.parent.zipCode)) { mark('s_zipCode'); miss.push('a 5-digit zip code (or leave it blank)'); }
     if (!d.child.firstName) { mark('cFirst'); miss.push("child's first name"); }
     if (!d.child.lastName) { mark('cLast'); miss.push("child's last name"); }
     if (d.child.birthday && (d.child.birthday > new Date().toISOString().slice(0,10) || d.child.birthday < '1900-01-01')) { mark('cBirthday'); miss.push("a real birthday (or leave it blank)"); }

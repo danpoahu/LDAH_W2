@@ -1943,6 +1943,18 @@ async function handleSignupCreated(snap, context, collectionName) {
       console.error(`booth address fill failed for signup ${signupId}:`, capErr.message);
     }
 
+    // Parent/Guardian signups now ask a zip on the FIRST form (top-level
+    // zipCode; the app may also carry a top-level city). Fill the contact's
+    // blank zip/city and its island from it — never overwrite (2026-11-06).
+    try {
+      const _topAddr = _signupTopLevelAddress(signupData);
+      if (linkedContactId && _topAddr) {
+        await _fillContactAddress(linkedContactId, _topAddr, "signup address");
+      }
+    } catch (zipErr) {
+      console.error(`signup zip fill failed for signup ${signupId}:`, zipErr.message);
+    }
+
     // Write linkedContactId on the signup doc (null if no email/phone)
     await snap.ref.update({ linkedContactId });
 
@@ -4795,6 +4807,23 @@ exports.onContactCreated = functions
 // (booth signup, screening consent, pledge), and set the island from it when
 // the island is blank or "Unknown" and nobody picked it by hand (2026-11-06).
 // Never overwrites an address or island that is already there.
+// First 5-digit zip in a value ("96817-1234" -> "96817"), or "" (2026-11-06).
+function _zip5(v) {
+  const m = String(v == null ? "" : v).match(/\b(\d{5})(?:-\d{4})?\b/);
+  return m ? m[1] : "";
+}
+
+// The zip/city a signup carries at the TOP level (parent zip on the first
+// form; the app also spreads its form state, which can include a city).
+// Returns an address for _fillContactAddress, or null when there is none.
+function _signupTopLevelAddress(signupData) {
+  const d = signupData || {};
+  const zipCode = _zip5(d.zipCode);
+  const city = String(d.city || "").trim();
+  if (!zipCode && !city) return null;
+  return { zipCode, city };
+}
+
 async function _fillContactAddress(contactId, addr, source) {
   if (!contactId || !addr) return null;
   const a = {
@@ -13727,6 +13756,11 @@ exports.submitSrpConsent = functions
           lastName: parent.lastName || "",
           email: emailLc,
           phone: parent.cellPhone || "",
+          // A NEW card takes the form's address; its island follows from the
+          // contact-create trigger. An existing card is filled blanks-only below.
+          streetAddress: String(parent.address || "").trim(),
+          city: String(parent.city || "").trim(),
+          zipCode: String(parent.zipCode || "").trim(),
           type: "Parent/Guardian",
           source: "srp-consent",
           createdBy: "srp-consent",
@@ -13764,11 +13798,17 @@ exports.submitSrpConsent = functions
         tokenId: token,
       };
 
-      const contactUpdate = { screenings: FieldValue.arrayUnion(screening) };
-      if (parent.address) contactUpdate.streetAddress = parent.address;
-      if (parent.city) contactUpdate.city = parent.city;
-      if (parent.zipCode) contactUpdate.zipCode = parent.zipCode;
-      await db.collection("contacts").doc(contactId).update(contactUpdate);
+      await db.collection("contacts").doc(contactId).update({ screenings: FieldValue.arrayUnion(screening) });
+
+      // Address: fill the card's BLANK street/city/zip (and island) only. This
+      // used to overwrite whatever the card held (2026-11-06). Non-fatal: the
+      // consent is recorded above, and a 500 here would invite a retry that
+      // appends a duplicate screening.
+      try {
+        await _fillContactAddress(contactId, { streetAddress: parent.address, city: parent.city, zipCode: parent.zipCode }, "screening address");
+      } catch (addrErr) {
+        console.error(`submitSrpConsent address fill failed for ${contactId}:`, addrErr.message);
+      }
 
       // Second parent / guardian (optional): merge-safe enrichment. Only writes
       // when a valid second-parent email is supplied AND the contact has no
@@ -26127,6 +26167,8 @@ exports.onMembershipCreated = functions
       const lastName = parts.join(" ");
       const level = m.level || "";
       const now = admin.firestore.FieldValue.serverTimestamp();
+      // Join and renew forms ask a 5-digit zip (2026-11-06).
+      const memberZip = _zip5(m.zipCode || m.zip);
 
       // Dedupe by normalized email (query lowercased, then the raw value).
       let contactRef = null;
@@ -26150,14 +26192,21 @@ exports.onMembershipCreated = functions
           patch.membershipStatus = "pending";
         }
         await contactRef.set(patch, { merge: true });
+        // Fill a BLANK zip (and the island) from the membership — never overwrite.
+        if (memberZip) {
+          try { await _fillContactAddress(contactRef.id, { zipCode: memberZip }, "membership zip"); }
+          catch (zErr) { console.error("onMembershipCreated zip fill failed:", zErr.message); }
+        }
       } else {
-        // New contact of type "Member".
+        // New contact of type "Member". Its island comes from the zip via the
+        // contact-create trigger.
         contactRef = await db.collection("contacts").add({
           firstName: firstName,
           lastName: lastName,
           displayName: fullName || email,
           email: email,
           phone: m.phone || "",
+          zipCode: memberZip,
           type: "Member",
           isMember: true,
           membershipLevel: level,
@@ -26355,6 +26404,12 @@ exports.onMembershipPaid = functions
       const before = change.before.data() || {};
       const after = change.after.data() || {};
       if (before.status === "paid" || after.status !== "paid") return null; // only the transition into paid
+      // A retry can update the zip after onMembershipCreated ran: fill the
+      // linked card's BLANK zip (and island) once it is paid (2026-11-06).
+      try {
+        const _pz = _zip5(after.zipCode || after.zip);
+        if (_pz && after.linkedContactId) await _fillContactAddress(after.linkedContactId, { zipCode: _pz }, "membership zip");
+      } catch (zErr) { console.error("onMembershipPaid zip fill failed:", zErr.message); }
       if (after.thankYouSentAt) return null; // already thanked
       const email = String(after.email || "").trim();
       if (!email) return null;
@@ -32724,6 +32779,8 @@ exports.onChatHelpRequest = functions
 // without deploying. Adds no surface to the deployed functions.
 exports.__test = {
   _islandFromPlaces,
+  _zip5,
+  _signupTopLevelAddress,
   _ageBandFromBirthday, _childEntryFromScreening,
   _parseReadinessConsent,
   _readinessKeptFields,
