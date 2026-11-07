@@ -2129,6 +2129,14 @@
     // - "OAHU, Thursday January 15th 8am - 11am"
     // - "Hawai'i, Thursday January 8th 9am - 11am. **HILO**"
     // - "October 11, 2025 - 2:00 p.m."
+    /* Event Date shows the time zone (Daniel, 11-06): "5:00 PM" reads "5:00 PM HST".
+       Display only; the checkbox values and the saved selectedDates keep the exact
+       signupDates string, because signups match on it. */
+    function _withHst(label) {
+      var t = String(label == null ? '' : label);
+      if (/\bH(S)?T\b/i.test(t)) return t;
+      return t.replace(/(\d{1,2}(?::\d{2})?\s*[ap]\.?m\.?(?:\s*[-\u2013\u2014]\s*\d{1,2}(?::\d{2})?\s*[ap]\.?m\.?)?)/i, '$1 HST');
+    }
     function parseSignupDateString(dateStr) {
       if (!dateStr) return null;
       
@@ -2854,7 +2862,7 @@
                       <div style="margin-bottom: 20px;">
                         <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">Event Date</label>
                         <div style="padding: 10px 12px; background: #FEF2F2; border-radius: 8px; border: 1px solid #FECACA; color: #991B1B; font-weight: 600; font-size: 14px;">
-                          ${nonExpired[0]} — FULL
+                          ${_withHst(nonExpired[0])} — FULL
                         </div>
                       </div>
                     `;
@@ -2863,7 +2871,7 @@
                       <div style="margin-bottom: 20px;">
                         <label style="display: block; color: #004E7C; font-weight: bold; margin-bottom: 8px; font-size: 14px;">Event Date</label>
                         <div style="padding: 10px 12px; background: #f0f9ff; border-radius: 8px; border: 1px solid #e0f2fe; color: #0369a1; font-weight: 600; font-size: 14px;">
-                          ${nonExpired[0]}
+                          ${_withHst(nonExpired[0])}
                         </div>
                         <input type="checkbox" class="signup-date-checkbox" value="${nonExpired[0]}" checked style="display:none;">
                       </div>
@@ -2891,7 +2899,7 @@
                           return `
                             <label style="display: flex; align-items: center; gap: 8px; cursor: ${off ? 'not-allowed' : 'pointer'}; ${off ? 'opacity: 0.6;' : ''}">
                               <input type="checkbox" class="signup-date-checkbox" value="${date}" ${off ? 'disabled' : ''} style="width: 18px; height: 18px; cursor: ${off ? 'not-allowed' : 'pointer'};">
-                              <span style="font-size: 14px; color: #374151; ${isExpired ? 'text-decoration: line-through;' : ''}">${date}</span>
+                              <span style="font-size: 14px; color: #374151; ${isExpired ? 'text-decoration: line-through;' : ''}">${_withHst(date)}</span>
                               ${_isFull ? '<span style="font-size:11px;font-weight:700;color:#991B1B;background:#FEF2F2;border:1px solid #FECACA;border-radius:999px;padding:1px 8px;">FULL</span>' : ''}
                             </label>
                           `;
