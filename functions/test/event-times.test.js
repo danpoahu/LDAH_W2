@@ -300,3 +300,11 @@ test("combined announcement: partner block shows local time, staff whenText unto
   assert.match(html, /When \(your local time\):<\/strong><br>Friday, January 15, 1:00 PM to 2:00 PM \(Guam time\)/);
   assert.match(html, /<strong>When:<\/strong> All month/);
 });
+
+test("greetingWord: Hi for partner islands, Aloha otherwise", () => {
+  assert.equal(T.greetingWord("Guam"), "Hi");
+  assert.equal(T.greetingWord("American Samoa"), "Hi");
+  assert.equal(T.greetingWord("Micronesia (Yap & Chuuk)"), "Hi");
+  assert.equal(T.greetingWord("Oahu"), "Aloha");
+  assert.equal(T.greetingWord(""), "Aloha");
+});

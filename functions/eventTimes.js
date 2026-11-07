@@ -518,11 +518,14 @@ function rawWhenFor(island, raw, opts) {
   return line + (topic ? " - " + topic.trim() : "");
 }
 
+/** Greeting word: partner families read plain English ("Hi"), Hawaiʻi families "Aloha" (2026-11-07). */
+function greetingWord(island) { return isPartnerIsland(island) ? "Hi" : "Aloha"; }
+
 module.exports = {
   HAWAII_LABEL, HAWAII_OFFSET, PARTNER_ZONES, PARTNER_ISLANDS,
   MICRONESIA_YAP_CHUUK, MICRONESIA_POHNPEI_KOSRAE,
   normalizeIsland, zonesFor, isPartnerIsland, micronesiaState, islandForContact, recipientIsland,
   toHHMM, parseTimeRange, parseDateKey, resolveSessionTimes,
   formatDateLabel, formatTime12, partnerTimeLine, partnerDateLine, instantLabel,
-  localNow, dayWord, partOfDayPhrase, labelHawaiiTimes, rawWhenFor,
+  localNow, dayWord, partOfDayPhrase, labelHawaiiTimes, rawWhenFor, greetingWord,
 };

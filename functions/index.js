@@ -1144,7 +1144,7 @@ const REGISTRATION_STALE_DAYS = 180;
 // asking for twice; this asks them to glance at what we already hold. The link
 // opens the same registration form, pre-filled from the draft, so it is a review
 // and a Submit rather than a blank page.
-function buildRegistrationRefreshEmailHtml({ name, eventTitle, lastRegisteredOn, signupId, eventId, type, orgFooterHtml }) {
+function buildRegistrationRefreshEmailHtml({ name, eventTitle, lastRegisteredOn, signupId, eventId, type, orgFooterHtml, greeting }) {
   const url =
     "https://ldahawaii.org/register.html?token=" + encodeURIComponent(signupId) +
     "&eventId=" + encodeURIComponent(eventId) +
@@ -1163,7 +1163,7 @@ function buildRegistrationRefreshEmailHtml({ name, eventTitle, lastRegisteredOn,
     '</td></tr>' +
     '<tr><td style="padding:30px 32px 8px;">' +
     '<h1 style="margin:0 0 14px;font-size:21px;color:#1a3c6e;">Does this still look right?</h1>' +
-    '<p style="margin:0 0 14px;font-size:15px;color:#333;line-height:1.6;">Aloha ' + safe(name || "there") + ',</p>' +
+    '<p style="margin:0 0 14px;font-size:15px;color:#333;line-height:1.6;">' + (greeting || "Aloha") + ' ' + safe(name || "there") + ',</p>' +
     '<p style="margin:0 0 14px;font-size:15px;color:#333;line-height:1.6;">' +
     'Mahalo for signing up for <strong>' + safe(eventTitle || "an LDAH event") + '</strong>. ' +
     'We already have your registration details on file' +
@@ -1182,7 +1182,7 @@ function buildRegistrationRefreshEmailHtml({ name, eventTitle, lastRegisteredOn,
     '</table></td></tr></table></body></html>';
 }
 
-function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eventId, type, orgFooterHtml }) {
+function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eventId, type, orgFooterHtml, greeting }) {
   const registrationUrl =
     "https://ldahawaii.org/register.html?token=" + encodeURIComponent(signupId) +
     "&eventId=" + encodeURIComponent(eventId) +
@@ -1207,7 +1207,7 @@ function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eve
   <!-- Body -->
   <tr>
     <td style="padding:32px;">
-      <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha ${name},</p>
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;">${greeting || "Aloha"} ${name},</p>
 
       <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
         Mahalo for signing up for <strong>${eventTitle}</strong>${dateLine}.
@@ -1260,7 +1260,7 @@ function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eve
  * "Complete Your Registration" CTA is omitted and replaced with a plain
  * "You're all set" line. (v62.0.0)
  */
-function buildConfirmationEmailHtml({ name, eventTitle, datesPhrase, modality, inlineFlow, learningLab }) {
+function buildConfirmationEmailHtml({ name, eventTitle, datesPhrase, modality, inlineFlow, learningLab, greeting }) {
   const greetingName = _emailEsc(name || "there");
   const safeTitle = _emailEsc(eventTitle || "your LDAH session");
   const datesSuffix = datesPhrase ? _emailEsc(datesPhrase) : "";
@@ -1290,7 +1290,7 @@ function buildConfirmationEmailHtml({ name, eventTitle, datesPhrase, modality, i
 
   <tr>
     <td style="padding:32px;">
-      <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha ${greetingName},</p>
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;">${greeting || "Aloha"} ${greetingName},</p>
 
       <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
         You're all set for <strong>${safeTitle}</strong>${datesSuffix}. Mahalo for completing your registration!
@@ -1335,7 +1335,7 @@ function buildConfirmationEmailHtml({ name, eventTitle, datesPhrase, modality, i
  * Includes the Facebook group button, the "join Facebook + PTC ahead of
  * time" nudge, and a Donate button.
  */
-function buildParentTalkCafeConfirmationEmailHtml({ name, eventTitle, datesPhrase, eventTime, sessionWhen, donateHtml }) {
+function buildParentTalkCafeConfirmationEmailHtml({ name, eventTitle, datesPhrase, eventTime, sessionWhen, donateHtml, greeting }) {
   const greetingName = _emailEsc(name || "there");
   const safeTitle = _emailEsc(eventTitle || "Parent Talk Cafe");
   const datesSuffix = datesPhrase ? _emailEsc(datesPhrase) : "";
@@ -1366,10 +1366,10 @@ function buildParentTalkCafeConfirmationEmailHtml({ name, eventTitle, datesPhras
 
   <tr>
     <td style="padding:32px;">
-      <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha ${greetingName},</p>
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;">${greeting || "Aloha"} ${greetingName},</p>
 
       <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
-        Mahalo for signing up for <strong>${safeTitle}</strong>${datesSuffix}! We are so glad you'll be joining us for an evening of conversation, encouragement, and aloha with other Hawai'i families.
+        Mahalo for signing up for <strong>${safeTitle}</strong>${datesSuffix}! We are so glad you'll be joining us for an evening of conversation, encouragement, and ${greeting === "Hi" ? "friendship with other families across Hawaiʻi and the Pacific" : "aloha with other Hawai'i families"}.
       </p>
 
       ${timeLine}
@@ -1743,6 +1743,7 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
           eventTimes.labelHawaiiTimes((event && (event.time || event.startTime)) || ""),
         sessionWhen: (_ptcWhen && _ptcWhen.when) || "",
         donateHtml,
+        greeting: eventTimes.greetingWord(_island),
       });
       const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
       await sendEmailViaResend({
@@ -1882,6 +1883,7 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
       modality,
       inlineFlow: _inlineFlow,
       learningLab: String(event.eventType || "") === "learning_labs",
+      greeting: eventTimes.greetingWord(_island),
     });
 
     const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
@@ -2609,6 +2611,7 @@ exports.sendDeferredRegistrationEmails = functions
                       signupId: s.id, eventId,
                       type: collection === "recurringEvents" ? "recurring" : "event",
                       orgFooterHtml,
+                      greeting: eventTimes.greetingWord(await _tzIsland(data, event)),
                     }),
                     type: "registration-refresh",
                     relatedEventId: eventId,
@@ -2658,6 +2661,7 @@ exports.sendDeferredRegistrationEmails = functions
             const htmlBody = buildRegistrationEmailHtml({
               name: signupName, eventTitle, eventDate,
               signupId: s.id, eventId, type, orgFooterHtml,
+              greeting: eventTimes.greetingWord(await _tzIsland(data, event)),
             });
             const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
             await sendEmailViaResend({
@@ -2841,7 +2845,8 @@ exports.processPendingParentRegistrations = functions
           const orgFooterHtml = await getOrgFooterHtml();
           const eventDate = _tzRawWhen(await _tzIsland(data, event),
             (Array.isArray(data.selectedDates) && data.selectedDates[0]) || "", event, data);
-          const htmlBody = buildRegistrationEmailHtml({ name: data.name || "there", eventTitle: event.title || "an LDAH Event", eventDate, signupId: s.id, eventId, type: "event", orgFooterHtml });
+          const htmlBody = buildRegistrationEmailHtml({ name: data.name || "there", eventTitle: event.title || "an LDAH Event", eventDate, signupId: s.id, eventId, type: "event", orgFooterHtml,
+            greeting: eventTimes.greetingWord(await _tzIsland(data, event)) });
           const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
           await sendEmailViaResend({
             from: `LDAH <${fromAddress}>`, to: familyEmails(data),
@@ -2915,6 +2920,7 @@ exports.resendRegistrationEmail = functions
       const orgFooterHtml = await getOrgFooterHtml();
       const htmlBody = buildRegistrationEmailHtml({
         name: signupName, eventTitle, eventDate, signupId, eventId, type, orgFooterHtml,
+        greeting: eventTimes.greetingWord(await _tzIsland(signupData, eventData)),
       });
 
       const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
@@ -4732,6 +4738,7 @@ async function handleCancelledFromSessionEmails(change, context) {
         eventTitle: eventTitle,
         sessionDate: sessionDateDisplay,
         reason: "a session cancellation",
+        greeting: eventTimes.greetingWord(await _tzIsland(after, null, _tzCache)),
       });
       const subject = "Session cancelled on " + sessionDateDisplay + " — " + eventTitle;
 
@@ -5122,7 +5129,7 @@ exports.onContactUpdated = functions
 /**
  * Build the no-show re-invite email HTML.
  */
-function buildNoShowEmailHtml({ name, eventTitle, nextEventTitle, nextEventDate, nextEventUrl, orgFooterHtml }) {
+function buildNoShowEmailHtml({ name, eventTitle, nextEventTitle, nextEventDate, nextEventUrl, orgFooterHtml, greeting }) {
   const ctaUrl = nextEventTitle ? nextEventUrl : "https://ldahawaii.org/events.html";
   const ctaLabel = nextEventTitle ? "Sign Up" : "View Upcoming Events";
   const nextEventSection = nextEventTitle
@@ -5153,7 +5160,7 @@ function buildNoShowEmailHtml({ name, eventTitle, nextEventTitle, nextEventDate,
   <!-- Body -->
   <tr>
     <td style="padding:32px;">
-      <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha ${name},</p>
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;">${greeting || "Aloha"} ${name},</p>
 
       <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
         We're sorry we missed you at <strong>${eventTitle}</strong>. We hope you're doing well!
@@ -5280,8 +5287,8 @@ exports.sendNoShowReInvites = functions
         const name = signup.name || signup.firstName || "there";
         // A partner-island family reads the next event's date on their own clock.
         let _nextDate = nextEventDate || "";
+        const _isl = await _tzIsland(signup, _thisEvent, _tzCache);
         if (nextEventDoc && _nextDate) {
-          const _isl = await _tzIsland(signup, _thisEvent, _tzCache);
           const _ymd = toHstDateKey(nextEventDoc.date);
           if (eventTimes.isPartnerIsland(_isl) && _ymd) {
             _nextDate = eventTimes.partnerDateLine(_isl, _ymd, _tzTimesFor(nextEventDoc, null, _ymd).start, { year: true }).text;
@@ -5294,6 +5301,7 @@ exports.sendNoShowReInvites = functions
           nextEventDate: _nextDate,
           nextEventUrl,
           orgFooterHtml,
+          greeting: eventTimes.greetingWord(_isl),
         });
 
         try {
@@ -9151,7 +9159,7 @@ function buildEventReminderEmailHtml({
   startTime, endTime, isVirtual, zoomUrl, meetingId, passcode,
   locationLabel, surveyUrl, mode,
   signatureHtml, donateHtml, orgFooterHtml,
-  whenText,
+  whenText, greeting,
 }) {
   const virt = !!isVirtual;
   const locLbl = String(locationLabel || "").trim();
@@ -9228,7 +9236,7 @@ function buildEventReminderEmailHtml({
   <!-- Body -->
   <tr>
     <td style="padding:32px;">
-      <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha, ${recipientName},</p>
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;">${greeting === "Hi" ? "Hi" : "Aloha,"} ${recipientName},</p>
 
       <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
         We hope you and your family are doing well. Mahalo Nui Loa for registering for <strong>${eventTitle}</strong>.
@@ -9418,7 +9426,7 @@ async function sendOneReminderEmail({
     startTime, endTime, isVirtual, zoomUrl, meetingId, passcode,
     locationLabel, surveyUrl, mode,
     signatureHtml, donateHtml, orgFooterHtml,
-    whenText,
+    whenText, greeting: eventTimes.greetingWord(_island),
   });
 
   const subject = `Reminder: ${eventTitle} -- ${subjectDate}`;
@@ -9791,7 +9799,7 @@ function buildDayOfEmail({
   name, eventTitle, startTime, endTime, isVirtual, locationLabel,
   zoomUrl, meetingId, passcode,
   feedbackUrl, donateHtml, signatureHtml, orgFooterHtml,
-  whenHtml,
+  whenHtml, greeting,
 }) {
   const greetingName = _emailEsc(name || "there");
   const safeTitle = _emailEsc(eventTitle || "your LDAH session");
@@ -9849,7 +9857,7 @@ function buildDayOfEmail({
 
   <tr>
     <td style="padding:32px;">
-      <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha ${greetingName},</p>
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;">${greeting || "Aloha"} ${greetingName},</p>
 
       <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
         We are so excited to see you in just a little while at <strong>${safeTitle}</strong>${whenBit}!
@@ -9975,7 +9983,7 @@ async function sendOneDayOfReminderEmail({
     zoomUrl, meetingId, passcode,
     feedbackUrl: surveyUrl,
     donateHtml, signatureHtml, orgFooterHtml,
-    whenHtml,
+    whenHtml, greeting: eventTimes.greetingWord(_island),
   });
 
   const phrase = _partnerPhrase || _dayOfSubjectPhrase(startHst);
@@ -10551,7 +10559,7 @@ function buildCombinedAnnouncementEmailHtml({ blocks, contact, unsubscribeUrl,
     'padding:24px;text-align:center;color:#fff">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">' + esc(_heading) + '</h1></div>' +
     '<div style="padding:28px 24px 0">' +
-    '<p style="margin:0 0 6px;font-size:16px">Aloha ' + esc(firstName) + ',</p>' +
+    '<p style="margin:0 0 6px;font-size:16px">' + (_annIsPip(contact) ? 'Hi ' : 'Aloha ') + esc(firstName) + ',</p>' +
     '<p style="margin:0 0 4px;font-size:15px;color:#334155">' + esc(_lead) + '</p></div>' +
     sections +
     (extraHtml || '') +
@@ -11556,7 +11564,8 @@ function lifecycleFormatSessionEntry(s, island, event, signup) {
 
 // F-1: signup-scoped (cancellation OR reschedule)
 function buildLifecycleEmailHtml({ kind, name, eventTitle, oldDates, newDates, signatureHtml, donateHtml, eventId,
-  island, event, signup }) {
+  island, event, signup, greeting }) {
+  greeting = greeting || eventTimes.greetingWord(island);
   const firstName = lifecycleFirstName(name);
   const title = lifecycleEsc(eventTitle || "your LDAH event");
   const oldStr = lifecycleEsc(lifecycleFormatDateList(oldDates, island, event, signup));
@@ -11627,7 +11636,7 @@ function buildLifecycleEmailHtml({ kind, name, eventTitle, oldDates, newDates, s
     '<div style="background-color:' + headerColor + ';background:' + headerGradient + ';padding:24px;text-align:center;color:#fff">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">' + lifecycleEsc(headerLabel) + '</h1></div>' +
     '<div style="padding:32px 24px">' +
-    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + lifecycleEsc(firstName) + ',</p>' +
+    '<p style="margin:0 0 16px;font-size:16px">' + (greeting || 'Aloha') + ' ' + lifecycleEsc(firstName) + ',</p>' +
     '<h2 style="margin:0 0 16px;color:#004E7C;font-size:22px">' + lifecycleEsc(heading) + '</h2>' +
     bodyHtml +
     '</div>' +
@@ -11637,7 +11646,7 @@ function buildLifecycleEmailHtml({ kind, name, eventTitle, oldDates, newDates, s
 }
 
 // F-2A: event cancelled (one-time)
-function buildEventCancelledEmailHtml({ name, eventTitle, eventDate, reason }) {
+function buildEventCancelledEmailHtml({ name, eventTitle, eventDate, reason, greeting }) {
   const firstName = lifecycleFirstName(name);
   const title = lifecycleEsc(eventTitle || "your LDAH event");
   const when = lifecycleEsc(eventDate || "");
@@ -11649,7 +11658,7 @@ function buildEventCancelledEmailHtml({ name, eventTitle, eventDate, reason }) {
     '<div style="background-color:#991b1b;background:linear-gradient(135deg,#991b1b,#dc2626);padding:24px;text-align:center;color:#fff">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">Event Cancelled</h1></div>' +
     '<div style="padding:32px 24px">' +
-    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + lifecycleEsc(firstName) + ',</p>' +
+    '<p style="margin:0 0 16px;font-size:16px">' + (greeting || 'Aloha') + ' ' + lifecycleEsc(firstName) + ',</p>' +
     '<h2 style="margin:0 0 16px;color:#991b1b;font-size:22px">We\'re sorry</h2>' +
     '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">' +
       '<strong>' + title + '</strong>' +
@@ -11667,7 +11676,7 @@ function buildEventCancelledEmailHtml({ name, eventTitle, eventDate, reason }) {
 }
 
 // F-2B: event rescheduled (one-time)
-function buildEventRescheduledEmailHtml({ name, eventTitle, oldDate, newDate, reason }) {
+function buildEventRescheduledEmailHtml({ name, eventTitle, oldDate, newDate, reason, greeting }) {
   const firstName = lifecycleFirstName(name);
   const title = lifecycleEsc(eventTitle || "your LDAH event");
   const oldStr = lifecycleEsc(oldDate || "");
@@ -11680,7 +11689,7 @@ function buildEventRescheduledEmailHtml({ name, eventTitle, oldDate, newDate, re
     '<div style="background-color:#1e40af;background:linear-gradient(135deg,#1e40af,#0891B2);padding:24px;text-align:center;color:#fff">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">Event Rescheduled</h1></div>' +
     '<div style="padding:32px 24px">' +
-    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + lifecycleEsc(firstName) + ',</p>' +
+    '<p style="margin:0 0 16px;font-size:16px">' + (greeting || 'Aloha') + ' ' + lifecycleEsc(firstName) + ',</p>' +
     '<h2 style="margin:0 0 16px;color:#004E7C;font-size:22px">Heads up &mdash; the date has changed</h2>' +
     '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">' +
       '<strong>' + title + '</strong> has been rescheduled' +
@@ -11700,7 +11709,7 @@ function buildEventRescheduledEmailHtml({ name, eventTitle, oldDate, newDate, re
 }
 
 // F-2C: single session cancelled (recurring)
-function buildSessionCancelledEmailHtml({ name, eventTitle, sessionDate, reason }) {
+function buildSessionCancelledEmailHtml({ name, eventTitle, sessionDate, reason, greeting }) {
   const firstName = lifecycleFirstName(name);
   const title = lifecycleEsc(eventTitle || "your LDAH program");
   const when = lifecycleEsc(sessionDate || "");
@@ -11712,7 +11721,7 @@ function buildSessionCancelledEmailHtml({ name, eventTitle, sessionDate, reason 
     '<div style="background-color:#b45309;background:linear-gradient(135deg,#b45309,#f59e0b);padding:24px;text-align:center;color:#fff">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">Session Cancelled</h1></div>' +
     '<div style="padding:32px 24px">' +
-    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + lifecycleEsc(firstName) + ',</p>' +
+    '<p style="margin:0 0 16px;font-size:16px">' + (greeting || 'Aloha') + ' ' + lifecycleEsc(firstName) + ',</p>' +
     '<h2 style="margin:0 0 16px;color:#b45309;font-size:22px">Just this session</h2>' +
     '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">' +
       'The <strong>' + title + '</strong> session' +
@@ -12083,7 +12092,7 @@ async function handleEventLifecycleEmails(change, context, collectionName) {
             eventTitle,
             eventDate: oldDateStr ? _tzRawWhen(_island, oldDateStr, before, r.data)
               : _tzRawWhen(_island, newDateStr, after, r.data),
-            reason,
+            reason, greeting: eventTimes.greetingWord(_island),
           });
           subject = "Event cancelled: " + eventTitle;
           typeTag = "event-cancelled";
@@ -12093,7 +12102,7 @@ async function handleEventLifecycleEmails(change, context, collectionName) {
             eventTitle,
             oldDate: _tzRawWhen(_island, oldDateStr, before, null),
             newDate: _tzRawWhen(_island, newDateStr, after, null),
-            reason,
+            reason, greeting: eventTimes.greetingWord(_island),
           });
           subject = eventTitle + " has a new date";
           typeTag = "event-rescheduled";
@@ -12212,7 +12221,7 @@ async function handleEventLifecycleEmails(change, context, collectionName) {
             name: r.data.name || r.data.displayName || "",
             eventTitle,
             sessionDate: _cdShown,
-            reason,
+            reason, greeting: eventTimes.greetingWord(_isl),
           });
           const subject = "Session cancelled on " + _cdShown + " — " + eventTitle;
 
@@ -12386,10 +12395,10 @@ async function fetchStorageAsBase64(storagePath) {
 // Fixed "sorry we missed you" body for no-show recipients. Not editable
 // from the LDAH-Int modal — the staff-edited body applies to attendees only.
 // v120.7.5: takes a `name` so the greeting can be personalized per recipient.
-function buildNoShowRecordingBody({ name, eventTitle, nextSessionsBlurb }) {
+function buildNoShowRecordingBody({ name, eventTitle, nextSessionsBlurb, greeting }) {
   const safeName = (name && String(name).trim()) ? String(name).trim() : "there";
   const lines = [
-    `Aloha ${safeName},`,
+    `${greeting || "Aloha"} ${safeName},`,
     "",
     `We're sorry we missed you at ${eventTitle}. We hope everything is well, and we wanted to make sure you still have what was shared during the session.`,
     "",
@@ -12595,6 +12604,7 @@ exports.sendEventRecordingEmail = functions
             eventTitle: eventTitle || "the session",
             // The Coming-up block replaces the sentence when sessions are supplied.
             nextSessionsBlurb: _next.length ? "" : (nextSessionsBlurb || ""),
+            greeting: eventTimes.greetingWord(_isl),
           });
           recipHtml = buildRecordingEmailHtml({
             bodyText: nsBody, eventTitle: eventTitle || "",
