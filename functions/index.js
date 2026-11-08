@@ -2059,6 +2059,17 @@ async function handleSignupCreated(snap, context, collectionName) {
       console.error(`booth address fill failed for signup ${signupId}:`, capErr.message);
     }
 
+    // A booth sign-in happens AT the event, so the event's place is where the
+    // family was met. With no address of their own, its island is theirs
+    // (Daniel 2026-11-08: "we know the event was on big island so that's the Island!").
+    try {
+      if (linkedContactId && signupData.signupSource === "special-outreach") {
+        await _fillIslandFromBoothEvent(linkedContactId, snap.ref.parent.parent);
+      }
+    } catch (boothErr) {
+      console.error(`booth island fill failed for signup ${signupId}:`, boothErr.message);
+    }
+
     // Parent/Guardian signups now ask a zip on the FIRST form (top-level
     // zipCode; the app may also carry a top-level city). Fill the contact's
     // blank zip/city and its island from it — never overwrite (2026-11-06).
@@ -4816,7 +4827,7 @@ const LDAH_ISLAND_TEXT = [
   ["Lanai",   /\b(lanai)\b/i],
   ["Kauai",   /\b(lihue|kapaa|princeville|hanalei|koloa|poipu|kalaheo|eleele|hanapepe|kekaha|anahola|kauai)\b/i],
   ["Maui",    /\b(wailuku|kahului|kihei|lahaina|makawao|pukalani|paia|haiku|hana|kula|napili|kaanapali|wailea|maui)\b/i],
-  ["Hawaii",  /\b(hilo|kailua[- ]kona|kona|kea.?au|kamuela|honoka.?a|pahoa|volcano|na.?alehu|captain cook|kealakekua|holualoa|honaunau|waikoloa|hawi|kapaau|papaikou|pepeekeo|mountain view|kurtistown|laupahoehoe|ookala|paauilo|pahala|ocean view|big island)\b/i],
+  ["Hawaii",  /\b(hilo|kailua[- ]kona|kona|kea.?au|kamuela|honoka.?a|pahoa|volcano|na.?alehu|captain cook|kealakekua|holualoa|honaunau|waik[oa]loa|hawi|kapaau|papaikou|pepeekeo|mountain view|kurtistown|laupahoehoe|ookala|paauilo|pahala|ocean view|big island)\b/i],
   ["Oahu",    /\b(honolulu|kapolei|ewa|aiea|pearl city|waipahu|mililani|wahiawa|kaneohe|kailua|waianae|waimanalo|haleiwa|laie|kahuku|hauula|makakilo|nanakuli|schofield|hickam|manoa|kalihi|waipio|oahu)\b/i],
 ];
 const LDAH_OFF_ISLAND = /\b(majuro|pago pago|hagatna|guam|saipan|tinian|rota|palau|koror|chuuk|pohnpei|kosrae|yap|marshall|micronesia|american samoa|cnmi)\b/i;
@@ -4985,6 +4996,34 @@ async function _fillContactAddress(contactId, addr, source) {
   });
 }
 
+// Island from where an in-person booth event took place. Fills only a blank or
+// "Unknown" island, never a staff pick (2026-11-08).
+function _boothEventIsland(ev) {
+  const e = ev || {};
+  if (e.isVirtual === true || String(e.mode || e.modality || "").toLowerCase() === "virtual") return null;
+  const r = ldahResolveIsland({ zipCode: e.zipCode || e.zip || "", city: e.city || "",
+    location: [e.location, e.venue].filter(Boolean).join(" "), streetAddress: e.address || e.streetAddress || "" });
+  return (r.island && r.island !== "Unknown" && r.island !== "Other") ? r.island : null;
+}
+
+async function _fillIslandFromBoothEvent(contactId, eventRef) {
+  if (!contactId || !eventRef) return null;
+  const evSnap = await eventRef.get();
+  const island = evSnap.exists ? _boothEventIsland(evSnap.data()) : null;
+  if (!island) return null;
+  const db = admin.firestore();
+  const ref = db.collection("contacts").doc(contactId);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return null;
+    const c = snap.data() || {};
+    const isl = String(c.island || "").trim();
+    if (c.islandSource === "manual" || (isl && isl !== "Unknown")) return null;
+    tx.update(ref, { island, islandSource: "booth event location" });
+    return island;
+  });
+}
+
 // ── Nightly island sweep (Daniel 2026-11-06) ─────────────────────────────
 // The triggers set an island when a contact is created and when its zipCode
 // changes. An address can still arrive another way: a screening's address, an
@@ -5024,9 +5063,20 @@ async function _runIslandSweep() {
     let signups = [];
     try {
       const sg = await db.collectionGroup("signups").where("linkedContactId", "==", doc.id).limit(20).get();
-      signups = sg.docs.map((d) => d.data() || {});
+      signups = sg.docs.map((d) => Object.assign({ _eventRef: d.ref.parent.parent }, d.data() || {}));
     } catch (_) { /* index or permission: contact fields and screenings still count */ }
-    const r = _islandFromPlaces(c, signups);
+    let r = _islandFromPlaces(c, signups);
+    // Met at an in-person booth: the event's island (2026-11-08).
+    if (r.island === "Unknown") {
+      for (const g of signups) {
+        if (g.signupSource !== "special-outreach" || !g._eventRef) continue;
+        try {
+          const ev = await g._eventRef.get();
+          const bi = ev.exists ? _boothEventIsland(ev.data()) : null;
+          if (bi) { r = { island: bi, islandSource: "booth event location" }; break; }
+        } catch (_) { /* next signup */ }
+      }
+    }
     if (r.island === "Unknown") { left++; continue; }
     const up = { island: r.island, islandSource: r.islandSource, islandSweptAt: admin.firestore.FieldValue.serverTimestamp() };
     // Also put the address it came from on the card, filling blanks only.
@@ -33129,6 +33179,7 @@ exports.__test = {
   buildCombinedAnnouncementEmailHtml, formatDatesPhrase,
   sendOneReminderEmail, sendOneDayOfReminderEmail, maybeSendRegistrationConfirmation,
   _islandFromPlaces,
+  _boothEventIsland,
   _zip5,
   _signupTopLevelAddress,
   _ageBandFromBirthday, _childEntryFromScreening,

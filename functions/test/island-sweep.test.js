@@ -27,3 +27,10 @@ test("a booth signup's specialCapture address counts", () => {
   const c = R({}, [{ specialCapture: { zipCode: "96748", city: "Kaunakakai" } }]);
   assert.strictEqual(c.island, "Molokai"); assert.strictEqual(c.address.city, "Kaunakakai");
 });
+
+test("booth event island: in-person event location names the island", () => {
+  assert.equal(__test._boothEventIsland({ location: "Queen's Marketplace Waikaloa" }), "Hawaii");
+  assert.equal(__test._boothEventIsland({ location: "Ala Moana Center", city: "Honolulu" }), "Oahu");
+  assert.equal(__test._boothEventIsland({ location: "Zoom", isVirtual: true, city: "Honolulu" }), null);
+  assert.equal(__test._boothEventIsland({ location: "Community center" }), null);
+});
