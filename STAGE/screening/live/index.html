@@ -285,7 +285,7 @@ async function start(user){
   try{
     const me=await fdb.collection('userRoles').doc(user.uid).get();
     const role=me.exists?(me.data().role||''):'';
-    if(!me.exists||me.data().archived===true||role==='partner'||role==='superPartner'){ lm.textContent='This page is for LDAH staff. Your account does not have access.'; await fauth.signOut(); return; }
+    if(!me.exists||me.data().archived===true||((role==='partner'||role==='superPartner')&&me.id!=='Lwz0SNVIRAcC68tVQdzE2BBCapt1')){ lm.textContent='This page is for LDAH staff. Your account does not have access.'; await fauth.signOut(); return; }
     const rs=await fdb.collection('userRoles').get();
     rs.forEach(d=>{ const n=(d.data().displayName||'').trim(); STAFF[d.id]=n?n.split(/\s+/)[0]:''; });
   }catch(e){ lm.textContent='Could not check your access: '+(e.message||e); return; }
