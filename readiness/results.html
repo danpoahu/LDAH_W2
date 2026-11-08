@@ -393,7 +393,8 @@
     let role = '';
     try { const rs = await db.collection('userRoles').doc(u.uid).get(); role = rs.exists ? (rs.data().role || '') : ''; const dn = rs.exists ? String(rs.data().displayName || '').trim() : ''; myFirst = dn ? dn.split(/\s+/)[0] : ''; } catch (e) {}
     if (!myFirst){ const dn = String(u.displayName || '').trim(); myFirst = dn ? dn.split(/\s+/)[0] : ''; }
-    if (role === 'admin' || role === 'superAdmin'){ startReport(); }
+    // The IT_Help login (a superPartner role) is let in by uid (2026-11-08).
+    if (role === 'admin' || role === 'superAdmin' || u.uid === 'Lwz0SNVIRAcC68tVQdzE2BBCapt1'){ startReport(); }
     else {
       if (unsub){ unsub(); unsub=null; }
       view('login');
