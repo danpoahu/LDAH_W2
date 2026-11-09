@@ -10902,6 +10902,9 @@ async function _runCombinedAnnouncement({ db, dryRun, testEmail }) {
          was already announced. Those already sent still get it; anyone signed
          up still does not. */
       repeat: Array.isArray(job.repeatEventIds) && job.repeatEventIds.indexOf(sp.eventId) !== -1,
+      /* Per-flyer islands (2026-11-09): this flyer goes only to contacts on
+         these islands; the rest of the email still goes to everyone else. */
+      islands: Array.isArray(sp.islands) && sp.islands.length ? new Set(sp.islands.map(String)) : null,
     });
   }
   if (!blocks.length) return { ok: false, reason: "none of the events exist" };
@@ -10989,6 +10992,7 @@ async function _runCombinedAnnouncement({ db, dryRun, testEmail }) {
       id: d.id, email,
       displayName: (c.displayName || [c.firstName, c.lastName].filter(Boolean).join(" ")).trim() || "Friend",
       unsubscribeToken: c.unsubscribeToken, secondParent: c.secondParent,
+      rawIsland: String(c.island || "").trim(),
       // For local session times (2026-11-06); Micronesia narrowed by zip/city.
       island: eventTimes.islandForContact(c),
     });
@@ -11000,6 +11004,7 @@ async function _runCombinedAnnouncement({ db, dryRun, testEmail }) {
     if (job.template === "threeWays") return blocks;
     const lower = r.email.toLowerCase();
     return blocks.filter((b) =>
+      (!b.islands || b.islands.has(r.rawIsland)) &&
       !b.signedEmails.has(lower) && !b.signedIds.has(r.id) && !b.alreadySent.has(r.id));
   };
 
