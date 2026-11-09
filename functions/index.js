@@ -25256,6 +25256,110 @@ function _volCors(res) {
 }
 
 // Public (token) — details for the confirm page to show what's being asked.
+// Staff: send a help request's original ask (with its own "Yes, I can help"
+// link) to chosen people already on it, e.g. someone staff added by hand who
+// never got the email (Daniel 2026-11-09). Their status is not changed; tapping
+// the link when already confirmed just shows "confirmed".
+exports.resendVolunteerHelpRequest = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 3, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Please sign in.");
+    const db = admin.firestore();
+    const FieldValue = admin.firestore.FieldValue;
+    const roleSnap = await db.collection("userRoles").doc(context.auth.uid).get();
+    const role = roleSnap.exists ? (roleSnap.data().role || "") : "";
+    if (["superAdmin", "admin", "webAdmin", "appAdmin"].indexOf(role) === -1) {
+      throw new functions.https.HttpsError("permission-denied", "Only staff who manage volunteers can send this.");
+    }
+    const d = data || {};
+    const reqId = String(d.requestId || "").trim();
+    const ids = Array.isArray(d.volunteerIds) ? d.volunteerIds.map(String).filter((x) => x && x.indexOf("/") === -1).slice(0, 50) : [];
+    if (!reqId || reqId.indexOf("/") !== -1 || !ids.length) throw new functions.https.HttpsError("invalid-argument", "Missing request or people.");
+    const reqRef = db.collection("volunteerRequests").doc(reqId);
+    const reqSnap = await reqRef.get();
+    if (!reqSnap.exists) throw new functions.https.HttpsError("not-found", "Request not found.");
+    const r = reqSnap.data() || {};
+    const esc = (x) => String(x == null ? "" : x).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const bodyHtml = esc(r.body || "").replace(/\n/g, "<br>");
+    const sigHtml = r.signature ? '<div style="margin-top:20px;color:#54666e;">' + esc(r.signature).replace(/\n/g, "<br>") + "</div>" : "";
+    const detailsHtml = _volEventDetailsHtml(r);
+    const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+    let sent = 0;
+    const noEmail = [];
+    for (const vid of ids) {
+      const partRef = reqRef.collection("participants").doc(vid);
+      const ps = await partRef.get();
+      if (!ps.exists) continue;
+      const p = ps.data() || {};
+      const e = String(p.email || "").trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) { noEmail.push(p.name || vid); continue; }
+      const token = crypto.randomBytes(16).toString("hex");
+      await partRef.set({ token, resentAt: FieldValue.serverTimestamp() }, { merge: true });
+      await db.collection("volunteerConfirmTokens").doc(token).set({
+        reqId, volunteerId: vid, expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + VOLUNTEER_CONFIRM_TTL_MS),
+      });
+      const link = VOLUNTEER_CONFIRM_BASE_URL + "?token=" + encodeURIComponent(token);
+      const html =
+        '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1d2b32;line-height:1.6;max-width:600px;">'
+        + bodyHtml + detailsHtml
+        + '<div style="margin:22px 0 6px;"><a href="' + esc(link) + '" style="display:inline-block;background:#0e5f7a;color:#fff;text-decoration:none;font-weight:700;font-size:16px;padding:12px 26px;border-radius:8px;">Yes, I can help</a></div>'
+        + '<p style="margin:6px 0 0;font-size:12px;color:#8a939a;">Or paste this link into your browser: <a href="' + esc(link) + '" style="color:#9ca3af;">' + esc(link) + "</a></p>"
+        + sigHtml + "</div>";
+      try {
+        await sendEmailViaResend({ from: `LDAH <${fromAddress}>`, to: [e], subject: String(r.title || "Volunteer request"), html, type: "volunteerHelpRequest", recipientName: p.name || "" });
+        sent++;
+      } catch (err) { console.error("resend help request failed for", e, err.message); }
+    }
+    return { sent, noEmail };
+  });
+
+// Staff: email everyone confirmed (and waiting) on a help request that its
+// details changed (Daniel 2026-11-09). The client saves the edits first; this
+// sends the current details with the staff note. Same plain format as the ask.
+exports.sendVolunteerRequestUpdate = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 3, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Please sign in.");
+    const db = admin.firestore();
+    const roleSnap = await db.collection("userRoles").doc(context.auth.uid).get();
+    const role = roleSnap.exists ? (roleSnap.data().role || "") : "";
+    const reqId = String((data || {}).requestId || "").trim();
+    if (!reqId || reqId.indexOf("/") !== -1) throw new functions.https.HttpsError("invalid-argument", "Missing request.");
+    const reqRef = db.collection("volunteerRequests").doc(reqId);
+    const reqSnap = await reqRef.get();
+    if (!reqSnap.exists) throw new functions.https.HttpsError("not-found", "Request not found.");
+    const r = reqSnap.data() || {};
+    if (["superAdmin", "admin", "webAdmin", "appAdmin"].indexOf(role) === -1 && r.leadUid !== context.auth.uid) {
+      throw new functions.https.HttpsError("permission-denied", "Only staff who manage volunteers can send this.");
+    }
+    const note = String((data || {}).message || "").trim().slice(0, 4000);
+    const esc = (x) => String(x == null ? "" : x).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const subject = "Update: " + String(r.title || "Volunteer request");
+    const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#1d2b32;line-height:1.6;max-width:600px;">'
+      + '<p style="margin:0 0 12px;font-weight:700;color:#0e5f7a;">There is an update to the volunteer shift you are signed up for.</p>'
+      + (note ? '<p style="margin:0 0 12px;">' + esc(note).replace(/\n/g, "<br>") + "</p>" : "")
+      + '<p style="margin:14px 0 4px;font-weight:700;">' + esc(r.title || "") + "</p>"
+      + _volEventDetailsHtml(r)
+      + (r.signature ? '<div style="margin-top:20px;color:#54666e;">' + esc(r.signature).replace(/\n/g, "<br>") + "</div>" : "")
+      + "</div>";
+    const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+    const ps = await reqRef.collection("participants").get();
+    let sent = 0;
+    const noEmail = [];
+    for (const d of ps.docs) {
+      const p = d.data() || {};
+      if (!p.confirmed && !p.waitlisted) continue;
+      const e = String(p.email || "").trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) { noEmail.push(p.name || d.id); continue; }
+      try {
+        await sendEmailViaResend({ from: `LDAH <${fromAddress}>`, to: [e], subject, html, type: "volunteerRequestUpdate", recipientName: p.name || "" });
+        sent++;
+      } catch (err) { console.error("volunteer request update failed for", e, err.message); }
+    }
+    await reqRef.set({ lastUpdateSentAt: admin.firestore.FieldValue.serverTimestamp(), lastUpdateSentCount: sent }, { merge: true });
+    return { sent, noEmail };
+  });
+
 exports.getVolunteerRequest = functions
   .runWith({ timeoutSeconds: 20, maxInstances: 5 })
   .https.onRequest(async (req, res) => {
