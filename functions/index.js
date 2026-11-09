@@ -1260,7 +1260,31 @@ function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eve
  * "Complete Your Registration" CTA is omitted and replaced with a plain
  * "You're all set" line. (v62.0.0)
  */
-function buildConfirmationEmailHtml({ name, eventTitle, datesPhrase, modality, inlineFlow, learningLab, greeting }) {
+/**
+ * "Know before you go" page for an event (Daniel 2026-11-09, Ballet Hawaii's
+ * Nutcracker). event.knowBeforeYouGo = { title, imageUrl, pdfUrl }. When set,
+ * the confirmation, the 3-day reminder and the day-of email show the page as
+ * an image that opens the printable PDF. An optional `note` prints above it as
+ * a highlighted line. No field, no block.
+ */
+function _knowBeforeYouGoHtml(event, when) {
+  const k = (event && event.knowBeforeYouGo) || null;
+  if (!k || !k.imageUrl) return "";
+  const title = String(k.title || "10 things to know before you go").trim();
+  const href = String(k.pdfUrl || k.imageUrl);
+  const lead = when === "dayof"
+    ? "Before you head out tonight, take one last look:"
+    : (when === "reminder" ? "Please read this before the day so everyone is ready:" : "Please read this ahead of time so everyone is ready on the day:");
+  return `<div style="margin:24px 0 8px;padding:18px 18px 10px;border:2px solid #14A9B5;border-radius:10px;background:#F2FBFC;">
+        <p style="margin:0 0 4px;font-size:17px;font-weight:700;color:#1a3c6e;">${_emailEsc(title)}</p>
+        ${k.note ? `<p style="margin:8px 0 12px;padding:10px 12px;background:#FFF4E5;border-left:5px solid #F59E0B;border-radius:6px;font-size:15px;font-weight:700;color:#7C2D12;line-height:1.45;">${_emailEsc(k.note)}</p>` : ""}
+        <p style="margin:0 0 12px;font-size:15px;color:#333333;line-height:1.5;">${_emailEsc(lead)}</p>
+        <a href="${_emailEsc(href)}" target="_blank" style="text-decoration:none;"><img src="${_emailEsc(k.imageUrl)}" alt="${_emailEsc(title)}" width="520" style="display:block;width:100%;max-width:520px;height:auto;margin:0 auto;border:1px solid #dddddd;border-radius:6px;"></a>
+        ${_emailBtn(href, "Open it to read or print", { bg: "#1a3c6e" })}
+      </div>`;
+}
+
+function buildConfirmationEmailHtml({ name, eventTitle, datesPhrase, modality, inlineFlow, learningLab, greeting, kbygHtml }) {
   const greetingName = _emailEsc(name || "there");
   const safeTitle = _emailEsc(eventTitle || "your LDAH session");
   const datesSuffix = datesPhrase ? _emailEsc(datesPhrase) : "";
@@ -1300,6 +1324,7 @@ function buildConfirmationEmailHtml({ name, eventTitle, datesPhrase, modality, i
         ? '<p style="margin:0;font-size:16px;color:#333333;line-height:1.5;">You\'re all set — we have everything we need. We\'ll see you' + (datesSuffix || " at the event") + '.</p>'
         : '<p style="margin:0;font-size:16px;color:#333333;line-height:1.5;">We\'ll email you a reminder <strong>3 days before</strong> your session and again <strong>on the day of the session</strong>, ' + reminderTail + '.</p>'
       }
+      ${kbygHtml || ""}
       ${learningLab ? `<p style="margin:16px 0 0;font-size:16px;color:#333333;line-height:1.5;">After the session we'll email you the slides and handouts. The session video is not emailed: once it has been professionally edited, it is available to LDAH members in the member portal.</p>
       ${_emailBtn(MEMBERSHIP_JOIN_URL, "Become a Member", { bg: "#0d9488", align: "left" })}` : ""}
     </td>
@@ -1884,6 +1909,7 @@ async function maybeSendRegistrationConfirmation(change, context, collection) {
       inlineFlow: _inlineFlow,
       learningLab: String(event.eventType || "") === "learning_labs",
       greeting: eventTimes.greetingWord(_island),
+      kbygHtml: _knowBeforeYouGoHtml(event, "confirmation"),
     });
 
     const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
@@ -9209,7 +9235,7 @@ function buildEventReminderEmailHtml({
   startTime, endTime, isVirtual, zoomUrl, meetingId, passcode,
   locationLabel, surveyUrl, mode,
   signatureHtml, donateHtml, orgFooterHtml,
-  whenText, greeting,
+  whenText, greeting, kbygHtml,
 }) {
   const virt = !!isVirtual;
   const locLbl = String(locationLabel || "").trim();
@@ -9301,6 +9327,8 @@ function buildEventReminderEmailHtml({
       ${zoomBlock}
 
       ${locationBlock}
+
+      ${kbygHtml || ""}
 
       ${surveyBlock}
 
@@ -9477,6 +9505,7 @@ async function sendOneReminderEmail({
     locationLabel, surveyUrl, mode,
     signatureHtml, donateHtml, orgFooterHtml,
     whenText, greeting: eventTimes.greetingWord(_island),
+    kbygHtml: _knowBeforeYouGoHtml(event, "reminder"),
   });
 
   const subject = `Reminder: ${eventTitle} -- ${subjectDate}`;
@@ -9849,7 +9878,7 @@ function buildDayOfEmail({
   name, eventTitle, startTime, endTime, isVirtual, locationLabel,
   zoomUrl, meetingId, passcode,
   feedbackUrl, donateHtml, signatureHtml, orgFooterHtml,
-  whenHtml, greeting,
+  whenHtml, greeting, kbygHtml,
 }) {
   const greetingName = _emailEsc(name || "there");
   const safeTitle = _emailEsc(eventTitle || "your LDAH session");
@@ -9922,6 +9951,8 @@ function buildDayOfEmail({
       ${zoomDetailsBlock}
 
       ${locBlock}
+
+      ${kbygHtml || ""}
 
       <p style="margin:28px 0 8px;font-size:16px;color:#333333;line-height:1.5;">
         <strong>After the session</strong>, we would love to hear how it went. Your feedback helps us shape every session that comes next — it only takes a minute.
@@ -10034,6 +10065,7 @@ async function sendOneDayOfReminderEmail({
     feedbackUrl: surveyUrl,
     donateHtml, signatureHtml, orgFooterHtml,
     whenHtml, greeting: eventTimes.greetingWord(_island),
+    kbygHtml: _knowBeforeYouGoHtml(event, "dayof"),
   });
 
   const phrase = _partnerPhrase || _dayOfSubjectPhrase(startHst);
@@ -33180,6 +33212,7 @@ exports.__test = {
   sendOneReminderEmail, sendOneDayOfReminderEmail, maybeSendRegistrationConfirmation,
   _islandFromPlaces,
   _boothEventIsland,
+  _knowBeforeYouGoHtml,
   _zip5,
   _signupTopLevelAddress,
   _ageBandFromBirthday, _childEntryFromScreening,

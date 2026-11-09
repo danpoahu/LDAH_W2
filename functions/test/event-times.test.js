@@ -308,3 +308,14 @@ test("greetingWord: Hi for partner islands, Aloha otherwise", () => {
   assert.equal(T.greetingWord("Oahu"), "Aloha");
   assert.equal(T.greetingWord(""), "Aloha");
 });
+
+test("know-before-you-go block: only when the event has one", () => {
+  const ev = { knowBeforeYouGo: { title: "10 things to know before you go", imageUrl: "https://www.ldahawaii.org/a.jpg", pdfUrl: "https://www.ldahawaii.org/a.pdf" } };
+  const h = X._knowBeforeYouGoHtml(ev, "reminder");
+  assert.ok(h.includes("https://www.ldahawaii.org/a.pdf"));
+  assert.ok(h.includes("10 things to know before you go"));
+  assert.ok(X._knowBeforeYouGoHtml(ev, "dayof").includes("head out tonight"));
+  assert.ok(X._knowBeforeYouGoHtml({ knowBeforeYouGo: Object.assign({ note: "Seats first come" }, ev.knowBeforeYouGo) }, "reminder").includes("Seats first come"));
+  assert.equal(X._knowBeforeYouGoHtml({}, "reminder"), "");
+  assert.equal(X._knowBeforeYouGoHtml(null, "dayof"), "");
+});
