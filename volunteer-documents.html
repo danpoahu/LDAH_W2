@@ -260,13 +260,13 @@ footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
       { k: 'confidentiality', title: 'Confidentiality Agreement', sub: 'Read and sign', done: a.confidentiality.signed, badge: a.confidentiality.signed ? 'Done' : 'To do' },
       { k: 'drugFree', title: 'Drug-Free Workplace Policy', sub: 'Read and sign', done: a.drugFree.signed, badge: a.drugFree.signed ? 'Done' : 'To do' },
       { k: 'emergency', title: 'Emergency Contact Form', sub: 'Who to call in an emergency', done: d.emergency.done, badge: d.emergency.done ? 'Done' : 'To do' },
-      { k: 'log', title: 'Volunteer Service Log', sub: 'Add your hours whenever you volunteer', done: false, badge: fmtHours(t.total) + ' hrs logged', log: true }
+      { k: 'log', title: 'Volunteer Service Log', sub: 'Your hours from checking in and out', done: false, badge: fmtHours(t.total) + ' hrs logged', log: true }
     ];
     if (n === 3) items = [items[3], items[0], items[1], items[2]];   // the log first once documents are done
+    /* Volunteers no longer type or remove hours (2026-11-09): hours come from
+       checking in and out; the event lead or LDAH staff fix mistakes. */
     var quick = n === 3
-      ? '<button type="button" class="quick-card" onclick="vdOpen(\'quick\')"><span class="qi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>' +
-        '<span><b>Log today\'s hours</b><span>' + (t.count ? 'You have ' + fmtHours(t.total) + ' hours so far' : 'Tap here each day you volunteer') + '</span></span></button>' +
-        '<p class="tip">At the LDAH office or an event? Scan the volunteer check-in poster to check in and out.</p>'
+      ? '<p class="tip">At the LDAH office or an event? Scan the volunteer check-in poster, tap your name, and check in and out. That records your hours.</p>'
       : '';
     $('docList').innerHTML = quick + items.map(function(it, i){
       return '<button type="button" class="doc-item' + (it.done ? ' done' : '') + '" onclick="vdOpen(\'' + it.k + '\')">' +
@@ -283,11 +283,10 @@ footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
 
   window.vdOpen = function(k){
     S.step = k;
-    var html = k === 'emergency' ? emergencyHtml() : k === 'log' ? logHtml() : k === 'quick' ? quickHtml() : agreementHtml(k);
+    var html = k === 'emergency' ? emergencyHtml() : k === 'log' ? logHtml() : k === 'quick' ? logHtml() : agreementHtml(k);
     $('stepCard').innerHTML = html;
     show('vList', false); show('vStep', true);
     if (k === 'log') logWire();
-    if (k === 'quick') quickWire();
     window.scrollTo(0, 0);
   };
 
@@ -428,29 +427,16 @@ footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
       if (e.srp) split.push('SRP ' + fmtHours(e.srp));
       return '<div class="entry"><div class="when"><span>' + d.toLocaleDateString('en-US', { month: 'short' }) + '</span><b>' + d.getDate() + '</b></div>' +
         '<div class="what"><b>' + esc(e.serviceType) + (e.serviceDetail ? ': ' + esc(e.serviceDetail) : '') + '</b><span>' + esc(fmtTime(e.timeIn)) + ' to ' + esc(fmtTime(e.timeOut)) + ' &middot; ' + esc(split.join(', ')) + '</span>' +
-        '<button type="button" class="rm" onclick="vdRemoveEntry(\'' + esc(e.id) + '\')">Remove</button></div>' +
+        '</div>' +
         '<div class="hrs">' + fmtHours(e.hours) + ' h</div></div>';
     }).join('');
   }
   function logHtml(){
     S.log = { type: '', split: false };
     var types = S.data.serviceTypes || ['IEP meeting', 'Training', 'Community event', 'Other'];
-    var h = '<h2 class="step-title">Volunteer Service Log</h2><p class="step-sub">Add an entry each time you volunteer. Your total adds up as you go.</p>';
+    var h = '<h2 class="step-title">Volunteer Service Log</h2><p class="step-sub">Your hours are recorded each time you check in and out with the volunteer poster.</p>';
     h += totalsHtml();
-    h += '<h3 style="font-size:1.1rem;margin:4px 0 12px;">Add hours</h3>';
-    h += '<div class="field"><label for="lgDate">Date you volunteered</label><input type="date" id="lgDate" max="' + esc(S.data.today) + '" value="' + esc(S.data.today) + '"></div>';
-    h += '<div class="field"><span class="lbl">Type of service</span><div class="chips" id="lgTypes">' + types.map(function(t){ return '<button type="button" class="chip" data-type="' + esc(t) + '" onclick="vdPickType(this)">' + esc(t) + '</button>'; }).join('') + '</div></div>';
-    h += '<div class="field"><label for="lgDetail">Details</label><span class="hint">For example the event or training name.</span><input type="text" id="lgDetail" maxlength="120"></div>';
-    h += '<div class="times"><div class="field"><label for="lgIn">Time in</label><input type="time" id="lgIn" step="300"></div><div class="field"><label for="lgOut">Time out</label><input type="time" id="lgOut" step="300"></div></div>';
-    h += '<div class="calc" id="lgCalc">Enter your time in and time out</div>';
-    h += '<div class="field"><span class="lbl">Were any of these hours for PTI or SRP?</span><span class="hint">If you are not sure, choose No and it all counts for LDAH.</span></div>';
-    h += '<div class="yesno"><button type="button" id="lgNo" class="on" onclick="vdSplit(false)">No</button><button type="button" id="lgYes" onclick="vdSplit(true)">Yes</button></div>';
-    h += '<div id="lgSplitBox" class="hidden"><div class="split-grid">' +
-      '<div><label for="lgLdah">LDAH</label><input type="number" id="lgLdah" readonly tabindex="-1"></div>' +
-      '<div><label for="lgPti">PTI</label><input type="number" id="lgPti" min="0" step="0.25" inputmode="decimal" value="0"></div>' +
-      '<div><label for="lgSrp">SRP</label><input type="number" id="lgSrp" min="0" step="0.25" inputmode="decimal" value="0"></div></div>' +
-      '<p class="hint" style="font-size:.86rem;color:var(--text-soft);margin-bottom:1rem;text-align:center;">Enter the PTI and SRP hours. LDAH is the rest.</p></div>';
-    h += '<button type="button" class="btn btn-primary" id="btnLog" onclick="vdAddEntry()">Add to my log</button><div class="err" id="stepErr"></div>';
+    h += '<p class="tip" style="margin:0 0 14px;">See something wrong, or forgot to check in? Please ask your event lead or LDAH staff to fix it.</p>';
     h += '<div class="entries"><h3>My entries</h3><div id="lgList">' + entriesHtml() + '</div></div>';
     return h;
   }
@@ -470,7 +456,7 @@ footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
     $('lgLdah').value = hrs > 0 ? rest : '';
     $('lgLdah').style.color = rest < 0 ? 'var(--red)' : '';
   }
-  function logWire(){ ['lgIn', 'lgOut', 'lgPti', 'lgSrp'].forEach(function(id){ $(id).addEventListener('input', logRecalc); $(id).addEventListener('change', logRecalc); }); logRecalc(); }
+  function logWire(){ if (!$('lgIn')) return; ['lgIn', 'lgOut', 'lgPti', 'lgSrp'].forEach(function(id){ $(id).addEventListener('input', logRecalc); $(id).addEventListener('change', logRecalc); }); logRecalc(); }
   window.vdPickType = function(btn){
     S.log.type = btn.getAttribute('data-type');
     document.querySelectorAll('#lgTypes .chip').forEach(function(c){ c.classList.toggle('on', c === btn); });
