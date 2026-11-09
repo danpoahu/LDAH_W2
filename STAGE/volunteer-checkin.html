@@ -80,6 +80,14 @@ footer{background:var(--text-dark);color:rgba(255,255,255,.7);padding:1.1rem 1re
 footer a{color:rgba(255,255,255,.85);text-decoration:none;}
 footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
 .hidden{display:none !important;}
+.roster-h{font-family:'Outfit',sans-serif;font-size:1.05rem;color:var(--ocean-dark);margin:18px 0 8px;text-align:left;}
+.roster-h small{display:block;font-family:'Source Sans 3',sans-serif;color:var(--text-soft);font-size:.9rem;font-weight:500;}
+.rname{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:64px;margin:0 0 10px;padding:12px 16px;border:2px solid #CBD5E1;border-radius:16px;background:#fff;font-family:'Outfit',sans-serif;font-weight:600;font-size:1.3rem;color:var(--text-dark);cursor:pointer;text-align:left;-webkit-tap-highlight-color:transparent;}
+.rname:active{transform:scale(.99);}
+.rname .st{font-family:'Source Sans 3',sans-serif;font-size:.9rem;font-weight:700;border-radius:99px;padding:4px 10px;white-space:nowrap;}
+.rname .st.go{background:var(--palm-pale);color:var(--palm);}
+.rname .st.on{background:#FFF7ED;color:var(--coral-dark);}
+.rname.is-in{border-color:#FDBA74;background:#FFFBF5;}
 </style>
 </head>
 <body>
@@ -96,6 +104,19 @@ footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
 
 <main>
   <div id="vLoading" class="view"><div class="spinner"></div><p class="sub">One moment...</p></div>
+
+  <!-- Roster: tap your name (2026-11-09). No email needed. -->
+  <div id="vRoster" class="view hidden">
+    <h2 class="hi" style="font-size:1.8rem;">Tap your name</h2>
+    <p class="sub" style="margin-bottom:.6rem;">to check in, or to check out when you are done.</p>
+    <div id="rosterToday"></div>
+    <div id="rosterAllWrap" class="hidden"><div class="roster-h">All volunteers</div><div id="rosterAll"></div></div>
+    <div class="links">
+      <button type="button" class="link" id="rosterAllBtn" onclick="vcRosterAll()">Not on the list? Show all volunteers</button>
+      <button type="button" class="link soft" onclick="vcRosterLoad()">Refresh</button>
+    </div>
+    <div class="err" id="rosterErr"></div>
+  </div>
 
   <!-- This phone does not know the volunteer yet -->
   <div id="vUnknown" class="view hidden">
@@ -142,6 +163,7 @@ footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
     <button type="button" class="big-btn out" onclick="vcAskWhat()">Check out<small>when you are done for the day</small></button>
     <div class="links">
       <button type="button" class="link" onclick="vcShowForgot(false)">I left earlier: enter my time out</button>
+      <button type="button" class="link soft" onclick="vcShowUnknown()">Back to the list</button>
       <a class="link soft" id="docsLink2" href="#">My documents and hours</a>
     </div>
   </div>
@@ -195,7 +217,7 @@ footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
     <p class="sub" id="doneSub" style="margin-top:.4rem;"></p>
     <p class="totals-line" id="doneTotals"></p>
     <div class="links">
-      <button type="button" class="btn btn-primary" style="margin-top:6px;" onclick="vcRender()">Done</button>
+      <button type="button" class="btn btn-primary" style="margin-top:6px;" onclick="vcDone()">Done</button>
       <a class="link soft" id="docsLink3" href="#">My documents and hours</a>
     </div>
   </div>
@@ -221,9 +243,11 @@ footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
   // Shared with volunteer-documents.html: opening a personal link on a phone
   // saves the token here, so scanning the poster later knows who they are.
   var STORE_KEY = 'ldahVolunteerToken';
-  var VIEWS = ['vLoading', 'vUnknown', 'vSent', 'vReady', 'vIn', 'vWhat', 'vForgot', 'vDone', 'vMessage'];
+  var VIEWS = ['vLoading', 'vRoster', 'vUnknown', 'vSent', 'vReady', 'vIn', 'vWhat', 'vForgot', 'vDone', 'vMessage'];
   var DEFAULT_TYPES = ['IEP meeting', 'Training', 'Community event', 'Office help', 'Outreach', 'Other'];
-  var S = { token: '', site: '', status: null, timer: null, forgotType: '', busy: false };
+  var S = { token: '', volId: '', site: '', status: null, timer: null, forgotType: '', busy: false, roster: null };
+  // Who the calls are for: a personal link when the phone has one, else the name picked on the roster.
+  function ident(){ return S.token ? { token: S.token } : { volunteerId: S.volId }; }
 
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -272,7 +296,7 @@ footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
     if (!/^[a-f0-9]{64}$/.test(S.token)) { S.token = ''; vcShowUnknown(); return; }
     view('vLoading');
     try {
-      S.status = await call('volunteerCheckinStatus', { token: S.token });
+      S.status = await call('volunteerCheckinStatus', ident());
       saveStore(S.token, S.status.firstName);
       vcRender();
     } catch (e) {
@@ -284,14 +308,59 @@ footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
   }
   window.vcReload = load;
 
-  window.vcShowUnknown = function(){ stopTimer(); view('vUnknown'); $('emailErr').style.display = 'none'; };
+  window.vcShowEmail = function(){ stopTimer(); view('vUnknown'); $('emailErr').style.display = 'none'; };
+  // A phone without a personal link gets the roster, not the email form (2026-11-09).
+  window.vcShowUnknown = function(){ stopTimer(); S.volId = ''; S.status = null; vcRosterLoad(); };
+
+  function nameBtn(p){
+    var st = p.open ? '<span class="st on">Checked in ' + esc(fmtTime(p.open.timeIn)) + ' &middot; tap to check out</span>' : '<span class="st go">Check in</span>';
+    return '<button type="button" class="rname' + (p.open ? ' is-in' : '') + '" onclick="vcPick(\'' + esc(p.id) + '\')"><span>' + esc(p.name) + '</span>' + st + '</button>';
+  }
+  window.vcRosterLoad = async function(){
+    stopTimer();
+    view('vLoading');
+    try {
+      S.roster = await call('volunteerCheckinRoster', { site: S.site });
+    } catch (e) {
+      $('msgTitle').textContent = 'We could not load the volunteer list';
+      $('msgBody').textContent = e.message;
+      view('vMessage');
+      return;
+    }
+    var R = S.roster, h = '';
+    (R.requests || []).forEach(function(rq){
+      h += '<div class="roster-h">' + esc(rq.title) + (rq.time || rq.location ? '<small>' + esc([rq.time, rq.location].filter(Boolean).join(' · ')) + '</small>' : '') + '</div>';
+      h += (rq.people && rq.people.length) ? rq.people.map(nameBtn).join('') : '<p class="sub" style="font-size:1rem;">No one is confirmed for this yet.</p>';
+    });
+    $('rosterToday').innerHTML = h;
+    $('rosterAll').innerHTML = (R.all || []).map(nameBtn).join('');
+    // Backup: no request today means the whole list shows straight away.
+    var none = !(R.requests || []).length;
+    $('rosterAllWrap').classList.toggle('hidden', !none);
+    $('rosterAllBtn').classList.toggle('hidden', none);
+    if (none) $('rosterToday').innerHTML = '<p class="sub" style="font-size:1rem;">No volunteer event is listed for today. Find your name below.</p>';
+    view('vRoster');
+  };
+  window.vcRosterAll = function(){ $('rosterAllWrap').classList.remove('hidden'); $('rosterAllBtn').classList.add('hidden'); };
+  window.vcPick = async function(id){
+    S.token = ''; S.volId = id;
+    view('vLoading');
+    try {
+      S.status = await call('volunteerCheckinStatus', ident());
+      vcRender();
+    } catch (e) {
+      $('msgTitle').textContent = 'We could not open your check-in';
+      $('msgBody').textContent = e.message;
+      view('vMessage');
+    }
+  };
 
   window.vcRender = function(){
     stopTimer();
     var s = S.status;
     if (!s) { vcShowUnknown(); return; }
     var hi = first() ? 'Hi ' + first() : 'Aloha';
-    ['docsLink1', 'docsLink2', 'docsLink3'].forEach(function(id){ $(id).href = docsHref(); });
+    ['docsLink1', 'docsLink2', 'docsLink3'].forEach(function(id){ $(id).href = docsHref(); $(id).classList.toggle('hidden', !S.token); });
     if (s.open && s.open.stale) { vcShowForgot(true); return; }
     if (s.open) {
       $('inHi').textContent = hi;
@@ -322,9 +391,11 @@ footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
     if (S.busy) return; S.busy = true;
     var b = $('btnIn'); b.disabled = true; b.textContent = 'Checking in...';
     try {
-      var r = await call('volunteerCheckIn', { token: S.token, site: S.site });
+      var r = await call('volunteerCheckIn', Object.assign(ident(), { site: S.site }));
       S.status = r;
-      toast(r.already ? 'You were already checked in.' : 'Checked in at ' + fmtTime(r.open && r.open.timeIn) + '. Have a great day!');
+      toast((first() ? first() + ': ' : '') + (r.already ? 'already checked in.' : 'checked in at ' + fmtTime(r.open && r.open.timeIn) + '. Have a great day!'));
+      // Roster pick on a shared phone: hand it to the next person.
+      if (!S.token) { setTimeout(vcShowUnknown, 1800); return; }
       vcRender();
     } catch (e) {
       b.disabled = false; b.textContent = 'Check in';
@@ -360,7 +431,7 @@ footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
     btn.textContent = 'Saving...';
     var type = btn.getAttribute('data-type');
     try {
-      var r = await call('volunteerCheckOut', { token: S.token, serviceType: type, note: $('fNote').value.trim() });
+      var r = await call('volunteerCheckOut', Object.assign(ident(), { serviceType: type, note: $('fNote').value.trim() }));
       showDone(r);
     } catch (e) {
       if (e.details && e.details.needsTimeOut) { S.status.open && (S.status.open.stale = true); vcShowForgot(true, e.message); }
@@ -417,7 +488,7 @@ footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
     S.busy = true;
     var b = $('btnForgot'); b.disabled = true; b.textContent = 'Saving...';
     try {
-      var r = await call('volunteerCheckOut', { token: S.token, serviceType: S.forgotType, note: $('fNote2').value.trim(), timeOut: $('fOut').value });
+      var r = await call('volunteerCheckOut', Object.assign(ident(), { serviceType: S.forgotType, note: $('fNote2').value.trim(), timeOut: $('fOut').value }));
       showDone(r);
     } catch (e) {
       er.textContent = e.message; er.style.display = 'block';
@@ -430,7 +501,7 @@ footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
     if (!confirm('Remove this check-in? No hours will be logged for it.')) return;
     S.busy = true;
     try {
-      await call('volunteerCheckOut', { token: S.token, discard: true });
+      await call('volunteerCheckOut', Object.assign(ident(), { discard: true }));
       S.status.open = null;
       toast('Check-in removed.');
       vcRender();
@@ -454,7 +525,10 @@ footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
     } finally { S.busy = false; b.disabled = false; b.textContent = 'Email me my link'; }
   };
 
+  window.vcDone = function(){ if (!S.token) { vcShowUnknown(); return; } vcRender(); };
+  // On the checked-in screen a roster pick can go back to the list.
   window.vcForget = function(){
+    if (!S.token) { vcShowUnknown(); return; }   // roster pick: just back to the list
     if (!confirm('Forget this phone? You will need your email link to check in again.')) return;
     clearStore(); S.token = ''; S.status = null;
     vcShowUnknown();

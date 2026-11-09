@@ -184,6 +184,45 @@ function buildLinkEmailHtml({ firstName, checkinLink, docsLink, deps }) {
 </html>`;
 }
 
+// ── Roster check-in (Daniel 2026-11-09) ───────────────────────────────────
+// "can't you just have the roster pop open and you select yourself and then
+// check in ... none of this email back and forth". The poster page lists
+// today's help-request roster; a tap on a name checks that volunteer in or
+// out (by volunteerId, no personal link needed). Backup: every accepted
+// volunteer, for a day with no request or a name that is not on it.
+const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+
+// The HST date a help request's free-text date names, "YYYY-MM-DD", or "".
+// Reads "11-9-2026", "11/9/2026", "2026-11-09", "November 9" / "Nov 9, 2026".
+function requestDateKey(text, nowMs) {
+  const t = String(text || "").toLowerCase();
+  const yNow = Number(hstParts(nowMs).date.slice(0, 4));
+  let m = /(\d{4})-(\d{1,2})-(\d{1,2})/.exec(t);
+  if (m) return m[1] + "-" + pad2(+m[2]) + "-" + pad2(+m[3]);
+  m = /\b(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})\b/.exec(t);
+  if (m) { const y = m[3].length === 2 ? 2000 + +m[3] : +m[3]; return y + "-" + pad2(+m[1]) + "-" + pad2(+m[2]); }
+  m = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(\d{4}))?/.exec(t);
+  if (m) { const mo = MONTHS.findIndex((x) => x.startsWith(m[1])) + 1; return (m[3] ? +m[3] : yNow) + "-" + pad2(mo) + "-" + pad2(+m[2]); }
+  return "";
+}
+
+// Is this help request for today? Its written date says so, or it has no
+// readable date and was created within the last day.
+function isTodaysRequest(req, nowMs) {
+  const today = hstParts(nowMs).date;
+  const key = requestDateKey(req && req.date, nowMs);
+  if (key) return key === today;
+  const c = req && req.createdAt && req.createdAt.toMillis ? req.createdAt.toMillis() : 0;
+  return !!c && nowMs - c < 24 * 3600 * 1000;
+}
+
+// "Rosie R." for the public roster: enough to find yourself, no full surname.
+function rosterName(first, last, email) {
+  const f = String(first || "").trim(), l = String(last || "").trim();
+  if (f) return f + (l ? " " + l.charAt(0).toUpperCase() + "." : "");
+  return String(email || "").split("@")[0] || "Volunteer";
+}
+
 // ── Firestore helpers ─────────────────────────────────────────────────────
 function notFound() {
   return new functions.https.HttpsError("not-found",
@@ -211,6 +250,29 @@ async function loadByToken(db, token) {
   return { volunteerId, ref, onb: onbSnap.data() || {}, volunteer: v };
 }
 
+// Roster path: volunteerId -> same shape as loadByToken. The onboarding doc is
+// created on first check-in if the volunteer never had documents sent.
+async function loadById(db, volunteerId) {
+  const id = String(volunteerId || "").trim();
+  if (!/^[A-Za-z0-9]{10,40}$/.test(id)) throw new functions.https.HttpsError("invalid-argument", "Pick your name from the list.");
+  const ref = db.collection(COLLECTION).doc(id);
+  const [onbSnap, vSnap] = await Promise.all([ref.get(), db.collection("volunteers").doc(id).get()]);
+  if (!vSnap.exists) throw new functions.https.HttpsError("not-found", "Pick your name from the list.");
+  const v = vSnap.data() || {};
+  if (v.archived === true || v.status !== "accepted") {
+    throw new functions.https.HttpsError("failed-precondition",
+      "Your volunteer record is not active right now. Please check with the LDAH staff lead.");
+  }
+  return { volunteerId: id, ref, onb: onbSnap.exists ? (onbSnap.data() || {}) : {}, volunteer: v };
+}
+
+// A personal link (token) when the phone has one, otherwise the roster pick.
+async function loadIdent(db, data) {
+  const d = data || {};
+  if (d.token) return loadByToken(db, d.token);
+  return loadById(db, d.volunteerId);
+}
+
 function statusPayload(x, nowMs) {
   const o = x.onb || {};
   const totals = o.logTotals || { ldah: 0, pti: 0, srp: 0, total: 0, count: 0 };
@@ -236,7 +298,7 @@ function build(deps) {
     .https.onCall(async (data) => {
       if ((data || {}).warm === true) return { warm: true };
       const db = admin.firestore();
-      const x = await loadByToken(db, (data || {}).token);
+      const x = await loadIdent(db, data);
       return statusPayload(x, Date.now());
     });
 
@@ -247,7 +309,7 @@ function build(deps) {
       if ((data || {}).warm === true) return { warm: true };
       const db = admin.firestore();
       const FieldValue = admin.firestore.FieldValue;
-      const x = await loadByToken(db, (data || {}).token);
+      const x = await loadIdent(db, data);
       const nowMs = Date.now();
       const existing = openSummary(x.onb.openCheckIn, nowMs);
       if (existing) return Object.assign(statusPayload(x, nowMs), { already: true });
@@ -256,6 +318,8 @@ function build(deps) {
       await x.ref.set({
         openCheckIn: site ? { at, site } : { at },
         lastCheckInAt: at,
+        ...((data || {}).token ? {} : { lastCheckInVia: "roster" }),
+        ...(x.onb.volunteerEmail ? {} : { volunteerEmail: String(x.volunteer.email || "").trim() }),
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
       x.onb.openCheckIn = site ? { at, site } : { at };
@@ -271,7 +335,7 @@ function build(deps) {
       if ((data || {}).warm === true) return { warm: true };
       const db = admin.firestore();
       const FieldValue = admin.firestore.FieldValue;
-      const x0 = await loadByToken(db, (data || {}).token);
+      const x0 = await loadIdent(db, data);
       const ref = x0.ref;
       const logs = ref.collection("logs");
       const p = data || {};
@@ -418,12 +482,52 @@ function build(deps) {
       return reply;
     });
 
-  return { volunteerCheckinStatus, volunteerCheckIn, volunteerCheckOut, requestVolunteerLink };
+  // Public: the poster page's roster. Today's help request(s) first; every
+  // accepted volunteer as the backup list. Names are "First L.".
+  const volunteerCheckinRoster = functions
+    .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+    .https.onCall(async (data) => {
+      if ((data || {}).warm === true) return { warm: true };
+      const db = admin.firestore();
+      const nowMs = Date.now();
+      const [volSnap, onbSnap, reqSnap] = await Promise.all([
+        db.collection("volunteers").where("status", "==", "accepted").get(),
+        db.collection(COLLECTION).get(),
+        db.collection("volunteerRequests").orderBy("createdAt", "desc").limit(30).get(),
+      ]);
+      const openBy = {};
+      onbSnap.forEach((s) => { const o = openSummary((s.data() || {}).openCheckIn, nowMs); if (o) openBy[s.id] = o; });
+      const vols = {};
+      volSnap.forEach((s) => {
+        const v = s.data() || {};
+        if (v.archived === true) return;
+        vols[s.id] = { id: s.id, name: rosterName(v.firstName, v.lastName, v.email), open: openBy[s.id] || null };
+      });
+      const all = Object.values(vols).sort((a, b) => a.name.localeCompare(b.name));
+      const requests = [];
+      for (const rs of reqSnap.docs) {
+        const rq = rs.data() || {};
+        if (rq.status === "closed" || !isTodaysRequest(rq, nowMs)) continue;
+        const ps = await rs.ref.collection("participants").get();
+        const people = [];
+        ps.forEach((p) => {
+          const x = p.data() || {};
+          const vid = x.volunteerId || p.id;
+          if (!x.confirmed || !vols[vid]) return;
+          people.push(vols[vid]);
+        });
+        people.sort((a, b) => a.name.localeCompare(b.name));
+        requests.push({ id: rs.id, title: cleanText(rq.title, 120), time: cleanText(rq.time, 60), location: cleanText(rq.location, 80), people });
+      }
+      return { ok: true, requests, all, today: hstParts(nowMs).date };
+    });
+
+  return { volunteerCheckinStatus, volunteerCheckIn, volunteerCheckOut, requestVolunteerLink, volunteerCheckinRoster };
 }
 
 module.exports = build;
 module.exports._pure = {
   CHECKIN_PAGE_URL, STALE_HOURS, GENERIC_LINK_REPLY, EMAIL_DAY_MAX, IP_HOUR_MAX, EMAIL_COOLDOWN_MS,
   cleanSite, normEmail, validEmail, hstParts, isStale, checkoutPlan, rateDecision, pickVolunteer,
-  openSummary, buildLinkEmailHtml,
+  openSummary, buildLinkEmailHtml, requestDateKey, isTodaysRequest, rosterName,
 };
