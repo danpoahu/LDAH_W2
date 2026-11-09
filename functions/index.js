@@ -10614,6 +10614,7 @@ function buildCombinedAnnouncementEmailHtml({ blocks, contact, unsubscribeUrl,
       (location ? '<p style="margin:0 0 16px;color:#475569"><strong>Where:</strong> ' +
                   esc(location) + '</p>' : '') +
       (desc ? '<p style="margin:0 0 20px;color:#334155;line-height:1.6">' + esc(desc) + '</p>' : '') +
+      (showSignup ? _annDeadlineHtml(ev, contact) : '') +
       (showSignup
         ? '<p style="text-align:center;margin:24px 0 8px">' +
           '<a href="' + signupUrl + '" style="background-color:#0891B2;' +
@@ -10709,6 +10710,34 @@ function _annLocalWhen(event, island, sessionDate) {
   return sessions.map(s => zones.map(z => line(s, z.offset, z.label, s.lesson))
     .concat([line(s, eventTimes.HAWAII_OFFSET, eventTimes.HAWAII_LABEL, '')]).join(' | ')).join(' | ');
 }
+/**
+ * Signup deadline line for announcements (Daniel 2026-11-09, Nutcracker:
+ * "make some urgency in the email without being pushy"). Shown only when the
+ * event's Move to Past date comes BEFORE the event itself, i.e. signups close
+ * ahead of the day, and only while that date is still ahead. The last day to
+ * sign up is the day before Move to Past (the site closes at 12:00 AM on it).
+ */
+function _annDeadlineHtml(event, contact) {
+  const e = event || {};
+  const mtp = String(e.moveToPastDate || "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(mtp)) return "";
+  const evKey = /^\d{4}-\d{2}-\d{2}$/.test(String(e.eventDate || "")) ? String(e.eventDate) : toHstDateKey(e.date);
+  if (!evKey || mtp >= evKey) return "";
+  const today = toHstDateKey(new Date());
+  if (!today || today >= mtp) return "";
+  const lastKey = addDaysHst(mtp, -1);
+  const parts = lastKey ? formatHstDateParts(lastKey) : null;
+  if (!parts) return "";
+  const pip = _annIsPip(contact);
+  const esc = (x) => String(x || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const cap = Number(e.maxCapacity) > 0;
+  const day = parts.dayName + ", " + String(parts.formatted).replace(/,\s*\d{4}$/, "");
+  return '<div style="margin:4px 0 20px;padding:14px 16px;background:#FFF7E0;border-left:5px solid #F3C623;border-radius:8px;color:#5B3A00;line-height:1.55">' +
+    '<strong>Please sign up by ' + esc(day) + ' at midnight' + (pip ? " Hawaiʻi time" : "") + '.</strong> ' +
+    (cap ? "Seats are limited and are held in the order families sign up, so it's best not to wait." : "Signups close after that, so it's best not to wait.") +
+    '</div>';
+}
+
 function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl, eventId, sessionDate }) {
   const _pip = _annIsPip(contact);
   const displayName = (contact.displayName || '').trim();
@@ -10755,6 +10784,7 @@ function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl, eventId, s
     _whenHtml +
     (location ? '<p style="margin:0 0 16px;color:#475569"><strong>Where:</strong> ' + esc(location) + '</p>' : '') +
     (descTrim ? '<p style="margin:0 0 24px;color:#334155;line-height:1.6">' + esc(descTrim) + esc(descMore) + '</p>' : '') +
+    _annDeadlineHtml(event, contact) +
     '<p style="text-align:center;margin:32px 0">' +
     '<a href="' + signupUrl + '" style="background-color:#0891B2;background:linear-gradient(135deg,#0891B2,#0E7490);color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:16px">Sign Up</a>' +
     '</p>' +
@@ -33213,6 +33243,7 @@ exports.__test = {
   _islandFromPlaces,
   _boothEventIsland,
   _knowBeforeYouGoHtml,
+  _annDeadlineHtml,
   _zip5,
   _signupTopLevelAddress,
   _ageBandFromBirthday, _childEntryFromScreening,

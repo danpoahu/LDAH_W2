@@ -319,3 +319,13 @@ test("know-before-you-go block: only when the event has one", () => {
   assert.equal(X._knowBeforeYouGoHtml({}, "reminder"), "");
   assert.equal(X._knowBeforeYouGoHtml(null, "dayof"), "");
 });
+
+test("announcement deadline: only when signups close before the event", () => {
+  const ev = { eventDate: "2099-12-11", moveToPastDate: "2099-11-13", maxCapacity: 120 };
+  const h = X._annDeadlineHtml(ev, { island: "Oahu" });
+  assert.ok(h.includes("Please sign up by Thursday, November 12 at midnight."), h);
+  assert.ok(h.includes("Seats are limited"));
+  assert.ok(X._annDeadlineHtml(ev, { island: "Guam" }).includes("midnight Hawaiʻi time"));
+  assert.equal(X._annDeadlineHtml({ eventDate: "2099-12-11", moveToPastDate: "2099-12-12" }, {}), "");
+  assert.equal(X._annDeadlineHtml({ eventDate: "2020-12-11", moveToPastDate: "2020-11-13" }, {}), "");
+});
