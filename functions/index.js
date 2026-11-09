@@ -10898,6 +10898,10 @@ async function _runCombinedAnnouncement({ db, dryRun, testEmail }) {
       whenText: (typeof sp.whenText === "string") ? sp.whenText : undefined,
       whereText: (typeof sp.whereText === "string") ? sp.whereText : undefined,
       signedEmails: new Set(), signedIds: new Set(), alreadySent: new Set(),
+      /* repeatEventIds (2026-11-09): a second reminder mailing for an event that
+         was already announced. Those already sent still get it; anyone signed
+         up still does not. */
+      repeat: Array.isArray(job.repeatEventIds) && job.repeatEventIds.indexOf(sp.eventId) !== -1,
     });
   }
   if (!blocks.length) return { ok: false, reason: "none of the events exist" };
@@ -10928,7 +10932,7 @@ async function _runCombinedAnnouncement({ db, dryRun, testEmail }) {
       const rd = d.data() || {};
       if ((rd.sessionDate || null) === (b.sessionDate || null)) alreadySent.add(rd.recipientId || d.id);
     });
-    b.alreadySent = alreadySent;
+    b.alreadySent = b.repeat ? new Set() : alreadySent;
   }
 
   /* Optional exclusions, all off unless the job asks for them, so an ordinary
@@ -10958,7 +10962,9 @@ async function _runCombinedAnnouncement({ db, dryRun, testEmail }) {
 
   const contactsSnap = await db.collection("contacts").where("marketingOptOut", "==", false).get();
   const recipients = [];
-  const dropped = { staff: 0, archived: 0, excluded: 0, malformed: 0, pip: 0, offIsland: 0 };
+  const dropped = { staff: 0, archived: 0, excluded: 0, malformed: 0, pip: 0, offIsland: 0, otherIsland: 0 };
+  /* islands (2026-11-09): only contacts on these islands, e.g. ["Oahu"]. */
+  const _onlyIslands = Array.isArray(job.islands) && job.islands.length ? new Set(job.islands.map(String)) : null;
   /* excludePip (2026-10-22): Hawaii families only. A contact owned by a Pacific
      partner (partnerIsland) or living on a partner island is left out, and so is
      one marked Off Island. */
@@ -10973,6 +10979,7 @@ async function _runCombinedAnnouncement({ db, dryRun, testEmail }) {
     if (c.archived === true || c.mergedInto) { dropped.archived++; return; }
     if (staffEmails.has(lower)) { dropped.staff++; return; }
     if (excludeEmails.has(lower)) { dropped.excluded++; return; }
+    if (_onlyIslands && !_onlyIslands.has(String(c.island || "").trim())) { dropped.otherIsland++; return; }
     if (job.excludePip === true) {
       if (c.partnerIsland || _pipSet.has(String(c.island || ""))) { dropped.pip++; return; }
       if (String(c.island || "") === "Off Island") { dropped.offIsland++; return; }
@@ -33244,6 +33251,7 @@ exports.__test = {
   _boothEventIsland,
   _knowBeforeYouGoHtml,
   _annDeadlineHtml,
+  _runCombinedAnnouncement,
   _zip5,
   _signupTopLevelAddress,
   _ageBandFromBirthday, _childEntryFromScreening,
