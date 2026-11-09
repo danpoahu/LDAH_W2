@@ -3137,7 +3137,18 @@
       })();
 
       // Capacity enforcement (ADDITIVE — only fires when _hasCap is true).
-      if (_capFull) {
+      // Signups closed: the event has reached its "Move to Past" date. The card
+      // drops its Sign Up button then, but an email or QR link (?autoOpen=1)
+      // still opened this form (Daniel 2026-11-09).
+      const _mtp = /^\d{4}-\d{2}-\d{2}$/.test(event.moveToPastDate || '') ? new Date(event.moveToPastDate + 'T00:00:00') : null;
+      const _signupsClosed = !!(_mtp && !isNaN(_mtp.getTime()) && new Date() >= _mtp);
+      if (_signupsClosed) {
+        const _fc = document.getElementById('signupFormContent');
+        if (_fc) _fc.innerHTML = `
+          <h2 style="color:#004E7C;font-size:24px;font-weight:bold;margin-bottom:12px;padding-right:40px;">${event.title}</h2>
+          <p style="color:#374151;font-size:16px;line-height:1.6;margin:0;">Signups for this event have closed. Questions? Call LDAH at (808) 536-9684.</p>
+        `;
+      } else if (_capFull) {
         // Event at/over cap: replace the form with a "full" notice (no submit).
         const _fc = document.getElementById('signupFormContent');
         if (_fc) _fc.innerHTML = `
