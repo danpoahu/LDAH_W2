@@ -33549,6 +33549,7 @@ const _volunteerDocuments = require("./volunteerDocuments")({
 exports.sendVolunteerDocuments = _volunteerDocuments.sendVolunteerDocuments;
 exports.getVolunteerDocuments = _volunteerDocuments.getVolunteerDocuments;
 exports.submitVolunteerDocument = _volunteerDocuments.submitVolunteerDocument;
+exports.staffAdjustVolunteerHours = _volunteerDocuments.staffAdjustVolunteerHours;
 
 // Volunteer application link (2026-10-02): staff email a Step-1-only applicant a
 // personal link that opens the full application (Step 2) pre-filled on any device.

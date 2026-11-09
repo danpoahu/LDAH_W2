@@ -542,37 +542,87 @@ function build(deps) {
         return { ok: true, doc: "emergency" };
       }
 
+      // Volunteers no longer add or remove their own hours (Daniel 2026-11-09:
+      // the event lead or a Super Admin adjusts hours, "not regular attendees").
+      // Hours come from QR check-in/out; fixes go through staffAdjustVolunteerHours.
       if (docKey === "log" || docKey === "logDelete") {
-        let added = null;
-        if (docKey === "log") {
-          const r = validateLogEntry(payload, hstTodayKey());
-          if (!r.ok) throw bad(r.error);
-          added = r.entry;
-        }
-        const delId = docKey === "logDelete" ? cleanText(payload.entryId, 64) : "";
-        if (docKey === "logDelete" && (!delId || delId.indexOf("/") !== -1)) throw bad("Missing entry.");
-        const logs = ref.collection("logs");
-        const newRef = added ? logs.doc() : null;
-        const totals = await db.runTransaction(async (tx) => {
-          const all = await tx.get(logs);
-          const list = [];
-          let found = false;
-          all.forEach((s) => { if (s.id === delId) { found = true; return; } list.push(s.data() || {}); });
-          if (docKey === "logDelete" && !found) throw new functions.https.HttpsError("not-found", "That entry was already removed.");
-          if (added) list.push(added);
-          const t = sumTotals(list);
-          if (added) tx.set(newRef, Object.assign({}, added, { createdAt: FieldValue.serverTimestamp() }));
-          if (delId) tx.delete(logs.doc(delId));
-          tx.set(ref, { logTotals: Object.assign({}, t, { lastEntryAt: FieldValue.serverTimestamp() }), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-          return t;
-        });
-        return { ok: true, doc: docKey, entryId: newRef ? newRef.id : delId, entry: added, totals };
+        throw new functions.https.HttpsError("failed-precondition",
+          "Hours are recorded when you check in and out. To fix your hours, please ask your event lead or LDAH staff.");
       }
-
       throw bad("Unknown document.");
     });
 
-  return { sendVolunteerDocuments, getVolunteerDocuments, submitVolunteerDocument };
+  // Staff: add, correct or remove a volunteer's hours (2026-11-09). Allowed for a
+  // Super Admin, or for the Lead named on the help request the change is for.
+  //   { volunteerId, action:'add'|'edit'|'delete', entryId?, requestId?,
+  //     serviceDate, serviceType, serviceDetail, timeIn, timeOut }
+  const staffAdjustVolunteerHours = functions
+    .runWith({ timeoutSeconds: 30, maxInstances: 5 })
+    .https.onCall(async (data, context) => {
+      if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Please sign in.");
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const p = data || {};
+      const uid = context.auth.uid;
+      const roleSnap = await db.collection("userRoles").doc(uid).get();
+      const me = roleSnap.exists ? (roleSnap.data() || {}) : {};
+      let allowed = me.role === "superAdmin";
+      const requestId = cleanText(p.requestId, 64);
+      if (!allowed && requestId && requestId.indexOf("/") === -1) {
+        const rq = await db.collection("volunteerRequests").doc(requestId).get();
+        allowed = rq.exists && (rq.data() || {}).leadUid === uid;
+      }
+      if (!allowed) throw new functions.https.HttpsError("permission-denied", "Only the event lead or a Super Admin can change volunteer hours.");
+      const volunteerId = cleanText(p.volunteerId, 64);
+      if (!volunteerId || volunteerId.indexOf("/") !== -1) throw new functions.https.HttpsError("invalid-argument", "Missing volunteer.");
+      const vSnap = await db.collection("volunteers").doc(volunteerId).get();
+      if (!vSnap.exists) throw new functions.https.HttpsError("not-found", "Volunteer not found.");
+      const v = vSnap.data() || {};
+      const action = p.action;
+      if (["add", "edit", "delete"].indexOf(action) === -1) throw new functions.https.HttpsError("invalid-argument", "Unknown action.");
+      let entry = null;
+      if (action !== "delete") {
+        const r = validateLogEntry(p, hstTodayKey());
+        if (!r.ok) throw new functions.https.HttpsError("invalid-argument", r.error);
+        entry = r.entry;
+      }
+      const entryId = cleanText(p.entryId, 64);
+      if (action !== "add" && (!entryId || entryId.indexOf("/") !== -1)) throw new functions.https.HttpsError("invalid-argument", "Missing entry.");
+      const ref = db.collection(COLLECTION).doc(volunteerId);
+      const logs = ref.collection("logs");
+      const target = action === "add" ? logs.doc() : logs.doc(entryId);
+      const who = me.displayName || context.auth.token.email || uid;
+      let before = null;
+      const totals = await db.runTransaction(async (tx) => {
+        const all = await tx.get(logs);
+        const list = [];
+        let found = false;
+        all.forEach((s) => {
+          if (s.id === target.id) { found = true; before = s.data() || {}; if (action === "edit") list.push(Object.assign({}, before, entry)); return; }
+          list.push(s.data() || {});
+        });
+        if (action !== "add" && !found) throw new functions.https.HttpsError("not-found", "That entry was already removed.");
+        if (action === "add") list.push(entry);
+        const t = sumTotals(list);
+        if (action === "add") tx.set(target, Object.assign({}, entry, { source: "staff", requestId: requestId || "", addedBy: who, addedByUid: uid, createdAt: FieldValue.serverTimestamp() }));
+        if (action === "edit") tx.update(target, Object.assign({}, entry, { adjustedBy: who, adjustedByUid: uid, adjustedAt: FieldValue.serverTimestamp() }));
+        if (action === "delete") tx.delete(target);
+        tx.set(ref, { logTotals: Object.assign({}, t, { lastEntryAt: FieldValue.serverTimestamp() }), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        return t;
+      });
+      const name = [v.firstName, v.lastName].filter(Boolean).join(" ") || volunteerId;
+      const fmt = (e) => e ? (e.serviceDate + " " + e.timeIn + "-" + e.timeOut + " (" + e.hours + " h)") : "";
+      try {
+        await db.collection("auditLog").add({
+          action: action === "add" ? "Volunteer hours added" : action === "edit" ? "Volunteer hours corrected" : "Volunteer hours removed",
+          details: name + ": " + (action === "edit" ? fmt(before) + " -> " + fmt(entry) : fmt(entry || before)),
+          performedBy: who, performedByUid: uid, timestamp: FieldValue.serverTimestamp(),
+        });
+      } catch (e) { /* the change is made; the log line is best effort */ }
+      return { ok: true, entryId: target.id, totals };
+    });
+
+  return { sendVolunteerDocuments, getVolunteerDocuments, submitVolunteerDocument, staffAdjustVolunteerHours };
 }
 
 module.exports = build;
