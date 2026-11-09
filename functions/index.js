@@ -337,6 +337,61 @@ exports.extractScreeningReferral = functions
 // SDK bypasses rules) and returns headcount + per-session counts with NO names
 // or emails. Intentionally UNAUTHENTICATED — the public page calls it without
 // sign-in, so it must not gate on context.auth. Read-only + additive.
+/* Who sees the event-full notice (Daniel 2026-11-09, Nutcracker: "capture how
+   many get this message, and ... the main email for the family, so we can give
+   them first crack if we get more" -- "this is only internal info"). Public
+   callable fired by the website and app when a signup form shows the full
+   notice. Families are told nothing; staff read the list in DAN.
+     every call                 -> event.fullViewCount +1
+     a known family (announcement-email token, or an email the app already
+     holds)                     -> events/{id}/fullNoticeViews/{contactId|email}
+                                   with the contact's main email, once per family
+   Nothing is emailed. */
+exports.eventFullNoticeSeen = functions
+  .runWith({ timeoutSeconds: 20, maxInstances: 10 })
+  .https.onCall(async (data) => {
+    const d = data || {};
+    const eventId = typeof d.eventId === "string" ? d.eventId.trim() : "";
+    if (!eventId || eventId.length > 64 || /[\/]/.test(eventId)) throw new functions.https.HttpsError("invalid-argument", "Missing eventId.");
+    const collection = d.collection === "recurringEvents" ? "recurringEvents" : "events";
+    const db = admin.firestore();
+    const FieldValue = admin.firestore.FieldValue;
+    const ref = db.collection(collection).doc(eventId);
+    const snap = await ref.get();
+    if (!snap.exists) return { ok: false };
+    await ref.set({ fullViewCount: FieldValue.increment(1), fullViewLastAt: FieldValue.serverTimestamp() }, { merge: true });
+    const token = String(d.token || "").trim().slice(0, 100);
+    const rawEmail = String(d.email || "").trim().toLowerCase().slice(0, 200);
+    let contactId = "", c = null;
+    try {
+      if (token) {
+        const q = await db.collection("contacts").where("unsubscribeToken", "==", token).limit(1).get();
+        if (!q.empty) { contactId = q.docs[0].id; c = q.docs[0].data() || {}; }
+      }
+      if (!c && /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]{2,}$/.test(rawEmail)) {
+        const q = await db.collection("contacts").where("email", "==", rawEmail).limit(1).get();
+        if (!q.empty) { contactId = q.docs[0].id; c = q.docs[0].data() || {}; }
+      }
+    } catch (e) { /* identity is best effort */ }
+    const email = String((c && c.email) || rawEmail || "").trim().toLowerCase();
+    if (!email) return { ok: true };
+    const key = contactId || email.replace(/[^a-z0-9@._+-]/g, "_");
+    const vref = ref.collection("fullNoticeViews").doc(key);
+    await db.runTransaction(async (tx) => {
+      const v = await tx.get(vref);
+      if (v.exists) { tx.update(vref, { views: FieldValue.increment(1), lastSeenAt: FieldValue.serverTimestamp() }); return; }
+      tx.set(vref, {
+        email, contactId,
+        name: (c && (c.displayName || [c.firstName, c.lastName].filter(Boolean).join(" "))) || "",
+        phone: (c && c.phone) || "", island: (c && c.island) || "",
+        src: String(d.src || "").slice(0, 40), views: 1,
+        firstSeenAt: FieldValue.serverTimestamp(), lastSeenAt: FieldValue.serverTimestamp(),
+      });
+      tx.set(ref, { fullNoticeFamilies: FieldValue.increment(1) }, { merge: true });
+    });
+    return { ok: true };
+  });
+
 exports.getEventCapacity = functions
   .runWith({ timeoutSeconds: 30, maxInstances: 10 })
   .https.onCall(async (data) => {

@@ -3155,6 +3155,13 @@
           <h2 style="color:#004E7C;font-size:24px;font-weight:bold;margin-bottom:12px;padding-right:40px;">${event.title}</h2>
           <p style="color:#374151;font-size:16px;line-height:1.6;margin:0;">${String(event.fullMessage || '').trim() ? String(event.fullMessage).trim().replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }) : 'This event is full.'}</p>
         `;
+        // Internal only (2026-11-09): count this showing, and when we know who
+        // it is (announcement-email link), note the family for first crack if
+        // more seats open. Nothing is shown to the family.
+        try {
+          var _fnTok = new URLSearchParams(location.search).get('prefill') || '';
+          firebase.functions().httpsCallable('eventFullNoticeSeen')({ eventId: eventId, collection: 'events', token: _fnTok, src: 'website' }).catch(function(){});
+        } catch (_) {}
       } else if (_perFamilyMax) {
         // Per-family cap: cap the "# of participants" input at 5 (maxCapacity <= 100).
         const _gs = document.getElementById('group-size');
