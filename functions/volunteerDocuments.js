@@ -659,7 +659,29 @@ function build(deps) {
       return { day, byVol };
     });
 
-  return { sendVolunteerDocuments, getVolunteerDocuments, submitVolunteerDocument, staffAdjustVolunteerHours, getVolunteerRequestHours };
+  // Staff: total volunteer hours this calendar year (Hawaii time) for the DAN
+  // Website CMS KPI (2026-11-10). -> { year, hours, volunteers, entries }
+  const volunteerHoursYtd = functions
+    .runWith({ timeoutSeconds: 60, maxInstances: 3 })
+    .https.onCall(async (data, context) => {
+      if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Please sign in.");
+      const db = admin.firestore();
+      const roleSnap = await db.collection("userRoles").doc(context.auth.uid).get();
+      const me = roleSnap.exists ? (roleSnap.data() || {}) : {};
+      if (!me.role || me.archived === true) throw new functions.https.HttpsError("permission-denied", "Staff only.");
+      const year = hstTodayKey().slice(0, 4);
+      const vols = await db.collection(COLLECTION).listDocuments();
+      let hours = 0, entries = 0, people = 0;
+      await Promise.all(vols.map(async (ref) => {
+        const ls = await ref.collection("logs").where("serviceDate", ">=", year + "-01-01").get();
+        let h = 0;
+        ls.forEach((d) => { const e = d.data() || {}; if (String(e.serviceDate || "") <= year + "-12-31") { h += Number(e.hours) || 0; entries++; } });
+        if (h > 0) { people++; hours += h; }
+      }));
+      return { year, hours: round2(hours), volunteers: people, entries };
+    });
+
+  return { sendVolunteerDocuments, getVolunteerDocuments, submitVolunteerDocument, staffAdjustVolunteerHours, getVolunteerRequestHours, volunteerHoursYtd };
 }
 
 module.exports = build;
