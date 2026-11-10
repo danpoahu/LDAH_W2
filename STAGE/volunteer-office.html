@@ -293,6 +293,7 @@
     .vo-tasks { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin-top: 12px; }
     .vo-task { position: relative; display: block; border: 1.5px solid #cbd5e1; border-radius: 12px; padding: 12px 12px 12px 40px; background: #fff; cursor: pointer; line-height: 1.4; }
     .vo-task input { position: absolute; left: 13px; top: 15px; width: 18px; height: 18px; accent-color: var(--ocean-deep); }
+    .vo-task.vo-task-ref { padding: 12px 14px; cursor: default; border-left: 4px solid var(--ocean-deep); }
     .vo-task b { display: block; font: 700 1rem 'Outfit', sans-serif; color: #1a3c6e; }
     .vo-task span { font-size: .9rem; color: var(--text-light); }
     .vo-task:has(input:checked) { border-color: var(--ocean-deep); background: #F0F9FF; }
@@ -313,6 +314,10 @@
     textarea.ob-in { min-height: 80px; resize: vertical; }
 
     /* Staff view (mockup) — deliberately a different look so nobody mistakes it for the public form */
+    .vo-tabs { display: flex; gap: 8px; margin: 0 0 14px; flex-wrap: wrap; }
+    .vo-tab { flex: 1 1 180px; border: 2px solid #CBD5E1; background: #fff; color: #334155; border-radius: 12px; padding: 11px 14px; font: 700 1rem 'Outfit', sans-serif; cursor: pointer; }
+    .vo-tab.on { background: #1a3c6e; border-color: #1a3c6e; color: #fff; }
+    .vo-tab:focus-visible { outline: 3px solid var(--ocean-light); outline-offset: 2px; }
     .vo-staff-toggle { display: block; width: 100%; margin: 28px 0 0; background: #F8FAFC; border: 2px dashed #94A3B8; color: #334155; border-radius: 12px; padding: 12px; font: 700 1rem 'Outfit', sans-serif; cursor: pointer; }
     .vo-staff-toggle:focus-visible { outline: 3px solid var(--ocean-light); outline-offset: 2px; }
     .vo-staff { margin-top: 12px; background: #F1F5F9; border: 2px dashed #94A3B8; border-radius: 14px; padding: 20px; }
@@ -373,12 +378,16 @@
 
     <div class="vo-wrap">
         <div class="vo-mock"><b>Mockup for testing.</b> This page shows how signing up could work. Nothing you enter here is saved or sent.</div>
+        <div class="vo-tabs" role="tablist">
+            <button type="button" role="tab" class="vo-tab on" id="vo_tabVol" aria-selected="true">Volunteer sign-up</button>
+            <button type="button" role="tab" class="vo-tab" id="vo_tabStaff" aria-selected="false">Staff view (mockup)</button>
+        </div>
 
         <div id="vo_form">
         <!-- 1. Tasks -->
         <div class="ob-card">
-            <h3>What would you like to help with?</h3>
-            <div class="ob-sub">Tick any you enjoy. It helps us plan, and we&rsquo;ll match you when we can.</div>
+            <h3>What you&rsquo;ll be helping with</h3>
+            <div class="ob-sub">This is the kind of work we have ready in the office. We&rsquo;ll show you what to do when you arrive.</div>
             <div class="vo-tasks" id="vo_tasks"></div>
         </div>
 
@@ -462,7 +471,6 @@
         </div>
 
         <!-- Staff view (mockup) -->
-        <button type="button" class="vo-staff-toggle" id="vo_staffBtn" aria-expanded="false" aria-controls="vo_staff">Staff view (mockup): how this is set up in DAN</button>
         <div class="vo-staff" id="vo_staff" hidden>
             <h3>Staff view (mockup)</h3>
             <div class="ob-sub">How staff would set up office volunteer days in DAN. Changes here update the sign-up form above so you can try them. Names below are made up.</div>
@@ -478,7 +486,7 @@
                     <div class="ob-fg"><label class="ob-lbl" for="st_max">Volunteers at once</label><input class="ob-in" type="number" id="st_max" min="1" max="10" value="3"></div>
                 </div>
 
-                <div class="ob-sec">Tasks volunteers can pick</div>
+                <div class="ob-sec">Tasks shown to volunteers</div>
                 <div class="vo-row" id="st_tasks"></div>
                 <div class="vo-add"><input class="ob-in" type="text" id="st_newTask" placeholder="Add a task, e.g. Sorting donations" aria-label="New task"><button type="button" class="ob-cta" id="st_addTask">Add</button></div>
             </div>
@@ -517,7 +525,7 @@
       { name: 'Brochure folders', note: 'Folding and stuffing family folders' },
       { name: 'Event prep', note: 'Getting supplies ready for events' },
       { name: 'Mailings', note: 'Envelopes, labels and stamps' },
-      { name: 'Whatever is needed that day', note: 'Happy to help with anything' }
+      { name: 'Other office help', note: 'Whatever needs doing that day' }
     ]
   };
   /* Sample sign-ups (invented names). wd = weekday; once = a single date this week. */
@@ -568,7 +576,7 @@
   /* ── Volunteer form ────────────────────────────────────────────── */
   function renderTasks() {
     $('vo_tasks').innerHTML = CFG.tasks.map(function (t, i) {
-      return '<label class="vo-task"><input type="checkbox" data-task="' + esc(t.name) + '"' + (S.tasks[t.name] ? ' checked' : '') + '><b>' + esc(t.name) + '</b><span>' + esc(t.note || '') + '</span></label>';
+      return '<div class="vo-task vo-task-ref"><b>' + esc(t.name) + '</b><span>' + esc(t.note || '') + '</span></div>';
     }).join('');
   }
   function renderDays() {
@@ -644,9 +652,9 @@
     $('vo_doneText').innerHTML = (name ? esc(name) + ', w' : 'W') + (S.freq === 'weekly'
       ? 'e&rsquo;ll see you every ' + WDL[S.wd] + ', starting ' + short(nextDates(S.wd)[0]) + '. A confirmation would go to ' + esc(val('vo_email')) + '.'
       : 'e&rsquo;ll see you on ' + short(pickedDate()) + '. A confirmation would go to ' + esc(val('vo_email')) + '.');
-    $('vo_doneTasks').textContent = picked.length ? 'You picked: ' + picked.join(', ') + '.' : 'We’ll find something good for you when you arrive.';
+    $('vo_doneTasks').textContent = 'We’ll have a task ready for you when you arrive: ' + CFG.tasks.map(function (t) { return t.name.toLowerCase(); }).join(', ') + '.';
     $('vo_calNote').hidden = true;
-    $('vo_form').hidden = true;
+    $('vo_form').hidden = true; S.doneShown = true;
     var done = $('vo_done'); done.hidden = false;
     done.scrollIntoView({ behavior: 'smooth', block: 'start' }); done.focus({ preventScroll: true });
   }
@@ -669,7 +677,16 @@
     }
     if (t.id === 'vo_go') { submit(); return; }
     if (t.dataset.cal) { var n = $('vo_calNote'); n.hidden = false; n.textContent = 'Mockup: the ' + t.dataset.cal + ' calendar invite is not made yet. The real page would add this ' + (S.freq === 'weekly' ? 'weekly ' : '') + 'visit to your calendar.'; return; }
-    if (t.id === 'vo_again') { $('vo_done').hidden = true; $('vo_form').hidden = false; S.start = -1; S.date = ''; renderAll(); $('vo_days').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+    if (t.id === 'vo_again') { S.doneShown = false; $('vo_done').hidden = true; $('vo_form').hidden = false; S.start = -1; S.date = ''; renderAll(); $('vo_days').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+    if (t.id === 'vo_tabVol' || t.id === 'vo_tabStaff') {
+      var staff = t.id === 'vo_tabStaff';
+      $('vo_tabVol').classList.toggle('on', !staff); $('vo_tabVol').setAttribute('aria-selected', String(!staff));
+      $('vo_tabStaff').classList.toggle('on', staff); $('vo_tabStaff').setAttribute('aria-selected', String(staff));
+      $('vo_staff').hidden = !staff;
+      $('vo_form').hidden = staff || S.doneShown === true;
+      if (staff) $('vo_done').hidden = true; else if (S.doneShown) $('vo_done').hidden = false;
+      return;
+    }
     if (t.id === 'vo_staffBtn') { var p = $('vo_staff'), open = p.hidden; p.hidden = !open; t.setAttribute('aria-expanded', String(open)); if (open) p.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
     if (t.dataset.stday) { var w = +t.dataset.stday, i = CFG.days.indexOf(w); if (i >= 0) CFG.days.splice(i, 1); else { CFG.days.push(w); CFG.days.sort(); } renderStaff(); renderAll(); return; }
     if (t.dataset.deltask != null) { CFG.tasks.splice(+t.dataset.deltask, 1); renderStaff(); renderTasks(); return; }
