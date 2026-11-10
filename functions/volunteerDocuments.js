@@ -622,7 +622,40 @@ function build(deps) {
       return { ok: true, entryId: target.id, totals };
     });
 
-  return { sendVolunteerDocuments, getVolunteerDocuments, submitVolunteerDocument, staffAdjustVolunteerHours };
+  // Staff: everyone's hours on a help request's day, read on the server so DAN
+  // never shows a stale or empty browser cache (2026-11-10). Any active staff.
+  //   { requestId, serviceDate:'YYYY-MM-DD' } -> { byVol: { id: { entries, openAt } } }
+  const getVolunteerRequestHours = functions
+    .runWith({ timeoutSeconds: 30, maxInstances: 5 })
+    .https.onCall(async (data, context) => {
+      if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Please sign in.");
+      const db = admin.firestore();
+      const roleSnap = await db.collection("userRoles").doc(context.auth.uid).get();
+      const me = roleSnap.exists ? (roleSnap.data() || {}) : {};
+      if (!me.role || me.archived === true) throw new functions.https.HttpsError("permission-denied", "Staff only.");
+      const p = data || {};
+      const requestId = cleanText(p.requestId, 64);
+      const day = String(p.serviceDate || "");
+      if (!requestId || requestId.indexOf("/") !== -1 || !/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new functions.https.HttpsError("invalid-argument", "Missing request or date.");
+      const rq = await db.collection("volunteerRequests").doc(requestId).get();
+      if (!rq.exists) throw new functions.https.HttpsError("not-found", "Request not found.");
+      const ids = [...new Set(((rq.data() || {}).participants || []).map((x) => x && (x.volunteerId || x.id)).filter((x) => x && String(x).indexOf("/") === -1))];
+      const byVol = {};
+      await Promise.all(ids.map(async (vid) => {
+        const ref = db.collection(COLLECTION).doc(vid);
+        const [ls, o] = await Promise.all([ref.collection("logs").where("serviceDate", "==", day).get(), ref.get()]);
+        const entries = ls.docs.map((d) => {
+          const e = d.data() || {};
+          return { id: d.id, serviceDate: e.serviceDate || "", timeIn: e.timeIn || "", timeOut: e.timeOut || "", hours: Number(e.hours) || 0,
+            serviceType: e.serviceType || "", source: e.source || "", addedBy: e.addedBy || "", adjustedBy: e.adjustedBy || "" };
+        }).sort((a, b) => String(a.timeIn).localeCompare(String(b.timeIn)));
+        const oc = o.exists ? (o.data() || {}).openCheckIn : null;
+        byVol[vid] = { entries, openAt: oc && oc.at && oc.at.toMillis ? oc.at.toMillis() : null };
+      }));
+      return { day, byVol };
+    });
+
+  return { sendVolunteerDocuments, getVolunteerDocuments, submitVolunteerDocument, staffAdjustVolunteerHours, getVolunteerRequestHours };
 }
 
 module.exports = build;
