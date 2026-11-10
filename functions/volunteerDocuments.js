@@ -639,7 +639,11 @@ function build(deps) {
       if (!requestId || requestId.indexOf("/") !== -1 || !/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new functions.https.HttpsError("invalid-argument", "Missing request or date.");
       const rq = await db.collection("volunteerRequests").doc(requestId).get();
       if (!rq.exists) throw new functions.https.HttpsError("not-found", "Request not found.");
-      const ids = [...new Set(((rq.data() || {}).participants || []).map((x) => x && (x.volunteerId || x.id)).filter((x) => x && String(x).indexOf("/") === -1))];
+      // Roster lives in the participants subcollection (doc id = volunteer id).
+      const ps = await rq.ref.collection("participants").get();
+      const ids = [...new Set(ps.docs.map((d) => (d.data() || {}).volunteerId || d.id)
+        .concat(((rq.data() || {}).participants || []).map((x) => x && (x.volunteerId || x.id)))
+        .filter((x) => x && String(x).indexOf("/") === -1))];
       const byVol = {};
       await Promise.all(ids.map(async (vid) => {
         const ref = db.collection(COLLECTION).doc(vid);
