@@ -798,6 +798,7 @@ async function sendEmailViaResend({
   from, to, subject, html, bcc, cc,
   type, relatedEventId, relatedSignupId, recipientName, relatedContactId,
   attachments,   // optional [{ filename, content: base64 }] (2026-10-16, school results PDF)
+  replyTo,       // optional "Name <addr>" or addr: replies go to the staff member (2026-11-10)
 }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error("RESEND_API_KEY secret is not set");
@@ -827,6 +828,7 @@ async function sendEmailViaResend({
 
   const body = { from, to: toList, subject, html };
   if (Array.isArray(attachments) && attachments.length) body.attachments = attachments;
+  if (replyTo && typeof replyTo === "string") body.reply_to = replyTo.replace(/[\r\n\t]+/g, "").trim();
   const attachmentName = (Array.isArray(attachments) && attachments.length) ? attachments.map((a) => a.filename).join(", ") : null;
   if (bccList.length) body.bcc = bccList;
   if (ccList.length) body.cc = ccList;
@@ -33684,6 +33686,14 @@ exports.volunteerCheckOut = _volunteerCheckin.volunteerCheckOut;
 exports.requestVolunteerLink = _volunteerCheckin.requestVolunteerLink;
 exports.volunteerCheckinRoster = _volunteerCheckin.volunteerCheckinRoster;
 exports.staffCheckOutAll = _volunteerCheckin.staffCheckOutAll;
+
+// Volunteer thank-you (2026-11-10): after attendance is saved and hours are
+// reviewed, the Lead sends each volunteer their hours for the event and their
+// year-to-date total, with an invite-a-friend button.
+const _volunteerThankYou = require("./volunteerThankYou")({
+  sendEmailViaResend, _emailEsc, _emailBtn, _emailLinkFooter, getOrgFooterHtml, lifecycleFromAddress, EMAIL_SECRETS,
+});
+exports.sendVolunteerThankYou = _volunteerThankYou.sendVolunteerThankYou;
 
 /* ── Revoked staff access (2026-10-07) ─────────────────────────────────────
    "Revoked" in LDAH-Int's Existing Users locks a person out WITHOUT archiving
