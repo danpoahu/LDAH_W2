@@ -522,7 +522,88 @@ function build(deps) {
       return { ok: true, requests, all, today: hstParts(nowMs).date };
     });
 
-  return { volunteerCheckinStatus, volunteerCheckIn, volunteerCheckOut, requestVolunteerLink, volunteerCheckinRoster };
+  // Staff: "Check everyone out" for a help request (2026-11-10, Daniel: "make
+  // sure if one person leaves earlier than the others, the log out everyone
+  // button does not overwrite the one who's left already"). Only people who
+  // still have an open check-in are touched; anyone already checked out keeps
+  // their own time. Lead of the request or a Super Admin.
+  //   { requestId, timeOut:"HH:MM", serviceType? } -> { closed:[], skipped:[], alreadyOut }
+  const staffCheckOutAll = functions
+    .runWith({ timeoutSeconds: 60, maxInstances: 3 })
+    .https.onCall(async (data, context) => {
+      if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Please sign in.");
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const p = data || {};
+      const uid = context.auth.uid;
+      const requestId = cleanText(p.requestId, 64);
+      if (!requestId || requestId.indexOf("/") !== -1) throw new functions.https.HttpsError("invalid-argument", "Missing request.");
+      const [roleSnap, rq] = await Promise.all([db.collection("userRoles").doc(uid).get(), db.collection("volunteerRequests").doc(requestId).get()]);
+      if (!rq.exists) throw new functions.https.HttpsError("not-found", "Request not found.");
+      const me = roleSnap.exists ? (roleSnap.data() || {}) : {};
+      const req = rq.data() || {};
+      if (!(me.role === "superAdmin" || req.leadUid === uid)) {
+        throw new functions.https.HttpsError("permission-denied", "Only the event lead or a Super Admin can check everyone out.");
+      }
+      const typed = cleanText(p.timeOut, 5);
+      if (!/^\d{1,2}:\d{2}$/.test(typed)) throw new functions.https.HttpsError("invalid-argument", "Pick the time everyone left.");
+      const serviceType = cleanText(p.serviceType, 60) || (/sodexo/i.test(req.title || "") ? "Sodexo" : "Community event");
+      const who = me.displayName || context.auth.token.email || uid;
+      const ps = await rq.ref.collection("participants").get();
+      const ids = [...new Set(ps.docs.map((d) => (d.data() || {}).volunteerId || d.id)
+        .concat((req.participants || []).map((x) => x && (x.volunteerId || x.id)))
+        .filter((x) => x && String(x).indexOf("/") === -1))];
+      const nowMs = Date.now();
+      const closed = [], skipped = [];
+      let alreadyOut = 0;
+      for (const vid of ids) {
+        const ref = db.collection(COLLECTION).doc(vid);
+        const vSnap = await db.collection("volunteers").doc(vid).get();
+        const v = vSnap.exists ? (vSnap.data() || {}) : {};
+        const name = [v.firstName, v.lastName].filter(Boolean).join(" ") || vid;
+        const newRef = ref.collection("logs").doc();
+        try {
+          const res = await db.runTransaction(async (tx) => {
+            const onbSnap = await tx.get(ref);
+            const open = (onbSnap.data() || {}).openCheckIn;
+            const openMs = open && open.at && open.at.toMillis ? open.at.toMillis() : 0;
+            if (!openMs) return { out: true };   // already checked out: leave their time alone
+            const plan = checkoutPlan(openMs, nowMs, typed);
+            if (!plan.ok) return { skip: plan.error.replace(/^The time you left/, "The time out").replace(/when you checked in/, "when they checked in") };
+            const r = V.validateLogEntry({ serviceDate: plan.serviceDate, serviceType, serviceDetail: cleanText(req.title, 120),
+              timeIn: plan.timeIn, timeOut: plan.timeOut, pti: 0, srp: 0 }, V.hstTodayKey(nowMs));
+            if (!r.ok) return { skip: r.error };
+            const entry = Object.assign({}, r.entry, {
+              source: "qr", site: open.site || "", checkInAt: open.at,
+              checkOutAt: admin.firestore.Timestamp.fromMillis(nowMs), timeOutTyped: true,
+              requestId, checkedOutBy: who, checkedOutByUid: uid,
+            });
+            const all = await tx.get(ref.collection("logs"));
+            const list = [];
+            all.forEach((s2) => list.push(s2.data() || {}));
+            list.push(entry);
+            const t = V.sumTotals(list);
+            tx.set(newRef, Object.assign({}, entry, { createdAt: FieldValue.serverTimestamp() }));
+            tx.set(ref, { openCheckIn: FieldValue.delete(), lastCheckOutAt: admin.firestore.Timestamp.fromMillis(nowMs),
+              logTotals: Object.assign({}, t, { lastEntryAt: FieldValue.serverTimestamp() }), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+            return { entry: r.entry };
+          });
+          if (res.out) alreadyOut++;
+          else if (res.skip) skipped.push({ name, reason: res.skip });
+          else closed.push({ name, timeIn: res.entry.timeIn, timeOut: res.entry.timeOut, hours: res.entry.hours });
+        } catch (e) { skipped.push({ name, reason: e.message || "Could not check out." }); }
+      }
+      if (closed.length) {
+        try {
+          await db.collection("auditLog").add({ action: "Volunteers checked out by staff",
+            details: cleanText(req.title, 120) + ": " + closed.map((c) => c.name + " " + c.timeIn + "-" + c.timeOut + " (" + c.hours + " h)").join(", "),
+            performedBy: who, performedByUid: uid, timestamp: FieldValue.serverTimestamp() });
+        } catch (_) { /* audit is best-effort */ }
+      }
+      return { closed, skipped, alreadyOut };
+    });
+
+  return { volunteerCheckinStatus, volunteerCheckIn, volunteerCheckOut, requestVolunteerLink, volunteerCheckinRoster, staffCheckOutAll };
 }
 
 module.exports = build;

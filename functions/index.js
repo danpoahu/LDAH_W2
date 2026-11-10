@@ -33683,6 +33683,7 @@ exports.volunteerCheckIn = _volunteerCheckin.volunteerCheckIn;
 exports.volunteerCheckOut = _volunteerCheckin.volunteerCheckOut;
 exports.requestVolunteerLink = _volunteerCheckin.requestVolunteerLink;
 exports.volunteerCheckinRoster = _volunteerCheckin.volunteerCheckinRoster;
+exports.staffCheckOutAll = _volunteerCheckin.staffCheckOutAll;
 
 /* ── Revoked staff access (2026-10-07) ─────────────────────────────────────
    "Revoked" in LDAH-Int's Existing Users locks a person out WITHOUT archiving
