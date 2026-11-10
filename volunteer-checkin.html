@@ -244,7 +244,7 @@ footer b{color:#FBBF24;font-family:'Outfit',sans-serif;font-weight:600;}
   // saves the token here, so scanning the poster later knows who they are.
   var STORE_KEY = 'ldahVolunteerToken';
   var VIEWS = ['vLoading', 'vRoster', 'vUnknown', 'vSent', 'vReady', 'vIn', 'vWhat', 'vForgot', 'vDone', 'vMessage'];
-  var DEFAULT_TYPES = ['IEP meeting', 'Training', 'Community event', 'Office help', 'Outreach', 'Other'];
+  var DEFAULT_TYPES = ['IEP meeting', 'Training', 'Community event', 'Sodexo', 'Office help', 'Outreach', 'Other'];
   var S = { token: '', volId: '', site: '', status: null, timer: null, forgotType: '', busy: false, roster: null };
   // Who the calls are for: a personal link when the phone has one, else the name picked on the roster.
   function ident(){ return S.token ? { token: S.token } : { volunteerId: S.volId }; }

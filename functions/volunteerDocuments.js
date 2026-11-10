@@ -46,7 +46,7 @@ const ORG_NAME = "Leadership in Disabilities and Achievement of Hawaiʻi";
 const RESEND_COOLDOWN_MS = 2 * 60 * 1000;   // a double-click guard; the UI state is not one
 const MAX_CONTACTS = 3;
 const MAX_ENTRY_HOURS = 16;
-const SERVICE_TYPES = ["IEP meeting", "Training", "Community event", "Office help", "Outreach", "Other"];
+const SERVICE_TYPES = ["IEP meeting", "Training", "Community event", "Sodexo", "Office help", "Outreach", "Other"];
 
 // ── Agreement text ────────────────────────────────────────────────────────
 // Blocks: { t:'p', text } paragraph · { t:'li', text, sub:[...] } bullet.
