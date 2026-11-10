@@ -314,6 +314,12 @@
     textarea.ob-in { min-height: 80px; resize: vertical; }
 
     /* Staff view (mockup) — deliberately a different look so nobody mistakes it for the public form */
+    .vo-sp-row { display: flex; align-items: center; gap: 10px; border: 1px solid #E2E8F0; border-left: 4px solid #7C3AED; border-radius: 10px; padding: 8px 12px; margin-bottom: 6px; background: #fff; font-size: .95rem; }
+    .vo-sp-row b { color: #1a3c6e; }
+    .vo-sp-row span { flex: 1; color: var(--text-light); }
+    .vo-sp-row button { border: 0; background: none; color: #B91C1C; font-weight: 700; cursor: pointer; }
+    .ob-day.vo-spday { border-color: #7C3AED; }
+    .ob-day.vo-spday.on { background: #7C3AED; border-color: #7C3AED; }
     .vo-tabs { display: flex; gap: 8px; margin: 0 0 14px; flex-wrap: wrap; }
     .vo-tab { flex: 1 1 180px; border: 2px solid #CBD5E1; background: #fff; color: #334155; border-radius: 12px; padding: 11px 14px; font: 700 1rem 'Outfit', sans-serif; cursor: pointer; }
     .vo-tab.on { background: #1a3c6e; border-color: #1a3c6e; color: #fff; }
@@ -405,6 +411,10 @@
 
             <div class="ob-title">1. Pick a day of the week</div>
             <div class="ob-days" id="vo_days" role="group" aria-label="Pick a day of the week"></div>
+            <div id="vo_spWrap" hidden>
+                <div class="ob-q" style="margin-top:14px">Or pick a special volunteer day</div>
+                <div class="ob-days" id="vo_sp" role="group" aria-label="Pick a special volunteer day"></div>
+            </div>
 
             <div class="ob-title">2. How long would you like to stay?</div>
             <div class="vo-row" id="vo_durs" role="group" aria-label="How long" style="margin-top:10px"></div>
@@ -414,6 +424,7 @@
             <div class="ob-times" id="vo_times" role="group" aria-label="Pick a start time"></div>
             <div class="ob-hold" id="vo_timeNote" hidden></div>
 
+            <div id="vo_freqWrap">
             <div class="ob-title">4. How often?</div>
             <div class="ob-choices" style="margin-top:10px">
                 <label class="ob-choice"><input type="radio" name="vo_freq" value="weekly" checked><span>Every week</span></label>
@@ -422,6 +433,7 @@
             <div class="vo-dates" id="vo_datesWrap" hidden>
                 <div class="ob-q" id="vo_datesQ">Pick a date</div>
                 <div class="ob-days" id="vo_dates" role="group" aria-label="Pick a date"></div>
+            </div>
             </div>
             <div class="ob-hold vo-summary" id="vo_summary" hidden></div>
         </div>
@@ -486,6 +498,20 @@
                     <div class="ob-fg"><label class="ob-lbl" for="st_max">Volunteers at once</label><input class="ob-in" type="number" id="st_max" min="1" max="10" value="3"></div>
                 </div>
 
+                <div class="ob-sec">Special volunteer days</div>
+                <div class="ob-sub" style="margin-top:0">Open one date for something specific, like event prep. It shows to volunteers as a one-time day, even on a weekend.</div>
+                <div class="ob-grid3" style="margin-top:8px">
+                    <div class="ob-fg"><label class="ob-lbl" for="sp_date">Date</label><input class="ob-in" type="date" id="sp_date"></div>
+                    <div class="ob-fg"><label class="ob-lbl" for="sp_from">From</label><select class="ob-in" id="sp_from"></select></div>
+                    <div class="ob-fg"><label class="ob-lbl" for="sp_to">To</label><select class="ob-in" id="sp_to"></select></div>
+                </div>
+                <div class="ob-grid3">
+                    <div class="ob-fg" style="grid-column:span 2"><label class="ob-lbl" for="sp_note">What it&rsquo;s for</label><input class="ob-in" type="text" id="sp_note" placeholder="e.g. Nutcracker event prep: folders and name tags"></div>
+                    <div class="ob-fg"><label class="ob-lbl" for="sp_max">Volunteers needed</label><input class="ob-in" type="number" id="sp_max" min="1" max="20" value="4"></div>
+                </div>
+                <div class="vo-add" style="margin-top:4px"><span id="sp_err" style="color:#B91C1C;font-size:.9rem;flex:1"></span><button type="button" class="ob-cta" id="sp_add">Add this day</button></div>
+                <div id="sp_list" style="margin-top:10px"></div>
+
                 <div class="ob-sec">Tasks shown to volunteers</div>
                 <div class="vo-row" id="st_tasks"></div>
                 <div class="vo-add"><input class="ob-in" type="text" id="st_newTask" placeholder="Add a task, e.g. Sorting donations" aria-label="New task"><button type="button" class="ob-cta" id="st_addTask">Add</button></div>
@@ -542,10 +568,14 @@
     { name: 'Hōkū N.', wd: 5, start: 9 * 60 + 30, len: 90 },
     { name: 'Lani W.', wd: 5, start: 14 * 60, len: 60, once: true }
   ];
+  /* Special one-time volunteer days set by staff. Sample: Nutcracker prep. */
+  var SPECIAL = [ { id: 'sp1', date: '2026-12-09', from: 9 * 60, to: 12 * 60, max: 6, note: 'Nutcracker event prep: folders and name tags' } ];
+  function spDate(sp) { var a = sp.date.split('-'); return new Date(+a[0], +a[1] - 1, +a[2], 12); }
+  function spById(id) { for (var i = 0; i < SPECIAL.length; i++) if (SPECIAL[i].id === id) return SPECIAL[i]; return null; }
   var DURS = [60, 90, 120];
   var OTHER = [30, 150, 180, 210, 240];
 
-  var S = { wd: 0, start: -1, len: 60, other: false, freq: 'weekly', date: '', who: 'new', tasks: {} };
+  var S = { wd: 0, sp: '', start: -1, len: 60, other: false, freq: 'weekly', date: '', who: 'new', tasks: {} };
 
   function clock(m) { var h = Math.floor(m / 60), mm = m % 60; return (h % 12 || 12) + ':' + (mm < 10 ? '0' : '') + mm; }
   function ap(m) { return Math.floor(m / 60) < 12 ? 'am' : 'pm'; }
@@ -556,11 +586,12 @@
   /* Spots left for a start time = max minus the busiest half hour it covers. */
   function used(wd, t) { return SAMPLE.filter(function (b) { return b.wd === wd && b.start <= t && t < b.start + b.len; }).length; }
   function spots(wd, start, len) {
+    if (S.sp && spById(S.sp)) return spById(S.sp).max;   // sample: nobody booked on special days yet
     var worst = 0;
     for (var t = start; t < start + len; t += 30) worst = Math.max(worst, used(wd, t));
     return Math.max(0, CFG.max - worst);
   }
-  function starts() { var a = []; for (var t = CFG.from; t + S.len <= CFG.to; t += 30) a.push(t); return a; }
+  function starts() { var sp = S.sp && spById(S.sp), lo = sp ? sp.from : CFG.from, hi = sp ? sp.to : CFG.to, a = []; for (var t = lo; t + S.len <= hi; t += 30) a.push(t); return a; }
   function bestDay(wd) { var b = 0; starts().forEach(function (t) { b = Math.max(b, spots(wd, t, S.len)); }); return b; }
 
   /* Next 8 dates that fall on the picked weekday (Hawaiʻi has no daylight saving). */
@@ -580,12 +611,21 @@
     }).join('');
   }
   function renderDays() {
-    if (CFG.days.indexOf(S.wd) < 0) { S.wd = 0; S.start = -1; }
+    if (!S.sp && CFG.days.indexOf(S.wd) < 0) { S.wd = 0; S.start = -1; }
     $('vo_days').innerHTML = [1, 2, 3, 4, 5].filter(function (w) { return CFG.days.indexOf(w) >= 0; }).map(function (w) {
       var n = bestDay(w);
-      return '<button type="button" class="ob-day' + (w === S.wd ? ' on' : '') + (n ? '' : ' full') + '" data-wd="' + w + '" aria-pressed="' + (w === S.wd) + '">' +
+      return '<button type="button" class="ob-day' + (!S.sp && w === S.wd ? ' on' : '') + (n ? '' : ' full') + '" data-wd="' + w + '" aria-pressed="' + (w === S.wd) + '">' +
         '<small>Every</small><b class="vo-wd">' + WD[w] + '</b><em>' + (n ? n + ' open' : 'Full') + '</em></button>';
     }).join('') || '<div class="ob-sub">No days are open right now.</div>';
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var up = SPECIAL.filter(function (sp) { return spDate(sp) >= today; }).sort(function (a, b) { return a.date.localeCompare(b.date); });
+    if (S.sp && !spById(S.sp)) { S.sp = ''; S.wd = 0; S.start = -1; }
+    $('vo_spWrap').hidden = !up.length;
+    $('vo_sp').innerHTML = up.map(function (sp) {
+      var d = spDate(sp), on = S.sp === sp.id;
+      return '<button type="button" class="ob-day vo-spday' + (on ? ' on' : '') + '" data-sp="' + sp.id + '" aria-pressed="' + on + '" title="' + esc(sp.note) + '">' +
+        '<small>' + WD[d.getDay()] + '</small><b>' + d.getDate() + '</b><small>' + MO[d.getMonth()] + '</small><em>' + esc(sp.note.split(':')[0]) + '</em></button>';
+    }).join('');
   }
   function renderDurs() {
     $('vo_durs').innerHTML = DURS.map(function (m) {
@@ -608,7 +648,9 @@
     note.hidden = true;
   }
   function renderDates() {
+    $('vo_freqWrap').hidden = !!S.sp;
     var wrap = $('vo_datesWrap');
+    if (S.sp) { wrap.hidden = true; return; }
     wrap.hidden = !(S.freq === 'once' && S.wd);
     if (wrap.hidden) return;
     var ds = nextDates(S.wd);
@@ -620,17 +662,17 @@
         '<small>' + WD[d.getDay()] + '</small><b>' + d.getDate() + '</b><small>' + MO[d.getMonth()] + '</small></button>';
     }).join('');
   }
-  function pickedDate() { var ds = S.wd ? nextDates(S.wd) : []; for (var i = 0; i < ds.length; i++) if (key(ds[i]) === S.date) return ds[i]; return null; }
+  function pickedDate() { if (S.sp && spById(S.sp)) return spDate(spById(S.sp)); var ds = S.wd ? nextDates(S.wd) : []; for (var i = 0; i < ds.length; i++) if (key(ds[i]) === S.date) return ds[i]; return null; }
   function whenText() {
     if (!S.wd || S.start < 0) return '';
     var r = range(S.start, S.start + S.len);
-    if (S.freq === 'once') { var d = pickedDate(); return d ? short(d) + ', ' + r : ''; }
+    if (S.sp || S.freq === 'once') { var d = pickedDate(); return d ? short(d) + ', ' + r : ''; }
     return WDL[S.wd] + 's, ' + r;
   }
   function renderSummary() {
     var s = $('vo_summary'), w = whenText();
     s.hidden = !w;
-    if (w) s.innerHTML = '<b>' + w + '</b>' + (S.freq === 'weekly' ? 'Every week, starting ' + short(nextDates(S.wd)[0]) + '.' : 'Just this once.') + ' ' + lenLabel(S.len) + ' at the LDAH office.';
+    if (w) s.innerHTML = '<b>' + w + '</b>' + (S.sp ? 'Special volunteer day: ' + esc(spById(S.sp).note) + '.' : S.freq === 'weekly' ? 'Every week, starting ' + short(nextDates(S.wd)[0]) + '.' : 'Just this once.') + ' ' + lenLabel(S.len) + ' at the LDAH office.';
     var go = $('vo_go');
     go.disabled = !w;
     go.textContent = w ? 'Sign me up' : (S.wd && S.start >= 0 && S.freq === 'once' ? 'Pick a date above' : 'Pick a day and time above');
@@ -649,7 +691,7 @@
     var name = S.who === 'known' ? '' : val('vo_first');
     var picked = Object.keys(S.tasks).filter(function (k) { return S.tasks[k]; });
     $('vo_doneWhen').innerHTML = 'You&rsquo;re set for ' + whenText();
-    $('vo_doneText').innerHTML = (name ? esc(name) + ', w' : 'W') + (S.freq === 'weekly'
+    $('vo_doneText').innerHTML = (name ? esc(name) + ', w' : 'W') + (!S.sp && S.freq === 'weekly'
       ? 'e&rsquo;ll see you every ' + WDL[S.wd] + ', starting ' + short(nextDates(S.wd)[0]) + '. A confirmation would go to ' + esc(val('vo_email')) + '.'
       : 'e&rsquo;ll see you on ' + short(pickedDate()) + '. A confirmation would go to ' + esc(val('vo_email')) + '.');
     $('vo_doneTasks').textContent = 'We’ll have a task ready for you when you arrive: ' + CFG.tasks.map(function (t) { return t.name.toLowerCase(); }).join(', ') + '.';
@@ -661,7 +703,21 @@
 
   document.addEventListener('click', function (e) {
     var t = e.target.closest('button'); if (!t) return;
-    if (t.dataset.wd) { S.wd = +t.dataset.wd; S.date = ''; renderAll(); return; }
+    if (t.dataset.wd) { S.sp = ''; S.wd = +t.dataset.wd; S.date = ''; renderAll(); return; }
+    if (t.dataset.sp) { var sp = spById(t.dataset.sp); if (!sp) return; S.sp = sp.id; S.wd = spDate(sp).getDay(); S.date = ''; S.start = -1; renderAll(); return; }
+    if (t.dataset.delsp) { SPECIAL = SPECIAL.filter(function (x) { return x.id !== t.dataset.delsp; }); renderStaff(); renderAll(); return; }
+    if (t.id === 'sp_add') {
+      var dv = val('sp_date'), f = +$('sp_from').value, to = +$('sp_to').value, mx = Math.max(1, Math.min(20, +$('sp_max').value || 1)), nt = val('sp_note'), er = $('sp_err');
+      var today = new Date(); today.setHours(0, 0, 0, 0);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dv)) { er.textContent = 'Pick a date.'; return; }
+      if (spDate({ date: dv }) < today) { er.textContent = 'That date has passed.'; return; }
+      if (to - f < 60) { er.textContent = 'Make it at least an hour long.'; return; }
+      if (!nt) { er.textContent = 'Say what the day is for.'; return; }
+      er.textContent = '';
+      SPECIAL.push({ id: 'sp' + Date.now(), date: dv, from: f, to: to, max: mx, note: nt });
+      $('sp_date').value = ''; $('sp_note').value = '';
+      renderStaff(); renderAll(); return;
+    }
     if (t.dataset.len) {
       if (t.dataset.len === 'other') { S.other = true; S.len = +$('vo_otherDur').value || OTHER[1]; if (DURS.indexOf(S.len) >= 0) S.len = OTHER[1]; }
       else { S.other = false; S.len = +t.dataset.len; }
@@ -715,6 +771,10 @@
     $('st_from').innerHTML = opts(7 * 60, 16 * 60, CFG.from);
     $('st_to').innerHTML = opts(9 * 60, 18 * 60, CFG.to);
     $('st_max').value = CFG.max;
+    if (!$('sp_from').options.length) { $('sp_from').innerHTML = opts(7 * 60, 17 * 60, 9 * 60); $('sp_to').innerHTML = opts(8 * 60, 18 * 60, 12 * 60); }
+    $('sp_list').innerHTML = SPECIAL.slice().sort(function (a, b) { return a.date.localeCompare(b.date); }).map(function (sp) {
+      return '<div class="vo-sp-row"><b>' + short(spDate(sp)) + '</b> ' + range(sp.from, sp.to) + '<span>' + esc(sp.note) + ' &middot; ' + sp.max + ' needed</span><button type="button" data-delsp="' + sp.id + '" aria-label="Remove this day">Remove</button></div>';
+    }).join('') || '<div class="ob-sub">No special days yet.</div>';
     $('vo_hoursLine').innerHTML = 'Office hours for volunteers: ' + (CFG.days.length ? CFG.days.map(function (w) { return WDL[w]; }).join(', ') : 'no days open') + ', ' + range(CFG.from, CFG.to) + ' (Hawaiʻi time). Up to ' + CFG.max + ' volunteer' + (CFG.max === 1 ? '' : 's') + ' at a time.';
     $('st_tasks').innerHTML = CFG.tasks.map(function (t, i) {
       return '<span class="vo-chipx">' + esc(t.name) + '<button type="button" data-deltask="' + i + '" aria-label="Remove ' + esc(t.name) + '">&times;</button></span>';
