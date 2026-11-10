@@ -683,7 +683,97 @@ function build(deps) {
       return { year, hours: round2(hours), volunteers: people, entries };
     });
 
-  return { sendVolunteerDocuments, getVolunteerDocuments, submitVolunteerDocument, staffAdjustVolunteerHours, getVolunteerRequestHours, volunteerHoursYtd };
+  // Admin / Super Admin: every volunteer hours entry, for the DAN Volunteer
+  // Hours report (2026-11-10). Type = the opportunity they applied under;
+  // island = their DAN contact card; event + lead = the help request that day.
+  const OPP_TYPE = { "community volunteers": "Community", "students": "Student", "parents as partners": "Parent" };
+  const ISLAND_NAME = { Oahu: "Oʻahu", Hawaii: "Hawaiʻi Island", Maui: "Maui", Kauai: "Kauaʻi", Molokai: "Molokaʻi", Lanai: "Lānaʻi" };
+  const MONTHS3 = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+  function reqDateKey(r) {
+    const t = String((r && r.date) || "").toLowerCase();
+    const pad = (n) => (Number(n) < 10 ? "0" : "") + Number(n);
+    let m;
+    if ((m = /(\d{4})-(\d{1,2})-(\d{1,2})/.exec(t))) return m[1] + "-" + pad(m[2]) + "-" + pad(m[3]);
+    if ((m = /\b(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})\b/.exec(t))) return (m[3].length === 2 ? 2000 + Number(m[3]) : m[3]) + "-" + pad(m[1]) + "-" + pad(m[2]);
+    const c = r && r.createdAt && r.createdAt.toDate ? r.createdAt.toDate() : null;
+    if ((m = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(\d{4}))?/.exec(t))) {
+      return (m[3] || (c ? c.getFullYear() : new Date().getFullYear())) + "-" + pad(MONTHS3.indexOf(m[1]) + 1) + "-" + pad(m[2]);
+    }
+    return c ? new Date(c.getTime() - 10 * 3600 * 1000).toISOString().slice(0, 10) : "";
+  }
+  const volunteerHoursReport = functions
+    .runWith({ timeoutSeconds: 120, memory: "512MB", maxInstances: 3 })
+    .https.onCall(async (data, context) => {
+      if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Please sign in.");
+      const db = admin.firestore();
+      const roleSnap = await db.collection("userRoles").doc(context.auth.uid).get();
+      const me = roleSnap.exists ? (roleSnap.data() || {}) : {};
+      if (["superAdmin", "admin"].indexOf(me.role) === -1 || me.archived === true || me.isArchived === true) {
+        throw new functions.https.HttpsError("permission-denied", "This report is for Admins and Super Admins.");
+      }
+      const [volSnap, oppSnap, reqSnap, onbRefs] = await Promise.all([
+        db.collection("volunteers").get(),
+        db.collection("volunteerOpportunities").get(),
+        db.collection("volunteerRequests").get(),
+        db.collection(COLLECTION).listDocuments(),
+      ]);
+      const oppType = {};
+      oppSnap.forEach((d) => { oppType[d.id] = OPP_TYPE[String((d.data() || {}).title || "").trim().toLowerCase()] || "Not set"; });
+      const vols = {};
+      volSnap.forEach((d) => { const v = d.data() || {}; vols[d.id] = v; });
+      // Help requests: who was on which request, on which day.
+      const reqs = [];
+      const contactOf = {};
+      await Promise.all(reqSnap.docs.map(async (d) => {
+        const r = d.data() || {};
+        const ps = await d.ref.collection("participants").get();
+        const ids = new Set();
+        ps.forEach((p) => { const x = p.data() || {}; const vid = x.volunteerId || p.id; ids.add(vid); if (x.contactId && !contactOf[vid]) contactOf[vid] = x.contactId; });
+        (r.participants || []).forEach((x) => { if (x && (x.volunteerId || x.id)) ids.add(x.volunteerId || x.id); });
+        reqs.push({ id: d.id, title: String(r.title || ""), lead: String(r.leadName || ""), day: reqDateKey(r), ids });
+      }));
+      // Island from the volunteer's DAN contact card (linked, roster, or same email).
+      const island = {};
+      await Promise.all(Object.keys(vols).map(async (vid) => {
+        const v = vols[vid];
+        let cid = v.linkedContactId || contactOf[vid] || "";
+        let c = null;
+        if (cid) { const cs = await db.collection("contacts").doc(cid).get(); if (cs.exists) c = cs.data() || {}; }
+        if (!c && v.email) {
+          const q = await db.collection("contacts").where("email", "==", String(v.email).trim().toLowerCase()).limit(1).get();
+          if (!q.empty) c = q.docs[0].data() || {};
+        }
+        island[vid] = (c && ISLAND_NAME[c.island]) || "Not set";
+      }));
+      const nameOf = (vid) => { const v = vols[vid] || {}; return [v.firstName, v.lastName].filter(Boolean).join(" ").trim() || "(unknown volunteer)"; };
+      const iso = (t) => (t && t.toDate ? t.toDate().toISOString() : "");
+      const entries = [];
+      await Promise.all(onbRefs.map(async (ref) => {
+        const vid = ref.id;
+        const ls = await ref.collection("logs").get();
+        ls.forEach((d) => {
+          const e = d.data() || {};
+          let rq = e.requestId ? reqs.find((r) => r.id === e.requestId) : null;
+          if (!rq) rq = reqs.find((r) => r.day === e.serviceDate && r.ids.has(vid)) || null;
+          entries.push({
+            id: d.id, volunteerId: vid, name: nameOf(vid),
+            type: oppType[(vols[vid] || {}).opportunityId] || "Not set", island: island[vid] || "Not set",
+            date: String(e.serviceDate || ""), timeIn: String(e.timeIn || ""), timeOut: String(e.timeOut || ""),
+            hours: Math.round((Number(e.hours) || 0) * 100) / 100, serviceType: String(e.serviceType || "Other"),
+            event: rq ? rq.title : String(e.serviceDetail || ""), requestId: rq ? rq.id : "", lead: rq ? rq.lead : "",
+            source: e.source === "qr" ? "QR check-in" : e.source === "staff" ? "Added by staff" : "Self-logged",
+            adjustedBy: String(e.adjustedBy || ""), adjustedAt: iso(e.adjustedAt), wasHours: null,
+          });
+        });
+      }));
+      entries.sort((a, b) => (b.date + b.timeIn).localeCompare(a.date + a.timeIn));
+      const volunteers = Object.keys(vols).filter((vid) => (vols[vid].status === "accepted" && vols[vid].archived !== true) || entries.some((e) => e.volunteerId === vid))
+        .map((vid) => ({ id: vid, name: nameOf(vid), type: oppType[vols[vid].opportunityId] || "Not set", island: island[vid] || "Not set", status: vols[vid].status || "" }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      return { asOf: new Date().toISOString(), entries, volunteers };
+    });
+
+  return { sendVolunteerDocuments, getVolunteerDocuments, submitVolunteerDocument, staffAdjustVolunteerHours, getVolunteerRequestHours, volunteerHoursYtd, volunteerHoursReport };
 }
 
 module.exports = build;

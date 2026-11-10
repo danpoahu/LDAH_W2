@@ -33658,6 +33658,7 @@ exports.submitVolunteerDocument = _volunteerDocuments.submitVolunteerDocument;
 exports.staffAdjustVolunteerHours = _volunteerDocuments.staffAdjustVolunteerHours;
 exports.getVolunteerRequestHours = _volunteerDocuments.getVolunteerRequestHours;
 exports.volunteerHoursYtd = _volunteerDocuments.volunteerHoursYtd;
+exports.volunteerHoursReport = _volunteerDocuments.volunteerHoursReport;
 
 // Volunteer application link (2026-10-02): staff email a Step-1-only applicant a
 // personal link that opens the full application (Step 2) pre-filled on any device.
