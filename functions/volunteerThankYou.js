@@ -7,7 +7,7 @@
 // calendar year, and an "Invite a friend to volunteer" button.
 //
 //   sendVolunteerThankYou({ requestId, serviceDate:'YYYY-MM-DD', volunteerIds:[],
-//     subject, opening, nextUp, preview? })   subject may use {first}
+//     subject, opening, nextUp, preview?, resend? })   resend:true to send again   subject may use {first}
 //     preview:true -> { html, subject } for the first volunteer, nothing sent.
 //     otherwise    -> { sent:[names], failed:[{name, reason}] }
 // Lead of the request or a Super Admin. Sends go through sendEmailViaResend so
@@ -137,6 +137,7 @@ function build(deps) {
         ]);
         const part = partSnap.exists ? (partSnap.data() || {}) : null;
         if (!part) throw new Error("not on this request");
+        if (part.thankYouSentAt && p.resend !== true && p.preview !== true) throw new Error("already sent");
         const v = vSnap.exists ? (vSnap.data() || {}) : {};
         const email = clean(part.email || v.email, 200);
         if (!/@/.test(email)) throw new Error("no email address");

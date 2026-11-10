@@ -641,6 +641,8 @@ function build(deps) {
       if (!rq.exists) throw new functions.https.HttpsError("not-found", "Request not found.");
       // Roster lives in the participants subcollection (doc id = volunteer id).
       const ps = await rq.ref.collection("participants").get();
+      const sentAt = {};
+      ps.docs.forEach((d) => { const t = (d.data() || {}).thankYouSentAt; if (t && t.toMillis) sentAt[(d.data() || {}).volunteerId || d.id] = t.toMillis(); });
       const ids = [...new Set(ps.docs.map((d) => (d.data() || {}).volunteerId || d.id)
         .concat(((rq.data() || {}).participants || []).map((x) => x && (x.volunteerId || x.id)))
         .filter((x) => x && String(x).indexOf("/") === -1))];
@@ -654,7 +656,7 @@ function build(deps) {
             serviceType: e.serviceType || "", source: e.source || "", addedBy: e.addedBy || "", adjustedBy: e.adjustedBy || "" };
         }).sort((a, b) => String(a.timeIn).localeCompare(String(b.timeIn)));
         const oc = o.exists ? (o.data() || {}).openCheckIn : null;
-        byVol[vid] = { entries, openAt: oc && oc.at && oc.at.toMillis ? oc.at.toMillis() : null };
+        byVol[vid] = { entries, openAt: oc && oc.at && oc.at.toMillis ? oc.at.toMillis() : null, thankYouSentAt: sentAt[vid] || null };
       }));
       return { day, byVol };
     });
