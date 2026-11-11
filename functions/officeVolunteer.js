@@ -209,9 +209,13 @@ function build() {
       }
 
       // Match an accepted volunteer by email (never revealed to the caller).
-      let volunteerId = "";
+      // A returning volunteer gives only their email; their name comes from the roster.
+      let volunteerId = "", rosterFirst = "", rosterLast = "";
       const vSnap = await db.collection("volunteers").where("status", "==", "accepted").limit(2000).get();
-      vSnap.forEach((s) => { const v = s.data() || {}; if (!volunteerId && !v.archived && normEmail(v.email) === email) volunteerId = s.id; });
+      vSnap.forEach((s) => {
+        const v = s.data() || {};
+        if (!volunteerId && !v.archived && normEmail(v.email) === email) { volunteerId = s.id; rosterFirst = cleanText(v.firstName, 60); rosterLast = cleanText(v.lastName, 60); }
+      });
 
       const result = await db.runTransaction(async (tx) => {
         const { today, settings, special, bookings } = await loadAll(db, false);
@@ -253,7 +257,7 @@ function build() {
         }
         const ref = db.collection(SIGNUPS).doc();
         tx.set(ref, Object.assign(rec, {
-          email, firstName, lastName, phone, notes, isNew, volunteerId,
+          email, firstName: firstName || rosterFirst, lastName: lastName || rosterLast, phone, notes, isNew, volunteerId,
           status: "active", createdAt: FieldValue.serverTimestamp(), source: cleanText(p.src, 40),
         }));
         return { id: ref.id, label };
