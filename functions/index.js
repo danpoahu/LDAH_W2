@@ -33696,6 +33696,14 @@ const _volunteerThankYou = require("./volunteerThankYou")({
 });
 exports.sendVolunteerThankYou = _volunteerThankYou.sendVolunteerThankYou;
 
+// In-office volunteering (2026-11-10): staff set office days, hours, head count,
+// tasks and special days in DAN (Volunteers → In-Office Help); volunteers sign up
+// on the website (STAGE/volunteer-office.html). Admin SDK only, no rule changes.
+const _officeVolunteer = require("./officeVolunteer")();
+exports.officeVolunteerSchedule = _officeVolunteer.officeVolunteerSchedule;
+exports.officeVolunteerSignUp = _officeVolunteer.officeVolunteerSignUp;
+exports.officeVolunteerAdmin = _officeVolunteer.officeVolunteerAdmin;
+
 /* ── Revoked staff access (2026-10-07) ─────────────────────────────────────
    "Revoked" in LDAH-Int's Existing Users locks a person out WITHOUT archiving
    them: their userRoles doc, history and records stay as they are. The role

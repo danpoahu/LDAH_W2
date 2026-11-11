@@ -191,6 +191,18 @@
       align-self: flex-start; margin-top: auto;
       box-shadow: 0 4px 14px rgba(8, 145, 178, 0.25);
     }
+    /* In-office help (STAGE 2026-11-10): shown only when DAN has office days open */
+    .vo-office { max-width: 1280px; margin: -2rem auto 3rem; padding: 0 2rem; }
+    .vo-office-card { background: linear-gradient(135deg, #ECFEFF 0%, #FFFBEB 100%); border: 1px solid rgba(8,145,178,.18); border-radius: 16px; padding: 1.75rem 2rem; box-shadow: 0 4px 20px rgba(8,145,178,.08); }
+    .vo-office-card h3 { font-family: 'Outfit', sans-serif; font-size: 1.4rem; color: var(--ocean-deep); margin: 0 0 .35rem; }
+    .vo-office-card p { color: var(--text-soft); margin: 0 0 1rem; line-height: 1.6; }
+    .vo-office-when { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1.1rem; }
+    .vo-office-pill { display: inline-block; padding: .5rem .9rem; background: #fff; border: 1px solid rgba(8,145,178,.2); border-radius: 10px; font-size: .92rem; font-weight: 600; color: var(--text-dark); text-decoration: none; }
+    .vo-office-pill small { display: block; font-weight: 500; color: var(--text-soft); font-size: .8rem; }
+    a.vo-office-pill.sp { border-color: #7C3AED; color: #5B21B6; }
+    a.vo-office-pill.sp:hover { background: #F5F3FF; }
+    .vo-office-card .btn-apply { margin-top: 0; }
+    @media (max-width: 640px) { .vo-office { padding: 0 16px; margin-top: -1.5rem; } .vo-office-card { padding: 1.25rem; } }
     .btn-apply:hover {
       background: #0E7490;
       transform: translateY(-2px);
@@ -654,6 +666,41 @@
       </div>
     </div>
   </main>
+
+  <!-- In-office help (STAGE only for now): filled from DAN → Volunteers → In-Office Help.
+       Stays hidden unless there are open weekdays or upcoming special days. -->
+  <section class="vo-office" id="voOffice" hidden aria-labelledby="voOfficeTitle">
+    <div class="vo-office-card">
+      <h3 id="voOfficeTitle">Help in our office</h3>
+      <p id="voOfficeText">Give an hour or two at the LDAH office in Honolulu: filing, brochure folders, event prep and mailings. Pick a day and a time that suits you.</p>
+      <div class="vo-office-when" id="voOfficeWhen"></div>
+      <a class="btn-apply" href="volunteer-office.html?src=volunteer-page">Sign up for office help</a>
+    </div>
+  </section>
+  <script>
+  (function () {
+    var WDL = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
+    var MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    function esc(t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+    function t12(h) { var a = String(h).split(':'), H = +a[0], M = a[1] || '00'; return (H % 12 || 12) + (M === '00' ? '' : ':' + M) + (H < 12 ? ' am' : ' pm'); }
+    fetch('https://us-central1-ldah-932d5.cloudfunctions.net/officeVolunteerSchedule', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: {} })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      var x = j && j.result; if (!x || !x.open) return;
+      var html = '';
+      if (x.weekdaysOpen && (x.openDays || []).length) {
+        html += '<span class="vo-office-pill">' + x.openDays.map(function (d) { return WDL[d]; }).join(', ') + '<small>' + t12(x.from) + ' to ' + t12(x.to) + ', every week or just once</small></span>';
+      }
+      (x.special || []).slice(0, 6).forEach(function (d) {
+        var a = d.date.split('-'), dt = new Date(+a[0], +a[1] - 1, +a[2], 12);
+        html += '<a class="vo-office-pill sp" href="volunteer-office.html?day=' + encodeURIComponent(d.id) + '&src=volunteer-page">' + WD[dt.getDay()] + ', ' + MO[dt.getMonth()] + ' ' + dt.getDate() + ' &middot; ' + t12(d.from) + ' to ' + t12(d.to) + '<small>' + esc(d.note) + '</small></a>';
+      });
+      document.getElementById('voOfficeWhen').innerHTML = html;
+      document.getElementById('voOffice').hidden = false;
+    }).catch(function (e) { console.warn('[office help]', e); });
+  })();
+  </script>
 
   <!-- Gallery Section -->
   <section class="gallery-section">

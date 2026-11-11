@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex,nofollow">
     <title>In-Office Volunteering</title>
-    <!-- STAGE mockup 2026-11-10: unlinked, not in sitemap, no analytics, nothing is saved. -->
+    <!-- STAGE 2026-11-10: real sign-up for in-office volunteering. Linked only from STAGE/volunteer.html; not in sitemap. Staff set it up in DAN → Volunteers → In-Office Help. -->
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -385,13 +385,13 @@
     </header>
 
     <div class="vo-wrap">
-        <div class="vo-mock"><b>Mockup for testing.</b> This page shows how signing up could work. Nothing you enter here is saved or sent.</div>
-        <div class="vo-tabs" role="tablist">
-            <button type="button" role="tab" class="vo-tab on" id="vo_tabVol" aria-selected="true">Volunteer sign-up</button>
-            <button type="button" role="tab" class="vo-tab" id="vo_tabStaff" aria-selected="false">Staff view (mockup)</button>
+        <div class="ob-card" id="vo_loading"><div class="ob-sub">Loading the office schedule&hellip;</div></div>
+        <div class="ob-card" id="vo_closed" hidden>
+            <h3>No office volunteer days are open right now</h3>
+            <div class="ob-sub" id="vo_closedMsg">Please check back soon, or call the office at <a class="ob-link" href="tel:+18085369684">(808) 536-9684</a> to ask about helping out.</div>
         </div>
 
-        <div id="vo_form">
+        <div id="vo_form" hidden>
         <!-- 1. Tasks -->
         <div class="ob-card">
             <h3>What you&rsquo;ll be helping with</h3>
@@ -411,10 +411,10 @@
             <h3>When</h3>
             <div class="ob-sub" id="vo_hoursLine">Office hours for volunteers: Monday to Friday, 8:00 am to 4:30 pm (Hawaiʻi time). Up to 3 volunteers at a time.</div>
 
-            <div class="ob-title">1. Pick a day of the week</div>
+            <div class="ob-title" id="vo_wdTitle">1. Pick a day of the week</div>
             <div class="ob-days" id="vo_days" role="group" aria-label="Pick a day of the week"></div>
             <div id="vo_spWrap" hidden>
-                <div class="ob-q" style="margin-top:14px">Or pick a special volunteer day</div>
+                <div class="ob-q" style="margin-top:14px" id="vo_spQ">Or pick a special volunteer day</div>
                 <div class="ob-days" id="vo_sp" role="group" aria-label="Pick a special volunteer day"></div>
             </div>
 
@@ -476,108 +476,52 @@
             <p class="ob-p ob-also" id="vo_doneTasks"></p>
             <p class="ob-p">Please check in at the front desk when you arrive. Need to change your day? Call <a class="ob-link" href="tel:+18085369684">(808) 536-9684</a>.</p>
             <div class="vo-cal">
-                <button type="button" class="ob-cta ob-cta-plain" data-cal="Apple or Outlook">Add to Apple or Outlook calendar</button>
-                <button type="button" class="ob-cta ob-cta-plain" data-cal="Google">Add to Google Calendar</button>
+                <button type="button" class="ob-cta ob-cta-plain" data-cal="ics">Add to Apple or Outlook calendar</button>
+                <button type="button" class="ob-cta ob-cta-plain" data-cal="google">Add to Google Calendar</button>
             </div>
-            <div class="vo-note" id="vo_calNote" hidden></div>
             <button type="button" class="ob-cta ob-cta-light" id="vo_again">Sign up for another day</button>
-            <div class="vo-sent">Mockup: nothing was sent.</div>
-        </div>
-
-        <!-- Staff view (mockup) -->
-        <div class="vo-staff" id="vo_staff" hidden>
-            <h3>Staff view (mockup)</h3>
-            <div class="ob-sub">How staff would set up office volunteer days in DAN. Changes here update the sign-up form above so you can try them. Names below are made up.</div>
-
-            <div class="ob-card" style="margin-top:14px">
-                <div class="ob-sec" style="margin-top:0">Open days</div>
-                <div class="vo-row" id="st_days"></div>
-
-                <div class="ob-sec">Volunteer hours</div>
-                <div class="ob-grid3">
-                    <div class="ob-fg"><label class="ob-lbl" for="st_from">From</label><select class="ob-in" id="st_from"></select></div>
-                    <div class="ob-fg"><label class="ob-lbl" for="st_to">To</label><select class="ob-in" id="st_to"></select></div>
-                    <div class="ob-fg"><label class="ob-lbl" for="st_max">Volunteers at once</label><input class="ob-in" type="number" id="st_max" min="1" max="10" value="3"></div>
-                </div>
-
-                <div class="ob-sec">Special volunteer days</div>
-                <div class="ob-sub" style="margin-top:0">Open one date for something specific, like event prep. It shows to volunteers as a one-time day, even on a weekend.</div>
-                <div class="ob-grid3" style="margin-top:8px">
-                    <div class="ob-fg"><label class="ob-lbl" for="sp_date">Date</label><input class="ob-in" type="date" id="sp_date"></div>
-                    <div class="ob-fg"><label class="ob-lbl" for="sp_from">From</label><select class="ob-in" id="sp_from"></select></div>
-                    <div class="ob-fg"><label class="ob-lbl" for="sp_to">To</label><select class="ob-in" id="sp_to"></select></div>
-                </div>
-                <div class="ob-grid3">
-                    <div class="ob-fg" style="grid-column:span 2"><label class="ob-lbl" for="sp_note">What it&rsquo;s for</label><input class="ob-in" type="text" id="sp_note" placeholder="e.g. Nutcracker event prep: folders and name tags"></div>
-                    <div class="ob-fg"><label class="ob-lbl" for="sp_max">Volunteers needed</label><input class="ob-in" type="number" id="sp_max" min="1" max="20" value="4"></div>
-                </div>
-                <div class="vo-add" style="margin-top:4px"><span id="sp_err" style="color:#B91C1C;font-size:.9rem;flex:1"></span><button type="button" class="ob-cta" id="sp_add">Add this day</button></div>
-                <div id="sp_list" style="margin-top:10px"></div>
-
-                <div class="ob-sec">Tasks shown to volunteers</div>
-                <div class="vo-row" id="st_tasks"></div>
-                <div class="vo-add"><input class="ob-in" type="text" id="st_newTask" placeholder="Add a task, e.g. Sorting donations" aria-label="New task"><button type="button" class="ob-cta" id="st_addTask">Add</button></div>
-            </div>
-
-            <div class="ob-card">
-                <div class="ob-sec" style="margin-top:0">Who&rsquo;s coming this week</div>
-                <div class="vo-week" id="st_week"></div>
-                <div class="vo-legend"><span><i></i>Every week</span><span><i class="once"></i>Just this once</span></div>
-            </div>
         </div>
     </div>
 
     <div id="footer-container"></div>
 
 <script>
-/* In-office volunteer days — MOCKUP (STAGE 2026-11-10). No fetch, no
-   Firestore, no analytics: every value lives in this page's memory only.
-   Picker markup and classes are the office screening booking's (.ob-day,
-   .ob-tm, .ob-chip, .ob-choice, .ob-when, .ob-cta). */
+/* In-office volunteering (STAGE 2026-11-10). The schedule, open days and
+   spots come from officeVolunteerSchedule (no names); signing up goes through
+   officeVolunteerSignUp, which re-checks the spot. Staff set everything up in
+   DAN → Volunteers → In-Office Help. Picker markup and classes are the office
+   screening booking's (.ob-day, .ob-tm, .ob-chip, .ob-choice, .ob-when, .ob-cta). */
 (function () {
   'use strict';
+  var FN = 'https://us-central1-ldah-932d5.cloudfunctions.net/';
   function $(id) { return document.getElementById(id); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function call(name, data) {
+    return fetch(FN + name, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: data || {} }) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) {
+        if (j && j.error) { var e = new Error(j.error.message || 'Something went wrong.'); e.code = j.error.status; throw e; }
+        if (!r.ok) throw new Error('Something went wrong. Please try again.');
+        return j.result;
+      }); });
+  }
 
   var WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   var WDL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   var MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-  /* Settings staff would keep in DAN (sample). Times are minutes after midnight. */
-  var CFG = {
-    days: [1, 2, 3, 4, 5],
-    from: 8 * 60, to: 16 * 60 + 30,
-    max: 3,
-    tasks: [
-      { name: 'Filing', note: 'Sorting and filing paperwork' },
-      { name: 'Brochure folders', note: 'Folding and stuffing family folders' },
-      { name: 'Event prep', note: 'Getting supplies ready for events' },
-      { name: 'Mailings', note: 'Envelopes, labels and stamps' },
-      { name: 'Other office help', note: 'Whatever needs doing that day' }
-    ]
-  };
-  /* Sample sign-ups (invented names). wd = weekday; once = a single date this week. */
-  var SAMPLE = [
-    { name: 'Kai A.', wd: 1, start: 9 * 60, len: 60 },
-    { name: 'Mele K.', wd: 1, start: 9 * 60 + 30, len: 120 },
-    { name: 'Noelani P.', wd: 2, start: 10 * 60, len: 60 },
-    { name: 'Keoni M.', wd: 2, start: 10 * 60, len: 90 },
-    { name: 'Leilani T.', wd: 2, start: 10 * 60 + 30, len: 60 },
-    { name: 'Malia R.', wd: 3, start: 13 * 60, len: 120, once: true },
-    { name: 'Kawika S.', wd: 4, start: 8 * 60, len: 60 },
-    { name: 'Pua L.', wd: 5, start: 9 * 60, len: 120 },
-    { name: 'Ikaika H.', wd: 5, start: 9 * 60, len: 120 },
-    { name: 'Hōkū N.', wd: 5, start: 9 * 60 + 30, len: 90 },
-    { name: 'Lani W.', wd: 5, start: 14 * 60, len: 60, once: true }
-  ];
-  /* Special one-time volunteer days set by staff. Sample: Nutcracker prep. */
-  var SPECIAL = [ { id: 'sp1', date: '2026-12-09', from: 9 * 60, to: 12 * 60, max: 6, note: 'Nutcracker event prep: folders and name tags' } ];
-  function spDate(sp) { var a = sp.date.split('-'); return new Date(+a[0], +a[1] - 1, +a[2], 12); }
-  function spById(id) { for (var i = 0; i < SPECIAL.length; i++) if (SPECIAL[i].id === id) return SPECIAL[i]; return null; }
   var DURS = [60, 90, 120];
   var OTHER = [30, 150, 180, 210, 240];
 
-  var S = { wd: 0, sp: '', start: -1, len: 60, other: false, freq: 'weekly', date: '', who: 'new', tasks: {} };
+  function toMin(h) { var a = String(h || '').split(':'); return (+a[0]) * 60 + (+a[1] || 0); }
+  function hhmm(m) { return (m < 600 ? '0' : '') + Math.floor(m / 60) + ':' + (m % 60 < 10 ? '0' : '') + (m % 60); }
+
+  /* Filled from the server. Times in minutes after midnight, Hawaiʻi time. */
+  var CFG = { days: [], from: 480, to: 990, max: 3, tasks: [], weeks: 8, today: '' };
+  var SPECIAL = [];   // { id, date, from, to, max, note }
+  var BOOK = [];      // { kind, weekday, date, specialDayId, start, len }
+  function spDate(sp) { var a = sp.date.split('-'); return new Date(+a[0], +a[1] - 1, +a[2], 12); }
+  function spById(id) { for (var i = 0; i < SPECIAL.length; i++) if (SPECIAL[i].id === id) return SPECIAL[i]; return null; }
+
+  var S = { wd: 0, sp: '', start: -1, len: 60, other: false, freq: 'weekly', date: '', who: 'new' };
 
   function clock(m) { var h = Math.floor(m / 60), mm = m % 60; return (h % 12 || 12) + ':' + (mm < 10 ? '0' : '') + mm; }
   function ap(m) { return Math.floor(m / 60) < 12 ? 'am' : 'pm'; }
@@ -585,47 +529,63 @@
   function range(a, b) { return ap(a) === ap(b) ? clock(a) + '&ndash;' + clock(b) + ' ' + ap(b) : fmt(a) + '&ndash;' + fmt(b); }
   function lenLabel(m) { var h = m / 60; if (m === 30) return '30 minutes'; if (m === 60) return '1 hour'; return (h % 1 ? Math.floor(h) + '&frac12;' : h) + ' hours'; }
 
-  /* Spots left for a start time = max minus the busiest half hour it covers. */
-  function used(wd, t) { return SAMPLE.filter(function (b) { return b.wd === wd && b.start <= t && t < b.start + b.len; }).length; }
-  function spots(wd, start, len) {
-    if (S.sp && spById(S.sp)) return spById(S.sp).max;   // sample: nobody booked on special days yet
+  /* Dates as YYYY-MM-DD, counted from the server's Hawaiʻi "today". */
+  function addDays(k, n) { var a = k.split('-'), d = new Date(Date.UTC(+a[0], +a[1] - 1, +a[2] + n)); return d.toISOString().slice(0, 10); }
+  function wdOf(k) { var a = k.split('-'); return new Date(Date.UTC(+a[0], +a[1] - 1, +a[2])).getUTCDay(); }
+  function kDate(k) { var a = k.split('-'); return new Date(+a[0], +a[1] - 1, +a[2], 12); }
+  /* The next 8 dates that fall on a weekday, starting tomorrow. */
+  function nextKeys(wd) { var out = []; for (var i = 1; out.length < CFG.weeks && i <= CFG.weeks * 7 + 7; i++) { var k = addDays(CFG.today, i); if (wdOf(k) === wd) out.push(k); } return out; }
+  function short(d) { return WD[d.getDay()] + ', ' + MO[d.getMonth()] + ' ' + d.getDate(); }
+
+  /* Spots left = limit minus the busiest half hour the booking would cover. */
+  function peak(list, start, len) {
     var worst = 0;
-    for (var t = start; t < start + len; t += 30) worst = Math.max(worst, used(wd, t));
+    for (var t = start; t < start + len; t += 30) {
+      var n = list.filter(function (b) { return b.start <= t && t < b.start + b.len; }).length;
+      if (n > worst) worst = n;
+    }
+    return worst;
+  }
+  function onDate(k) { var wd = wdOf(k); return BOOK.filter(function (b) { return b.kind === 'weekly' ? b.weekday === wd : (b.kind === 'once' && b.date === k); }); }
+  function spots(wd, start, len) {
+    var sp = S.sp && spById(S.sp);
+    if (sp) return Math.max(0, sp.max - peak(BOOK.filter(function (b) { return b.kind === 'special' && b.specialDayId === sp.id; }), start, len));
+    var keys = (S.freq === 'once' && S.date) ? [S.date] : nextKeys(wd);
+    var worst = 0;
+    keys.forEach(function (k) { worst = Math.max(worst, peak(onDate(k), start, len)); });
     return Math.max(0, CFG.max - worst);
   }
   function starts() { var sp = S.sp && spById(S.sp), lo = sp ? sp.from : CFG.from, hi = sp ? sp.to : CFG.to, a = []; for (var t = lo; t + S.len <= hi; t += 30) a.push(t); return a; }
   function bestDay(wd) { var b = 0; starts().forEach(function (t) { b = Math.max(b, spots(wd, t, S.len)); }); return b; }
 
-  /* Next 8 dates that fall on the picked weekday (Hawaiʻi has no daylight saving). */
-  function nextDates(wd) {
-    var d = new Date(), out = [];
-    d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + 1);
-    while (out.length < 8) { if (d.getDay() === wd) out.push(new Date(d)); d.setDate(d.getDate() + 1); }
-    return out;
-  }
-  function key(d) { return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
-  function short(d) { return WD[d.getDay()] + ', ' + MO[d.getMonth()] + ' ' + d.getDate(); }
-
-  /* ── Volunteer form ────────────────────────────────────────────── */
+  /* ── Render ────────────────────────────────────────────────────── */
   function renderTasks() {
-    $('vo_tasks').innerHTML = CFG.tasks.map(function (t, i) {
+    $('vo_tasks').innerHTML = CFG.tasks.map(function (t) {
       return '<div class="vo-task vo-task-ref"><b>' + esc(t.name) + '</b><span>' + esc(t.note || '') + '</span></div>';
     }).join('');
   }
+  function renderHours() {
+    var line = CFG.days.length
+      ? 'Office hours for volunteers: ' + CFG.days.map(function (w) { return WDL[w]; }).join(', ') + ', ' + range(CFG.from, CFG.to) + ' (Hawaiʻi time). Up to ' + CFG.max + ' volunteer' + (CFG.max === 1 ? '' : 's') + ' at a time.'
+      : 'We don&rsquo;t have regular weekly days open right now. Pick one of the special volunteer days below.';
+    $('vo_hoursLine').innerHTML = line;
+    $('vo_wdTitle').hidden = !CFG.days.length;
+  }
   function renderDays() {
     if (!S.sp && CFG.days.indexOf(S.wd) < 0) { S.wd = 0; S.start = -1; }
-    $('vo_days').innerHTML = [1, 2, 3, 4, 5].filter(function (w) { return CFG.days.indexOf(w) >= 0; }).map(function (w) {
+    var savedSp = S.sp; S.sp = '';
+    $('vo_days').innerHTML = CFG.days.map(function (w) {
       var n = bestDay(w);
-      return '<button type="button" class="ob-day' + (!S.sp && w === S.wd ? ' on' : '') + (n ? '' : ' full') + '" data-wd="' + w + '" aria-pressed="' + (w === S.wd) + '">' +
+      return '<button type="button" class="ob-day' + (!savedSp && w === S.wd ? ' on' : '') + (n ? '' : ' full') + '" data-wd="' + w + '" aria-pressed="' + (!savedSp && w === S.wd) + '">' +
         '<small>Every</small><b class="vo-wd">' + WD[w] + '</b><em>' + (n ? n + ' open' : 'Full') + '</em></button>';
-    }).join('') || '<div class="ob-sub">No days are open right now.</div>';
-    var today = new Date(); today.setHours(0, 0, 0, 0);
-    var up = SPECIAL.filter(function (sp) { return spDate(sp) >= today; }).sort(function (a, b) { return a.date.localeCompare(b.date); });
+    }).join('');
+    S.sp = savedSp;
     if (S.sp && !spById(S.sp)) { S.sp = ''; S.wd = 0; S.start = -1; }
-    $('vo_spWrap').hidden = !up.length;
-    $('vo_sp').innerHTML = up.map(function (sp) {
+    $('vo_spWrap').hidden = !SPECIAL.length;
+    $('vo_spQ').textContent = CFG.days.length ? 'Or pick a special volunteer day' : 'Pick a special volunteer day';
+    $('vo_sp').innerHTML = SPECIAL.map(function (sp) {
       var d = spDate(sp), on = S.sp === sp.id;
-      return '<button type="button" class="ob-day vo-spday' + (on ? ' on' : '') + '" data-sp="' + sp.id + '" aria-pressed="' + on + '" title="' + esc(sp.note) + '">' +
+      return '<button type="button" class="ob-day vo-spday' + (on ? ' on' : '') + '" data-sp="' + esc(sp.id) + '" aria-pressed="' + on + '" title="' + esc(sp.note) + '">' +
         '<small>' + WD[d.getDay()] + '</small><b>' + d.getDate() + '</b><small>' + MO[d.getMonth()] + '</small><em>' + esc(sp.note.split(':')[0]) + '</em></button>';
     }).join('');
   }
@@ -639,14 +599,14 @@
   }
   function renderTimes() {
     var el = $('vo_times'), note = $('vo_timeNote');
-    if (!S.wd) { el.innerHTML = ''; note.hidden = false; note.className = 'ob-hold'; note.innerHTML = 'Pick a day first, then the start times show here.'; return; }
+    if (!S.wd && !S.sp) { el.innerHTML = ''; note.hidden = false; note.className = 'ob-hold'; note.innerHTML = 'Pick a day first, then the start times show here.'; return; }
     var list = starts();
     if (S.start >= 0 && (list.indexOf(S.start) < 0 || !spots(S.wd, S.start, S.len))) S.start = -1;
     el.innerHTML = list.map(function (t) {
       var n = spots(S.wd, t, S.len), on = t === S.start;
       return '<button type="button" class="ob-tm' + (on ? ' on' : '') + (n ? '' : ' taken') + '" data-start="' + t + '"' + (n ? '' : ' disabled') + (on ? ' aria-pressed="true"' : '') +
         ' aria-label="' + fmt(t) + ', ' + (n ? n + ' spots left' : 'full') + '">' + clock(t) + ' ' + ap(t) + '<small>' + (n ? n + ' left' : 'Full') + '</small></button>';
-    }).join('');
+    }).join('') || '<div class="ob-sub">No start times fit that length. Try a shorter visit.</div>';
     note.hidden = true;
   }
   function renderDates() {
@@ -655,34 +615,54 @@
     if (S.sp) { wrap.hidden = true; return; }
     wrap.hidden = !(S.freq === 'once' && S.wd);
     if (wrap.hidden) return;
-    var ds = nextDates(S.wd);
-    if (!ds.some(function (d) { return key(d) === S.date; })) S.date = '';
+    var ks = nextKeys(S.wd);
+    if (ks.indexOf(S.date) < 0) S.date = '';
     $('vo_datesQ').textContent = 'Pick a ' + WDL[S.wd];
-    $('vo_dates').innerHTML = ds.map(function (d) {
-      var k = key(d);
+    $('vo_dates').innerHTML = ks.map(function (k) {
+      var d = kDate(k);
       return '<button type="button" class="ob-day' + (k === S.date ? ' on' : '') + '" data-date="' + k + '" aria-pressed="' + (k === S.date) + '">' +
         '<small>' + WD[d.getDay()] + '</small><b>' + d.getDate() + '</b><small>' + MO[d.getMonth()] + '</small></button>';
     }).join('');
   }
-  function pickedDate() { if (S.sp && spById(S.sp)) return spDate(spById(S.sp)); var ds = S.wd ? nextDates(S.wd) : []; for (var i = 0; i < ds.length; i++) if (key(ds[i]) === S.date) return ds[i]; return null; }
+  function pickedKey() { var sp = S.sp && spById(S.sp); if (sp) return sp.date; return S.freq === 'once' ? S.date : ''; }
   function whenText() {
-    if (!S.wd || S.start < 0) return '';
+    if ((!S.wd && !S.sp) || S.start < 0) return '';
     var r = range(S.start, S.start + S.len);
-    if (S.sp || S.freq === 'once') { var d = pickedDate(); return d ? short(d) + ', ' + r : ''; }
+    if (S.sp || S.freq === 'once') { var k = pickedKey(); return k ? short(kDate(k)) + ', ' + r : ''; }
     return WDL[S.wd] + 's, ' + r;
   }
   function renderSummary() {
     var s = $('vo_summary'), w = whenText();
     s.hidden = !w;
-    if (w) s.innerHTML = '<b>' + w + '</b>' + (S.sp ? 'Special volunteer day: ' + esc(spById(S.sp).note) + '.' : S.freq === 'weekly' ? 'Every week, starting ' + short(nextDates(S.wd)[0]) + '.' : 'Just this once.') + ' ' + lenLabel(S.len) + ' at the LDAH office.';
+    if (w) s.innerHTML = '<b>' + w + '</b>' + (S.sp ? 'Special volunteer day: ' + esc(spById(S.sp).note) + '.' : S.freq === 'weekly' ? 'Every week, starting ' + short(kDate(nextKeys(S.wd)[0])) + '.' : 'Just this once.') + ' ' + lenLabel(S.len) + ' at the LDAH office.';
     var go = $('vo_go');
     go.disabled = !w;
     go.textContent = w ? 'Sign me up' : (S.wd && S.start >= 0 && S.freq === 'once' ? 'Pick a date above' : 'Pick a day and time above');
   }
-  function renderAll() { renderDays(); renderDurs(); renderTimes(); renderDates(); renderSummary(); }
+  function renderAll() { renderHours(); renderDays(); renderDurs(); renderTimes(); renderDates(); renderSummary(); }
 
+  /* ── Load ──────────────────────────────────────────────────────── */
+  function load() {
+    return call('officeVolunteerSchedule', {}).then(function (r) {
+      CFG.days = (r.openDays || []).slice().sort();
+      CFG.from = toMin(r.from); CFG.to = toMin(r.to); CFG.max = r.maxAtOnce || 1;
+      CFG.tasks = r.tasks || []; CFG.weeks = r.onceWeeks || 8; CFG.today = r.today;
+      SPECIAL = (r.special || []).map(function (d) { return { id: d.id, date: d.date, from: toMin(d.from), to: toMin(d.to), max: d.max || 1, note: d.note || '' }; });
+      BOOK = (r.bookings || []).map(function (b) { return { kind: b.kind, weekday: b.weekday, date: b.date, specialDayId: b.specialDayId, start: toMin(b.start), len: b.minutes }; });
+      return !!r.open;
+    });
+  }
+  function showState(state) {
+    $('vo_loading').hidden = state !== 'loading';
+    $('vo_closed').hidden = state !== 'closed';
+    $('vo_form').hidden = state !== 'open';
+  }
+
+  /* ── Sign up ───────────────────────────────────────────────────── */
   function val(id) { return String($(id).value || '').trim(); }
+  var busy = false;
   function submit() {
+    if (busy) return;
     var miss = [], ids = S.who === 'known' ? ['vo_email'] : ['vo_email', 'vo_first', 'vo_last', 'vo_phone'];
     document.querySelectorAll('.ob-missing').forEach(function (e) { e.classList.remove('ob-missing'); });
     ids.forEach(function (id) { if (!val(id)) { miss.push(id); $(id).classList.add('ob-missing'); } });
@@ -690,43 +670,72 @@
     var err = $('vo_err');
     if (miss.length) { err.hidden = false; err.textContent = 'Please fill in the boxes marked in red.'; $(miss[0]).focus(); return; }
     err.hidden = true;
-    var name = S.who === 'known' ? '' : val('vo_first');
-    var picked = Object.keys(S.tasks).filter(function (k) { return S.tasks[k]; });
-    $('vo_doneWhen').innerHTML = 'You&rsquo;re set for ' + whenText();
-    $('vo_doneText').innerHTML = (name ? esc(name) + ', w' : 'W') + (!S.sp && S.freq === 'weekly'
-      ? 'e&rsquo;ll see you every ' + WDL[S.wd] + ', starting ' + short(nextDates(S.wd)[0]) + '. A confirmation would go to ' + esc(val('vo_email')) + '.'
-      : 'e&rsquo;ll see you on ' + short(pickedDate()) + '. A confirmation would go to ' + esc(val('vo_email')) + '.');
-    $('vo_doneTasks').textContent = 'We’ll have a task ready for you when you arrive: ' + CFG.tasks.map(function (t) { return t.name.toLowerCase(); }).join(', ') + '.';
-    $('vo_calNote').hidden = true;
-    $('vo_form').hidden = true; S.doneShown = true;
-    var done = $('vo_done'); done.hidden = false;
-    done.scrollIntoView({ behavior: 'smooth', block: 'start' }); done.focus({ preventScroll: true });
+    var sp = S.sp && spById(S.sp);
+    var payload = {
+      kind: sp ? 'special' : S.freq, weekday: S.wd, date: sp ? sp.date : (S.freq === 'once' ? S.date : ''),
+      specialDayId: sp ? sp.id : '', start: hhmm(S.start), minutes: S.len,
+      email: val('vo_email'), isNew: S.who !== 'known', firstName: S.who === 'known' ? '' : val('vo_first'),
+      lastName: S.who === 'known' ? '' : val('vo_last'), phone: S.who === 'known' ? '' : val('vo_phone'), notes: val('vo_notes'),
+      src: (new URLSearchParams(location.search).get('src') || '').slice(0, 40)
+    };
+    var when = whenText(), go = $('vo_go');
+    busy = true; go.disabled = true; go.textContent = 'Signing you up…';
+    call('officeVolunteerSignUp', payload).then(function () {
+      busy = false;
+      var name = S.who === 'known' ? '' : val('vo_first');
+      $('vo_doneWhen').innerHTML = 'You&rsquo;re set for ' + when;
+      $('vo_doneText').innerHTML = (name ? esc(name) + ', w' : 'W') + (!sp && S.freq === 'weekly'
+        ? 'e&rsquo;ll see you every ' + WDL[S.wd] + ', starting ' + short(kDate(nextKeys(S.wd)[0])) + '.'
+        : 'e&rsquo;ll see you on ' + short(kDate(pickedKey())) + '.');
+      $('vo_doneTasks').textContent = sp ? 'That day we’ll be working on: ' + sp.note + '.' : 'We’ll have a task ready for you when you arrive: ' + CFG.tasks.map(function (t) { return t.name.toLowerCase(); }).join(', ') + '.';
+      S.done = { key: pickedKey(), weekly: !sp && S.freq === 'weekly', wd: S.wd, start: S.start, len: S.len, note: sp ? sp.note : '' };
+      $('vo_form').hidden = true;
+      var done = $('vo_done'); done.hidden = false;
+      done.scrollIntoView({ behavior: 'smooth', block: 'start' }); done.focus({ preventScroll: true });
+      load().then(renderAll).catch(function () {});
+    }).catch(function (e) {
+      busy = false;
+      err.hidden = false; err.textContent = e.message || 'Something went wrong. Please try again, or call (808) 536-9684.';
+      load().then(renderAll).catch(function () {});
+    });
   }
 
+  /* ── Add to calendar ───────────────────────────────────────────── */
+  var PLACE = 'LDAH office, 245 N. Kukui St. Ste. 205, Honolulu, HI 96817';
+  function utcStamp(k, m) { var a = k.split('-'), d = new Date(Date.UTC(+a[0], +a[1] - 1, +a[2], 0, m) + 10 * 3600e3); return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); }
+  function calDates() { var D = S.done, k = D.key || nextKeys(D.wd)[0]; return { a: utcStamp(k, D.start), b: utcStamp(k, D.start + D.len) }; }
+  function calTitle() { return 'Volunteering at LDAH' + (S.done.note ? ': ' + S.done.note : ''); }
+  function addCal(kind) {
+    if (!S.done) return;
+    var c = calDates(), rr = S.done.weekly ? 'RRULE:FREQ=WEEKLY' : '';
+    var details = 'Please check in at the front desk. Need to change your day? Call (808) 536-9684.';
+    if (kind === 'google') {
+      window.open('https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(calTitle()) + '&dates=' + c.a + '/' + c.b +
+        '&details=' + encodeURIComponent(details) + '&location=' + encodeURIComponent(PLACE) + (rr ? '&recur=' + encodeURIComponent(rr) : ''), '_blank', 'noopener');
+      return;
+    }
+    var ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//LDAH//Office volunteering//EN', 'BEGIN:VEVENT',
+      'UID:' + Date.now() + '@ldahawaii.org', 'DTSTAMP:' + new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''),
+      'DTSTART:' + c.a, 'DTEND:' + c.b, 'SUMMARY:' + calTitle().replace(/[,;]/g, '\\$&'), 'LOCATION:' + PLACE.replace(/[,;]/g, '\\$&'),
+      'DESCRIPTION:' + details.replace(/[,;]/g, '\\$&')].concat(rr ? [rr] : []).concat(['END:VEVENT', 'END:VCALENDAR']).join('\r\n');
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
+    a.download = 'ldah-office-volunteering.ics';
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  /* ── Events ────────────────────────────────────────────────────── */
   document.addEventListener('click', function (e) {
     var t = e.target.closest('button'); if (!t) return;
     if (t.dataset.wd) { S.sp = ''; S.wd = +t.dataset.wd; S.date = ''; renderAll(); return; }
     if (t.dataset.sp) { var sp = spById(t.dataset.sp); if (!sp) return; S.sp = sp.id; S.wd = spDate(sp).getDay(); S.date = ''; S.start = -1; renderAll(); return; }
-    if (t.dataset.delsp) { SPECIAL = SPECIAL.filter(function (x) { return x.id !== t.dataset.delsp; }); renderStaff(); renderAll(); return; }
-    if (t.id === 'sp_add') {
-      var dv = val('sp_date'), f = +$('sp_from').value, to = +$('sp_to').value, mx = Math.max(1, Math.min(20, +$('sp_max').value || 1)), nt = val('sp_note'), er = $('sp_err');
-      var today = new Date(); today.setHours(0, 0, 0, 0);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(dv)) { er.textContent = 'Pick a date.'; return; }
-      if (spDate({ date: dv }) < today) { er.textContent = 'That date has passed.'; return; }
-      if (to - f < 60) { er.textContent = 'Make it at least an hour long.'; return; }
-      if (!nt) { er.textContent = 'Say what the day is for.'; return; }
-      er.textContent = '';
-      SPECIAL.push({ id: 'sp' + Date.now(), date: dv, from: f, to: to, max: mx, note: nt });
-      $('sp_date').value = ''; $('sp_note').value = '';
-      renderStaff(); renderAll(); return;
-    }
     if (t.dataset.len) {
       if (t.dataset.len === 'other') { S.other = true; S.len = +$('vo_otherDur').value || OTHER[1]; if (DURS.indexOf(S.len) >= 0) S.len = OTHER[1]; }
       else { S.other = false; S.len = +t.dataset.len; }
       renderAll(); return;
     }
     if (t.dataset.start) { S.start = +t.dataset.start; renderTimes(); renderSummary(); return; }
-    if (t.dataset.date) { S.date = t.dataset.date; renderDates(); renderSummary(); return; }
+    if (t.dataset.date) { S.date = t.dataset.date; renderDates(); renderTimes(); renderSummary(); return; }
     if (t.dataset.who) {
       S.who = t.dataset.who;
       document.querySelectorAll('[data-who]').forEach(function (b) { b.classList.toggle('on', b.dataset.who === S.who); });
@@ -734,64 +743,22 @@
       return;
     }
     if (t.id === 'vo_go') { submit(); return; }
-    if (t.dataset.cal) { var n = $('vo_calNote'); n.hidden = false; n.textContent = 'Mockup: the ' + t.dataset.cal + ' calendar invite is not made yet. The real page would add this ' + (S.freq === 'weekly' ? 'weekly ' : '') + 'visit to your calendar.'; return; }
-    if (t.id === 'vo_again') { S.doneShown = false; $('vo_done').hidden = true; $('vo_form').hidden = false; S.start = -1; S.date = ''; renderAll(); $('vo_days').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
-    if (t.id === 'vo_tabVol' || t.id === 'vo_tabStaff') {
-      var staff = t.id === 'vo_tabStaff';
-      $('vo_tabVol').classList.toggle('on', !staff); $('vo_tabVol').setAttribute('aria-selected', String(!staff));
-      $('vo_tabStaff').classList.toggle('on', staff); $('vo_tabStaff').setAttribute('aria-selected', String(staff));
-      $('vo_staff').hidden = !staff;
-      $('vo_form').hidden = staff || S.doneShown === true;
-      if (staff) $('vo_done').hidden = true; else if (S.doneShown) $('vo_done').hidden = false;
-      return;
-    }
-    if (t.id === 'vo_staffBtn') { var p = $('vo_staff'), open = p.hidden; p.hidden = !open; t.setAttribute('aria-expanded', String(open)); if (open) p.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
-    if (t.dataset.stday) { var w = +t.dataset.stday, i = CFG.days.indexOf(w); if (i >= 0) CFG.days.splice(i, 1); else { CFG.days.push(w); CFG.days.sort(); } renderStaff(); renderAll(); return; }
-    if (t.dataset.deltask != null) { CFG.tasks.splice(+t.dataset.deltask, 1); renderStaff(); renderTasks(); return; }
-    if (t.id === 'st_addTask') { var v = val('st_newTask'); if (v) { CFG.tasks.splice(Math.max(0, CFG.tasks.length - 1), 0, { name: v, note: '' }); $('st_newTask').value = ''; renderStaff(); renderTasks(); } return; }
+    if (t.dataset.cal) { addCal(t.dataset.cal); return; }
+    if (t.id === 'vo_again') { $('vo_done').hidden = true; $('vo_form').hidden = false; S.start = -1; S.date = ''; renderAll(); $('vo_days').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
   });
   document.addEventListener('change', function (e) {
     var t = e.target;
-    if (t.name === 'vo_freq') { S.freq = t.value; renderDates(); renderSummary(); return; }
+    if (t.name === 'vo_freq') { S.freq = t.value; renderDates(); renderTimes(); renderSummary(); return; }
     if (t.id === 'vo_otherDur') { S.len = +t.value; renderAll(); return; }
-    if (t.dataset && t.dataset.task) { S.tasks[t.dataset.task] = t.checked; return; }
-    if (t.id === 'st_from' || t.id === 'st_to') {
-      var f = +$('st_from').value, to = +$('st_to').value;
-      if (to - f < 60) { to = f + 60; }
-      CFG.from = f; CFG.to = to; renderStaff(); renderAll(); return;
-    }
-    if (t.id === 'st_max') { CFG.max = Math.max(1, Math.min(10, +t.value || 1)); renderStaff(); renderAll(); return; }
   });
-  $('st_newTask').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('st_addTask').click(); } });
 
-  /* ── Staff view (mockup) ───────────────────────────────────────── */
-  function renderStaff() {
-    $('st_days').innerHTML = [1, 2, 3, 4, 5].map(function (w) {
-      return '<button type="button" class="ob-chip' + (CFG.days.indexOf(w) >= 0 ? ' on' : '') + '" data-stday="' + w + '" aria-pressed="' + (CFG.days.indexOf(w) >= 0) + '">' + WDL[w] + '</button>';
-    }).join('');
-    var opts = function (lo, hi, sel) { var h = ''; for (var m = lo; m <= hi; m += 30) h += '<option value="' + m + '"' + (m === sel ? ' selected' : '') + '>' + fmt(m) + '</option>'; return h; };
-    $('st_from').innerHTML = opts(7 * 60, 16 * 60, CFG.from);
-    $('st_to').innerHTML = opts(9 * 60, 18 * 60, CFG.to);
-    $('st_max').value = CFG.max;
-    if (!$('sp_from').options.length) { $('sp_from').innerHTML = opts(7 * 60, 17 * 60, 9 * 60); $('sp_to').innerHTML = opts(8 * 60, 18 * 60, 12 * 60); }
-    $('sp_list').innerHTML = SPECIAL.slice().sort(function (a, b) { return a.date.localeCompare(b.date); }).map(function (sp) {
-      return '<div class="vo-sp-row"><b>' + short(spDate(sp)) + '</b> ' + range(sp.from, sp.to) + '<span>' + esc(sp.note) + ' &middot; ' + sp.max + ' needed</span><button type="button" data-delsp="' + sp.id + '" aria-label="Remove this day">Remove</button></div>';
-    }).join('') || '<div class="ob-sub">No special days yet.</div>';
-    $('vo_hoursLine').innerHTML = 'Office hours for volunteers: ' + (CFG.days.length ? CFG.days.map(function (w) { return WDL[w]; }).join(', ') : 'no days open') + ', ' + range(CFG.from, CFG.to) + ' (Hawaiʻi time). Up to ' + CFG.max + ' volunteer' + (CFG.max === 1 ? '' : 's') + ' at a time.';
-    $('st_tasks').innerHTML = CFG.tasks.map(function (t, i) {
-      return '<span class="vo-chipx">' + esc(t.name) + '<button type="button" data-deltask="' + i + '" aria-label="Remove ' + esc(t.name) + '">&times;</button></span>';
-    }).join('');
-    $('st_week').innerHTML = [1, 2, 3, 4, 5].map(function (w) {
-      var open = CFG.days.indexOf(w) >= 0;
-      var rows = SAMPLE.filter(function (b) { return b.wd === w; }).sort(function (a, b) { return a.start - b.start; });
-      return '<div class="vo-col' + (open ? '' : ' closed') + '"><h4>' + WDL[w] + (open ? '' : ' (closed)') + '</h4>' +
-        (rows.length ? rows.map(function (b) {
-          return '<div class="vo-slot' + (b.once ? ' once' : '') + '"><b>' + range(b.start, b.start + b.len) + '</b>' + esc(b.name) + '</div>';
-        }).join('') : '<div class="vo-empty">Nobody yet</div>') + '</div>';
-    }).join('');
-  }
-
-  renderTasks(); renderStaff(); renderAll();
+  showState('loading');
+  load().then(function (open) {
+    if (!open) { showState('closed'); return; }
+    var want = new URLSearchParams(location.search).get('day');
+    if (want && spById(want)) { var sp = spById(want); S.sp = sp.id; S.wd = spDate(sp).getDay(); }
+    renderTasks(); renderAll(); showState('open');
+  }).catch(function () { showState('closed'); $('vo_closedMsg').textContent = 'We couldn’t load the schedule just now. Please refresh, or call the office at (808) 536-9684.'; });
 })();
 </script>
 
