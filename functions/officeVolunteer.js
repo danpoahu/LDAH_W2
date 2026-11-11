@@ -173,6 +173,7 @@ function build() {
   const officeVolunteerSignUp = functions
     .runWith({ timeoutSeconds: 30, maxInstances: 5 })
     .https.onCall(async (data, context) => {
+      if ((data || {}).warm === true) return { warm: true };   // page load: wake the function so Sign me up is quick
       const p = data || {};
       const db = admin.firestore();
       const FieldValue = admin.firestore.FieldValue;

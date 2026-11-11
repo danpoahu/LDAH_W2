@@ -758,6 +758,7 @@
     var want = new URLSearchParams(location.search).get('day');
     if (want && spById(want)) { var sp = spById(want); S.sp = sp.id; S.wd = spDate(sp).getDay(); }
     renderTasks(); renderAll(); showState('open');
+    call('officeVolunteerSignUp', { warm: true }).catch(function () {});   /* wake it so Sign me up is quick */
   }).catch(function () { showState('closed'); $('vo_closedMsg').textContent = 'We couldn’t load the schedule just now. Please refresh, or call the office at (808) 536-9684.'; });
 })();
 </script>
