@@ -2100,5 +2100,154 @@
   })();
   </script>
 
+
+  <!-- In-office help modal (live 2026-11-12, from STAGE): opens every time this page loads
+       while DAN has office days open. Its own class names so it never collides
+       with the page's other modals. -->
+  <style>
+    .voom { position: fixed; inset: 0; z-index: 10050; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(15,23,42,.5); backdrop-filter: blur(3px); }
+    .voom.on { display: flex; }
+    .voom [hidden] { display: none !important; }
+    .voom-card { position: relative; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; background: #fff; border-radius: 18px; box-shadow: 0 20px 50px rgba(15,23,42,.3); font-family: 'Outfit', system-ui, sans-serif; }
+    .voom-top { background: linear-gradient(135deg, #ECFEFF 0%, #FFFBEB 100%); border-bottom: 1px solid rgba(8,145,178,.15); padding: 22px 24px 16px; border-radius: 18px 18px 0 0; }
+    .voom-top h2 { margin: 0 0 6px; font-size: 1.45rem; color: #0E7490; font-family: inherit; }
+    .voom-top p { margin: 0; color: #475569; line-height: 1.55; font-size: .98rem; }
+    .voom-x { position: absolute; top: 10px; right: 12px; width: 36px; height: 36px; border: 0; border-radius: 50%; background: rgba(255,255,255,.8); color: #334155; font-size: 1.5rem; line-height: 1; cursor: pointer; }
+    .voom-x:hover { background: #fff; }
+    .voom-body { padding: 16px 24px 22px; }
+    .voom-when { display: flex; flex-direction: column; gap: 8px; margin: 0 0 16px; }
+    .voom-pill { display: block; padding: 10px 14px; background: #fff; border: 1px solid rgba(8,145,178,.25); border-radius: 12px; font-size: .95rem; font-weight: 600; color: #0F172A; text-decoration: none; }
+    .voom-pill small { display: block; font-weight: 500; color: #64748B; font-size: .82rem; margin-top: 2px; }
+    a.voom-pill.sp { border-color: #7C3AED; color: #5B21B6; }
+    a.voom-pill.sp:hover { background: #F5F3FF; }
+    .voom-acts { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .voom-go { display: inline-block; padding: 12px 22px; background: #0891B2; color: #fff; border-radius: 12px; font-weight: 700; font-size: 1rem; text-decoration: none; box-shadow: 0 4px 14px rgba(8,145,178,.25); }
+    .voom-go:hover { background: #0E7490; }
+    .voom-later { padding: 12px 16px; border: 0; background: none; color: #64748B; font: inherit; font-weight: 600; cursor: pointer; }
+    .voom-later:hover { color: #0F172A; }
+    .voom-reqlink { display: inline-block; margin-top: 14px; padding: 0; border: 0; background: none; color: #0E7490; font: inherit; font-weight: 600; font-size: .92rem; text-decoration: underline; cursor: pointer; }
+    .voom-req { margin-top: 14px; padding-top: 14px; border-top: 1px solid #E2E8F0; }
+    .voom-req h3 { margin: 0 0 4px; font-size: 1.05rem; color: #0F172A; font-family: inherit; }
+    .voom-req > p { margin: 0 0 10px; color: #64748B; font-size: .88rem; }
+    .voom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .voom-grid .full { grid-column: 1 / -1; }
+    .voom-req label { display: block; font-size: .84rem; font-weight: 600; color: #334155; }
+    .voom-req label b { color: #DC2626; }
+    .voom-req input, .voom-req select, .voom-req textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; padding: 9px 10px; border: 1px solid #CBD5E1; border-radius: 9px; font: inherit; font-size: .95rem; background: #fff; color: #0F172A; }
+    .voom-req textarea { min-height: 64px; resize: vertical; }
+    .voom-msg { min-height: 1.2em; margin: 10px 0 0; font-size: .88rem; color: #B91C1C; }
+    .voom-done { padding: 14px; background: #ECFDF3; border: 1px solid #A7F3D0; border-radius: 12px; color: #065F46; font-size: .95rem; line-height: 1.5; }
+    @media (max-width: 640px) { .voom-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 640px) { .voom-top { padding: 20px 18px 14px; } .voom-body { padding: 14px 18px 18px; } .voom-go { flex: 1; text-align: center; } }
+  </style>
+  <div class="voom" id="voOfficeModal" role="dialog" aria-modal="true" aria-labelledby="voOfficeModalTitle">
+    <div class="voom-card">
+      <button type="button" class="voom-x" id="voOfficeModalX" aria-label="Close">&times;</button>
+      <div class="voom-top">
+        <h2 id="voOfficeModalTitle">Help in our office</h2>
+        <p>Give an hour or two at the LDAH office in Honolulu: filing, brochure folders, event prep and mailings. Pick a day and a time that suits you.</p>
+      </div>
+      <div class="voom-body">
+        <div class="voom-when" id="voOfficeModalWhen"></div>
+        <div class="voom-acts">
+          <a class="voom-go" id="voOfficeModalGo" href="volunteer-office.html?src=volunteer-page">Sign up for office help</a>
+          <button type="button" class="voom-later" id="voOfficeModalLater">Not now</button>
+        </div>
+        <button type="button" class="voom-reqlink" id="voReqOpen" hidden>Don’t see a day that works? Request a different day</button>
+        <form class="voom-req" id="voReq" hidden novalidate>
+          <h3>Request a different day</h3>
+          <p>Tell us the day you’d like and we’ll get back to you.</p>
+          <div class="voom-grid">
+            <label>First name <b>*</b><input id="voReqFirst" autocomplete="given-name" maxlength="60" required></label>
+            <label>Last name <b>*</b><input id="voReqLast" autocomplete="family-name" maxlength="60" required></label>
+            <label>Email <b>*</b><input id="voReqEmail" type="email" autocomplete="email" maxlength="200" required></label>
+            <label>Phone<input id="voReqPhone" type="tel" autocomplete="tel" maxlength="30"></label>
+            <label>Day you’d like <b>*</b><input id="voReqDate" type="date" required></label>
+            <label>Time of day<select id="voReqTod"><option value="either">Any time</option><option value="morning">Morning</option><option value="afternoon">Afternoon</option></select></label>
+            <label class="full">Anything we should know<textarea id="voReqNotes" maxlength="600"></textarea></label>
+          </div>
+          <p class="voom-msg" id="voReqMsg" role="alert"></p>
+          <div class="voom-acts"><button type="submit" class="voom-go" id="voReqSend" style="border:0;cursor:pointer;font-family:inherit;">Send my request</button></div>
+        </form>
+        <div class="voom-done" id="voReqDone" hidden></div>
+      </div>
+    </div>
+  </div>
+  <script>
+  (function () {
+    var OB = '', OS = 'volunteer-page';
+    var WDL = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
+    var MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    function esc(t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+    function t12(h) { var a = String(h).split(':'), H = +a[0], M = a[1] || '00'; return (H % 12 || 12) + (M === '00' ? '' : ':' + M) + (H < 12 ? ' am' : ' pm'); }
+    var m = document.getElementById('voOfficeModal'), lastFocus = null;
+    function close() { m.classList.remove('on'); document.removeEventListener('keydown', onKey); if (lastFocus && lastFocus.focus) lastFocus.focus(); }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    document.getElementById('voOfficeModalX').onclick = close;
+    document.getElementById('voOfficeModalLater').onclick = close;
+    m.addEventListener('click', function (e) { if (e.target === m) close(); });
+    var FN = 'https://us-central1-ldah-932d5.cloudfunctions.net/';
+    function call(name, data) {
+      return fetch(FN + name, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: data }) })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { if (j.error) throw new Error(j.error.message || 'Something went wrong.'); return j.result; });
+    }
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+    function dayKey(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+    var g = function (id) { return document.getElementById(id); };
+    g('voReqOpen').onclick = function () {
+      g('voReqOpen').hidden = true; g('voReq').hidden = false;
+      var t = new Date(); t.setDate(t.getDate() + 1); g('voReqDate').min = dayKey(t);
+      var mx = new Date(); mx.setDate(mx.getDate() + 180); g('voReqDate').max = dayKey(mx);
+      g('voReqFirst').focus();
+      call('officeVolunteerRequestDay', { warm: true }).catch(function () {});
+    };
+    g('voReq').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var v = function (id) { return (g(id).value || '').trim(); }, msg = g('voReqMsg');
+      if (!v('voReqFirst') || !v('voReqLast')) { msg.textContent = 'Please enter your first and last name.'; return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v('voReqEmail'))) { msg.textContent = 'Please enter a full email address, like name@example.com.'; return; }
+      if (!v('voReqDate')) { msg.textContent = 'Pick the day you would like.'; return; }
+      if (v('voReqDate') < g('voReqDate').min || v('voReqDate') > g('voReqDate').max) { msg.textContent = 'Pick a day from tomorrow up to 6 months ahead.'; return; }
+      msg.textContent = ''; g('voReqSend').disabled = true; g('voReqSend').textContent = 'Sending…';
+      call('officeVolunteerRequestDay', { firstName: v('voReqFirst'), lastName: v('voReqLast'), email: v('voReqEmail'), phone: v('voReqPhone'),
+        date: v('voReqDate'), timeOfDay: v('voReqTod'), notes: v('voReqNotes'), src: OS })
+        .then(function () {
+          var a = v('voReqDate').split('-'), dt = new Date(+a[0], +a[1] - 1, +a[2], 12);
+          g('voReq').hidden = true; g('voReqDone').hidden = false;
+          g('voReqDone').innerHTML = '<b>Mahalo, ' + esc(v('voReqFirst')) + '!</b> We got your request for ' + WD[dt.getDay()] + ', ' + MO[dt.getMonth()] + ' ' + dt.getDate() + '. Someone from LDAH will be in touch to set it up.';
+        })
+        .catch(function (err) { msg.textContent = err.message || 'Something went wrong. Please call the office at (808) 536-9684.'; g('voReqSend').disabled = false; g('voReqSend').textContent = 'Send my request'; });
+    });
+    fetch('https://us-central1-ldah-932d5.cloudfunctions.net/officeVolunteerSchedule', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: {} })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      var x = j && j.result; if (!x || !(x.open || x.allowRequests)) return;
+      if (x.allowRequests) g('voReqOpen').hidden = false;
+      if (!x.open) {
+        /* Nothing posted, but requests are on: lead with the request form. */
+        g('voOfficeModalGo').hidden = true;
+        g('voReqOpen').textContent = 'Request a day to help';
+      }
+      var html = '';
+      if (x.weekdaysOpen && (x.openDays || []).length) {
+        html += '<span class="voom-pill">' + x.openDays.map(function (d) { return WDL[d]; }).join(', ') + '<small>' + t12(x.from) + ' to ' + t12(x.to) + ', every week or just once</small></span>';
+      }
+      (x.special || []).slice(0, 6).forEach(function (d) {
+        var a = d.date.split('-'), dt = new Date(+a[0], +a[1] - 1, +a[2], 12);
+        html += '<a class="voom-pill sp" href="' + OB + 'volunteer-office.html?day=' + encodeURIComponent(d.id) + '&src=' + OS + '">' + WD[dt.getDay()] + ', ' + MO[dt.getMonth()] + ' ' + dt.getDate() + ' &middot; ' + t12(d.from) + ' to ' + t12(d.to) + '<small>' + esc(d.note) + '</small></a>';
+      });
+      document.getElementById('voOfficeModalWhen').innerHTML = html;
+      /* Never stack on top of another dialog already open (an application
+         deep link, say). */
+      if (document.querySelector('.modal.active, .modal.show, [role="dialog"][aria-hidden="false"]')) return;
+      lastFocus = document.activeElement;
+      m.classList.add('on');
+      document.addEventListener('keydown', onKey);
+      (x.open ? g('voOfficeModalGo') : g('voReqOpen')).focus();
+    }).catch(function (e) { console.warn('[office help]', e); });
+  })();
+  </script>
 </body>
 </html>
