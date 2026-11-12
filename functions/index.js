@@ -33884,18 +33884,36 @@ exports.onUserRoleRevoked = functions
    closed automatically when nothing is left to assign. */
 const CASE_MGMT_ASSIGN_STEP = "assignCaseMgmt";
 const CASE_MGMT_ASSIGN_SCHOOL_STEP = "assignCaseMgmtSchool";
+// Same test as LDAH-Int's _pcReachable: a real phone (7+ digits, not a placeholder) or a real email.
+function _caseMgmtReachable(x) {
+  const ph = String((x && x.phone) || "").replace(/\D/g, "");
+  const okPh = ph.length >= 7 && !/^(\d)\1+$/.test(ph) && ph.indexOf("1234567") === -1;
+  const em = String((x && x.email) || "").trim().toLowerCase();
+  const okEm = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em) && !/^(no|none|noemail|na|n\/a)@/.test(em);
+  return okPh || okEm;
+}
 async function _syncCaseMgmtAssignTask() {
   const db = admin.firestore();
   const cases = await db.collection("interactions").where("workflowStep", "==", "caseAdvocacy").get();
   let n = 0;
   const waiting = new Set();
-  cases.forEach((d) => {
+  /* Only families staff can reach (Daniel 2026-11-12): no real phone and no real
+     email means no staff member yet, the same as the Case Management report's
+     "No staff assigned" (its _pcReachable). They count once someone adds one. */
+  const cand = cases.docs.filter((d) => { const x = d.data() || {};
+    return x.status === "Open" && x.serviceLevel === "management" && x.needsAdvocateAssignment === true && !x.partnerIsland; });
+  const cids = [...new Set(cand.map((d) => (d.data() || {}).contactId).filter(Boolean))];
+  const reach = {};
+  for (let i = 0; i < cids.length; i += 200) {
+    const snaps = await db.getAll(...cids.slice(i, i + 200).map((id) => db.collection("contacts").doc(id)));
+    snaps.forEach((c) => { reach[c.id] = c.exists && _caseMgmtReachable(c.data() || {}); });
+  }
+  cand.forEach((d) => {
     const x = d.data() || {};
-    if (x.status === "Open" && x.serviceLevel === "management" && x.needsAdvocateAssignment === true && !x.partnerIsland) {
-      waiting.add(d.id);
-      // A school batch has its own task (below), so it is not counted twice.
-      if (!x.assignBatch) n++;
-    }
+    if (!reach[x.contactId]) return;
+    waiting.add(d.id);
+    // A school batch has its own task (below), so it is not counted twice.
+    if (!x.assignBatch) n++;
   });
   /* School screening batches (Daniel 2026-10-29): one task per school, holding
      its case ids. Recounted with the main task; closed when none wait. */
@@ -34029,7 +34047,12 @@ async function _syncLionsParentContactTasks() {
 exports.sweepLionsParentContactTasks = functions
   .runWith({ timeoutSeconds: 120, maxInstances: 1 })
   .pubsub.schedule("every 30 minutes").timeZone("Pacific/Honolulu")
-  .onRun(async () => { try { await _syncLionsParentContactTasks(); } catch (e) { console.error("sweepLionsParentContactTasks:", e.message); } return null; });
+  .onRun(async () => {
+    try { await _syncLionsParentContactTasks(); } catch (e) { console.error("sweepLionsParentContactTasks:", e.message); }
+    // Contact details added on the card bring a family into the assign count.
+    try { await _syncCaseMgmtAssignTask(); } catch (e) { console.error("sweepLionsParentContactTasks: assign count:", e.message); }
+    return null;
+  });
 
 /* Missing screening consent -> task for the school's lead (Daniel 2026-10-28).
    A child at a screening location (school paper, kiosk, online) with no signed
