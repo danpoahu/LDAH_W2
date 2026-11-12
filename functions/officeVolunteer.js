@@ -18,6 +18,13 @@
 //                                         firstName, lastName, phone, notes,
 //                                         isNew, volunteerId, status active|cancelled,
 //                                         createdAt, cancelledAt, cancelledBy }
+//   officeVolunteerDayRequests/{id}     { date, timeOfDay morning|afternoon|either, email,
+//                                         firstName, lastName, phone, notes, volunteerId,
+//                                         status new|added|declined, createdAt, source,
+//                                         handledAt, handledBy, specialDayId }
+//     (2026-11-12) A volunteer asks for a special day when none listed suits
+//     them. Only while settings.allowRequests is on. Staff turn a request into
+//     a special day, or dismiss it, from DAN.
 //
 // Capacity is counted per half hour: a booking holds every 30-minute block
 // from its start to its end, and no block may go over the limit (maxAtOnce for
@@ -35,6 +42,8 @@ const crypto = require("crypto");
 const SETTINGS = "officeVolunteerSettings";
 const DAYS = "officeVolunteerSpecialDays";
 const SIGNUPS = "officeVolunteerSignups";
+const REQUESTS = "officeVolunteerDayRequests";
+const TIME_OF_DAY = ["morning", "afternoon", "either"];
 const RATE = "volunteerLinkRequests";          // shared server-only rate-limit counters
 const STAFF_ROLES = ["superAdmin", "admin", "webAdmin", "appAdmin"];
 const DEFAULT_TASKS = [
@@ -87,6 +96,7 @@ function normSettings(x) {
     to: isNaN(toMin(s.to)) ? "16:30" : s.to,
     maxAtOnce: Math.max(1, Math.min(20, parseInt(s.maxAtOnce, 10) || 3)),
     tasks,
+    allowRequests: s.allowRequests === true,
   };
 }
 
@@ -138,6 +148,21 @@ function build() {
     return { today, settings, special, bookings, setSnap };
   }
 
+  // Light rate limit per IP, shared by the public calls.
+  async function rateOk(db, context, perHour) {
+    const req = context && context.rawRequest;
+    const ip = req ? String((req.headers && req.headers["x-forwarded-for"]) || req.ip || "").split(",")[0].trim() : "";
+    if (!ip) return true;
+    const ref = db.collection(RATE).doc("o_" + sha(ip));
+    return db.runTransaction(async (tx) => {
+      const s = await tx.get(ref); const x = s.exists ? s.data() : {};
+      const now = Date.now(); const fresh = !x.windowStart || now - x.windowStart > 3600e3;
+      const count = fresh ? 1 : (x.count || 0) + 1;
+      tx.set(ref, { windowStart: fresh ? now : x.windowStart, count });
+      return count <= perHour;
+    });
+  }
+
   async function requireStaff(db, context) {
     if (!context.auth) throw new HttpsError("unauthenticated", "Please sign in.");
     const snap = await db.collection("userRoles").doc(context.auth.uid).get();
@@ -163,6 +188,7 @@ function build() {
         openDays: weekdaysOpen ? settings.openDays : [],
         from: settings.from, to: settings.to, maxAtOnce: settings.maxAtOnce,
         tasks: settings.tasks,
+        allowRequests: settings.allowRequests,
         special,
         bookings: bookings.map(publicBooking),
         onceWeeks: ONCE_WEEKS,
@@ -194,19 +220,7 @@ function build() {
       if (isNaN(startMin) || startMin % 30 !== 0) throw new HttpsError("invalid-argument", "Pick a start time.");
 
       // Light rate limit per IP: 10 sign-ups an hour.
-      const req = context && context.rawRequest;
-      const ip = req ? String((req.headers && req.headers["x-forwarded-for"]) || req.ip || "").split(",")[0].trim() : "";
-      if (ip) {
-        const ref = db.collection(RATE).doc("o_" + sha(ip));
-        const ok = await db.runTransaction(async (tx) => {
-          const s = await tx.get(ref); const x = s.exists ? s.data() : {};
-          const now = Date.now(); const fresh = !x.windowStart || now - x.windowStart > 3600e3;
-          const count = fresh ? 1 : (x.count || 0) + 1;
-          tx.set(ref, { windowStart: fresh ? now : x.windowStart, count });
-          return count <= 10;
-        });
-        if (!ok) throw new HttpsError("resource-exhausted", "Too many sign-ups from this connection. Please call the office at (808) 536-9684.");
-      }
+      if (!(await rateOk(db, context, 10))) throw new HttpsError("resource-exhausted", "Too many sign-ups from this connection. Please call the office at (808) 536-9684.");
 
       // Match an accepted volunteer by email (never revealed to the caller).
       // A returning volunteer gives only their email; their name comes from the roster.
@@ -265,6 +279,40 @@ function build() {
       return { ok: true, id: result.id, end: fromMin(startMin + minutes) };
     });
 
+  // ── Public: ask for a special day (2026-11-12) ───────────────────────────
+  const officeVolunteerRequestDay = functions
+    .runWith({ timeoutSeconds: 30, maxInstances: 5 })
+    .https.onCall(async (data, context) => {
+      if ((data || {}).warm === true) return { warm: true };
+      const p = data || {};
+      const db = admin.firestore();
+      const FieldValue = admin.firestore.FieldValue;
+      const setSnap = await db.collection(SETTINGS).doc("main").get();
+      if (!normSettings(setSnap.exists ? setSnap.data() : null).allowRequests) {
+        throw new HttpsError("failed-precondition", "Day requests aren't open right now. Please call the office at (808) 536-9684.");
+      }
+      const email = normEmail(cleanText(p.email, 200));
+      if (!validEmail(email)) throw new HttpsError("invalid-argument", "Please enter a full email address, like name@example.com.");
+      const firstName = cleanText(p.firstName, 60), lastName = cleanText(p.lastName, 60), phone = cleanText(p.phone, 30);
+      if (!firstName || !lastName) throw new HttpsError("invalid-argument", "Please enter your first and last name.");
+      const date = cleanText(p.date, 10), today = hstToday();
+      if (!validDate(date)) throw new HttpsError("invalid-argument", "Pick the day you would like.");
+      if (!(date > today && date <= addDays(today, 180))) throw new HttpsError("invalid-argument", "Pick a day from tomorrow up to 6 months ahead.");
+      const timeOfDay = TIME_OF_DAY.indexOf(p.timeOfDay) === -1 ? "either" : p.timeOfDay;
+      const notes = cleanText(p.notes, 600);
+      if (!(await rateOk(db, context, 10))) throw new HttpsError("resource-exhausted", "Too many requests from this connection. Please call the office at (808) 536-9684.");
+
+      let volunteerId = "";
+      const vSnap = await db.collection("volunteers").where("status", "==", "accepted").limit(2000).get();
+      vSnap.forEach((s) => { const v = s.data() || {}; if (!volunteerId && !v.archived && normEmail(v.email) === email) volunteerId = s.id; });
+
+      const ref = await db.collection(REQUESTS).add({
+        date, timeOfDay, email, firstName, lastName, phone, notes, volunteerId,
+        status: "new", createdAt: FieldValue.serverTimestamp(), source: cleanText(p.src, 40),
+      });
+      return { ok: true, id: ref.id };
+    });
+
   // ── Staff (DAN): read and change ─────────────────────────────────────────
   const officeVolunteerAdmin = functions
     .runWith({ timeoutSeconds: 30, maxInstances: 5 })
@@ -279,7 +327,7 @@ function build() {
         const s = p.settings || {};
         const from = cleanText(s.from, 5), to = cleanText(s.to, 5);
         if (isNaN(toMin(from)) || isNaN(toMin(to)) || toMin(to) - toMin(from) < 60) throw new HttpsError("invalid-argument", "Office hours must be at least an hour long.");
-        const clean = normSettings({ active: s.active === true, openDays: s.openDays, from, to, maxAtOnce: s.maxAtOnce, tasks: Array.isArray(s.tasks) ? s.tasks : [] });
+        const clean = normSettings({ active: s.active === true, openDays: s.openDays, from, to, maxAtOnce: s.maxAtOnce, tasks: Array.isArray(s.tasks) ? s.tasks : [], allowRequests: s.allowRequests === true });
         await db.collection(SETTINGS).doc("main").set(Object.assign(clean, { updatedAt: FieldValue.serverTimestamp(), updatedBy: who }), { merge: false });
       } else if (action === "addDay") {
         const d = p.day || {};
@@ -290,7 +338,12 @@ function build() {
         if (isNaN(toMin(from)) || isNaN(toMin(to)) || toMin(to) - toMin(from) < 60) throw new HttpsError("invalid-argument", "The day must be at least an hour long.");
         if (!note) throw new HttpsError("invalid-argument", "Say what the day is for.");
         if (!(parseInt(d.max, 10) >= 1)) throw new HttpsError("invalid-argument", "Say how many volunteers you need.");
-        await db.collection(DAYS).add({ date, from, to, note, max, createdAt: FieldValue.serverTimestamp(), createdBy: who });
+        const dayRef = await db.collection(DAYS).add({ date, from, to, note, max, createdAt: FieldValue.serverTimestamp(), createdBy: who });
+        // Made from a volunteer's request: mark that request done.
+        const fromReq = cleanText(p.fromRequestId, 64);
+        if (fromReq && fromReq.indexOf("/") === -1) {
+          await db.collection(REQUESTS).doc(fromReq).set({ status: "added", handledAt: FieldValue.serverTimestamp(), handledBy: who, specialDayId: dayRef.id }, { merge: true });
+        }
       } else if (action === "removeDay") {
         const id = cleanText(p.id, 64);
         if (!id || id.indexOf("/") !== -1) throw new HttpsError("invalid-argument", "Missing day.");
@@ -306,14 +359,32 @@ function build() {
         const id = cleanText(p.id, 64);
         if (!id || id.indexOf("/") !== -1) throw new HttpsError("invalid-argument", "Missing sign-up.");
         await db.collection(SIGNUPS).doc(id).update({ status: "cancelled", cancelledAt: FieldValue.serverTimestamp(), cancelledBy: who });
+      } else if (action === "resolveRequest") {
+        const id = cleanText(p.id, 64);
+        const status = ["declined", "new"].indexOf(p.status) === -1 ? "" : p.status;
+        if (!id || id.indexOf("/") !== -1 || !status) throw new HttpsError("invalid-argument", "Missing request.");
+        await db.collection(REQUESTS).doc(id).set(status === "new"
+          ? { status, handledAt: FieldValue.delete(), handledBy: FieldValue.delete() }
+          : { status, handledAt: FieldValue.serverTimestamp(), handledBy: who }, { merge: true });
       } else if (action !== "get") {
         throw new HttpsError("invalid-argument", "Unknown action.");
       }
 
       const { today, settings, special, bookings, setSnap } = await loadAll(db, true);
       const meta = setSnap.exists ? (setSnap.data() || {}) : {};
+      const ms = (t) => (t && t.toMillis ? t.toMillis() : 0);
+      const reqSnap = await db.collection(REQUESTS).get();
+      const since = Date.now() - 30 * 86400e3;
+      const requests = reqSnap.docs.map((d) => Object.assign({ id: d.id }, d.data()))
+        .filter((r) => r.status === "new" || ms(r.handledAt) >= since)
+        .map((r) => ({
+          id: r.id, date: r.date, timeOfDay: r.timeOfDay || "either", email: r.email, firstName: r.firstName || "", lastName: r.lastName || "",
+          phone: r.phone || "", notes: r.notes || "", volunteerId: r.volunteerId || "", status: r.status || "new",
+          createdAt: ms(r.createdAt), handledAt: ms(r.handledAt), handledBy: r.handledBy || "",
+        }))
+        .sort((a, b) => ((a.status === "new") === (b.status === "new") ? (a.date < b.date ? -1 : 1) : (a.status === "new" ? -1 : 1)));
       return {
-        ok: true, today, settings, special,
+        ok: true, today, settings, special, requests,
         updatedBy: meta.updatedBy || "",
         updatedAt: meta.updatedAt && meta.updatedAt.toMillis ? meta.updatedAt.toMillis() : 0,
         signups: bookings.map((b) => ({
@@ -327,7 +398,7 @@ function build() {
       };
     });
 
-  return { officeVolunteerSchedule, officeVolunteerSignUp, officeVolunteerAdmin };
+  return { officeVolunteerSchedule, officeVolunteerSignUp, officeVolunteerRequestDay, officeVolunteerAdmin };
 }
 
 module.exports = build;

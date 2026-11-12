@@ -6635,6 +6635,14 @@ async function buildDailyReportVolunteers(db, cutoffMs, todayISO, esc) {
   });
   officeToday.sort((a, b) => String(a.start).localeCompare(String(b.start)));
 
+  // Requests for a special day that nobody has dealt with yet.
+  const dayReqs = [];
+  (await db.collection("officeVolunteerDayRequests").where("status", "==", "new").get()).forEach((d) => {
+    const r = d.data();
+    dayReqs.push({ name: nm(r), date: r.date, tod: r.timeOfDay === "morning" ? "morning" : r.timeOfDay === "afternoon" ? "afternoon" : "any time", isNew: ms(r.createdAt) >= cutoffMs });
+  });
+  dayReqs.sort((a, b) => (a.date < b.date ? -1 : 1));
+
   // Help-request confirmations.
   const confirmed = [];
   const reqs = await db.collection("volunteerRequests").get();
@@ -6647,7 +6655,7 @@ async function buildDailyReportVolunteers(db, cutoffMs, todayISO, esc) {
     });
   }
 
-  if (!open.length && !newApps.length && !officeNew.length && !officeCancelled.length && !officeToday.length && !confirmed.length) return null;
+  if (!open.length && !newApps.length && !officeNew.length && !officeCancelled.length && !officeToday.length && !confirmed.length && !dayReqs.length) return null;
 
   const pillC = { New: ["#FEE2E2", "#991B1B"], Interviewing: ["#FEF3C7", "#92400E"], Contacted: ["#E0F2FE", "#075985"] };
   const pill = (t) => { const c = pillC[t] || ["#F1F5F9", "#334155"]; return `<span style="display:inline-block;font-size:11px;font-weight:bold;border-radius:999px;padding:1px 8px;background:${c[0]};color:${c[1]};white-space:nowrap;">${esc(t)}</span>`; };
@@ -6670,10 +6678,15 @@ async function buildDailyReportVolunteers(db, cutoffMs, todayISO, esc) {
   newApps.forEach((a) => news.push(`New application: <b>${esc(a.name)}</b>${a.opp ? " (" + esc(a.opp) + ")" : ""}`));
   officeNew.forEach((b) => news.push(`Signed up for office help: <b>${esc(nm(b))}</b>, ${esc(when(b))}${b.status === "cancelled" ? " (since cancelled)" : ""}${b.isNew ? " &middot; new volunteer" : ""}`));
   officeCancelled.forEach((b) => news.push(`Office help cancelled: <b>${esc(nm(b))}</b>, ${esc(when(b))}${b.cancelReason ? " (" + esc(b.cancelReason) + ")" : ""}`));
+  dayReqs.filter((r) => r.isNew).forEach((r) => news.push(`Asked for an office help day: <b>${esc(r.name)}</b>, ${esc(dayLbl(r.date))}, ${esc(r.tod)}`));
   confirmed.forEach((c) => news.push(`Confirmed for ${esc(c.title)}${c.date ? " (" + esc(c.date) + ")" : ""}: <b>${esc(c.name)}</b>`));
   if (news.length) {
     html += head("New since the last report");
     html += tbl(news.map((t) => row([t, ""])).join(""));
+  }
+  if (dayReqs.length) {
+    html += head(`Office day requests waiting (${dayReqs.length})`);
+    html += tbl(dayReqs.map((r) => row([`<b style="color:#0f172a;">${esc(r.name)}</b>${r.isNew ? ' <span style="font-size:11px;color:#16a34a;font-weight:bold;">new</span>' : ""}`, esc(dayLbl(r.date)) + ", " + esc(r.tod), "add it as a special day or dismiss it in In-Office Help"])).join(""));
   }
   if (officeToday.length) {
     html += head(`In the office today (${officeToday.length})`);
@@ -33821,6 +33834,7 @@ exports.sendVolunteerThankYou = _volunteerThankYou.sendVolunteerThankYou;
 const _officeVolunteer = require("./officeVolunteer")();
 exports.officeVolunteerSchedule = _officeVolunteer.officeVolunteerSchedule;
 exports.officeVolunteerSignUp = _officeVolunteer.officeVolunteerSignUp;
+exports.officeVolunteerRequestDay = _officeVolunteer.officeVolunteerRequestDay;
 exports.officeVolunteerAdmin = _officeVolunteer.officeVolunteerAdmin;
 
 /* ── Revoked staff access (2026-10-07) ─────────────────────────────────────
