@@ -6559,6 +6559,7 @@ function renderTopLevelDailyReport(c) {
   ${sec(c.isMonday ? "This week" : "Today", esc(c.sessNote), sessHtml)}
   ${cycleHtml}
   ${sec("Programs at a glance", c.compareNote, progHtml)}
+  ${c.volunteers ? sec("Volunteers", c.volunteers.note, c.volunteers.html) : ""}
   ${sec(c.isMonday ? "What happened since Friday" : "What happened in the last 24 hours", `${c.changeLines.length} change${c.changeLines.length === 1 ? "" : "s"} &middot; full detail`, chgHtml)}
   ${c.analyticsSummaryHtml ? `
   <tr><td style="padding:0;"><div style="page-break-before:always;line-height:0;font-size:0;">&nbsp;</div></td></tr>
@@ -6569,6 +6570,118 @@ function renderTopLevelDailyReport(c) {
 </table>
 </body>
 </html>`;
+}
+
+// Volunteers section of the LDAH daily report (2026-11-12). Every open
+// application is listed by name until staff accept or decline it, plus what
+// is new since the last report: applications, in-office help sign-ups and
+// cancellations, and help-request confirmations, and who is due in the
+// office today. Returns { html, note } or null when there is nothing to show.
+async function buildDailyReportVolunteers(db, cutoffMs, todayISO, esc) {
+  const ms = (v) => {
+    if (!v) return 0;
+    if (typeof v.toMillis === "function") return v.toMillis();
+    const t = Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? v + "T12:00:00-10:00" : v);
+    return isNaN(t) ? 0 : t;
+  };
+  const hstISO = (m) => new Date(m - 10 * 3600 * 1000).toISOString().slice(0, 10);
+  const dayLbl = (iso) => new Date(iso + "T12:00:00Z").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+  const tm = (hhmm) => {
+    const [h, m] = String(hhmm || "0:0").split(":").map(Number);
+    return ((h % 12) || 12) + ":" + String(m).padStart(2, "0") + (h < 12 ? " am" : " pm");
+  };
+  const span = (b) => {
+    const [h, m] = String(b.start || "0:0").split(":").map(Number);
+    const e = h * 60 + m + (Number(b.minutes) || 60);
+    return tm(b.start) + "–" + tm(Math.floor(e / 60) + ":" + (e % 60));
+  };
+  const WD = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
+  const nm = (o) => (String(o.firstName || "").trim() + " " + String(o.lastName || "").trim()).trim() || o.email || o.name || "Someone";
+
+  const opp = {};
+  (await db.collection("volunteerOpportunities").get()).forEach((d) => { opp[d.id] = String(d.data().title || "").trim(); });
+
+  // Open applications: anything not yet accepted or declined.
+  const CLOSED = ["accepted", "declined", "rejected", "inactive", "withdrawn", "archived"];
+  const STAGE = { new: "New", pending: "New", contacted: "Contacted", interviewing: "Interviewing" };
+  const ORDER = { New: 0, Interviewing: 1, Contacted: 2 };
+  const open = [], newApps = [];
+  (await db.collection("volunteers").get()).forEach((d) => {
+    const v = d.data();
+    const st = String(v.status || "new").toLowerCase();
+    const at = ms(v.submittedAt || v.createdAt);
+    if (at && at >= cutoffMs) newApps.push({ name: nm(v), opp: opp[v.opportunityId] || v.subject || "" });
+    if (CLOSED.includes(st)) return;
+    const stage = STAGE[st] || (st.charAt(0).toUpperCase() + st.slice(1));
+    open.push({ name: nm(v), opp: opp[v.opportunityId] || v.subject || "", stage, at, isNew: at >= cutoffMs });
+  });
+  open.sort((a, b) => ((ORDER[a.stage] ?? 3) - (ORDER[b.stage] ?? 3)) || (a.at - b.at));
+
+  // In-office help sign-ups.
+  const officeNew = [], officeCancelled = [], officeToday = [];
+  const todayWd = new Date(todayISO + "T12:00:00Z").getUTCDay();
+  const when = (b) => b.kind === "weekly" ? "every " + WD[b.weekday].slice(0, -1) + ", " + span(b)
+    : (b.kind === "special" ? "special day " : "") + dayLbl(b.date) + ", " + span(b) + (b.kind === "special" && b.specialNote ? " (" + b.specialNote + ")" : "");
+  (await db.collection("officeVolunteerSignups").get()).forEach((d) => {
+    const b = d.data();
+    const made = ms(b.createdAt);
+    if (made >= cutoffMs) officeNew.push(b);
+    if (b.status === "cancelled") {
+      if (ms(b.cancelledAt) >= cutoffMs && made < cutoffMs) officeCancelled.push(b);
+      return;
+    }
+    const dueToday = b.kind === "weekly" ? (b.weekday === todayWd && made && hstISO(made) < todayISO) : b.date === todayISO;
+    if (dueToday) officeToday.push(b);
+  });
+  officeToday.sort((a, b) => String(a.start).localeCompare(String(b.start)));
+
+  // Help-request confirmations.
+  const confirmed = [];
+  const reqs = await db.collection("volunteerRequests").get();
+  for (const r of reqs.docs) {
+    const rd = r.data();
+    const parts = await r.ref.collection("participants").where("confirmed", "==", true).get();
+    parts.forEach((p) => {
+      const pd = p.data();
+      if (ms(pd.confirmedAt) >= cutoffMs) confirmed.push({ name: pd.name || pd.email || "A volunteer", title: rd.title || "a volunteer request", date: rd.date || "" });
+    });
+  }
+
+  if (!open.length && !newApps.length && !officeNew.length && !officeCancelled.length && !officeToday.length && !confirmed.length) return null;
+
+  const pillC = { New: ["#FEE2E2", "#991B1B"], Interviewing: ["#FEF3C7", "#92400E"], Contacted: ["#E0F2FE", "#075985"] };
+  const pill = (t) => { const c = pillC[t] || ["#F1F5F9", "#334155"]; return `<span style="display:inline-block;font-size:11px;font-weight:bold;border-radius:999px;padding:1px 8px;background:${c[0]};color:${c[1]};white-space:nowrap;">${esc(t)}</span>`; };
+  const head = (t) => `<div style="font-size:11px;font-weight:bold;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin:10px 0 4px;">${t}</div>`;
+  const row = (cells) => `<tr>${cells.map((c, i) => `<td style="padding:5px 6px;font-size:12.5px;color:#333;border-bottom:1px solid #f1f5f9;${i === cells.length - 1 ? "text-align:right;white-space:nowrap;color:#64748b;font-size:11.5px;" : ""}" valign="top">${c}</td>`).join("")}</tr>`;
+  const tbl = (rows) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${rows}</table>`;
+  const link = `<a href="${danLink("volunteers")}" style="color:#1e40af;font-weight:bold;text-decoration:none;">Volunteers &rsaquo;</a>`;
+  const nowMs = Date.now();
+
+  let html = "";
+  if (open.length) {
+    html += head(`Applications waiting (${open.length})`);
+    html += tbl(open.map((a) => {
+      const days = a.at ? Math.max(0, Math.floor((nowMs - a.at) / 86400000)) : null;
+      const age = a.at ? "applied " + dayLbl(hstISO(a.at)) + (days ? " &middot; " + days + " day" + (days === 1 ? "" : "s") : " &middot; today") : "";
+      return row([`<b style="color:#0f172a;">${esc(a.name)}</b>${a.isNew ? ' <span style="font-size:11px;color:#16a34a;font-weight:bold;">new</span>' : ""}`, esc(a.opp), pill(a.stage), age]);
+    }).join(""));
+  }
+  const news = [];
+  newApps.forEach((a) => news.push(`New application: <b>${esc(a.name)}</b>${a.opp ? " (" + esc(a.opp) + ")" : ""}`));
+  officeNew.forEach((b) => news.push(`Signed up for office help: <b>${esc(nm(b))}</b>, ${esc(when(b))}${b.status === "cancelled" ? " (since cancelled)" : ""}${b.isNew ? " &middot; new volunteer" : ""}`));
+  officeCancelled.forEach((b) => news.push(`Office help cancelled: <b>${esc(nm(b))}</b>, ${esc(when(b))}${b.cancelReason ? " (" + esc(b.cancelReason) + ")" : ""}`));
+  confirmed.forEach((c) => news.push(`Confirmed for ${esc(c.title)}${c.date ? " (" + esc(c.date) + ")" : ""}: <b>${esc(c.name)}</b>`));
+  if (news.length) {
+    html += head("New since the last report");
+    html += tbl(news.map((t) => row([t, ""])).join(""));
+  }
+  if (officeToday.length) {
+    html += head(`In the office today (${officeToday.length})`);
+    html += tbl(officeToday.map((b) => row([`<b style="color:#0f172a;">${esc(nm(b))}</b>`, b.kind === "weekly" ? "every week" : (b.kind === "special" ? esc(b.specialNote || "special day") : "just once"), span(b)])).join(""));
+  }
+  html += `<p style="font-size:12px;margin:8px 0 0;">${link}</p>`;
+  const note = (open.length ? open.length + " waiting" : "") + (news.length ? (open.length ? " &middot; " : "") + news.length + " new" : "");
+  return { html, note };
 }
 
 async function runDailyReport(overrideRecipients, opts) {
@@ -7723,6 +7836,12 @@ async function runDailyReport(overrideRecipients, opts) {
     const laterCount = after.length - upcoming.length;
     const peopleInWindow = inWindow.reduce((n, x) => n + (x.bigLabel === "signed up" ? x.active : 0), 0);
 
+    // Volunteers section (LDAH only); a failure just leaves it out.
+    let volunteers = null;
+    if (!IS_PIP) {
+      try { volunteers = await buildDailyReportVolunteers(db, cutoffTimestamp.toMillis(), todayISO, esc); } catch (e) { console.error("daily report volunteers:", e.message); }
+    }
+
     // Needs attention.
     const tiles = [];
     const oldestOver = overdueInt.length ? overdueInt[0].fu : "";
@@ -7800,7 +7919,7 @@ async function runDailyReport(overrideRecipients, opts) {
       sessNote: inWindow.length + " session" + (inWindow.length === 1 ? "" : "s") + (peopleInWindow ? " · " + peopleInWindow + " people" : ""),
       cycle: cycleData, programs, staffLine,
       compareNote: prevSnap ? (IS_MONDAY ? "vs. last Monday" : "vs. yesterday") : "",
-      changeLines, analyticsSummaryHtml, orgFooterHtml,
+      changeLines, analyticsSummaryHtml, orgFooterHtml, volunteers,
     });
 
     // ── 6. Send to each active recipient ──
