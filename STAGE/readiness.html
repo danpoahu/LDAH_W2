@@ -439,6 +439,17 @@
     }
 
     /* Screening request questions (2026-11-13) */
+    .screening-item.ps-open { cursor: pointer; transition: transform .15s, box-shadow .15s; }
+    .screening-item.ps-open:hover, .screening-item.ps-open:focus-visible { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0, 78, 124, .12); outline: none; }
+    .ps-step { padding: 2rem; }
+    .ps-step p { margin: 0 0 1rem; font-weight: 600; color: var(--text-dark); font-size: 1.05rem; }
+    .ps-choice { display: block; width: 100%; text-align: left; padding: 16px 18px; margin-bottom: 12px; border: 2px solid #e2e8f0; border-radius: 14px; background: #fff; cursor: pointer; font-family: inherit; transition: border-color .15s, background .15s; }
+    .ps-choice:hover, .ps-choice:focus-visible { border-color: #004E7C; background: #EBF5FB; outline: none; }
+    .ps-choice b { display: block; color: #004E7C; font-size: 1.05rem; margin-bottom: 3px; }
+    .ps-choice span { color: #64748b; font-size: .92rem; line-height: 1.4; }
+    .ps-back { background: none; border: none; color: #004E7C; font-weight: 600; cursor: pointer; padding: 0; margin-bottom: 1rem; font-family: inherit; }
+    .ob-card.ps-flash { animation: psFlash 1.6s ease; }
+    @keyframes psFlash { 0%, 100% { box-shadow: 0 4px 12px rgba(0,0,0,0.08); } 30% { box-shadow: 0 0 0 5px rgba(240, 128, 60, .55); } }
     .ps-sec { margin: 0.5rem 0 1.25rem; padding-top: 1.25rem; border-top: 2px solid #e2e8f0; font-weight: 700; color: #004E7C; font-size: 1.05rem; }
     .ps-chips { display: flex; flex-wrap: wrap; gap: 8px; }
     .ps-chips label { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 8px 14px; border: 2px solid #e2e8f0; border-radius: 999px; font-weight: 500; cursor: pointer; }
@@ -824,7 +835,7 @@
         <!-- Childhood Screenings Section -->
         <h2 id="readiness-screeningsTitle" style="color: var(--primary-blue); text-align: center; font-size: 2em; margin-bottom: 30px;">Childhood Screenings</h2>
         
-        <div class="screening-item">
+        <div class="screening-item ps-open" role="button" tabindex="0" title="Request a screening" onclick="openProviderModal('Vision')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProviderModal('Vision');}">
             <div class="screening-icon"><img id="readiness-visionPhoto" src="" alt="Vision Screening"></div>
             <div class="screening-content">
                 <h3 id="readiness-visionTitle">Vision Screening</h3>
@@ -832,7 +843,7 @@
             </div>
         </div>
 
-        <div class="screening-item">
+        <div class="screening-item ps-open" role="button" tabindex="0" title="Request a screening" onclick="openProviderModal('Hearing')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProviderModal('Hearing');}">
             <div class="screening-icon"><img id="readiness-hearingPhoto" src="" alt="Hearing Screening"></div>
             <div class="screening-content">
                 <h3 id="readiness-hearingTitle">Hearing Screening</h3>
@@ -840,7 +851,7 @@
             </div>
         </div>
 
-        <div class="screening-item">
+        <div class="screening-item ps-open" role="button" tabindex="0" title="Request a screening" onclick="openProviderModal('Developmental')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProviderModal('Developmental');}">
             <div class="screening-icon"><img id="readiness-devPhoto" src="" alt="Developmental Screening"></div>
             <div class="screening-content">
                 <h3 id="readiness-devTitle">Developmental Screening</h3>
@@ -898,7 +909,7 @@
         <svg class="cta-banner-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
         <h2 id="readiness-ctaTitle">Schedule a Screening</h2>
         <p id="readiness-ctaSubtitle">Contact us to schedule a screening event in your community.</p>
-        <a href="contact.html" class="contact-btn">Contact Us Today</a>
+        <a href="#" class="contact-btn" onclick="openProviderModal();return false;">Contact Us Today</a>
     </section>
 
     <!-- Footer Container - Auto-loaded -->
@@ -924,8 +935,16 @@
                 <button class="close-provider-modal" onclick="closeProviderModal()">&times;</button>
             </div>
             
+            <!-- First question (2026-11-13): one child books at the office; groups fill in the form. -->
+            <div id="psStep" class="ps-step">
+                <p>What kind of screening do you need?</p>
+                <button type="button" class="ps-choice" onclick="psChoose('individual')"><b>Individual screening</b><span>One child. Book a free screening at our office.</span></button>
+                <button type="button" class="ps-choice" onclick="psChoose('group')"><b>Group screening</b><span>A school, program, location or event with several children.</span></button>
+            </div>
+
             <!-- Form -->
-            <form id="providerForm" class="provider-form">
+            <form id="providerForm" class="provider-form" style="display:none;">
+                <button type="button" class="ps-back" onclick="psChoose('')">&larr; Back</button>
                 <div class="form-group">
                     <label>Organization Name <span class="required">*</span></label>
                     <input type="text" id="organizationName" required placeholder="Enter your organization name">
@@ -1131,7 +1150,22 @@
         });
 
         // Provider Modal Functions
-        function openProviderModal() {
+        function psChoose(kind) {
+            if (kind === 'individual') {
+                closeProviderModal();
+                var book = document.getElementById('book');
+                if (book) {
+                    book.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    book.classList.remove('ps-flash'); void book.offsetWidth; book.classList.add('ps-flash');
+                }
+                return;
+            }
+            document.getElementById('psStep').style.display = kind === 'group' ? 'none' : '';
+            document.getElementById('providerForm').style.display = kind === 'group' ? 'block' : 'none';
+            document.querySelector('.provider-modal-content').scrollTop = 0;
+        }
+
+        function openProviderModal(screening) {
             document.getElementById('providerModal').classList.add('active');
             document.body.style.overflow = 'hidden';
             // Reset form and show it
@@ -1139,7 +1173,11 @@
             document.getElementById('psErr').style.display = 'none';
             var _psMin = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
             ['psDate1', 'psDate2'].forEach(function (id) { document.getElementById(id).min = _psMin; });
-            document.getElementById('providerForm').style.display = 'block';
+            if (typeof screening === 'string') {
+                var _psT = document.querySelector('input[name="psType"][value="' + screening + '"]');
+                if (_psT) _psT.checked = true;
+            }
+            psChoose('');
             document.getElementById('thankYouScreen').classList.remove('active');
         }
 
@@ -1151,7 +1189,8 @@
             document.body.style.overflow = 'auto';
             // Reset form and hide thank-you screen so reopening shows a fresh form
             document.getElementById('providerForm').reset();
-            document.getElementById('providerForm').style.display = '';
+            document.getElementById('providerForm').style.display = 'none';
+            document.getElementById('psStep').style.display = '';
             document.getElementById('thankYouScreen').classList.remove('active');
             document.getElementById('submitBtn').disabled = false;
             document.getElementById('submitBtn').textContent = 'Submit Request';
