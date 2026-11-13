@@ -3794,7 +3794,7 @@ exports.yearlyOfficeHolidaysTask = functions
 // out in the branded layout from registration@, reply-to the staff member,
 // logged in emailLog, and noted on the request (emails[]).
 exports.sendProviderRequestEmail = functions
-  .runWith({ timeoutSeconds: 30, maxInstances: 5, secrets: EMAIL_SECRETS })
+  .runWith({ timeoutSeconds: 60, memory: "512MB", maxInstances: 5, secrets: EMAIL_SECRETS })
   .https.onRequest(async (req, res) => {
     if (_schoolCors(req, res)) return;
     const body = req.body || {};
@@ -3831,13 +3831,28 @@ exports.sendProviderRequestEmail = functions
         '</td></tr></table></td></tr></table></body></html>',
       ].join("");
       const contactName = ((p.firstName || "") + " " + (p.lastName || "")).trim();
+      // The school packet (Noe 2026-11-13): every PDF in Storage screeningPacket/,
+      // attached in file-name order (1-Consent to Screen, 2-Consent to Release, ...).
+      let attachments, attached = [];
+      if (body.attachPacket === true) {
+        const [files] = await admin.storage().bucket("ldah-932d5.firebasestorage.app").getFiles({ prefix: "screeningPacket/" });
+        const pdfs = files.filter((f) => /\.pdf$/i.test(f.name)).sort((a, b) => a.name.localeCompare(b.name));
+        attachments = [];
+        for (const f of pdfs) {
+          const [buf] = await f.download();
+          const filename = f.name.replace(/^screeningPacket\//, "");
+          attachments.push({ filename, content: buf.toString("base64") });
+          attached.push(filename);
+        }
+      }
       await sendEmailViaResend({
         from: lifecycleFromAddress(), to, cc: senderEmail, subject, html,
         type: "provider-screening-email", recipientName: contactName || to,
         replyTo: senderEmail ? senderName + " <" + senderEmail + ">" : undefined,
+        attachments,
       });
       await ref.update({
-        emails: admin.firestore.FieldValue.arrayUnion({ at: new Date().toISOString(), by: senderName, byUid: staff.uid, to, subject }),
+        emails: admin.firestore.FieldValue.arrayUnion({ at: new Date().toISOString(), by: senderName, byUid: staff.uid, to, subject, attached }),
         status: p.status === "new" ? "contacted" : (p.status || "contacted"),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
@@ -3846,7 +3861,7 @@ exports.sendProviderRequestEmail = functions
         details: (p.organizationName || "") + " -> " + to + ": " + subject,
         performedBy: senderName, timestamp: admin.firestore.FieldValue.serverTimestamp(),
       });
-      res.status(200).json({ ok: true, sentTo: to });
+      res.status(200).json({ ok: true, sentTo: to, attached });
     } catch (err) {
       console.error("sendProviderRequestEmail:", err.message);
       res.status(500).json({ error: err.message || "Send failed" });
