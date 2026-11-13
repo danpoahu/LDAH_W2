@@ -3640,7 +3640,8 @@ exports.onEventFeedbackCreated = functions
 // ── Auto-Create Interaction from Provider Listing Request ──────────
 // When the public Provider Request form (readiness.html) writes a new
 // `providers/{id}` doc with status:"new", drop an Open interaction on
-// Chassidy Kruse's queue with a +3 day follow-up. Interaction lands
+// Noe's queue (Daniel 2026-11-13: Noe runs screening requests now, not
+// Chassidy). Screening requests are due the next day, others in 3 days. Interaction lands
 // directly in LDAH-Int; no triage email — per-user alerts handle the ping.
 exports.onProviderRequestCreated = functions
   .runWith({ timeoutSeconds: 30, maxInstances: 10 })
@@ -3662,9 +3663,9 @@ exports.onProviderRequestCreated = functions
         return null;
       }
 
-      // Owner resolution: Chassidy Kruse (provider intake). Falls back to
-      // La'a if his userRoles doc is missing or marked inactive.
-      const PROVIDER_INTAKE_UID = "B9iq7O46KJabCE3Skke4HXy8RV43";
+      // Owner resolution: Noelani Dela Vega (screening requests). Falls back
+      // to the admin seat if her userRoles doc is missing or marked inactive.
+      const PROVIDER_INTAKE_UID = "lwn8EWt6XEbCg5rhM0f8OSy8nTj2";
       let ownerUid = PROVIDER_INTAKE_UID;
       try {
         const urDoc = await db.collection("userRoles").doc(ownerUid).get();
@@ -3676,17 +3677,39 @@ exports.onProviderRequestCreated = functions
       }
       let ownerName = await _lcResolveStaffName(db, ownerUid);
       if (!ownerName) {
-        ownerName = ownerUid === LIFECYCLE_ADMIN_UID ? LIFECYCLE_ADMIN_NAME : "Chassidy Kruse";
+        ownerName = ownerUid === LIFECYCLE_ADMIN_UID ? LIFECYCLE_ADMIN_NAME : "Noelani Dela Vega";
       }
 
       const orgName = (data.organizationName || "").trim() || "Unknown organization";
       const contactName = ((data.firstName || "") + " " + (data.lastName || "")).trim();
-      const followUpDate = addDaysHst(toHstDateKey(new Date()), 3);
+      const isScreening = data.requestType === "screening";
+      const followUpDate = addDaysHst(toHstDateKey(new Date()), isScreening ? 1 : 3);
       const notesParts = [];
       if (contactName) notesParts.push(contactName);
       if (data.email)  notesParts.push(data.email);
       if (data.phone)  notesParts.push(data.phone);
-      const notes = notesParts.join(" -- ") + (data.message ? "\n\n" + data.message : "");
+      let notes = notesParts.join(" -- ");
+      let summary = "New provider listing request from " + orgName;
+      if (isScreening) {
+        const kids = data.childCountUnknown ? "number of children not known yet" :
+          (data.childCount ? data.childCount + " children" : "");
+        const types = Array.isArray(data.screenings) ? data.screenings.join(", ") : "";
+        summary = "New screening request from " + orgName + (kids ? " (" + kids + ")" : "");
+        const lines = [];
+        if (data.screeningFor) lines.push("Screening for: " + data.screeningFor);
+        if (data.multipleLocations) lines.push("More than one location: " + (data.multipleLocations === "yes" ? "Yes" : "No"));
+        if (data.sites) lines.push("Site(s): " + data.sites);
+        lines.push("Children: " + (kids || "not given"));
+        if (data.childAges) lines.push("Ages: " + data.childAges);
+        if (types) lines.push("Screenings: " + types);
+        if (data.island) lines.push("Island: " + data.island);
+        (Array.isArray(data.preferredDates) ? data.preferredDates : []).forEach((d, i) => {
+          if (d && d.date) lines.push((i === 0 ? "1st" : "2nd") + " choice: " + d.date + (d.time ? " at " + d.time : ""));
+        });
+        lines.push("Open Website Data > Provider Requests to email them, fill in the worksheet and confirm the date.");
+        notes += "\n\n" + lines.join("\n");
+      }
+      if (data.message) notes += "\n\n" + data.message;
 
       await db.collection("interactions").add({
         channel: "Provider Onboarding",
@@ -3695,7 +3718,7 @@ exports.onProviderRequestCreated = functions
         contactName: orgName,
         contactType: "",
         grantProgram: "",
-        summary: "New provider listing request from " + orgName,
+        summary: summary,
         followUpDate: followUpDate,
         status: "Open",
         notes: notes,
@@ -3703,6 +3726,7 @@ exports.onProviderRequestCreated = functions
         owner: ownerName,
         ownerUid: ownerUid,
         providerRequestId: providerId,
+        workflowStep: isScreening ? "screeningRequestNew" : "",
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
@@ -3723,6 +3747,71 @@ exports.onProviderRequestCreated = functions
       console.error("onProviderRequestCreated error:", err.message);
     }
     return null;
+  });
+
+// ── Email the point of contact on a screening request (2026-11-13) ──
+// DAN > Website Data > Provider Requests > "Email contact". Body:
+// { idToken, providerId, subject, message }. Staff type plain text; it goes
+// out in the branded layout from registration@, reply-to the staff member,
+// logged in emailLog, and noted on the request (emails[]).
+exports.sendProviderRequestEmail = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 5, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    if (_schoolCors(req, res)) return;
+    const body = req.body || {};
+    let staff;
+    try { staff = await _verifyStaffIdToken(body.idToken); }
+    catch (e) { res.status(e.statusCode || 401).json({ error: e.message }); return; }
+    const providerId = String(body.providerId || "").trim();
+    const subject = String(body.subject || "").trim().slice(0, 200);
+    const message = String(body.message || "").trim().slice(0, 8000);
+    if (!providerId || !subject || !message) { res.status(400).json({ error: "Subject and message are both needed." }); return; }
+    try {
+      const db = admin.firestore();
+      const ref = db.collection("providers").doc(providerId);
+      const snap = await ref.get();
+      if (!snap.exists) { res.status(404).json({ error: "Request not found" }); return; }
+      const p = snap.data() || {};
+      const to = String(p.email || "").trim();
+      if (!to) { res.status(400).json({ error: "This request has no email address." }); return; }
+      const roleSnap = await db.collection("userRoles").doc(staff.uid).get();
+      const rd = roleSnap.exists ? roleSnap.data() || {} : {};
+      const senderName = rd.displayName || staff.name || "LDAH";
+      const senderEmail = rd.email || staff.email || "";
+      const esc = lifecycleEsc;
+      const paras = message.split(/\n\s*\n/).map((para) =>
+        '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">' + esc(para).replace(/\n/g, "<br>") + "</p>").join("");
+      const html = [
+        '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f7;">',
+        '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f4f4f7;padding:24px 0;"><tr><td align="center">',
+        '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">',
+        '<tr><td style="background:#ffffff;padding:22px 24px 14px;text-align:center;border-bottom:3px solid #1a3c6e;"><img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai&#699;i" width="140" style="display:block;margin:0 auto;border:0;"></td></tr>',
+        '<tr><td style="background:#1a3c6e;padding:14px 24px;"><p style="margin:0;font-size:17px;color:#ffffff;font-weight:700;">' + esc(subject) + '</p></td></tr>',
+        '<tr><td style="padding:24px;">', paras,
+        _srpSignOffHtml("Mahalo,<br>" + esc(senderName)),
+        '</td></tr></table></td></tr></table></body></html>',
+      ].join("");
+      const contactName = ((p.firstName || "") + " " + (p.lastName || "")).trim();
+      await sendEmailViaResend({
+        from: lifecycleFromAddress(), to, cc: senderEmail, subject, html,
+        type: "provider-screening-email", recipientName: contactName || to,
+        replyTo: senderEmail ? senderName + " <" + senderEmail + ">" : undefined,
+      });
+      await ref.update({
+        emails: admin.firestore.FieldValue.arrayUnion({ at: new Date().toISOString(), by: senderName, byUid: staff.uid, to, subject }),
+        status: p.status === "new" ? "contacted" : (p.status || "contacted"),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      await db.collection("auditLog").add({
+        action: "Screening request emailed",
+        details: (p.organizationName || "") + " -> " + to + ": " + subject,
+        performedBy: senderName, timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      res.status(200).json({ ok: true, sentTo: to });
+    } catch (err) {
+      console.error("sendProviderRequestEmail:", err.message);
+      res.status(500).json({ error: err.message || "Send failed" });
+    }
   });
 
 // ── Auto-Create Interaction from Calendar Request ──────────────────
