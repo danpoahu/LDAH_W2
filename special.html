@@ -239,7 +239,7 @@
     if (fieldOn('howHeard'))
       h += fg('How did you hear about LDAH?', fieldReq('howHeard'), '<input type="text" id="f_howHeard">');
     if (fieldOn('accommodations'))
-      h += fg('Special accommodations', fieldReq('accommodations'), '<textarea id="f_accommodations" placeholder="Let us know how we can support you."></textarea>');
+      h += fg('Special accommodations', fieldReq('accommodations'), '<textarea id="f_accommodations" placeholder="Please don’t type N/A here. If you don’t need any, leave this blank."></textarea>');
     if (fieldOn('address')) {
       // Full mailing address — wording/labels reused from srp-consent.html
       const r = fieldReq('address');
