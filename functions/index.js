@@ -3749,6 +3749,45 @@ exports.onProviderRequestCreated = functions
     return null;
   });
 
+// ── Yearly reminder: enter next year's office holidays (2026-11-13) ──
+// Every December 1 (8 a.m. HST) one task for the admin seat (falls back to
+// Noe if that account is missing or inactive): enter next year's office
+// holidays in DAN > Admin > List Management > Office holidays. One task per
+// year (fixed doc id). Skipped when next year's holidays are already in.
+exports.yearlyOfficeHolidaysTask = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 1 })
+  .pubsub.schedule("0 8 1 12 *").timeZone("Pacific/Honolulu")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const today = toHstDateKey(new Date());
+    const next = String(Number(today.slice(0, 4)) + 1);
+    const ref = db.collection("interactions").doc("officeHolidays_" + next);
+    if ((await ref.get()).exists) { console.log("yearlyOfficeHolidaysTask: task for " + next + " already exists"); return null; }
+    const hol = await db.collection("settings").doc("officeHolidays").get();
+    const items = (hol.exists && Array.isArray(hol.data().items)) ? hol.data().items : [];
+    const have = items.filter((it) => it && String(it.date || "").slice(0, 4) === next);
+    if (have.length) { console.log("yearlyOfficeHolidaysTask: " + have.length + " holidays already entered for " + next); return null; }
+    const NOE_UID = "lwn8EWt6XEbCg5rhM0f8OSy8nTj2";
+    let ownerUid = LIFECYCLE_ADMIN_UID;
+    try {
+      const ur = await db.collection("userRoles").doc(ownerUid).get();
+      if (!ur.exists || ur.data().active === false) ownerUid = NOE_UID;
+    } catch (_) { ownerUid = NOE_UID; }
+    const ownerName = (await _lcResolveStaffName(db, ownerUid)) || (ownerUid === NOE_UID ? "Noelani Dela Vega" : LIFECYCLE_ADMIN_NAME);
+    await ref.set({
+      channel: "Office", interactionType: "Office Admin", contactId: "", contactName: "", contactType: "", grantProgram: "",
+      summary: "Enter the " + next + " office holidays in List Management",
+      notes: "Once a year: get the " + next + " holiday calendar (the days the office is closed) and type each day into DAN.\n\n" +
+        "1. Admin > List Management > Office holidays.\n2. For each holiday: the date, the last day if it is more than one day (like the winter break), and the name.\n" +
+        "3. Check the days of the week against a calendar before you add them.\n\nThe holidays then show on the Dashboard and Events Dashboard calendars, and DAN warns anyone who picks one for an event. Close this task when they are all in.",
+      followUpDate: addDaysHst(today, 14), status: "Open", isDraft: false,
+      owner: ownerName, ownerUid, workflowStep: "officeHolidaysYearly", holidayYear: next,
+      createdBy: "System", createdByUid: "system", createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    console.log("yearlyOfficeHolidaysTask: task for " + next + " -> " + ownerName);
+    return null;
+  });
+
 // ── Email the point of contact on a screening request (2026-11-13) ──
 // DAN > Website Data > Provider Requests > "Email contact". Body:
 // { idToken, providerId, subject, message }. Staff type plain text; it goes
