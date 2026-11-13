@@ -438,6 +438,32 @@
         gap: 1rem;
     }
 
+    /* Screening request questions (2026-11-13) */
+    .screening-item.ps-open { cursor: pointer; transition: transform .15s, box-shadow .15s; }
+    .screening-item.ps-open:hover, .screening-item.ps-open:focus-visible { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0, 78, 124, .12); outline: none; }
+    .ps-step { padding: 2rem; }
+    .ps-step p { margin: 0 0 1rem; font-weight: 600; color: var(--text-dark); font-size: 1.05rem; }
+    .ps-choice { display: block; width: 100%; text-align: left; padding: 16px 18px; margin-bottom: 12px; border: 2px solid #e2e8f0; border-radius: 14px; background: #fff; cursor: pointer; font-family: inherit; transition: border-color .15s, background .15s; }
+    .ps-choice:hover, .ps-choice:focus-visible { border-color: #004E7C; background: #EBF5FB; outline: none; }
+    .ps-choice b { display: block; color: #004E7C; font-size: 1.05rem; margin-bottom: 3px; }
+    .ps-choice span { color: #64748b; font-size: .92rem; line-height: 1.4; }
+    .ps-back { background: none; border: none; color: #004E7C; font-weight: 600; cursor: pointer; padding: 0; margin-bottom: 1rem; font-family: inherit; }
+    .ob-card.ps-flash { animation: psFlash 1.6s ease; }
+    @keyframes psFlash { 0%, 100% { box-shadow: 0 4px 12px rgba(0,0,0,0.08); } 30% { box-shadow: 0 0 0 5px rgba(240, 128, 60, .55); } }
+    .ps-sec { margin: 0.5rem 0 1.25rem; padding-top: 1.25rem; border-top: 2px solid #e2e8f0; font-weight: 700; color: #004E7C; font-size: 1.05rem; }
+    .ps-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .ps-chips label { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 8px 14px; border: 2px solid #e2e8f0; border-radius: 999px; font-weight: 500; cursor: pointer; }
+    .ps-chips label:has(input:checked) { border-color: #004E7C; background: #EBF5FB; }
+    .form-group .ps-chips input { width: auto; padding: 0; margin: 0; accent-color: #004E7C; }
+    .ps-row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 0.75rem; align-items: end; }
+    .ps-row + .ps-row { margin-top: 0.75rem; }
+    .ps-sub { display: block; font-size: 0.85rem; color: #64748b; margin-bottom: 4px; font-weight: 500; }
+    .form-group select { width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 10px; font-size: 1rem; font-family: inherit; background: #fff; }
+    .ps-note { font-size: 0.85rem; color: #64748b; margin: 0.5rem 0 0; line-height: 1.45; }
+    .ps-unsure { display: inline-flex !important; align-items: center; gap: 6px; font-weight: 500 !important; margin-top: 8px; cursor: pointer; }
+    .form-group .ps-unsure input { width: auto; }
+    .ps-err { display: none; background: #FEF2F2; color: #991B1B; border: 1px solid #FECACA; border-radius: 10px; padding: 10px 14px; margin-bottom: 1rem; font-size: 0.95rem; }
+
     .submit-btn {
         width: 100%;
         padding: 14px 24px;
@@ -809,7 +835,7 @@
         <!-- Childhood Screenings Section -->
         <h2 id="readiness-screeningsTitle" style="color: var(--primary-blue); text-align: center; font-size: 2em; margin-bottom: 30px;">Childhood Screenings</h2>
         
-        <div class="screening-item">
+        <div class="screening-item ps-open" role="button" tabindex="0" title="Request a screening" onclick="openProviderModal('Vision')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProviderModal('Vision');}">
             <div class="screening-icon"><img id="readiness-visionPhoto" src="" alt="Vision Screening"></div>
             <div class="screening-content">
                 <h3 id="readiness-visionTitle">Vision Screening</h3>
@@ -817,7 +843,7 @@
             </div>
         </div>
 
-        <div class="screening-item">
+        <div class="screening-item ps-open" role="button" tabindex="0" title="Request a screening" onclick="openProviderModal('Hearing')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProviderModal('Hearing');}">
             <div class="screening-icon"><img id="readiness-hearingPhoto" src="" alt="Hearing Screening"></div>
             <div class="screening-content">
                 <h3 id="readiness-hearingTitle">Hearing Screening</h3>
@@ -825,7 +851,7 @@
             </div>
         </div>
 
-        <div class="screening-item">
+        <div class="screening-item ps-open" role="button" tabindex="0" title="Request a screening" onclick="openProviderModal('Developmental')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProviderModal('Developmental');}">
             <div class="screening-icon"><img id="readiness-devPhoto" src="" alt="Developmental Screening"></div>
             <div class="screening-content">
                 <h3 id="readiness-devTitle">Developmental Screening</h3>
@@ -870,8 +896,8 @@
             </div>
 
             <div class="service-card">
-                <div class="screening-icon" style="margin:0 auto 20px"><img id="readiness-providerPhoto" src="" alt="Provider Services"></div>
-                <h3 id="readiness-providerTitle">Provider Services</h3>
+                <div class="screening-icon" style="margin:0 auto 20px"><img id="readiness-providerPhoto" src="" alt="Provider Screening Services"></div>
+                <h3 id="readiness-providerTitle">Provider Screening Services</h3>
                 <p id="readiness-providerText">If you are a provider of services for children and would like to add our screening services to your program or event, we can help! We offer vision, hearing, and developmental screenings, staff and family trainings, outreach events, and resources.</p>
                 <button onclick="openProviderModal()" class="provider-btn">Request Services</button>
             </div>
@@ -883,7 +909,7 @@
         <svg class="cta-banner-islands" viewBox="0 0 3880 2880"><use href="#hawaii-islands"/></svg>
         <h2 id="readiness-ctaTitle">Schedule a Screening</h2>
         <p id="readiness-ctaSubtitle">Contact us to schedule a screening event in your community.</p>
-        <a href="contact.html" class="contact-btn">Contact Us Today</a>
+        <a href="#" class="contact-btn" onclick="openProviderModal();return false;">Contact Us Today</a>
     </section>
 
     <!-- Footer Container - Auto-loaded -->
@@ -905,12 +931,20 @@
     <div id="providerModal" class="provider-modal" onclick="closeProviderModal(event)">
         <div class="provider-modal-content" onclick="event.stopPropagation()">
             <div class="provider-modal-header">
-                <h3>Provider Services Request</h3>
+                <h3>Provider Screening Services Request</h3>
                 <button class="close-provider-modal" onclick="closeProviderModal()">&times;</button>
             </div>
             
+            <!-- First question (2026-11-13): one child books at the office; groups fill in the form. -->
+            <div id="psStep" class="ps-step">
+                <p>What kind of screening do you need?</p>
+                <button type="button" class="ps-choice" onclick="psChoose('individual')"><b>Individual screening</b><span>One child. Book a free screening at our office.</span></button>
+                <button type="button" class="ps-choice" onclick="psChoose('group')"><b>Group screening</b><span>A school, program, location or event with several children.</span></button>
+            </div>
+
             <!-- Form -->
-            <form id="providerForm" class="provider-form">
+            <form id="providerForm" class="provider-form" style="display:none;">
+                <button type="button" class="ps-back" onclick="psChoose('')">&larr; Back</button>
                 <div class="form-group">
                     <label>Organization Name <span class="required">*</span></label>
                     <input type="text" id="organizationName" required placeholder="Enter your organization name">
@@ -936,11 +970,80 @@
                     <input type="tel" id="providerPhone" placeholder="(808) 000-0000" pattern="\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}" title="Please enter a valid 10-digit phone number, e.g. (808) 555-1234">
                 </div>
                 
+                <div class="ps-sec">About the screening</div>
+
+                <div class="form-group">
+                    <label>Who is the screening for?</label>
+                    <div class="ps-chips">
+                        <label><input type="radio" name="psFor" value="School"> School</label>
+                        <label><input type="radio" name="psFor" value="Person"> Person</label>
+                        <label><input type="radio" name="psFor" value="Location"> Location</label>
+                        <label><input type="radio" name="psFor" value="Event"> Event</label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Is the screening at more than one location?</label>
+                    <div class="ps-chips">
+                        <label><input type="radio" name="psMulti" value="yes"> Yes</label>
+                        <label><input type="radio" name="psMulti" value="no"> No</label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Site(s)</label>
+                    <textarea id="psSites" style="min-height:70px;" placeholder="School or site name and address. List each site if there is more than one."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>How many children will be screened? <span class="required">*</span></label>
+                    <input type="number" id="psCount" min="1" max="2000" inputmode="numeric" placeholder="About how many">
+                    <label class="ps-unsure"><input type="checkbox" id="psCountUnsure"> Not sure yet</label>
+                </div>
+
+                <div class="form-group">
+                    <label>Children&rsquo;s ages</label>
+                    <input type="text" id="psAges" placeholder="e.g., 3 to 5 years old">
+                </div>
+
+                <div class="form-group">
+                    <label>Which screenings? <span class="required">*</span></label>
+                    <div class="ps-chips">
+                        <label><input type="checkbox" name="psType" value="Hearing"> Hearing</label>
+                        <label><input type="checkbox" name="psType" value="Vision"> Vision</label>
+                        <label><input type="checkbox" name="psType" value="Developmental"> Developmental</label>
+                        <label><input type="checkbox" name="psType" value="Social Emotional"> Social Emotional</label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Island</label>
+                    <select id="psIsland">
+                        <option value="">Choose an island</option>
+                        <option>O&#699;ahu</option><option>Hawai&#699;i Island</option><option>Kaua&#699;i</option>
+                        <option>Maui</option><option>L&#257;na&#699;i</option><option>Moloka&#699;i</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Days and times that work for you</label>
+                    <div class="ps-row">
+                        <div><span class="ps-sub">1st choice date</span><input type="date" id="psDate1"></div>
+                        <div><span class="ps-sub">Start time</span><input type="time" id="psTime1" value="08:30"></div>
+                    </div>
+                    <div class="ps-row">
+                        <div><span class="ps-sub">2nd choice date</span><input type="date" id="psDate2"></div>
+                        <div><span class="ps-sub">Start time</span><input type="time" id="psTime2" value="08:30"></div>
+                    </div>
+                    <p class="ps-note">Screenings can start at 8:30 a.m. Schools need time to send consent forms home and get them back signed, so please pick dates at least one week after families receive the forms. We will confirm the date with you.</p>
+                </div>
+
                 <div class="form-group">
                     <label>Comment or Message</label>
                     <textarea id="providerMessage" placeholder="Tell us about your program or event and what services you're interested in..."></textarea>
                 </div>
                 
+                <div class="ps-err" id="psErr"></div>
                 <button type="submit" class="submit-btn" id="submitBtn">Submit Request</button>
             </form>
             
@@ -1047,12 +1150,34 @@
         });
 
         // Provider Modal Functions
-        function openProviderModal() {
+        function psChoose(kind) {
+            if (kind === 'individual') {
+                closeProviderModal();
+                var book = document.getElementById('book');
+                if (book) {
+                    book.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    book.classList.remove('ps-flash'); void book.offsetWidth; book.classList.add('ps-flash');
+                }
+                return;
+            }
+            document.getElementById('psStep').style.display = kind === 'group' ? 'none' : '';
+            document.getElementById('providerForm').style.display = kind === 'group' ? 'block' : 'none';
+            document.querySelector('.provider-modal-content').scrollTop = 0;
+        }
+
+        function openProviderModal(screening) {
             document.getElementById('providerModal').classList.add('active');
             document.body.style.overflow = 'hidden';
             // Reset form and show it
             document.getElementById('providerForm').reset();
-            document.getElementById('providerForm').style.display = 'block';
+            document.getElementById('psErr').style.display = 'none';
+            var _psMin = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+            ['psDate1', 'psDate2'].forEach(function (id) { document.getElementById(id).min = _psMin; });
+            if (typeof screening === 'string') {
+                var _psT = document.querySelector('input[name="psType"][value="' + screening + '"]');
+                if (_psT) _psT.checked = true;
+            }
+            psChoose('');
             document.getElementById('thankYouScreen').classList.remove('active');
         }
 
@@ -1064,7 +1189,8 @@
             document.body.style.overflow = 'auto';
             // Reset form and hide thank-you screen so reopening shows a fresh form
             document.getElementById('providerForm').reset();
-            document.getElementById('providerForm').style.display = '';
+            document.getElementById('providerForm').style.display = 'none';
+            document.getElementById('psStep').style.display = '';
             document.getElementById('thankYouScreen').classList.remove('active');
             document.getElementById('submitBtn').disabled = false;
             document.getElementById('submitBtn').textContent = 'Submit Request';
@@ -1075,6 +1201,26 @@
             e.preventDefault();
             
             const submitBtn = document.getElementById('submitBtn');
+            // Screening questions (2026-11-13): children and screenings are required, dates are not.
+            const psErr = document.getElementById('psErr');
+            const psVal = (id) => (document.getElementById(id).value || '').trim();
+            const psPick = (name) => Array.from(document.querySelectorAll('input[name="' + name + '"]:checked')).map((x) => x.value);
+            const psCountRaw = psVal('psCount');
+            const psUnsure = document.getElementById('psCountUnsure').checked;
+            const psTypes = psPick('psType');
+            const psProblems = [];
+            if (!psUnsure && !(parseInt(psCountRaw, 10) > 0)) psProblems.push('how many children will be screened (or tick Not sure yet)');
+            if (!psTypes.length) psProblems.push('which screenings you need');
+            if (psProblems.length) {
+                psErr.textContent = 'Please tell us ' + psProblems.join(' and ') + '.';
+                psErr.style.display = 'block';
+                psErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
+            psErr.style.display = 'none';
+            const psDates = [['psDate1', 'psTime1'], ['psDate2', 'psTime2']]
+                .map((p) => ({ date: psVal(p[0]), time: psVal(p[1]) }))
+                .filter((d) => d.date);
             submitBtn.disabled = true;
             submitBtn.textContent = 'Submitting...';
 
@@ -1088,6 +1234,16 @@
                 email: document.getElementById('providerEmail').value.trim().toLowerCase(),
                 phone: document.getElementById('providerPhone').value.trim(),
                 message: document.getElementById('providerMessage').value.trim(),
+                requestType: 'screening',
+                screeningFor: (psPick('psFor')[0] || ''),
+                multipleLocations: (psPick('psMulti')[0] || ''),
+                sites: psVal('psSites'),
+                childCount: psUnsure ? null : parseInt(psCountRaw, 10),
+                childCountUnknown: psUnsure,
+                childAges: psVal('psAges'),
+                screenings: psTypes,
+                island: psVal('psIsland'),
+                preferredDates: psDates,
                 submittedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 status: 'new'
             };
