@@ -34206,6 +34206,8 @@ exports.sweepLionsParentContactTasks = functions
     try { await _syncLionsParentContactTasks(); } catch (e) { console.error("sweepLionsParentContactTasks:", e.message); }
     // Contact details added on the card bring a family into the assign count.
     try { await _syncCaseMgmtAssignTask(); } catch (e) { console.error("sweepLionsParentContactTasks: assign count:", e.message); }
+    // No-contact families listed by school for Noe to ask the school / DOH (2026-11-13).
+    try { await _syncLionsContactRequestTask(); } catch (e) { console.error("sweepLionsParentContactTasks: contact request:", e.message); }
     return null;
   });
 
@@ -36059,3 +36061,191 @@ exports.onLionsCaseAssignedEmailFamily = functions
     } catch (e) { console.error("onLionsCaseAssignedEmailFamily:", e.message); }
     return null;
   });
+
+// ── Lions families with no contact details → ask the school / DOH (2026-11-13) ──
+// Daniel: the Lions families with no phone or email (or whose email failed) are
+// listed by school on ONE task for Noe. She types a contact name and email (the
+// school, or the Department of Health, who send us the forms) and one email goes
+// with a recap table by school and every family's scanned form attached. Each
+// case is stamped lionsContactRequestedAt/To so it is asked about once; new
+// families bring the task back, listing only the new ones. Synced by the
+// 30-minute sweepLionsParentContactTasks and after every send.
+const LIONS_CONTACT_REQ_STEP = "lionsContactRequest";
+function _lionsSchoolName(raw) {
+  const s = String(raw || "").replace(/\s+/g, " ").trim();
+  if (!s) return "School not on the form";
+  const t = s.toLowerCase().replace(/\bschool\b/g, "").replace(/\s+/g, " ").trim();
+  return t.replace(/\b([a-z])/g, (m) => m.toUpperCase()).replace(/'([A-Z])/g, (m) => m.toLowerCase());
+}
+function _lionsLastScreening(c) {
+  const scr = (Array.isArray(c && c.screenings) ? c.screenings : []).filter((s) => s && s.source === "lions-screening");
+  return scr.length ? scr[scr.length - 1] : {};
+}
+async function _lionsContactPending(db) {
+  const cases = await db.collection("interactions").where("caseAdvocacySource", "==", "lions-screening").get();
+  const cand = cases.docs.filter((d) => { const x = d.data() || {};
+    return x.workflowStep === "caseAdvocacy" && x.status === "Open" && x.contactId && !x.partnerIsland && !x.lionsContactRequestedAt; });
+  const out = [];
+  for (let i = 0; i < cand.length; i += 200) {
+    const part = cand.slice(i, i + 200);
+    const snaps = await db.getAll(...part.map((d) => db.collection("contacts").doc((d.data() || {}).contactId)));
+    snaps.forEach((cs, k) => {
+      const x = part[k].data() || {};
+      const c = cs.exists ? cs.data() || {} : {};
+      if (_caseMgmtReachable(c) && !_lionsEmailStillFailed(x, c)) return;
+      const s = _lionsLastScreening(c);
+      out.push({ caseId: part[k].id, contactId: x.contactId, contact: c, scr: s,
+        school: _lionsSchoolName(s.school), child: String(s.childName || "").trim(),
+        parent: c.parentNameKnown === false ? "" : String(x.contactName || [c.firstName, c.lastName].filter(Boolean).join(" ")).trim() });
+    });
+  }
+  out.sort((a, b) => a.school.localeCompare(b.school) || a.child.localeCompare(b.child));
+  return out;
+}
+async function _syncLionsContactRequestTask() {
+  const db = admin.firestore();
+  const FV = admin.firestore.FieldValue;
+  const pending = await _lionsContactPending(db);
+  const openSnap = await db.collection("interactions").where("workflowStep", "==", LIONS_CONTACT_REQ_STEP).get();
+  const open = openSnap.docs.filter((d) => (d.data() || {}).status === "Open");
+  if (!pending.length) {
+    for (const d of open) await d.ref.update({ status: "Closed", closedReason: "nothing waiting", updatedAt: FV.serverTimestamp() });
+    return { pending: 0 };
+  }
+  const groups = {};
+  pending.forEach((p) => { (groups[p.school] = groups[p.school] || []).push({ caseId: p.caseId, contactId: p.contactId, child: p.child, parent: p.parent }); });
+  const lionsGroups = Object.keys(groups).sort().map((s) => ({ school: s, families: groups[s] }));
+  const ids = pending.map((p) => p.caseId);
+  const label = pending.length + " Lions famil" + (pending.length === 1 ? "y" : "ies") + " with no phone or email: " +
+    lionsGroups.map((g) => g.school + " " + g.families.length).join(", ");
+  const fields = { lionsCaseIds: ids, lionsGroups, summary: label, contactName: "Lions families: get contact details from the school or DOH" };
+  if (open.length) {
+    const cur = open[0].data() || {};
+    if (JSON.stringify(cur.lionsCaseIds || []) !== JSON.stringify(ids)) await open[0].ref.update(Object.assign({}, fields, { updatedAt: FV.serverTimestamp() }));
+    return { pending: ids.length, updated: open[0].id };
+  }
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
+  const ref = await db.collection("interactions").add(Object.assign({}, fields, {
+    workflowStep: LIONS_CONTACT_REQ_STEP, contactId: "", contactType: "", interactionType: "Lions contact details",
+    channel: "Other", notes: "These Lions screening families have no phone or email we can use. Type the school or Department of Health contact's name and email, then send: one email goes with the list by school and every family's screening form attached.",
+    owner: "Noelani Dela Vega", ownerUid: NOELANI_DELAVEGA_UID, status: "Open", followUpDate: today,
+    grantProgram: "", grantPrograms: [], isDraft: false, createdBy: "System", createdByUid: "system",
+    source: "lions-contact-request", createdAt: FV.serverTimestamp(), updatedAt: FV.serverTimestamp(),
+  }));
+  return { pending: ids.length, created: ref.id };
+}
+
+function _lionsShortDate(iso) {
+  const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return String(iso || "");
+  return ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][Number(m[2]) - 1] + " " + Number(m[3]);
+}
+function _lionsContactRequestHtml(toName, rows, staffName, staffEmail) {
+  const esc = lifecycleEsc;
+  const p = "margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;";
+  const th = "text-align:left;padding:6px 8px;font-size:12px;color:#475569;border-bottom:2px solid #CBD5E1;";
+  const td = "padding:6px 8px;font-size:13px;color:#222;border-bottom:1px solid #E2E8F0;vertical-align:top;";
+  const tdn = td + "white-space:nowrap;";
+  const groups = {};
+  rows.forEach((r) => { (groups[r.school] = groups[r.school] || []).push(r); });
+  const tables = Object.keys(groups).sort().map((s) => {
+    const list = groups[s];
+    return '<p style="margin:18px 0 6px;font-size:15px;font-weight:700;color:#1a3c6e;">' + esc(s) + " (" + list.length + ")</p>" +
+      '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">' +
+      "<tr><th style=\"" + th + "\">Child</th><th style=\"" + th + "\">Grade</th><th style=\"" + th + "\">Teacher / room</th><th style=\"" + th + "\">Screening</th><th style=\"" + th + "\">Parent on the form</th></tr>" +
+      list.map((r) => "<tr><td style=\"" + td + "\">" + esc(r.child || "(name not on the form)") + "</td><td style=\"" + td + "\">" + esc(r.scr.grade || "") +
+        "</td><td style=\"" + td + "\">" + esc([r.scr.teacher, r.scr.room].filter(Boolean).join(", ")) + "</td><td style=\"" + tdn + "\">" +
+        esc([String(r.scr.screeningType || "").replace(/^./, (m) => m.toUpperCase()), _lionsShortDate(r.scr.screeningDate)].filter(Boolean).join(" ")) + "</td><td style=\"" + td + "\">" + esc(r.parent || "") + "</td></tr>").join("") +
+      "</table>";
+  }).join("");
+  return [
+    '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f7;">',
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f4f4f7;padding:24px 0;"><tr><td align="center">',
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="640" style="background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">',
+    '<tr><td style="background:#ffffff;padding:22px 24px 14px;text-align:center;border-bottom:3px solid #1a3c6e;"><img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai&#699;i" width="140" style="display:block;margin:0 auto;border:0;"></td></tr>',
+    '<tr><td style="background:#1a3c6e;padding:14px 24px;"><p style="margin:0;font-size:17px;color:#ffffff;font-weight:700;">Parent contact details needed: Lions Club screenings</p></td></tr>',
+    '<tr><td style="padding:24px;">',
+    '<p style="' + p + '">Aloha ' + esc(toName || "there") + ",</p>",
+    '<p style="' + p + '">We received the Lions Club screening forms for the ' + rows.length + " child" + (rows.length === 1 ? "" : "ren") +
+      " listed below, but the forms have no phone number or working email for the parent, so we can&rsquo;t reach the families about their child&rsquo;s results.</p>",
+    '<p style="' + p + '">Could you send us a parent or guardian name, phone number and email for each child? Each child&rsquo;s screening form is attached.</p>',
+    tables,
+    '<p style="margin:18px 0 4px;font-size:15px;color:#333;line-height:1.55;">Mahalo,</p>',
+    '<p style="margin:0;font-size:14px;color:#555555;line-height:1.5;">',
+      "<strong>" + esc(staffName) + "</strong><br>School Readiness Project<br>",
+      "Leadership in Disabilities &amp; Achievement of Hawai&#699;i<br>245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>Phone: (808) 536-9684<br>",
+      (staffEmail ? 'Email: <a href="mailto:' + esc(staffEmail) + '" style="color:#1a73e8;text-decoration:none;">' + esc(staffEmail) + "</a><br>" : ""),
+      '<a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a></p>',
+    "</td></tr></table></td></tr></table></body></html>",
+  ].join("");
+}
+exports._lionsContactRequestHtml = _lionsContactRequestHtml;
+
+exports.sendLionsContactRequest = functions
+  .runWith({ timeoutSeconds: 120, memory: "512MB", maxInstances: 3, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    if (_schoolCors(req, res)) return;
+    const body = req.body || {};
+    let staff;
+    try { staff = await _verifyStaffIdToken(body.idToken); }
+    catch (e) { res.status(e.statusCode || 401).json({ error: e.message }); return; }
+    const taskId = String(body.taskId || "").trim();
+    const toName = String(body.toName || "").trim().slice(0, 120);
+    const toEmail = String(body.toEmail || "").trim().slice(0, 200);
+    if (!taskId || !toName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail)) { res.status(400).json({ error: "Type the contact's name and a valid email." }); return; }
+    try {
+      const db = admin.firestore();
+      const FV = admin.firestore.FieldValue;
+      const tRef = db.collection("interactions").doc(taskId);
+      const t = await tRef.get();
+      if (!t.exists || (t.data() || {}).workflowStep !== LIONS_CONTACT_REQ_STEP) { res.status(404).json({ error: "Task not found" }); return; }
+      const want = new Set((t.data() || {}).lionsCaseIds || []);
+      const rows = (await _lionsContactPending(db)).filter((r) => want.has(r.caseId));
+      if (!rows.length) { res.status(400).json({ error: "Every family on this task has already been asked about." }); return; }
+      const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
+      const attachments = []; const attached = [];
+      for (const r of rows) {
+        const docs = (Array.isArray(r.contact.screeningConsentDocs) ? r.contact.screeningConsentDocs : []).filter((d) => d && d.storagePath);
+        for (let k = 0; k < docs.length; k++) {
+          try {
+            const [buf] = await bucket.file(docs[k].storagePath).download();
+            const ext = (String(docs[k].storagePath).match(/\.([a-z0-9]+)$/i) || [, "pdf"])[1];
+            const nm = (r.school + " - " + (r.child || r.parent || r.caseId) + (docs.length > 1 ? " " + (k + 1) : "")).replace(/[^\w .,'-]+/g, "") + "." + ext;
+            attachments.push({ filename: nm, content: buf.toString("base64") });
+            attached.push(nm);
+          } catch (e) { console.warn("sendLionsContactRequest: form missing", docs[k].storagePath, e.message); }
+        }
+      }
+      const ur = await db.collection("userRoles").doc(staff.uid).get();
+      const rd = ur.exists ? ur.data() || {} : {};
+      const staffName = rd.displayName || staff.name || "LDAH";
+      const staffEmail = rd.email || staff.email || "";
+      await sendEmailViaResend({
+        from: lifecycleFromAddress(), to: toEmail, cc: staffEmail,
+        subject: "Parent contact details needed: " + rows.length + " Lions Club screening" + (rows.length === 1 ? "" : "s"),
+        html: _lionsContactRequestHtml(toName, rows, staffName, staffEmail),
+        type: "lions-contact-request", recipientName: toName,
+        replyTo: staffEmail ? staffName + " <" + staffEmail + ">" : undefined,
+        attachments,
+      });
+      const nowIso = new Date().toISOString();
+      for (const r of rows) {
+        await db.collection("interactions").doc(r.caseId).update({
+          lionsContactRequestedAt: nowIso, lionsContactRequestedTo: toName + " <" + toEmail + ">", lionsContactRequestedBy: staffName,
+        });
+      }
+      await tRef.update({
+        status: "Closed", closedReason: "request sent",
+        contactRequestSent: { at: nowIso, by: staffName, toName, toEmail, families: rows.length, forms: attached.length },
+        notes: String((t.data() || {}).notes || "") + "\n\nSent " + nowIso.slice(0, 10) + " by " + staffName + " to " + toName + " <" + toEmail + ">: " + rows.length + " families, " + attached.length + " forms attached.",
+        updatedAt: FV.serverTimestamp(),
+      });
+      await db.collection("auditLog").add({ action: "Lions contact details requested", details: toName + " <" + toEmail + ">: " + rows.length + " families, " + attached.length + " forms", performedBy: staffName, timestamp: FV.serverTimestamp() });
+      try { await _syncLionsContactRequestTask(); } catch (e) { console.warn("sendLionsContactRequest: resync", e.message); }
+      res.status(200).json({ ok: true, families: rows.length, forms: attached.length, sentTo: toEmail });
+    } catch (err) {
+      console.error("sendLionsContactRequest:", err.message);
+      res.status(500).json({ error: err.message || "Send failed" });
+    }
+  });
+exports._lionsContactPending = _lionsContactPending;
