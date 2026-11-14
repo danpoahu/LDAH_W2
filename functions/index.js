@@ -31786,8 +31786,8 @@ exports.checkScreeningIntroBounces = functions
     let snap;
     try {
       snap = await db.collection("emailLog")
-        .where("type", "==", "lions-screening-intro")
-        .select("sentAt", "to", "success", "resendId", "deliveryFinal", "relatedContactId")
+        .where("type", "in", ["lions-screening-intro", "lions-case-assigned"])
+        .select("sentAt", "to", "success", "resendId", "deliveryFinal", "relatedContactId", "type")
         .get();
     } catch (e) { console.error("checkScreeningIntroBounces query:", e.message); return null; }
 
@@ -31835,7 +31835,17 @@ exports.checkScreeningIntroBounces = functions
       const decision = _introDeliveryDecision(lastEvent, it.sentMs, Date.now());
       const patch = { deliveryStatus: lastEvent || null, deliveryCheckedAt: FieldValue.serverTimestamp() };
 
-      if (decision.fix) {
+      if (decision.fix && it.x.type === "lions-case-assigned") {
+        /* The assigned-case email bounced: back to the school, not a call task. */
+        bounced++;
+        try {
+          const cid = String(it.x.relatedContactId || "").trim();
+          const cs = cid ? await db.collection("interactions").where("contactId", "==", cid).get() : null;
+          const open = cs ? cs.docs.filter((d) => { const y = d.data() || {}; return y.workflowStep === "caseAdvocacy" && y.caseAdvocacySource === "lions-screening" && y.status === "Open"; }) : [];
+          for (const d of open) await _lionsEmailFailBackToSchool(d.ref, String(it.x.to || "").split(",")[0].trim(), "the email bounced (" + lastEvent + ")");
+          patch.deliveryFinal = true;
+        } catch (e) { errors++; console.error("checkScreeningIntroBounces: back-to-school failed for " + it.id + ":", e.message); }
+      } else if (decision.fix) {
         bounced++;
         try {
           let contactId = String(it.x.relatedContactId || "").trim();
@@ -34047,13 +34057,15 @@ async function _syncCaseMgmtAssignTask() {
     return x.status === "Open" && x.serviceLevel === "management" && x.needsAdvocateAssignment === true && !x.partnerIsland; });
   const cids = [...new Set(cand.map((d) => (d.data() || {}).contactId).filter(Boolean))];
   const reach = {};
+  const contactById = {};
   for (let i = 0; i < cids.length; i += 200) {
     const snaps = await db.getAll(...cids.slice(i, i + 200).map((id) => db.collection("contacts").doc(id)));
-    snaps.forEach((c) => { reach[c.id] = c.exists && _caseMgmtReachable(c.data() || {}); });
+    snaps.forEach((c) => { reach[c.id] = c.exists && _caseMgmtReachable(c.data() || {}); contactById[c.id] = c.exists ? (c.data() || {}) : {}; });
   }
   cand.forEach((d) => {
     const x = d.data() || {};
     if (!reach[x.contactId]) return;
+    if (_lionsEmailStillFailed(x, contactById[x.contactId])) return;   // back to the school (2026-11-13)
     waiting.add(d.id);
     // A school batch has its own task (below), so it is not counted twice.
     if (!x.assignBatch) n++;
@@ -35967,6 +35979,38 @@ function _lionsAssignedEmailHtml(parentFirst, staffName, staffEmail) {
   ].join("");
 }
 const LIONS_ASSIGNED_SUBJECT = "Your child's screening results (LDAH School Readiness Project)";
+
+/* A Lions family whose email failed goes back to the school (Daniel 2026-11-13):
+   no email, a broken one, Resend refusing it, or a bounce. The case is
+   un-assigned back to Noe and flagged lionsEmailFailed with the address that
+   failed, so the Case Management report files the family under "No phone or
+   email" (even with a phone) and the "Assign N" task skips them. A corrected
+   email on the card lifts them out; Noe assigns again and the email goes. */
+async function _lionsEmailFailBackToSchool(caseRef, address, reason) {
+  const FV = admin.firestore.FieldValue;
+  await caseRef.update({
+    needsAdvocateAssignment: true,
+    caseAdvocateUid: FV.delete(), caseAdvocateName: FV.delete(),
+    owner: "Noelani Dela Vega", ownerUid: NOELANI_DELAVEGA_UID,
+    lionsAssignedEmailAt: FV.delete(), lionsAssignedEmailTo: FV.delete(), lionsAssignedEmailBy: FV.delete(),
+    lionsEmailFailed: { address: String(address || "").trim(), reason: String(reason || ""), at: new Date().toISOString() },
+    updatedAt: FV.serverTimestamp(),
+  });
+  try {
+    await admin.firestore().collection("auditLog").add({
+      action: "Lions family email failed: back to the school",
+      details: "case " + caseRef.id + " address '" + String(address || "") + "': " + reason,
+      performedBy: "system", timestamp: FV.serverTimestamp(),
+    });
+  } catch (_) {}
+}
+/* Same test the Case Management report uses: the flag holds only while the
+   card still carries the address that failed. */
+function _lionsEmailStillFailed(caseData, contactData) {
+  const f = caseData && caseData.lionsEmailFailed;
+  if (!f) return false;
+  return String((contactData && contactData.email) || "").trim().toLowerCase() === String(f.address || "").trim().toLowerCase();
+}
 exports._lionsAssignedEmailHtml = _lionsAssignedEmailHtml;
 exports._lionsAssignedSubject = LIONS_ASSIGNED_SUBJECT;
 
@@ -35986,7 +36030,11 @@ exports.onLionsCaseAssignedEmailFamily = functions
       const ct = await db.collection("contacts").doc(a.contactId).get();
       const c = ct.exists ? ct.data() || {} : {};
       const to = String(c.email || "").trim();
-      if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) { console.log("onLionsCaseAssignedEmailFamily: no email", context.params.interactionId); return null; }
+      if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+        await _lionsEmailFailBackToSchool(change.after.ref, to, to ? "the email address is not valid" : "no email on file");
+        console.log("onLionsCaseAssignedEmailFamily: bad or no email, back to the school", context.params.interactionId);
+        return null;
+      }
       const ur = await db.collection("userRoles").doc(staffUid).get();
       const rd = ur.exists ? ur.data() || {} : {};
       const staffName = rd.displayName || a.caseAdvocateName || a.owner || "LDAH";
@@ -35994,12 +36042,19 @@ exports.onLionsCaseAssignedEmailFamily = functions
       // Stamp first so a retry or a second update can never send twice.
       await change.after.ref.update({ lionsAssignedEmailAt: admin.firestore.FieldValue.serverTimestamp(), lionsAssignedEmailTo: to, lionsAssignedEmailBy: staffName });
       const parentFirst = String(c.firstName || "").trim() || lifecycleFirstName(a.contactName || "");
-      await sendEmailViaResend({
-        from: lifecycleFromAddress(), to, subject: LIONS_ASSIGNED_SUBJECT,
-        html: _lionsAssignedEmailHtml(parentFirst, staffName, staffEmail),
-        type: "lions-case-assigned", recipientName: a.contactName || to, relatedContactId: a.contactId,
-        replyTo: staffEmail ? staffName + " <" + staffEmail + ">" : undefined,
-      });
+      try {
+        await sendEmailViaResend({
+          from: lifecycleFromAddress(), to, subject: LIONS_ASSIGNED_SUBJECT,
+          html: _lionsAssignedEmailHtml(parentFirst, staffName, staffEmail),
+          type: "lions-case-assigned", recipientName: a.contactName || to, relatedContactId: a.contactId,
+          replyTo: staffEmail ? staffName + " <" + staffEmail + ">" : undefined,
+        });
+      } catch (sendErr) {
+        await _lionsEmailFailBackToSchool(change.after.ref, to, "the send failed: " + sendErr.message);
+        console.log("onLionsCaseAssignedEmailFamily: send failed, back to the school", context.params.interactionId);
+        return null;
+      }
+      if (a.lionsEmailFailed) await change.after.ref.update({ lionsEmailFailed: admin.firestore.FieldValue.delete() });
       console.log("onLionsCaseAssignedEmailFamily: sent", context.params.interactionId, "by", staffName);
     } catch (e) { console.error("onLionsCaseAssignedEmailFamily:", e.message); }
     return null;
