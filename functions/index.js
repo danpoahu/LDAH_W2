@@ -35869,3 +35869,67 @@ exports.officeScreeningSweep = functions
     } catch (e) { console.error("officeScreeningSweep:", e.message); }
     return null;
   });
+
+// ── Case advocacy families join the Volunteer Roster (2026-11-13) ──────
+// Rosie: every family in case advocacy goes on the Volunteer Roster as a
+// Parents as Partners volunteer. Same families as the Case Advocacy Report:
+// a case file (workflowStep "caseAdvocacy") that is advocacy, not case
+// management, and not a Pacific partner's family. Added once per family
+// (linkedContactId), when the case file is created or later switched from
+// management to advocacy. Written as status "accepted", so
+// onVolunteerApplicationCreated (status "new" only) raises no intake task,
+// and nothing is emailed when a family is added.
+function _caRosterQualifies(d) {
+  if (!d || d.workflowStep !== "caseAdvocacy" || !d.contactId || d.partnerIsland) return false;
+  if (d.serviceLevel === "management") return false;
+  if (d.serviceLevel !== "advocacy" && d.caseAdvocacySource === "lions-screening") return false;
+  return true;
+}
+async function _caRosterAdd(db, contactId, caseId) {
+  const dup = await db.collection("volunteers").where("linkedContactId", "==", contactId).limit(1).get();
+  if (!dup.empty) return "already on roster";
+  const ct = await db.collection("contacts").doc(contactId).get();
+  if (!ct.exists) return "contact missing";
+  const c = ct.data() || {};
+  if (c.partnerIsland) return "partner family";
+  const email = String(c.email || "").trim();
+  if (email) {
+    const byEmail = await db.collection("volunteers").where("email", "==", email).limit(1).get();
+    if (!byEmail.empty) return "email already on roster";
+  }
+  let oppId = "";
+  (await db.collection("volunteerOpportunities").get()).forEach((o) => {
+    if (!oppId && String((o.data() || {}).title || "").trim().toLowerCase() === "parents as partners") oppId = o.id;
+  });
+  if (!oppId) return "no Parents as Partners opportunity";
+  await db.collection("volunteers").add({
+    firstName: String(c.firstName || "").trim(),
+    lastName: String(c.lastName || "").trim(),
+    email: email,
+    phone: String(c.phone || "").trim(),
+    opportunityId: oppId,
+    status: "accepted",
+    subject: "Case advocacy family",
+    notes: "Added automatically: case advocacy family.",
+    source: "caseAdvocacy",
+    linkedContactId: contactId,
+    caseInteractionId: caseId || "",
+    createdBy: "Case advocacy (automatic)",
+    submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return "added";
+}
+exports.onCaseAdvocacyAddToRoster = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
+  .firestore.document("interactions/{interactionId}")
+  .onWrite(async (change, context) => {
+    try {
+      const after = change.after.exists ? change.after.data() : null;
+      if (!_caRosterQualifies(after)) return null;
+      const before = change.before.exists ? change.before.data() : null;
+      if (_caRosterQualifies(before)) return null;
+      const r = await _caRosterAdd(admin.firestore(), after.contactId, context.params.interactionId);
+      console.log("onCaseAdvocacyAddToRoster:", context.params.interactionId, r);
+    } catch (e) { console.error("onCaseAdvocacyAddToRoster:", e.message); }
+    return null;
+  });
