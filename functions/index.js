@@ -36249,3 +36249,4 @@ exports.sendLionsContactRequest = functions
     }
   });
 exports._lionsContactPending = _lionsContactPending;
+exports._syncLionsContactRequestTask = _syncLionsContactRequestTask;
