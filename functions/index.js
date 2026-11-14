@@ -35933,3 +35933,74 @@ exports.onCaseAdvocacyAddToRoster = functions
     } catch (e) { console.error("onCaseAdvocacyAddToRoster:", e.message); }
     return null;
   });
+
+// ── Lions case assigned → email the family (Daniel 2026-11-13) ──────────
+// When Noe assigns a Lions screening case (needsAdvocateAssignment true ->
+// false, with a named advocate), the family is emailed straight away by the
+// person it was assigned to, signed with their name and the School Readiness
+// Project as their title. Once per case: lionsAssignedEmailAt is stamped.
+// No email on file = nothing sent (those families wait on the DOE contact).
+function _lionsAssignedEmailHtml(parentFirst, staffName, staffEmail) {
+  const esc = lifecycleEsc;
+  const p = 'margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;';
+  return [
+    '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f7;">',
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f4f4f7;padding:24px 0;"><tr><td align="center">',
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">',
+    '<tr><td style="background:#ffffff;padding:22px 24px 14px;text-align:center;border-bottom:3px solid #1a3c6e;"><img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai&#699;i" width="140" style="display:block;margin:0 auto;border:0;"></td></tr>',
+    '<tr><td style="background:#1a3c6e;padding:14px 24px;"><p style="margin:0;font-size:17px;color:#ffffff;font-weight:700;">Your child&rsquo;s screening results</p></td></tr>',
+    '<tr><td style="padding:24px;">',
+    '<p style="' + p + '">Aloha ' + esc(parentFirst || "there") + ',</p>',
+    '<p style="' + p + '">This is ' + esc(staffName) + ' from the School Readiness Project with the Lions Club. We&rsquo;re emailing to make sure you&rsquo;ve received your child&rsquo;s screening results from the school.</p>',
+    '<p style="' + p + '">Please call or email us back for more information, or we&rsquo;ll reach out to you in a month.</p>',
+    '<p style="margin:18px 0 4px;font-size:15px;color:#333;line-height:1.55;">Mahalo,</p>',
+    '<p style="margin:0;font-size:14px;color:#555555;line-height:1.5;">',
+      '<strong>' + esc(staffName) + '</strong><br>',
+      'School Readiness Project<br>',
+      'Leadership in Disabilities &amp; Achievement of Hawai&#699;i<br>',
+      '245 N. Kukui St. Ste. 205, Honolulu, HI 96817<br>',
+      'Phone: (808) 536-9684<br>',
+      (staffEmail ? 'Email: <a href="mailto:' + esc(staffEmail) + '" style="color:#1a73e8;text-decoration:none;">' + esc(staffEmail) + '</a><br>' : ''),
+      '<a href="https://www.ldahawaii.org" style="color:#1a73e8;text-decoration:none;">LDAHawaii.org</a>',
+    '</p>',
+    '</td></tr></table></td></tr></table></body></html>',
+  ].join("");
+}
+const LIONS_ASSIGNED_SUBJECT = "Your child's screening results (LDAH School Readiness Project)";
+exports._lionsAssignedEmailHtml = _lionsAssignedEmailHtml;
+exports._lionsAssignedSubject = LIONS_ASSIGNED_SUBJECT;
+
+exports.onLionsCaseAssignedEmailFamily = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 3, secrets: ["RESEND_API_KEY", "SMTP_FROM"] })
+  .firestore.document("interactions/{interactionId}")
+  .onUpdate(async (change, context) => {
+    const b = change.before.data() || {};
+    const a = change.after.data() || {};
+    if (a.caseAdvocacySource !== "lions-screening" || a.workflowStep !== "caseAdvocacy") return null;
+    if (!(b.needsAdvocateAssignment === true && a.needsAdvocateAssignment !== true)) return null;
+    if (a.status !== "Open" || a.lionsAssignedEmailAt || !a.contactId) return null;
+    const staffUid = a.caseAdvocateUid || a.ownerUid;
+    if (!staffUid) return null;
+    const db = admin.firestore();
+    try {
+      const ct = await db.collection("contacts").doc(a.contactId).get();
+      const c = ct.exists ? ct.data() || {} : {};
+      const to = String(c.email || "").trim();
+      if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) { console.log("onLionsCaseAssignedEmailFamily: no email", context.params.interactionId); return null; }
+      const ur = await db.collection("userRoles").doc(staffUid).get();
+      const rd = ur.exists ? ur.data() || {} : {};
+      const staffName = rd.displayName || a.caseAdvocateName || a.owner || "LDAH";
+      const staffEmail = rd.email || "";
+      // Stamp first so a retry or a second update can never send twice.
+      await change.after.ref.update({ lionsAssignedEmailAt: admin.firestore.FieldValue.serverTimestamp(), lionsAssignedEmailTo: to, lionsAssignedEmailBy: staffName });
+      const parentFirst = String(c.firstName || "").trim() || lifecycleFirstName(a.contactName || "");
+      await sendEmailViaResend({
+        from: lifecycleFromAddress(), to, subject: LIONS_ASSIGNED_SUBJECT,
+        html: _lionsAssignedEmailHtml(parentFirst, staffName, staffEmail),
+        type: "lions-case-assigned", recipientName: a.contactName || to, relatedContactId: a.contactId,
+        replyTo: staffEmail ? staffName + " <" + staffEmail + ">" : undefined,
+      });
+      console.log("onLionsCaseAssignedEmailFamily: sent", context.params.interactionId, "by", staffName);
+    } catch (e) { console.error("onLionsCaseAssignedEmailFamily:", e.message); }
+    return null;
+  });
