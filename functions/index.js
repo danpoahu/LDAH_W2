@@ -3582,14 +3582,8 @@ exports.onEventFeedbackCreated = functions
         ownerUid = evData.summary.presenterUid || "";
         if (!presenterNameFromEvent) presenterNameFromEvent = evData.summary.presenter || "";
       }
-      if (!ownerUid && presenterNameFromEvent) {
-        try {
-          const urSnap = await db.collection("userRoles")
-            .where("displayName", "==", presenterNameFromEvent)
-            .limit(1).get();
-          if (!urSnap.empty) ownerUid = urSnap.docs[0].id;
-        } catch (_) {}
-      }
+      if (ownerUid === "(form-set)") ownerUid = "";
+      if (!ownerUid && presenterNameFromEvent) ownerUid = await _lcPresenterUidByName(db, presenterNameFromEvent);
       if (!ownerUid) ownerUid = LIFECYCLE_ADMIN_UID;
       let ownerName = await _lcResolveStaffName(db, ownerUid);
       if (!ownerName) {
@@ -24872,6 +24866,31 @@ function _lcCan(ev, capability, collection) {
   return caps[capability] !== false;
 }
 
+/* Presenter name -> login uid (Daniel 2026-11-16). The Presenters list
+   (presenterStaff) links each staff presenter to their login, so it wins;
+   then a login whose displayName matches, ignoring capitals and spaces.
+   Outside presenters have no login: returns "". */
+async function _lcPresenterUidByName(db, name) {
+  const want = String(name || "").trim().toLowerCase();
+  if (!want) return "";
+  try {
+    const ps = await db.collection("presenterStaff").get();
+    for (const d of ps.docs) {
+      const v = d.data() || {};
+      if (String(v.name || "").trim().toLowerCase() !== want) continue;
+      if (v.kind === "outside") return "";
+      if (v.uid) return String(v.uid);
+    }
+  } catch (_) { /* tolerate */ }
+  try {
+    const ur = await db.collection("userRoles").get();
+    for (const d of ur.docs) {
+      if (String((d.data() || {}).displayName || "").trim().toLowerCase() === want) return d.id;
+    }
+  } catch (_) { /* tolerate */ }
+  return "";
+}
+
 async function _lcResolveStaffName(db, uid) {
   if (!uid) return "";
   try {
@@ -26702,12 +26721,10 @@ exports.onEventUpdatedLifecycle = functions
         .where("status", "==", "Open")
         .limit(1).get();
       if (q.empty) continue;
-      // Look up uid from userRoles by displayName (best-effort).
-      let uid = "";
-      try {
-        const ur = await db.collection("userRoles").where("displayName", "==", afterName).limit(1).get();
-        if (!ur.empty) uid = ur.docs[0].id;
-      } catch (e) { /* tolerate */ }
+      // The uid the form saved wins; else the Presenters-list link / login name (2026-11-16).
+      let uid = String((afterSummaries[summaryMapKey] && afterSummaries[summaryMapKey].presenterUid) || "").trim();
+      if (uid === "(form-set)") uid = "";
+      if (!uid) uid = await _lcPresenterUidByName(db, afterName);
       // If still empty (external presenter not in userRoles), use a non-empty marker so
       // the chain engine's re-open guard is bypassed.
       const persistedUid = uid || "(form-set)";
@@ -26761,12 +26778,8 @@ exports.onRecurringEventUpdatedLifecycle = functions
       // then to a non-empty marker so the chain engine's re-open guard (which
       // fires on a blank assignedPresenterUid) doesn't resurrect the task.
       let uid = String((afterSS[sessionKey] && afterSS[sessionKey].presenterUid) || "").trim();
-      if (!uid) {
-        try {
-          const ur = await db.collection("userRoles").where("displayName", "==", afterName).limit(1).get();
-          if (!ur.empty) uid = ur.docs[0].id;
-        } catch (e) { /* tolerate */ }
-      }
+      if (uid === "(form-set)") uid = "";
+      if (!uid) uid = await _lcPresenterUidByName(db, afterName);
       await q.docs[0].ref.update({
         status: "Closed",
         assignedPresenterUid:  uid || "(form-set)",
