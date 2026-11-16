@@ -24922,7 +24922,7 @@ function _lcBuildInteractionDoc(opts) {
     contactName: (opts.eventTitle || "(untitled event)") + (display ? " — " + display : ""),
     contactType: "",
     grantProgram: "",
-    summary: c.type + " for: " + (opts.eventTitle || "") + suffix,
+    summary: (opts.label || c.type) + " for: " + (opts.eventTitle || "") + suffix,
     followUpDate: opts.dueDate || "",
     status: "Open",
     notes: "",
@@ -26384,6 +26384,10 @@ exports.createPresenterPrepTasks = functions
     const baseMs = new Date(todayKey + "T12:00:00-10:00").getTime();
     const targetKey   = new Date(baseMs + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const followUpKey = new Date(baseMs + 4 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10); // session (+3) + 1
+    // Parent Talk Cafe is pre-recorded (Daniel 2026-11-16): "Record PTC" goes out
+    // two days earlier (5 days before the session) and is due the day before it.
+    const ptcTargetKey = new Date(baseMs + 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const ptcDueKey    = new Date(baseMs + 4 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10); // session (+5) - 1
 
     const laaName = await _lcResolveStaffName(db, LIFECYCLE_ADMIN_UID);
 
@@ -26400,15 +26404,17 @@ exports.createPresenterPrepTasks = functions
       // filtered only on lifecycleStatus + a session dated today+3, so it was
       // raising "Present Event" for all three. (2026-08-31)
       if (!_lcCan(ev, "presenter")) continue;
+      const isPtc = ev.eventType === "parent_talk_cafe";
+      const tKey = isPtc ? ptcTargetKey : targetKey;
       const sessions = getEventSessions(ev) || [];
-      const targetSession = sessions.find(s => _lcSessionKey(s) === targetKey);
+      const targetSession = sessions.find(s => _lcSessionKey(s) === tKey);
       if (!targetSession) continue;
 
       // Presenter lives in the Event Summary storage: event.summary (single
       // session) or event.sessionSummaries. Resolve by session date (keys drift
       // between "July 8, 2026 - 5:00 PM" and a bare-date rawString) — see
       // createDayOfAttendanceTasks / _lcResolveSessionPresenter.
-      const presenterSrc = _lcResolveSessionPresenter(ev, sessions, targetKey, targetSession.rawString);
+      const presenterSrc = _lcResolveSessionPresenter(ev, sessions, tKey, targetSession.rawString);
 
       let ownerUid, ownerName;
       if (presenterSrc.presenterUid) {
@@ -26422,7 +26428,8 @@ exports.createPresenterPrepTasks = functions
 
       const res = await _lcCreateIfMissing(db, {
         eventId: doc.id, eventTitle: ev.title || "", step: "presenterPrep",
-        sessionKey: targetKey, ownerUid, ownerName, dueDate: followUpKey
+        sessionKey: tKey, ownerUid, ownerName, dueDate: isPtc ? ptcDueKey : followUpKey,
+        label: isPtc ? "Record PTC" : ""
       });
       if (res) created++;
     }
