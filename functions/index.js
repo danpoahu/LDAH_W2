@@ -23388,6 +23388,18 @@ exports.sweepKomMonthlyEvent = functions
     return null;
   });
 
+/* Lions: the assigned email counts as the first contact; the next one is due
+   30 days later (Daniel 2026-11-17). Returns YYYY-MM-DD (HST) or "" when the
+   family has not been emailed. */
+const LIONS_NEXT_CONTACT_DAYS = 30;
+function _lionsNextContactDate(d) {
+  const at = d && d.lionsAssignedEmailAt;
+  if (!at) return "";
+  const ms = typeof at.toMillis === "function" ? at.toMillis() : Date.parse(at);
+  if (!ms || isNaN(ms)) return "";
+  return toHstDateKey(new Date(ms + LIONS_NEXT_CONTACT_DAYS * 86400000));
+}
+
 exports.sweepScreeningDeadlines = functions
   .runWith({ timeoutSeconds: 300, memory: "256MB", maxInstances: 1 })
   .pubsub.schedule("10 6 * * *")
@@ -23404,6 +23416,30 @@ exports.sweepScreeningDeadlines = functions
         scanned++;
         try {
           const d = doc.data() || {};
+          /* The assigned email is the first contact (Daniel 2026-11-17): the
+             next contact is due 30 days after it, and the case is not urgent
+             until then. After 30 days it is due on that date (so My Day shows
+             how late it is), unless staff already moved the follow-up later. */
+          const nextContact = _lionsNextContactDate(d);
+          if (nextContact) {
+            const upd = {};
+            if (today < nextContact) {
+              if (String(d.followUpDate || "") < nextContact) upd.followUpDate = nextContact;
+              if (d.urgent === true) upd.urgent = false;
+            } else if (String(d.followUpDate || "") <= nextContact) {
+              if (d.followUpDate !== nextContact) upd.followUpDate = nextContact;
+              if (d.urgent !== true) upd.urgent = true;
+            }
+            if (!Object.keys(upd).length) { skipped++; continue; }
+            upd.lionsNextContactDate = nextContact;
+            upd.screeningUrgencyAt = admin.firestore.FieldValue.serverTimestamp();
+            await doc.ref.update(upd);
+            raised++;
+            if (upd.urgent === true) madeUrgent++;
+            console.log("sweepScreeningDeadlines: " + doc.id + " emailed, next contact " + nextContact +
+              " -> " + JSON.stringify(upd, (k, v) => (k === "screeningUrgencyAt" ? undefined : v)));
+            continue;
+          }
           const due = String(d.caseAdvocacyContactDueDate || "").trim();
           if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) { skipped++; continue; }
           const daysLeft = Math.round(
@@ -36079,7 +36115,11 @@ exports.onLionsCaseAssignedEmailFamily = functions
         console.log("onLionsCaseAssignedEmailFamily: send failed, back to the school", context.params.interactionId);
         return null;
       }
-      if (a.lionsEmailFailed) await change.after.ref.update({ lionsEmailFailed: admin.firestore.FieldValue.delete() });
+      /* The email is the first contact: next contact in 30 days, not urgent until then (Daniel 2026-11-17). */
+      const nextContact = toHstDateKey(new Date(Date.now() + LIONS_NEXT_CONTACT_DAYS * 86400000));
+      const after = { followUpDate: nextContact, lionsNextContactDate: nextContact, urgent: false };
+      if (a.lionsEmailFailed) after.lionsEmailFailed = admin.firestore.FieldValue.delete();
+      await change.after.ref.update(after);
       console.log("onLionsCaseAssignedEmailFamily: sent", context.params.interactionId, "by", staffName);
     } catch (e) { console.error("onLionsCaseAssignedEmailFamily:", e.message); }
     return null;
