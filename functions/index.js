@@ -6709,8 +6709,8 @@ function renderTopLevelDailyReport(c) {
 </html>`;
 }
 
-// Volunteers section of the LDAH daily report (2026-11-12). Every open
-// application is listed by name until staff accept or decline it, plus what
+// Volunteers section of the LDAH daily report (2026-11-12). Every NEW
+// application is listed by name until staff move it on (2026-11-17), plus what
 // is new since the last report: applications, in-office help sign-ups and
 // cancellations, and help-request confirmations, and who is due in the
 // office today. Returns { html, note } or null when there is nothing to show.
@@ -6749,6 +6749,9 @@ async function buildDailyReportVolunteers(db, cutoffMs, todayISO, esc) {
     const at = ms(v.submittedAt || v.createdAt);
     if (at && at >= cutoffMs) newApps.push({ name: nm(v), opp: opp[v.opportunityId] || v.subject || "" });
     if (CLOSED.includes(st)) return;
+    // Only NEW applications are listed (Daniel 2026-11-17): once staff mark one
+    // Contacted or Interviewing it is being handled, so it leaves the report.
+    if (st !== "new" && st !== "pending") return;
     const stage = STAGE[st] || (st.charAt(0).toUpperCase() + st.slice(1));
     open.push({ name: nm(v), opp: opp[v.opportunityId] || v.subject || "", stage, at, isNew: at >= cutoffMs });
   });
@@ -6804,7 +6807,7 @@ async function buildDailyReportVolunteers(db, cutoffMs, todayISO, esc) {
 
   let html = "";
   if (open.length) {
-    html += head(`Applications waiting (${open.length})`);
+    html += head(`New applications waiting (${open.length})`);
     html += tbl(open.map((a) => {
       const days = a.at ? Math.max(0, Math.floor((nowMs - a.at) / 86400000)) : null;
       const age = a.at ? "applied " + dayLbl(hstISO(a.at)) + (days ? " &middot; " + days + " day" + (days === 1 ? "" : "s") : " &middot; today") : "";
