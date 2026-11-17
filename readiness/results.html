@@ -491,8 +491,21 @@
     const h = +k.split(':')[0], m = k.split(':')[1];
     return (h % 12 || 12) + ':' + m + ' ' + (h < 12 ? 'AM' : 'PM');
   }
+  /* A finished school drops off this page (Daniel 2026-11-17): every child has
+     both parts done or is marked Won't be screened. It stays in DAN's
+     Screenings report. A school you are on stays until you pick another one,
+     so it never vanishes mid-work. The LDAH Office never drops off. */
+  function finishedLocs(){
+    const st = {};
+    rows.forEach(r => { if (!r.location || r.location === OFFICE_LOC) return;
+      const ok = isComplete(r.results) || !!r.notScreening;
+      st[r.location] = (st[r.location] === undefined ? true : st[r.location]) && ok; });
+    const out = {}; Object.keys(st).forEach(k => { if (st[k] && k !== pick.loc) out[k] = true; });
+    return out;
+  }
   function fillPickers(){
-    const locs = {}; rows.forEach(r=>{ if(r.location && officeOn(r, screenDay())){ const L = locs[r.location] = locs[r.location] || { n:0, pend:0, cls:{} }; L.n++; if(!isHandled(r.results, r.absent, screenDay(), r.notScreening)) L.pend++; if(r.classroom) L.cls[r.classroom]=(L.cls[r.classroom]||0)+1; } });
+    const fin = finishedLocs();
+    const locs = {}; rows.forEach(r=>{ if(r.location && !fin[r.location] && officeOn(r, screenDay())){ const L = locs[r.location] = locs[r.location] || { n:0, pend:0, cls:{} }; L.n++; if(!isHandled(r.results, r.absent, screenDay(), r.notScreening)) L.pend++; if(r.classroom) L.cls[r.classroom]=(L.cls[r.classroom]||0)+1; } });
     if (pick.loc && !locs[pick.loc] && pick.loc !== OFFICE_LOC) { pick.loc=''; pick.cls=''; }
     if (pick.loc === OFFICE_LOC && !locs[OFFICE_LOC]) locs[OFFICE_LOC] = { n:0, pend:0, cls:{} };
     const ls = $('fLoc'); if (ls) ls.innerHTML = '<option value="">Signed today / all</option>' + Object.keys(locs).sort().map(k=>'<option value="'+esc(k)+'"'+(k===pick.loc?' selected':'')+'>'+esc(k)+' ('+locs[k].pend+' to screen)</option>').join('');
@@ -510,7 +523,7 @@
     const byLoc = !!pick.loc;
     $('cToday').style.opacity = byLoc ? '.45' : ''; $('cAll').style.opacity = byLoc ? '.45' : '';
     let list = byLoc ? rows.filter(r=>r.location===pick.loc && (!pick.cls || r.classroom===pick.cls) && officeOn(r, screenDay()))
-                     : (filter==='today' ? rows.filter(r=>isToday(r.signedAt)) : rows.slice());
+                     : (() => { const fin = finishedLocs(); return rows.filter(r => !fin[r.location] && (filter!=='today' || isToday(r.signedAt))); })();
     // Not complete (vision or hearing still to do) float to the TOP so Chassidy
     // sees who's next; within each group, most recently signed first.
     const day = screenDay();
