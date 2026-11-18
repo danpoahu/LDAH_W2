@@ -4346,12 +4346,73 @@ const _childTokensArePrefix = (a, b) => {
   return short.every((t, i) => t === long[i]);
 };
 
+// Near spellings (2026-11-18). A parent typed "Rockey" on two signups where
+// staff had typed "Rocky"; "Lou Elly" came back as "LouElly"; a last name came
+// back "Taylan" for "Taylen". Each filed the same child twice. Still failing
+// toward keeping rows apart:
+//   * spacing / punctuation only ("Lou Elly" vs "LouElly") counts as the same
+//     spelling;
+//   * otherwise the names must have the same number of words, exactly ONE word
+//     may differ, by ONE letter (added, dropped, changed or swapped), and that
+//     word must be at least 5 letters on both sides, so short twin names
+//     ("Ana"/"Ava") never merge;
+//   * either way, age band AND gender must be present on both and agree
+//     ("High School" agrees with "13-17"), and if both carry a birthdate the
+//     dates must be equal.
+// Twins with names one letter apart and the same gender would still merge;
+// none of the 1,989 children on file on 2026-11-18 are like that.
+const _childCompact = (tokens) => tokens.join("").replace(/[^a-z0-9]/g, "");
+function _childOneEdit(x, y) {
+  if (x === y) return false;
+  const lx = x.length; const ly = y.length;
+  if (Math.abs(lx - ly) > 1) return false;
+  if (lx === ly) {
+    const diff = [];
+    for (let i = 0; i < lx; i++) if (x[i] !== y[i]) diff.push(i);
+    if (diff.length === 1) return true;
+    return diff.length === 2 && diff[1] === diff[0] + 1 &&
+      x[diff[0]] === y[diff[1]] && x[diff[1]] === y[diff[0]];
+  }
+  const short = lx < ly ? x : y; const long = lx < ly ? y : x;
+  let i = 0;
+  while (i < short.length && short[i] === long[i]) i++;
+  return short.slice(i) === long.slice(i + 1);
+}
+const _childAgesAgree = (a, b) => {
+  const x = _childAgeOf(a); const y = _childAgeOf(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const hs = (v) => v === "high school" || v === "13-17";
+  return hs(x) && hs(y);
+};
+const _childBirthOf = (c) => _childNorm(c && (c.birthdate || c.birthday));
+function _childNearSpellingMatch(a, b, at, bt) {
+  let near = false;
+  if (_childCompact(at) && _childCompact(at) === _childCompact(bt)) near = true;
+  else if (at.length === bt.length) {
+    const diff = [];
+    for (let i = 0; i < at.length; i++) if (at[i] !== bt[i]) diff.push(i);
+    if (diff.length === 1) {
+      const x = at[diff[0]]; const y = bt[diff[0]];
+      near = x.length >= 5 && y.length >= 5 && _childOneEdit(x, y);
+    }
+  }
+  if (!near) return false;
+  if (!_childAgesAgree(a, b)) return false;
+  const aGen = _childGenderOf(a); const bGen = _childGenderOf(b);
+  if (!aGen || !bGen || aGen !== bGen) return false;
+  const ab = _childBirthOf(a); const bb = _childBirthOf(b);
+  if (ab && bb && ab !== bb) return false;
+  return true;
+}
+
 function _childMatches(a, b) {
   if (!a || !b || typeof a !== "object" || typeof b !== "object") return false;
   const at = _childNameTokens(a.name);
   const bt = _childNameTokens(b.name);
   if (!at.length || !bt.length) return false;          // nameless never matches
   if (at.join(" ") === bt.join(" ")) return true;      // exact name — as today
+  if (_childNearSpellingMatch(a, b, at, bt)) return true; // "Rocky"/"Rockey" (2026-11-18)
   if (at[0] !== bt[0]) return false;                   // different first names
   if (!_childTokensArePrefix(at, bt)) return false;    // two fully named children
   const aAge = _childAgeOf(a); const bAge = _childAgeOf(b);
@@ -33812,6 +33873,7 @@ exports.__test = {
   _childMatches,
   _findChildMatchIndex,
   _placeChildEntry,
+  _childNearSpellingMatch,
   _mergeChildEntries,
   _childSourceKeys,
   _childHasSourceKey,
