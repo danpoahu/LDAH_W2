@@ -8,6 +8,7 @@ const staffAgenda = require("./staffAgenda");
 const officeScreenings = require("./officeScreenings");
 const eventTimes = require("./eventTimes");
 const crypto = require("crypto");
+const scheduledFamilyEmail = require("./scheduledFamilyEmail");
 const volunteerStaff = require("./volunteerStaff");
 const heicConvert = require("heic-convert");
 // nodemailer removed — Firebase 1st Gen blocks outbound SMTP (port 465/587).
@@ -3107,6 +3108,58 @@ async function raiseSystemAlert({ kind, subject, html, emailTeam = true }) {
 }
 
 // Every 5 min: alert on any NEW outgoing-email failures (throttled by a state
+/* ── Scheduled one-off family letters (2026-11-19) ───────────────────────────
+   Daniel: the Nutcracker tickets letter "should go out on Friday @ five pm".
+   A doc in scheduledFamilyEmails { status:'scheduled', sendAt (Timestamp), subject,
+   paragraphs[], signatureLines[], eventId (its confirmed signups) or to[{email,name}] }
+   is sent when sendAt passes: LDAH's branded letter shell, one email per family through
+   sendEmailViaResend (so every send is in emailLog). Each address is recorded in sentTo
+   before the next, so a retry never emails a family twice. Server-only collection. */
+exports.sendScheduledFamilyEmails = functions
+  .runWith({ timeoutSeconds: 300, maxInstances: 1, secrets: EMAIL_SECRETS })
+  .pubsub.schedule("every 15 minutes")
+  .onRun(async () => {
+    const db = admin.firestore(), FV = admin.firestore.FieldValue;
+    const due = await db.collection("scheduledFamilyEmails").where("status", "==", "scheduled").get();
+    for (const doc of due.docs) {
+      const job = doc.data() || {};
+      const at = job.sendAt && job.sendAt.toDate ? job.sendAt.toDate() : null;
+      if (!at || at.getTime() > Date.now()) continue;
+      const claimed = await db.runTransaction(async (tx) => {
+        const cur = await tx.get(doc.ref);
+        if ((cur.data() || {}).status !== "scheduled") return false;
+        tx.update(doc.ref, { status: "sending", startedAt: FV.serverTimestamp() });
+        return true;
+      });
+      if (!claimed) continue;
+      let list = [];
+      try {
+        if (Array.isArray(job.to) && job.to.length) list = scheduledFamilyEmail.recipientsFromSignups(job.to.map((t) => Object.assign({ status: "confirmed" }, t)));
+        else if (job.eventId) {
+          const snap = await db.collection(job.eventCollection || "events").doc(job.eventId).collection("signups").get();
+          list = scheduledFamilyEmail.recipientsFromSignups(snap.docs.map((d) => Object.assign({ id: d.id }, d.data() || {})));
+        }
+      } catch (e) { console.error("sendScheduledFamilyEmails recipients:", e.message); }
+      const sentTo = Object.assign({}, job.sentTo || {});
+      let sent = 0, failed = 0;
+      for (const r of list) {
+        const key = r.email.toLowerCase().replace(/[.#$/\[\]]/g, "_");
+        if (sentTo[key]) continue;
+        const html = scheduledFamilyEmail.letterHtml({ greetingName: scheduledFamilyEmail.firstName(r.name), paragraphs: job.paragraphs, signatureLines: job.signatureLines });
+        try {
+          await sendEmailViaResend({ from: lifecycleFromAddress(), to: [r.email], subject: String(job.subject || "A note from LDAH"), html,
+            type: "scheduled-family-email", recipientName: r.name || r.email, relatedEventId: job.eventId || undefined, relatedSignupId: r.signupId || undefined,
+            replyTo: job.replyTo || undefined });
+          sentTo[key] = new Date().toISOString(); sent++;
+          await doc.ref.update({ ["sentTo." + key]: sentTo[key] });
+        } catch (e) { failed++; console.error("sendScheduledFamilyEmails send failed for", r.email, e.message); }
+      }
+      await doc.ref.update({ status: failed ? "partly sent" : "sent", sentAt: FV.serverTimestamp(), sentCount: sent, failedCount: failed, recipientCount: list.length });
+      try { await db.collection("auditLog").add({ action: "Scheduled family email sent", details: String(job.subject || "") + ": " + sent + " sent" + (failed ? ", " + failed + " failed" : ""), performedBy: "System (scheduled by " + (job.createdByName || "staff") + ")", timestamp: FV.serverTimestamp() }); } catch (e) { /* log only */ }
+    }
+    return null;
+  });
+
 // doc so an ongoing problem alerts on fresh failures, not every run).
 exports.monitorEmailFailures = functions
   .runWith({ timeoutSeconds: 60, maxInstances: 1, secrets: EMAIL_SECRETS })
