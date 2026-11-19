@@ -8,6 +8,7 @@ const staffAgenda = require("./staffAgenda");
 const officeScreenings = require("./officeScreenings");
 const eventTimes = require("./eventTimes");
 const crypto = require("crypto");
+const volunteerStaff = require("./volunteerStaff");
 const heicConvert = require("heic-convert");
 // nodemailer removed — Firebase 1st Gen blocks outbound SMTP (port 465/587).
 // Using Resend HTTP API instead (HTTPS on port 443, always allowed).
@@ -25588,26 +25589,36 @@ exports.sendVolunteerHelpRequest = functions
     const wantIds = Array.isArray(d.ids) ? d.ids.map(String) : null;
     const snap = await db.collection("volunteers").where("status", "==", "accepted").get();
     const targets = [];
+    /* LDAH staff cards (2026-11-18): every staff card hears about every new
+       request (a staff email + a DAN task), whether or not it was ticked. They
+       never get the volunteer email. _volNotifyStaff keeps one card per person. */
+    const staffTargets = [];
     snap.forEach((doc) => {
       const v = doc.data() || {};
       if (v.archived === true) return;
-      if (wantIds && wantIds.indexOf(doc.id) === -1) return;
       const e = String(v.email || "").trim();
       if (!e || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return;
-      targets.push({ id: doc.id, name: [v.firstName, v.lastName].filter(Boolean).join(" ") || e, email: e, opportunityId: v.opportunityId || "" });
+      const t = { id: doc.id, name: [v.firstName, v.lastName].filter(Boolean).join(" ") || e, email: e, opportunityId: v.opportunityId || "" };
+      if (volunteerStaff.isStaffCard(v)) { staffTargets.push(t); return; }
+      if (wantIds && wantIds.indexOf(doc.id) === -1) return;
+      targets.push(t);
     });
-    if (!targets.length) return { sent: 0, requestId: null, message: "No accepted volunteers with an email to send to." };
+    if (!targets.length && !staffTargets.length) return { sent: 0, requestId: null, message: "No accepted volunteers with an email to send to." };
+    const staffNeeded = Math.max(0, parseInt(d.staffNeeded, 10) || 0);
+    const volunteersNeeded = Math.max(0, parseInt(d.volunteersNeeded, 10) || 0);
+    const split = (d.staffNeeded != null || d.volunteersNeeded != null) && staffNeeded + volunteersNeeded > 0;
 
     // Create the request
     const reqRef = db.collection("volunteerRequests").doc();
     await reqRef.set({
       title: subject, date: String(d.date || ""), time: String(d.time || ""),
       location: String(d.location || ""), details: String(d.details || ""),
-      maxVolunteers: Math.max(0, parseInt(d.maxVolunteers, 10) || 0),
+      maxVolunteers: split ? staffNeeded + volunteersNeeded : Math.max(0, parseInt(d.maxVolunteers, 10) || 0),
+      ...(split ? { staffNeeded, volunteersNeeded } : {}),
       body, signature: sig, status: "open",
       createdAt: FieldValue.serverTimestamp(),
       createdByUid: context.auth.uid, createdByName: (roleSnap.data() || {}).displayName || "",
-      invitedCount: targets.length,
+      invitedCount: targets.length, staffInvitedCount: staffTargets.length,
     });
 
     const esc = (x) => String(x == null ? "" : x).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -25641,9 +25652,90 @@ exports.sendVolunteerHelpRequest = functions
         sent++;
       } catch (e) { console.error("volunteer help request send failed for", t.email, e.message); }
     }
-    await reqRef.update({ sentCount: sent });
-    return { sent, requestId: reqRef.id };
+    let staffSent = 0;
+    try { staffSent = await _volNotifyStaff(db, reqRef, d, staffTargets, split ? staffNeeded : 0, split ? volunteersNeeded : 0, (roleSnap.data() || {}).displayName || ""); }
+    catch (e) { console.error("volunteer help request staff notice failed:", e.message); }
+    await reqRef.update({ sentCount: sent, staffSentCount: staffSent });
+    return { sent, staffSent, requestId: reqRef.id };
   });
+
+/* Staff notice for a new help request (2026-11-18): a branded email with a
+   "Count me in" link (same token page volunteers use) and an Open task in DAN
+   that closes itself when they sign up. */
+async function _volNotifyStaff(db, reqRef, d, staffTargetsIn, staffNeeded, volunteersNeeded, createdByName) {
+  let staffTargets = (staffTargetsIn || []).slice();
+  if (!staffTargets.length) return 0;
+  const FieldValue = admin.firestore.FieldValue;
+  const fromAddress = process.env.SMTP_FROM || "onboarding@resend.dev";
+  const title = String(d.subject || "").trim();
+  const uidByEmail = {};
+  try {
+    const roles = await db.collection("userRoles").get();
+    roles.forEach((u) => { const x = u.data() || {}; const e = String(x.email || "").trim().toLowerCase(); if (e) uidByEmail[e] = { uid: u.id, name: x.displayName || "" }; });
+  } catch (e) { console.warn("_volNotifyStaff: userRoles read failed:", e.message); }
+  /* One notice per person: someone with two staff cards (two emails) gets it
+     once, at the card whose email is their DAN login when there is one. */
+  const byName = {};
+  for (const t of staffTargets) {
+    const k = String(t.name || t.email).trim().toLowerCase();
+    const cur = byName[k];
+    if (!cur || (!uidByEmail[cur.email.toLowerCase()] && uidByEmail[t.email.toLowerCase()])) byName[k] = t;
+  }
+  staffTargets = Object.keys(byName).map((k) => byName[k]);
+  const askLine = (staffNeeded || volunteersNeeded)
+    ? "We need <b>" + staffNeeded + " LDAH staff</b> and <b>" + volunteersNeeded + " volunteer" + (volunteersNeeded === 1 ? "" : "s") + "</b>."
+    : "";
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
+  const dueIso = today;
+  let sent = 0;
+  for (const t of staffTargets) {
+    const token = crypto.randomBytes(16).toString("hex");
+    const link = VOLUNTEER_CONFIRM_BASE_URL + "?token=" + encodeURIComponent(token);
+    const who = uidByEmail[t.email.toLowerCase()] || null;
+    let taskId = null;
+    if (who) {
+      try {
+        const task = await db.collection("interactions").add({
+          channel: "Volunteer", interactionType: "Volunteer Sign-Up",
+          contactId: "", contactName: title, contactType: "", grantProgram: "",
+          summary: "Staff sign-up: " + title + ([d.date, d.time].filter(Boolean).length ? " (" + [d.date, d.time].filter(Boolean).join(", ") + ")" : ""),
+          followUpDate: dueIso,
+          urgent: false, status: "Open",
+          notes: "A new volunteer help request is up. " + (staffNeeded ? "It needs " + staffNeeded + " LDAH staff and " + volunteersNeeded + " volunteers. " : "") +
+            "If you can work it, use Count me in on the request (Volunteers > Help Requests) or the link in your email. This task closes when you sign up. If you can't, close it.",
+          isDraft: false, owner: who.name || t.name, ownerUid: who.uid,
+          volunteerRequestId: reqRef.id, workflowStep: "volunteerStaffSignup",
+          createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+        });
+        taskId = task.id;
+      } catch (e) { console.warn("_volNotifyStaff: task failed for", t.email, e.message); }
+    }
+    await reqRef.collection("participants").doc(t.id).set({
+      volunteerId: t.id, name: t.name, email: t.email, opportunityId: t.opportunityId, isStaff: true,
+      staffUid: who ? who.uid : null, taskId,
+      invitedAt: FieldValue.serverTimestamp(), confirmed: false, confirmedAt: null,
+      attended: false, attendedAt: null, contactId: null, token,
+    });
+    await db.collection("volunteerConfirmTokens").doc(token).set({
+      reqId: reqRef.id, volunteerId: t.id,
+      expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + VOLUNTEER_CONFIRM_TTL_MS),
+    });
+    const first = String(t.name || "").split(/\s+/)[0] || "there";
+    const inner =
+      '<p style="margin:0 0 12px;font-size:15px;color:#1d2b32;line-height:1.6;">Hi ' + _emailEsc(first) + ",</p>" +
+      '<p style="margin:0 0 12px;font-size:15px;color:#1d2b32;line-height:1.6;">A new volunteer sign-up just went up' + (createdByName ? " from " + _emailEsc(createdByName) : "") + ". " + askLine + "</p>" +
+      _volEventDetailsHtml(d) +
+      '<p style="margin:14px 0 4px;font-size:15px;color:#1d2b32;line-height:1.6;">If you can work it, tap Count me in. You also have a task for it in DAN, and it closes itself once you sign up.</p>' +
+      _emailBtn(link, "Count me in") +
+      _emailBtn("https://danpoahu.github.io/LDAH-Int/", "Open DAN", { bg: "#ffffff", fg: "#1a3c6e" }) +
+      _emailLinkFooter([{ label: "Count me in", href: link }]);
+    try {
+      await sendEmailViaResend({ from: `LDAH <${fromAddress}>`, to: [t.email], subject: "Staff sign-up: " + title, html: _osEmailShell("Staff sign-up: " + title, inner), type: "volunteerStaffSignup", recipientName: t.name });
+      sent++;
+    } catch (e) { console.error("staff sign-up notice failed for", t.email, e.message); }
+  }
+  return sent;
+}
 
 function _volCors(res) {
   res.set("Access-Control-Allow-Origin", "*");
@@ -25819,8 +25911,21 @@ exports.confirmVolunteerHelp = functions
         const partDoc = await tx.get(partRef);
         if (partDoc.exists && partDoc.data().confirmed === true) return { status: "confirmed" };
         const reqDoc = await tx.get(reqRef);
-        const max = reqDoc.exists ? Number(reqDoc.data().maxVolunteers || 0) : 0;
-        if (max > 0) {
+        const reqData = reqDoc.exists ? (reqDoc.data() || {}) : {};
+        const max = Number(reqData.maxVolunteers || 0);
+        const cSplit = volunteerStaff.countNeeds(reqData, []).split;
+        if (cSplit) {
+          /* Staff vs volunteer split (2026-11-18): a volunteer takes a volunteer
+             spot; staff take a staff spot, or a volunteer spot once staff is full. */
+          const conf = await tx.get(reqRef.collection("participants").where("confirmed", "==", true));
+          const c = volunteerStaff.countNeeds(reqData, conf.docs.map((x) => x.data() || {}));
+          const meStaff = partDoc.exists && partDoc.data().isStaff === true;
+          const room = meStaff ? (c.staffStill > 0 || c.volStill > 0) : c.volStill > 0;
+          if (!room) {
+            tx.set(partRef, { waitlisted: true, waitlistedAt: FieldValue.serverTimestamp() }, { merge: true });
+            return { status: "waitlisted" };
+          }
+        } else if (max > 0) {
           const conf = await tx.get(reqRef.collection("participants").where("confirmed", "==", true));
           if (conf.size >= max) {
             tx.set(partRef, { waitlisted: true, waitlistedAt: FieldValue.serverTimestamp() }, { merge: true });
@@ -25830,6 +25935,14 @@ exports.confirmVolunteerHelp = functions
         tx.set(partRef, { confirmed: true, confirmedAt: FieldValue.serverTimestamp(), waitlisted: false }, { merge: true });
         return { status: "confirmed" };
       });
+      if (outcome.status === "confirmed") {
+        try {
+          const p = (await partRef.get()).data() || {};
+          if (p.isStaff === true && p.taskId) {
+            await db.collection("interactions").doc(p.taskId).set({ status: "Closed", closedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), closeNote: "Signed up" }, { merge: true });
+          }
+        } catch (e) { console.warn("confirmVolunteerHelp: task close failed:", e.message); }
+      }
       const reqSnap = await reqRef.get();
       const r = reqSnap.exists ? reqSnap.data() : {};
       res.status(200).json({ ok: true, status: outcome.status, title: r.title || "", date: r.date || "", time: r.time || "", location: r.location || "" });
