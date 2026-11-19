@@ -3840,6 +3840,21 @@ exports.sendProviderRequestEmail = functions
           attached.push(filename);
         }
       }
+      /* Flyers for families (2026-11-19): DAN draws one PDF per confirmed screening day and
+         sends them here. Only real PDFs, at most 8, each under 4 MB. */
+      if (Array.isArray(body.flyers) && body.flyers.length) {
+        attachments = attachments || [];
+        for (const fl of body.flyers.slice(0, 8)) {
+          const b64 = String((fl && fl.pdfBase64) || "");
+          if (!b64 || b64.length > 5.5e6) continue;
+          const buf = Buffer.from(b64, "base64");
+          if (buf.slice(0, 4).toString("latin1") !== "%PDF") continue;
+          let filename = String((fl && fl.filename) || "Screening flyer.pdf").replace(/[\\/:*?"<>|\r\n]+/g, " ").trim().slice(0, 120);
+          if (!/\.pdf$/i.test(filename)) filename += ".pdf";
+          attachments.push({ filename, content: buf.toString("base64") });
+          attached.push(filename);
+        }
+      }
       await sendEmailViaResend({
         from: lifecycleFromAddress(), to, cc: senderEmail, subject, html,
         type: "provider-screening-email", recipientName: contactName || to,
