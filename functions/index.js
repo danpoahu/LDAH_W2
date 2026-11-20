@@ -36556,3 +36556,221 @@ exports.sendLionsContactRequest = functions
   });
 exports._lionsContactPending = _lionsContactPending;
 exports._syncLionsContactRequestTask = _syncLionsContactRequestTask;
+
+// ══════════════════════════════════════════════════════════════════════
+// DOH LIONS CONSENT UPLOAD (2026-11-20)
+// One person at the Department of Health sends LDAH scanned Lions screening
+// consent forms. They used to arrive by email; Daniel wanted something "more
+// secure than email" and simple for one person. Page: ldahawaii.org/lions-upload.html?k=<key>.
+//   key (48 hex, bookmarked) + a 6-digit code emailed to the DOH address each visit
+//   -> a 3-hour session -> pick the school, upload files (resumable upload URLs,
+//   no Storage rule: dohUploads/ is client-denied) -> one task for Daniel holding
+//   the batch. The page can never list, show or download anything.
+// Daniel (uid-gated, in DAN) sets the DOH email and makes a new link (old key dies).
+// Staff load a batch into Screening Referrals through lionsDohAdmin 'file' (bytes
+// come back through the function, so no bucket CORS / public URL is involved).
+// dohUploadConfig + dohUploads have NO Firestore rule = client-denied.
+// ══════════════════════════════════════════════════════════════════════
+const DOH_UPLOAD_PAGE = "https://www.ldahawaii.org/lions-upload.html";
+const DOH_UPLOAD_MIME_EXT = { "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png" };
+const DOH_UPLOAD_MAX_PDF = 20 * 1024 * 1024; // base64 must fit the 32 MB response when staff load it
+const DOH_UPLOAD_MAX_IMG = 6 * 1024 * 1024;  // Screening Referrals' image limit
+const DOH_UPLOAD_MAX_FILES = 80;
+const DOH_SESSION_MS = 3 * 60 * 60 * 1000;
+const DOH_CODE_MS = 10 * 60 * 1000;
+const _dohHash = (s) => crypto.createHash("sha256").update(String(s)).digest("hex");
+function _dohEq(a, b) {
+  const x = Buffer.from(String(a || "")), y = Buffer.from(String(b || ""));
+  return x.length === y.length && x.length > 0 && crypto.timingSafeEqual(x, y);
+}
+const _dohCfgRef = () => admin.firestore().collection("dohUploadConfig").doc("main");
+
+function _dohCodeEmailHtml(code) {
+  return '<div style="background:#f4f4f7;padding:24px 12px;font-family:Arial,Helvetica,sans-serif;">' +
+    '<table role="presentation" width="100%" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:10px;overflow:hidden;border-collapse:collapse;">' +
+    '<tr><td style="background:#1a3c6e;padding:16px 22px;"><img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" height="40" style="background:#fff;border-radius:6px;padding:4px;"></td></tr>' +
+    '<tr><td style="padding:22px;">' +
+    '<p style="margin:0 0 12px;font-size:15px;color:#333;line-height:1.55;">Here is your code for the LDAH consent form upload page:</p>' +
+    '<p style="margin:0 0 14px;font-size:30px;letter-spacing:6px;font-weight:700;color:#1a3c6e;">' + lifecycleEsc(code) + '</p>' +
+    '<p style="margin:0 0 6px;font-size:14px;color:#555;line-height:1.5;">It works for 10 minutes. If you did not ask for it, you can ignore this email.</p>' +
+    _srpSignOffHtml("Mahalo,") +
+    '</td></tr></table></div>';
+}
+
+exports.lionsDohUpload = functions
+  .runWith({ timeoutSeconds: 60, maxInstances: 3, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    if (_schoolCors(req, res)) return;
+    const body = req.body || {};
+    const db = admin.firestore();
+    const FieldValue = admin.firestore.FieldValue;
+    if (body.warm === true) { try { await _dohCfgRef().get(); } catch (e) { /* warm */ } res.status(200).json({ warm: true }); return; }
+    const k = String(body.k || "").trim();
+    const bad = () => res.status(401).json({ error: "This link is not valid. Please contact LDAH for a new one." });
+    if (!/^[a-f0-9]{48}$/.test(k)) { bad(); return; }
+    try {
+      const cfgRef = _dohCfgRef();
+      const cfg = (await cfgRef.get()).data() || {};
+      if (!cfg.keyHash || !_dohEq(_dohHash(k), cfg.keyHash)) { bad(); return; }
+      const action = String(body.action || "");
+      const now = Date.now();
+
+      if (action === "sendCode") {
+        if (!cfg.email) { res.status(400).json({ error: "LDAH has not set up the email address for this page yet. Please contact LDAH." }); return; }
+        const last = cfg.codeRequestedAt ? cfg.codeRequestedAt.toDate().getTime() : 0;
+        if (now - last < 60 * 1000) { res.status(429).json({ error: "A code was just sent. Please wait a minute before asking for another." }); return; }
+        const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+        await cfgRef.update({ codeHash: _dohHash(code + ":" + cfg.keyHash), codeExpiresAt: new Date(now + DOH_CODE_MS), codeAttempts: 0, codeRequestedAt: FieldValue.serverTimestamp() });
+        await sendEmailViaResend({ from: lifecycleFromAddress(), to: cfg.email, subject: "Your LDAH upload code", html: _dohCodeEmailHtml(code), type: "doh-upload-code", recipientName: "DOH" });
+        const at = cfg.email.indexOf("@");
+        res.status(200).json({ ok: true, sentTo: cfg.email.slice(0, 2) + "•••" + cfg.email.slice(at) });
+        return;
+      }
+
+      if (action === "verifyCode") {
+        const code = String(body.code || "").replace(/\D/g, "");
+        if (!cfg.codeHash || !cfg.codeExpiresAt || cfg.codeExpiresAt.toDate().getTime() < now) { res.status(400).json({ error: "That code has expired. Please ask for a new one." }); return; }
+        if ((cfg.codeAttempts || 0) >= 5) { res.status(400).json({ error: "Too many tries. Please ask for a new code." }); return; }
+        if (!_dohEq(_dohHash(code + ":" + cfg.keyHash), cfg.codeHash)) {
+          await cfgRef.update({ codeAttempts: FieldValue.increment(1) });
+          res.status(400).json({ error: "That code is not right. Please check the email and try again." });
+          return;
+        }
+        const s = crypto.randomBytes(32).toString("hex");
+        await cfgRef.update({ codeHash: FieldValue.delete(), codeExpiresAt: FieldValue.delete(), codeAttempts: 0, sessionHash: _dohHash(s), sessionExpiresAt: new Date(now + DOH_SESSION_MS) });
+        res.status(200).json({ ok: true, s });
+        return;
+      }
+
+      // Everything below needs a live session from verifyCode.
+      const s = String(body.s || "");
+      if (!/^[a-f0-9]{64}$/.test(s) || !cfg.sessionHash || !_dohEq(_dohHash(s), cfg.sessionHash) ||
+          !cfg.sessionExpiresAt || cfg.sessionExpiresAt.toDate().getTime() < now) {
+        res.status(401).json({ error: "Please enter a new code to continue.", needCode: true });
+        return;
+      }
+
+      if (action === "start") {
+        const school = String(body.school || "").trim().slice(0, 120);
+        if (school.length < 2) { res.status(400).json({ error: "Please type the school name." }); return; }
+        const ref = await db.collection("dohUploads").add({ school, files: [], status: "open", keyHash: cfg.keyHash, createdAt: FieldValue.serverTimestamp() });
+        res.status(200).json({ ok: true, batchId: ref.id });
+        return;
+      }
+
+      const batchId = String(body.batchId || "");
+      if (!/^[A-Za-z0-9]{10,40}$/.test(batchId)) { res.status(400).json({ error: "Please start again." }); return; }
+      const bRef = db.collection("dohUploads").doc(batchId);
+      const bSnap = await bRef.get();
+      const b = bSnap.data() || {};
+      if (!bSnap.exists || b.status !== "open" || b.keyHash !== cfg.keyHash) { res.status(400).json({ error: "Please start again." }); return; }
+      const prefix = "dohUploads/" + batchId + "/";
+      const bucket = admin.storage().bucket("ldah-932d5.firebasestorage.app");
+
+      if (action === "url") {
+        const mimeType = String(body.mimeType || ""); const ext = DOH_UPLOAD_MIME_EXT[mimeType];
+        const size = Number(body.sizeBytes);
+        if (!ext) { res.status(400).json({ error: "Please upload PDF, JPG or PNG files." }); return; }
+        const max = ext === "pdf" ? DOH_UPLOAD_MAX_PDF : DOH_UPLOAD_MAX_IMG;
+        if (!Number.isFinite(size) || size <= 0 || size > max) { res.status(400).json({ error: "Each " + (ext === "pdf" ? "PDF must be under 20 MB" : "photo must be under 6 MB") + "." }); return; }
+        if ((b.files || []).length >= DOH_UPLOAD_MAX_FILES) { res.status(400).json({ error: "That is a lot of files for one send. Please press Finish and start a new send." }); return; }
+        const storagePath = prefix + "form-" + Date.now() + "-" + crypto.randomBytes(3).toString("hex") + "." + ext;
+        const [uploadUrl] = await bucket.file(storagePath).createResumableUpload({ origin: "https://www.ldahawaii.org", metadata: { contentType: mimeType } });
+        res.status(200).json({ ok: true, uploadUrl, storagePath });
+        return;
+      }
+
+      if (action === "confirm") {
+        const storagePath = String(body.storagePath || "");
+        if (!storagePath.startsWith(prefix) || storagePath.indexOf("..") !== -1) { res.status(400).json({ error: "That upload does not belong to this send." }); return; }
+        const [exists] = await bucket.file(storagePath).exists();
+        if (!exists) { res.status(400).json({ error: "The upload did not arrive. Please try again." }); return; }
+        const rec = { storagePath, originalFilename: String(body.originalFilename || "").slice(0, 200), sizeBytes: Number(body.sizeBytes) || 0, mimeType: String(body.mimeType || ""), uploadedAt: new Date().toISOString() };
+        await bRef.update({ files: FieldValue.arrayUnion(rec) });
+        res.status(200).json({ ok: true });
+        return;
+      }
+
+      if (action === "finish") {
+        const n = (b.files || []).length;
+        if (!n) { res.status(400).json({ error: "No files arrived yet." }); return; }
+        const hst = new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+        const today = new Date().toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
+        const tRef = await db.collection("interactions").add({
+          channel: "Other", interactionType: "Follow-up", workflowStep: "dohLionsUpload",
+          contactId: "", contactName: "DOH upload: " + b.school,
+          summary: "DOH uploaded " + n + " Lions consent form" + (n === 1 ? "" : "s") + " for " + b.school + ": review in Screening Referrals",
+          notes: "Uploaded through the DOH upload page " + hst + " HST. Press Open in Screening Referrals to read them, check each one and save as usual. Close this task when they are all saved.",
+          dohBatchId: batchId, dohSchool: b.school, dohFileCount: n,
+          followUpDate: today, status: "Open", urgent: true, isDraft: false,
+          owner: "Dan Pellegrini", ownerUid: DAN_PELLEGRINI_UID, createdBy: "system", createdByUid: "system", source: "doh-lions-upload",
+          createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+        });
+        await bRef.update({ status: "sent", taskId: tRef.id, sentAt: FieldValue.serverTimestamp() });
+        await db.collection("auditLog").add({ action: "DOH Lions forms uploaded", details: n + " file(s) for " + b.school + ", batch " + batchId, performedBy: "DOH upload page", timestamp: FieldValue.serverTimestamp() });
+        res.status(200).json({ ok: true, count: n });
+        return;
+      }
+      res.status(400).json({ error: "Unknown action" });
+    } catch (err) {
+      console.error("lionsDohUpload:", err.message);
+      res.status(500).json({ error: "Something went wrong. Please try again." });
+    }
+  });
+
+// Staff side. status / setEmail / newKey = Daniel only. files / file = admin+superAdmin.
+exports.lionsDohAdmin = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 3, memory: "512MB" })
+  .https.onRequest(async (req, res) => {
+    if (_schoolCors(req, res)) return;
+    const body = req.body || {};
+    const db = admin.firestore();
+    const FieldValue = admin.firestore.FieldValue;
+    try {
+      const staff = await _verifyStaffIdToken(body.idToken);
+      const action = String(body.action || "");
+      const isDan = staff.uid === DAN_PELLEGRINI_UID;
+      const cfgRef = _dohCfgRef();
+
+      if (action === "status" || action === "setEmail" || action === "newKey") {
+        if (!isDan) { res.status(403).json({ error: "Daniel only" }); return; }
+        if (action === "setEmail") {
+          const email = String(body.email || "").trim().toLowerCase();
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { res.status(400).json({ error: "That email does not look right." }); return; }
+          await cfgRef.set({ email, emailSetAt: FieldValue.serverTimestamp(), emailSetBy: staff.email }, { merge: true });
+        }
+        let link = null;
+        if (action === "newKey") {
+          const k = crypto.randomBytes(24).toString("hex");
+          await cfgRef.set({ keyHash: _dohHash(k), keyMadeAt: FieldValue.serverTimestamp(), keyMadeBy: staff.email,
+            sessionHash: FieldValue.delete(), sessionExpiresAt: FieldValue.delete(), codeHash: FieldValue.delete(), codeExpiresAt: FieldValue.delete() }, { merge: true });
+          link = DOH_UPLOAD_PAGE + "?k=" + k;
+          await db.collection("auditLog").add({ action: "New DOH upload link made", details: "old link stopped working", performedBy: staff.email, timestamp: FieldValue.serverTimestamp() });
+        }
+        const cfg = (await cfgRef.get()).data() || {};
+        const ts = (t) => (t && t.toDate ? t.toDate().toISOString() : null);
+        res.status(200).json({ ok: true, email: cfg.email || "", hasKey: !!cfg.keyHash, keyMadeAt: ts(cfg.keyMadeAt), link });
+        return;
+      }
+
+      // Load a batch into Screening Referrals.
+      const batchId = String(body.batchId || "");
+      if (!/^[A-Za-z0-9]{10,40}$/.test(batchId)) { res.status(400).json({ error: "Bad batch" }); return; }
+      const bSnap = await db.collection("dohUploads").doc(batchId).get();
+      if (!bSnap.exists) { res.status(404).json({ error: "That upload was not found." }); return; }
+      const b = bSnap.data() || {};
+      const files = (b.files || []).map((f) => ({ storagePath: f.storagePath, name: f.originalFilename || "", mimeType: f.mimeType, sizeBytes: f.sizeBytes }));
+      if (action === "files") { res.status(200).json({ ok: true, school: b.school || "", files }); return; }
+      if (action === "file") {
+        const p = String(body.storagePath || "");
+        if (!files.some((f) => f.storagePath === p)) { res.status(400).json({ error: "Not in this upload" }); return; }
+        const [buf] = await admin.storage().bucket("ldah-932d5.firebasestorage.app").file(p).download();
+        res.status(200).json({ ok: true, base64: buf.toString("base64") });
+        return;
+      }
+      res.status(400).json({ error: "Unknown action" });
+    } catch (err) {
+      console.error("lionsDohAdmin:", err.message);
+      res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : "Something went wrong." });
+    }
+  });
