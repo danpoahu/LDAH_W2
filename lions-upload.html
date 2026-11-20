@@ -8,9 +8,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
-<!-- DOH upload for Lions screening consent forms (2026-11-20). Secret link key +
-     a 6-digit code emailed each visit, checked by the lionsDohUpload Cloud
-     Function. Upload only: this page can never show or list anything. -->
+<!-- DOH upload for Lions screening consent forms (2026-11-20). The secret link key
+     is checked by the lionsDohUpload Cloud Function (link only, no code, no expiry).
+     Upload only: this page can never show or list anything. -->
 <style>
 :root{ --ocean:#0891B2; --deep:#1a3c6e; --ink:#1E293B; --soft:#64748B; --line:#E2E8F0; --bg:#FEFDFB; --ok:#15803D; --warn:#B45309; }
 *{ box-sizing:border-box; margin:0; padding:0; }
@@ -51,17 +51,6 @@ label{ font-weight:700; display:block; margin-top:14px; }
     <h1>Lions screening consent forms</h1>
     <p id="lead">Checking your link…</p>
 
-    <div id="stepCode" style="display:none;">
-      <p>For security, we email you a 6-digit code each time you use this page.</p>
-      <button class="btn" id="sendCode">Email me a code</button>
-      <div id="codeBox" style="display:none;">
-        <label for="code">Code from the email</label>
-        <input type="text" id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6">
-        <br><button class="btn" id="verify">Continue</button>
-        <p class="note"><a href="#" id="resend">Send a new code</a></p>
-      </div>
-    </div>
-
     <div id="stepUpload" style="display:none;">
       <label for="school">School</label>
       <input type="text" id="school" placeholder="e.g. Waipahu Elementary" maxlength="120">
@@ -83,36 +72,18 @@ label{ font-weight:700; display:block; margin-top:14px; }
   var API = 'https://us-central1-ldah-932d5.cloudfunctions.net/lionsDohUpload';
   var k = new URLSearchParams(location.search).get('k') || '';
   var $ = function(id){ return document.getElementById(id); };
-  var s = '', chosen = [], batchId = '', i = 0;
+  var chosen = [], batchId = '', i = 0;
   try { history.replaceState(null, '', location.pathname + location.search); } catch(e) {}
   function esc(x){ return String(x||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function say(t, cls){ $('msg').innerHTML = t ? '<span class="' + (cls||'') + '">' + esc(t) + '</span>' : ''; }
   function post(data){
-    return fetch(API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(Object.assign({ k:k, s:s }, data)) })
-      .then(function(r){ return r.json().then(function(j){ if(!r.ok){ var e = new Error(j.error || 'Something went wrong.'); e.needCode = j.needCode; throw e; } return j; }); });
+    return fetch(API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(Object.assign({ k:k }, data)) })
+      .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error || 'Something went wrong.'); return j; }); });
   }
   if (!/^[a-f0-9]{48}$/.test(k)) { $('lead').innerHTML = '<span class="err">This link is incomplete. Please use the full link LDAH sent you.</span>'; return; }
   $('lead').textContent = 'Send LDAH the signed consent forms from a Lions screening.';
-  $('stepCode').style.display = '';
-  function backToCode(m){ s = ''; $('stepUpload').style.display = 'none'; $('stepCode').style.display = ''; $('codeBox').style.display = 'none'; $('sendCode').style.display = ''; say(m, 'err'); }
-  function sendCode(){
-    $('sendCode').disabled = true; say('Sending…');
-    post({ action:'sendCode' }).then(function(j){
-      $('sendCode').style.display = 'none'; $('codeBox').style.display = ''; $('code').focus();
-      say('We emailed a code to ' + j.sentTo + '.', 'ok');
-    }).catch(function(e){ say(e.message, 'err'); }).then(function(){ $('sendCode').disabled = false; });
-  }
-  $('sendCode').onclick = sendCode;
-  $('resend').onclick = function(e){ e.preventDefault(); sendCode(); };
-  function verify(){
-    var c = $('code').value.replace(/\D/g,''); if (c.length !== 6) { say('Please type the 6 digits from the email.', 'err'); return; }
-    $('verify').disabled = true;
-    post({ action:'verifyCode', code:c }).then(function(j){
-      s = j.s; $('code').value = ''; $('stepCode').style.display = 'none'; $('stepUpload').style.display = ''; say(''); $('school').focus();
-    }).catch(function(e){ say(e.message, 'err'); }).then(function(){ $('verify').disabled = false; });
-  }
-  $('verify').onclick = verify;
-  $('code').onkeydown = function(e){ if (e.key === 'Enter') verify(); };
+  post({ action:'check' }).then(function(){ $('stepUpload').style.display = ''; $('school').focus(); })
+    .catch(function(e){ $('lead').innerHTML = '<span class="err">' + esc(e.message) + '</span>'; });
 
   var OK = { 'application/pdf':1, 'image/jpeg':1, 'image/png':1 };
   function setFiles(fl){
@@ -154,7 +125,6 @@ label{ font-weight:700; display:block; margin-top:14px; }
     }).then(function(){ return post({ action:'finish', batchId: batchId }); }).then(function(j){
       $('card').innerHTML = '<div class="done"><h2>' + j.count + ' form' + (j.count===1?'':'s') + ' received, mahalo!</h2><p>LDAH has them for ' + esc(school) + '. To send another school, reload this page.</p></div>';
     }).catch(function(e){
-      if (e.needCode) { backToCode('Your session ended. Please get a new code to continue.'); return; }
       say(e.message + (i ? ' ' + i + ' of ' + chosen.length + ' are already sent. Press Send to LDAH again to send the rest.' : ''), 'err');
       $('send').disabled = false;
     });

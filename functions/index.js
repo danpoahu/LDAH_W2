@@ -36558,7 +36558,9 @@ exports._lionsContactPending = _lionsContactPending;
 exports._syncLionsContactRequestTask = _syncLionsContactRequestTask;
 
 // ══════════════════════════════════════════════════════════════════════
-// DOH LIONS CONSENT UPLOAD (2026-11-20)
+// DOH LIONS CONSENT UPLOAD (2026-11-20). REVISED same day: link only (no emailed
+// code, no session); staff load waiting batches from a button on Screening Referrals.
+// The code/session notes below describe the first version.
 // One person at the Department of Health sends LDAH scanned Lions screening
 // consent forms. They used to arrive by email; Daniel wanted something "more
 // secure than email" and simple for one person. Page: ldahawaii.org/lions-upload.html?k=<key>.
@@ -36615,41 +36617,9 @@ exports.lionsDohUpload = functions
       const action = String(body.action || "");
       const now = Date.now();
 
-      if (action === "sendCode") {
-        if (!cfg.email) { res.status(400).json({ error: "LDAH has not set up the email address for this page yet. Please contact LDAH." }); return; }
-        const last = cfg.codeRequestedAt ? cfg.codeRequestedAt.toDate().getTime() : 0;
-        if (now - last < 60 * 1000) { res.status(429).json({ error: "A code was just sent. Please wait a minute before asking for another." }); return; }
-        const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
-        await cfgRef.update({ codeHash: _dohHash(code + ":" + cfg.keyHash), codeExpiresAt: new Date(now + DOH_CODE_MS), codeAttempts: 0, codeRequestedAt: FieldValue.serverTimestamp() });
-        await sendEmailViaResend({ from: lifecycleFromAddress(), to: cfg.email, subject: "Your LDAH upload code", html: _dohCodeEmailHtml(code), type: "doh-upload-code", recipientName: "DOH" });
-        const at = cfg.email.indexOf("@");
-        res.status(200).json({ ok: true, sentTo: cfg.email.slice(0, 2) + "•••" + cfg.email.slice(at) });
-        return;
-      }
-
-      if (action === "verifyCode") {
-        const code = String(body.code || "").replace(/\D/g, "");
-        if (!cfg.codeHash || !cfg.codeExpiresAt || cfg.codeExpiresAt.toDate().getTime() < now) { res.status(400).json({ error: "That code has expired. Please ask for a new one." }); return; }
-        if ((cfg.codeAttempts || 0) >= 5) { res.status(400).json({ error: "Too many tries. Please ask for a new code." }); return; }
-        if (!_dohEq(_dohHash(code + ":" + cfg.keyHash), cfg.codeHash)) {
-          await cfgRef.update({ codeAttempts: FieldValue.increment(1) });
-          res.status(400).json({ error: "That code is not right. Please check the email and try again." });
-          return;
-        }
-        const s = crypto.randomBytes(32).toString("hex");
-        await cfgRef.update({ codeHash: FieldValue.delete(), codeExpiresAt: FieldValue.delete(), codeAttempts: 0, sessionHash: _dohHash(s), sessionExpiresAt: new Date(now + DOH_SESSION_MS) });
-        res.status(200).json({ ok: true, s });
-        return;
-      }
-
-      // Everything below needs a live session from verifyCode.
-      const s = String(body.s || "");
-      if (!/^[a-f0-9]{64}$/.test(s) || !cfg.sessionHash || !_dohEq(_dohHash(s), cfg.sessionHash) ||
-          !cfg.sessionExpiresAt || cfg.sessionExpiresAt.toDate().getTime() < now) {
-        res.status(401).json({ error: "Please enter a new code to continue.", needCode: true });
-        return;
-      }
-
+      /* 2026-11-20 (Daniel): DOH sends at random times, so no code and no expiry.
+         The bookmarked key alone opens the page; it is still upload-only. */
+      if (action === "check") { res.status(200).json({ ok: true }); return; }
       if (action === "start") {
         const school = String(body.school || "").trim().slice(0, 120);
         if (school.length < 2) { res.status(400).json({ error: "Please type the school name." }); return; }
@@ -36753,6 +36723,14 @@ exports.lionsDohAdmin = functions
         return;
       }
 
+      // Batches DOH sent that nobody has loaded yet (button on Screening Referrals).
+      if (action === "waiting") {
+        const ws = await db.collection("dohUploads").where("status", "==", "sent").get();
+        const out = ws.docs.map((d) => { const x = d.data() || {}; return { batchId: d.id, school: x.school || "", count: (x.files || []).length, sentAt: x.sentAt && x.sentAt.toDate ? x.sentAt.toDate().toISOString() : null }; })
+          .sort((a, c) => String(a.sentAt).localeCompare(String(c.sentAt)));
+        res.status(200).json({ ok: true, batches: out });
+        return;
+      }
       // Load a batch into Screening Referrals.
       const batchId = String(body.batchId || "");
       if (!/^[A-Za-z0-9]{10,40}$/.test(batchId)) { res.status(400).json({ error: "Bad batch" }); return; }
@@ -36761,6 +36739,11 @@ exports.lionsDohAdmin = functions
       const b = bSnap.data() || {};
       const files = (b.files || []).map((f) => ({ storagePath: f.storagePath, name: f.originalFilename || "", mimeType: f.mimeType, sizeBytes: f.sizeBytes }));
       if (action === "files") { res.status(200).json({ ok: true, school: b.school || "", files }); return; }
+      if (action === "markLoaded") {
+        await bSnap.ref.update({ status: "loaded", loadedAt: FieldValue.serverTimestamp(), loadedBy: staff.email });
+        res.status(200).json({ ok: true });
+        return;
+      }
       if (action === "file") {
         const p = String(body.storagePath || "");
         if (!files.some((f) => f.storagePath === p)) { res.status(400).json({ error: "Not in this upload" }); return; }
