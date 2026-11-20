@@ -36586,6 +36586,39 @@ function _dohEq(a, b) {
   return x.length === y.length && x.length > 0 && crypto.timingSafeEqual(x, y);
 }
 const _dohCfgRef = () => admin.firestore().collection("dohUploadConfig").doc("main");
+const DOH_PHONE = "(808) 536-9684";
+
+/* The email DOH gets with their link: the link plus the same steps as the
+   printed sheet. Sent from the system (lands in emailLog). */
+function _dohLinkEmailHtml(link, isReplacement) {
+  const li = (t) => '<li style="margin:0 0 8px;">' + t + '</li>';
+  return '<div style="background:#f4f4f7;padding:24px 12px;font-family:Arial,Helvetica,sans-serif;">' +
+    '<table role="presentation" width="100%" style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:10px;overflow:hidden;border-collapse:collapse;">' +
+    '<tr><td style="background:#1a3c6e;padding:16px 22px;"><img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" height="40" style="background:#fff;border-radius:6px;padding:4px;"></td></tr>' +
+    '<tr><td style="padding:22px;font-size:15px;color:#333;line-height:1.55;">' +
+    '<p style="margin:0 0 12px;">Aloha,</p>' +
+    '<p style="margin:0 0 12px;">' + (isReplacement ? 'Here is your new link for sending Lions screening consent forms to LDAH. Your old link no longer works.' :
+      'Please use this secure page to send LDAH the signed Lions screening consent forms, in place of email. There is nothing to log in to, and the link does not expire.') + '</p>' +
+    '<p style="margin:18px 0;text-align:center;"><a href="' + link + '" style="background:#1a3c6e;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 26px;border-radius:8px;display:inline-block;">Open the upload page</a></p>' +
+    '<p style="margin:0 0 6px;font-weight:700;color:#1a3c6e;">How to send forms</p>' +
+    '<ol style="margin:0 0 14px;padding-left:20px;">' +
+      li('Open the page with the button above and <b>bookmark it</b>. It is your personal link, so please don\u2019t share it.') +
+      li('Type the <b>school name</b>. Send one school at a time.') +
+      li('Add the forms: click the box to choose files, or drag them in. PDF scans or clear photos are fine.') +
+      li('Click <b>Send to LDAH</b> and wait for \u201cforms received, mahalo!\u201d To send another school, reload the page.') +
+    '</ol>' +
+    '<p style="margin:0 0 12px;">The page can only send: nobody can view or download forms from it. If it ever says the link is not valid, type your email on that page and we will send a new link, or call us at ' + DOH_PHONE + '.</p>' +
+    _srpSignOffHtml("Mahalo,") +
+    '</td></tr></table></div>';
+}
+
+async function _dohIssueAndEmailLink(cfgRef, cfg, byWho, isReplacement) {
+  const k = crypto.randomBytes(24).toString("hex");
+  const FieldValue = admin.firestore.FieldValue;
+  await cfgRef.set({ keyHash: _dohHash(k), keyMadeAt: FieldValue.serverTimestamp(), keyMadeBy: byWho, linkEmailedAt: FieldValue.serverTimestamp() }, { merge: true });
+  await sendEmailViaResend({ from: lifecycleFromAddress(), to: cfg.email, subject: isReplacement ? "Your new LDAH upload link" : "Sending Lions consent forms to LDAH", html: _dohLinkEmailHtml(DOH_UPLOAD_PAGE + "?k=" + k, isReplacement), type: "doh-upload-link", recipientName: "DOH" });
+  await admin.firestore().collection("auditLog").add({ action: "DOH upload link emailed", details: "to " + cfg.email + (isReplacement ? " (they asked for a new one)" : ""), performedBy: byWho, timestamp: FieldValue.serverTimestamp() });
+}
 
 function _dohCodeEmailHtml(code) {
   return '<div style="background:#f4f4f7;padding:24px 12px;font-family:Arial,Helvetica,sans-serif;">' +
@@ -36607,8 +36640,26 @@ exports.lionsDohUpload = functions
     const db = admin.firestore();
     const FieldValue = admin.firestore.FieldValue;
     if (body.warm === true) { try { await _dohCfgRef().get(); } catch (e) { /* warm */ } res.status(200).json({ warm: true }); return; }
+    /* A dead link: DOH types their email; if it is the address on file, a NEW
+       link is emailed there (old one stops). Same answer either way, and at most
+       one every 15 minutes, so the form tells a stranger nothing. */
+    if (body.action === "requestLink") {
+      const email = String(body.email || "").trim().toLowerCase();
+      const same = { ok: true, message: "If that address is the one LDAH has on file, a new link is on its way. Please check your email (and junk folder) in a few minutes, or call us at " + DOH_PHONE + "." };
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { res.status(400).json({ error: "Please type your email address." }); return; }
+      try {
+        const cfgRef = _dohCfgRef(); const cfg = (await cfgRef.get()).data() || {};
+        const last = cfg.linkRequestedAt ? cfg.linkRequestedAt.toDate().getTime() : 0;
+        if (cfg.email && email === cfg.email && Date.now() - last > 15 * 60 * 1000) {
+          await cfgRef.set({ linkRequestedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+          await _dohIssueAndEmailLink(cfgRef, cfg, "DOH (asked on the upload page)", true);
+        }
+      } catch (e) { console.error("lionsDohUpload requestLink:", e.message); }
+      res.status(200).json(same);
+      return;
+    }
     const k = String(body.k || "").trim();
-    const bad = () => res.status(401).json({ error: "This link is not valid. Please contact LDAH for a new one." });
+    const bad = () => res.status(401).json({ error: "This link is not valid or has been replaced.", deadLink: true });
     if (!/^[a-f0-9]{48}$/.test(k)) { bad(); return; }
     try {
       const cfgRef = _dohCfgRef();
@@ -36690,7 +36741,7 @@ exports.lionsDohUpload = functions
 
 // Staff side. status / setEmail / newKey = Daniel only. files / file = admin+superAdmin.
 exports.lionsDohAdmin = functions
-  .runWith({ timeoutSeconds: 120, maxInstances: 3, memory: "512MB" })
+  .runWith({ timeoutSeconds: 120, maxInstances: 3, memory: "512MB", secrets: EMAIL_SECRETS })
   .https.onRequest(async (req, res) => {
     if (_schoolCors(req, res)) return;
     const body = req.body || {};
@@ -36699,11 +36750,16 @@ exports.lionsDohAdmin = functions
     try {
       const staff = await _verifyStaffIdToken(body.idToken);
       const action = String(body.action || "");
-      const isDan = staff.uid === DAN_PELLEGRINI_UID;
+      const isDan = staff.uid === DAN_PELLEGRINI_UID || staff.uid === LIFECYCLE_SEAT_UID; // Daniel + the admin seat (Justin)
       const cfgRef = _dohCfgRef();
 
-      if (action === "status" || action === "setEmail" || action === "newKey") {
-        if (!isDan) { res.status(403).json({ error: "Daniel only" }); return; }
+      if (action === "status" || action === "setEmail" || action === "newKey" || action === "sendLink") {
+        if (!isDan) { res.status(403).json({ error: "Daniel and Justin only" }); return; }
+        if (action === "sendLink") {
+          const cfg0 = (await cfgRef.get()).data() || {};
+          if (!cfg0.email) { res.status(400).json({ error: "Save DOH's email first." }); return; }
+          await _dohIssueAndEmailLink(cfgRef, cfg0, staff.email, false);
+        }
         if (action === "setEmail") {
           const email = String(body.email || "").trim().toLowerCase();
           if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { res.status(400).json({ error: "That email does not look right." }); return; }
@@ -36719,7 +36775,7 @@ exports.lionsDohAdmin = functions
         }
         const cfg = (await cfgRef.get()).data() || {};
         const ts = (t) => (t && t.toDate ? t.toDate().toISOString() : null);
-        res.status(200).json({ ok: true, email: cfg.email || "", hasKey: !!cfg.keyHash, keyMadeAt: ts(cfg.keyMadeAt), link });
+        res.status(200).json({ ok: true, email: cfg.email || "", hasKey: !!cfg.keyHash, keyMadeAt: ts(cfg.keyMadeAt), linkEmailedAt: ts(cfg.linkEmailedAt), link });
         return;
       }
 

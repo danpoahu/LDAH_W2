@@ -51,6 +51,14 @@ label{ font-weight:700; display:block; margin-top:14px; }
     <h1>Lions screening consent forms</h1>
     <p id="lead">Checking your link…</p>
 
+    <div id="stepDead" style="display:none;">
+      <p>This link no longer works. It may have been replaced with a new one.</p>
+      <label for="myEmail">Type your email and we will send you a new link</label>
+      <input type="text" id="myEmail" inputmode="email" autocomplete="email" placeholder="you@doh.hawaii.gov">
+      <br><button class="btn" id="askLink">Send me a new link</button>
+      <p class="note">Or call LDAH at <a href="tel:+18085369684"><b>(808) 536-9684</b></a> and we will send you one.</p>
+    </div>
+
     <div id="stepUpload" style="display:none;">
       <label for="school">School</label>
       <input type="text" id="school" placeholder="e.g. Waipahu Elementary" maxlength="120">
@@ -78,12 +86,21 @@ label{ font-weight:700; display:block; margin-top:14px; }
   function say(t, cls){ $('msg').innerHTML = t ? '<span class="' + (cls||'') + '">' + esc(t) + '</span>' : ''; }
   function post(data){
     return fetch(API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(Object.assign({ k:k }, data)) })
-      .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error || 'Something went wrong.'); return j; }); });
+      .then(function(r){ return r.json().then(function(j){ if(!r.ok){ var e = new Error(j.error || 'Something went wrong.'); e.deadLink = j.deadLink; throw e; } return j; }); });
   }
-  if (!/^[a-f0-9]{48}$/.test(k)) { $('lead').innerHTML = '<span class="err">This link is incomplete. Please use the full link LDAH sent you.</span>'; return; }
+  function showDead(){ $('lead').textContent = 'Send LDAH the signed consent forms from a Lions screening.'; $('stepUpload').style.display = 'none'; $('stepDead').style.display = ''; }
+  $('askLink').onclick = function(){
+    var em = $('myEmail').value.trim(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { say('Please type your email address.', 'err'); return; }
+    $('askLink').disabled = true;
+    fetch(API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'requestLink', email: em }) })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ if (j.error) { say(j.error, 'err'); $('askLink').disabled = false; return; } $('stepDead').innerHTML = '<p class="ok">' + esc(j.message) + '</p>'; say(''); })
+      .catch(function(){ say('That did not go through. Please call LDAH at (808) 536-9684.', 'err'); $('askLink').disabled = false; });
+  };
+  if (!/^[a-f0-9]{48}$/.test(k)) { showDead(); return; }
   $('lead').textContent = 'Send LDAH the signed consent forms from a Lions screening.';
   post({ action:'check' }).then(function(){ $('stepUpload').style.display = ''; $('school').focus(); })
-    .catch(function(e){ $('lead').innerHTML = '<span class="err">' + esc(e.message) + '</span>'; });
+    .catch(function(e){ if (e.deadLink) showDead(); else $('lead').innerHTML = '<span class="err">' + esc(e.message) + ' Please try again, or call LDAH at (808) 536-9684.</span>'; });
 
   var OK = { 'application/pdf':1, 'image/jpeg':1, 'image/png':1 };
   function setFiles(fl){
@@ -125,6 +142,7 @@ label{ font-weight:700; display:block; margin-top:14px; }
     }).then(function(){ return post({ action:'finish', batchId: batchId }); }).then(function(j){
       $('card').innerHTML = '<div class="done"><h2>' + j.count + ' form' + (j.count===1?'':'s') + ' received, mahalo!</h2><p>LDAH has them for ' + esc(school) + '. To send another school, reload this page.</p></div>';
     }).catch(function(e){
+      if (e.deadLink) { showDead(); say('This link was replaced while you were sending. Please ask for a new link below.', 'err'); return; }
       say(e.message + (i ? ' ' + i + ' of ' + chosen.length + ' are already sent. Press Send to LDAH again to send the rest.' : ''), 'err');
       $('send').disabled = false;
     });
