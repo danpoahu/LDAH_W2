@@ -36376,6 +36376,7 @@ exports.onLionsCaseAssignedEmailFamily = functions
 // case is stamped lionsContactRequestedAt/To so it is asked about once; new
 // families bring the task back, listing only the new ones. Synced by the
 // 30-minute sweepLionsParentContactTasks and after every send.
+const LIONS_CONTACT_REQ_OWNER_UID = "rorJEIUS4sX7jYgzqORK8G7iPdM2"; // Rosie
 const LIONS_CONTACT_REQ_STEP = "lionsContactRequest";
 function _lionsSchoolName(raw) {
   const s = String(raw || "").replace(/\s+/g, " ").trim();
@@ -36431,11 +36432,8 @@ async function _syncLionsContactRequestTask() {
   }
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
   const out = { pending: pending.length, created: [], updated: [] };
-  // New school tasks go to whoever had the most recent one (it was reassigned
-  // to Rosie 11-2026); Noe only when there has never been one.
-  let owner = "Noelani Dela Vega", ownerUid = NOELANI_DELAVEGA_UID, latest = 0;
-  openSnap.docs.forEach((d) => { const x = d.data() || {}; const t = x.createdAt && x.createdAt.toMillis ? x.createdAt.toMillis() : 0;
-    if (x.ownerUid && t >= latest) { latest = t; owner = x.owner || owner; ownerUid = x.ownerUid; } });
+  // Daniel 2026-11-21: new no-contact Lions families always go to Rosie.
+  const owner = "Rosie Rowe", ownerUid = LIONS_CONTACT_REQ_OWNER_UID;
   for (const school of Object.keys(groups).sort()) {
     const fams = groups[school];
     const ids = fams.map((f) => f.caseId);
