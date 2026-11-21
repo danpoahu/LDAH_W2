@@ -36408,37 +36408,55 @@ async function _lionsContactPending(db) {
   out.sort((a, b) => a.school.localeCompare(b.school) || a.child.localeCompare(b.child));
   return out;
 }
+// One task PER SCHOOL (Daniel 2026-11-21: "Rosie says they go to each school").
+// Each school's task carries lionsSchool and only that school's families, so
+// Noe emails each school its own list + forms. The old single task (no
+// lionsSchool) is closed as "split by school" on the first run.
 async function _syncLionsContactRequestTask() {
   const db = admin.firestore();
   const FV = admin.firestore.FieldValue;
   const pending = await _lionsContactPending(db);
   const openSnap = await db.collection("interactions").where("workflowStep", "==", LIONS_CONTACT_REQ_STEP).get();
   const open = openSnap.docs.filter((d) => (d.data() || {}).status === "Open");
-  if (!pending.length) {
-    for (const d of open) await d.ref.update({ status: "Closed", closedReason: "nothing waiting", updatedAt: FV.serverTimestamp() });
-    return { pending: 0 };
-  }
   const groups = {};
   pending.forEach((p) => { (groups[p.school] = groups[p.school] || []).push({ caseId: p.caseId, contactId: p.contactId, child: p.child, parent: p.parent }); });
-  const lionsGroups = Object.keys(groups).sort().map((s) => ({ school: s, families: groups[s] }));
-  const ids = pending.map((p) => p.caseId);
-  const label = pending.length + " Lions famil" + (pending.length === 1 ? "y" : "ies") + " with no phone or email: " +
-    lionsGroups.map((g) => g.school + " " + g.families.length).join(", ");
-  const fields = { lionsCaseIds: ids, lionsGroups, summary: label, contactName: "Lions families: get contact details from the school or DOH" };
-  if (open.length) {
-    const cur = open[0].data() || {};
-    if (JSON.stringify(cur.lionsCaseIds || []) !== JSON.stringify(ids)) await open[0].ref.update(Object.assign({}, fields, { updatedAt: FV.serverTimestamp() }));
-    return { pending: ids.length, updated: open[0].id };
+  const bySchool = {};
+  for (const d of open) {
+    const sch = (d.data() || {}).lionsSchool;
+    if (!sch || !groups[sch] || bySchool[sch]) {
+      await d.ref.update({ status: "Closed", closedReason: !sch ? "split by school" : "nothing waiting", updatedAt: FV.serverTimestamp() });
+      continue;
+    }
+    bySchool[sch] = d;
   }
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
-  const ref = await db.collection("interactions").add(Object.assign({}, fields, {
-    workflowStep: LIONS_CONTACT_REQ_STEP, contactId: "", contactType: "", interactionType: "Lions contact details",
-    channel: "Other", notes: "These Lions screening families have no phone or email we can use. Type the school or Department of Health contact's name and email, then send: one email goes with the list by school and every family's screening form attached.",
-    owner: "Noelani Dela Vega", ownerUid: NOELANI_DELAVEGA_UID, status: "Open", followUpDate: today,
-    grantProgram: "", grantPrograms: [], isDraft: false, createdBy: "System", createdByUid: "system",
-    source: "lions-contact-request", createdAt: FV.serverTimestamp(), updatedAt: FV.serverTimestamp(),
-  }));
-  return { pending: ids.length, created: ref.id };
+  const out = { pending: pending.length, created: [], updated: [] };
+  for (const school of Object.keys(groups).sort()) {
+    const fams = groups[school];
+    const ids = fams.map((f) => f.caseId);
+    const fields = {
+      lionsSchool: school, lionsCaseIds: ids, lionsGroups: [{ school, families: fams }],
+      summary: fams.length + " Lions famil" + (fams.length === 1 ? "y" : "ies") + " with no phone or email: " + school,
+      contactName: school + ": get parent contact details from the school",
+    };
+    const cur = bySchool[school];
+    if (cur) {
+      if (JSON.stringify((cur.data() || {}).lionsCaseIds || []) !== JSON.stringify(ids)) {
+        await cur.ref.update(Object.assign({}, fields, { updatedAt: FV.serverTimestamp() }));
+        out.updated.push(cur.id);
+      }
+      continue;
+    }
+    const ref = await db.collection("interactions").add(Object.assign({}, fields, {
+      workflowStep: LIONS_CONTACT_REQ_STEP, contactId: "", contactType: "", interactionType: "Lions contact details",
+      channel: "Other", notes: "These Lions screening families at " + school + " have no phone or email we can use. Type the school contact's name and email, then send: one email goes to the school with its list and every family's screening form attached.",
+      owner: "Noelani Dela Vega", ownerUid: NOELANI_DELAVEGA_UID, status: "Open", followUpDate: today,
+      grantProgram: "", grantPrograms: [], isDraft: false, createdBy: "System", createdByUid: "system",
+      source: "lions-contact-request", createdAt: FV.serverTimestamp(), updatedAt: FV.serverTimestamp(),
+    }));
+    out.created.push(ref.id);
+  }
+  return out;
 }
 
 function _lionsShortDate(iso) {
