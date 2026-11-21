@@ -36431,6 +36431,11 @@ async function _syncLionsContactRequestTask() {
   }
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
   const out = { pending: pending.length, created: [], updated: [] };
+  // New school tasks go to whoever had the most recent one (it was reassigned
+  // to Rosie 11-2026); Noe only when there has never been one.
+  let owner = "Noelani Dela Vega", ownerUid = NOELANI_DELAVEGA_UID, latest = 0;
+  openSnap.docs.forEach((d) => { const x = d.data() || {}; const t = x.createdAt && x.createdAt.toMillis ? x.createdAt.toMillis() : 0;
+    if (x.ownerUid && t >= latest) { latest = t; owner = x.owner || owner; ownerUid = x.ownerUid; } });
   for (const school of Object.keys(groups).sort()) {
     const fams = groups[school];
     const ids = fams.map((f) => f.caseId);
@@ -36450,7 +36455,7 @@ async function _syncLionsContactRequestTask() {
     const ref = await db.collection("interactions").add(Object.assign({}, fields, {
       workflowStep: LIONS_CONTACT_REQ_STEP, contactId: "", contactType: "", interactionType: "Lions contact details",
       channel: "Other", notes: "These Lions screening families at " + school + " have no phone or email we can use. Type the school contact's name and email, then send: one email goes to the school with its list and every family's screening form attached.",
-      owner: "Noelani Dela Vega", ownerUid: NOELANI_DELAVEGA_UID, status: "Open", followUpDate: today,
+      owner, ownerUid, status: "Open", followUpDate: today,
       grantProgram: "", grantPrograms: [], isDraft: false, createdBy: "System", createdByUid: "system",
       source: "lions-contact-request", createdAt: FV.serverTimestamp(), updatedAt: FV.serverTimestamp(),
     }));
