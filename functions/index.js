@@ -6843,7 +6843,7 @@ function renderTopLevelDailyReport(c) {
 // application is listed by name until staff move it on (2026-11-17), plus what
 // is new since the last report: applications, in-office help sign-ups and
 // cancellations, and help-request confirmations, and who is due in the
-// office today. Returns { html, note } or null when there is nothing to show.
+// office today. 2026-11-23: the "new since" feed was removed (Daniel). Returns { html, note } or null when there is nothing to show.
 async function buildDailyReportVolunteers(db, cutoffMs, todayISO, esc) {
   const ms = (v) => {
     if (!v) return 0;
@@ -6913,19 +6913,7 @@ async function buildDailyReportVolunteers(db, cutoffMs, todayISO, esc) {
   });
   dayReqs.sort((a, b) => (a.date < b.date ? -1 : 1));
 
-  // Help-request confirmations.
-  const confirmed = [];
-  const reqs = await db.collection("volunteerRequests").get();
-  for (const r of reqs.docs) {
-    const rd = r.data();
-    const parts = await r.ref.collection("participants").where("confirmed", "==", true).get();
-    parts.forEach((p) => {
-      const pd = p.data();
-      if (ms(pd.confirmedAt) >= cutoffMs) confirmed.push({ name: pd.name || pd.email || "A volunteer", title: rd.title || "a volunteer request", date: rd.date || "" });
-    });
-  }
-
-  if (!open.length && !newApps.length && !officeNew.length && !officeCancelled.length && !officeToday.length && !confirmed.length && !dayReqs.length) return null;
+  if (!open.length && !officeToday.length && !dayReqs.length) return null;
 
   const pillC = { New: ["#FEE2E2", "#991B1B"], Interviewing: ["#FEF3C7", "#92400E"], Contacted: ["#E0F2FE", "#075985"] };
   const pill = (t) => { const c = pillC[t] || ["#F1F5F9", "#334155"]; return `<span style="display:inline-block;font-size:11px;font-weight:bold;border-radius:999px;padding:1px 8px;background:${c[0]};color:${c[1]};white-space:nowrap;">${esc(t)}</span>`; };
@@ -6944,16 +6932,9 @@ async function buildDailyReportVolunteers(db, cutoffMs, todayISO, esc) {
       return row([`<b style="color:#0f172a;">${esc(a.name)}</b>${a.isNew ? ' <span style="font-size:11px;color:#16a34a;font-weight:bold;">new</span>' : ""}`, esc(a.opp), pill(a.stage), age]);
     }).join(""));
   }
-  const news = [];
-  newApps.forEach((a) => news.push(`New application: <b>${esc(a.name)}</b>${a.opp ? " (" + esc(a.opp) + ")" : ""}`));
-  officeNew.forEach((b) => news.push(`Signed up for office help: <b>${esc(nm(b))}</b>, ${esc(when(b))}${b.status === "cancelled" ? " (since cancelled)" : ""}${b.isNew ? " &middot; new volunteer" : ""}`));
-  officeCancelled.forEach((b) => news.push(`Office help cancelled: <b>${esc(nm(b))}</b>, ${esc(when(b))}${b.cancelReason ? " (" + esc(b.cancelReason) + ")" : ""}`));
-  dayReqs.filter((r) => r.isNew).forEach((r) => news.push(`Asked for an office help day: <b>${esc(r.name)}</b>, ${esc(dayLbl(r.date))}, ${esc(r.tod)}`));
-  confirmed.forEach((c) => news.push(`Confirmed for ${esc(c.title)}${c.date ? " (" + esc(c.date) + ")" : ""}: <b>${esc(c.name)}</b>`));
-  if (news.length) {
-    html += head("New since the last report");
-    html += tbl(news.map((t) => row([t, ""])).join(""));
-  }
+  // Daniel 2026-11-23: no "New since the last report" feed. Who signs up for
+  // events or office help is not daily-report content; new applications show
+  // in the waiting list above for as long as they stay New.
   if (dayReqs.length) {
     html += head(`Office day requests waiting (${dayReqs.length})`);
     html += tbl(dayReqs.map((r) => row([`<b style="color:#0f172a;">${esc(r.name)}</b>${r.isNew ? ' <span style="font-size:11px;color:#16a34a;font-weight:bold;">new</span>' : ""}`, esc(dayLbl(r.date)) + ", " + esc(r.tod), "add it as a special day or dismiss it in In-Office Help"])).join(""));
@@ -6963,7 +6944,7 @@ async function buildDailyReportVolunteers(db, cutoffMs, todayISO, esc) {
     html += tbl(officeToday.map((b) => row([`<b style="color:#0f172a;">${esc(nm(b))}</b>`, b.kind === "weekly" ? "every week" : (b.kind === "special" ? esc(b.specialNote || "special day") : "just once"), span(b)])).join(""));
   }
   html += `<p style="font-size:12px;margin:8px 0 0;">${link}</p>`;
-  const note = (open.length ? open.length + " waiting" : "") + (news.length ? (open.length ? " &middot; " : "") + news.length + " new" : "");
+  const note = open.length ? open.length + " waiting" : "";
   return { html, note };
 }
 
