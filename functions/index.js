@@ -36216,20 +36216,9 @@ async function _caRosterAdd(db, contactId, caseId) {
   });
   return "added";
 }
-exports.onCaseAdvocacyAddToRoster = functions
-  .runWith({ timeoutSeconds: 30, maxInstances: 10 })
-  .firestore.document("interactions/{interactionId}")
-  .onWrite(async (change, context) => {
-    try {
-      const after = change.after.exists ? change.after.data() : null;
-      if (!_caRosterQualifies(after)) return null;
-      const before = change.before.exists ? change.before.data() : null;
-      if (_caRosterQualifies(before)) return null;
-      const r = await _caRosterAdd(admin.firestore(), after.contactId, context.params.interactionId);
-      console.log("onCaseAdvocacyAddToRoster:", context.params.interactionId, r);
-    } catch (e) { console.error("onCaseAdvocacyAddToRoster:", e.message); }
-    return null;
-  });
+// onCaseAdvocacyAddToRoster REMOVED 2026-11-23 (Daniel): Rosie walked it back.
+// Only parents who have COMPLETED advocacy are asked to be Parents as Partners,
+// not families currently in it. The 35 auto-added cards were deleted.
 
 // ── Lions case assigned → email the family (Daniel 2026-11-13) ──────────
 // When Noe assigns a Lions screening case (needsAdvocateAssignment true ->
