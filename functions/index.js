@@ -32298,7 +32298,11 @@ exports.submitScreeningReferral = functions
     const db = admin.firestore();
     const FieldValue = admin.firestore.FieldValue;
     const emailLc = String(r.parentEmail || "").trim().toLowerCase();
-    const phoneDigits = String(r.parentPhone || "").replace(/\D/g, "");
+    /* Lions forms come from O\u02BBahu schools and parents often skip the area code:
+       a 7-digit number gets 808 (Daniel 2026-11-24). The bare 7 digits are still
+       looked up below so a family saved before this joins its existing card. */
+    const phoneRaw7 = String(r.parentPhone || "").replace(/\D/g, "");
+    const phoneDigits = phoneRaw7.length === 7 ? "808" + phoneRaw7 : phoneRaw7;
     const parentName = String(r.parentName || "").trim();
 
     try {
@@ -32318,7 +32322,7 @@ exports.submitScreeningReferral = functions
         }
       }
       if (!contactId && phoneDigits.length >= 7) {
-        const q = await db.collection("contacts").where("phone", "==", phoneDigits).limit(2).get();
+        const q = await db.collection("contacts").where("phone", "in", phoneRaw7.length === 7 ? [phoneDigits, phoneRaw7] : [phoneDigits]).limit(2).get();
         if (!q.empty) contactId = q.docs[0].id;
       }
       /* By the child, only when nothing else matched (2026-10-16). Hearing
