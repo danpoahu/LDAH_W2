@@ -36808,3 +36808,311 @@ exports.lionsDohAdmin = functions
       res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : "Something went wrong." });
     }
   });
+
+/* ── Advocacy check-in (Daniel 2026-11-25) ─────────────────────────────────
+   A short check-in email to every family in case ADVOCACY (not case
+   management, not screenings): how is it going, how is communication with
+   your parent consultant, where are you as a self-advocate (1-10), how
+   satisfied (1-5), and an invitation to membership. Signed by Noelani.
+   Each email carries its own token; the family answers on
+   ldahawaii.org/advocacy-check-in.html. An answer is saved on the family's
+   contact card (advocacyCheckIns[]) and opens a review task for Noe whose
+   button deep-links to the answer in the Case Advocacy Report.
+   advocacyCheckIns/{token} is server-only (Admin SDK); staff read the
+   answers from the contact and from the review task. */
+const ADV_CHECKIN_PAGE = "https://www.ldahawaii.org/advocacy-check-in.html";
+/* A TEST goes only to the person testing, opens the STAGE copy of the page,
+   saves on the tester's own contact card (marked test) and gives the review
+   task to the tester, never to Noe; its link opens STAGE DAN. */
+const ADV_CHECKIN_TEST_PAGE = "https://danpoahu.github.io/LDAH-Int/STAGE/advocacy-check-in.html";
+const ADV_CHECKIN_STAGE_DAN = "https://danpoahu.github.io/LDAH-Int/STAGE/";
+const ADV_CHECKIN_SUBJECT = "How is your advocacy going? A quick check-in from LDAH";
+const ADV_CHECKIN_REVIEW_STEP = "advocacyCheckInReview";
+const ADV_CHECKIN_NOE = {
+  name: "Noelani Dela Vega",
+  title: "Education &amp; Training Coordinator &ndash; Hawai&#699;i",
+  phone: "(808) 782-0506",
+  email: "ndelavega@ldahawaii.org",
+};
+const ADV_CHECKIN_COMM = {
+  easy: "Easy to reach",
+  sometimes: "Sometimes hard to reach",
+  hard: "Hard to reach",
+};
+
+function _advCiEsc(s) {
+  return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function _advCiFirst(name) {
+  const n = String(name || "").trim();
+  return n ? n.split(/\s+/)[0] : "";
+}
+
+/* Families in case advocacy right now: one per contact, open caseAdvocacy
+   interaction whose serviceLevel is not "management". */
+async function _advCiFamilies(db) {
+  const snap = await db.collection("interactions").where("workflowStep", "==", "caseAdvocacy").get();
+  const byContact = {};
+  snap.forEach((d) => {
+    const x = d.data() || {};
+    if (x.status !== "Open" || x.serviceLevel === "management" || !x.contactId) return;
+    if (!byContact[x.contactId]) byContact[x.contactId] = { caseId: d.id, consultant: x.owner || "", consultantUid: x.ownerUid || "" };
+  });
+  const out = [];
+  for (const cid of Object.keys(byContact)) {
+    const c = (await db.collection("contacts").doc(cid).get()).data();
+    if (!c || c.archived === true || c.sandbox === true) continue;
+    const name = c.name || [c.firstName, c.lastName].filter(Boolean).join(" ") || c.displayName || "";
+    const sentAt = c.advocacyCheckInSentAt && c.advocacyCheckInSentAt.toDate ? c.advocacyCheckInSentAt.toDate().toISOString() : "";
+    out.push(Object.assign({ contactId: cid, name, email: String(c.email || "").trim(), lastSentAt: sentAt }, byContact[cid]));
+  }
+  out.sort((a, b) => a.name.localeCompare(b.name));
+  return out;
+}
+
+function _advCiEmailHtml(fam, token, orgFooterHtml, pageBase) {
+  const first = _advCiEsc(_advCiFirst(fam.name) || "there");
+  const pc = _advCiEsc(_advCiFirst(fam.consultant) || "your parent consultant");
+  const link = (q) => (pageBase || ADV_CHECKIN_PAGE) + "?token=" + encodeURIComponent(token) + (q ? "&" + q : "");
+  const circle = (q, n, color, size) =>
+    `<td style="padding:0 4px 4px 0;"><a href="${link(q + "=" + n)}" style="display:inline-block;width:${size}px;line-height:${size}px;text-align:center;border:2px solid ${color};border-radius:50%;color:${color};font-size:15px;font-weight:bold;text-decoration:none;">${n}</a></td>`;
+  const pill = (v, label, color) =>
+    `<td style="padding:0 6px 6px 0;"><a href="${link("comm=" + v)}" style="display:inline-block;padding:9px 14px;border:2px solid ${color};border-radius:20px;color:${color};font-size:14px;font-weight:bold;text-decoration:none;">${label}</a></td>`;
+  const q = (n, t, sub) => `<p style="margin:24px 0 6px;font-size:16px;color:#1a3c6e;font-weight:bold;">${n}. ${t}</p>` +
+    (sub ? `<p style="margin:0 0 10px;font-size:15px;color:#555555;line-height:1.5;">${sub}</p>` : "");
+  let ten = ""; for (let i = 1; i <= 10; i++) ten += circle("self", i, "#1a3c6e", 36);
+  let five = ""; for (let i = 1; i <= 5; i++) five += circle("sat", i, "#0d9488", 44);
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;"><tr><td align="center" style="padding:24px 16px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;max-width:600px;width:100%;">
+  <tr><td style="background-color:#ffffff;padding:28px 32px 20px;text-align:center;border-bottom:3px solid #1a3c6e;">
+    <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="150" style="display:block;margin:0 auto;border:0;">
+  </td></tr>
+  <tr><td style="padding:32px;">
+    <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha ${first},</p>
+    <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">I am checking in with every family LDAH is supporting in advocacy right now. Your answers help us make sure you are getting what you need, and help us do better for every family. It takes about two minutes.</p>
+    ${q(1, "How is your advocacy going?", "Is your child&rsquo;s plan heading where you hoped? Anything working well, or anything you are still worried about?")}
+    ${q(2, "How has communication been with " + pc + ", your parent consultant?", "Is " + pc + " easy to reach? Do you hear back when you need to?")}
+    <table role="presentation" cellpadding="0" cellspacing="0"><tr>${pill("easy", "Easy to reach", "#15803D")}${pill("sometimes", "Sometimes hard to reach", "#B45309")}${pill("hard", "Hard to reach", "#B91C1C")}</tr></table>
+    ${q(3, "Where do you feel you are now as an advocate for your child?", "1 = I need a lot of help &nbsp;&middot;&nbsp; 10 = I can advocate for my child on my own")}
+    <table role="presentation" cellpadding="0" cellspacing="0"><tr>${ten}</tr></table>
+    ${q(4, "Overall, how satisfied are you with LDAH&rsquo;s help?", "1 = not satisfied &nbsp;&middot;&nbsp; 5 = very satisfied")}
+    <table role="presentation" cellpadding="0" cellspacing="0"><tr>${five}</tr></table>
+    ${_emailBtn(link(""), "Answer the check-in", { bg: "#1a73e8", align: "left" })}
+    <p style="margin:6px 0 0;font-size:13px;color:#777777;">Tapping any answer above opens the same short page with that answer already chosen.</p>
+    <div style="margin:28px 0 0;padding:20px;background:#F0FDFA;border-left:4px solid #0d9488;border-radius:6px;">
+      <p style="margin:0 0 8px;font-size:16px;color:#0f5f58;font-weight:bold;">Have you considered becoming an LDAH member?</p>
+      <p style="margin:0 0 14px;font-size:15px;color:#555555;line-height:1.5;">Members get our video library of past workshops, early notice of trainings, and a voice in how LDAH supports families across Hawai&#699;i. Your membership also helps keep advocacy free for the next family who needs it.</p>
+      ${_emailBtn(MEMBERSHIP_JOIN_URL, "Become a Member", { bg: "#0d9488", align: "left" })}
+    </div>
+    <p style="margin:26px 0 0;font-size:15px;color:#555555;line-height:1.5;">Mahalo for letting us walk alongside your family. If you need anything, just reply to this email.</p>
+    <p style="margin:18px 0 0;font-size:15px;color:#333333;line-height:1.5;">Me ke aloha,</p>
+    <p style="margin:6px 0 0;font-size:14px;color:#333333;line-height:1.55;">
+      <strong>${ADV_CHECKIN_NOE.name}</strong><br>
+      ${ADV_CHECKIN_NOE.title}<br>
+      Leadership in Disabilities &amp; Achievement of Hawai&#699;i<br>
+      245 N. Kukui Street, Suite 205, Honolulu, HI 96817<br>
+      Phone: ${ADV_CHECKIN_NOE.phone} &middot; Main Office: (808) 536-9684<br>
+      <a href="mailto:${ADV_CHECKIN_NOE.email}" style="color:#1a73e8;">${ADV_CHECKIN_NOE.email}</a> &middot; <a href="https://www.ldahawaii.org" style="color:#1a73e8;">www.LDAHawaii.org</a>
+    </p>
+    ${_emailLinkFooter([{ label: "Answer the check-in", href: link("") }, { label: "Become a Member", href: MEMBERSHIP_JOIN_URL }])}
+  </td></tr>
+  ${orgFooterHtml || ""}
+</table></td></tr></table></body></html>`;
+}
+
+// (1) Staff (Super Admin): list the families, send a test to yourself, or send.
+exports.sendAdvocacyCheckIns = functions
+  .runWith({ timeoutSeconds: 300, maxInstances: 2, secrets: EMAIL_SECRETS })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    const body = req.body || {};
+    let staff;
+    try { staff = await _verifyStaffIdToken(body.idToken); } catch (err) { res.status(err.statusCode || 401).json({ error: err.message }); return; }
+    if (staff.role !== "superAdmin") { res.status(403).json({ error: "Only a Super Admin can send check-ins." }); return; }
+    const db = admin.firestore();
+    const FieldValue = admin.firestore.FieldValue;
+    try {
+      const fams = await _advCiFamilies(db);
+      const action = String(body.action || "list");
+      if (action === "list") { res.status(200).json({ ok: true, families: fams }); return; }
+      const orgFooterHtml = await getOrgFooterHtml();
+      const replyTo = ADV_CHECKIN_NOE.name + " <" + ADV_CHECKIN_NOE.email + ">";
+
+      if (action === "test") {
+        const testTo = String(body.testTo || staff.email || "").trim().toLowerCase();
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(testTo)) { res.status(400).json({ error: "No test address." }); return; }
+        /* The tester's own contact card (matched by email) takes the test answer. */
+        let meId = "", meName = staff.name || "";
+        try {
+          const me = await db.collection("contacts").where("email", "==", testTo).limit(1).get();
+          if (!me.empty) { meId = me.docs[0].id; const m = me.docs[0].data() || {}; meName = m.name || [m.firstName, m.lastName].filter(Boolean).join(" ") || meName; }
+        } catch (e) { console.warn("test contact lookup:", e.message); }
+        const fam = { contactId: meId, caseId: "", name: meName || "Test Parent", consultant: (fams[0] && fams[0].consultant) || "Leilani Kailiawa", consultantUid: "" };
+        const token = crypto.randomBytes(16).toString("hex");
+        await db.collection("advocacyCheckIns").doc(token).set({
+          test: true, contactId: fam.contactId, caseId: "", parentName: fam.name,
+          consultant: fam.consultant, consultantUid: "", sentTo: testTo,
+          testOwner: { name: staff.name || staff.email || "", uid: staff.uid },
+          sentAt: FieldValue.serverTimestamp(), sentBy: staff.email || staff.uid,
+        });
+        await sendEmailViaResend({
+          from: lifecycleFromAddress(), to: testTo, replyTo,
+          subject: "[TEST] " + ADV_CHECKIN_SUBJECT,
+          html: _advCiEmailHtml(fam, token, orgFooterHtml, ADV_CHECKIN_TEST_PAGE),
+          type: "advocacy-check-in-test", relatedContactId: fam.contactId, recipientName: fam.name,
+        });
+        res.status(200).json({ ok: true, test: true, sentTo: testTo, family: fam.name, contactId: meId });
+        return;
+      }
+
+      if (action === "send") {
+        const want = new Set(Array.isArray(body.contactIds) ? body.contactIds : []);
+        const sent = [], skipped = [];
+        for (const fam of fams) {
+          if (!want.has(fam.contactId)) continue;
+          if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(fam.email)) { skipped.push({ name: fam.name, why: "no email" }); continue; }
+          const token = crypto.randomBytes(16).toString("hex");
+          try {
+            await db.collection("advocacyCheckIns").doc(token).set({
+              test: false, contactId: fam.contactId, caseId: fam.caseId, parentName: fam.name,
+              consultant: fam.consultant, consultantUid: fam.consultantUid, sentTo: fam.email,
+              sentAt: FieldValue.serverTimestamp(), sentBy: staff.email || staff.uid,
+            });
+            await sendEmailViaResend({
+              from: lifecycleFromAddress(), to: fam.email, replyTo,
+              subject: ADV_CHECKIN_SUBJECT,
+              html: _advCiEmailHtml(fam, token, orgFooterHtml),
+              type: "advocacy-check-in", relatedContactId: fam.contactId, recipientName: fam.name,
+            });
+            await db.collection("contacts").doc(fam.contactId).update({
+              advocacyCheckInSentAt: FieldValue.serverTimestamp(), advocacyCheckInToken: token,
+            });
+            sent.push(fam.name);
+          } catch (e) {
+            console.error("sendAdvocacyCheckIns:", fam.contactId, e.message);
+            skipped.push({ name: fam.name, why: e.message });
+          }
+        }
+        try {
+          await db.collection("auditLog").add({
+            action: "Advocacy check-in emails sent",
+            details: sent.length + " sent, " + skipped.length + " skipped",
+            performedBy: staff.email || staff.uid, performedByRole: staff.role,
+            timestamp: FieldValue.serverTimestamp(),
+          });
+        } catch (e) { console.warn("audit:", e.message); }
+        res.status(200).json({ ok: true, sent, skipped });
+        return;
+      }
+      res.status(400).json({ error: "Unknown action" });
+    } catch (err) {
+      console.error("sendAdvocacyCheckIns:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+// (2) Public GET: the answer page asks who this link is for.
+exports.getAdvocacyCheckIn = functions
+  .runWith({ timeoutSeconds: 20, maxInstances: 10 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    const token = String(req.query.token || "").trim();
+    if (!/^[a-f0-9]{32}$/.test(token)) { res.status(400).json({ error: "This link is not complete. Please use the button in your email." }); return; }
+    try {
+      const d = await admin.firestore().collection("advocacyCheckIns").doc(token).get();
+      if (!d.exists) { res.status(404).json({ error: "We could not find this check-in. Please reply to the email instead." }); return; }
+      const x = d.data() || {};
+      res.status(200).json({ ok: true, firstName: _advCiFirst(x.parentName), consultant: _advCiFirst(x.consultant), answered: !!x.answeredAt });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+// (3) Public POST: the family's answers. Saved on the contact card, plus a
+//     review task for Noe with a deep link to the answer.
+exports.submitAdvocacyCheckIn = functions
+  .runWith({ timeoutSeconds: 30, maxInstances: 5 })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
+    const b = req.body || {};
+    if (b.warm === true) {
+      try { await admin.firestore().collection("events").limit(1).get(); } catch (e) { /* warming only */ }
+      res.status(200).json({ warm: true }); return;
+    }
+    const token = String(b.token || "").trim();
+    if (!/^[a-f0-9]{32}$/.test(token)) { res.status(400).json({ error: "This link is not complete." }); return; }
+    const going = String(b.going || "").trim().slice(0, 4000);
+    const comm = ADV_CHECKIN_COMM[b.comm] ? String(b.comm) : "";
+    const commNote = String(b.commNote || "").trim().slice(0, 2000);
+    const self = Number(b.self), sat = Number(b.sat);
+    if (!going) { res.status(400).json({ error: "Please tell us how your advocacy is going (question 1)." }); return; }
+    if (!comm) { res.status(400).json({ error: "Please choose an answer for question 2." }); return; }
+    if (!(self >= 1 && self <= 10 && Math.round(self) === self)) { res.status(400).json({ error: "Please choose a number from 1 to 10 for question 3." }); return; }
+    if (!(sat >= 1 && sat <= 5 && Math.round(sat) === sat)) { res.status(400).json({ error: "Please choose a number from 1 to 5 for question 4." }); return; }
+    const db = admin.firestore();
+    const FieldValue = admin.firestore.FieldValue;
+    try {
+      const ref = db.collection("advocacyCheckIns").doc(token);
+      const d = await ref.get();
+      if (!d.exists) { res.status(404).json({ error: "We could not find this check-in." }); return; }
+      const x = d.data() || {};
+      if (x.answeredAt) { res.status(410).json({ error: "Mahalo, we already have your answers.", answered: true }); return; }
+      const answers = { going, comm, commLabel: ADV_CHECKIN_COMM[comm], commNote, selfAdvocacy: self, satisfaction: sat };
+      await ref.update(Object.assign({ answeredAt: FieldValue.serverTimestamp() }, answers));
+      const todayHst = new Date().toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
+      const nowIso = new Date().toISOString();
+      if (x.contactId) {
+        await db.collection("contacts").doc(x.contactId).update({
+          advocacyCheckIns: FieldValue.arrayUnion(Object.assign({ id: token, answeredAt: nowIso, consultant: x.consultant || "", caseId: x.caseId || "", test: !!x.test }, answers)),
+        });
+      }
+      const who = x.parentName || "A family";
+      const taskRef = db.collection("interactions").doc();
+      const deepLink = x.test
+        ? ADV_CHECKIN_STAGE_DAN + "#" + new URLSearchParams({ go: "advocacy-checkin", id: taskRef.id }).toString()
+        : danLink("advocacy-checkin", { id: taskRef.id });
+      const owner = x.test && x.testOwner && x.testOwner.uid
+        ? { name: x.testOwner.name, uid: x.testOwner.uid }
+        : { name: CASE_ADVOCACY_COORDINATOR_NAME, uid: CONNECT_GEN_ALERT_CC_UID };
+      await taskRef.set({
+        channel: "Web", interactionType: "Advocacy Check-In", workflowStep: ADV_CHECKIN_REVIEW_STEP,
+        contactId: x.contactId || "", contactName: (x.test ? "[TEST] " : "") + who, contactType: "Parent/Guardian",
+        summary: (x.test ? "[TEST] " : "") + "Review advocacy check-in from " + who +
+          " (self-advocacy " + self + "/10, satisfaction " + sat + "/5, " + ADV_CHECKIN_COMM[comm].toLowerCase() + ")",
+        notes: "1. How is your advocacy going?\n" + going +
+          "\n\n2. Communication with " + (x.consultant || "parent consultant") + ": " + ADV_CHECKIN_COMM[comm] + (commNote ? "\n" + commNote : "") +
+          "\n\n3. Self-advocacy: " + self + " / 10\n4. Satisfaction: " + sat + " / 5" +
+          "\n\nOpen it in DAN: " + deepLink,
+        checkIn: Object.assign({ token, consultant: x.consultant || "", consultantUid: x.consultantUid || "", caseId: x.caseId || "", test: !!x.test, answeredAt: nowIso }, answers),
+        deepLink,
+        status: "Open", isDraft: false, followUpDate: todayHst,
+        owner: owner.name, ownerUid: owner.uid,
+        grantProgram: "HI PTI", source: "advocacy-check-in",
+        createdBy: "System (auto)", createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+      });
+      try {
+        await db.collection("auditLog").add({
+          action: "Advocacy check-in answered", details: who + " — contact " + (x.contactId || "") + (x.test ? " (test)" : ""),
+          performedBy: "(family)", timestamp: FieldValue.serverTimestamp(), contactId: x.contactId || "",
+        });
+      } catch (e) { console.warn("audit:", e.message); }
+      res.status(200).json({ ok: true });
+    } catch (err) {
+      console.error("submitAdvocacyCheckIn:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });

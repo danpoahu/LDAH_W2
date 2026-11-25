@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Advocacy Check-In | LDAH</title>
+<meta name="robots" content="noindex">
+<style>
+  :root{--navy:#1a3c6e;--teal:#0d9488;--ink:#1f2937;--soft:#555;--line:#d6dde6;--bg:#f4f4f4}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Arial,Helvetica,sans-serif}
+  .wrap{max-width:640px;margin:0 auto;padding:20px 16px 40px}
+  .card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden}
+  .head{text-align:center;padding:24px 20px 16px;border-bottom:3px solid var(--navy)}
+  .head img{width:150px;height:auto}
+  .body{padding:24px 22px 28px}
+  h1{font-size:1.3rem;color:var(--navy);margin:0 0 8px}
+  .q{margin:26px 0 0}
+  .q label.t{display:block;font-weight:bold;color:var(--navy);font-size:1.02rem}
+  .q .sub{color:var(--soft);font-size:.94rem;margin:2px 0 10px}
+  textarea{width:100%;min-height:96px;font:inherit;padding:10px;border:1.5px solid var(--line);border-radius:8px;resize:vertical}
+  .pills,.nums{display:flex;flex-wrap:wrap;gap:8px}
+  .pills button{font:inherit;font-size:.95rem;font-weight:bold;padding:9px 14px;border-radius:999px;background:#fff;cursor:pointer;border:2px solid var(--c);color:var(--c)}
+  .pills button[aria-pressed="true"]{background:var(--c);color:#fff}
+  .nums button{font:inherit;font-weight:bold;width:44px;height:44px;border-radius:50%;background:#fff;cursor:pointer;border:2px solid var(--c);color:var(--c)}
+  .nums button[aria-pressed="true"]{background:var(--c);color:#fff}
+  .ends{display:flex;justify-content:space-between;font-size:.82rem;color:var(--soft);margin-top:4px}
+  .send{margin-top:28px;width:100%;font:inherit;font-weight:bold;font-size:1.05rem;padding:14px;border:0;border-radius:8px;background:#1a73e8;color:#fff;cursor:pointer}
+  .send:disabled{opacity:.6;cursor:default}
+  .err{color:#B91C1C;font-weight:bold;margin-top:12px;min-height:1.2em}
+  .member{margin-top:28px;padding:18px;background:#F0FDFA;border-left:4px solid var(--teal);border-radius:8px}
+  .member b{color:#0f5f58}
+  .member a{display:inline-block;margin-top:10px;background:var(--teal);color:#fff;text-decoration:none;font-weight:bold;padding:11px 22px;border-radius:6px}
+  .msg{text-align:center;padding:30px 10px}
+  .sig{margin-top:24px;font-size:.92rem;color:var(--soft)}
+  .foot{text-align:center;font-size:.8rem;color:#64748b;margin-top:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="head"><img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai&#699;i"></div>
+    <div class="body" id="main">
+      <div class="msg" id="loading">Loading&hellip;</div>
+    </div>
+  </div>
+  <div class="foot">Leadership in Disabilities &amp; Achievement of Hawai&#699;i &middot; 245 N. Kukui St., Suite 205, Honolulu, HI 96817 &middot; (808) 536-9684</div>
+</div>
+<script>
+(function () {
+  var GET = 'https://us-central1-ldah-932d5.cloudfunctions.net/getAdvocacyCheckIn';
+  var POST = 'https://us-central1-ldah-932d5.cloudfunctions.net/submitAdvocacyCheckIn';
+  var JOIN = 'https://www.ldahawaii.org/volunteer.html#membership';
+  var p = new URLSearchParams(location.search);
+  var token = p.get('token') || '';
+  var state = { comm: p.get('comm') || '', self: Number(p.get('self')) || 0, sat: Number(p.get('sat')) || 0 };
+  var main = document.getElementById('main');
+  function esc(s) { return String(s || '').replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  var member = '<div class="member"><b>Have you considered becoming an LDAH member?</b><div style="color:#555;font-size:.95rem;margin-top:4px">Members get our video library of past workshops, early notice of trainings, and a voice in how LDAH supports families across Hawai&#699;i. Your membership also helps keep advocacy free for the next family who needs it.</div><a href="' + JOIN + '">Become a Member</a></div>';
+  function done(text) { main.innerHTML = '<div class="msg"><h1>' + text + '</h1><p style="color:#555">If you need anything, reply to Noelani&rsquo;s email or call (808) 536-9684.</p></div>' + member; }
+  function fail(text) { main.innerHTML = '<div class="msg"><h1>Sorry</h1><p style="color:#555">' + esc(text) + '</p></div>'; }
+  function nums(name, n, color) {
+    var h = '<div class="nums" data-k="' + name + '">';
+    for (var i = 1; i <= n; i++) h += '<button type="button" style="--c:' + color + '" data-v="' + i + '" aria-pressed="' + (state[name] === i) + '">' + i + '</button>';
+    return h + '</div>';
+  }
+  function form(info) {
+    var pc = esc(info.consultant || 'your parent consultant');
+    main.innerHTML =
+      '<h1>Aloha' + (info.firstName ? ' ' + esc(info.firstName) : '') + '!</h1>' +
+      '<div style="color:#555">Four quick questions. Your answers go to Noelani at LDAH.</div>' +
+      '<div class="q"><label class="t" for="going">1. How is your advocacy going?</label><div class="sub">Is your child&rsquo;s plan heading where you hoped? Anything working well, or anything you are still worried about?</div><textarea id="going" maxlength="4000"></textarea></div>' +
+      '<div class="q"><span class="t" style="display:block;font-weight:bold;color:#1a3c6e">2. How has communication been with ' + pc + ', your parent consultant?</span><div class="sub">Is ' + pc + ' easy to reach?</div>' +
+        '<div class="pills" data-k="comm">' +
+          '<button type="button" style="--c:#15803D" data-v="easy" aria-pressed="' + (state.comm === 'easy') + '">Easy to reach</button>' +
+          '<button type="button" style="--c:#B45309" data-v="sometimes" aria-pressed="' + (state.comm === 'sometimes') + '">Sometimes hard to reach</button>' +
+          '<button type="button" style="--c:#B91C1C" data-v="hard" aria-pressed="' + (state.comm === 'hard') + '">Hard to reach</button>' +
+        '</div><textarea id="commNote" maxlength="2000" placeholder="Anything you want to add (optional)" style="min-height:64px;margin-top:10px"></textarea></div>' +
+      '<div class="q"><span class="t" style="display:block;font-weight:bold;color:#1a3c6e">3. Where do you feel you are now as an advocate for your child?</span>' + nums('self', 10, '#1a3c6e') +
+        '<div class="ends"><span>1 = I need a lot of help</span><span>10 = I can do it on my own</span></div></div>' +
+      '<div class="q"><span class="t" style="display:block;font-weight:bold;color:#1a3c6e">4. Overall, how satisfied are you with LDAH&rsquo;s help?</span>' + nums('sat', 5, '#0d9488') +
+        '<div class="ends"><span>1 = not satisfied</span><span>5 = very satisfied</span></div></div>' +
+      '<button class="send" id="send" type="button">Send my answers</button><div class="err" id="err" role="alert"></div>' +
+      member +
+      '<div class="sig">Me ke aloha,<br><b>Noelani Dela Vega</b><br>Education &amp; Training Coordinator &ndash; Hawai&#699;i<br>Leadership in Disabilities &amp; Achievement of Hawai&#699;i<br>Phone: (808) 782-0506 &middot; ndelavega@ldahawaii.org</div>';
+    main.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-k] button'); if (!b) return;
+      var k = b.parentNode.getAttribute('data-k'), v = b.getAttribute('data-v');
+      state[k] = k === 'comm' ? v : Number(v);
+      Array.prototype.forEach.call(b.parentNode.children, function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+    });
+    document.getElementById('send').addEventListener('click', submit);
+  }
+  function submit() {
+    var btn = document.getElementById('send'), err = document.getElementById('err');
+    var going = document.getElementById('going').value.trim();
+    err.textContent = '';
+    if (!going) { err.textContent = 'Please tell us how your advocacy is going (question 1).'; return; }
+    if (!state.comm) { err.textContent = 'Please choose an answer for question 2.'; return; }
+    if (!state.self) { err.textContent = 'Please choose a number for question 3.'; return; }
+    if (!state.sat) { err.textContent = 'Please choose a number for question 4.'; return; }
+    btn.disabled = true; btn.textContent = 'Sending…';
+    fetch(POST, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      token: token, going: going, comm: state.comm, commNote: document.getElementById('commNote').value.trim(), self: state.self, sat: state.sat
+    }) }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (x) {
+        if (x.ok && x.j.ok) { done('Mahalo! We got your answers.'); return; }
+        if (x.j && x.j.answered) { done('Mahalo, we already have your answers.'); return; }
+        btn.disabled = false; btn.textContent = 'Send my answers'; err.textContent = (x.j && x.j.error) || 'Something went wrong. Please try again.';
+      }).catch(function () { btn.disabled = false; btn.textContent = 'Send my answers'; err.textContent = 'Could not reach LDAH. Please check your connection and try again.'; });
+  }
+  if (!token) { fail('This link is not complete. Please use the button in your email.'); return; }
+  try { fetch(POST, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ warm: true }) }); } catch (e) {}
+  fetch(GET + '?token=' + encodeURIComponent(token)).then(function (r) { return r.json(); }).then(function (j) {
+    if (!j.ok) { fail(j.error || 'We could not find this check-in.'); return; }
+    if (j.answered) { done('Mahalo, we already have your answers.'); return; }
+    form(j);
+  }).catch(function () { fail('Could not reach LDAH. Please try again in a moment.'); });
+})();
+</script>
+</body>
+</html>
