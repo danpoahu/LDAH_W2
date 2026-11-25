@@ -36901,7 +36901,7 @@ function _advCiEmailHtml(fam, token, orgFooterHtml, pageBase) {
     <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="150" style="display:block;margin:0 auto;border:0;">
   </td></tr>
   <tr><td style="padding:32px;">
-    <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha ${first},</p>
+    <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha e ${first},</p>
     <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">I am checking in with every family LDAH is supporting in advocacy right now. Your answers help us make sure you are getting what you need, and help us do better for every family. It takes about two minutes.</p>
     ${q(1, "How is your advocacy going?", "Is your child&rsquo;s plan heading where you hoped? Anything working well, or anything you are still worried about?")}
     ${q(2, "How has communication been with " + pc + ", your parent consultant?", "Is " + pc + " easy to reach? Do you hear back when you need to?")}
