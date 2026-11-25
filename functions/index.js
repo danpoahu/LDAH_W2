@@ -36906,8 +36906,9 @@ function _advCiEmailHtml(fam, token, orgFooterHtml, pageBase) {
   </td></tr>
   <tr><td style="padding:32px;">
     <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha e ${first},</p>
+    <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">I am reaching out to you as a courtesy to ask how your assigned case assignment is progressing with ${_advCiEsc(fam.consultant || "your parent consultant")}.</p>
     <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">I am checking in with every family LDAH is supporting in advocacy right now. Your answers help us make sure you are getting what you need, and help us do better for every family. It takes about two minutes.</p>
-    ${q(1, "How is your advocacy going?", "Is your child&rsquo;s plan heading where you hoped? Anything working well, or anything you are still worried about?")}
+    ${q(1, "How is your advocacy going? Have you been provided the guidance you need?", "Is your child&rsquo;s plan heading where you hoped? Anything working well, or anything you are still worried about?")}
     ${q(2, "How has communication been with " + pc + ", your parent consultant?", "Is " + pc + " easy to reach? Do you hear back when you need to?")}
     <table role="presentation" cellpadding="0" cellspacing="0"><tr>${pill("easy", "Easy to reach", "#15803D")}${pill("sometimes", "Sometimes hard to reach", "#B45309")}${pill("hard", "Hard to reach", "#B91C1C")}</tr></table>
     ${q(3, "Where do you feel you are now as an advocate for your child?", "1 = I need a lot of help &nbsp;&middot;&nbsp; 10 = I can advocate for my child on my own")}
