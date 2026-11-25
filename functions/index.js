@@ -36759,11 +36759,11 @@ exports.lionsDohAdmin = functions
     try {
       const staff = await _verifyStaffIdToken(body.idToken);
       const action = String(body.action || "");
-      const isDan = staff.uid === DAN_PELLEGRINI_UID || staff.uid === LIFECYCLE_SEAT_UID; // Daniel + the admin seat (Justin)
+      const isDan = staff.uid === DAN_PELLEGRINI_UID || staff.uid === LIFECYCLE_SEAT_UID || staff.uid === NOELANI_DELAVEGA_UID; // Daniel, the admin seat (Justin) and Noe (2026-11-25)
       const cfgRef = _dohCfgRef();
 
       if (action === "status" || action === "setEmail" || action === "newKey" || action === "sendLink") {
-        if (!isDan) { res.status(403).json({ error: "Daniel and Justin only" }); return; }
+        if (!isDan) { res.status(403).json({ error: "Daniel, Justin and Noe only" }); return; }
         if (action === "sendLink") {
           const cfg0 = (await cfgRef.get()).data() || {};
           if (!cfg0.email) { res.status(400).json({ error: "Save DOH's email first." }); return; }
