@@ -34620,10 +34620,18 @@ async function _syncSchoolScreeningCases() {
     if (x.status === "Open" && x.contactId && !openByContact[x.contactId]) openByContact[x.contactId] = d.ref;
   });
   let opened = 0, attached = 0;
+  /* Every failed screening goes to Noe first (Daniel 2026-11-25): adults who
+     screened themselves and screenings with no school or event now open a
+     case too. Staff are skipped so a practice screening is never a case. */
+  const staffEmails = new Set();
+  try {
+    (await db.collection("userRoles").get()).forEach((u) => { const e = String((u.data() || {}).email || "").trim().toLowerCase(); if (e) staffEmails.add(e); });
+  } catch (e) { console.warn("schoolScreeningCases staff list:", e.message); }
   const cs = await db.collection("contacts").where("hasScreenings", "==", true).get();
   for (const d of cs.docs) {
     const c = d.data() || {};
     if (c.archived === true || c.sandbox === true || c.partnerIsland) continue;
+    if (staffEmails.has(String(c.email || "").trim().toLowerCase())) continue;
     for (const s of (Array.isArray(c.screenings) ? c.screenings : [])) {
       if (!s || !s.id || done.has(s.id) || String(s.source || "") === "lions-screening") continue;
       /* Outreach events (Daniel 2026-11-04): a kiosk screening at an event has
@@ -34637,11 +34645,12 @@ async function _syncSchoolScreeningCases() {
          follows the school flow, labelled office, with no school batch task
          (the case counts in the main assign task). */
       const office = String(s.source || "") === "office-screening" || loc === officeScreenings.OFFICE_LOCATION;
+      const adult = _isSelfScreening(s);
       if (!loc && s.eventId) {
-        if (_isSelfScreening(s)) continue;
         loc = await _screeningEventTitle(db, s.eventId);
         outreach = true;
       }
+      if (!loc && !office) { loc = "an LDAH screening"; outreach = true; }
       if (!loc || !s.results) continue;
       const types = _schoolScreeningFails(s.results);
       if (!types.length) continue;
@@ -34649,11 +34658,12 @@ async function _syncSchoolScreeningCases() {
       const what = types.join(" and ");
       const day = String(s.results.screenedAt || today).slice(0, 10);
       const due = addDaysHst(day, SCREENING_REFERRAL_CONTACT_DUE_DAYS);
-      const kid = ((((s.child || {}).firstName || "") + " " + ((s.child || {}).lastName || "")).trim()) || "the child";
-      const parent = c.displayName || (((c.firstName || "") + " " + (c.lastName || "")).trim()) || ("Parent of " + kid);
+      const parent0 = c.displayName || (((c.firstName || "") + " " + (c.lastName || "")).trim());
+      const kid = adult ? (parent0 || "the adult screened") : (((((s.child || {}).firstName || "") + " " + ((s.child || {}).lastName || "")).trim()) || "the child");
+      const parent = parent0 || ("Parent of " + kid);
       const school = _schoolShortName(loc);
       const prov = (office ? "Office " : outreach ? "Outreach " : "School ") + what + " screening referral for " + kid + " at " + loc + ", screened " + day +
-        ". The child did not pass, so the family goes to case management." +
+        (adult ? ". An adult who screened themselves and did not pass; Noe decides who follows up." : ". The child did not pass, so the family goes to case management.") +
         "\nInitial contact is due by " + due + " (21 days from the screening)." +
         "\nOpened automatically on " + today + ".";
       const ref1 = { screeningId: s.id, type: what, screeningDate: day, contactDueDate: due };
