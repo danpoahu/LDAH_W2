@@ -102,7 +102,7 @@ exports.partnerTrainingResume = functions
       const first = (name.split(/\s+/)[0] || "there");
       const html =
         '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;color:#16242b;line-height:1.6;">' +
-        "<p>Aloha " + first + ",</p>" +
+        "<p>Aloha e " + first + ",</p>" +
         // Name the deck they were actually in. This said "Getting Started"
         // outright, which was true while there was only one.
         "<p>You were part way through <b>" + lifecycleEsc(sessionTitle || "your training") +
@@ -796,6 +796,10 @@ function familyEmails(rec) {
   return out.filter(Boolean);
 }
 
+
+/* Letters open "Aloha e <name>," (Daniel 2026-11-25). A stored greeting of
+   plain "Aloha" (or none) becomes "Aloha e"; any other greeting is kept. */
+function _alohaE(g) { const t = String(g || "").trim(); return (!t || /^aloha$/i.test(t)) ? "Aloha e" : t; }
 async function sendEmailViaResend({
   from, to, subject, html, bcc, cc,
   type, relatedEventId, relatedSignupId, recipientName, relatedContactId,
@@ -1222,7 +1226,7 @@ function buildRegistrationRefreshEmailHtml({ name, eventTitle, lastRegisteredOn,
     '</td></tr>' +
     '<tr><td style="padding:30px 32px 8px;">' +
     '<h1 style="margin:0 0 14px;font-size:21px;color:#1a3c6e;">Does this still look right?</h1>' +
-    '<p style="margin:0 0 14px;font-size:15px;color:#333;line-height:1.6;">' + (greeting || "Aloha") + ' ' + safe(name || "there") + ',</p>' +
+    '<p style="margin:0 0 14px;font-size:15px;color:#333;line-height:1.6;">' + (name ? _alohaE(greeting) + ' ' + safe(name) : 'Aloha') + ',</p>' +
     '<p style="margin:0 0 14px;font-size:15px;color:#333;line-height:1.6;">' +
     'Mahalo for signing up for <strong>' + safe(eventTitle || "an LDAH event") + '</strong>. ' +
     'We already have your registration details on file' +
@@ -1266,7 +1270,7 @@ function buildRegistrationEmailHtml({ name, eventTitle, eventDate, signupId, eve
   <!-- Body -->
   <tr>
     <td style="padding:32px;">
-      <p style="margin:0 0 16px;font-size:16px;color:#333333;">${greeting || "Aloha"} ${name},</p>
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;">${_alohaE(greeting)} ${name},</p>
 
       <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
         Mahalo for signing up for <strong>${eventTitle}</strong>${dateLine}.
@@ -1373,7 +1377,7 @@ function buildConfirmationEmailHtml({ name, eventTitle, datesPhrase, modality, i
 
   <tr>
     <td style="padding:32px;">
-      <p style="margin:0 0 16px;font-size:16px;color:#333333;">${greeting || "Aloha"} ${greetingName},</p>
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;">${_alohaE(greeting)} ${greetingName},</p>
 
       <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
         You're all set for <strong>${safeTitle}</strong>${datesSuffix}. Mahalo for completing your registration!
@@ -1450,7 +1454,7 @@ function buildParentTalkCafeConfirmationEmailHtml({ name, eventTitle, datesPhras
 
   <tr>
     <td style="padding:32px;">
-      <p style="margin:0 0 16px;font-size:16px;color:#333333;">${greeting || "Aloha"} ${greetingName},</p>
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;">${_alohaE(greeting)} ${greetingName},</p>
 
       <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
         Mahalo for signing up for <strong>${safeTitle}</strong>${datesSuffix}! We are so glad you'll be joining us for an evening of conversation, encouragement, and ${greeting === "Hi" ? "friendship with other families across Hawaiʻi and the Pacific" : "aloha with other Hawai'i families"}.
@@ -5560,7 +5564,7 @@ function buildNoShowEmailHtml({ name, eventTitle, nextEventTitle, nextEventDate,
   <!-- Body -->
   <tr>
     <td style="padding:32px;">
-      <p style="margin:0 0 16px;font-size:16px;color:#333333;">${greeting || "Aloha"} ${name},</p>
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;">${_alohaE(greeting)} ${name},</p>
 
       <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
         We're sorry we missed you at <strong>${eventTitle}</strong>. We hope you're doing well!
@@ -5784,7 +5788,7 @@ function _buildFeedbackEmailHtmlInner({ name, eventTitle, feedbackUrl, intro, do
   <!-- Body -->
   <tr>
     <td style="padding:32px;">
-      <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha ${name},</p>
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha e ${name},</p>
 
       <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
         ${intro}
@@ -10376,7 +10380,7 @@ function buildDayOfEmail({
 
   <tr>
     <td style="padding:32px;">
-      <p style="margin:0 0 16px;font-size:16px;color:#333333;">${greeting || "Aloha"} ${greetingName},</p>
+      <p style="margin:0 0 16px;font-size:16px;color:#333333;">${_alohaE(greeting)} ${greetingName},</p>
 
       <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">
         We are so excited to see you in just a little while at <strong>${safeTitle}</strong>${whenBit}!
@@ -11082,7 +11086,7 @@ function buildCombinedAnnouncementEmailHtml({ blocks, contact, unsubscribeUrl,
     'padding:24px;text-align:center;color:#fff">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">' + esc(_heading) + '</h1></div>' +
     '<div style="padding:28px 24px 0">' +
-    '<p style="margin:0 0 6px;font-size:16px">' + (_annIsPip(contact) ? 'Hi ' : 'Aloha ') + esc(firstName) + ',</p>' +
+    '<p style="margin:0 0 6px;font-size:16px">' + (_annIsPip(contact) ? 'Hi ' : 'Aloha e ') + esc(firstName) + ',</p>' +
     '<p style="margin:0 0 4px;font-size:15px;color:#334155">' + esc(_lead) + '</p></div>' +
     sections +
     (extraHtml || '') +
@@ -11219,7 +11223,7 @@ function buildAnnouncementEmailHtml({ event, contact, unsubscribeUrl, eventId, s
     '<h1 style="margin:0;font-size:22px;font-weight:700">New LDAH Event</h1></div>' +
     (flyerUrl ? '<img src="' + esc(flyerUrl) + '" alt="' + esc(title) + '" style="width:100%;display:block">' : '') +
     '<div style="padding:32px 24px">' +
-    '<p style="margin:0 0 16px;font-size:16px">' + (_pip ? 'Hi ' : 'Aloha ') + esc(firstName) + ',</p>' +
+    '<p style="margin:0 0 16px;font-size:16px">' + (_pip ? 'Hi ' : 'Aloha e ') + esc(firstName) + ',</p>' +
     '<h2 style="margin:0 0 12px;color:#004E7C;font-size:24px">' + esc(title) + '</h2>' +
     _whenHtml +
     (location ? '<p style="margin:0 0 16px;color:#475569"><strong>Where:</strong> ' + esc(location) + '</p>' : '') +
@@ -11294,7 +11298,7 @@ function buildThreeWaysEmailHtml({ blocks, contact, unsubscribeUrl, isMember }) 
     '<tr><td style="background:#ffffff;padding:24px 24px 16px;text-align:center;"><img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai&#699;i" width="120" style="display:block;margin:0 auto;border:0;"></td></tr>' +
     '<tr><td style="background:#0B4F61;background-image:linear-gradient(135deg,#0B4F61,#0891B2);padding:26px 24px;"><div style="font-size:13px;font-weight:700;letter-spacing:1.5px;color:#FDBA74;">ALOHA, LDAH FAMILIES</div><div style="font-size:28px;font-weight:800;color:#ffffff;line-height:1.2;margin-top:6px;">Three ways to be part of LDAH this season</div><div style="font-size:16px;color:#CFFAFE;margin-top:8px;line-height:1.5;">Pick one, or all three. Each takes just a few minutes.</div>' +
     '<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:16px;"><tr>' + pill(VOL, 'Volunteer') + (isMember ? pill(PORTAL, 'Member Portal') : pill(JOIN, 'Become a member')) + pill(INSTALL, 'Get the app') + '</tr></table></td></tr>' +
-    '<tr><td style="padding:22px 24px 6px;font-size:16px;color:#334155;line-height:1.6;">Aloha ' + esc(firstName) + ',<br><br>Mahalo for being part of the LDAH &#699;ohana. Here are three easy ways to stay connected and help other families across the islands.</td></tr>' +
+    '<tr><td style="padding:22px 24px 6px;font-size:16px;color:#334155;line-height:1.6;">Aloha e ' + esc(firstName) + ',<br><br>Mahalo for being part of the LDAH &#699;ohana. Here are three easy ways to stay connected and help other families across the islands.</td></tr>' +
     vol + mem + app +
     '<tr><td style="padding:6px 24px 24px;font-size:16px;color:#334155;line-height:1.6;">Questions? Reply to this email or call us at <a href="tel:8085369684" style="color:#0E7490;">(808) 536-9684</a>.<br><br>Mahalo,<br><b>Parent Consultant Team</b><br>Leadership in Disabilities &amp; Achievement of Hawai&#699;i</td></tr>' +
     '<tr><td style="background:#f0f0f0;padding:20px 24px;text-align:center;border-top:1px solid #dddddd;"><p style="margin:0 0 4px;font-size:13px;color:#777;font-weight:bold;">Leadership in Disabilities &amp; Achievement of Hawai&#699;i</p><p style="margin:0 0 8px;font-size:12px;color:#999;">245 N. Kukui St., Suite 205, Honolulu, HI 96817 &middot; (808) 536-9684</p><p style="margin:0;font-size:12px;color:#999;">You received this because you are in our contact list. <a href="' + unsubscribeUrl + '" style="color:#0891B2;">Unsubscribe</a> from future announcements.</p></td></tr>' +
@@ -12200,7 +12204,7 @@ function buildLifecycleEmailHtml({ kind, name, eventTitle, oldDates, newDates, s
     '<div style="background-color:' + headerColor + ';background:' + headerGradient + ';padding:24px;text-align:center;color:#fff">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">' + lifecycleEsc(headerLabel) + '</h1></div>' +
     '<div style="padding:32px 24px">' +
-    '<p style="margin:0 0 16px;font-size:16px">' + (greeting || 'Aloha') + ' ' + lifecycleEsc(firstName) + ',</p>' +
+    '<p style="margin:0 0 16px;font-size:16px">' + _alohaE(greeting) + ' ' + lifecycleEsc(firstName) + ',</p>' +
     '<h2 style="margin:0 0 16px;color:#004E7C;font-size:22px">' + lifecycleEsc(heading) + '</h2>' +
     bodyHtml +
     '</div>' +
@@ -12222,7 +12226,7 @@ function buildEventCancelledEmailHtml({ name, eventTitle, eventDate, reason, gre
     '<div style="background-color:#991b1b;background:linear-gradient(135deg,#991b1b,#dc2626);padding:24px;text-align:center;color:#fff">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">Event Cancelled</h1></div>' +
     '<div style="padding:32px 24px">' +
-    '<p style="margin:0 0 16px;font-size:16px">' + (greeting || 'Aloha') + ' ' + lifecycleEsc(firstName) + ',</p>' +
+    '<p style="margin:0 0 16px;font-size:16px">' + _alohaE(greeting) + ' ' + lifecycleEsc(firstName) + ',</p>' +
     '<h2 style="margin:0 0 16px;color:#991b1b;font-size:22px">We\'re sorry</h2>' +
     '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">' +
       '<strong>' + title + '</strong>' +
@@ -12253,7 +12257,7 @@ function buildEventRescheduledEmailHtml({ name, eventTitle, oldDate, newDate, re
     '<div style="background-color:#1e40af;background:linear-gradient(135deg,#1e40af,#0891B2);padding:24px;text-align:center;color:#fff">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">Event Rescheduled</h1></div>' +
     '<div style="padding:32px 24px">' +
-    '<p style="margin:0 0 16px;font-size:16px">' + (greeting || 'Aloha') + ' ' + lifecycleEsc(firstName) + ',</p>' +
+    '<p style="margin:0 0 16px;font-size:16px">' + _alohaE(greeting) + ' ' + lifecycleEsc(firstName) + ',</p>' +
     '<h2 style="margin:0 0 16px;color:#004E7C;font-size:22px">Heads up &mdash; the date has changed</h2>' +
     '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">' +
       '<strong>' + title + '</strong> has been rescheduled' +
@@ -12285,7 +12289,7 @@ function buildSessionCancelledEmailHtml({ name, eventTitle, sessionDate, reason,
     '<div style="background-color:#b45309;background:linear-gradient(135deg,#b45309,#f59e0b);padding:24px;text-align:center;color:#fff">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">Session Cancelled</h1></div>' +
     '<div style="padding:32px 24px">' +
-    '<p style="margin:0 0 16px;font-size:16px">' + (greeting || 'Aloha') + ' ' + lifecycleEsc(firstName) + ',</p>' +
+    '<p style="margin:0 0 16px;font-size:16px">' + _alohaE(greeting) + ' ' + lifecycleEsc(firstName) + ',</p>' +
     '<h2 style="margin:0 0 16px;color:#b45309;font-size:22px">Just this session</h2>' +
     '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">' +
       'The <strong>' + title + '</strong> session' +
@@ -12962,7 +12966,7 @@ async function fetchStorageAsBase64(storagePath) {
 function buildNoShowRecordingBody({ name, eventTitle, nextSessionsBlurb, greeting }) {
   const safeName = (name && String(name).trim()) ? String(name).trim() : "there";
   const lines = [
-    `${greeting || "Aloha"} ${safeName},`,
+    `${_alohaE(greeting)} ${safeName},`,
     "",
     `We're sorry we missed you at ${eventTitle}. We hope everything is well, and we wanted to make sure you still have what was shared during the session.`,
     "",
@@ -13651,7 +13655,7 @@ function buildResourceUpdateEmailHtml({ resource, token, isNudge, signatureHtml,
     '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;border:0;outline:none;text-decoration:none;">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">' + resourceUpdateEsc(headerLabel) + '</h1></div>' +
     '<div style="padding:32px 24px">' +
-    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + orgName + ' team,</p>' +
+    '<p style="margin:0 0 16px;font-size:16px">Aloha e ' + orgName + ' team,</p>' +
     '<h2 style="margin:0 0 16px;color:#004E7C;font-size:22px">' + resourceUpdateEsc(heading) + '</h2>' +
     bodyHtml +
     '</div>' +
@@ -14212,7 +14216,7 @@ function buildConsentRequiredEmailHtml({
     '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">Three things before your session</h1></div>' +
     '<div style="padding:32px 24px">' +
-    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + safeName + ',</p>' +
+    '<p style="margin:0 0 16px;font-size:16px">Aloha e ' + safeName + ',</p>' +
     '<p style="margin:0 0 18px;font-size:16px;color:#334155;line-height:1.6">Mahalo for signing up for <strong>' + safeTitle + '</strong>' + (safeDates ? '<strong>' + safeDates + '</strong>' : '') + '. We are looking forward to sitting down with you.</p>' +
     '<p style="margin:0 0 6px;font-size:16px;color:#334155;line-height:1.6">So that we can make the most of your time, there are <strong>three things</strong> we need from you before we meet:</p>' +
     steps +
@@ -14270,7 +14274,7 @@ function buildConnectGenPrepEmailHtml({ name, eventTitle, datesPhrase, prepDocs,
     '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">You\'re Confirmed</h1></div>' +
     '<div style="padding:32px 24px">' +
-    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + safeName + ',</p>' +
+    '<p style="margin:0 0 16px;font-size:16px">Aloha e ' + safeName + ',</p>' +
     '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Mahalo &mdash; your registration for <strong>' + safeTitle + '</strong>' + (safeDates ? ' <strong>' + safeDates + '</strong>' : '') + ' is complete and your session is confirmed. Here is everything you need to be ready.</p>' +
     '<div style="background:#FFFBEB;border:2px solid #F59E0B;border-radius:10px;padding:14px 18px;margin:18px 0;">' +
       '<div style="font-weight:700;color:#92400E;font-size:1rem;margin-bottom:4px;">Important — please have these ready for your session</div>' +
@@ -14535,7 +14539,7 @@ function _srpBuildInviteEmailHtml({ parentName, childName, formUrl }) {
   const childBit = childName ? (" for <strong>" + esc(childName) + "</strong>") : "";
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#1E293B;line-height:1.6;">
     <h2 style="color:#0891B2;font-size:1.25rem;margin:0 0 12px;">Consent for Screening Services</h2>
-    <p style="margin:0 0 14px;">Aloha ${greetName},</p>
+    <p style="margin:0 0 14px;">Aloha e ${greetName},</p>
     <p style="margin:0 0 14px;">Please complete and sign the Informed Consent for Screening Services${childBit} through LDAH's <strong>School Readiness Project</strong>. This lets us offer your child free developmental, vision, and hearing screenings.</p>
     <p style="margin:0 0 22px;">It takes about 5&ndash;10 minutes.</p>
     <p style="margin:0 0 26px;text-align:center;">
@@ -15215,7 +15219,7 @@ exports.emailSpecialEventQR = functions
         <h1 style="margin:0; color:#ffffff; font-size:20px; font-weight:600;">Leadership in Disabilities and Achievement of Hawai&#8216;i</h1>
       </div>
       <div style="padding:24px;">
-        <p style="margin:0 0 14px; font-size:16px;">Aloha ${greetName},</p>
+        <p style="margin:0 0 14px; font-size:16px;">Aloha e ${greetName},</p>
         <p style="margin:0 0 14px; font-size:15px; line-height:1.5;">Here is the kiosk QR code and sign-up link for your booth at <strong>${safeTitle}</strong>. Anyone who scans the QR or opens the link lands on the special-event sign-up form for this event.</p>
         <p style="margin:0 0 8px; font-size:15px; line-height:1.5;">Your sign-up form link:</p>
         <p style="margin:0 0 16px; font-size:15px;"><a href="${url}" style="color:#0b5394; font-weight:600; word-break:break-all;">${url}</a></p>
@@ -15275,7 +15279,7 @@ function _screeningResultsEmailHtml({ parentName, childName, url }) {
   const who = childName ? (esc(childName) + "&rsquo;s") : "Your child&rsquo;s";
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#1E293B;line-height:1.6;">
     <h2 style="color:#0891B2;font-size:1.25rem;margin:0 0 12px;">Your child&rsquo;s screening results are ready</h2>
-    <p style="margin:0 0 14px;">Aloha ${parentName ? esc(parentName) : "there"},</p>
+    <p style="margin:0 0 14px;">${parentName ? "Aloha e " + esc(parentName) : "Aloha"},</p>
     <p style="margin:0 0 14px;">${who} vision and hearing screening results from LDAH&rsquo;s School Readiness Project are ready to view.</p>
     <p style="margin:0 0 14px;">For your privacy, the results are <strong>not included in this email</strong>. Please view them securely here:</p>
     <p style="margin:0 0 26px;text-align:center;"><a href="${esc(url)}" style="display:inline-block;background:#0891B2;color:#ffffff;text-decoration:none;padding:13px 28px;border-radius:10px;font-weight:600;">View my results</a></p>
@@ -15529,7 +15533,7 @@ exports.sendScreeningResultsToSchool = functions
       const classroom = String(body.classroom || "").trim();
       const filename = String(body.filename || "screening-results.pdf").replace(/[^A-Za-z0-9._-]+/g, "-").slice(0, 100);
       const html = '<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;color:#1E293B;line-height:1.6;">' +
-        '<p style="margin:0 0 14px;">Aloha ' + esc(toName) + ',</p>' +
+        '<p style="margin:0 0 14px;">Aloha e ' + esc(toName) + ',</p>' +
         (ok.length ? '<p style="margin:0 0 14px;">Attached are the vision and hearing screening results for ' + ok.length + ' ' + (ok.length === 1 ? "child" : "children") +
         ' at ' + esc(location) + (classroom ? " (" + esc(classroom) + " class)" : "") +
         ' whose parent or guardian signed the Consent to Release and Obtain Information naming your school.</p>' : '') +
@@ -16204,7 +16208,7 @@ function buildConnectGenConsentReceivedEmailHtml({
     '<h1 style="margin:0;font-size:22px;font-weight:700">Consent Received</h1>' +
     '<p style="margin:6px 0 0;font-size:14px;opacity:.92">' + lifecycleEsc(stepsLeft) + '</p></div>' +
     '<div style="padding:32px 24px">' +
-    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + safeName + ',</p>' +
+    '<p style="margin:0 0 16px;font-size:16px">Aloha e ' + safeName + ',</p>' +
     '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Mahalo for signing your consent form for <strong>' + safeTitle + '</strong>' + (safeDates ? '<strong>' + safeDates + '</strong>' : '') + '. It is on file.</p>' +
     '<div style="background:#FFFBEB;border:2px solid #F59E0B;border-radius:10px;padding:14px 18px;margin:18px 0;">' +
       '<div style="font-weight:700;color:#92400E;font-size:1rem;margin-bottom:8px;">Your appointment is not confirmed yet</div>' +
@@ -16250,7 +16254,7 @@ function buildConnectGenWorksheetRequestEmailHtml({
     '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">' + (isReminder ? 'A Quick Reminder' : 'One Step to Confirm') + '</h1></div>' +
     '<div style="padding:32px 24px">' +
-    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + safeName + ',</p>' +
+    '<p style="margin:0 0 16px;font-size:16px">Aloha e ' + safeName + ',</p>' +
     (isReminder
       ? '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">We are still waiting on one thing for <strong>' + safeTitle + '</strong>' + (safeDates ? '<strong>' + safeDates + '</strong>' : '') + ': your <strong>Parent Report Worksheet</strong>. Your appointment is confirmed as soon as it comes in.</p>'
       : '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Mahalo for signing up for <strong>' + safeTitle + '</strong>' + (safeDates ? '<strong>' + safeDates + '</strong>' : '') + '. There is one thing we need before your appointment is confirmed: your <strong>Parent Report Worksheet</strong>.</p>') +
@@ -16625,7 +16629,7 @@ function _buildConnectGenUploadLaterEmailHtml({ firstName, uploadUrl, expiresFor
     '<p style="margin:0;font-size:18px;color:#ffffff;font-weight:700;">Upload your Connect-Gen documents</p>',
     '</td></tr>',
     '<tr><td style="padding:24px;">',
-    '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">Aloha ' + safeFirst + ',</p>',
+    '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">Aloha e ' + safeFirst + ',</p>',
     '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">',
     'Mahalo for signing your Connect-Gen consent. When you\'re ready, please upload your child\'s most recent IEP and all of the evaluations used to create it, using the secure link below:',
     '</p>',
@@ -17484,7 +17488,7 @@ function buildPledgeConfirmationEmailHtml({
   name, role, signatureHtml, donateHtml, orgFooterHtml, resources = PLEDGE_RESOURCES,
 }) {
   const safeName = _emailEsc(name || "friend");
-  const greeting = `Aloha ${safeName},`;
+  const greeting = `Aloha e ${safeName},`;
   const resourcesList = (Array.isArray(resources) && resources.length ? resources : PLEDGE_RESOURCES)
     .map((r) => `<li style="margin:6px 0;font-size:15px;color:#333333;line-height:1.5;">
       <a href="${_emailEsc(r.href)}" target="_blank" style="color:#1a3c6e;text-decoration:underline;">${_emailEsc(r.label)}</a>
@@ -17708,7 +17712,7 @@ function buildPledgeVolunteerInviteHtml({
   firstName, unsubscribeUrl, signatureHtml, orgFooterHtml,
 }) {
   const fn = String(firstName || "").trim();
-  const greeting = fn ? `Aloha ${_emailEsc(fn)},` : "Aloha,";
+  const greeting = fn ? `Aloha e ${_emailEsc(fn)},` : "Aloha,";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -19838,7 +19842,7 @@ function _buildAlohaPacketEmailHtml({ firstName, signatureHtml }) {
     '<p style="margin:0;font-size:18px;color:#ffffff;font-weight:700;">Your Aloha Packet</p>',
     '</td></tr>',
     '<tr><td style="padding:24px;">',
-    p + 'Aloha ' + safeFirst + ',</p>',
+    p + 'Aloha e ' + safeFirst + ',</p>',
     p + 'Mahalo for connecting with us. Here is our Aloha Packet, a collection of our brochures about LDAH, our workshops and programs, and information on AD/HD, autism, dyslexia and learning disabilities.</p>',
     _emailBtn(ALOHA_PACKET_URL, "Open the Aloha Packet", { bg: "#1F6874" }),
     p + 'Our services for families are free. You can also find our upcoming workshops and resources in the LDAH app:</p>',
@@ -20317,7 +20321,7 @@ function _buildConnectGenDestructAlertHtml({ ownerFirstName, familyName, session
     '<p style="margin:0;font-size:18px;color:#ffffff;font-weight:700;">Action needed: Connect-Gen documents</p>',
     '</td></tr>',
     '<tr><td style="padding:24px;">',
-    '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">Aloha ' + safeOwner + ',</p>',
+    '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">Aloha e ' + safeOwner + ',</p>',
     '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">',
     'The Connect-Gen documents for <strong>' + safeFamily + '</strong> (session on <strong>' + safeDate + '</strong>) ',
     'will be <strong>automatically destroyed in approximately 3 hours</strong> because no disposition has been marked yet.',
@@ -21648,7 +21652,7 @@ function buildConnectGenDocsNotCurrentEmailHtml({
     '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">About Your Documents</h1></div>' +
     '<div style="padding:32px 24px">' +
-    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + safeName + ',</p>' +
+    '<p style="margin:0 0 16px;font-size:16px">Aloha e ' + safeName + ',</p>' +
     '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Mahalo for sending your documents for <strong>' + safeTitle + '</strong>' + (safeDates ? '<strong>' + safeDates + '</strong>' : '') + '. We read through everything before your session, and some of what we need is not here yet.</p>' +
     fileList +
     (need.length ? '<div style="font-weight:700;color:#0F172A;margin:20px 0 10px;">What we still need</div>' + needList : '') +
@@ -22435,7 +22439,7 @@ function _buildCgRescheduleEmailHtml({
     '<p style="margin:0;font-size:18px;color:#ffffff;font-weight:700;">' + lifecycleEsc(headerLabel) + '</p>',
     '</td></tr>',
     '<tr><td style="padding:24px;">',
-    '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">Aloha ' + safeFirst + ',</p>',
+    '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">Aloha e ' + safeFirst + ',</p>',
     intro,
     actionLead,
     actionBtns,
@@ -27509,7 +27513,7 @@ exports.sendPortalLoginInstructions = functions
       <div style="color:#ffffff;font-size:20px;font-weight:bold;letter-spacing:.3px;">Leadership in Disabilities &amp; Achievement of Hawai&#699;i</div>
     </div>
     <div style="padding:28px 28px 10px;">
-      <h1 style="color:#004E7C;font-size:22px;margin:0 0 14px;">Aloha ${_emailEsc(firstName)},</h1>
+      <h1 style="color:#004E7C;font-size:22px;margin:0 0 14px;">Aloha e ${_emailEsc(firstName)},</h1>
       <p style="font-size:15px;line-height:1.6;margin:0 0 14px;">Your LDAH membership comes with a private member portal, and our records show you have not set up your login yet. If you joined before the portal opened, this simply was not available at the time &mdash; here is how to get in.</p>
       <div style="background:#F0F9FF;border:1px solid #BAE6FD;border-radius:10px;padding:18px 20px;margin:0 0 18px;">
         <div style="font-size:16px;color:#0C4A6E;font-weight:bold;margin-bottom:8px;">Set up your member login</div>
@@ -30448,7 +30452,7 @@ function buildMembershipNudgeEmail({ member, n, resumeToken, optOutToken }) {
     '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;">' +
     '<h1 style="margin:0;font-size:22px;font-weight:700">' + E(v.heading) + '</h1></div>' +
     '<div style="padding:32px 24px">' +
-    '<p style="margin:0 0 16px;font-size:16px">Aloha ' + E(first) + ',</p>' +
+    '<p style="margin:0 0 16px;font-size:16px">Aloha e ' + E(first) + ',</p>' +
     v.body +
     '<p style="margin:0 0 24px;text-align:center">' +
     '<a href="' + resumeUrl + '" style="display:inline-block;background:#0891B2;color:#fff;text-decoration:none;' +
@@ -30548,7 +30552,7 @@ exports.sendMembershipResumeEmail = functions
         '<img src="https://www.ldahawaii.org/logo_blue.png" alt="LDAH" width="120" style="display:block;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px 14px;">' +
         '<h1 style="margin:0;font-size:22px;font-weight:700">You are one step away</h1></div>' +
         '<div style="padding:32px 24px">' +
-        '<p style="margin:0 0 16px;font-size:16px">Aloha ' + _emailEsc(first) + ',</p>' +
+        '<p style="margin:0 0 16px;font-size:16px">Aloha e ' + _emailEsc(first) + ',</p>' +
         '<p style="margin:0 0 16px;font-size:16px;color:#334155;line-height:1.6">Thank you for starting a <strong>' +
           _emailEsc(m.level || "") + '</strong> membership with LDAH. It looks like the payment did not finish \u2014 ' +
           'no problem at all, and nothing has been charged.</p>' +
@@ -34801,7 +34805,7 @@ function _buildSchoolConsentRequestEmailHtml(r, uploadUrl, expiresText, senderNa
     '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">',
     '<tr><td style="background:#1a3c6e;padding:18px 24px;"><p style="margin:0;font-size:18px;color:#ffffff;font-weight:700;">One consent page still needed</p></td></tr>',
     '<tr><td style="padding:24px;">',
-    '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">Aloha ' + esc(r.toName || "there") + ',</p>',
+    '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">' + (r.toName ? 'Aloha e ' + esc(r.toName) : 'Aloha') + ',</p>',
     '<p style="margin:0 0 14px;font-size:15px;color:#222;line-height:1.55;">Mahalo for sending the screening consent forms for ' + esc(r.schoolName || "your school") + '. We have entered every family whose forms were complete.</p>',
     '<div style="background:#FFFBEB;border:1.5px solid #F59E0B;border-left:4px solid #D97706;border-radius:8px;padding:12px 16px;margin:0 0 16px;color:#78350F;font-size:14px;line-height:1.6;">',
     '<strong style="color:#7C2D12;">' + esc(r.childName) + (r.classroom ? ' (' + esc(r.classroom) + ')' : '') + '</strong><br>' + esc(r.missingText || ""),
@@ -36250,7 +36254,7 @@ function _lionsAssignedEmailHtml(parentFirst, staffName, staffEmail) {
     '<tr><td style="background:#ffffff;padding:22px 24px 14px;text-align:center;border-bottom:3px solid #1a3c6e;"><img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai&#699;i" width="140" style="display:block;margin:0 auto;border:0;"></td></tr>',
     '<tr><td style="background:#1a3c6e;padding:14px 24px;"><p style="margin:0;font-size:17px;color:#ffffff;font-weight:700;">Your child&rsquo;s screening results</p></td></tr>',
     '<tr><td style="padding:24px;">',
-    '<p style="' + p + '">Aloha ' + esc(parentFirst || "there") + ',</p>',
+    '<p style="' + p + '">' + (parentFirst ? 'Aloha e ' + esc(parentFirst) : 'Aloha') + ',</p>',
     '<p style="' + p + '">This is ' + esc(staffName) + ' from the School Readiness Project with the Lions Club. We&rsquo;re emailing to make sure you&rsquo;ve received your child&rsquo;s screening results from the school.</p>',
     '<p style="' + p + '">Please call or email us back for more information, or we&rsquo;ll reach out to you in a month.</p>',
     '<p style="margin:18px 0 4px;font-size:15px;color:#333;line-height:1.55;">Mahalo,</p>',
@@ -36476,7 +36480,7 @@ function _lionsContactRequestHtml(toName, rows, staffName, staffEmail) {
     '<tr><td style="background:#ffffff;padding:22px 24px 14px;text-align:center;border-bottom:3px solid #1a3c6e;"><img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai&#699;i" width="140" style="display:block;margin:0 auto;border:0;"></td></tr>',
     '<tr><td style="background:#1a3c6e;padding:14px 24px;"><p style="margin:0;font-size:17px;color:#ffffff;font-weight:700;">Parent contact details needed: Lions Club screenings</p></td></tr>',
     '<tr><td style="padding:24px;">',
-    '<p style="' + p + '">Aloha ' + esc(toName || "there") + ",</p>",
+    '<p style="' + p + '">' + (toName ? 'Aloha e ' + esc(toName) : 'Aloha') + ",</p>",
     '<p style="' + p + '">We received the Lions Club screening forms for the ' + rows.length + " child" + (rows.length === 1 ? "" : "ren") +
       " listed below, but the forms have no phone number or working email for the parent, so we can&rsquo;t reach the families about their child&rsquo;s results.</p>",
     '<p style="' + p + '">Could you send us a parent or guardian name, phone number and email for each child? Each child&rsquo;s screening form is attached.</p>',
