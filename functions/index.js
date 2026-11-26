@@ -37153,7 +37153,7 @@ function _ye26Html(unsubscribeUrl, openKey) {
 <table role="presentation" width="680" cellpadding="0" cellspacing="0" style="background:#ffffff;max-width:680px;width:100%;font-family:'Times New Roman',Times,Georgia,serif;color:#111111;">
   <tr><td style="padding:34px 40px 6px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td width="150" valign="bottom" style="padding-right:18px;"><img src="${YE26_ASSETS}letterhead-logo.png" alt="Leadership in Disabilities &amp; Achievement of Hawai&#699;i" width="140" style="display:block;border:0;"></td>
+      <td width="150" valign="bottom" style="padding-right:18px;"><img src="cid:ldahlogo" alt="Leadership in Disabilities &amp; Achievement of Hawai&#699;i" width="140" style="display:block;border:0;"></td>
       <td valign="bottom" style="font-style:italic;font-size:15px;line-height:1.45;color:#222;">
         245 N. Kukui Street, Suite 205, Honolulu, Hawai&#699;i, 96817<br>
         Telephone: (808) 536-9684 &nbsp;Neighbor Islands: 1-800-533-9684<br>
@@ -37183,7 +37183,7 @@ function _ye26Html(unsubscribeUrl, openKey) {
     <p style="margin:0 0 14px;">When you give to LDAH, you are investing in a child, strengthening a family, and building a more inclusive Hawai&#699;i.</p>
     <p style="margin:0 0 24px;">From our LDAH &#699;ohana to yours, mahalo for your generosity and commitment to Hawai&#699;i&rsquo;s families. We wish you a joyful holiday season and a hopeful New Year.</p>
     <p style="margin:0 0 4px;">With warm aloha and appreciation,</p>
-    <img src="${YE26_ASSETS}rosie-signature.png" alt="R. Rowe" width="200" style="display:block;border:0;margin:2px 0 2px;">
+    <img src="cid:rosiesig" alt="R. Rowe" width="200" style="display:block;border:0;margin:2px 0 2px;">
     <p style="margin:0 0 22px;"><b>Rosie Rowe</b><br>Executive Director<br>Leadership in Disabilities &amp; Achievement of Hawai&#699;i</p>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #1a3c6e;border-radius:10px;"><tr>
       <td style="padding:16px 18px;" valign="middle">
@@ -37194,7 +37194,7 @@ function _ye26Html(unsubscribeUrl, openKey) {
         </tr></table>
         <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#555;">Or scan the code with your phone to give.</div>
       </td>
-      <td width="130" align="center" style="padding:12px;"><a href="${YE26_GIVE}-qr"><img src="${YE26_ASSETS}qr.png" alt="QR code to donate to LDAH" width="112" style="display:block;border:0;"></a></td>
+      <td width="130" align="center" style="padding:12px;"><a href="${YE26_GIVE}-qr"><img src="cid:donateqr" alt="QR code to donate to LDAH" width="112" style="display:block;border:0;"></a></td>
     </tr></table>
     <p style="margin:26px 0 8px;text-align:center;font-style:italic;font-size:15px;">LDAH is a 501(c)(3) nonprofit organization. Donations are tax-deductible to the extent permitted by law.</p>
     <p style="margin:0 0 22px;text-align:center;font-size:15px;">&ldquo;When Families Need Answers, Your Generosity Helps Us Respond.&rdquo;</p>
@@ -37207,6 +37207,20 @@ function _ye26Html(unsubscribeUrl, openKey) {
 </table></td></tr></table></body></html>`;
 }
 
+/* The letter's pictures ride INSIDE each email (Resend inline attachments,
+   content_id), because many email apps, Gmail included for this sender, do not
+   load pictures from the web. Fetched once per run from the hosted copies. */
+let _ye26Att = null;
+async function _ye26Attachments() {
+  if (_ye26Att) return _ye26Att;
+  const get = async (f) => Buffer.from(await (await fetch(YE26_ASSETS + f)).arrayBuffer()).toString("base64");
+  _ye26Att = [
+    { filename: "ldah-letterhead.png", content: await get("letterhead-logo.png"), content_id: "ldahlogo" },
+    { filename: "rosie-rowe-signature.png", content: await get("rosie-signature.png"), content_id: "rosiesig" },
+    { filename: "donate-qr.png", content: await get("qr.png"), content_id: "donateqr" },
+  ];
+  return _ye26Att;
+}
 async function _runYearEnd2026(opts) {
   const db = admin.firestore();
   const FV = admin.firestore.FieldValue;
@@ -37218,7 +37232,7 @@ async function _runYearEnd2026(opts) {
   const replyTo = "Rosie Rowe <rrowe@ldahawaii.org>";
   if (opts.testEmail) {
     await sendEmailViaResend({ from, to: opts.testEmail, replyTo, subject: "[TEST] " + YE26_SUBJECT,
-      html: _ye26Html(unsubBase + "?token=test-token-noop", "test" + _ye26Key(opts.testEmail).slice(0, 12)), type: "year-end-appeal-test", recipientName: opts.testEmail });
+      html: _ye26Html(unsubBase + "?token=test-token-noop", "test" + _ye26Key(opts.testEmail).slice(0, 12)), type: "year-end-appeal-test", recipientName: opts.testEmail, attachments: await _ye26Attachments() });
     return { ok: true, test: opts.testEmail };
   }
   const snap = await db.collection("contacts").where("marketingOptOut", "==", false).get();
@@ -37242,7 +37256,7 @@ async function _runYearEnd2026(opts) {
     try {
       await sendEmailViaResend({ from, to: r.email, replyTo, subject: YE26_SUBJECT,
         html: _ye26Html(unsubBase + "?token=" + encodeURIComponent(r.token), r.key),
-        type: "year-end-appeal-2026", relatedContactId: r.id, recipientName: r.name });
+        type: "year-end-appeal-2026", relatedContactId: r.id, recipientName: r.name, attachments: await _ye26Attachments() });
       await db.collection("yearEndAppeal2026Recipients").doc(r.key).set({ contactId: r.id, email: r.email, sentAt: FV.serverTimestamp(), opens: 0 });
       sent++;
     } catch (e) { failed++; console.error("year-end appeal failed for " + r.email + ":", e.message); }
