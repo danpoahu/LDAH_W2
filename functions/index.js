@@ -37145,7 +37145,7 @@ const YE26_ASSETS = "https://danpoahu.github.io/LDAH-Int/email-assets/year-end-2
 const YE26_GIVE = "https://www.ldahawaii.org/donate.html?src=year-end-2026";
 const YE26_SUBJECT = "The gift of opportunity: LDAH's year-end appeal";
 
-function _ye26Html(unsubscribeUrl) {
+function _ye26Html(unsubscribeUrl, openKey) {
   const chip = (src, label) => `<td style="padding:0 6px 6px 0;"><a href="${YE26_GIVE}-${src}" style="display:inline-block;padding:9px 16px;border:2px solid #1a3c6e;border-radius:22px;color:#1a3c6e;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;text-decoration:none;">${label}</a></td>`;
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#f4f4f4;">
@@ -37203,6 +37203,7 @@ function _ye26Html(unsubscribeUrl) {
     Leadership in Disabilities &amp; Achievement of Hawai&#699;i &middot; 245 N. Kukui Street, Suite 205, Honolulu, HI 96817<br>
     You received this because you are in LDAH&rsquo;s contact list. <a href="${unsubscribeUrl}" style="color:#0891B2;">Unsubscribe</a> from LDAH emails.
   </td></tr>
+  ${openKey ? `<tr><td><img src="https://us-central1-ldah-932d5.cloudfunctions.net/ye26Open?r=${openKey}" width="1" height="1" alt="" style="display:block;border:0;width:1px;height:1px;"></td></tr>` : ""}
 </table></td></tr></table></body></html>`;
 }
 
@@ -37217,7 +37218,7 @@ async function _runYearEnd2026(opts) {
   const replyTo = "Rosie Rowe <rrowe@ldahawaii.org>";
   if (opts.testEmail) {
     await sendEmailViaResend({ from, to: opts.testEmail, replyTo, subject: "[TEST] " + YE26_SUBJECT,
-      html: _ye26Html(unsubBase + "?token=test-token-noop"), type: "year-end-appeal-test", recipientName: opts.testEmail });
+      html: _ye26Html(unsubBase + "?token=test-token-noop", "test" + _ye26Key(opts.testEmail).slice(0, 12)), type: "year-end-appeal-test", recipientName: opts.testEmail });
     return { ok: true, test: opts.testEmail };
   }
   const snap = await db.collection("contacts").where("marketingOptOut", "==", false).get();
@@ -37232,16 +37233,17 @@ async function _runYearEnd2026(opts) {
   });
   const done = new Set();
   (await db.collection("yearEndAppeal2026Recipients").get()).forEach((d) => done.add(d.id));
-  const todo = list.filter((r) => !done.has(r.email.replace(/[\/.#$\[\]]/g, "_")));
+  list.forEach((r) => { r.key = _ye26Key(r.email); });
+  const todo = list.filter((r) => !done.has(r.key));
   if (opts.dryRun || !opts.send) return { ok: true, dryRun: true, recipients: list.length, alreadySent: list.length - todo.length, toSend: todo.length };
   let sent = 0, failed = 0, stopped = false;
   for (const r of todo) {
     if (Date.now() - started > 480000) { stopped = true; break; }   /* leave room before the 540 s limit; rerun to continue */
     try {
       await sendEmailViaResend({ from, to: r.email, replyTo, subject: YE26_SUBJECT,
-        html: _ye26Html(unsubBase + "?token=" + encodeURIComponent(r.token)),
+        html: _ye26Html(unsubBase + "?token=" + encodeURIComponent(r.token), r.key),
         type: "year-end-appeal-2026", relatedContactId: r.id, recipientName: r.name });
-      await db.collection("yearEndAppeal2026Recipients").doc(r.email.replace(/[\/.#$\[\]]/g, "_")).set({ contactId: r.id, email: r.email, sentAt: FV.serverTimestamp() });
+      await db.collection("yearEndAppeal2026Recipients").doc(r.key).set({ contactId: r.id, email: r.email, sentAt: FV.serverTimestamp(), opens: 0 });
       sent++;
     } catch (e) { failed++; console.error("year-end appeal failed for " + r.email + ":", e.message); }
   }
@@ -37259,4 +37261,114 @@ exports.runYearEndAppeal2026 = functions
     try { msg = (message && message.json) || {}; } catch (e) { msg = {}; }
     try { return await _runYearEnd2026({ testEmail: msg.testEmail || "", dryRun: msg.dryRun === true, send: msg.send === true }); }
     catch (e) { console.error("runYearEndAppeal2026:", e.message); return null; }
+  });
+
+function _ye26Key(email) { return crypto.createHash("sha256").update("ye26:" + String(email || "").trim().toLowerCase()).digest("hex").slice(0, 24); }
+const _YE26_GIF = Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64");
+
+/* Open pixel: counts an open the first time a recipient's email app loads the
+   images (Apple Mail may preload images, so opens run a little high). Test
+   keys ("test...") count in yearEndAppeal2026Tests, never in the report. */
+exports.ye26Open = functions
+  .runWith({ timeoutSeconds: 10, maxInstances: 20 })
+  .https.onRequest(async (req, res) => {
+    const key = String(req.query.r || "").replace(/[^a-z0-9]/g, "").slice(0, 40);
+    res.set("Content-Type", "image/gif");
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    try {
+      if (key) {
+        const FV = admin.firestore.FieldValue;
+        const db = admin.firestore();
+        if (key.indexOf("test") === 0) {
+          await db.collection("yearEndAppeal2026Tests").doc(key).set({ opens: FV.increment(1), lastOpenAt: FV.serverTimestamp() }, { merge: true });
+        } else {
+          const ref = db.collection("yearEndAppeal2026Recipients").doc(key);
+          const d = await ref.get();
+          if (d.exists) {
+            const upd = { opens: FV.increment(1), lastOpenAt: FV.serverTimestamp() };
+            if (!(d.data() || {}).firstOpenAt) upd.firstOpenAt = FV.serverTimestamp();
+            await ref.update(upd);
+          }
+        }
+      }
+    } catch (e) { console.warn("ye26Open:", e.message); }
+    res.status(200).send(_YE26_GIF);
+  });
+
+/* The report (Super Admin): sends, opens, donate clicks by button (the donate
+   page's ?src= counter), and PayPal donations since the first send, matched to
+   the letter's recipients by payer email. */
+exports.yearEndReport2026 = functions
+  .runWith({ timeoutSeconds: 120, maxInstances: 2, secrets: ["PAYPAL_CLIENT_ID", "PAYPAL_SECRET"] })
+  .https.onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+    try {
+      const staff = await _verifyStaffIdToken((req.body || {}).idToken);
+      if (staff.role !== "superAdmin") { res.status(403).json({ error: "Super Admin only" }); return; }
+      const db = admin.firestore();
+      const rs = await db.collection("yearEndAppeal2026Recipients").get();
+      let sent = 0, opened = 0, opens = 0, first = null, last = null;
+      const emails = new Set();
+      rs.forEach((d) => {
+        const x = d.data() || {}; sent++; emails.add(String(x.email || "").toLowerCase());
+        if ((x.opens || 0) > 0) { opened++; opens += x.opens; }
+        const t = x.sentAt && x.sentAt.toDate ? x.sentAt.toDate() : null;
+        if (t) { if (!first || t < first) first = t; if (!last || t > last) last = t; }
+      });
+      const since = first || new Date("2026-11-25T00:00:00-10:00");
+      /* clicks: siteAnalytics day docs, events.donation_click_src.src_year_end_2026* */
+      const clicks = {}; let clickTotal = 0;
+      const startKey = since.toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
+      const sa = await db.collection("siteAnalytics").where(admin.firestore.FieldPath.documentId(), ">=", startKey).get();
+      sa.forEach((d) => {
+        const m = ((d.data() || {}).events || {}).donation_click_src || {};
+        Object.keys(m).forEach((k) => {
+          if (k.indexOf("src_year_end_2026") !== 0) return;
+          const b = k.replace("src_year_end_2026", "").replace(/^_/, "") || "give";
+          clicks[b] = (clicks[b] || 0) + (Number(m[k]) || 0); clickTotal += Number(m[k]) || 0;
+        });
+      });
+      /* PayPal donations since the send (Transaction Search runs ~3 h behind) */
+      let donations = { count: 0, total: 0, fromRecipients: 0, fromRecipientsTotal: 0, list: [], error: "" };
+      try {
+        const token = await _paypalToken();
+        const end = new Date();
+        let cursor = since.getTime() - 3600000;
+        while (cursor < end.getTime()) {
+          const winEnd = Math.min(cursor + 30 * 86400000, end.getTime());
+          let page = 1, pages = 1;
+          do {
+            const qs = "start_date=" + new Date(cursor).toISOString().replace(/\.\d+Z$/, "Z") + "&end_date=" + new Date(winEnd).toISOString().replace(/\.\d+Z$/, "Z") +
+              "&fields=transaction_info,payer_info&page_size=500&page=" + page;
+            const r = await fetch("https://api-m.paypal.com/v1/reporting/transactions?" + qs, { headers: { Authorization: "Bearer " + token } });
+            const j = await r.json();
+            if (!r.ok) throw new Error((j && (j.message || j.name)) || ("PayPal " + r.status));
+            pages = j.total_pages || 1;
+            (j.transaction_details || []).forEach((t) => {
+              const ti = t.transaction_info || {}, pi = t.payer_info || {};
+              if (ti.transaction_event_code !== "T0013" || ti.transaction_status !== "S") return;   /* donation payments only */
+              const amt = Number((ti.transaction_amount || {}).value) || 0; if (amt <= 0) return;
+              const email = String(pi.email_address || "").toLowerCase();
+              const fromR = emails.has(email);
+              donations.count++; donations.total += amt;
+              if (fromR) { donations.fromRecipients++; donations.fromRecipientsTotal += amt; }
+              donations.list.push({ date: String(ti.transaction_initiation_date || "").slice(0, 10), amount: amt, name: ((pi.payer_name || {}).alternate_full_name) || "", fromRecipient: fromR });
+            });
+            page++;
+          } while (page <= pages);
+          cursor = winEnd;
+        }
+        donations.total = Math.round(donations.total * 100) / 100;
+        donations.fromRecipientsTotal = Math.round(donations.fromRecipientsTotal * 100) / 100;
+        donations.list.sort((a, b) => (a.date < b.date ? 1 : -1));
+      } catch (e) { donations.error = e.message; }
+      res.status(200).json({ ok: true, sent, opened, opens, openRate: sent ? Math.round(1000 * opened / sent) / 10 : 0,
+        firstSentAt: first ? first.toISOString() : "", lastSentAt: last ? last.toISOString() : "",
+        clicks, clickTotal, donations, goal: 50000, generatedAt: new Date().toISOString() });
+    } catch (err) {
+      res.status(err.statusCode || 500).json({ error: err.message });
+    }
   });
