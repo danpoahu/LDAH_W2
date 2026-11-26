@@ -37131,3 +37131,132 @@ exports.submitAdvocacyCheckIn = functions
       res.status(500).json({ error: err.message });
     }
   });
+
+/* ── 2026 year-end giving letter (Rosie, Daniel 2026-11-25) ──────────────────
+   Rosie's letter on LDAH letterhead, to every opted-in contact (the same rule
+   as the event announcements: marketingOptOut false, a real email, an
+   unsubscribe token), each with their own Unsubscribe link. From "Rosie Rowe |
+   LDAH", replies to Rosie. Started only by a Pub/Sub message, like the
+   combined announcements: {testEmail} sends one sample, {dryRun} counts,
+   {send:true} sends. Every recipient is recorded in
+   yearEndAppeal2026Recipients, so a rerun after a timeout carries on where it
+   stopped and nobody gets it twice. */
+const YE26_ASSETS = "https://danpoahu.github.io/LDAH-Int/email-assets/year-end-2026/";
+const YE26_GIVE = "https://www.ldahawaii.org/donate.html?src=year-end-2026";
+const YE26_SUBJECT = "The gift of opportunity: LDAH's year-end appeal";
+
+function _ye26Html(unsubscribeUrl) {
+  const chip = (src, label) => `<td style="padding:0 6px 6px 0;"><a href="${YE26_GIVE}-${src}" style="display:inline-block;padding:9px 16px;border:2px solid #1a3c6e;border-radius:22px;color:#1a3c6e;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;text-decoration:none;">${label}</a></td>`;
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f4f4f4;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;"><tr><td align="center" style="padding:20px 12px;">
+<table role="presentation" width="680" cellpadding="0" cellspacing="0" style="background:#ffffff;max-width:680px;width:100%;font-family:'Times New Roman',Times,Georgia,serif;color:#111111;">
+  <tr><td style="padding:34px 40px 6px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td width="150" valign="bottom" style="padding-right:18px;"><img src="${YE26_ASSETS}logo.jpg" alt="Leadership in Disabilities &amp; Achievement of Hawai&#699;i" width="140" style="display:block;border:0;"></td>
+      <td valign="bottom" style="font-style:italic;font-size:15px;line-height:1.45;color:#222;">
+        245 N. Kukui Street, Suite 205, Honolulu, Hawai&#699;i, 96817<br>
+        Telephone: (808) 536-9684 &nbsp;Neighbor Islands: 1-800-533-9684<br>
+        TDD: (808) 536-9684 &nbsp;Fax: (808) 537-6780 &nbsp;Website: <a href="https://www.ldahawaii.org" style="color:#222;">www.LDAHawaii.org</a>
+        <div style="border-top:5px solid #111;margin:8px 0 8px;"></div>
+        <div style="font-size:19px;padding-left:10px;">Empowering Families. Creating Opportunities. Changing Lives.</div>
+      </td>
+    </tr></table>
+  </td></tr>
+  <tr><td style="padding:26px 40px 8px;font-size:16px;line-height:1.5;">
+    <p style="margin:0 0 30px;">November 25, 2026</p>
+    <p style="margin:0 0 14px;">Dear Friends and Community Partners,</p>
+    <p style="margin:0 0 14px;">As the end of 2026 approaches, one of the greatest gifts we can give is the gift of opportunity. For infants, children and youth with disabilities, that gift can mean early identification, access to appropriate educational services, greater independence, and a brighter future.</p>
+    <p style="margin:0 0 14px;">For more than 58 years, Leadership in Disabilities &amp; Achievement of Hawai&#699;i (LDAH) has stood beside families, ensuring they have the knowledge, resources, and support needed to help their children succeed. From our urban communities to the most rural and underserved areas of Hawai&#699;i, we remain committed to ensuring that no family faces these challenges alone.</p>
+    <p style="margin:0 0 10px;">LDAH continued to make a meaningful difference across our state through:</p>
+    <ul style="margin:0 0 14px 4px;padding-left:22px;">
+      <li style="margin:0 0 10px;"><b>Parent Education and Advocacy:</b> Individualized assistance, <a href="https://www.ldahawaii.org/events.html" style="color:#1a3c6e;">Learning Labs, Parent Talk Caf&eacute;s, and educational workshops</a> empower parents to advocate for their children reaching over 12,578 infants, children and youth.</li>
+      <li style="margin:0 0 10px;"><b>Early Childhood Screening:</b> Expanding our M&#257;lama N&#257; Keiki initiative to identify developmental concerns early and connect families with needed services, reaching 1,100 children ages 0-5.</li>
+      <li style="margin:0 0 10px;"><b>Statewide Community Outreach:</b> Bringing resources, training, and support to families in rural and underserved communities distributing 113,194 resources</li>
+      <li style="margin:0 0 10px;"><b>Youth Leadership and Transition:</b> Preparing youth with disabilities for employment, independence, and opportunities beyond high school.</li>
+    </ul>
+    <p style="margin:0 0 14px;">These accomplishments are possible because of our dedicated staff, community partnerships, and the generosity of individuals and businesses who believe in our mission.</p>
+    <p style="margin:0 0 14px;"><b>As we prepare for 2027, growing demands, rising costs, and funding uncertainties threaten our ability to reach every family who needs our assistance.</b> While federal and private grants support many of our programs, charitable contributions provide the flexibility to respond to families whose needs extend beyond those funding limitations.</p>
+    <p style="margin:0 0 14px;"><b>This holiday season, we ask you to help LDAH reach our $50,000 year-end fundraising goal.</b></p>
+    <p style="margin:0 0 12px;">Your gift of $50, $100, $250, $500, $1,000, or any amount will help sustain essential services and ensure that children and youth with disabilities continue to have opportunities to thrive.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:4px 0 18px;"><tr>${chip("50", "$50")}${chip("100", "$100")}${chip("250", "$250")}${chip("500", "$500")}${chip("1000", "$1,000")}${chip("any", "Any amount")}</tr></table>
+    <p style="margin:0 0 14px;">When you give to LDAH, you are investing in a child, strengthening a family, and building a more inclusive Hawai&#699;i.</p>
+    <p style="margin:0 0 24px;">From our LDAH &#699;ohana to yours, mahalo for your generosity and commitment to Hawai&#699;i&rsquo;s families. We wish you a joyful holiday season and a hopeful New Year.</p>
+    <p style="margin:0 0 4px;">With warm aloha and appreciation,</p>
+    <img src="${YE26_ASSETS}sig.jpg" alt="R. Rowe" width="200" style="display:block;border:0;margin:2px 0 2px;">
+    <p style="margin:0 0 22px;"><b>Rosie Rowe</b><br>Executive Director<br>Leadership in Disabilities &amp; Achievement of Hawai&#699;i</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #1a3c6e;border-radius:10px;"><tr>
+      <td style="padding:16px 18px;" valign="middle">
+        <div style="font-weight:bold;font-size:18px;letter-spacing:.02em;margin-bottom:10px;">MAKE YOUR YEAR-END GIFT TODAY</div>
+        <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+          <td style="padding:0 8px 8px 0;"><a href="${YE26_GIVE}" style="display:inline-block;padding:12px 24px;background:#1a3c6e;border-radius:6px;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:bold;text-decoration:none;">Give to LDAH today</a></td>
+          <td style="padding:0 0 8px 0;"><a href="tel:+18085369684" style="display:inline-block;padding:10px 18px;border:2px solid #1a3c6e;border-radius:6px;color:#1a3c6e;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;text-decoration:none;">Call 808-536-9684</a></td>
+        </tr></table>
+        <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#555;">Or scan the code with your phone to give.</div>
+      </td>
+      <td width="130" align="center" style="padding:12px;"><a href="${YE26_GIVE}-qr"><img src="${YE26_ASSETS}qr.png" alt="QR code to donate to LDAH" width="112" style="display:block;border:0;"></a></td>
+    </tr></table>
+    <p style="margin:26px 0 8px;text-align:center;font-style:italic;font-size:15px;">LDAH is a 501(c)(3) nonprofit organization. Donations are tax-deductible to the extent permitted by law.</p>
+    <p style="margin:0 0 22px;text-align:center;font-size:15px;">&ldquo;When Families Need Answers, Your Generosity Helps Us Respond.&rdquo;</p>
+  </td></tr>
+  <tr><td style="background:#f0f0f0;padding:16px 24px;text-align:center;border-top:1px solid #dddddd;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#777;line-height:1.6;">
+    Leadership in Disabilities &amp; Achievement of Hawai&#699;i &middot; 245 N. Kukui Street, Suite 205, Honolulu, HI 96817<br>
+    You received this because you are in LDAH&rsquo;s contact list. <a href="${unsubscribeUrl}" style="color:#0891B2;">Unsubscribe</a> from LDAH emails.
+  </td></tr>
+</table></td></tr></table></body></html>`;
+}
+
+async function _runYearEnd2026(opts) {
+  const db = admin.firestore();
+  const FV = admin.firestore.FieldValue;
+  const started = Date.now();
+  const unsubBase = "https://us-central1-ldah-932d5.cloudfunctions.net/handleUnsubscribe";
+  const raw = (process.env.SMTP_FROM || "").trim();
+  const addr = (raw.match(/<([^>]+)>/) || [null, raw])[1] || "registration@ldahawaii.org";
+  const from = "Rosie Rowe | LDAH <" + addr + ">";
+  const replyTo = "Rosie Rowe <rrowe@ldahawaii.org>";
+  if (opts.testEmail) {
+    await sendEmailViaResend({ from, to: opts.testEmail, replyTo, subject: "[TEST] " + YE26_SUBJECT,
+      html: _ye26Html(unsubBase + "?token=test-token-noop"), type: "year-end-appeal-test", recipientName: opts.testEmail });
+    return { ok: true, test: opts.testEmail };
+  }
+  const snap = await db.collection("contacts").where("marketingOptOut", "==", false).get();
+  const seen = new Set(), list = [];
+  snap.forEach((d) => {
+    const c = d.data() || {};
+    const email = String(c.email || "").trim().toLowerCase();
+    if (c.archived === true || c.sandbox === true || c.unsubscribedAt) return;
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !c.unsubscribeToken || seen.has(email)) return;
+    seen.add(email);
+    list.push({ id: d.id, email, token: c.unsubscribeToken, name: c.displayName || [c.firstName, c.lastName].filter(Boolean).join(" ") });
+  });
+  const done = new Set();
+  (await db.collection("yearEndAppeal2026Recipients").get()).forEach((d) => done.add(d.id));
+  const todo = list.filter((r) => !done.has(r.email.replace(/[\/.#$\[\]]/g, "_")));
+  if (opts.dryRun || !opts.send) return { ok: true, dryRun: true, recipients: list.length, alreadySent: list.length - todo.length, toSend: todo.length };
+  let sent = 0, failed = 0, stopped = false;
+  for (const r of todo) {
+    if (Date.now() - started > 480000) { stopped = true; break; }   /* leave room before the 540 s limit; rerun to continue */
+    try {
+      await sendEmailViaResend({ from, to: r.email, replyTo, subject: YE26_SUBJECT,
+        html: _ye26Html(unsubBase + "?token=" + encodeURIComponent(r.token)),
+        type: "year-end-appeal-2026", relatedContactId: r.id, recipientName: r.name });
+      await db.collection("yearEndAppeal2026Recipients").doc(r.email.replace(/[\/.#$\[\]]/g, "_")).set({ contactId: r.id, email: r.email, sentAt: FV.serverTimestamp() });
+      sent++;
+    } catch (e) { failed++; console.error("year-end appeal failed for " + r.email + ":", e.message); }
+  }
+  const result = { ok: true, sent, failed, remaining: todo.length - sent - failed, stopped, total: list.length };
+  try { await db.collection("auditLog").add({ action: "Year-end giving letter 2026 sent", details: JSON.stringify(result), performedBy: "System (Pub/Sub)", timestamp: FV.serverTimestamp() }); } catch (e) { /* best effort */ }
+  console.log("year-end appeal 2026:", JSON.stringify(result));
+  return result;
+}
+
+exports.runYearEndAppeal2026 = functions
+  .runWith({ timeoutSeconds: 540, memory: "512MB", maxInstances: 1, secrets: EMAIL_SECRETS })
+  .pubsub.topic("ldah-year-end-appeal-2026")
+  .onPublish(async (message) => {
+    let msg = {};
+    try { msg = (message && message.json) || {}; } catch (e) { msg = {}; }
+    try { return await _runYearEnd2026({ testEmail: msg.testEmail || "", dryRun: msg.dryRun === true, send: msg.send === true }); }
+    catch (e) { console.error("runYearEndAppeal2026:", e.message); return null; }
+  });
