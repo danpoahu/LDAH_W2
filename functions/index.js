@@ -37153,7 +37153,7 @@ function _ye26Html(unsubscribeUrl, openKey) {
 <table role="presentation" width="680" cellpadding="0" cellspacing="0" style="background:#ffffff;max-width:680px;width:100%;font-family:'Times New Roman',Times,Georgia,serif;color:#111111;">
   <tr><td style="padding:34px 40px 6px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td width="150" valign="bottom" style="padding-right:18px;"><img src="${YE26_ASSETS}logo.jpg" alt="Leadership in Disabilities &amp; Achievement of Hawai&#699;i" width="140" style="display:block;border:0;"></td>
+      <td width="150" valign="bottom" style="padding-right:18px;"><img src="${YE26_ASSETS}letterhead-logo.png" alt="Leadership in Disabilities &amp; Achievement of Hawai&#699;i" width="140" style="display:block;border:0;"></td>
       <td valign="bottom" style="font-style:italic;font-size:15px;line-height:1.45;color:#222;">
         245 N. Kukui Street, Suite 205, Honolulu, Hawai&#699;i, 96817<br>
         Telephone: (808) 536-9684 &nbsp;Neighbor Islands: 1-800-533-9684<br>
@@ -37183,7 +37183,7 @@ function _ye26Html(unsubscribeUrl, openKey) {
     <p style="margin:0 0 14px;">When you give to LDAH, you are investing in a child, strengthening a family, and building a more inclusive Hawai&#699;i.</p>
     <p style="margin:0 0 24px;">From our LDAH &#699;ohana to yours, mahalo for your generosity and commitment to Hawai&#699;i&rsquo;s families. We wish you a joyful holiday season and a hopeful New Year.</p>
     <p style="margin:0 0 4px;">With warm aloha and appreciation,</p>
-    <img src="${YE26_ASSETS}sig.jpg" alt="R. Rowe" width="200" style="display:block;border:0;margin:2px 0 2px;">
+    <img src="${YE26_ASSETS}rosie-signature.png" alt="R. Rowe" width="200" style="display:block;border:0;margin:2px 0 2px;">
     <p style="margin:0 0 22px;"><b>Rosie Rowe</b><br>Executive Director<br>Leadership in Disabilities &amp; Achievement of Hawai&#699;i</p>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:2px solid #1a3c6e;border-radius:10px;"><tr>
       <td style="padding:16px 18px;" valign="middle">
@@ -37254,11 +37254,16 @@ async function _runYearEnd2026(opts) {
 }
 
 exports.runYearEndAppeal2026 = functions
-  .runWith({ timeoutSeconds: 540, memory: "512MB", maxInstances: 1, secrets: EMAIL_SECRETS })
+  .runWith({ timeoutSeconds: 540, memory: "512MB", maxInstances: 1, secrets: EMAIL_SECRETS.concat(["PAYPAL_CLIENT_ID", "PAYPAL_SECRET"]) })
   .pubsub.topic("ldah-year-end-appeal-2026")
   .onPublish(async (message) => {
     let msg = {};
     try { msg = (message && message.json) || {}; } catch (e) { msg = {}; }
+    if (msg.report === true) {   /* log the report (no names) for a check from the Mac mini */
+      try { const r = await _ye26Report(); r.donations.list = r.donations.list.length; console.log("ye26 report:", JSON.stringify(r)); } catch (e) { console.error("ye26 report:", e.message); }
+      return null;
+    }
+    if (msg.dryRun === true) { try { const r = await _runYearEnd2026({ dryRun: true }); console.log("ye26 dry run:", JSON.stringify(r)); } catch (e) { console.error(e.message); } return null; }
     try { return await _runYearEnd2026({ testEmail: msg.testEmail || "", dryRun: msg.dryRun === true, send: msg.send === true }); }
     catch (e) { console.error("runYearEndAppeal2026:", e.message); return null; }
   });
@@ -37308,6 +37313,12 @@ exports.yearEndReport2026 = functions
     try {
       const staff = await _verifyStaffIdToken((req.body || {}).idToken);
       if (staff.role !== "superAdmin") { res.status(403).json({ error: "Super Admin only" }); return; }
+      res.status(200).json(await _ye26Report());
+    } catch (err) {
+      res.status(err.statusCode || 500).json({ error: err.message });
+    }
+  });
+async function _ye26Report() {
       const db = admin.firestore();
       const rs = await db.collection("yearEndAppeal2026Recipients").get();
       let sent = 0, opened = 0, opens = 0, first = null, last = null;
@@ -37365,10 +37376,7 @@ exports.yearEndReport2026 = functions
         donations.fromRecipientsTotal = Math.round(donations.fromRecipientsTotal * 100) / 100;
         donations.list.sort((a, b) => (a.date < b.date ? 1 : -1));
       } catch (e) { donations.error = e.message; }
-      res.status(200).json({ ok: true, sent, opened, opens, openRate: sent ? Math.round(1000 * opened / sent) / 10 : 0,
+      return { ok: true, sent, opened, opens, openRate: sent ? Math.round(1000 * opened / sent) / 10 : 0,
         firstSentAt: first ? first.toISOString() : "", lastSentAt: last ? last.toISOString() : "",
-        clicks, clickTotal, donations, goal: 50000, generatedAt: new Date().toISOString() });
-    } catch (err) {
-      res.status(err.statusCode || 500).json({ error: err.message });
-    }
-  });
+        clicks, clickTotal, donations, goal: 50000, generatedAt: new Date().toISOString() };
+}
