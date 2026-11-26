@@ -37389,7 +37389,7 @@ async function _ye26Report() {
         donations.total = Math.round(donations.total * 100) / 100;
         donations.fromRecipientsTotal = Math.round(donations.fromRecipientsTotal * 100) / 100;
         donations.list.sort((a, b) => (a.date < b.date ? 1 : -1));
-      } catch (e) { donations.error = e.message; }
+      } catch (e) { donations.error = /not available/i.test(e.message) ? "PayPal has not caught up yet (it runs about 3 hours behind). Check back later." : e.message; }
       return { ok: true, sent, opened, opens, openRate: sent ? Math.round(1000 * opened / sent) / 10 : 0,
         firstSentAt: first ? first.toISOString() : "", lastSentAt: last ? last.toISOString() : "",
         clicks, clickTotal, donations, goal: 50000, generatedAt: new Date().toISOString() };
