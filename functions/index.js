@@ -36888,14 +36888,11 @@ function _advCiEmailHtml(fam, token, orgFooterHtml, pageBase) {
   const first = _advCiEsc(_advCiFirst(fam.name) || "there");
   const pc = _advCiEsc(_advCiFirst(fam.consultant) || "your parent consultant");
   const link = (q) => (pageBase || ADV_CHECKIN_PAGE) + "?token=" + encodeURIComponent(token) + (q ? "&" + q : "");
-  const circle = (q, n, color, size) =>
-    `<td style="padding:0 4px 4px 0;"><a href="${link(q + "=" + n)}" style="display:inline-block;width:${size}px;line-height:${size}px;text-align:center;border:2px solid ${color};border-radius:50%;color:${color};font-size:15px;font-weight:bold;text-decoration:none;">${n}</a></td>`;
-  const pill = (v, label, color) =>
-    `<td style="padding:0 6px 6px 0;"><a href="${link("comm=" + v)}" style="display:inline-block;padding:9px 14px;border:2px solid ${color};border-radius:20px;color:${color};font-size:14px;font-weight:bold;text-decoration:none;">${label}</a></td>`;
-  const q = (n, t, sub) => `<p style="margin:24px 0 6px;font-size:16px;color:#1a3c6e;font-weight:bold;">${n}. ${t}</p>` +
-    (sub ? `<p style="margin:0 0 10px;font-size:15px;color:#555555;line-height:1.5;">${sub}</p>` : "");
-  let ten = ""; for (let i = 1; i <= 10; i++) ten += circle("self", i, "#1a3c6e", 36);
-  let five = ""; for (let i = 1; i <= 5; i++) five += circle("sat", i, "#0d9488", 44);
+  /* Three yes/no questions (Rosie and Daniel 2026-11-25); Q2 also has N/A. */
+  const pill = (qk, v, label, color) =>
+    `<td style="padding:0 6px 6px 0;"><a href="${link(qk + "=" + v)}" style="display:inline-block;min-width:44px;text-align:center;padding:9px 16px;border:2px solid ${color};border-radius:20px;color:${color};font-size:15px;font-weight:bold;text-decoration:none;">${label}</a></td>`;
+  const yn = (qk, na) => `<table role="presentation" cellpadding="0" cellspacing="0"><tr>${pill(qk, "yes", "Yes", "#15803D")}${pill(qk, "no", "No", "#B91C1C")}${na ? pill(qk, "na", "N/A", "#64748B") : ""}</tr></table>`;
+  const q = (n, t) => `<p style="margin:24px 0 8px;font-size:16px;color:#1a3c6e;font-weight:bold;line-height:1.45;">${n}. ${t}</p>`;
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
@@ -36907,14 +36904,13 @@ function _advCiEmailHtml(fam, token, orgFooterHtml, pageBase) {
   <tr><td style="padding:32px;">
     <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha e ${first},</p>
     <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">I am reaching out to you as a courtesy to ask how your assigned case assignment is progressing with ${_advCiEsc(fam.consultant || "your parent consultant")}.</p>
-    <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">I am checking in with every family LDAH is supporting in advocacy right now. Your answers help us make sure you are getting what you need, and help us do better for every family. It takes about two minutes.</p>
-    ${q(1, "How is your advocacy going? Have you been provided the guidance you need?", "Is your child&rsquo;s plan heading where you hoped? Anything working well, or anything you are still worried about?")}
-    ${q(2, "How has communication been with " + pc + ", your parent consultant?", "Is " + pc + " easy to reach? Do you hear back when you need to?")}
-    <table role="presentation" cellpadding="0" cellspacing="0"><tr>${pill("easy", "Easy to reach", "#15803D")}${pill("sometimes", "Sometimes hard to reach", "#B45309")}${pill("hard", "Hard to reach", "#B91C1C")}</tr></table>
-    ${q(3, "Where do you feel you are now as an advocate for your child?", "1 = I need a lot of help &nbsp;&middot;&nbsp; 10 = I can advocate for my child on my own")}
-    <table role="presentation" cellpadding="0" cellspacing="0"><tr>${ten}</tr></table>
-    ${q(4, "Overall, how satisfied are you with LDAH&rsquo;s help?", "1 = not satisfied &nbsp;&middot;&nbsp; 5 = very satisfied")}
-    <table role="presentation" cellpadding="0" cellspacing="0"><tr>${five}</tr></table>
+    <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">I am checking in with every family LDAH is supporting in advocacy right now. Your answers help us make sure you are getting what you need, and help us do better for every family. It takes less than a minute.</p>
+    ${q(1, "While receiving case advocacy support, " + pc + " helped me make decisions about my child&rsquo;s education.")}
+    ${yn("q1", false)}
+    ${q(2, pc + " attended my IEP/504 meeting and helped make progress toward our educational goals.")}
+    ${yn("q2", true)}
+    ${q(3, "During your advocacy, have you taken advantage of the members-only resources?")}
+    ${yn("q3", false)}
     ${_emailBtn(link(""), "Answer the check-in", { bg: "#1a73e8", align: "left" })}
     <p style="margin:6px 0 0;font-size:13px;color:#777777;">Tapping any answer above opens the same short page with that answer already chosen.</p>
     <div style="margin:28px 0 0;padding:20px;background:#F0FDFA;border-left:4px solid #0d9488;border-radius:6px;">
@@ -37070,14 +37066,11 @@ exports.submitAdvocacyCheckIn = functions
     }
     const token = String(b.token || "").trim();
     if (!/^[a-f0-9]{32}$/.test(token)) { res.status(400).json({ error: "This link is not complete." }); return; }
-    const going = String(b.going || "").trim().slice(0, 4000);
-    const comm = ADV_CHECKIN_COMM[b.comm] ? String(b.comm) : "";
-    const commNote = String(b.commNote || "").trim().slice(0, 2000);
-    const self = Number(b.self), sat = Number(b.sat);
-    if (!going) { res.status(400).json({ error: "Please tell us how your advocacy is going (question 1)." }); return; }
-    if (!comm) { res.status(400).json({ error: "Please choose an answer for question 2." }); return; }
-    if (!(self >= 1 && self <= 10 && Math.round(self) === self)) { res.status(400).json({ error: "Please choose a number from 1 to 10 for question 3." }); return; }
-    if (!(sat >= 1 && sat <= 5 && Math.round(sat) === sat)) { res.status(400).json({ error: "Please choose a number from 1 to 5 for question 4." }); return; }
+    const YN = { yes: "Yes", no: "No" }, YNA = { yes: "Yes", no: "No", na: "N/A" };
+    const q1 = YN[b.q1] ? String(b.q1) : "", q2 = YNA[b.q2] ? String(b.q2) : "", q3 = YN[b.q3] ? String(b.q3) : "";
+    if (!q1) { res.status(400).json({ error: "Please answer question 1 (Yes or No)." }); return; }
+    if (!q2) { res.status(400).json({ error: "Please answer question 2 (Yes, No or N/A)." }); return; }
+    if (!q3) { res.status(400).json({ error: "Please answer question 3 (Yes or No)." }); return; }
     const db = admin.firestore();
     const FieldValue = admin.firestore.FieldValue;
     try {
@@ -37086,7 +37079,7 @@ exports.submitAdvocacyCheckIn = functions
       if (!d.exists) { res.status(404).json({ error: "We could not find this check-in." }); return; }
       const x = d.data() || {};
       if (x.answeredAt) { res.status(410).json({ error: "Mahalo, we already have your answers.", answered: true }); return; }
-      const answers = { going, comm, commLabel: ADV_CHECKIN_COMM[comm], commNote, selfAdvocacy: self, satisfaction: sat };
+      const answers = { q1, q2, q3 };
       await ref.update(Object.assign({ answeredAt: FieldValue.serverTimestamp() }, answers));
       const todayHst = new Date().toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
       const nowIso = new Date().toISOString();
@@ -37107,10 +37100,10 @@ exports.submitAdvocacyCheckIn = functions
         channel: "Web", interactionType: "Advocacy Check-In", workflowStep: ADV_CHECKIN_REVIEW_STEP,
         contactId: x.contactId || "", contactName: (x.test ? "[TEST] " : "") + who, contactType: "Parent/Guardian",
         summary: (x.test ? "[TEST] " : "") + "Review advocacy check-in from " + who +
-          " (self-advocacy " + self + "/10, satisfaction " + sat + "/5, " + ADV_CHECKIN_COMM[comm].toLowerCase() + ")",
-        notes: "1. How is your advocacy going?\n" + going +
-          "\n\n2. Communication with " + (x.consultant || "parent consultant") + ": " + ADV_CHECKIN_COMM[comm] + (commNote ? "\n" + commNote : "") +
-          "\n\n3. Self-advocacy: " + self + " / 10\n4. Satisfaction: " + sat + " / 5" +
+          " (decisions: " + YN[q1] + " · IEP/504: " + YNA[q2] + " · members resources: " + YN[q3] + ")",
+        notes: "1. While receiving case advocacy support, " + (x.consultant || "the parent consultant") + " helped me make decisions about my child's education: " + YN[q1] +
+          "\n2. " + (x.consultant || "The parent consultant") + " attended my IEP/504 meeting and helped make progress toward our educational goals: " + YNA[q2] +
+          "\n3. During your advocacy, have you taken advantage of the members-only resources? " + YN[q3] +
           "\n\nOpen it in DAN: " + deepLink,
         checkIn: Object.assign({ token, consultant: x.consultant || "", consultantUid: x.consultantUid || "", caseId: x.caseId || "", test: !!x.test, answeredAt: nowIso }, answers),
         deepLink,
