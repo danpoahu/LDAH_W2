@@ -36888,10 +36888,11 @@ function _advCiEmailHtml(fam, token, orgFooterHtml, pageBase) {
   const first = _advCiEsc(_advCiFirst(fam.name) || "there");
   const pc = _advCiEsc(_advCiFirst(fam.consultant) || "your parent consultant");
   const link = (q) => (pageBase || ADV_CHECKIN_PAGE) + "?token=" + encodeURIComponent(token) + (q ? "&" + q : "");
-  /* Three yes/no questions (Rosie and Daniel 2026-11-25); Q2 also has N/A. */
+  /* The 524B survey questions 2.g, 2.i, 2.e (Daniel 2026-11-25), Yes / No; a No
+     opens a follow-up question on the answer page. */
   const pill = (qk, v, label, color) =>
     `<td style="padding:0 6px 6px 0;"><a href="${link(qk + "=" + v)}" style="display:inline-block;min-width:44px;text-align:center;padding:9px 16px;border:2px solid ${color};border-radius:20px;color:${color};font-size:15px;font-weight:bold;text-decoration:none;">${label}</a></td>`;
-  const yn = (qk, na) => `<table role="presentation" cellpadding="0" cellspacing="0"><tr>${pill(qk, "yes", "Yes", "#15803D")}${pill(qk, "no", "No", "#B91C1C")}${na ? pill(qk, "na", "N/A", "#64748B") : ""}</tr></table>`;
+  const yn = (qk) => `<table role="presentation" cellpadding="0" cellspacing="0"><tr>${pill(qk, "yes", "Yes", "#15803D")}${pill(qk, "no", "No", "#B91C1C")}</tr></table>`;
   const q = (n, t) => `<p style="margin:24px 0 8px;font-size:16px;color:#1a3c6e;font-weight:bold;line-height:1.45;">${n}. ${t}</p>`;
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -36899,27 +36900,22 @@ function _advCiEmailHtml(fam, token, orgFooterHtml, pageBase) {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;"><tr><td align="center" style="padding:24px 16px;">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;max-width:600px;width:100%;">
   <tr><td style="background-color:#ffffff;padding:28px 32px 20px;text-align:center;border-bottom:3px solid #1a3c6e;">
-    <img src="https://www.ldahawaii.org/logo_blue.png" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="150" style="display:block;margin:0 auto;border:0;">
+    <img src="cid:ldahlogo" alt="Leadership in Disabilities &amp; Achievement of Hawai'i" width="150" style="display:block;margin:0 auto;border:0;">
   </td></tr>
   <tr><td style="padding:32px;">
     <p style="margin:0 0 16px;font-size:16px;color:#333333;">Aloha e ${first},</p>
     <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">I am reaching out to you as a courtesy to ask how your assigned case assignment is progressing with ${_advCiEsc(fam.consultant || "your parent consultant")}.</p>
     <p style="margin:0 0 16px;font-size:16px;color:#333333;line-height:1.5;">I am checking in with every family LDAH is supporting in advocacy right now. Your answers help us make sure you are getting what you need, and help us do better for every family. It takes less than a minute.</p>
-    ${q(1, "While receiving case advocacy support, " + pc + " helped me make decisions about my child&rsquo;s education.")}
-    ${yn("q1", false)}
-    ${q(2, pc + " attended my IEP/504 meeting and helped make progress toward our educational goals.")}
-    ${yn("q2", true)}
-    ${q(3, "During your advocacy, have you taken advantage of the members-only resources?")}
-    ${yn("q3", false)}
+    ${q(1, "Did the information and support you received from LDAH meet your needs?")}
+    ${yn("g")}
+    ${q(2, "Was the information you received easy to understand and useful?")}
+    ${yn("i")}
+    ${q(3, "Would you recommend LDAH to other families and share the information with them?")}
+    ${yn("e")}
     ${_emailBtn(link(""), "Answer the check-in", { bg: "#1a73e8", align: "left" })}
-    <p style="margin:6px 0 0;font-size:13px;color:#777777;">Tapping any answer above opens the same short page with that answer already chosen.</p>
-    <div style="margin:28px 0 0;padding:20px;background:#F0FDFA;border-left:4px solid #0d9488;border-radius:6px;">
-      <p style="margin:0 0 8px;font-size:16px;color:#0f5f58;font-weight:bold;">Have you considered becoming an LDAH member?</p>
-      <p style="margin:0 0 14px;font-size:15px;color:#555555;line-height:1.5;">Members get our video library of past workshops, early notice of trainings, and a voice in how LDAH supports families across Hawai&#699;i. Your membership also helps keep advocacy free for the next family who needs it.</p>
-      ${_emailBtn(MEMBERSHIP_JOIN_URL, "Become a Member", { bg: "#0d9488", align: "left" })}
-    </div>
+    <p style="margin:6px 0 0;font-size:13px;color:#777777;">Tapping an answer opens a short page with it already chosen; press Send there to finish.</p>
     <p style="margin:26px 0 0;font-size:15px;color:#555555;line-height:1.5;">Mahalo for letting us walk alongside your family. If you need anything, just reply to this email.</p>
-    <p style="margin:18px 0 0;font-size:15px;color:#333333;line-height:1.5;">Me ke aloha,</p>
+    <p style="margin:18px 0 0;font-size:15px;color:#333333;line-height:1.5;">Mahalo,</p>
     <p style="margin:6px 0 0;font-size:14px;color:#333333;line-height:1.55;">
       <strong>${ADV_CHECKIN_NOE.name}</strong><br>
       ${ADV_CHECKIN_NOE.title}<br>
@@ -36928,12 +36924,20 @@ function _advCiEmailHtml(fam, token, orgFooterHtml, pageBase) {
       Phone: ${ADV_CHECKIN_NOE.phone} &middot; Main Office: (808) 536-9684<br>
       <a href="mailto:${ADV_CHECKIN_NOE.email}" style="color:#1a73e8;">${ADV_CHECKIN_NOE.email}</a> &middot; <a href="https://www.ldahawaii.org" style="color:#1a73e8;">www.LDAHawaii.org</a>
     </p>
-    ${_emailLinkFooter([{ label: "Answer the check-in", href: link("") }, { label: "Become a Member", href: MEMBERSHIP_JOIN_URL }])}
+    ${_emailLinkFooter([{ label: "Answer the check-in", href: link("") }])}
   </td></tr>
   ${orgFooterHtml || ""}
 </table></td></tr></table></body></html>`;
 }
 
+let _advCiLogoAtt = null;
+async function _advCiLogo() {
+  if (!_advCiLogoAtt) {
+    const buf = Buffer.from(await (await fetch("https://www.ldahawaii.org/logo_blue.png")).arrayBuffer());
+    _advCiLogoAtt = [{ filename: "ldah-logo.png", content: buf.toString("base64"), content_id: "ldahlogo" }];
+  }
+  return _advCiLogoAtt;
+}
 // (1) Staff (Super Admin): list the families, send a test to yourself, or send.
 exports.sendAdvocacyCheckIns = functions
   .runWith({ timeoutSeconds: 300, maxInstances: 2, secrets: EMAIL_SECRETS })
@@ -36977,7 +36981,7 @@ exports.sendAdvocacyCheckIns = functions
           from: lifecycleFromAddress(), to: testTo, replyTo,
           subject: "[TEST] " + ADV_CHECKIN_SUBJECT,
           html: _advCiEmailHtml(fam, token, orgFooterHtml, ADV_CHECKIN_TEST_PAGE),
-          type: "advocacy-check-in-test", relatedContactId: fam.contactId, recipientName: fam.name,
+          type: "advocacy-check-in-test", relatedContactId: fam.contactId, recipientName: fam.name, attachments: await _advCiLogo(),
         });
         res.status(200).json({ ok: true, test: true, sentTo: testTo, family: fam.name, contactId: meId });
         return;
@@ -37000,7 +37004,7 @@ exports.sendAdvocacyCheckIns = functions
               from: lifecycleFromAddress(), to: fam.email, replyTo,
               subject: ADV_CHECKIN_SUBJECT,
               html: _advCiEmailHtml(fam, token, orgFooterHtml),
-              type: "advocacy-check-in", relatedContactId: fam.contactId, recipientName: fam.name,
+              type: "advocacy-check-in", relatedContactId: fam.contactId, recipientName: fam.name, attachments: await _advCiLogo(),
             });
             await db.collection("contacts").doc(fam.contactId).update({
               advocacyCheckInSentAt: FieldValue.serverTimestamp(), advocacyCheckInToken: token,
@@ -37066,11 +37070,13 @@ exports.submitAdvocacyCheckIn = functions
     }
     const token = String(b.token || "").trim();
     if (!/^[a-f0-9]{32}$/.test(token)) { res.status(400).json({ error: "This link is not complete." }); return; }
-    const YN = { yes: "Yes", no: "No" }, YNA = { yes: "Yes", no: "No", na: "N/A" };
-    const q1 = YN[b.q1] ? String(b.q1) : "", q2 = YNA[b.q2] ? String(b.q2) : "", q3 = YN[b.q3] ? String(b.q3) : "";
-    if (!q1) { res.status(400).json({ error: "Please answer question 1 (Yes or No)." }); return; }
-    if (!q2) { res.status(400).json({ error: "Please answer question 2 (Yes, No or N/A)." }); return; }
-    if (!q3) { res.status(400).json({ error: "Please answer question 3 (Yes or No)." }); return; }
+    const YN = { yes: "Yes", no: "No" };
+    const g = YN[b.g] ? String(b.g) : "", i = YN[b.i] ? String(b.i) : "", e = YN[b.e] ? String(b.e) : "";
+    const why = (k, v) => (v === "no" ? String(b[k] || "").trim().slice(0, 2000) : "");
+    const gWhy = why("gWhy", g), iWhy = why("iWhy", i), eWhy = why("eWhy", e);
+    if (!g) { res.status(400).json({ error: "Please answer question 1 (Yes or No)." }); return; }
+    if (!i) { res.status(400).json({ error: "Please answer question 2 (Yes or No)." }); return; }
+    if (!e) { res.status(400).json({ error: "Please answer question 3 (Yes or No)." }); return; }
     const db = admin.firestore();
     const FieldValue = admin.firestore.FieldValue;
     try {
@@ -37079,7 +37085,7 @@ exports.submitAdvocacyCheckIn = functions
       if (!d.exists) { res.status(404).json({ error: "We could not find this check-in." }); return; }
       const x = d.data() || {};
       if (x.answeredAt) { res.status(410).json({ error: "Mahalo, we already have your answers.", answered: true }); return; }
-      const answers = { q1, q2, q3 };
+      const answers = { g, gWhy, i, iWhy, e, eWhy };
       await ref.update(Object.assign({ answeredAt: FieldValue.serverTimestamp() }, answers));
       const todayHst = new Date().toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
       const nowIso = new Date().toISOString();
@@ -37100,10 +37106,10 @@ exports.submitAdvocacyCheckIn = functions
         channel: "Web", interactionType: "Advocacy Check-In", workflowStep: ADV_CHECKIN_REVIEW_STEP,
         contactId: x.contactId || "", contactName: (x.test ? "[TEST] " : "") + who, contactType: "Parent/Guardian",
         summary: (x.test ? "[TEST] " : "") + "Review advocacy check-in from " + who +
-          " (decisions: " + YN[q1] + " · IEP/504: " + YNA[q2] + " · members resources: " + YN[q3] + ")",
-        notes: "1. While receiving case advocacy support, " + (x.consultant || "the parent consultant") + " helped me make decisions about my child's education: " + YN[q1] +
-          "\n2. " + (x.consultant || "The parent consultant") + " attended my IEP/504 meeting and helped make progress toward our educational goals: " + YNA[q2] +
-          "\n3. During your advocacy, have you taken advantage of the members-only resources? " + YN[q3] +
+          " (2.g needs met: " + YN[g] + " · 2.i understandable/useful: " + YN[i] + " · 2.e would recommend: " + YN[e] + ")",
+        notes: "1. (524B 2.g) Did the information and support you received from LDAH meet your needs? " + YN[g] + (gWhy ? "\n   What did you need that you did not get? " + gWhy : "") +
+          "\n2. (524B 2.i) Was the information you received easy to understand and useful? " + YN[i] + (iWhy ? "\n   What was hard to understand, or what would have made it more useful? " + iWhy : "") +
+          "\n3. (524B 2.e) Would you recommend LDAH to other families and share the information with them? " + YN[e] + (eWhy ? "\n   What would make you more comfortable recommending LDAH? " + eWhy : "") +
           "\n\nOpen it in DAN: " + deepLink,
         checkIn: Object.assign({ token, consultant: x.consultant || "", consultantUid: x.consultantUid || "", caseId: x.caseId || "", test: !!x.test, answeredAt: nowIso }, answers),
         deepLink,
