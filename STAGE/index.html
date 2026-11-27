@@ -695,6 +695,11 @@
       if (!ev) return false;
       if (ev.archived === true) return false;
       if (ev.isOneOff === true) return false;
+      // Hidden draft / paused in LDAH-Int, or past its remove date: same rule as
+      // events.html (11-02). The home page kept its own copy and missed it (11-27).
+      if (ev.active === false) return false;
+      if (typeof ev.removeDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(ev.removeDate) &&
+          new Date() >= new Date(ev.removeDate + 'T00:00:00')) return false;
       var pi = ev.partnerIsland;
       if (typeof pi === 'string' && pi.trim() !== '') return false;
       if (Array.isArray(pi) && pi.length > 0) return false;
